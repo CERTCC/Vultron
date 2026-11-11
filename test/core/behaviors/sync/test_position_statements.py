@@ -34,7 +34,9 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -116,7 +118,9 @@ def _sent_indices(port: MagicMock) -> list[int]:
 
 def _state(dl: SqliteDataLayer, peer_id: str) -> object | None:
     return dl.read(
-        VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=peer_id, updated_at=ACT_AT
+        ).id_
     )
 
 
@@ -170,8 +174,11 @@ def test_read_case_ledger_entry_is_a_message_semantic() -> None:
 @pytest.mark.spec("SYNC-17-001")
 def test_read_without_a_ledger_position_is_not_a_position_statement() -> None:
     """A ``Read`` of a bare reference with no position is not matched."""
-    activity = as_Read(
-        actor=SIGNATORY_ID, object_=_make_entry(0).id_, context=CASE_ID
+    activity = make(
+        as_Read,
+        actor=SIGNATORY_ID,
+        object_=_make_entry(0).id_,
+        context=CASE_ID,
     )
 
     assert find_matching_semantics(activity) is not (
@@ -208,7 +215,8 @@ def _assert_refused_with_nothing(
 def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
     """A removed participant's lagging statement gets nothing (CM-31-001)."""
     entries = seed_ledger(dl, 3)
-    removed = CaseParticipant(
+    removed = make(
+        CaseParticipant,
         id_=f"{REMOVED_ID}/participant",
         attributed_to=REMOVED_ID,
         context=CASE_ID,
@@ -541,7 +549,9 @@ def test_closed_participant_states_no_position() -> None:
 @pytest.mark.spec("SYNC-17-007")
 def test_case_naming_no_case_manager_gets_no_statement() -> None:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=SIGNATORY_ID)
-    store.create(VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID))
+    store.create(
+        make(VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER_ID)
+    )
     store.save(_make_entry(0))
     port = MagicMock(spec=SyncActivityPort)
 
@@ -561,7 +571,7 @@ def test_position_whose_object_is_not_the_entry_at_its_index_is_refused(
     """The object names another entry than the one the index holds."""
     entries = seed_ledger(dl, 3)
     event = _read(entries[1], SIGNATORY_ID)
-    other = CoreObject(id_=f"{CASE_ID}/log/elsewhere")
+    other = make(CoreObject, id_=f"{CASE_ID}/log/elsewhere")
 
     _assert_unknown_position(
         dl, event.model_copy(update={"object_": other}), caplog
@@ -588,8 +598,11 @@ def test_a_read_event_without_a_parsed_position_is_refused_at_the_edge() -> (
     None
 ):
     """The extractor never defaults a missing ``ledgerPosition``."""
-    activity = as_Read(
-        actor=SIGNATORY_ID, object_=_make_entry(0).id_, context=CASE_ID
+    activity = make(
+        as_Read,
+        actor=SIGNATORY_ID,
+        object_=_make_entry(0).id_,
+        context=CASE_ID,
     )
 
     with pytest.raises(VultronParseValidationError, match="ledgerPosition"):

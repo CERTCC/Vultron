@@ -24,6 +24,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.errors import VultronActivityConstructionError
@@ -182,7 +183,8 @@ def test_the_extractor_hands_the_inline_profile_to_core():
 
 
 def _proposal(attributed_to: str = _VENDOR) -> as_CaseProposal:
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_="https://example.org/proposals/p-002",
         attributed_to=attributed_to,
         object_=_REPORT,
@@ -192,9 +194,11 @@ def _proposal(attributed_to: str = _VENDOR) -> as_CaseProposal:
 
 @pytest.mark.spec("CP-01-010")
 def test_the_factory_carries_the_senders_profile_inline():
-    profile = VultronOrganization(
+    profile = make(
+        VultronOrganization,
         id_=_VENDOR,
-        embargo_policy=EmbargoPolicy(
+        embargo_policy=make(
+            EmbargoPolicy,
             actor_id=_VENDOR,
             inbox=f"{_VENDOR}/inbox",
             preferred_duration=timedelta(days=30),
@@ -212,7 +216,7 @@ def test_the_factory_carries_the_senders_profile_inline():
 def test_the_factory_refuses_a_profile_that_is_not_the_proposers():
     with pytest.raises(VultronActivityConstructionError, match="CP-01-010"):
         create_case_proposal_activity(
-            actor=VultronOrganization(id_=_OTHER),
+            actor=make(VultronOrganization, id_=_OTHER),
             proposal=_proposal(),
             to=[_CASE_ACTOR],
         )

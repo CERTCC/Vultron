@@ -22,6 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -56,14 +57,17 @@ class _Fixture:
     """The Vendor's store after it received the Finder's report Offer."""
 
     def __init__(self) -> None:
-        self.vendor = as_Service(name="Vendor Co")
+        self.vendor = make(as_Service, name="Vendor Co")
         reset_datalayer(self.vendor.id_)
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.vendor.id_
         )
         self.dl.create(self.vendor)
-        self.report = as_VulnerabilityReport(
-            name="CVE-TEST", content="content", attributed_to=FINDER_ID
+        self.report = make(
+            as_VulnerabilityReport,
+            name="CVE-TEST",
+            content="content",
+            attributed_to=FINDER_ID,
         )
         self.dl.create(self.report)
         self.offer = rm_submit_report_activity(
@@ -99,7 +103,9 @@ class _Fixture:
         )
 
     def add_case(self) -> None:
-        case = as_VulnerabilityCase(name="Case", attributed_to=CASE_ACTOR_ID)
+        case = make(
+            as_VulnerabilityCase, name="Case", attributed_to=CASE_ACTOR_ID
+        )
         case.vulnerability_reports.append(self.report.id_)
         self.dl.save(case)
 
@@ -193,7 +199,7 @@ def test_offer_recipient_spelled_with_a_trailing_slash_may_ack(
 
 @pytest.mark.spec("RMB-08-003")
 def test_actor_the_offer_was_not_sent_to_is_refused(env: _Fixture):
-    other = as_Service(name="Other Co")
+    other = make(as_Service, name="Other Co")
     env.dl.create(other)
     before = set(env.dl.outbox_list())
 

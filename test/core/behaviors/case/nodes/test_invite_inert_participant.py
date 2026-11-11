@@ -30,6 +30,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes import invite_inert_participant
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
@@ -57,9 +58,12 @@ PARTICIPANT_ID = f"{CASE_ID}/participants/invitee"
 def scenario() -> BTTestScenario:
     s = BTTestScenario(actor_id=MANAGER_ID)
     s.seed(
-        VultronService(id_=MANAGER_ID, name="Vendor Co"),
-        VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", attributed_to=MANAGER_ID
+        make(VultronService, id_=MANAGER_ID, name="Vendor Co"),
+        make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=MANAGER_ID,
         ),
     )
     return s
@@ -86,13 +90,15 @@ def _seed_existing(
     scenario: BTTestScenario, *, joined: bool, rm: RM = RM.ACCEPTED
 ) -> None:
     """Seat a pre-existing record for the invitee at *rm*."""
-    existing = CaseParticipant(
+    existing = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         attributed_to=INVITEE_ID,
         context=CASE_ID,
         case_roles=[CVDRole.REPORTER],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=INVITEE_ID,
                 rm=RmDimension(state=rm),
@@ -138,7 +144,9 @@ class TestSeating:
     def test_active_embargo_gives_invited_consent_row(
         self, scenario: BTTestScenario
     ) -> None:
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
+        embargo = make(
+            EmbargoEvent, context=CASE_ID, end_time=days_from_now(45)
+        )
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)
@@ -205,7 +213,7 @@ class TestRefusals:
     @pytest.mark.spec("CM-14-007")
     def test_missing_case_fails(self) -> None:
         scenario = BTTestScenario(actor_id=MANAGER_ID)
-        scenario.seed(VultronService(id_=MANAGER_ID, name="Vendor Co"))
+        scenario.seed(make(VultronService, id_=MANAGER_ID, name="Vendor Co"))
 
         result = _run(scenario, ["VENDOR"])
 
@@ -237,7 +245,9 @@ class TestIdempotency:
         raise on the duplicate id.
         """
         _seed_existing(scenario, joined=False)
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
+        embargo = make(
+            EmbargoEvent, context=CASE_ID, end_time=days_from_now(45)
+        )
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)
@@ -265,7 +275,9 @@ class TestIdempotency:
         are left as they were, even under an active embargo.
         """
         _seed_existing(scenario, joined=joined, rm=RM.CLOSED)
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
+        embargo = make(
+            EmbargoEvent, context=CASE_ID, end_time=days_from_now(45)
+        )
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)

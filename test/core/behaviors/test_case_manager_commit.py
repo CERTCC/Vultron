@@ -28,6 +28,7 @@ import py_trees
 import pytest
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -71,7 +72,7 @@ NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
 @pytest.mark.parametrize("node", sorted(NODES))
 def test_a_missing_trigger_activity_port_is_an_internal_error(node):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
-    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
 
     result = run_tree(
         BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),

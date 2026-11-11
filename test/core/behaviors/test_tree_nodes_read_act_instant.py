@@ -33,6 +33,7 @@ from test.support.act_clock import clock_at, recorded_clock_reads
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -185,7 +186,11 @@ def _manager_store(end_time: datetime):
     dl, _, case, embargo = make_embargo_case_with_actor(
         _CASE, _OWNER, case_manager_actor_id=_OWNER
     )
-    dl.save(as_EmbargoEvent(id_=embargo.id_, context=_CASE, end_time=end_time))
+    dl.save(
+        make(
+            as_EmbargoEvent, id_=embargo.id_, context=_CASE, end_time=end_time
+        )
+    )
     stored = cast(VulnerabilityCase, dl.read(case.id_))
     activate(stored, embargo.id_)
     dl.save(stored)
@@ -266,8 +271,8 @@ def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
     so a still-pending entry is cleared and an overdue one is left timed
     out."""
     refused = f"{_CASE}/activities/refused"
-    owner_pending_store.add(_CASE, "add_note_to_case", refused)
     emitted = datetime.now(tz=UTC)
+    owner_pending_store.add(_CASE, "add_note_to_case", refused, at=emitted)
     at = emitted + timedelta(
         seconds=owner_pending_store.timeout_seconds + 1 if overdue else 0
     )

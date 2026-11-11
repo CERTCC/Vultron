@@ -85,6 +85,7 @@ The reference implementation dereferences only a few references (AKM-05-007).
 A participant fetches a case object it lacks from the CASE_MANAGER when an activity cannot be classified without it.
 A replica fetches the embargo that an announced revision replaces.
 The CASE_MANAGER fetches a proposer's profile that the proposal names by its URI.
+A fetched object meets the same unknown-key rule as a received activity: a misspelling of a field the receiver reads refuses the object, and any other unknown key is set aside and logged (MV-11-001).
 It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).
 The one exception is the case that a participant's `Join`, `Ignore` or `Leave` acts on, and the case of an ownership-transfer `Offer`: every receiver of these holds the case, so the activity names it by a typed reference with only its `id` and `type` (AKM-03-004).
 That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.

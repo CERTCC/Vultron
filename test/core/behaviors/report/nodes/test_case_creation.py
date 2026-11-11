@@ -19,6 +19,7 @@ import pytest
 from py_trees.composites import Sequence
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
@@ -97,7 +98,8 @@ def test_create_case_activity(
     offer: VultronOffer,
 ) -> None:
     """CreateCaseActivity creates activity with recipients and embedded case."""
-    reporter = VultronService(
+    reporter = make(
+        VultronService,
         id_="https://example.org/actors/reporter",
         name="Reporter Co",
     )

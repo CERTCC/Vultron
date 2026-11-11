@@ -17,6 +17,7 @@ import pytest
 from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.case_reference as cr
+from test.support.objects import make
 from vultron.core.models.case_reference import CASE_REFERENCE_TAG_VOCABULARY
 from vultron.core.models.enums import VultronObjectType as VO_type
 
@@ -26,7 +27,8 @@ class TestCaseReference(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.reference = cr.as_CaseReference(
+        self.reference = make(
+            cr.as_CaseReference,
             url="https://example.org/advisory/",
             name="Example Security Advisory",
             tags=["vendor-advisory", "patch"],
@@ -46,76 +48,86 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_url_required(self):
         """Test that url field is required."""
         with pytest.raises(ValidationError):
-            cr.as_CaseReference()  # pyright: ignore[reportCallIssue]
+            make(cr.as_CaseReference)  # pyright: ignore[reportCallIssue]
 
     def test_case_reference_url_not_empty(self):
         """Test that url must be non-empty string."""
         with pytest.raises(ValidationError) as exc_info:
-            cr.as_CaseReference(url="")
+            make(cr.as_CaseReference, url="")
 
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_url_only(self):
         """Test CaseReference with only url field."""
-        ref = cr.as_CaseReference(url="https://example.org/")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
         self.assertEqual("https://example.org/", ref.url)
         self.assertIsNone(ref.name)
         self.assertIsNone(ref.tags)
 
     def test_case_reference_name_optional(self):
         """Test that name field is optional."""
-        ref = cr.as_CaseReference(url="https://example.org/")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
         self.assertIsNone(ref.name)
 
     def test_case_reference_name_not_empty(self):
         """Test that name must be non-empty string if provided."""
         with pytest.raises(ValidationError) as exc_info:
-            cr.as_CaseReference(url="https://example.org/", name="")
+            make(cr.as_CaseReference, url="https://example.org/", name="")
 
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_name_with_url(self):
         """Test CaseReference with name."""
-        ref = cr.as_CaseReference(
-            url="https://example.org/", name="Advisory Title"
+        ref = make(
+            cr.as_CaseReference,
+            url="https://example.org/",
+            name="Advisory Title",
         )
         self.assertEqual("Advisory Title", ref.name)
 
     def test_case_reference_tags_optional(self):
         """Test that tags field is optional."""
-        ref = cr.as_CaseReference(url="https://example.org/")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
         self.assertIsNone(ref.tags)
 
     def test_case_reference_tags_single_tag(self):
         """Test CaseReference with single tag."""
-        ref = cr.as_CaseReference(url="https://example.org/", tags=["patch"])
+        ref = make(
+            cr.as_CaseReference, url="https://example.org/", tags=["patch"]
+        )
         self.assertEqual(["patch"], ref.tags)
 
     def test_case_reference_tags_multiple_tags(self):
         """Test CaseReference with multiple tags."""
         tags = ["vendor-advisory", "patch", "exploit"]
-        ref = cr.as_CaseReference(url="https://example.org/", tags=tags)
+        ref = make(cr.as_CaseReference, url="https://example.org/", tags=tags)
         self.assertEqual(tags, ref.tags)
 
     def test_case_reference_tags_empty_list_rejected(self):
         """Test that empty tags list is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            cr.as_CaseReference(url="https://example.org/", tags=[])
+            make(cr.as_CaseReference, url="https://example.org/", tags=[])
 
         assert "tags must have at least one element" in str(exc_info.value)
 
     def test_case_reference_tags_not_empty_strings(self):
         """Test that tags cannot contain empty strings."""
         with pytest.raises(ValidationError) as exc_info:
-            cr.as_CaseReference(url="https://example.org/", tags=["patch", ""])
+            make(
+                cr.as_CaseReference,
+                url="https://example.org/",
+                tags=["patch", ""],
+            )
 
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_invalid_tag_rejected(self):
         """Test that tags not in CASE_REFERENCE_TAG_VOCABULARY are rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            cr.as_CaseReference(
-                url="https://example.org/", tags=["not-a-real-tag"]
+            make(
+                cr.as_CaseReference,
+                url="https://example.org/",
+                tags=["not-a-real-tag"],
             )
 
         assert "Invalid tag" in str(exc_info.value)
@@ -130,7 +142,9 @@ class TestCaseReference(unittest.TestCase):
             "vendor-advisory",
         ]
         for tag in valid_tags:
-            ref = cr.as_CaseReference(url="https://example.org/", tags=[tag])
+            ref = make(
+                cr.as_CaseReference, url="https://example.org/", tags=[tag]
+            )
             self.assertEqual([tag], ref.tags)
 
     def test_case_reference_all_valid_cve_tags(self):
@@ -138,7 +152,9 @@ class TestCaseReference(unittest.TestCase):
         all_tags = list(CASE_REFERENCE_TAG_VOCABULARY)
         # Test each tag individually
         for tag in all_tags:
-            ref = cr.as_CaseReference(url="https://example.org/", tags=[tag])
+            ref = make(
+                cr.as_CaseReference, url="https://example.org/", tags=[tag]
+            )
             assert ref.tags is not None
             self.assertIn(tag, ref.tags)
 
@@ -154,7 +170,7 @@ class TestCaseReference(unittest.TestCase):
 
     def test_case_reference_round_trip_minimal(self):
         """Test round-trip with minimal fields."""
-        ref = cr.as_CaseReference(url="https://example.org/")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
         json_str = ref.model_dump_json(exclude_none=True, by_alias=True)
         deserialized = cr.as_CaseReference.model_validate_json(json_str)
 
@@ -164,7 +180,7 @@ class TestCaseReference(unittest.TestCase):
 
     def test_case_reference_is_vultron_object_type(self):
         """Test that CaseReference has correct type_."""
-        ref = cr.as_CaseReference(url="https://example.org/")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
         self.assertEqual(ref.type_, VO_type.CASE_REFERENCE)
 
     def test_case_reference_separate_from_report(self):
@@ -173,8 +189,8 @@ class TestCaseReference(unittest.TestCase):
             as_VulnerabilityReport,
         )
 
-        ref = cr.as_CaseReference(url="https://example.org/")
-        report = as_VulnerabilityReport(content="Test report")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
+        report = make(as_VulnerabilityReport, content="Test report")
 
         self.assertNotEqual(type(ref), type(report))
         self.assertNotEqual(ref.type_, report.type_)
@@ -185,8 +201,8 @@ class TestCaseReference(unittest.TestCase):
             as_VulnerabilityRecord,
         )
 
-        ref = cr.as_CaseReference(url="https://example.org/")
-        record = as_VulnerabilityRecord(name="CVE-2024-1234")
+        ref = make(cr.as_CaseReference, url="https://example.org/")
+        record = make(as_VulnerabilityRecord, name="CVE-2024-1234")
 
         self.assertNotEqual(type(ref), type(record))
         self.assertNotEqual(ref.type_, record.type_)
@@ -194,7 +210,7 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_multiple_tags_preserved(self):
         """Test that multiple tags are preserved in order."""
         tags = ["vendor-advisory", "patch", "release-notes"]
-        ref = cr.as_CaseReference(url="https://example.org/", tags=tags)
+        ref = make(cr.as_CaseReference, url="https://example.org/", tags=tags)
         self.assertEqual(tags, ref.tags)
 
 

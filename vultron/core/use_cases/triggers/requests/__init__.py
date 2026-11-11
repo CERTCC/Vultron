@@ -22,7 +22,9 @@ from the verb's request *body* model in
 validates the HTTP body against — and adds ``actor_id`` through
 :class:`TriggerRequest`.  The two families are therefore one
 (ADR-0110): the body model owns the fields and their validators (the
-``end_time`` rule is declared once, on ``ProposeEmbargoRequest``), and
+``end_time`` awareness rule is declared once, on ``ProposeEmbargoRequest``;
+whether it is in the future is the trigger's to judge, at its act's
+instant), and
 ``CaseTriggerRequest`` is defined once and re-exported here for its existing
 importers.
 

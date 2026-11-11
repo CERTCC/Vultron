@@ -26,6 +26,7 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
+from test.support.objects import make
 from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.wire.as2.vocab.base.base import (
@@ -110,13 +111,13 @@ def test_as_base_context_alias_accepted():
 
 def test_as_object_type_set_from_class_name():
     """Wire model_validator sets type_ from stripped class name on as_Object."""
-    obj = as_Object()
+    obj = make(as_Object)
     assert obj.type_ == "Object"
 
 
 def test_as_object_published_defaults_to_now():
     """as_Object.published default still provided (from as_Object field def)."""
-    obj = as_Object()
+    obj = make(as_Object)
     assert obj.published is not None
 
 
@@ -172,7 +173,7 @@ def test_as_object_attributed_to_accepts_non_string():
 
 def test_as_object_id_uses_wire_default():
     """as_Object.id_ defaults through the shared minter."""
-    obj = as_Object()
+    obj = make(as_Object)
     assert obj.id_.startswith(URN_UUID_PREFIX)
 
 
@@ -212,7 +213,7 @@ def test_concrete_wire_subclass_still_registers():
 @pytest.mark.spec("VM-02-003")
 def test_to_dict_emits_aliased_keys_without_none_values():
     """`to_dict()` keys a dict by the wire aliases, as `to_json()` does."""
-    obj = as_Object(attributed_to="https://example.org/actors/finder")
+    obj = make(as_Object, attributed_to="https://example.org/actors/finder")
 
     data = obj.to_dict()
 
@@ -228,6 +229,6 @@ def test_to_dict_emits_aliased_keys_without_none_values():
 @pytest.mark.spec("VM-02-003")
 def test_to_dict_has_the_keys_to_json_emits():
     """One object gives one key set, whichever convenience method serializes it."""
-    obj = as_Object(attributed_to="https://example.org/actors/finder")
+    obj = make(as_Object, attributed_to="https://example.org/actors/finder")
 
     assert obj.to_dict().keys() == json.loads(obj.to_json()).keys()

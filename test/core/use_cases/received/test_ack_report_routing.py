@@ -24,6 +24,7 @@ from __future__ import annotations
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -77,7 +78,9 @@ def _make_store(
     so a test can show that an RK forwards nothing to it even when it exists.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
-    dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="Test Vuln Report"))
+    dl.save(
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="Test Vuln Report")
+    )
     if offer_record:
         dl.create(
             VultronOfferRecord(
@@ -88,12 +91,16 @@ def _make_store(
             )
         )
     if case:
-        dl.save(VultronService(id_=CASE_ACTOR_ID, context=CASE_ID))
-        vul_case = as_VulnerabilityCase(
-            id_=CASE_ID, name="AckReport Test", attributed_to=CASE_ACTOR_ID
+        dl.save(make(VultronService, id_=CASE_ACTOR_ID, context=CASE_ID))
+        vul_case = make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="AckReport Test",
+            attributed_to=CASE_ACTOR_ID,
         )
         vul_case.vulnerability_reports.append(REPORT_ID)
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             attributed_to=CASE_ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -111,15 +118,17 @@ def _make_ack_event(
     """An AckReportReceivedEvent (``Read(Offer(VulnerabilityReport))``) from
     *sender_id*.
     """
-    report_obj = VulnerabilityReport(id_=REPORT_ID)
-    offer_obj = VultronActivity(
+    report_obj = make(VulnerabilityReport, id_=REPORT_ID)
+    offer_obj = make(
+        VultronActivity,
         id_=OFFER_ID,
         type_="Offer",
         actor=FINDER_ID,
         object_=report_obj,
         to=[VENDOR_ID],
     )
-    read_activity = VultronActivity(
+    read_activity = make(
+        VultronActivity,
         id_=f"https://example.org/activities/read-ack-{len(sender_id)}",
         type_="Read",
         actor=sender_id,

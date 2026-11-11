@@ -5,6 +5,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -291,7 +292,8 @@ def test_offer_case_ownership_transfer_never_carries_a_bare_string_object():
 def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     """An OfferCaseOwnershipTransferActivity with a full inline as_VulnerabilityCase
     must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/urn:uuid:test-case",
         name="TEST-001",
@@ -314,7 +316,8 @@ def test_accept_with_bare_string_object_returns_unresolvable():
     DR-14: find_matching_semantics() distinguishes "no pattern match for a
     known type with bare-string object_" from "genuinely unknown activity type".
     """
-    accept = as_Accept(
+    accept = make(
+        as_Accept,
         actor="https://example.org/coordinator",
         object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
     )
@@ -333,7 +336,8 @@ def test_matcher_only_classifies_an_unresolved_object(caplog):
     """
     import logging
 
-    accept = as_Accept(
+    accept = make(
+        as_Accept,
         actor="https://example.org/coordinator",
         object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
     )
@@ -361,7 +365,8 @@ def test_unknown_activity_type_with_bare_string_object_returns_unknown():
     # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.  (as_Undo was the
     # example until the ownership-transfer withdrawal got a pattern,
     # CM-21-015.)
-    activity = as_Flag(
+    activity = make(
+        as_Flag,
         actor="https://example.org/alice",
         object_="urn:uuid:some-object",
     )
@@ -386,11 +391,14 @@ def _make_case() -> as_VulnerabilityCaseStub:
 @pytest.mark.parametrize(
     ("invitee", "target"),
     [
-        (as_Actor(id_=ACTOR_URI), CASE_URI),
+        (make(as_Actor, id_=ACTOR_URI), CASE_URI),
         (
-            as_Actor(id_=ACTOR_URI),
-            as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Full case"
+            make(as_Actor, id_=ACTOR_URI),
+            make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_URI,
+                name="Full case",
             ),
         ),
         (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
@@ -408,7 +416,8 @@ def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
     ``object`` too: an invitee left as a bare URI after rehydration cannot be
     confirmed as an actor, so the Invite matches no stub pattern either.
     """
-    invite = as_Invite(
+    invite = make(
+        as_Invite,
         id_="https://example.org/invitations/not-a-stub",
         actor=OWNER_URI,
         object_=invitee,
@@ -417,7 +426,7 @@ def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
     assert find_matching_semantics(invite) != (
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
-    reply = as_Accept(actor=ACTOR_URI, object_=invite)
+    reply = make(as_Accept, actor=ACTOR_URI, object_=invite)
     assert find_matching_semantics(reply) != (
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
     )
@@ -426,10 +435,10 @@ def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
 @pytest.mark.parametrize(
     "actor_obj",
     [
-        as_Actor(id_=ACTOR_URI),
-        as_Person(id_=ACTOR_URI),
-        as_Organization(id_=ACTOR_URI),
-        as_Service(id_=ACTOR_URI),
+        make(as_Actor, id_=ACTOR_URI),
+        make(as_Person, id_=ACTOR_URI),
+        make(as_Organization, id_=ACTOR_URI),
+        make(as_Service, id_=ACTOR_URI),
     ],
     ids=["base-Actor", "Person", "Organization", "Service"],
 )
@@ -460,10 +469,10 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
 @pytest.mark.parametrize(
     "actor_obj",
     [
-        as_Actor(id_=ACTOR_URI),
-        as_Person(id_=ACTOR_URI),
-        as_Organization(id_=ACTOR_URI),
-        as_Service(id_=ACTOR_URI),
+        make(as_Actor, id_=ACTOR_URI),
+        make(as_Person, id_=ACTOR_URI),
+        make(as_Organization, id_=ACTOR_URI),
+        make(as_Service, id_=ACTOR_URI),
     ],
     ids=["base-Actor", "Person", "Organization", "Service"],
 )
@@ -506,9 +515,10 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
     )
     from vultron.wire.as2.vocab.base.objects.base import as_Object
 
-    invite_with_non_actor = as_Invite(
+    invite_with_non_actor = make(
+        as_Invite,
         actor=OWNER_URI,
-        object_=as_Object(id_="https://example.org/notes/1"),
+        object_=make(as_Object, id_="https://example.org/notes/1"),
         target=_make_case(),
     )
     result = find_matching_semantics(invite_with_non_actor)
@@ -522,7 +532,8 @@ def test_announce_vulnerability_case_pattern_matches():
     DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
     """
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-pattern-001",
         name="Pattern Test",
@@ -546,7 +557,7 @@ def test_vulnerability_case_stub_serialises_minimally():
     Invite.target; it must not expose full case details to uninvited parties.
     """
     stub = as_VulnerabilityCaseStub(
-        case_id="https://example.org/cases/case-stub-001"
+        case_id="https://example.org/cases/case-stub-001",
     )
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
     assert set(dumped.keys()) <= {"id", "type", "caseId", "@context"}
@@ -587,8 +598,9 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     target is always a as_VulnerabilityCaseStub — full case details never reach
     uninvited parties on the wire.
     """
-    actor = as_Actor(id_="https://example.org/actors/alice")
-    full_case = as_VulnerabilityCase(
+    actor = make(as_Actor, id_="https://example.org/actors/alice")
+    full_case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/c1",
         name="Full",
@@ -616,8 +628,11 @@ _CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
 
 
 def _make_case_manager_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_URI, name="CASE-001"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_URI,
+        name="CASE-001",
     )
 
 
@@ -646,7 +661,7 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
 
 
 def _make_target_actor() -> as_Actor:
-    return as_Actor(id_=_CASE_ACTOR_URI)
+    return make(as_Actor, id_=_CASE_ACTOR_URI)
 
 
 @pytest.mark.spec("SE-08-003")
@@ -726,7 +741,8 @@ def _make_case_proposal():
     from vultron.wire.as2.vocab.examples._base import gen_report
     from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         attributed_to=_VENDOR_URI,
         object_=gen_report(),
         target=_CASE_ACTOR_URI,
@@ -745,7 +761,8 @@ def test_create_case_proposal_dispatches_correctly():
     )
 
     proposal = _make_case_proposal()
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor=_VENDOR_URI,
         object_=proposal,
         to=[_CASE_ACTOR_URI],
@@ -768,7 +785,8 @@ def test_accept_case_proposal_dispatches_correctly():
     )
 
     proposal = _make_case_proposal()
-    activity = as_Accept(
+    activity = make(
+        as_Accept,
         actor=_CASE_ACTOR_URI,
         object_=proposal,
         to=[_VENDOR_URI],
@@ -791,7 +809,8 @@ def test_reject_case_proposal_dispatches_correctly():
     )
 
     proposal = _make_case_proposal()
-    activity = as_Reject(
+    activity = make(
+        as_Reject,
         actor=_CASE_ACTOR_URI,
         object_=proposal,
         to=[_VENDOR_URI],
@@ -815,7 +834,8 @@ def test_create_case_proposal_not_confused_with_create_case():
     )
 
     proposal = _make_case_proposal()
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor=_VENDOR_URI,
         object_=proposal,
         to=[_CASE_ACTOR_URI],
@@ -838,7 +858,8 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
     )
 
     proposal = _make_case_proposal()
-    activity = as_Accept(
+    activity = make(
+        as_Accept,
         actor=_CASE_ACTOR_URI,
         object_=proposal,
         to=[_VENDOR_URI],
@@ -864,7 +885,8 @@ def test_case_proposal_with_string_object_returns_unresolvable():
         as_Accept,
     )
 
-    activity = as_Accept(
+    activity = make(
+        as_Accept,
         actor=_CASE_ACTOR_URI,
         object_="https://example.org/proposals/xyz",
         to=[_VENDOR_URI],
@@ -894,7 +916,8 @@ def _offer_of_bare_case(**fields: Any) -> as_Activity:
         as_Offer,
     )
 
-    return as_Offer(
+    return make(
+        as_Offer,
         actor=_VENDOR_URI,
         object_="https://example.org/cases/unresolved",
         **fields,
@@ -976,14 +999,16 @@ def test_strict_target_rejects_bare_string_uri():
         strict=True,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/strict-target-test",
         name="T-001",
     )
 
     # Bare string target must NOT match when strict=True (AC-1 fix)
-    activity_string_target = as_Offer(
+    activity_string_target = make(
+        as_Offer,
         actor=_VENDOR_URI,
         object_=case,
         target="https://example.org/actors/alice",
@@ -1017,14 +1042,16 @@ def test_strict_target_matches_typed_actor():
         strict=True,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/strict-target-test",
         name="T-001",
     )
-    actor = as_Actor(id_="https://example.org/actors/alice")
+    actor = make(as_Actor, id_="https://example.org/actors/alice")
 
-    activity_typed_target = as_Offer(
+    activity_typed_target = make(
+        as_Offer,
         actor=_VENDOR_URI,
         object_=case,
         target=actor,
@@ -1199,7 +1226,8 @@ def test_the_retired_accept_of_the_embargo_activates_nothing() -> None:
     import vultron.wire.as2.vocab.examples.embargo as examples
 
     add = examples.activate_embargo()
-    retired = as_Accept(
+    retired = make(
+        as_Accept,
         actor=add.actor,
         object_=examples.embargo_event(),
         target=add.target,
@@ -1283,7 +1311,9 @@ def test_undo_of_an_embargo_invite_is_not_the_ownership_withdrawal() -> None:
 
 def _proposal():
     return propose_case_ownership_transfer_activity(
-        as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Proposed"),
+        make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Proposed"
+        ),
         target="https://example.org/coordinator",
         actor="https://example.org/vendor",
         to=["https://example.org/case-actor"],

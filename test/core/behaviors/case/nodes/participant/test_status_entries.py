@@ -21,6 +21,7 @@ case from the status it records when its tree names none.
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.participant.common import (
     ParticipantTransitionContext,
@@ -52,8 +53,11 @@ def dl():
 
 
 def _context() -> ParticipantTransitionContext:
-    record = CaseParticipant(
-        id_=f"{_CASE}/participants/vendor", attributed_to=_ACTOR, context=_CASE
+    record = make(
+        CaseParticipant,
+        id_=f"{_CASE}/participants/vendor",
+        attributed_to=_ACTOR,
+        context=_CASE,
     )
     return ParticipantTransitionContext(
         participant=record,
@@ -66,7 +70,8 @@ def _context() -> ParticipantTransitionContext:
 
 
 def _stored(dl, *, actor: str = _ACTOR, case: str = _CASE) -> str:
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         attributed_to=actor,
         context=case,
         rm=RmDimension(state=RM.ACCEPTED),

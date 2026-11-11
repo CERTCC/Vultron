@@ -29,6 +29,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.embargo_register import activate, register
+from test.support.objects import make
 from test.support.refusal_effects import refusal_effect_node_ids
 from test.support.sender_sequence_stage import sender_sequence_node_ids
 from vultron.core.behaviors.case.nodes import (
@@ -74,19 +75,23 @@ def _run_sign_node(
     """
     rows = [
         EmbargoConsent(
-            embargo_id=_EARLIER_EMBARGO_ID, state=EmbargoConsentState.AGREED
+            embargo_id=_EARLIER_EMBARGO_ID,
+            state=EmbargoConsentState.AGREED,
         )
         for _ in range(1 if earlier_accepted else 0)
     ]
     rows.append(EmbargoConsent(embargo_id=_EMBARGO_ID, state=starting))
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
         embargo_consents=rows,
     )
 
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/sign"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/sign",
     )
     if earlier_accepted:
         activate(case, _EARLIER_EMBARGO_ID)
@@ -220,7 +225,8 @@ class TestSignEmbargoConsentLeafNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """FAILURE returned when the invitee's case is absent."""
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=_ACTOR_ID,
             attributed_to=_ACTOR_ID,
         )
@@ -246,7 +252,8 @@ _REGISTERS = {
 def _case_at(em_state: str) -> VulnerabilityCase:
     """A case whose embargo register derives *em_state* (ADR-0122)."""
     case_id = "https://example.org/cases/joiner"
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=case_id,
         embargo_register=_REGISTERS[em_state](),
@@ -270,7 +277,8 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     )
 
     case = _case_at("REVISE")
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
     )
@@ -325,14 +333,17 @@ _CM21_INVITEE_ID = "https://example.org/actors/vendor-invitee"
 
 def _case_with_inert_invitee() -> tuple[VulnerabilityCase, CaseParticipant]:
     """A case holding the invitee's inert record, as the stub Invite leaves it."""
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{_CM21_CASE_ID}/participants/vendor-invitee",
         attributed_to=_CM21_INVITEE_ID,
         context=_CM21_CASE_ID,
         case_roles=[CVDRole.VENDOR],
         joined=False,
     )
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID)
+    case = make(
+        VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID
+    )
     case.case_participants.append(participant.id_)
     case.actor_participant_index[_CM21_INVITEE_ID] = participant.id_
     return case, participant
@@ -347,7 +358,9 @@ def test_accept_with_no_participant_record_is_refused_before_any_write(
     The case holds no record for the invitee, so the guard fails with a reason
     naming the missing record and writes nothing.
     """
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID)
+    case = make(
+        VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID
+    )
     bt_scenario.seed(case)
     node = InviteeHasParticipantRecordNode(
         case_id=_CM21_CASE_ID, invitee_id=_CM21_INVITEE_ID

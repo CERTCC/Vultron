@@ -38,6 +38,7 @@ from test.support.ledger_rebuild import (
     creation_records,
     rebuild_from_ledger,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -275,7 +276,8 @@ _STATUS_ACTOR = "https://example.org/actors/status"
 
 
 def _with_status(status: ParticipantStatus) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{_STATUS_CASE}/participants/status",
         attributed_to=_STATUS_ACTOR,
         context=_STATUS_CASE,
@@ -284,7 +286,8 @@ def _with_status(status: ParticipantStatus) -> CaseParticipant:
 
 
 def _status(state: RM, **fields: Any) -> ParticipantStatus:
-    return ParticipantStatus(
+    return make(
+        ParticipantStatus,
         attributed_to=_STATUS_ACTOR,
         context=_STATUS_CASE,
         rm=RmDimension(state=state),
@@ -325,7 +328,7 @@ def test_a_case_status_no_entry_records_is_caught():
     case = net.case(MANAGER)
     current = case.current_status
     case.add_case_status(
-        CaseStatus(context=net.case_id, em=current.em, pxa=current.pxa)
+        make(CaseStatus, context=net.case_id, em=current.em, pxa=current.pxa)
     )
     manager.save(case)
 
@@ -337,7 +340,8 @@ def test_a_case_status_no_entry_records_is_caught():
 
 def test_creation_records_stop_at_the_first_act():
     """Only the leading creation entries seed the store; acts are replayed."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/rebuild-seed",
         name="Seed",

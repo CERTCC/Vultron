@@ -25,6 +25,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -87,13 +88,15 @@ def _case(dl: SqliteDataLayer) -> VulnerabilityCase:
 
 
 def _propose_case(dl: SqliteDataLayer) -> VulnerabilityCase:
-    proposal = as_CaseProposal(
+    proposal = make(
+        as_CaseProposal,
         attributed_to=_VENDOR_AS_WRITTEN,
         object_=gen_report(),
         target=_CASE_ACTOR,
     )
-    activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR_AS_WRITTEN),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR_AS_WRITTEN),
         object_=proposal,
         to=[_CASE_ACTOR],
     )
@@ -108,7 +111,8 @@ def _propose_case(dl: SqliteDataLayer) -> VulnerabilityCase:
 
 def _seed_revision(dl: SqliteDataLayer, case: VulnerabilityCase) -> str:
     """A second embargo proposal on the case, for the owner to reject."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/revision",
         context=case.id_,
         end_time=days_from_now(30),

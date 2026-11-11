@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -72,13 +73,13 @@ class TestEmDimension:
 
     def test_status_em_assignment_raises(self):
         """``CaseStatus.em`` is a frozen field: reassignment raises (SDO-03-010)."""
-        status = CaseStatus(context="urn:case:1")
+        status = make(CaseStatus, context="urn:case:1")
         with pytest.raises(ValidationError):
             status.em = EmDimension(state=EM.ACTIVE)  # type: ignore[misc]
 
     def test_status_em_state_assignment_raises(self):
         """Writing to ``status.em.state`` raises because EmDimension is frozen."""
-        status = CaseStatus(context="urn:case:1")
+        status = make(CaseStatus, context="urn:case:1")
         with pytest.raises(ValidationError):
             status.em.state = EM.ACTIVE  # type: ignore[misc]
 
@@ -87,7 +88,7 @@ class TestEmDimension:
     )
     def test_flat_assignment_raises(self, flat, value):
         """A flat spelling such as ``status.em_state = X`` raises (SDO-03-010)."""
-        status = CaseStatus(context="urn:case:1")
+        status = make(CaseStatus, context="urn:case:1")
         with pytest.raises(ValidationError, match="no attribute"):
             setattr(status, flat, value)
         assert status.em.state == EM.NONE
@@ -95,10 +96,11 @@ class TestEmDimension:
 
     def test_case_register_step_still_stamps_frozen_status(self):
         """A register step re-stamps EM onto the frozen status (AC-3, ADR-0122)."""
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="urn:uuid:case-4375",
-            case_statuses=[CaseStatus(context="urn:uuid:case-4375")],
+            case_statuses=[make(CaseStatus, context="urn:uuid:case-4375")],
         )
         before = case.current_status
         activate(case, "urn:uuid:embargo-4375")
@@ -109,7 +111,7 @@ class TestEmDimension:
 
     def test_model_copy_with_em_update_works(self):
         """``model_copy(update={"em": ...})`` is the legitimate write path (ADR-0122)."""
-        status = CaseStatus(context="urn:case:1")
+        status = make(CaseStatus, context="urn:case:1")
         stamped = status.model_copy(
             update={"em": EmDimension(state=EM.ACTIVE)}
         )
@@ -196,7 +198,7 @@ class TestCaseStatusCarriesNoFlatShim:
         """No getter, setter or field survives under the flat name (SDO-03-003)."""
         assert not hasattr(CaseStatus, flat)
         assert flat not in CaseStatus.model_fields
-        assert not hasattr(CaseStatus(context="urn:case:1"), flat)
+        assert not hasattr(make(CaseStatus, context="urn:case:1"), flat)
 
     @pytest.mark.spec("SDO-03-003")
     @pytest.mark.spec("SDO-03-005")
@@ -246,8 +248,10 @@ class TestDimensionStateRead:
     """``dimension_state`` / ``is_dimension_model`` (#4376)."""
 
     def test_reads_the_state_of_a_dimension(self):
-        status = CaseStatus(
-            context="urn:case:1", pxa=PxaDimension(state=CS_pxa.PXa)
+        status = make(
+            CaseStatus,
+            context="urn:case:1",
+            pxa=PxaDimension(state=CS_pxa.PXa),
         )
         assert dimension_state(status, "pxa") is CS_pxa.PXa
         assert dimension_state(status, "em") is EM.NONE

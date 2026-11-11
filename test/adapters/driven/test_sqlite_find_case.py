@@ -19,6 +19,7 @@ Fixtures (dl) come from conftest.
 """
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -31,7 +32,8 @@ def test_find_case_by_short_id_with_http_url_case_id(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/api/v2/cases/demo-123",
     )
@@ -48,7 +50,8 @@ def test_find_case_by_short_id_with_urn_case_id(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:11111111-2222-3333-4444-555555555555",
     )
@@ -65,11 +68,13 @@ def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
         as_VulnerabilityCase,
     )
 
-    case1 = as_VulnerabilityCase(
+    case1 = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://org1.example/api/v2/cases/shared",
     )
-    case2 = as_VulnerabilityCase(
+    case2 = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://org2.example/api/v2/cases/shared",
     )
@@ -92,12 +97,13 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-001",
         content="Test vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -121,13 +127,16 @@ def test_find_case_by_report_id_returns_case_when_report_id_in_list(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-002",
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report.id_]
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        vulnerability_reports=[report.id_],
     )
 
     dl.create(report)
@@ -146,12 +155,13 @@ def test_find_case_by_report_id_returns_none_when_not_found(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-003",
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
 
     dl.create(report)
     dl.save(case)
@@ -173,17 +183,19 @@ def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-004",
         content="Linked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    other_report = as_VulnerabilityReport(
+    other_report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-005",
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -203,12 +215,13 @@ def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-006",
         content="Linked through ReportCaseLink",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
 
     dl.create(report)
     dl.save(case)
@@ -238,13 +251,16 @@ def test_find_case_by_report_id_matches_an_inline_report_stored_under_id(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2025-003",
         content="Announced inline",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report]
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        vulnerability_reports=[report],
     )
     dl.save(case)
 

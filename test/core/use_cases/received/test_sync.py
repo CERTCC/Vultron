@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
@@ -31,6 +32,7 @@ from test.support.inbox_replay import (
     ledger_announce_event,
     replayed_event,
 )
+from test.support.objects import make
 from test.support.received import received_event, received_record
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -84,6 +86,7 @@ def _make_entry(
         semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
     return chain.to_ledger_entry()
 
@@ -137,7 +140,8 @@ def genesis_entry(case_with_genesis) -> CaseLedgerEntry:
 
 def _make_case(case_id: str = CASE_URI) -> VulnerabilityCase:
     """Create a VulnerabilityCase with genesis_hash for test DataLayer storage."""
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         id_=case_id,
         attributed_to=ACTOR_URI,
     )
@@ -623,6 +627,7 @@ class TestOutOfOrderAnnounceBuffering:
             semantic_type="add_case_status_to_case",
             payload_snapshot={"not": "a case status"},
             prev_log_hash=e0.entry_hash,
+            received_at=ACT_AT,
         ).to_ledger_entry()
 
         result = run_in_act(
@@ -821,6 +826,7 @@ class TestHeldAnnounceBound:
             semantic_type="test_event",
             payload_snapshot={"fork": True},
             prev_log_hash="4" * 64,
+            received_at=ACT_AT,
         ).to_ledger_entry()
         first, forked = _announce_event(entry), _announce_event(fork)
         hold_received(dl, first)
@@ -995,15 +1001,19 @@ class TestAnnounceLedgerEntryDisposition:
             as_VulnerabilityCase,
         )
 
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{CASE_URI}/participants/case-manager",
             context=CASE_URI,
             attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Disposition Case"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_URI,
+            name="Disposition Case",
         )
         case.case_participants.append(manager.id_)
         case.actor_participant_index[manager_id] = manager.id_
@@ -1212,7 +1222,10 @@ class TestUnaddressedAnnounceActsOnNothing:
         # announces, so an admitted copy would replay it.
         hold_received(dl, _announce_event(successor))
         pending = PendingAssertionStore()
-        pending.add(CASE_URI, genesis.semantic_type, genesis.log_object_id)
+        emitted = now_utc()
+        pending.add(
+            CASE_URI, genesis.semantic_type, genesis.log_object_id, at=emitted
+        )
         replay = RecordingInboxReplay()
         sync_port = MagicMock(spec=SyncActivityPort)
         copy = _announce_event(
@@ -1239,7 +1252,7 @@ class TestUnaddressedAnnounceActsOnNothing:
             CASE_URI,
             genesis.semantic_type,
             genesis.log_object_id,
-            at=now_utc(),
+            at=emitted,
         )
         assert sync_port.mock_calls == []
         assert dl.list_objects("CaseLedgerEntry") == []

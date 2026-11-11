@@ -32,6 +32,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -59,15 +60,21 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
     """A case owned by *owner_id* and managed by *case_manager_id*."""
-    case = as_VulnerabilityCase(
-        attributed_to=owner_id, name="Withdraw Case", content="Content"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=owner_id,
+        name="Withdraw Case",
+        content="Content",
     )
     for actor_id, role in (
         (owner_id, CVDRole.CASE_OWNER),
         (case_manager_id, CVDRole.CASE_MANAGER),
     ):
-        participant = as_CaseParticipant(
-            attributed_to=actor_id, context=case.id_, case_roles=[role]
+        participant = make(
+            as_CaseParticipant,
+            attributed_to=actor_id,
+            context=case.id_,
+            case_roles=[role],
         )
         case.actor_participant_index[actor_id] = participant.id_
         case.case_participants.append(participant.id_)
@@ -278,8 +285,11 @@ def test_withdrawal_with_no_case_manager_to_address_is_not_sent(actor_store):
     refuses the same case, rather than failing inside the emit node.
     """
     owner, dl = actor_store("Vendor")
-    case = as_VulnerabilityCase(attributed_to=owner.id_, name="No manager")
-    participant = as_CaseParticipant(
+    case = make(
+        as_VulnerabilityCase, attributed_to=owner.id_, name="No manager"
+    )
+    participant = make(
+        as_CaseParticipant,
         attributed_to=owner.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],

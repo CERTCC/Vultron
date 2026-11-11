@@ -31,6 +31,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -162,7 +163,8 @@ class _GateScenario:
         (AGREED rows for the active terms) carry over by containment and stay
         admitted (EP-05-003).
         """
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/e2",
             content="Shorter revision",
             context=CASE_ID,
@@ -207,7 +209,9 @@ class _GateScenario:
 
     def trigger_terminate(self) -> None:
         """The CASE_MANAGER terminates the embargo through its trigger."""
-        self.dl.create(VultronOrganization(id_=MANAGER_ID, name="Coordinator"))
+        self.dl.create(
+            make(VultronOrganization, id_=MANAGER_ID, name="Coordinator")
+        )
         run_in_act(
             SvcTerminateEmbargoUseCase(
                 self.dl,

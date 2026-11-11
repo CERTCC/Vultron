@@ -25,6 +25,7 @@ Spec coverage:
 
 import pytest
 
+from test.support.objects import make
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_participant_to_case_activity,
@@ -47,12 +48,12 @@ _PARTICIPANT_URI = "https://example.org/participants/part-001"
 
 @pytest.fixture
 def sample_participant() -> as_CaseParticipant:
-    return as_CaseParticipant(attributed_to=_ACTOR_URI)
+    return make(as_CaseParticipant, attributed_to=_ACTOR_URI)
 
 
 @pytest.fixture
 def sample_participant_status() -> as_ParticipantStatus:
-    return as_ParticipantStatus(context=_CASE_URI)
+    return make(as_ParticipantStatus, context=_CASE_URI)
 
 
 # ---------------------------------------------------------------------------

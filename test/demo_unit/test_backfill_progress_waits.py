@@ -30,6 +30,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.routers.datalayer import (
@@ -71,11 +73,14 @@ def clock(monkeypatch) -> list[float]:
 
 
 def _entry(index: int, case_id: str = CASE_ID) -> CaseLedgerEntry:
-    return CaseLedgerEntry(
+    return make(
+        CaseLedgerEntry,
         case_id=case_id,
         log_index=index,
         log_object_id=f"http://example.com/activities/a{index}",
         semantic_type="test",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

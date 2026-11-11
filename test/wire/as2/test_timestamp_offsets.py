@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.parser import parse_activity
@@ -88,7 +89,7 @@ def test_carried_non_utc_offset_round_trips_through_storage() -> None:
 @pytest.mark.spec("CS-13-006")
 def test_minted_timestamp_serialises_with_a_utc_offset() -> None:
     """A time this node generates is written with ``Z`` or ``+00:00``."""
-    embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(30))
+    embargo = make(EmbargoEvent, context=CASE_ID, end_time=days_from_now(30))
     wire = json.loads(
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )
@@ -101,7 +102,7 @@ def test_minted_timestamp_serialises_with_a_utc_offset() -> None:
 def test_a_naive_time_reaches_the_wire_as_an_rfc3339_date_time() -> None:
     """A naive value is given an offset before it is serialised."""
     naive = datetime(2026, 9, 1, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
-    embargo = EmbargoEvent(context=CASE_ID, end_time=naive)
+    embargo = make(EmbargoEvent, context=CASE_ID, end_time=naive)
     wire = json.loads(
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )

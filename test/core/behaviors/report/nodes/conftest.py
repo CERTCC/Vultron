@@ -24,6 +24,7 @@ package runs.
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -40,7 +41,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 @pytest.fixture
 def actor(bt_scenario: BTTestScenario) -> VultronService:
     """Create a test actor and persist it in the scenario DataLayer."""
-    obj = VultronService(
+    obj = make(
+        VultronService,
         id_="https://example.org/actors/vendor",
         name="Vendor Co",
     )
@@ -51,7 +53,8 @@ def actor(bt_scenario: BTTestScenario) -> VultronService:
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
     """Create a test report and persist it in the scenario DataLayer."""
-    obj = VulnerabilityReport(
+    obj = make(
+        VulnerabilityReport,
         name="TEST-001",
         content="Test vulnerability report",
     )
@@ -77,7 +80,7 @@ def offer(
     actor: VultronService,
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
-    obj = VultronOffer(actor=actor.id_, object_=report.id_)
+    obj = make(VultronOffer, actor=actor.id_, object_=report.id_)
     bt_scenario.dl.create(obj)
     return obj
 
@@ -95,7 +98,8 @@ def case(
     need a case the actor can actually transition in use
     :func:`case_with_participant`.
     """
-    obj = VulnerabilityCase(
+    obj = make(
+        VulnerabilityCase,
         name="Test Case for TEST-001",
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,

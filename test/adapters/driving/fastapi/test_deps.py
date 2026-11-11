@@ -46,6 +46,7 @@ import pytest
 from fastapi import Request
 from fastapi.params import Depends as params_Depends
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
@@ -108,7 +109,7 @@ def test_get_actor_dl_passes_a_canonical_uri_through(
     keyed by the URI the caller named — no double-prefixing into
     ``{base}/actors/https:/...``.
     """
-    actor = as_Service(id_=CANONICAL_URI, name="MyActor")
+    actor = make(as_Service, id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)
 
     result: DataLayer = get_actor_dl(actor_id=CANONICAL_URI)
@@ -129,7 +130,7 @@ def test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri(
     (ARCH-13-003) — a store keyed by ``"myactor"`` would be a second store for the
     same actor.
     """
-    actor = as_Service(id_=CANONICAL_URI, name="MyActor")
+    actor = make(as_Service, id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)
 
     result: DataLayer = get_actor_dl(actor_id=SHORT_ID)
@@ -215,7 +216,7 @@ def test_get_actor_dl_resolves_canonical_uri_for_queue_reads(
     this one asserts it of the FastAPI dependency, which is the path a request
     actually takes.
     """
-    actor = as_Service(id_=CANONICAL_URI, name="MyActor")
+    actor = make(as_Service, id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)
 
     myactor_dl.outbox_append(activity_id=ACTIVITY_ID)

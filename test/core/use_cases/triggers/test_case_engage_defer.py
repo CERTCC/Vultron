@@ -30,6 +30,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -71,7 +72,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(name=name, url=f"https://example.org/{name.lower()}")
+    return make(
+        as_Service, name=name, url=f"https://example.org/{name.lower()}"
+    )
 
 
 def _make_actor_dl(name: str) -> tuple[as_Service, SqliteDataLayer]:
@@ -93,9 +96,12 @@ def _make_case_with_case_manager(
     The actor participant is pre-initialized to RM.VALID so that
     engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
     """
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
 
-    actor_participant = as_CaseParticipant(
+    actor_participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -106,19 +112,27 @@ def _make_case_with_case_manager(
     )
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
 
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -200,8 +214,8 @@ class TestEngageCaseRMTransitionViaBT:
         an explicit failure.
         """
         # Build a case with only actor_participant_index (not case_participants)
-        case_solo = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        case_solo = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Solo Case"
         )
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"

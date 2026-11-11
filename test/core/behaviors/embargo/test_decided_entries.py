@@ -29,6 +29,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.embargo.decided_entries import (
     consent_row_changes,
     decide_embargo_act,
@@ -130,7 +131,8 @@ class TestConsentRowChanges:
     def test_a_participant_the_act_created_is_a_fault(self):
         case, dl, _ = _proposed("dec-new-participant")
         before = read_embargo_case_file(dl, case.id_)
-        stranger = CaseParticipant(
+        stranger = make(
+            CaseParticipant,
             attributed_to="https://example.org/actors/stranger",
             context=case.id_,
         )
@@ -262,7 +264,8 @@ class TestDecideOnStage:
 
         def _stray(staged: CasePersistence) -> object:
             staged.create(
-                as_EmbargoEvent(
+                make(
+                    as_EmbargoEvent,
                     id_=f"{case.id_}/embargo_events/stray",
                     context=case.id_,
                     end_time=days_from_now(10),
@@ -279,7 +282,8 @@ class TestDecideOnStage:
         """A record the case lists but does not index is outside the case
         file no entry can name; its row is dropped, with a WARNING."""
         case, dl, embargo_id = _proposed("dec-unindexed")
-        orphan = CaseParticipant(
+        orphan = make(
+            CaseParticipant,
             id_=f"{case.id_}/participants/orphan",
             attributed_to="https://example.org/actors/orphan",
             context=case.id_,

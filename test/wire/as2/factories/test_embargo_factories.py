@@ -31,6 +31,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.core.models.received_activity_view import ReceivedActivityView
@@ -68,7 +69,7 @@ _PUBLISHED = datetime.now(tz=UTC)
 
 @pytest.fixture
 def sample_embargo() -> as_EmbargoEvent:
-    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now(45))
+    return make(as_EmbargoEvent, context=_CASE_URI, end_time=days_from_now(45))
 
 
 @pytest.fixture
@@ -220,7 +221,8 @@ def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
 @pytest.mark.spec("EP-07-006")
 def test_em_propose_embargo_deadline_after_embargo_end_raises():
     """The sender refuses a deadline the receiver would clamp down."""
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context=_CASE_URI,
         end_time=datetime.now(tz=UTC) + timedelta(days=10),
     )
@@ -237,7 +239,8 @@ def test_em_propose_embargo_deadline_after_embargo_end_raises():
 @pytest.mark.spec("EP-07-006")
 def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
     """Two days left: a deadline at the embargo's end is not below minimum."""
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context=_CASE_URI,
         end_time=datetime.now(tz=UTC) + timedelta(days=2),
     )
@@ -328,8 +331,10 @@ def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
 def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
     """A naive embargo end is compared as UTC, not raised as ``TypeError``."""
     aware_end = datetime.now(tz=UTC) + timedelta(days=10)
-    embargo = as_EmbargoEvent(
-        context=_CASE_URI, end_time=aware_end.replace(tzinfo=None)
+    embargo = make(
+        as_EmbargoEvent,
+        context=_CASE_URI,
+        end_time=aware_end.replace(tzinfo=None),
     )
     with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
         em_propose_embargo_activity(
@@ -371,7 +376,7 @@ def test_em_accept_embargo_context_is_set(sample_proposal):
 @pytest.mark.spec("AF-04-001")
 def test_em_accept_embargo_plain_invite_raises(sample_embargo):
     """A plain as_Invite (not from em_propose_embargo_activity) must fail."""
-    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_embargo)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_accept_embargo_activity(proposal=plain_invite)
     assert exc_info.value.__cause__ is not None
@@ -407,7 +412,7 @@ def test_em_reject_embargo_context_is_set(sample_proposal):
 
 @pytest.mark.spec("AF-04-001")
 def test_em_reject_embargo_plain_invite_raises(sample_embargo):
-    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_embargo)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_reject_embargo_activity(proposal=plain_invite)
     assert exc_info.value.__cause__ is not None
@@ -432,7 +437,7 @@ def test_em_undo_embargo_invite_returns_undo_of_the_invite(sample_proposal):
 
 @pytest.mark.spec("AF-04-001")
 def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
-    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_embargo)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_undo_embargo_invite_activity(invite=plain_invite)
     assert exc_info.value.__cause__ is not None

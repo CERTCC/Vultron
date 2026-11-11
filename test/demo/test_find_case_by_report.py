@@ -15,6 +15,7 @@
 from unittest.mock import Mock
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.demo.exchange.receive_report_demo import find_case_by_report
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -34,13 +35,15 @@ def test_find_case_by_report_with_vulnerability_reports_field():
     cases to not be found even though they existed.
     """
     # Create a test report
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test Vulnerability Report",
         content="This is a test vulnerability report content.",
     )
 
     # Create a case that references this report via vulnerability_reports field
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         name=f"Case for Report {report.id_}",
         vulnerability_reports=[

@@ -23,9 +23,11 @@ defaults (also in this package) — without importing from ``vultron.demo``,
 maintaining the hexagonal-architecture layering rule (BT-16-001: simulation
 artifacts stay out of core).
 
-The shape mixin classes and probabilistic (``WeightedBehavior``-based) example
-backends live in ``vultron.demo.fuzzer.call_out_point`` and
-``vultron.demo.fuzzer.base``.
+The four capability shape base classes live beside it, in
+``vultron.core.behaviors.call_out.capability``, and each capability's
+declaration in ``vultron.core.behaviors.call_out.capabilities``.  The
+probabilistic (``WeightedBehavior``-based) simulation backends live in
+``vultron.demo.fuzzer``.
 
 References
 ----------

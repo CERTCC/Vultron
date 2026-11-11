@@ -159,7 +159,7 @@ Optional capabilities are organized by domain function.
 
 Examples of domain capability sets:
 
-- **CNA capabilities** — assign Common Vulnerabilities and Exposures (CVE) IDs as a CVE Numbering Authority (CNA) does (typically Actuator shape, calling the CVE assignment API)
+- **CNA capabilities** — assign Common Vulnerabilities and Exposures (CVE) IDs as a CVE Numbering Authority (CNA) does (typically Evaluator shape for the eligibility and scope checks, Retriever shape to look up or request an ID, and Composer shape to assign one)
 - **Prioritization capabilities** — assess report severity or priority (typically Evaluator or Retriever shape)
 - **Exploit detection capabilities** — detect or assess exploit availability (typically Retriever shape, or a Sentinel that watches for new exploits)
 

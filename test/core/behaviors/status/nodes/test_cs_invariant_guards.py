@@ -31,6 +31,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
@@ -61,8 +62,11 @@ def bridge(dl):
 
 def _make_case_with_pxa(pxa_state: CS_pxa) -> VulnerabilityCase:
     """Return a core VulnerabilityCase whose current PXA state is *pxa_state*."""
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Invariant Guard Test", attributed_to=ACTOR_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Invariant Guard Test",
+        attributed_to=ACTOR_ID,
     )
     if pxa_state != CS_pxa.pxa:
         case.append_case_status(ACT_AT, pxa=pxa_state)
@@ -87,8 +91,11 @@ class TestCheckCsEphemeralStateNode:
         """AC-3a: A-event from pXa → FAILURE (pX is ephemeral, P required)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -100,8 +107,11 @@ class TestCheckCsEphemeralStateNode:
         """AC-3b: P-event from pXa → SUCCESS (satisfies ephemeral requirement)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.PXa),
         )
         dl.create(asserted)
 
@@ -112,8 +122,11 @@ class TestCheckCsEphemeralStateNode:
         """P+A together from pXa → SUCCESS (P advances regardless of A)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.PXA),
         )
         dl.create(asserted)
 
@@ -124,8 +137,11 @@ class TestCheckCsEphemeralStateNode:
         """Non-pX current state → SUCCESS (no ephemeral constraint)."""
         case = _make_case_with_pxa(CS_pxa.Pxa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.PXa),
         )
         dl.create(asserted)
 
@@ -138,13 +154,19 @@ class TestCheckCsEphemeralStateNode:
         A case with no materialized status (its seeded one dropped) makes
         current_status raise ValueError → guard returns SUCCESS.
         """
-        bare_case = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, context=ACTOR_ID
+        bare_case = make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            context=ACTOR_ID,
         )
         bare_case.case_statuses = []  # drop the status the owner seeded
         dl.create(bare_case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -194,7 +216,8 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         # Core CaseStatus (not wire as_CaseStatus) is recognised by _resolve_asserted.
-        fallback = CaseStatus(
+        fallback = make(
+            CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             pxa=PxaDimension(state=CS_pxa.pXA),
@@ -223,8 +246,11 @@ class TestCheckCsHistoryPrefixNode:
         """AC-3c: A-event from pXa → FAILURE (pX→A violates CSB-17-005)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -236,8 +262,11 @@ class TestCheckCsHistoryPrefixNode:
         """AC-3d: P-event from pXa → SUCCESS (pX→P is a valid prefix step)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.PXa),
         )
         dl.create(asserted)
 
@@ -248,8 +277,11 @@ class TestCheckCsHistoryPrefixNode:
         """X-event from baseline pxa → SUCCESS (pX state is valid prefix)."""
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXa),
         )
         dl.create(asserted)
 
@@ -260,8 +292,11 @@ class TestCheckCsHistoryPrefixNode:
         """Identical PXA state → SUCCESS (no event to validate)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXa),
         )
         dl.create(asserted)
 
@@ -272,8 +307,11 @@ class TestCheckCsHistoryPrefixNode:
         """Multi-event advance (pxa→PXA) → SUCCESS (deferred to monotone filter)."""
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.PXA),
         )
         dl.create(asserted)
 
@@ -294,13 +332,19 @@ class TestCheckCsHistoryPrefixNode:
         A case with no materialized status (its seeded one dropped) makes
         current_status raise ValueError → guard returns SUCCESS.
         """
-        bare_case = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, context=ACTOR_ID
+        bare_case = make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            context=ACTOR_ID,
         )
         bare_case.case_statuses = []  # drop the status the owner seeded
         dl.create(bare_case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -347,8 +391,11 @@ class TestCsGuardDryRefactorRegression:
         """CheckCsEphemeralStateNode: A-event from pXa → FAILURE via _resolve_case()."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -359,8 +406,11 @@ class TestCsGuardDryRefactorRegression:
         """CheckCsHistoryPrefixNode: A-event from pXa → FAILURE via _resolve_case()."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 

@@ -37,6 +37,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, propose, reject
 from test.support.future_dates import days_from_now
 from test.support.ledger import is_consent_row_update
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -125,7 +126,8 @@ def _invited(
 
     Each row's deadline is the value it maps to (CM-28-013).
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=case.id_,
@@ -158,11 +160,17 @@ def _store(
     *other_deadline*, a second participant is invited too.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    case = VulnerabilityCase(
-        id_=_CASE_ID, name="Overdue sweep", attributed_to=owner
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Overdue sweep",
+        attributed_to=owner,
     )
-    embargo = as_EmbargoEvent(
-        id_=_PROPOSAL_ID, context=_CASE_ID, end_time=days_from_now(30)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=_PROPOSAL_ID,
+        context=_CASE_ID,
+        end_time=days_from_now(30),
     )
     propose(case, embargo.id_)
     seed_case_manager_participant(dl, case, _MANAGER)
@@ -329,7 +337,8 @@ class TestDoorGuardsFirst:
         """The expiry is the CASE_MANAGER's own clock decision, so it is
         recorded although the decision that prompted it is refused."""
         dl, _proposal = _store()
-        stray = as_EmbargoEvent(
+        stray = make(
+            as_EmbargoEvent,
             id_=f"{_CASE_ID}/embargo_events/never-proposed",
             context=_CASE_ID,
             end_time=days_from_now(30),
@@ -602,7 +611,7 @@ class TestOwnerTrigger:
         self, use_case, request_model, decided
     ):
         dl, embargo = _store(owner=_MANAGER)
-        dl.create(as_Service(id_=_MANAGER, name="Coordinator"))
+        dl.create(make(as_Service, id_=_MANAGER, name="Coordinator"))
         proposal = em_propose_embargo_activity(
             embargo, context=_CASE_ID, actor=_INVITEE
         )

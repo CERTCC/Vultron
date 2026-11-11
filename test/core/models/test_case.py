@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -39,7 +40,8 @@ _CASE_ID = "urn:uuid:case-test"
 
 @pytest.fixture
 def case() -> VulnerabilityCase:
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         id_=_CASE_ID,
         attributed_to=_ACTOR,
     )
@@ -58,7 +60,7 @@ class TestVulnerabilityCaseBasics:
         assert case.id_ == _CASE_ID
 
     def test_id_auto_generated_when_not_given(self):
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         assert c.id_.startswith("urn:uuid:")
 
     def test_attributed_to_stored(self, case: VulnerabilityCase):
@@ -105,12 +107,12 @@ class TestVulnerabilityCaseRequiresOwner:
 
     def test_construction_without_attributed_to_raises(self):
         with pytest.raises(ValidationError, match="attributedTo"):
-            VulnerabilityCase(id_=_CASE_ID)
+            make(VulnerabilityCase, id_=_CASE_ID)
 
     @pytest.mark.parametrize("blank", ["", "   "])
     def test_construction_with_blank_attributed_to_raises(self, blank: str):
         with pytest.raises(ValidationError, match=r"attributed_?[tT]o"):
-            VulnerabilityCase(id_=_CASE_ID, attributed_to=blank)
+            make(VulnerabilityCase, id_=_CASE_ID, attributed_to=blank)
 
     def test_loading_stored_case_without_owner_raises(
         self, case: VulnerabilityCase
@@ -128,8 +130,11 @@ class TestVulnerabilityCaseRequiresOwner:
         assert case.genesis_hash
 
     def test_blank_carried_genesis_hash_is_recomputed(self):
-        c = VulnerabilityCase(
-            id_=_CASE_ID, attributed_to=CASE_OWNER_ID, genesis_hash=""
+        c = make(
+            VulnerabilityCase,
+            id_=_CASE_ID,
+            attributed_to=CASE_OWNER_ID,
+            genesis_hash="",
         )
         assert c.genesis_hash
 
@@ -168,13 +173,13 @@ class TestVulnerabilityCaseCurrentStatus:
         assert case.case_status is case.current_status
 
     def test_current_status_raises_when_no_materialized(self):
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = ["urn:uuid:some-id"]  # only str refs
         with pytest.raises(ValueError, match="no materialized CaseStatus"):
             _ = c.current_status
 
     def test_current_status_raises_when_empty(self):
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = []
         with pytest.raises(ValueError):
             _ = c.current_status
@@ -189,31 +194,33 @@ class TestVulnerabilityCaseCurrentStatus:
         tiebreak would also pick the wrong one (a urn:uuid sorts above an
         https ID).
         """
-        earlier_appended = CaseStatus(
+        earlier_appended = make(
+            CaseStatus,
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
             context=_CASE_ID,
             published=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        last_appended = CaseStatus(
+        last_appended = make(
+            CaseStatus,
             id_="https://coord.example/status/1",
             context=_CASE_ID,
             published=datetime(2020, 1, 1, tzinfo=UTC),
         )
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [earlier_appended, last_appended]
         assert c.current_status is last_appended
 
     @pytest.mark.spec("CM-29-001")
     def test_current_status_skips_a_trailing_reference(self):
         """A bare id after the last materialized status is not a status."""
-        status = CaseStatus(context=_CASE_ID)
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        status = make(CaseStatus, context=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [status, "urn:uuid:some-id"]
         assert c.current_status is status
 
     @pytest.mark.spec("CM-29-001")
     def test_em_stamp_with_no_materialized_status_changes_nothing(self):
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = ["urn:uuid:some-id"]
         assert c._em_stamped_statuses() is None
 
@@ -224,13 +231,17 @@ class TestVulnerabilityCaseCurrentStatus:
         earlier one carries the later time, so a timestamp rule would see the
         earlier one agree and stamp nothing (ADR-0122).
         """
-        earlier_appended = CaseStatus(
-            context=_CASE_ID, published=datetime(2026, 1, 1, tzinfo=UTC)
+        earlier_appended = make(
+            CaseStatus,
+            context=_CASE_ID,
+            published=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        last_appended = CaseStatus(
-            context=_CASE_ID, published=datetime(2020, 1, 1, tzinfo=UTC)
+        last_appended = make(
+            CaseStatus,
+            context=_CASE_ID,
+            published=datetime(2020, 1, 1, tzinfo=UTC),
         ).with_em(EM.ACTIVE)
-        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [earlier_appended, last_appended]
         c._stamp_em()
         first, last = c.case_statuses
@@ -258,7 +269,8 @@ class TestVulnerabilityCaseAddParticipant:
     """add_participant updates case_participants and actor_participant_index."""
 
     def test_add_participant_appends(self, case: VulnerabilityCase):
-        p = ReporterParticipant(
+        p = make(
+            ReporterParticipant,
             id_="urn:uuid:part-1",
             attributed_to="https://example.org/finder",
         )
@@ -266,7 +278,8 @@ class TestVulnerabilityCaseAddParticipant:
         assert p.id_ in case.case_participants
 
     def test_add_participant_updates_index(self, case: VulnerabilityCase):
-        p = ReporterParticipant(
+        p = make(
+            ReporterParticipant,
             id_="urn:uuid:part-1",
             attributed_to="https://example.org/finder",
         )
@@ -279,7 +292,7 @@ class TestVulnerabilityCaseAddParticipant:
     def test_add_participant_without_attributed_to_no_index(
         self, case: VulnerabilityCase
     ):
-        p = ReporterParticipant(id_="urn:uuid:part-2")
+        p = make(ReporterParticipant, id_="urn:uuid:part-2")
         case.add_participant(p)
         assert "urn:uuid:part-2" not in case.actor_participant_index
 
@@ -288,7 +301,8 @@ class TestVulnerabilityCaseAddParticipant:
     ):
         actor_id = "https://example.org/finder"
         case.actor_participant_index[actor_id] = "urn:uuid:part-existing"
-        participant = ReporterParticipant(
+        participant = make(
+            ReporterParticipant,
             id_="urn:uuid:part-new",
             attributed_to=actor_id,
         )
@@ -339,7 +353,7 @@ class TestVulnerabilityCaseAddCaseStatus:
 
     def test_add_case_status_appends(self, case: VulnerabilityCase):
         initial_len = len(case.case_statuses)
-        status = CaseStatus(context=_CASE_ID, attributed_to=_ACTOR)
+        status = make(CaseStatus, context=_CASE_ID, attributed_to=_ACTOR)
         case.add_case_status(status)
         assert len(case.case_statuses) == initial_len + 1
         assert case.case_statuses[-1] is status
@@ -355,7 +369,7 @@ class TestVulnerabilityCaseAddCaseStatus:
         # wire-shaped status left to reject — the object is exactly what the slot
         # wants and is appended.  The guard against a genuinely wrong type is still
         # covered by ``test_add_case_status_rejects_non_case_status`` below.
-        wire_status = as_CaseStatus(context=_CASE_ID)
+        wire_status = make(as_CaseStatus, context=_CASE_ID)
         case.add_case_status(wire_status)
         assert case.case_statuses[-1] is wire_status
 
@@ -398,7 +412,8 @@ class TestVulnerabilityCaseWireRoundTrip:
         )
 
         assert WireVC is VulnerabilityCase
-        wire_case = WireVC(
+        wire_case = make(
+            WireVC,
             id_="urn:uuid:vc-roundtrip",
             attributed_to="https://example.org/actor",
         )
@@ -411,7 +426,8 @@ class TestVulnerabilityCaseWireRoundTrip:
         )
 
         assert WireVC is VulnerabilityCase
-        core_case = VulnerabilityCase(
+        core_case = make(
+            VulnerabilityCase,
             id_="urn:uuid:vc-fromcore",
             attributed_to="https://example.org/actor",
         )
@@ -423,7 +439,8 @@ class TestVulnerabilityCaseWireRoundTrip:
         )
 
         assert WireVC is VulnerabilityCase
-        core_case = VulnerabilityCase(
+        core_case = make(
+            VulnerabilityCase,
             id_="urn:uuid:vc-rt",
             attributed_to="https://example.org/actor",
         )
@@ -447,7 +464,9 @@ _E2 = "https://example.org/embargoes/e2"
 def _case_with_register() -> VulnerabilityCase:
     from test.support.embargo_register import propose
 
-    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    case = make(
+        VulnerabilityCase, attributed_to="https://example.org/actors/owner"
+    )
     activate(case, _E1)
     propose(case, _E2)
     return case
@@ -461,8 +480,10 @@ def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
     )
 
     case = _case_with_register()
-    participant = CaseParticipant(
-        attributed_to="https://example.org/actors/joiner", context=case.id_
+    participant = make(
+        CaseParticipant,
+        attributed_to="https://example.org/actors/joiner",
+        context=case.id_,
     )
     assert case.add_participant(participant) is True
     assert [(r.embargo_id, r.state) for r in participant.embargo_consents] == [
@@ -477,9 +498,13 @@ def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
 
 
 def test_add_participant_returns_false_on_an_empty_register() -> None:
-    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
-    participant = CaseParticipant(
-        attributed_to="https://example.org/actors/joiner", context=case.id_
+    case = make(
+        VulnerabilityCase, attributed_to="https://example.org/actors/owner"
+    )
+    participant = make(
+        CaseParticipant,
+        attributed_to="https://example.org/actors/joiner",
+        context=case.id_,
     )
     # No register entry, so no row to write: the participant is still added
     # and indexed, but the return value says its record gained nothing.
@@ -494,10 +519,14 @@ def test_add_participant_returns_false_on_an_empty_register() -> None:
 def test_add_participant_reports_a_row_for_a_later_register_entry() -> None:
     from test.support.embargo_register import propose
 
-    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    case = make(
+        VulnerabilityCase, attributed_to="https://example.org/actors/owner"
+    )
     activate(case, _E1)
-    participant = CaseParticipant(
-        attributed_to="https://example.org/actors/joiner", context=case.id_
+    participant = make(
+        CaseParticipant,
+        attributed_to="https://example.org/actors/joiner",
+        context=case.id_,
     )
     assert case.add_participant(participant) is True
     propose(case, _E2)
@@ -524,18 +553,22 @@ def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
 
     from test.support.embargo_register import register
 
-    rowless = CaseParticipant(
-        attributed_to="https://example.org/actors/p", context="urn:case"
+    rowless = make(
+        CaseParticipant,
+        attributed_to="https://example.org/actors/p",
+        context="urn:case",
     )
     with pytest.raises(ValidationError, match="no consent row"):
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="urn:case",
             embargo_register=register(active=_E1),
             case_participants=[rowless],
         )
     rowless.write_uninvited_rows([_E1])
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:case",
         embargo_register=register(active=_E1),
@@ -563,7 +596,7 @@ class TestVulnerabilityCaseAppendCaseStatusAtTheActInstant:
     def test_append_case_status_takes_its_time_from_the_act_instant(
         self,
     ) -> None:
-        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_ACTOR)
         case.current_status.published = self._AT - timedelta(hours=1)
         with no_clock():
             case.append_case_status(self._AT, pxa=CS_pxa.Pxa)
@@ -573,7 +606,7 @@ class TestVulnerabilityCaseAppendCaseStatusAtTheActInstant:
 
     @pytest.mark.spec("CM-29-005")
     def test_two_appends_in_one_act_sort_in_append_order(self) -> None:
-        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_ACTOR)
         case.current_status.published = self._AT - timedelta(hours=1)
         with no_clock():
             case.append_case_status(self._AT, pxa=CS_pxa.Pxa)
@@ -587,7 +620,7 @@ class TestVulnerabilityCaseAppendCaseStatusAtTheActInstant:
     def test_bump_from_a_latest_ahead_of_the_instant_sorts_after_it(
         self,
     ) -> None:
-        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_ACTOR)
         latest = self._AT + timedelta(microseconds=500)
         case.current_status.published = latest
         with no_clock():
@@ -597,7 +630,7 @@ class TestVulnerabilityCaseAppendCaseStatusAtTheActInstant:
 
     @pytest.mark.spec("CS-13-001")
     def test_a_naive_instant_is_refused_and_appends_nothing(self) -> None:
-        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_ACTOR)
         before = list(case.case_statuses)
         with pytest.raises(ValueError, match="timezone-aware"):
             case.append_case_status(

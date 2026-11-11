@@ -27,6 +27,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -77,12 +78,14 @@ def test_a_readable_body_is_recognized():
 )
 def test_the_case_manager_encrypts_each_message_to_its_recipient(dl):
     """The CASE_MANAGER's Invite reaches the emitter encrypted, not readable."""
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{_CASE_ID}/participants/cm",
         attributed_to=_MANAGER,
         case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=_CASE_ID,
         name="CVE-2026-0099",
         attributed_to=_MANAGER,

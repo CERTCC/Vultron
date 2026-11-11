@@ -27,6 +27,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
@@ -70,6 +71,7 @@ def _archive(dl: SqliteDataLayer, body: str | None = None) -> None:
             received_body=body or _body(),
             stage=ReceivedStage.HELD,
             replay_owed=False,
+            received_at=ACT_AT,
         )
     )
 
@@ -175,7 +177,9 @@ def test_refusing_an_unheld_activity_with_no_body_raises(dl):
 def test_a_refusal_never_reduces_an_archive(dl):
     """An applied message's archive outlives a later refusal of a resend."""
     dl.create(
-        ReceivedActivityRecord(activity_id=ACTIVITY_ID, received_body=_body())
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID, received_body=_body(), received_at=ACT_AT
+        )
     )
     before = held_received_record(dl, ACTIVITY_ID)
 

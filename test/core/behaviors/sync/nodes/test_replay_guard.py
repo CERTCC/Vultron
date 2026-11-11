@@ -10,6 +10,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.act_clock import ACT_AT
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     GENESIS_REPLAY_COOLDOWN_SECONDS,
     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -88,7 +89,7 @@ class TestClaimReplayPosition:
 
         assert admitted is True
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
         stored = datalayer.read(state_id)
         assert stored is not None
@@ -118,7 +119,7 @@ class TestClaimReplayPosition:
             from_hash="abc",
         )
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
         state = datalayer.read(state_id)
         state.last_replayed_at = state.last_replayed_at - timedelta(
@@ -189,7 +190,7 @@ class TestClaimReplayPosition:
             from_hash="",
         )
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
         state = datalayer.read(state_id)
         # Older than the genesis cooldown, but well inside the mid-chain one.
@@ -228,7 +229,9 @@ class TestClaimReplayPosition:
 
 def _age_last_replay(datalayer, *, peer_id, seconds: float) -> None:
     """Move *peer_id*'s recorded replay *seconds* into the past."""
-    state_id = VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+    state_id = VultronReplicationState(
+        case_id=CASE_ID, peer_id=peer_id, updated_at=ACT_AT
+    ).id_
     state = datalayer.read(state_id)
     state.last_replayed_at = state.last_replayed_at - timedelta(
         seconds=seconds
@@ -289,7 +292,7 @@ class TestNoProgressBackoff:
         self._claim(datalayer, "abc")
 
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
         assert datalayer.read(state_id).replays_at_position == 2
 
@@ -349,7 +352,7 @@ class TestZeroEntryReplayDoesNotRecordPosition:
         )
         # No record_replay() — the caller sent zero entries.
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
         assert datalayer.read(state_id) is None
 
@@ -397,7 +400,7 @@ def _answered(datalayer, rejected_index: int | None) -> bool:
 def _stored_state(datalayer) -> VultronReplicationState:
     state = datalayer.read(
         VultronReplicationState(
-            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID, updated_at=ACT_AT
         ).id_
     )
     assert isinstance(state, VultronReplicationState)
@@ -454,7 +457,9 @@ class TestGenesisReplayCoverage:
         """A peer whose record holds only its acknowledged position."""
         datalayer.save(
             VultronReplicationState(
-                case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+                case_id=CASE_ID,
+                peer_id=PARTICIPANT_ACTOR_ID,
+                updated_at=ACT_AT,
             )
         )
         assert _answered(datalayer, 0) is False

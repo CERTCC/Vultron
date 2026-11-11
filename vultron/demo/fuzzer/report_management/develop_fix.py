@@ -32,17 +32,17 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.develop_fix import (
+    CreateFixCapability,
 )
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
 
-class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class CreateFix(CreateFixCapability, AlmostAlwaysSucceed):
     """Initiate the process of creating a fix for the vulnerability.
+
+    Simulates :class:`CreateFixCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — trigger the internal fix development process for the
@@ -51,10 +51,6 @@ class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
         team, or initiating an automated patch-generation workflow.  The fuzzer
         models the overwhelmingly common case where the fix development
         handoff succeeds, allowing the rest of the workflow to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: fix_artifact: str  (yes only)
 
     Input category: System integration.
 
@@ -66,7 +62,3 @@ class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     establishing acceptance criteria may require human review for non-trivial
     vulnerabilities.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"fix_artifact": str}
-    )

@@ -31,6 +31,7 @@ and GitHub issue #401.
 """
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes import (
     UpdateActorOutbox,
 )
@@ -153,7 +154,7 @@ class TestEnsureCaseActorHostedNode:
             dl = SqliteDataLayer(
                 "sqlite:///:memory:", actor_id=self._VENDOR_ID
             )
-            dl.create(VultronService(id_=self._VENDOR_ID, name="Vendor"))
+            dl.create(make(VultronService, id_=self._VENDOR_ID, name="Vendor"))
             result = run_tree(
                 BTBridge(datalayer=dl),
                 tree=EnsureCaseActorHostedNode(),

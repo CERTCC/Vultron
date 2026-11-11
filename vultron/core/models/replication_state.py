@@ -24,7 +24,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 from vultron.core.models.ledger_position import LedgerPosition
 
@@ -88,8 +88,9 @@ class VultronReplicationState(CoreRecord):
         validation_alias="lastAcknowledgedPublished",
         serialization_alias="lastAcknowledgedPublished",
     )
+    # Required: the instant of the act that last wrote the record (ADR-0176).
     updated_at: datetime = Field(
-        default_factory=now_utc,
+        ...,
         validation_alias="updatedAt",
         serialization_alias="updatedAt",
     )

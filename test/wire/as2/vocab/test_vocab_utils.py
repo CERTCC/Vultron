@@ -19,6 +19,7 @@ import unittest
 import pytest
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from test.support.objects import make
 from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -85,7 +86,8 @@ class Foo(as_Base):
 
 def _frozen_report() -> as_VulnerabilityReport:
     """A report object carrying both timestamps."""
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         name="FDR-0000001",
         id_="https://vultron.example/reports/FDR-0000001",
         content="I found a vulnerability!",

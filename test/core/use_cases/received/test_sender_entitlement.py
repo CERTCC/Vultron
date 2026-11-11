@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
@@ -65,6 +66,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -179,7 +181,8 @@ def cm_store() -> SqliteDataLayer:
 @pytest.fixture
 def owned_case(cm_store: SqliteDataLayer) -> as_VulnerabilityCase:
     """A case owned by ``_OWNER_ID`` and managed by the store's owner."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/sender-entitlement",
         name="Sender entitlement",
         attributed_to=_OWNER_ID,
@@ -220,7 +223,7 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     cm_store.create(owned_case)
     proposal = propose_case_ownership_transfer_activity(
         owned_case,
-        target=as_Actor(id_=_TRANSFEREE_ID),
+        target=make(as_Actor, id_=_TRANSFEREE_ID),
         actor=_OWNER_ID,
         to=[_CASE_MANAGER_ID],
         id_=offer_id,
@@ -359,7 +362,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     """The CASE_MANAGER never sent or recorded the Invite being accepted."""
     cm_store.create(owned_case)
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=_IMPOSTOR_ID),
+        make(as_Actor, id_=_IMPOSTOR_ID),
         target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         roles=[CVDRole.VENDOR],
         actor=_OWNER_ID,
@@ -398,7 +401,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     cm_store.create(owned_case)
     cm_store.create(
         rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
             roles=[CVDRole.VENDOR],
             to=[invitee_id],
@@ -407,7 +410,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
         )
     )
     forged = rm_invite_to_case_activity(
-        as_Actor(id_=invitee_id),
+        make(as_Actor, id_=invitee_id),
         target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
         actor=_OWNER_ID,
@@ -441,7 +444,7 @@ _INVITEE_ID = "https://example.org/actors/invitee"
 def _record_stub_invite(cm_store, case, invitee_id=_INVITEE_ID, suffix="rec"):
     """The stub Invite the CASE_MANAGER sent and recorded, addressed to the invitee."""
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=invitee_id),
+        make(as_Actor, id_=invitee_id),
         target=as_VulnerabilityCaseStub(case_id=case.id_),
         roles=[CVDRole.VENDOR],
         to=[invitee_id],
@@ -493,7 +496,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     cm_store.create(owned_case)
     other_case_id = "https://example.org/cases/another-case"
     other_invite = rm_invite_to_case_activity(
-        as_Actor(id_=_INVITEE_ID),
+        make(as_Actor, id_=_INVITEE_ID),
         target=as_VulnerabilityCaseStub(case_id=other_case_id),
         roles=[CVDRole.VENDOR],
         to=[_INVITEE_ID],
@@ -502,7 +505,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     )
     cm_store.create(other_invite)
     forged = rm_invite_to_case_activity(
-        as_Actor(id_=_INVITEE_ID),
+        make(as_Actor, id_=_INVITEE_ID),
         target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         roles=[CVDRole.VENDOR],
         to=[_INVITEE_ID],
@@ -538,7 +541,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
     """A stored Invite the CASE_MANAGER did not send admits no one."""
     cm_store.create(owned_case)
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=_IMPOSTOR_ID),
+        make(as_Actor, id_=_IMPOSTOR_ID),
         target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         roles=[CVDRole.VENDOR],
         to=[_IMPOSTOR_ID],
@@ -583,7 +586,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         invite = _record_stub_invite(cm_store, owned_case)
     else:
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=_IMPOSTOR_ID),
+            make(as_Actor, id_=_IMPOSTOR_ID),
             target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
             roles=[CVDRole.VENDOR],
             to=[_IMPOSTOR_ID],
@@ -700,7 +703,8 @@ def test_offer_case_participant_from_non_case_manager_is_refused():
     dl = SqliteDataLayer(
         "sqlite:///:memory:", actor_id=RECOMMEND_CASE_OWNER_ID
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=RECOMMEND_CASE_ID,
         name="Sender entitlement",
         attributed_to=RECOMMEND_CASE_OWNER_ID,
@@ -740,7 +744,9 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     assert report is not None
     link_id = VultronReportCaseLink.build_id(_report_id(report))
     event = make_payload(
-        as_Accept(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        make(
+            as_Accept, actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]
+        ),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
     )
@@ -765,7 +771,9 @@ def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
     assert report is not None
     link_id = VultronReportCaseLink.build_id(_report_id(report))
     event = make_payload(
-        as_Reject(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        make(
+            as_Reject, actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]
+        ),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
     )
@@ -792,7 +800,9 @@ def test_case_proposal_reply_with_no_recorded_addressee_is_refused(
     link_id = VultronReportCaseLink.build_id(_report_id(report))
     dl.create(VultronReportCaseLink(report_id=_report_id(report)))
     event = make_payload(
-        as_Accept(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        make(
+            as_Accept, actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]
+        ),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
     )
@@ -823,8 +833,11 @@ def test_case_proposal_accept_after_case_established_keeps_case_manager(
     link.case_manager_id = _CASE_MANAGER_ID
     dl.save(link)
     event = make_payload(
-        as_Accept(
-            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        make(
+            as_Accept,
+            actor=link.case_creator_id,
+            object_=proposal,
+            to=[_VENDOR_URI],
         ),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
@@ -854,8 +867,11 @@ def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
     link.case_id = "https://example.org/cases/established"
     dl.save(link)
     event = make_payload(
-        as_Reject(
-            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        make(
+            as_Reject,
+            actor=link.case_creator_id,
+            object_=proposal,
+            to=[_VENDOR_URI],
         ),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
@@ -887,7 +903,7 @@ def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
     assert link.case_creator_id is not None
     sender = link.case_creator_id + "/"
     event = make_payload(
-        as_Accept(actor=sender, object_=proposal, to=[_VENDOR_URI]),
+        make(as_Accept, actor=sender, object_=proposal, to=[_VENDOR_URI]),
         receiving_actor_id=_VENDOR_URI,
         at=dl,
     )
@@ -906,7 +922,8 @@ def test_note_removal_by_stranger_is_refused(
     cm_store, owned_case, make_payload
 ):
     """The note's author and the case owner are both somebody else."""
-    note = as_Note(
+    note = make(
+        as_Note,
         id_="https://example.org/notes/sender-entitlement",
         content="A note",
         attributed_to="https://example.org/actors/note-author",
@@ -915,7 +932,9 @@ def test_note_removal_by_stranger_is_refused(
     cm_store.create(note)
     cm_store.create(owned_case)
     event = make_payload(
-        as_Remove(actor=_IMPOSTOR_ID, object_=note, target=owned_case.id_),
+        make(
+            as_Remove, actor=_IMPOSTOR_ID, object_=note, target=owned_case.id_
+        ),
         at=cm_store,
     )
 
@@ -961,8 +980,11 @@ def test_ledger_reject_from_non_participant_is_refused():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=SYNC_CASE_MANAGER_ID)
     entry0 = _make_entry(SYNC_CASE_ID, 0, "0" * 64)
     dl.save(entry0)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=SYNC_CASE_ID, name="Reject Sync Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=SYNC_CASE_ID,
+        name="Reject Sync Case",
     )
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
@@ -978,7 +1000,7 @@ def test_ledger_reject_from_non_participant_is_refused():
     assert dl.outbox_list() == []
     assert not dl.by_type("Announce")
     state_id = VultronReplicationState(
-        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_
     assert dl.read(state_id) is None
 
@@ -1000,7 +1022,7 @@ def test_ledger_reject_for_unknown_case_is_refused():
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
     state_id = VultronReplicationState(
-        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_
     assert dl.read(state_id) is None
 
@@ -1037,7 +1059,8 @@ def _embargo_case(
     The bystander is a plain participant and the impostor is on no roster, so
     each refusal below is about the sender's standing, not its membership.
     """
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/e1",
         content="Embargo",
         context=case.id_,
@@ -1137,7 +1160,8 @@ def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
 ):
     """A participant takes an Invite from the CASE_MANAGER alone."""
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/sender-entitlement-replica",
         name="Replica",
         attributed_to=_OWNER_ID,
@@ -1146,7 +1170,8 @@ def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
     seed_case_participant(replica, case, _INVITEE_ID, [CVDRole.VENDOR])
     seed_case_participant(replica, case, _BYSTANDER_ID, [CVDRole.VENDOR])
     replica.create(case)
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
         end_time=days_from_now(45),
@@ -1335,8 +1360,10 @@ def test_owner_embargo_decision_from_a_non_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=owned_case.id_
+            target=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=owned_case.id_,
             ),
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
@@ -1515,7 +1542,8 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
 ):
     """A participant replica takes an Announce from the CASE_MANAGER alone."""
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/sender-entitlement-announce",
         name="Replica",
         attributed_to=_OWNER_ID,
@@ -1524,7 +1552,8 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
     seed_case_participant(replica, case, _INVITEE_ID, [CVDRole.VENDOR])
     seed_case_participant(replica, case, _BYSTANDER_ID, [CVDRole.VENDOR])
     replica.create(case)
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
         end_time=days_from_now(45),
@@ -1567,7 +1596,8 @@ def _close_owner(store: SqliteDataLayer, case_id: str) -> None:
     record = store.read(case.actor_participant_index[_OWNER_ID])
     assert isinstance(record, CaseParticipant)
     record.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=case_id,
             attributed_to=_OWNER_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -1628,8 +1658,10 @@ def test_owner_embargo_decision_from_a_closed_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=owned_case.id_
+            target=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=owned_case.id_,
             ),
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],

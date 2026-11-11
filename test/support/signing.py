@@ -49,6 +49,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
+from test.support.objects import make
 from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.verified_proof import VerifiedProof
@@ -219,8 +220,8 @@ class PublishedProfileFetcher:
         key = signing.published_multikey(
             signing.seeded_signing_key(owner), owner
         )
-        return VultronOrganization(
-            id_=owner, name=owner, assertion_method=[key]
+        return make(
+            VultronOrganization, id_=owner, name=owner, assertion_method=[key]
         )
 
 

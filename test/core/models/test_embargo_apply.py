@@ -26,6 +26,7 @@ import pytest
 
 from test.support.act_clock import NoClock
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models._helpers import install_id_source, new_object_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -62,7 +63,8 @@ _K = RegisterStepKind
 
 
 def _embargo(n: int) -> EmbargoEvent:
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=f"{CASE_ID}/embargoes/{n}",
         context=CASE_ID,
         end_time=_END - timedelta(days=n),
@@ -75,12 +77,16 @@ E1, E2, E3 = _embargo(1), _embargo(2), _embargo(3)
 
 
 def _case_file() -> EmbargoCaseFile:
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="apply"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="apply",
     )
     participants = {}
     for actor_id in (ALICE, BOB):
-        record = CaseParticipant(
+        record = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
             attributed_to=actor_id,
             context=CASE_ID,
@@ -414,7 +420,8 @@ class TestRowAttribution:
     """A participant record stamps its actor on every row it holds."""
 
     def _record(self, rows: list[EmbargoConsent]) -> CaseParticipant:
-        return CaseParticipant(
+        return make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/alice",
             attributed_to=ALICE,
             context=CASE_ID,
@@ -431,7 +438,9 @@ class TestRowAttribution:
 
     def test_a_row_attributed_to_another_actor_is_refused(self):
         bobs = EmbargoConsent(
-            embargo_id=E1.id_, state=_S.UNINVITED, attributed_to=BOB
+            embargo_id=E1.id_,
+            state=_S.UNINVITED,
+            attributed_to=BOB,
         )
         with pytest.raises(ValueError, match="attributed to"):
             self._record([bobs])

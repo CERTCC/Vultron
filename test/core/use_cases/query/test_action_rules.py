@@ -22,6 +22,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -62,7 +63,8 @@ def dl():
     )
 
     # Case: as_VulnerabilityCase with actor_participant_index
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -72,7 +74,8 @@ def dl():
         # status.
         embargo_register=register(active=EMBARGO_ID),
         case_statuses=[  # type: ignore[arg-type]
-            CaseStatus(
+            make(
+                CaseStatus,
                 pxa=PxaDimension(state=CS_pxa.Pxa),
                 context=CASE_ID,
             )
@@ -81,12 +84,14 @@ def dl():
     layer.create(case)
 
     # Participant: as_CaseParticipant with VENDOR role and ACCEPTED RM state
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 context=CASE_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
                 vf=VfDimension(state=CS_vf.VF),
@@ -161,7 +166,7 @@ class TestGetActionRulesUseCase:
 
     def test_short_case_key_resolution_ignores_non_case_id_collision(self, dl):
         """Case lookup prefers case surrogate resolution over non-case collisions."""
-        dl.create(as_Note(id_="c1", content="collision"))
+        dl.create(make(as_Note, id_="c1", content="collision"))
         req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
         result = run_in_act(GetActionRulesUseCase(dl=dl, request=req))
         assert result.participant_id == PARTICIPANT_ID
@@ -202,7 +207,8 @@ class TestGetActionRulesUseCase:
             # re-seed below would collide on CASE_ID.
             actor_id=f"{ACTOR_ID}/no-case-statuses-defaults",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="Empty Status Case",
@@ -211,12 +217,14 @@ class TestGetActionRulesUseCase:
             case_statuses=[],
         )
         layer.create(case)
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.REPORTER],
             participant_statuses=[
-                as_ParticipantStatus(
+                make(
+                    as_ParticipantStatus,
                     context=CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                     vf=VfDimension(state=CS_vf.Vf),
@@ -243,16 +251,18 @@ class TestGetActionRulesUseCase:
             # re-seed below would collide on CASE_ID.
             actor_id=f"{ACTOR_ID}/no-participant-statuses-defaults",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[CaseStatus(context=CASE_ID)],
+            case_statuses=[make(CaseStatus, context=CASE_ID)],
         )
         layer.create(case)
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             context=CASE_ID,
@@ -290,24 +300,29 @@ class TestGetActionRulesUseCase:
                 # and a single actor id would mean a single in-memory database.
                 actor_id=f"{ACTOR_ID}/em-state-{em.value}",
             )
-            case = as_VulnerabilityCase(
+            case = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 embargo_register=embargo_register,
                 case_statuses=[  # type: ignore[arg-type]
-                    CaseStatus(
+                    make(
+                        CaseStatus,
                         pxa=PxaDimension(state=CS_pxa.pxa),
                         context=CASE_ID,
                     )
                 ],
             )
             layer.create(case)
-            participant = as_CaseParticipant(
+            participant = make(
+                as_CaseParticipant,
                 id_=PARTICIPANT_ID,
                 attributed_to=ACTOR_ID,
-                participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+                participant_statuses=[
+                    make(as_ParticipantStatus, context=CASE_ID)
+                ],
             )
             layer.create(participant)
 
@@ -328,19 +343,21 @@ class TestGetActionRulesUseCase:
             # re-seed below would collide on CASE_ID.
             actor_id=f"{ACTOR_ID}/participant-lookup-raises-on-index-misma",
         )
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.VENDOR],
-            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+            participant_statuses=[make(as_ParticipantStatus, context=CASE_ID)],
         )
         layer.create(participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
-            case_statuses=[CaseStatus(context=CASE_ID)],
+            case_statuses=[make(CaseStatus, context=CASE_ID)],
         )
         layer.create(case)
 
@@ -356,19 +373,21 @@ class TestGetActionRulesUseCase:
             # re-seed below would collide on CASE_ID.
             actor_id=f"{ACTOR_ID}/participant-lookup-succeeds-without-inde",
         )
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.VENDOR],
-            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+            participant_statuses=[make(as_ParticipantStatus, context=CASE_ID)],
         )
         layer.create(participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={},
-            case_statuses=[CaseStatus(context=CASE_ID)],
+            case_statuses=[make(CaseStatus, context=CASE_ID)],
         )
         layer.create(case)
 

@@ -32,6 +32,7 @@ Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.report.nodes import (
     CheckReportClosable,
     TransitionRMtoClosed,
@@ -63,7 +64,7 @@ def actor(bt_scenario: BTTestScenario) -> VultronService:
     and a BT's store follows its executing actor (ADR-0073), so a generated id
     would run each node against an empty store.
     """
-    obj = VultronService(id_=bt_scenario.actor_id, name="Test Actor")
+    obj = make(VultronService, id_=bt_scenario.actor_id, name="Test Actor")
     bt_scenario.dl.create(obj)
     return obj
 
@@ -71,7 +72,8 @@ def actor(bt_scenario: BTTestScenario) -> VultronService:
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
     """Create a test report and persist it in the scenario DataLayer."""
-    obj = VulnerabilityReport(
+    obj = make(
+        VulnerabilityReport,
         name="TEST-001",
         content="Test vulnerability report",
     )
@@ -86,7 +88,7 @@ def offer(
     actor: VultronService,
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
-    obj = VultronOffer(actor=actor.id_, object_=report.id_)
+    obj = make(VultronOffer, actor=actor.id_, object_=report.id_)
     bt_scenario.dl.create(obj)
     offer_record = VultronOfferRecord(
         offer_id=obj.id_,
@@ -614,8 +616,10 @@ class TestCollectCreateCaseAddresseesFromRecord:
             offer_actor_id=submitter_id,
             offer_to=[actor_id + "/"],
         )
-        report = VulnerabilityReport(
-            id_="urn:test:report:6", attributed_to=submitter_id + "/"
+        report = make(
+            VulnerabilityReport,
+            id_="urn:test:report:6",
+            attributed_to=submitter_id + "/",
         )
         result = _collect_create_case_addressees(
             actor=actor_id,

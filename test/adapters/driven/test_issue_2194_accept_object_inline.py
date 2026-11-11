@@ -38,6 +38,7 @@ import uuid
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _validate_inline_object,
@@ -74,8 +75,11 @@ def _build_validate_report_accept():
     """
     report_id = f"urn:uuid:{uuid.uuid4()}"
     offer_id = f"urn:uuid:{uuid.uuid4()}"
-    report = as_VulnerabilityReport(
-        id_=report_id, attributed_to=REPORTER_ID, content="test report"
+    report = make(
+        as_VulnerabilityReport,
+        id_=report_id,
+        attributed_to=REPORTER_ID,
+        content="test report",
     )
     # The offer the participant is accepting (received / reconstituted, fully
     # typed and inline — never persisted as a standalone record under offer_id

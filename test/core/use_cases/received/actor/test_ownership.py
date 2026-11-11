@@ -36,6 +36,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -142,7 +143,8 @@ class TestOwnershipTransferUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_anon",
             name="OT Case anon",
@@ -204,7 +206,8 @@ class TestOwnershipTransferUseCases:
 
         coordinator_id = "https://example.org/users/coordinator"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_missing",
             name="Missing",
@@ -357,7 +360,7 @@ class TestOwnershipTransferUseCases:
         proposal_id = "https://example.org/activities/proposal_inner"
         proposal = propose_case_ownership_transfer_activity(
             case,
-            target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+            target=make(as_Service, id_=_COORDINATOR_ID, name="Transferee"),
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
             id_=proposal_id,
@@ -415,10 +418,10 @@ class TestOwnershipTransferUseCases:
         )
         case = _read_case(dl, case_id)
         target: Any = {
-            "another_case": as_Service(id_=_COORDINATOR_ID, name="T"),
+            "another_case": make(as_Service, id_=_COORDINATOR_ID, name="T"),
             "no_transferee": None,
-            "case_manager": as_Service(id_=_CASE_ACTOR_ID, name="CM"),
-            "proposer": as_Service(id_=_VENDOR_ID, name="Owner"),
+            "case_manager": make(as_Service, id_=_CASE_ACTOR_ID, name="CM"),
+            "proposer": make(as_Service, id_=_VENDOR_ID, name="Owner"),
         }[label]
         proposal = propose_case_ownership_transfer_activity(
             case,
@@ -428,7 +431,8 @@ class TestOwnershipTransferUseCases:
             id_=f"https://example.org/activities/proposal_inner_{label}",
         )
         if label == "another_case":
-            another = as_VulnerabilityCase(
+            another = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/another",
                 name="Another",
@@ -671,7 +675,8 @@ class TestOwnershipTransferUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         proposal = _proposal(
-            as_VulnerabilityCase(
+            make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/case_ot_proposal_anon",
                 name="anon",
@@ -740,7 +745,8 @@ class TestOwnershipOfferAtNonRecipient:
 
         bystander_id = "https://example.org/actors/bystander-ot"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=bystander_id)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_bystander",
             name="OT Bystander",
@@ -818,7 +824,8 @@ class TestOwnershipOfferNamingNoCase:
 
         receiver = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_nocase",
             name="no case",
@@ -916,7 +923,7 @@ def _proposal(
     ADR-0148.
     """
     if isinstance(transferee, str):
-        transferee = as_Service(id_=transferee, name="Transferee")
+        transferee = make(as_Service, id_=transferee, name="Transferee")
     return propose_case_ownership_transfer_activity(
         case,
         target=transferee,
@@ -977,8 +984,11 @@ def _ownership_offer_harness(make_payload, case_id: str):
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
-        id_=case_id, name="One open offer", attributed_to=_VENDOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="One open offer",
+        attributed_to=_VENDOR_ID,
     )
     seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, _VENDOR_ID)
@@ -1085,7 +1095,8 @@ def _reply_naming_no_case(dl, make_payload, build, sender: str) -> Any:
     extracted event: the shape a peer could send.
     """
     offer = offer_case_ownership_transfer_activity(
-        case=as_VulnerabilityCase(
+        case=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/elsewhere",
         ),
@@ -1400,7 +1411,7 @@ def _plant_offer(
     assert isinstance(case, VulnerabilityCase)
     planted = offer_case_ownership_transfer_activity(
         case,
-        target=as_Service(id_=target, name="Planted"),
+        target=make(as_Service, id_=target, name="Planted"),
         actor=_CASE_ACTOR_ID,
         id_=offer_id,
         **({} if in_reply_to is None else {"in_reply_to": in_reply_to}),
@@ -1466,7 +1477,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         case = _read_case(dl, case_id)
         named = offer_case_ownership_transfer_activity(
             case,
-            target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+            target=make(as_Service, id_=_COORDINATOR_ID, name="Transferee"),
             actor=_VENDOR_ID,
             id_=proposal_id,
         )
@@ -1490,7 +1501,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
 
         offer = offer_case_ownership_transfer_activity(
             case,
-            target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+            target=make(as_Service, id_=_COORDINATOR_ID, name="Transferee"),
             actor=_VENDOR_ID,
             id_="https://example.org/activities/offer_unrecorded",
         )
@@ -1821,8 +1832,11 @@ def _transferee_replica(case_id: str, *, holds_case: bool = True):
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORDINATOR_ID)
-    case = as_VulnerabilityCase(
-        id_=case_id, name="Replica", attributed_to=_VENDOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="Replica",
+        attributed_to=_VENDOR_ID,
     )
     if holds_case:
         seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
@@ -1929,8 +1943,11 @@ def _vendor_replica(case_id: str):
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_ID)
-    case = as_VulnerabilityCase(
-        id_=case_id, name="Replica", attributed_to=_VENDOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="Replica",
+        attributed_to=_VENDOR_ID,
     )
     seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, _VENDOR_ID)
@@ -2265,8 +2282,11 @@ def test_transferee_takes_the_offer_its_replica_holds_open(make_payload):
     transferee = SqliteDataLayer(
         "sqlite:///:memory:", actor_id=_COORDINATOR_ID
     )
-    case = as_VulnerabilityCase(
-        id_=case_id, name="Replica", attributed_to=_VENDOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="Replica",
+        attributed_to=_VENDOR_ID,
     )
     seed_case_manager_participant(transferee, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(transferee, case, _VENDOR_ID)
@@ -2685,7 +2705,8 @@ class TestWithdrawalOfOwnershipTransfer:
             make_payload, "https://example.org/cases/case_ot_undo_nocase"
         )
         proposal = _proposal(
-            as_VulnerabilityCase(
+            make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/elsewhere",
             ),

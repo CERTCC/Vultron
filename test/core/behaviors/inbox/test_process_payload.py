@@ -28,6 +28,7 @@ from pydantic import ValidationError
 
 from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
 from vultron.config.actor import ActorConfig
@@ -169,7 +170,8 @@ class _StubQueuePort:
 
 @pytest.fixture()
 def report_activity():
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/r-io-1",
         content="test report",
     )
@@ -178,7 +180,8 @@ def report_activity():
 
 @pytest.fixture()
 def case_activity():
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="CASE-IO",
@@ -190,7 +193,9 @@ def case_activity():
 
 @pytest.fixture()
 def note_activity_unknown_case():
-    note = as_Note(id_="https://example.org/notes/n-io-1", content="note")
+    note = make(
+        as_Note, id_="https://example.org/notes/n-io-1", content="note"
+    )
     return stamped(
         add_note_to_case_activity(
             note,
@@ -835,7 +840,8 @@ class TestARaisedDispatchIsAnsweredWithAFault:
 
         fault = create_processing_fault_activity(
             actor=SENDER_ID,
-            fault=as_ProcessingFault(
+            fault=make(
+                as_ProcessingFault,
                 failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
                 in_reply_to="https://example.org/activities/failed",
             ),
@@ -926,18 +932,20 @@ class TestInboundRsvpWindows:
         )
 
         kwargs: dict[str, Any] = {
-            "object_": as_EmbargoEvent(
-                context=CASE_ID, end_time=published + timedelta(days=90)
+            "object_": make(
+                as_EmbargoEvent,
+                context=CASE_ID,
+                end_time=published + timedelta(days=90),
             ),
-            "context": as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            "context": make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
             ),
             "actor": SENDER_ID,
             "published": published,
         }
         if end_time is not None:
             kwargs["end_time"] = end_time
-        return as_Invite(**kwargs)
+        return make(as_Invite, **kwargs)
 
     def _deadline(
         self, activity: Any, actor_config: ActorConfig | None

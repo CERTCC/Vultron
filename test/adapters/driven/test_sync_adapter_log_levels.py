@@ -23,6 +23,7 @@ import logging
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -51,6 +52,7 @@ def entry() -> CaseLedgerEntry:
         semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=_ZERO_HASH,
+        received_at=ACT_AT,
     )
     return chain.to_ledger_entry()
 

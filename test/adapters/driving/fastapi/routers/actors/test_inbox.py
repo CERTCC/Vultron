@@ -23,6 +23,7 @@ tests are in ``test/adapters/driving/fastapi/test_inbox_staging.py``.
 import pytest
 from fastapi import HTTPException
 
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
@@ -42,8 +43,9 @@ _ACTOR_URI = "https://example.org/actors/alice"
 
 
 def test_parse_activity_returns_typed_activity_for_valid_body():
-    note = as_Note(content="hello")
-    create = as_Create(
+    note = make(as_Note, content="hello")
+    create = make(
+        as_Create,
         actor=_ACTOR_URI,
         object_=note,
     )
@@ -92,18 +94,24 @@ _OTHER_ACTOR_URI = "https://example.org/actors/bob"
 
 
 def test_collect_addresses_returns_empty_when_all_fields_absent():
-    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    activity = make(
+        as_Create, actor=_ACTOR_URI, object_=make(as_Note, content="hi")
+    )
     assert _collect_addresses(activity) == []
 
 
 def test_collect_addresses_returns_uri_from_to_string():
-    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    activity = make(
+        as_Create, actor=_ACTOR_URI, object_=make(as_Note, content="hi")
+    )
     object.__setattr__(activity, "to", _ACTOR_URI)
     assert _ACTOR_URI in _collect_addresses(activity)
 
 
 def test_collect_addresses_returns_uris_from_list():
-    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    activity = make(
+        as_Create, actor=_ACTOR_URI, object_=make(as_Note, content="hi")
+    )
     object.__setattr__(activity, "to", [_ACTOR_URI, _OTHER_ACTOR_URI])
     addrs = _collect_addresses(activity)
     assert _ACTOR_URI in addrs
@@ -113,14 +121,18 @@ def test_collect_addresses_returns_uris_from_list():
 def test_collect_addresses_extracts_id_from_object():
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
-    actor_obj = as_Organization(id_=_ACTOR_URI, name="Alice")
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    actor_obj = make(as_Organization, id_=_ACTOR_URI, name="Alice")
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", actor_obj)
     assert _ACTOR_URI in _collect_addresses(activity)
 
 
 def test_collect_addresses_covers_all_four_fields():
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", "https://example.org/actors/to")
     object.__setattr__(activity, "cc", "https://example.org/actors/cc")
     object.__setattr__(activity, "bto", "https://example.org/actors/bto")
@@ -136,14 +148,18 @@ def test_collect_addresses_covers_all_four_fields():
 
 def test_activity_addressed_to_returns_true_when_absent_addressing():
     """AC-3: absent addressing → Liberal Accept."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 @pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_to():
     """AC-2: actor named in to → accepted."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
@@ -151,7 +167,9 @@ def test_activity_addressed_to_returns_true_when_in_to():
 @pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_cc():
     """AC-2: actor named in cc → accepted."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "cc", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
@@ -159,7 +177,9 @@ def test_activity_addressed_to_returns_true_when_in_cc():
 @pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_bto():
     """AC-2: actor named in bto → accepted."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "bto", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
@@ -167,21 +187,27 @@ def test_activity_addressed_to_returns_true_when_in_bto():
 @pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_bcc():
     """AC-2: actor named in bcc → accepted."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "bcc", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_returns_false_when_addressed_exclusively_to_other():
     """AC-1: Activity addressed only to another actor → refused."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
 def test_activity_addressed_to_returns_false_when_list_has_only_other_actors():
     """AC-1: list-form addressing that excludes actor → refused."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(
         activity,
         "to",
@@ -192,7 +218,9 @@ def test_activity_addressed_to_returns_false_when_list_has_only_other_actors():
 
 def test_activity_addressed_to_returns_true_with_canonical_uri_in_list():
     """AC-2: canonical actor URI in a list is accepted."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", [_OTHER_ACTOR_URI, _ACTOR_URI])
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
@@ -201,14 +229,18 @@ def test_activity_addressed_to_returns_true_when_short_id_matches():
     """AC-4: short-ID form of actor URI is treated as a match."""
     # _ACTOR_URI = "https://example.org/actors/alice"
     # strip_id_prefix("alice") == strip_id_prefix(_ACTOR_URI) == "alice"
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", "alice")
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_short_id_of_other_actor_does_not_match():
     """AC-4 negative: short ID of a different actor does not satisfy the check."""
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(
         activity, "to", "bob"
     )  # strip_id_prefix(_OTHER_ACTOR_URI) == "bob"
@@ -222,7 +254,9 @@ def test_activity_addressed_to_returns_true_for_collection_uri():
     ``dl``, which read as though store contents mattered to the outcome; they
     never did for this case, and the parameter is gone.
     """
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     # Collection URI — the last segment "participants" won't resolve to any actor
     object.__setattr__(
         activity, "to", "https://example.org/cases/case-001/participants"
@@ -236,7 +270,9 @@ def test_activity_addressed_to_refuses_when_every_address_names_another_actor():
     "Known" is no longer part of the question — the predicate reads the address's
     shape, not any store's contents.
     """
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(
         activity, "to", _OTHER_ACTOR_URI
     )  # addressed exclusively to bob
@@ -257,7 +293,9 @@ def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store():
     store.  Bob being absent from alice's store is the normal state of affairs,
     not an edge case, which is precisely why the lookup had to go.
     """
-    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity = make(
+        as_Create, actor=_OTHER_ACTOR_URI, object_=make(as_Note, content="x")
+    )
     object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
@@ -354,8 +392,10 @@ class TestNamesAnIndividualActor:
 
     def test_an_activity_addressed_only_to_public_is_accepted(self):
         """The branch that matters at the route level, not just the predicate."""
-        activity = as_Create(
-            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        activity = make(
+            as_Create,
+            actor=_OTHER_ACTOR_URI,
+            object_=make(as_Note, content="x"),
         )
         object.__setattr__(
             activity, "to", "https://www.w3.org/ns/activitystreams#Public"
@@ -366,8 +406,10 @@ class TestNamesAnIndividualActor:
         self,
     ):
         """Unresolvable, so Liberal Accept — not a refusal."""
-        activity = as_Create(
-            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        activity = make(
+            as_Create,
+            actor=_OTHER_ACTOR_URI,
+            object_=make(as_Note, content="x"),
         )
         object.__setattr__(activity, "to", f"{_OTHER_ACTOR_URI}/followers")
         assert _activity_addressed_to(activity, _ACTOR_URI) is True
@@ -386,14 +428,18 @@ class TestNamesAnIndividualActor:
         makes refusal the rule for any address naming another individual, this
         test fails and names the policy that changed.
         """
-        aimed_at_bob = as_Create(
-            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        aimed_at_bob = make(
+            as_Create,
+            actor=_OTHER_ACTOR_URI,
+            object_=make(as_Note, content="x"),
         )
         object.__setattr__(aimed_at_bob, "to", _OTHER_ACTOR_URI)
         assert _activity_addressed_to(aimed_at_bob, _ACTOR_URI) is False
 
-        also_public = as_Create(
-            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        also_public = make(
+            as_Create,
+            actor=_OTHER_ACTOR_URI,
+            object_=make(as_Note, content="x"),
         )
         object.__setattr__(also_public, "to", _OTHER_ACTOR_URI)
         object.__setattr__(
@@ -406,8 +452,10 @@ class TestNamesAnIndividualActor:
 
         The guard against reading the rule above as "any extra address accepts".
         """
-        activity = as_Create(
-            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        activity = make(
+            as_Create,
+            actor=_OTHER_ACTOR_URI,
+            object_=make(as_Note, content="x"),
         )
         object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
         object.__setattr__(activity, "cc", "https://example.org/actors/carol")

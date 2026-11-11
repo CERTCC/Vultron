@@ -25,6 +25,8 @@ Spec coverage:
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -46,10 +48,13 @@ _LAST_HASH = "abc123def456"
 
 @pytest.fixture
 def sample_log_entry() -> as_CaseLedgerEntry:
-    return as_CaseLedgerEntry(
+    return make(
+        as_CaseLedgerEntry,
         case_id="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
         semantic_type="ReportCreated",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 
@@ -192,13 +197,16 @@ def test_read_ledger_position_refuses_the_empty_ledger():
 @pytest.mark.spec("SYNC-17-001")
 def test_read_ledger_entry_is_the_read_of_its_position():
     """Naming an entry and naming its position build the same statement."""
-    sample_log_entry = as_CaseLedgerEntry(
+    sample_log_entry = make(
+        as_CaseLedgerEntry,
         case_id=_CASE_URI,
         log_index=4,
         log_object_id="https://example.org/activities/act-004",
         semantic_type="ReportCreated",
         prev_log_hash="ef" * 32,
         entry_hash="ab" * 32,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     by_entry = read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
     by_position = read_ledger_position_activity(

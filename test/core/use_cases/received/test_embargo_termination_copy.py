@@ -33,6 +33,7 @@ from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -94,7 +95,8 @@ def _end_time_passed(net: LedgerNetwork) -> None:
     store."""
     for dl in net.stores.values():
         dl.save(
-            as_EmbargoEvent(
+            make(
+                as_EmbargoEvent,
                 id_=net.initial_embargo_id,
                 context=net.case_id,
                 end_time=now_utc() - timedelta(hours=1),

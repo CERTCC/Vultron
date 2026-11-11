@@ -38,6 +38,7 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from test.demo.rcvcv_demo._support import CAST, five_party_state, no_banners
+from test.support.objects import make
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
@@ -705,7 +706,8 @@ class TestTheJoinersAddTheirNotes:
     """C2 and V2 reply to the note the shared opening kept as a prop."""
 
     def _answer(self) -> as_Note:
-        return as_Note(
+        return make(
+            as_Note,
             id_="urn:test:timeline-answer",
             name="Coordinator Summary",
             content="Target disclosure in 30 days.",

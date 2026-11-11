@@ -11,6 +11,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -33,7 +34,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 
 def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
-    actor = as_Service(name=name)
+    actor = make(as_Service, name=name)
     dl.create(actor)
     return actor
 
@@ -41,32 +42,39 @@ def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
 def _build_active_embargo_case(
     dl: SqliteDataLayer, owner_id: str, participant_id: str
 ) -> tuple[VulnerabilityCase, as_Invite, str]:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Embargo regression case",
         attributed_to=owner_id,
         stub_summary="Security issue — details shared after acceptance",
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
 
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
+                embargo_id=embargo.id_,
+                state=EmbargoConsentState.AGREED,
             )
         ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = ReporterParticipant(
+    participant = make(
+        ReporterParticipant,
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+                embargo_id=embargo.id_,
+                state=EmbargoConsentState.INVITED,
             )
         ],
     )
@@ -92,18 +100,22 @@ def _build_exited_case(
     dl: SqliteDataLayer, owner_id: str
 ) -> VulnerabilityCase:
     """Case at ``EM.EXITED`` whose owner is its CASE_MANAGER (CM-02-014)."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Exited embargo case",
         attributed_to=owner_id,
     )
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {owner_id: owner_participant.id_}
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     activate(case, embargo.id_)
     terminate(case)
     dl.create(case)
@@ -115,11 +127,13 @@ def _build_exited_case(
 def _build_unbound_case_with_case_manager(
     dl: SqliteDataLayer, owner_id: str
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="No embargo case",
         attributed_to=owner_id,
     )
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
     )
@@ -135,18 +149,23 @@ def _build_active_embargo_case_with_case_manager(
     dl: SqliteDataLayer, actor_id: str
 ) -> VulnerabilityCase:
     """Build a case in EM.ACTIVE state with ``actor`` as owner/case-manager."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Active embargo revision case",
         attributed_to=actor_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
 
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=actor_id,
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
+                embargo_id=embargo.id_,
+                state=EmbargoConsentState.AGREED,
             )
         ],
     )
@@ -174,7 +193,7 @@ def _actor_and_own_store(
     empty one and the case "not found".  Pick the fixture that matches the
     ``actor_id`` on the request under test.
     """
-    actor = as_Service(name=name)
+    actor = make(as_Service, name=name)
     reset_datalayer(actor.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
@@ -262,11 +281,17 @@ def _add_participant(
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     rows = (
-        [EmbargoConsent(embargo_id=case.active_embargo_id, state=consent)]
+        [
+            EmbargoConsent(
+                embargo_id=case.active_embargo_id,
+                state=consent,
+            )
+        ]
         if consent is not None and case.active_embargo_id is not None
         else []
     )
-    participant = ReporterParticipant(
+    participant = make(
+        ReporterParticipant,
         attributed_to=actor_id,
         context=case_id,
         embargo_consents=rows,
@@ -290,7 +315,9 @@ def _case_with_open_proposal(
 ) -> tuple[VulnerabilityCase, str]:
     """A case at EM.PROPOSED whose only open proposal is the owner's."""
     case = _build_unbound_case_with_case_manager(dl, owner_id)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -316,7 +343,9 @@ def _open_revision(
     from typing import cast
 
     case = cast(VulnerabilityCase, dl.read(case_id))
-    revision = as_EmbargoEvent(context=case_id, end_time=days_from_now(90))
+    revision = make(
+        as_EmbargoEvent, context=case_id, end_time=days_from_now(90)
+    )
     proposal = em_propose_embargo_activity(
         revision, context=case_id, actor=owner_id
     )
@@ -326,7 +355,8 @@ def _open_revision(
     participant.embargo_consents = [
         *participant.embargo_consents,
         EmbargoConsent(
-            embargo_id=revision.id_, state=EmbargoConsentState.INVITED
+            embargo_id=revision.id_,
+            state=EmbargoConsentState.INVITED,
         ),
     ]
     dl.create(revision)
@@ -346,30 +376,38 @@ def _case_owned_by_non_manager(
     holds the CASE_MANAGER role.  Returns the case, the proposal's id, the
     proposed embargo's id and the owner's participant id.
     """
-    case = VulnerabilityCase(
-        name="Owner is not the manager", attributed_to=owner_id
+    case = make(
+        VulnerabilityCase,
+        name="Owner is not the manager",
+        attributed_to=owner_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=manager_id
     )
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+                embargo_id=embargo.id_,
+                state=EmbargoConsentState.INVITED,
             )
         ],
     )
     owner_participant.add_role(CVDRole.CASE_OWNER)
-    manager_participant = VendorParticipant(
+    manager_participant = make(
+        VendorParticipant,
         attributed_to=manager_id,
         context=case.id_,
         # The row the proposal writes for every participant (ADR-0122).
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.UNINVITED
+                embargo_id=embargo.id_,
+                state=EmbargoConsentState.UNINVITED,
             )
         ],
     )

@@ -19,6 +19,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_object_case import (
@@ -48,7 +49,7 @@ def _run(dl, carried):
 @pytest.mark.spec("HP-08-007")
 def test_a_carried_object_of_the_target_case_passes(dl):
     _, status = _run(
-        dl, VultronNote(id_=NOTE_ID, content="x", context=CASE_ID)
+        dl, make(VultronNote, id_=NOTE_ID, content="x", context=CASE_ID)
     )
     assert status == Status.SUCCESS
 
@@ -57,7 +58,7 @@ def test_a_carried_object_of_the_target_case_passes(dl):
 @pytest.mark.parametrize("context", [OTHER_CASE_ID, None])
 def test_a_carried_object_of_another_case_or_none_is_refused(dl, context):
     node, status = _run(
-        dl, VultronNote(id_=NOTE_ID, content="x", context=context)
+        dl, make(VultronNote, id_=NOTE_ID, content="x", context=context)
     )
     assert status == Status.FAILURE
     assert "REFUSED" in node.feedback_message
@@ -67,9 +68,11 @@ def test_a_carried_object_of_another_case_or_none_is_refused(dl, context):
 def test_the_stored_record_is_checked_over_the_carried_copy(dl):
     """The check reads the object the tree attaches: a stored record wins
     over the carried copy, as the inbox rebuild's does (IO-03-004)."""
-    dl.create(VultronNote(id_=NOTE_ID, content="x", context=OTHER_CASE_ID))
+    dl.create(
+        make(VultronNote, id_=NOTE_ID, content="x", context=OTHER_CASE_ID)
+    )
     node, status = _run(
-        dl, VultronNote(id_=NOTE_ID, content="x", context=CASE_ID)
+        dl, make(VultronNote, id_=NOTE_ID, content="x", context=CASE_ID)
     )
     assert status == Status.FAILURE
     assert OTHER_CASE_ID in node.feedback_message

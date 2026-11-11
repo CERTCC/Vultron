@@ -28,7 +28,9 @@ from datetime import UTC, timedelta
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
 from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
@@ -84,31 +86,32 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
 
 
 def test_render_vulnerability_case(adapter):
-    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    obj = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     result = adapter.render(obj)
     _assert_wire_dict(result, "VulnerabilityCase")
 
 
 def test_render_vulnerability_report(adapter):
-    obj = VulnerabilityReport()
+    obj = make(VulnerabilityReport)
     result = adapter.render(obj)
     _assert_wire_dict(result, "VulnerabilityReport")
 
 
 def test_render_case_participant(adapter):
-    obj = CaseParticipant()
+    obj = make(CaseParticipant)
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseParticipant")
 
 
 def test_render_case_reference(adapter):
-    obj = CaseReference(url="https://example.org/ref")
+    obj = make(CaseReference, url="https://example.org/ref")
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseReference")
 
 
 def test_render_embargo_policy(adapter):
-    obj = EmbargoPolicy(
+    obj = make(
+        EmbargoPolicy,
         actor_id="urn:uuid:actor",
         inbox="https://example.org/inbox",
         preferred_duration=timedelta(days=90),
@@ -118,28 +121,31 @@ def test_render_embargo_policy(adapter):
 
 
 def test_render_vulnerability_record(adapter):
-    obj = VulnerabilityRecord(name="CVE-2024-0001")
+    obj = make(VulnerabilityRecord, name="CVE-2024-0001")
     result = adapter.render(obj)
     _assert_wire_dict(result, "VulnerabilityRecord")
 
 
 def test_render_case_status(adapter):
-    obj = CaseStatus(context="urn:uuid:case")
+    obj = make(CaseStatus, context="urn:uuid:case")
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseStatus")
 
 
 def test_render_participant_status(adapter):
-    obj = ParticipantStatus(context="urn:uuid:case")
+    obj = make(ParticipantStatus, context="urn:uuid:case")
     result = adapter.render(obj)
     _assert_wire_dict(result, "ParticipantStatus")
 
 
 def test_render_case_ledger_entry(adapter):
-    obj = CaseLedgerEntry(
+    obj = make(
+        CaseLedgerEntry,
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseLedgerEntry")
@@ -152,10 +158,13 @@ def test_render_case_ledger_entry(adapter):
 
 def test_render_returns_camel_case_keys(adapter):
     """Output dict uses camelCase field names (by_alias=True)."""
-    obj = CaseLedgerEntry(
+    obj = make(
+        CaseLedgerEntry,
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     result = adapter.render(obj)
     # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;
@@ -167,7 +176,7 @@ def test_render_returns_camel_case_keys(adapter):
 
 def test_render_excludes_none_fields(adapter):
     """Output dict omits None-valued fields (exclude_none=True)."""
-    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    obj = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     result = adapter.render(obj)
     for key, val in result.items():
         assert val is not None, (
@@ -190,10 +199,12 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     from vultron.core.models._helpers import clock as helpers_clock
     from vultron.demo.determinism import SteppingClock
 
-    obj = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/c1"
+    obj = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/c1",
     )
-    obj.case_statuses = [CaseStatus(context=obj.id_)]
+    obj.case_statuses = [make(CaseStatus, context=obj.id_)]
     monkeypatch.setattr(
         helpers_clock, "datetime", SteppingClock(datetime.now(UTC))
     )
@@ -242,9 +253,10 @@ def test_render_serialises_nested_values_by_their_runtime_type(adapter):
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
     inbox = "https://example.org/actors/coordinator/inbox"
-    org = as_Organization(id_="https://example.org/actors/coordinator")
+    org = make(as_Organization, id_="https://example.org/actors/coordinator")
     object.__setattr__(org, "inbox", inbox)
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_="https://example.org/activities/accept-1",
         type_="Accept",
         actor="https://example.org/actors/case-actor",
@@ -281,8 +293,10 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
     from vultron.core.models.base import CoreObject
 
     assert CoreObject.model_fields["context_"].exclude is True
-    obj = CaseParticipant(
-        attributed_to="urn:uuid:actor", context="urn:uuid:case"
+    obj = make(
+        CaseParticipant,
+        attributed_to="urn:uuid:actor",
+        context="urn:uuid:case",
     )
     result = adapter.render(obj)
     assert result["@context"] == list(DEFAULT_JSONLD_CONTEXT)
@@ -296,7 +310,7 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
 
 def test_render_succeeds_for_case_actor(adapter):
     """CaseActor IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
-    obj = VultronService(inbox="urn:x:inbox", outbox="urn:x:outbox")
+    obj = make(VultronService, inbox="urn:x:inbox", outbox="urn:x:outbox")
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Service"
@@ -309,14 +323,14 @@ def test_render_succeeds_for_case_actor(adapter):
 @pytest.mark.spec("AKM-02-006")
 def test_render_adds_no_endpoint_the_actor_does_not_state(adapter):
     """An actor whose profile states no endpoints renders none (ADR-0159)."""
-    result = adapter.render(VultronService())
+    result = adapter.render(make(VultronService))
     assert "inbox" not in result
     assert "outbox" not in result
 
 
 def test_render_succeeds_for_vultron_person(adapter):
     """VultronPerson IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
-    obj = VultronPerson()
+    obj = make(VultronPerson)
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Person"

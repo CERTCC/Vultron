@@ -26,7 +26,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
@@ -56,5 +56,7 @@ class DeadLetterRecord(CoreRecord):
     activity_id: NonEmptyString
     activity_type: NonEmptyString | None = None
     activity_summary: dict[NonEmptyString, Any] | None = None
-    received_at: datetime = Field(default_factory=now_utc)
+    # Required: the act's instant, set by the node that stores the record
+    # (ADR-0176).
+    received_at: datetime
     _serialize_received_at = timestamp_serializer("received_at")

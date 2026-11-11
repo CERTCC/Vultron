@@ -22,6 +22,7 @@ import os
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
 from vultron.adapters.driven.db_record import Record
@@ -95,7 +96,7 @@ def test_get_returns_none_for_missing_id(dl, record_factory):
 def test_read_returns_object(dl, record_factory):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="Test Content")
+    note = make(as_Note, content="Test Content")
     dl.save(note)
     result = dl.read(note.id_)
     assert result is not None
@@ -111,7 +112,7 @@ def test_read_does_not_resolve_a_bare_uuid(dl):
     """A bare UUID is not a key: the row under ``urn:uuid:<uuid>`` is not found."""
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="Bare UUID test")
+    note = make(as_Note, content="Bare UUID test")
     dl.save(note)
     bare = note.id_.removeprefix("urn:uuid:")
     assert bare != note.id_
@@ -270,7 +271,7 @@ def test_retired_embargo_adherence_row_does_not_read_back_as_clean_core(
 def test_save_inserts_new_object(dl):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="Save test")
+    note = make(as_Note, content="Save test")
     dl.save(note)
     result = dl.read(note.id_)
     assert result is not None
@@ -279,9 +280,9 @@ def test_save_inserts_new_object(dl):
 def test_save_overwrites_existing_object(dl):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="Original content")
+    note = make(as_Note, content="Original content")
     dl.save(note)
-    note2 = as_Note(id_=note.id_, content="Updated content")
+    note2 = make(as_Note, id_=note.id_, content="Updated content")
     dl.save(note2)
     result = dl.read(note.id_)
     assert result is not None
@@ -324,7 +325,7 @@ def test_all_returns_all_records_for_table(dl, record_factory):
 def test_all_without_table_returns_dict_of_objects(dl):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="All test")
+    note = make(as_Note, content="All test")
     dl.save(note)
     result = dl.all()
     assert isinstance(result, dict)

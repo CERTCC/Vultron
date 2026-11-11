@@ -1,11 +1,12 @@
 """Inbound unknown-key disposition at the parse edge (MV-11).
 
 ``parse_activity`` calls :func:`partition_unknown_keys` on the raw body before
-anything validates it.  The walk visits every object at every depth — the
-envelope, an inline object whose ``type`` resolves to a wire class or to a core
-class, an inline ``Link``, and an inline dict with no ``type`` — and partitions
-each object's keys against the declared spellings of the class that will
-validate it (MV-11-001):
+anything validates it, and ``parse_fetched_object`` calls it on a fetched
+object's body, which is inbound data too (MV-11-001).  The walk visits every
+object at every depth — the envelope, an inline object whose ``type`` resolves
+to a wire class or to a core class, an inline ``Link``, and an inline dict with
+no ``type`` — and partitions each object's keys against the declared spellings
+of the class that will validate it (MV-11-001):
 
 * a **declared** key is kept;
 * a **near miss** — the same string as a declared spelling once both are
@@ -39,6 +40,7 @@ Vultron supports one protocol version, so no list of retired names is kept
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import logging
 import types
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -57,6 +59,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
     is_case_reference_shape,
 )
+
+logger = logging.getLogger(__name__)
+
+#: How a report names the root of an activity body.
+ENVELOPE = "the envelope"
 
 #: The JSON-LD context key every object may carry (MV-11-001).  It is the only
 #: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
@@ -85,11 +92,13 @@ class SetAsideKey:
 
     path: str
     key: str
+    #: How a report names the root object (``path == ""``).
+    root: str = ENVELOPE
 
     @property
     def location(self) -> str:
         """Where the key sat, as named in a report."""
-        return location_of(self.path)
+        return location_of(self.path, self.root)
 
 
 @dataclass(frozen=True)
@@ -106,8 +115,14 @@ class _Spellings:
 class _Walk:
     """Accumulates the outcome of one partition walk."""
 
+    #: How a report names the root object.
+    root: str = ENVELOPE
     set_aside: list[SetAsideKey] = field(default_factory=list)
     near_misses: list[str] = field(default_factory=list)
+
+    def set_aside_key(self, path: str, key: str) -> None:
+        """Record *key* at *path* as set aside."""
+        self.set_aside.append(SetAsideKey(path=path, key=key, root=self.root))
 
 
 def normalise(key: str) -> str:
@@ -265,9 +280,9 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
         return None
 
 
-def location_of(path: str) -> str:
-    """Name *path* in a report: quoted, or ``the envelope`` for the root."""
-    return repr(path) if path else "the envelope"
+def location_of(path: str, root: str = ENVELOPE) -> str:
+    """Name *path* in a report: quoted, or *root* for the root object."""
+    return repr(path) if path else root
 
 
 def _join(path: str, key: str) -> str:
@@ -312,14 +327,14 @@ def _partition_object(
         }
     spellings = _merged_spellings(classes)
     kept: dict[str, Any] = {}
-    location = location_of(path)
+    location = location_of(path, walk.root)
     embedded_profile = bool(path) and _is_actor_profile(classes)
     for key, item in value.items():
         if embedded_profile and normalise(key) == _PROFILE_KEYS_NORMALISED:
             # An actor profile embedded in a received activity loses its
             # keys: a key is trusted only as fetched from the actor's own
             # profile URL, so no stored copy may carry one (SIG-02-003).
-            walk.set_aside.append(SetAsideKey(path=path, key=key))
+            walk.set_aside_key(path, key)
         elif key in spellings.annotations:
             kept[key] = (
                 item
@@ -339,7 +354,7 @@ def _partition_object(
                 f" {declared!r}"
             )
         else:
-            walk.set_aside.append(SetAsideKey(path=path, key=key))
+            walk.set_aside_key(path, key)
     return kept
 
 
@@ -354,13 +369,23 @@ def _is_actor_profile(classes: tuple[type[BaseModel], ...]) -> bool:
 
 
 def partition_unknown_keys(
-    body: dict[str, Any], cls: type[BaseModel]
+    body: dict[str, Any],
+    cls: type[BaseModel],
+    *,
+    subject: str = "Activity",
+    root: str = ENVELOPE,
 ) -> tuple[dict[str, Any], list[SetAsideKey]]:
-    """Partition every object's keys in *body*; *cls* validates the envelope.
+    """Partition every object's keys in *body*; *cls* validates its root.
 
     Returns a copy of *body* with every set-aside key removed, and the keys set
     aside, in walk order, for the caller to report (MV-11-003).  *body* itself
     is not modified: it is the received evidence (VM-08-002).
+
+    Args:
+        body: The inbound body: a received activity, or a fetched object.
+        cls: The class that validates the root of *body*.
+        subject: What a refusal names *body* as.
+        root: What a report or refusal names the root object as.
 
     Raises:
         VultronParseValidationError: If any key is a near miss.  Every
@@ -368,7 +393,7 @@ def partition_unknown_keys(
             Also raised, rather than ``RecursionError``, for a body nested
             beyond the interpreter's recursion limit.
     """
-    walk = _Walk()
+    walk = _Walk(root=root)
     try:
         kept = _partition_object(body, (cls,), "", walk)
     except RecursionError as exc:
@@ -376,11 +401,36 @@ def partition_unknown_keys(
         # handler as a 500.  A body nested this deep is malformed, not an
         # internal fault: refuse it as the schema fault it is (MV-02-002).
         raise VultronParseValidationError(
-            "Activity body nests objects too deeply to parse."
+            f"{subject} nests objects too deeply to parse."
         ) from exc
     if walk.near_misses:
         raise VultronParseValidationError(
-            "Activity carries misspelled key(s) (MV-11-002): "
+            f"{subject} carries misspelled key(s) (MV-11-002): "
             + "; ".join(walk.near_misses)
         )
     return kept, walk.set_aside
+
+
+def report_set_aside(
+    set_aside: list[SetAsideKey], ids: Mapping[str, object]
+) -> None:
+    """Log one INFO record per set-aside key (MV-11-003, SL-02-001/002).
+
+    INFO, not WARNING: a property this receiver does not read is a normal
+    protocol event — usually a peer's extension — not an anomaly (SL-03-001).
+    The key survives only in the received body (VM-08-002).
+
+    Args:
+        set_aside: The keys :func:`partition_unknown_keys` set aside.
+        ids: The identifiers each record carries, such as ``activity_id``
+            and ``actor_id`` (SL-02-001), in the order they are logged.
+    """
+    named = " ".join(f"{name}={value}" for name, value in ids.items())
+    for entry in set_aside:
+        logger.info(
+            "Set aside unknown key %r at %s; it is not read by this receiver"
+            " (MV-11-003) [%s]",
+            entry.key,
+            entry.location,
+            named,
+        )

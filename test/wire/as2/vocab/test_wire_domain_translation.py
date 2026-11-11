@@ -18,8 +18,10 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -56,7 +58,8 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
     """ARCH-25-003 (ADR-0099): as_VulnerabilityReport is VulnerabilityReport (identity)."""
     assert as_VulnerabilityReport is VulnerabilityReport
 
-    core = VulnerabilityReport(
+    core = make(
+        VulnerabilityReport,
         id_="https://example.org/reports/1",
         attributed_to="https://example.org/actors/finder",
         context="https://example.org/cases/1",
@@ -74,7 +77,8 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
 
 
 def test_case_status_round_trips_between_core_and_wire():
-    core = CoreCaseStatus(
+    core = make(
+        CoreCaseStatus,
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -96,13 +100,15 @@ def test_case_status_round_trips_between_core_and_wire():
 
 
 def test_participant_status_from_core_materializes_case_status_reference():
-    core_case_status = CoreCaseStatus(
+    core_case_status = make(
+        CoreCaseStatus,
         id_="https://example.org/cases/1/status/1",
         context="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
         em=EmDimension(state=EM.NONE),
     )
-    core = CoreParticipantStatus(
+    core = make(
+        CoreParticipantStatus,
         id_="https://example.org/cases/1/participants/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -128,13 +134,15 @@ def test_participant_status_from_core_materializes_case_status_reference():
 
 
 def test_case_participant_round_trips_between_core_and_wire():
-    core = CaseParticipant(
+    core = make(
+        CaseParticipant,
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
         case_roles=[],
         participant_statuses=[
-            CoreParticipantStatus(
+            make(
+                CoreParticipantStatus,
                 id_="https://example.org/cases/1/participants/vendor/status/1",
                 attributed_to="https://example.org/actors/vendor",
                 context="https://example.org/cases/1",
@@ -181,13 +189,15 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     """ARCH-25-003 (ADR-0099): as_VulnerabilityCase is VulnerabilityCase (identity)."""
     assert as_VulnerabilityCase is VulnerabilityCase
 
-    case_status = CoreCaseStatus(
+    case_status = make(
+        CoreCaseStatus,
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
         em=EmDimension(state=EM.PROPOSED),
     )
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -196,7 +206,8 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     participant.write_uninvited_rows(
         ["https://example.org/embargoes/1", "https://example.org/embargoes/2"]
     )
-    core = VulnerabilityCase(
+    core = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
         case_participants=[participant],
@@ -249,12 +260,15 @@ def test_case_ledger_entry_to_core_returns_domain_model():
     """ARCH-25-003 (ADR-0099): as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
     assert as_CaseLedgerEntry is CaseLedgerEntry
 
-    entry = as_CaseLedgerEntry(
+    entry = make(
+        as_CaseLedgerEntry,
         case_id="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
         semantic_type="case_created",
         payload_snapshot={"id": "https://example.org/activities/1"},
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
     assert isinstance(entry, CaseLedgerEntry)
@@ -272,7 +286,8 @@ def test_vultron_as2_activity_from_core_with_string_fields():
     from vultron.core.models.activity import VultronActivity
     from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
-    core = VultronActivity(
+    core = make(
+        VultronActivity,
         id_="https://example.org/activities/1",
         type_="Offer",
         actor="https://example.org/actors/alice",
@@ -294,7 +309,8 @@ def test_vultron_as2_activity_from_core_with_no_object():
     from vultron.core.models.activity import VultronActivity
     from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
-    core = VultronActivity(
+    core = make(
+        VultronActivity,
         id_="https://example.org/activities/2",
         type_="Read",
         actor="https://example.org/actors/bob",
@@ -314,7 +330,8 @@ def test_vultron_as2_activity_subclass_field_map_renames():
     class _AliasMappedActivity(as_VultronActivity):
         _field_map: ClassVar[dict[str, str]] = {"origin": "target"}
 
-    core = VultronActivity(
+    core = make(
+        VultronActivity,
         id_="https://example.org/activities/3",
         type_="Move",
         actor="https://example.org/actors/alice",
@@ -333,7 +350,8 @@ def test_vultron_as2_activity_from_core_accept_subtype():
     from vultron.core.models.activity import VultronAccept
     from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
-    core = VultronAccept(
+    core = make(
+        VultronAccept,
         id_="https://example.org/activities/4",
         actor="https://example.org/actors/vendor",
         object_="https://example.org/activities/offer-1",

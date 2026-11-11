@@ -25,7 +25,9 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
@@ -81,7 +83,8 @@ def _seed_case_with_participant(
     """
     from vultron.core.models.replication_state import VultronReplicationState
 
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{_CASE_ID}/participants/invitee",
         attributed_to=_INVITEE_ID,
         context=_CASE_ID,
@@ -89,7 +92,8 @@ def _seed_case_with_participant(
     )
     if removed:
         participant.record_removal(f"{_CASE_ID}/removals/1")
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="Test Case",
@@ -103,6 +107,7 @@ def _seed_case_with_participant(
                 case_id=_CASE_ID,
                 peer_id=_INVITEE_ID,
                 embargo_paused_from_index=0,
+                updated_at=ACT_AT,
             )
         )
     return case
@@ -110,8 +115,11 @@ def _seed_case_with_participant(
 
 def _seed_fresh_case(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     """Seed a case with no participants."""
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="Test Case",
     )
     bt_scenario.dl.create(case)
     return case
@@ -237,9 +245,12 @@ def _seed_case_with_status(
     bt_scenario: BTTestScenario,
 ) -> tuple[VulnerabilityCase, CaseStatus]:
     """Seed a case that already has a CaseStatus entry."""
-    status = CaseStatus(context=_CASE_ID)
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+    status = make(CaseStatus, context=_CASE_ID)
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="Test Case",
     )
     case.case_statuses.append(status.id_)
     bt_scenario.dl.create(status)
@@ -293,8 +304,11 @@ class TestCheckCaseStatusIdempotencyNode:
     def test_returns_success_when_status_not_present(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        case = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        case = make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="Test Case",
         )
         bt_scenario.dl.create(case)
         node = CheckCaseStatusIdempotencyNode(

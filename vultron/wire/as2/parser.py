@@ -30,8 +30,8 @@ from vultron.wire.as2.errors import (
 )
 from vultron.wire.as2.unknown_keys import (
     OPAQUE_PAYLOAD_KEYS,
-    SetAsideKey,
     partition_unknown_keys,
+    report_set_aside,
     resolve_inline_class,
 )
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -317,7 +317,14 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # sees a set-aside key, so a core class's ``extra="forbid"`` is never the
     # rule that decides a peer's property (MV-11-004).
     declared_body, set_aside = partition_unknown_keys(body, cls)
-    _report_set_aside(body, set_aside)
+    actor = body.get("actor")
+    report_set_aside(
+        set_aside,
+        {
+            "activity_id": body.get("id"),
+            "actor_id": actor.get("id") if isinstance(actor, dict) else actor,
+        },
+    )
     declared_body = _without_malformed_sender_sequence(declared_body)
 
     try:
@@ -385,31 +392,6 @@ def _without_malformed_sender_sequence(body: dict[str, Any]) -> dict[str, Any]:
         body.get("id"),
     )
     return {k: v for k, v in body.items() if k != _SENDER_SEQUENCE_KEY}
-
-
-def _report_set_aside(
-    body: dict[str, Any], set_aside: list[SetAsideKey]
-) -> None:
-    """Log one INFO record per set-aside key (MV-11-003, SL-02-001/002).
-
-    INFO, not WARNING: a property this receiver does not read is a normal
-    protocol event — usually a peer's extension — not an anomaly (SL-03-001).
-    The key survives only in the received evidence (VM-08-002).
-    """
-    if not set_aside:
-        return
-    activity_id = body.get("id")
-    actor = body.get("actor")
-    actor_id = actor.get("id") if isinstance(actor, dict) else actor
-    for entry in set_aside:
-        logger.info(
-            "Set aside unknown key %r at %s; it is not read by this receiver"
-            " (MV-11-003) [activity_id=%s actor_id=%s]",
-            entry.key,
-            entry.location,
-            activity_id,
-            actor_id,
-        )
 
 
 def _received_evidence_json(body: dict[str, Any]) -> str:

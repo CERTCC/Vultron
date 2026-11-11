@@ -21,6 +21,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -54,12 +55,14 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/finder",
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_aem1",
             name="Announce Embargo No-Op Test",
             attributed_to="https://example.org/users/finder",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -104,12 +107,14 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/finder",
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_aem2",
             name="Announce Embargo Log Test",
             attributed_to="https://example.org/users/finder",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_aem2/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -152,12 +157,14 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/finder",
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_aem3",
             name="Announce Embargo Sender Test",
             attributed_to="https://example.org/users/finder",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_aem3/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -227,7 +234,8 @@ class TestResetEmbargoConsentWithInlineParticipants:
             actor_id="https://example.org/users/case-manager",
         )
 
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
             end_time=days_from_now(45),
@@ -236,13 +244,15 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         # Build a participant and store it — it also appears inline in case.
         # Receiver-side, the participant holds an AGREED row for the embargo.
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=participant_id,
             context=case_id,
             attributed_to=actor_id,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
+                    embargo_id=embargo.id_,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -250,7 +260,8 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         # Store inline as_CaseParticipant object (not string ID) in
         # case_participants — this is the condition that caused #609.
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=case_id,
             name="Inline Participant Regression Test",
             attributed_to=actor_id,

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.dispatcher import DirectActivityDispatcher, get_dispatcher
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
@@ -47,9 +48,11 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     event = CreateReportReceivedEvent(
         activity_id="act-xyz",
         actor_id="https://example.org/users/tester",
-        object_=VulnerabilityReport(content="test report"),
-        activity=VultronActivity(
-            type_="Create", actor="https://example.org/users/tester"
+        object_=make(VulnerabilityReport, content="test report"),
+        activity=make(
+            VultronActivity,
+            type_="Create",
+            actor="https://example.org/users/tester",
         ),
     )
 
@@ -70,9 +73,11 @@ def _create_report_event() -> CreateReportReceivedEvent:
     return CreateReportReceivedEvent(
         activity_id="act-verdict",
         actor_id="https://example.org/users/tester",
-        object_=VulnerabilityReport(content="test report"),
-        activity=VultronActivity(
-            type_="Create", actor="https://example.org/users/tester"
+        object_=make(VulnerabilityReport, content="test report"),
+        activity=make(
+            VultronActivity,
+            type_="Create",
+            actor="https://example.org/users/tester",
         ),
     )
 

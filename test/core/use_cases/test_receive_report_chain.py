@@ -22,6 +22,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -74,7 +75,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(name=name)
+    return make(as_Service, name=name)
 
 
 def _make_offer(
@@ -104,8 +105,10 @@ def _build_case(
     report_id: str,
 ) -> as_VulnerabilityCase:
     """Build a VulnerabilityCase with full participant setup and linked report."""
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="Chain Integration Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="Chain Integration Case",
     )
     case.vulnerability_reports.append(report_id)
     # DUR-07-004: an embargo must be established before RM.VALID.  This used to
@@ -115,7 +118,8 @@ def _build_case(
     # the case replica has to actually carry the embargo.
     # The record itself is held too: a case never names an embargo its own
     # store cannot read (EMB-18-003).
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{case.id_}/embargoes/chain-embargo",
         context=case.id_,
         end_time=days_from_now(45),
@@ -123,22 +127,27 @@ def _build_case(
     dl.create(embargo)
     activate(case, embargo.id_)
 
-    vendor_p = as_CaseParticipant(
+    vendor_p = make(
+        as_CaseParticipant,
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     vendor_p.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
 
-    finder_p = ReporterParticipant(
+    finder_p = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_p = as_CaseParticipant(
+    case_manager_p = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -183,7 +192,8 @@ def chain_context():
     for actor in (finder, vendor, case_actor):
         dl.create(actor)
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Chain Test Vuln",
         content="Heap overflow in login handler",
         attributed_to=finder.id_,
@@ -293,7 +303,8 @@ class TestValidateEngageChain:
             dl.read(case.actor_participant_index[vendor.id_]),
         )
         participant.add_participant_status(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=vendor.id_,
                 rm=RmDimension(state=RM.CLOSED),
@@ -350,7 +361,8 @@ class TestValidateEngageChain:
             dl.read(case.actor_participant_index[vendor.id_]),
         )
         participant.add_participant_status(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=vendor.id_,
                 rm=RmDimension(state=RM.VALID),

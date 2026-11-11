@@ -40,7 +40,9 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
@@ -81,8 +83,11 @@ REPORT_ID = "https://example.org/reports/run-time-case"
 def _store(receiver: str) -> BTTestScenario:
     """*receiver*'s store holding the case: MANAGER, VENDOR and REPLICA."""
     scenario = BTTestScenario(actor_id=receiver)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Run-time case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Run-time case",
     )
     seed_case_manager_participant(scenario.dl, case, MANAGER)
     seed_case_participant(scenario.dl, case, VENDOR)
@@ -100,6 +105,7 @@ def _entry() -> CaseLedgerEntry:
             semantic_type="test_event",
             payload_snapshot={"log_index": 0},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

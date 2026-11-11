@@ -37,6 +37,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.objects import make
 from test.support.participant_status import (
     assert_possible_participant_status,
     assert_recorded_states_possible,
@@ -105,12 +106,14 @@ def current_status(
     recorded*, so it is never allowed to be impossible; the inbound status a
     test expects to be refused is built by the test itself (#3046).
     """
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_=CURRENT_STATUS_ID,
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
         vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        case_status=as_CaseStatus(
+        case_status=make(
+            as_CaseStatus,
             id_=f"{CURRENT_STATUS_ID}/cs",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
@@ -137,7 +140,8 @@ def seed_case(
     is the inbound status under judgement and is deliberately not checked —
     several tests exist precisely to show an impossible one being refused.
     """
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -145,7 +149,8 @@ def seed_case(
     )
     vendor.participant_statuses.append(current)
     assert_recorded_states_possible(vendor, "seed_case() vendor")
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -154,7 +159,8 @@ def seed_case(
     # attributed_to is what seeds the per-case genesis hash (CLP-08-003);
     # without it the ledger sits in the pre-genesis bootstrap window and the
     # guarded commit cannot anchor a chain.
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Issue 2235 Case",
         attributed_to=CASE_MANAGER_ID,

@@ -24,7 +24,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE,
@@ -71,19 +73,24 @@ def _entry(
                 "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
 
 @pytest.fixture
 def replica_record(datalayer) -> CaseParticipant:
-    record = CaseParticipant(
+    record = make(
+        CaseParticipant,
         id_=REPLICA_PARTICIPANT_ID,
         attributed_to=REMOVED_ACTOR_ID,
         context=CASE_ID,
     )
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="Removal replay", attributed_to=OWNER_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="Removal replay",
+        attributed_to=OWNER_ACTOR_ID,
     )
     case.add_participant(record)
     datalayer.create(record)
@@ -287,6 +294,7 @@ def test_reinstatement_skips_a_snapshot_with_no_participant(
                 "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

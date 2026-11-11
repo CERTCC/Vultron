@@ -35,6 +35,7 @@ from fastapi.testclient import TestClient
 from test.support.act_clock import CountingClock, tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -114,7 +115,9 @@ def dl() -> Generator[SqliteDataLayer, None, None]:
 
 def _report_activity() -> as_Activity:
     return rm_create_report_activity(
-        report=as_VulnerabilityReport(name="Arrival stamp", content="body"),
+        report=make(
+            as_VulnerabilityReport, name="Arrival stamp", content="body"
+        ),
         actor="https://example.org/actors/finder",
         to=[_RECEIVER],
     )
@@ -122,7 +125,7 @@ def _report_activity() -> as_Activity:
 
 def _note_activity(content: str) -> as_Activity:
     return add_note_to_case_activity(
-        as_Note(content=content, context=_CASE),
+        make(as_Note, content=content, context=_CASE),
         target=_CASE,
         context=_CASE,
         actor=_SENDER,
@@ -185,7 +188,8 @@ def route() -> Generator[tuple[TestClient, SqliteDataLayer, CountingClock]]:
         store: SqliteDataLayer = app.dependency_overrides[get_actor_dl](_SLUG)
         store.create(
             object_to_record(
-                CoreActor(
+                make(
+                    CoreActor,
                     id_=_RECEIVER,
                     name="Arrival Stamp Test Actor",
                     inbox=f"{_RECEIVER}/inbox",
@@ -265,7 +269,7 @@ def test_a_delivery_runs_at_its_arrival_stamp_under_the_tree_lock(
 def test_a_held_message_replays_at_its_original_arrival_stamp(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    dl.save(as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE))
+    dl.save(make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE))
     held = _note_activity("held")
     assert hold_activity(dl, held, received_at=_ARRIVED)
     dl.inbox_append(held.id_)
@@ -348,7 +352,7 @@ def test_a_bootstrap_that_arrived_inside_the_window_releases_the_queue(
         "vultron.adapters.driving.fastapi.inbox_pending_queue.get_config",
         lambda: Mock(pre_bootstrap_queue_timeout_seconds=_WINDOW_SECONDS),
     )
-    dl.save(as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE))
+    dl.save(make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE))
 
     _replay_pending_case_activities(
         case_id=_CASE, dl=dl, queue_dl=dl, at=_ARRIVED
@@ -443,7 +447,7 @@ def test_a_queued_item_with_nothing_held_is_refused_before_any_act(
 def test_every_retry_of_a_replay_runs_at_the_first_arrival_stamp(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    dl.save(as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE))
+    dl.save(make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE))
     held = _note_activity("retried in the drain")
     assert hold_activity(dl, held, received_at=_ARRIVED)
     dl.inbox_append(held.id_)

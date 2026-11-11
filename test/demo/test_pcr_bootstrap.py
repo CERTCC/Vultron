@@ -47,6 +47,7 @@ from test.demo.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import post_delivered, serve_published_profiles
 from vultron.core.models.dimensions import (
@@ -356,12 +357,14 @@ def _bootstrap_case_for_participant(
     # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
     # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
     # in the report; RECEIVED → VALID is the legal move validate-report makes.
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=owner_actor_id,
         context=case_id,
         case_roles=[CVDRole.CASE_OWNER],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=owner_actor_id,
                 context=case_id,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -577,7 +580,8 @@ class TestBootstrapSequence:
         # Seed the replica directly in the actor's store.  An inbox Announce
         # from a sender this actor never trusted is refused and stores
         # nothing (PCR-03-004, #4674), so it cannot seed a replica.
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_DIRECT_CASE_ID,
             name="PCR-07-006 Test Case",
@@ -591,7 +595,7 @@ class TestBootstrapSequence:
         )
 
         # Post a case-scoped Add(Note) with context = case_id.
-        note = as_Note(name="Routing check note for PCR-07-006")
+        note = make(as_Note, name="Routing check note for PCR-07-006")
         note_activity = add_note_to_case_activity(
             note,
             target=case,

@@ -18,6 +18,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
@@ -33,7 +34,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 @pytest.fixture
 def actor_dl() -> Iterator[tuple[as_Service, SqliteDataLayer]]:
-    actor = as_Service(name="Vendor Co")
+    actor = make(as_Service, name="Vendor Co")
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.create(actor)
     yield actor, dl
@@ -75,7 +76,7 @@ def _post_content(
 def _case_with_manager(
     dl: SqliteDataLayer, actor: as_Service
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(attributed_to=actor.id_)
+    case = make(VulnerabilityCase, attributed_to=actor.id_)
     dl.create(case)
     # The address the case's CASE_MANAGER was reached at (CBT-01-006).
     dl.save(
@@ -90,7 +91,12 @@ def _case_with_manager(
 
 def _note_to_manager(case: VulnerabilityCase, actor: as_Service, tag: str):
     return add_note_to_case_activity(
-        as_Note(id_=f"{case.id_}/notes/{tag}", content=tag, context=case.id_),
+        make(
+            as_Note,
+            id_=f"{case.id_}/notes/{tag}",
+            content=tag,
+            context=case.id_,
+        ),
         target=case.id_,
         actor=actor.id_,
         to=[_MANAGER],
@@ -176,10 +182,12 @@ def test_a_posted_case_activity_is_sealed_with_the_actors_tail(
     actor_dl, monkeypatch
 ) -> None:
     actor, dl = actor_dl
-    case = VulnerabilityCase(attributed_to=actor.id_)
+    case = make(VulnerabilityCase, attributed_to=actor.id_)
     dl.create(case)
     note = add_note_to_case_activity(
-        as_Note(id_=f"{case.id_}/notes/1", content="n", context=case.id_),
+        make(
+            as_Note, id_=f"{case.id_}/notes/1", content="n", context=case.id_
+        ),
         target=case.id_,
         actor=actor.id_,
         to=["https://example.org/users/manager"],

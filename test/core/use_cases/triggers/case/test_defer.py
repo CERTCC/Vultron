@@ -4,6 +4,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -51,7 +52,9 @@ def _to_ids(activity) -> list[str]:
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(name=name, url=f"https://example.org/{name.lower()}")
+    return make(
+        as_Service, name=name, url=f"https://example.org/{name.lower()}"
+    )
 
 
 def _make_actor_dl(name: str) -> tuple[as_Service, SqliteDataLayer]:
@@ -68,27 +71,38 @@ def _make_case_with_case_manager(
     finder_id: str,
     case_actor_id: str,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
 
-    actor_participant = as_CaseParticipant(
+    actor_participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
 
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -180,7 +194,8 @@ class TestDeferCaseRMTransitionViaBT:
         participant = self.dl.read(self.vendor_participant.id_)
         assert isinstance(participant, CaseParticipant)
         participant.add_participant_status(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=self.case.id_,
                 attributed_to=self.vendor.id_,
                 rm=RmDimension(state=RM.CLOSED),
@@ -209,8 +224,10 @@ class TestDeferCaseRMTransitionViaBT:
 
     def test_defer_by_an_actor_with_no_participant_sends_nothing(self):
         """An actor the case does not index is refused and sends nothing."""
-        case_solo = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Unseated Case"
+        case_solo = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Unseated Case",
         )
         self.dl.create(case_solo)
         before = set(self.dl.outbox_list())
@@ -262,22 +279,27 @@ class TestDeferCaseRMTransitionViaBT:
     def test_defer_case_rm_not_updated_when_no_participant(self):
         # Build a case with a valid vendor participant (so RM transition
         # succeeds) but no CASE_MANAGER, so ResolveCaseManagerNode fails.
-        case_solo = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        case_solo = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Solo Case"
         )
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             attributed_to=self.vendor.id_,
             context=case_solo.id_,
             case_roles=[CVDRole.VENDOR],
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(
-                context=case_solo.id_, rm=RmDimension(state=RM.RECEIVED)
+            make(
+                WireParticipantStatus,
+                context=case_solo.id_,
+                rm=RmDimension(state=RM.RECEIVED),
             )
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(
-                context=case_solo.id_, rm=RmDimension(state=RM.VALID)
+            make(
+                WireParticipantStatus,
+                context=case_solo.id_,
+                rm=RmDimension(state=RM.VALID),
             )
         )
         case_solo.actor_participant_index[self.vendor.id_] = (

@@ -25,6 +25,7 @@ from typing import Any, cast
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -45,24 +46,28 @@ def case_with_participant(
 ) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Create a case whose participant is already in RM.VALID."""
     case_id = "https://example.org/cases/case-001"
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=actor.id_,
         context=case_id,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.RECEIVED),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.VALID),
             ),
         ],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Participant Case",
         vulnerability_reports=[report.id_],
@@ -81,7 +86,8 @@ def case_without_participant(
     report: VulnerabilityReport,
 ) -> VulnerabilityCase:
     """Create a case without a participant for the test actor."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-002",
         name="Missing Participant Case",
         vulnerability_reports=[report.id_],

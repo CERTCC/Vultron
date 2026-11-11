@@ -33,6 +33,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.trigger_results import activity_of, note_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -77,7 +78,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -107,18 +108,23 @@ def _make_case_with_case_manager(
 
     # attributed_to seeds the per-case genesis hash (CLP-08-003), so a
     # CASE_MANAGER commit can anchor the chain.
-    case = as_VulnerabilityCase(name="Test Case", attributed_to=case_actor_id)
+    case = make(
+        as_VulnerabilityCase, name="Test Case", attributed_to=case_actor_id
+    )
 
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    actor_participant = as_CaseParticipant(
+    actor_participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -126,12 +132,18 @@ def _make_case_with_case_manager(
     # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
 
     case.actor_participant_index[actor_id] = actor_participant.id_
@@ -372,8 +384,10 @@ class TestSvcAddNoteToCaseUseCase:
 
     def test_raises_when_no_case_manager(self):
         """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        solo_case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        solo_case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="No Manager Case",
         )
         solo_case.actor_participant_index[self.vendor.id_] = (
             f"{solo_case.id_}/participants/vendor"
@@ -411,7 +425,8 @@ class TestSvcAddNoteToCaseUseCase:
         """Note carries the supplied in_reply_to value."""
         from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-        parent = as_Note(
+        parent = make(
+            as_Note,
             name="Parent Note",
             content="Original question",
             context=self.case.id_,

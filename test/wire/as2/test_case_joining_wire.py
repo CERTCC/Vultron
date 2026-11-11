@@ -20,6 +20,7 @@ through VAM-04-014).  See ``notes/case-joining.md``.
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.factories import rm_invite_to_case_activity
@@ -46,7 +47,8 @@ _UNKNOWN = {
 
 
 def _full_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="JOINING-WIRE",
         attributed_to=_MANAGER_ID,
@@ -57,7 +59,7 @@ def _full_case() -> as_VulnerabilityCase:
 def _stub_invite() -> as_Invite:
     """The stub Invite exactly as the CASE_MANAGER's factory builds it."""
     return rm_invite_to_case_activity(
-        as_Organization(id_=_INVITEE_ID),
+        make(as_Organization, id_=_INVITEE_ID),
         target=_full_case(),
         actor=_MANAGER_ID,
         id_=f"{_CASE_ID}/invitations/stub-1",
@@ -66,10 +68,11 @@ def _stub_invite() -> as_Invite:
 
 def _full_case_invite() -> as_Invite:
     """``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite."""
-    return as_Invite(
+    return make(
+        as_Invite,
         id_=f"{_CASE_ID}/invitations/full-1",
         actor=_MANAGER_ID,
-        object_=as_Organization(id_=_INVITEE_ID),
+        object_=make(as_Organization, id_=_INVITEE_ID),
         target=_full_case(),
         to=[_INVITEE_ID],
     )

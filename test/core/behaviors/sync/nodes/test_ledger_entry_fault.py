@@ -26,6 +26,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
 )
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
@@ -53,7 +54,8 @@ _CLASS = VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH
 @pytest.fixture
 def managed(datalayer: SqliteDataLayer) -> SqliteDataLayer:
     """The replica's store, holding the case and its CASE_MANAGER's record."""
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/case-manager",
         attributed_to=_CASE_MANAGER,
         context=CASE_ID,
@@ -61,7 +63,8 @@ def managed(datalayer: SqliteDataLayer) -> SqliteDataLayer:
     )
     datalayer.create(manager)
     datalayer.save(
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             id_=CASE_ID,
             attributed_to=OWNER_ACTOR_ID,
             case_participants=[manager.id_],

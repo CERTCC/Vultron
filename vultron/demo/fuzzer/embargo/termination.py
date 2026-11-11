@@ -15,10 +15,14 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.embargo.termination import (
+    EmbargoExitOverrideCapability,
+    EmbargoExitPolicyGuardCapability,
+    EmbargoTimerExpiredCapability,
+    ExitEmbargoForOtherReasonCapability,
+    ExitEmbargoWhenDeployedCapability,
+    ExitEmbargoWhenFixReadyCapability,
+    OnEmbargoExitCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlwaysFail,
@@ -28,19 +32,17 @@ from vultron.demo.fuzzer.base import (
     ProbablyFail,
     UsuallyFail,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    EvaluatorCallOutPoint,
-    RetrieverCallOutPoint,
-)
 
 # ---------------------------------------------------------------------------
 # Embargo termination nodes
 # ---------------------------------------------------------------------------
 
 
-class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
+class ExitEmbargoWhenDeployed(ExitEmbargoWhenDeployedCapability, ProbablyFail):
     """Decide whether to exit an active embargo when the fix is deployed.
+
+    Simulates :class:`ExitEmbargoWhenDeployedCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition/action — evaluate whether deployment of the fix is
@@ -48,10 +50,6 @@ class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
         case where deployment alone is *not* a sufficient trigger (e.g.,
         partial rollout, emergency deployment, or pending coordinated
         announcement).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates deployment state from caller's DataLayer)
-      Output keys: exit_embargo_when_deployed_verdict: str  (yes only)
 
     Input category: Human decision / policy judgment.
 
@@ -62,23 +60,18 @@ class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
     requires policy-rule evaluation or human confirmation.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"exit_embargo_when_deployed_verdict": str}
-    )
 
-
-class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
+class ExitEmbargoWhenFixReady(ExitEmbargoWhenFixReadyCapability, UsuallyFail):
     """Decide whether to exit an active embargo when the fix is ready.
+
+    Simulates :class:`ExitEmbargoWhenFixReadyCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition/action — evaluate whether fix availability (without
         deployment) is sufficient reason to terminate the embargo.
         Vendors may prefer to coordinate simultaneous deployment across
         the affected population before ending the embargo.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates fix-readiness state from caller's DataLayer)
-      Output keys: exit_embargo_when_fix_ready_verdict: str  (yes only)
 
     Input category: Human decision / policy judgment.
 
@@ -89,23 +82,20 @@ class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
     policy that may require human override.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"exit_embargo_when_fix_ready_verdict": str}
-    )
 
-
-class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
+class ExitEmbargoForOtherReason(
+    ExitEmbargoForOtherReasonCapability, OneInTwoHundred
+):
     """Decide whether to exit an embargo for an uncommon or exceptional reason.
+
+    Simulates :class:`ExitEmbargoForOtherReasonCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — catch-all for exiting an embargo for reasons other than
         fix readiness, deployment, timer expiry, public awareness, known
         exploits, or observed attacks.  Represents extraordinary
         circumstances that are rare in practice.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: exit_embargo_other_reason_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -116,28 +106,18 @@ class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
     cannot be anticipated by a general policy rule.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"exit_embargo_other_reason_verdict": str}
-    )
 
-
-class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
+class EmbargoTimerExpired(EmbargoTimerExpiredCapability, OneInOneHundred):
     """Check whether the embargo's agreed-upon deadline has passed.
+
+    Simulates :class:`EmbargoTimerExpiredCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Environmental condition — compare the current system clock against
         the embargo expiry timestamp recorded in the case.  In simulation
         this fires rarely; in production it is a simple timestamp
         comparison.
-
-    Store-held answer (BT-18-039): **can** — the embargo end time is in the
-    case's embargo register.  Core reads it there and compares it with the
-    act's instant (``vultron/core/behaviors/embargo/end_time_tree.py``), so
-    no core tree places this Retriever.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries embargo expiry timestamp from case record)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -149,17 +129,16 @@ class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
     """
 
 
-class OnEmbargoExit(ActuatorCallOutPoint, AlwaysSucceed):
+class OnEmbargoExit(OnEmbargoExitCapability, AlwaysSucceed):
     """Execute site-specific tasks when leaving an active embargo.
+
+    Simulates :class:`OnEmbargoExitCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — trigger notifications, logging, and
         downstream system updates required when the embargo exits.  Must
         be idempotent in production.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; embargo context from construction time)
-      Output keys: (none — side effect: notify stakeholders, update downstream systems)
 
     Input category: System integration.
 
@@ -175,18 +154,17 @@ class OnEmbargoExit(ActuatorCallOutPoint, AlwaysSucceed):
 # ---------------------------------------------------------------------------
 
 
-class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
+class EmbargoExitPolicyGuard(EmbargoExitPolicyGuardCapability, AlwaysSucceed):
     """Check whether site policy permits voluntary embargo termination.
+
+    Simulates :class:`EmbargoExitPolicyGuardCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — evaluate whether site policy allows the actor to proceed
         with voluntary embargo termination after a reason has been selected
         (e.g., no active revision negotiation, no pending approvals).
         Modeled as always permitting (happy path) in simulation.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads policy state from caller's DataLayer)
-      Output keys: embargo_exit_policy_guard_verdict: str  (yes only)
 
     Input category: Automated policy evaluation.
 
@@ -196,23 +174,18 @@ class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
     approval status) are fully automatable via case-management API calls.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"embargo_exit_policy_guard_verdict": str}
-    )
 
-
-class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
+class EmbargoExitOverride(EmbargoExitOverrideCapability, AlwaysFail):
     """Actor explicitly overrides a policy veto to terminate the embargo.
+
+    Simulates :class:`EmbargoExitOverrideCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — the actor accepts responsibility for overriding a
         policy veto and produces a distinct audit-trail entry for the
         override.  Modeled as never succeeding in simulation (override is
         not active by default).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — override is actor-initiated)
-      Output keys: embargo_exit_override_verdict: str  (yes only)
 
     Input category: Explicit actor acknowledgment.
 
@@ -221,7 +194,3 @@ class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
     Automation potential: **Low** — override requires explicit actor
     acknowledgment for accountability; should not be auto-approved.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"embargo_exit_override_verdict": str}
-    )

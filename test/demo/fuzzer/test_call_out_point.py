@@ -22,14 +22,13 @@ Verifies:
   (BT-18-002, BT-18-003)
 """
 
-from typing import ClassVar
-
 import py_trees
 import pytest
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
 from test.support.call_out import tick_call_out
-from vultron.core.behaviors.call_out.answer import CallOutContract
+from vultron.core.behaviors.call_out.capability import Capability
 from vultron.core.behaviors.call_out.guard import SynchronousCallOut
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.demo.fuzzer.base import AlwaysSucceed as _AlwaysSucceed
@@ -127,6 +126,15 @@ from vultron.demo.fuzzer.report_management.validate import (
     GatherValidationInfo,
     NoNewValidationInfo,
 )
+
+
+def _declared_doc(node_cls: type[Capability]) -> str:
+    """The docstring of the core declaration *node_cls* binds to (BT-18-021)."""
+    declaration = node_cls.declaration()
+    assert declaration is not None, f"{node_cls.__name__} binds to nothing"
+    assert declaration.__module__.startswith("vultron.core."), declaration
+    return declaration.__doc__ or ""
+
 
 # ---------------------------------------------------------------------------
 # CallOutBackendFactory type alias
@@ -228,8 +236,8 @@ def test_exemplar_is_behaviour(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_EXEMPLARS)
 def test_exemplar_has_blackboard_contract_docstring(node_cls):
-    """Exemplar docstring must contain the BT-18-001 blackboard contract."""
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    """The declaration an exemplar binds to documents its contract (BT-18-001)."""
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -270,12 +278,9 @@ def test_evaluate_report_credibility_output_keys_declared():
 def test_evaluate_report_credibility_writes_blackboard_on_success():
     """EvaluateReportCredibility writes report_credibility_verdict on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
-    class _AlwaysSucceedEvaluator(EvaluatorCallOutPoint, AlwaysSucceed):
-        contract: ClassVar[CallOutContract] = CallOutContract(
-            outputs={"report_credibility_verdict": str}
-        )
+    class _AlwaysSucceedEvaluator(EvaluateReportCredibility, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedEvaluator("TestCredibility")
     node.setup()
@@ -305,12 +310,9 @@ def test_gather_validation_info_output_keys_declared():
 def test_gather_validation_info_writes_blackboard_on_success():
     """GatherValidationInfo writes validation_info_gathered on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
-    class _AlwaysSucceedRetriever(RetrieverCallOutPoint, AlwaysSucceed):
-        contract: ClassVar[CallOutContract] = CallOutContract(
-            outputs={"validation_info_gathered": str}
-        )
+    class _AlwaysSucceedRetriever(GatherValidationInfo, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedRetriever("TestGather")
     node.setup()
@@ -336,12 +338,9 @@ def test_prepare_report_output_keys_declared():
 def test_prepare_report_writes_blackboard_on_success():
     """PrepareReport writes prepared_report_artifact on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
-    class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        contract: ClassVar[CallOutContract] = CallOutContract(
-            outputs={"prepared_report_artifact": str}
-        )
+    class _AlwaysSucceedComposer(PrepareReport, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedComposer("TestPrepare")
     node.setup()
@@ -496,7 +495,7 @@ def test_rm_retriever_node_output_key_type_is_list(node_cls, output_key):
 def test_rm_retriever_node_has_blackboard_contract_docstring(
     node_cls, output_key
 ):
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +516,7 @@ def test_rm_binary_retriever_node_output_keys_empty(node_cls):
 
 @pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
 def test_rm_binary_retriever_node_has_blackboard_contract_docstring(node_cls):
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 @pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
@@ -534,7 +533,7 @@ def test_embargo_binary_retriever_node_output_keys_empty(node_cls):
 def test_embargo_binary_retriever_node_has_blackboard_contract_docstring(
     node_cls,
 ):
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -572,17 +571,15 @@ def test_rm_composer_node_output_key_type_is_str(node_cls, output_key):
 def test_rm_composer_node_has_blackboard_contract_docstring(
     node_cls, output_key
 ):
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 def test_rm_composer_node_writes_blackboard_on_success():
     """A Composer node writes its output key to the blackboard on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        contract: ClassVar[CallOutContract] = CallOutContract(
-            outputs={"assigned_vul_id": str}
-        )
+    class _AlwaysSucceedComposer(AssignId, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedComposer("TestAssignId")
     node.setup()
@@ -634,7 +631,7 @@ def test_actuator_node_output_keys_empty(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
 def test_actuator_node_has_blackboard_contract_docstring(node_cls):
-    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+    assert "Blackboard contract" in _declared_doc(node_cls)
 
 
 @pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
@@ -649,15 +646,16 @@ def test_actuator_node_does_not_write_blackboard_on_success():
     A class that declares one is refused when it is created.  Contrast with
     Composer/Evaluator/Retriever nodes, which DO give their keys on *yes*.
     """
-    from vultron.core.behaviors.call_out.answer import CallOutContract
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     with pytest.raises(TypeError, match="BT-18-028"):
 
         class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
-            contract: ClassVar[CallOutContract] = CallOutContract(
-                outputs={"actuator_test_key": str}
-            )
+            OUTPUT_PORTS = {
+                "actuator_test_key": PortInformation(
+                    data_type=str, required=True
+                )
+            }
 
 
 # ---------------------------------------------------------------------------

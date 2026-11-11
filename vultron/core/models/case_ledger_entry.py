@@ -42,7 +42,7 @@ from typing import Any, Literal, cast
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.wire_keys import wire_key
 
@@ -135,9 +135,12 @@ class CaseLedgerEntry(CoreObject):
     # Re-narrowed from CoreObject's ``datetime | None``: the envelope's
     # ``published`` is the CASE_MANAGER's commit stamp and MUST be non-null
     # (CLP-14-002), unlike an ordinary object's time, which may be absent.
-    published: datetime = Field(default_factory=now_utc)
+    # Both required, with no clock default: an entry is made from a committed
+    # record, whose stamp is the committing act's instant, or parsed from a
+    # peer's (ADR-0176).
+    published: datetime  # pyright: ignore[reportGeneralTypeIssues]
     received_at: datetime = Field(
-        default_factory=now_utc,
+        ...,
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",

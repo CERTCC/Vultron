@@ -28,6 +28,7 @@ from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -166,8 +167,10 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
@@ -178,8 +181,10 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_not_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
@@ -191,9 +196,11 @@ class TestCheckRMStateValidPorts:
     ) -> None:
         """sender_actor_id overrides blackboard actor_id (ADR-0022 single-BT)."""
         SENDER_ID = "https://example.org/actors/reporter"
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        sender = VultronService(id_=SENDER_ID, name="Reporter")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        sender = make(VultronService, id_=SENDER_ID, name="Reporter")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, sender, report, link)
         # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
@@ -225,8 +232,10 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_success_when_no_valid_status(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
@@ -237,8 +246,10 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_failure_when_already_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
@@ -271,8 +282,10 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_no_case_id_published(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             EnsureEmbargoExists(report_id=REPORT_ID), actor_id=ACTOR_ID
@@ -282,9 +295,12 @@ class TestEnsureEmbargoExistsPorts:
     def test_success_when_case_has_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
-        case = VulnerabilityCase(
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
+        case = make(
+            VulnerabilityCase,
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
@@ -301,9 +317,12 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_case_has_no_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
-        case = VulnerabilityCase(
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
+        )
+        case = make(
+            VulnerabilityCase,
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
@@ -340,19 +359,27 @@ class TestTransitionRMtoValid:
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
 
-        actor = VultronService(id_=ACTOR_ID, name="Vendor")
-        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
-        offer = VultronOffer(
-            id_=OFFER_ID, actor=ACTOR_ID, object_=REPORT_ID, target=ACTOR_ID
+        actor = make(VultronService, id_=ACTOR_ID, name="Vendor")
+        report = make(
+            VulnerabilityReport, id_=REPORT_ID, name="R1", content="c"
         )
-        case = VulnerabilityCase(
+        offer = make(
+            VultronOffer,
+            id_=OFFER_ID,
+            actor=ACTOR_ID,
+            object_=REPORT_ID,
+            target=ACTOR_ID,
+        )
+        case = make(
+            VulnerabilityCase,
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
         )
         # RM.VALID is case-scoped: the actor must be a participant of the case
         # replica in its own store (ISSUE-2548).
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{case.id_}/participants/vendor",
             attributed_to=ACTOR_ID,
             context=case.id_,

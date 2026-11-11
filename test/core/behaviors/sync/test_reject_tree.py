@@ -10,8 +10,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -85,22 +87,27 @@ def _seed_case(datalayer, *, extra_participants: tuple[str, ...] = ()):
         as_VulnerabilityCase,
     )
 
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=f"{CASE_ID}/participants/owner",
         context=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sync Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Sync Case",
     )
     case.case_participants.append(participant.id_)
     case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
     # The Reject's sender is a joined participant, so the replay and the
     # genesis pre-seed's active-participant gate admit it (CM-10-004).
     for i, actor in enumerate((PEER_ID, *extra_participants)):
-        peer = as_CaseParticipant(
+        peer = make(
+            as_CaseParticipant,
             id_=f"{CASE_ID}/participants/p{i}",
             context=CASE_ID,
             attributed_to=actor,
@@ -145,6 +152,7 @@ def _make_entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -171,7 +179,8 @@ def _make_event(
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Reject",
         actor=PEER_ID,
@@ -258,6 +267,7 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
         case_id=CASE_ID,
         peer_id=PEER_ID,
         last_acknowledged_hash=first_entry.entry_hash,
+        updated_at=ACT_AT,
     ).id_
     state = datalayer.read(state_id)
     assert state is not None
@@ -628,6 +638,7 @@ def test_unknown_case_reject_leaves_replication_state_unchanged(
         case_id=CASE_ID,
         peer_id=PEER_ID,
         last_acknowledged_hash="",
+        updated_at=ACT_AT,
     ).id_
     assert datalayer.read(state_id) is None, (
         "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
@@ -763,7 +774,9 @@ def _receive_reject(
 
 def _replay_record(datalayer) -> tuple[str | None, datetime | None, int]:
     state = datalayer.read(
-        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
+        ).id_
     )
     assert isinstance(state, VultronReplicationState)
     return (
@@ -860,7 +873,9 @@ def test_genesis_reject_for_an_entry_the_last_genesis_replay_did_not_send_replay
     position, _, _ = _replay_record(datalayer)
     assert position == ""
     state = datalayer.read(
-        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
+        ).id_
     )
     assert state.last_genesis_replay_through_index == 5
 
@@ -896,7 +911,9 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
     assert result.status == Status.FAILURE
     assert sync_port.send_announce_log_entry.call_count == 3
     state = datalayer.read(
-        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
+        ).id_
     )
     assert state.last_replayed_from_hash == ""
     assert state.last_genesis_replay_through_index == 2
@@ -1012,7 +1029,7 @@ def _sender_refused(datalayer, event) -> Status:
     )
     if event.actor_id:  # a blank sender cannot even name a state record
         state_id = VultronReplicationState(
-            case_id=CASE_ID, peer_id=event.actor_id
+            case_id=CASE_ID, peer_id=event.actor_id, updated_at=ACT_AT
         ).id_
         assert datalayer.read(state_id) is None
     sync_port.send_announce_log_entry.assert_not_called()
@@ -1045,7 +1062,8 @@ def test_reject_from_stranger_halts_before_any_write(
         ),
     )
 
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Reject",
         actor=stranger,
@@ -1182,6 +1200,8 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
     assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
     sync_port.send_announce_log_entry.assert_not_called()
-    state_id = VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    state_id = VultronReplicationState(
+        case_id=CASE_ID, peer_id=PEER_ID, updated_at=ACT_AT
+    ).id_
     assert replica_dl.read(state_id) is None
     assert replica_dl.outbox_list() == []

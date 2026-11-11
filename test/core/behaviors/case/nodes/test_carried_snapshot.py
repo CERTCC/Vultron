@@ -10,6 +10,7 @@ from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
 from test.support.embargo_register import register
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
@@ -40,7 +41,8 @@ def dl() -> SqliteDataLayer:
 
 
 def _participant() -> as_CaseParticipant:
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=f"{_CASE_ID}/participants/sender",
         attributed_to=_SENDER,
         context=_CASE_ID,
@@ -67,7 +69,8 @@ def test_inline_participants_are_stored_as_their_own_records(dl):
 
 
 def test_a_case_naming_an_unheld_embargo_is_refused(dl):
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="snapshot",
@@ -82,8 +85,11 @@ def test_a_case_naming_an_unheld_embargo_is_refused(dl):
 
 
 def test_a_case_naming_no_embargo_passes(dl):
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="snapshot"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="snapshot",
     )
 
     result = _run(dl, HoldCarriedEmbargoNode(case, _CASE_ID))

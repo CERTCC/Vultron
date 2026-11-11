@@ -49,6 +49,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -132,7 +133,9 @@ def _make_dl(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
-    report = as_VulnerabilityReport(id_=REPORT_ID, name="Routing Guard Report")
+    report = make(
+        as_VulnerabilityReport, id_=REPORT_ID, name="Routing Guard Report"
+    )
     dl.save(report)
 
     # RSH-08-003/#3814: the sender's RM move now runs only inside the
@@ -140,7 +143,8 @@ def _make_dl(
     # for the gated write to land in its replica.  Whichever actor owns the
     # store (the receiver, or the sender in the fallback case) is seeded as the
     # manager; the subject of the write is still the sender (RSH-08-001).
-    receiving_participant = CaseParticipant(
+    receiving_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/p-receiving-guard",
         attributed_to=RECEIVING_ACTOR_ID,
         context=CASE_ID,
@@ -148,14 +152,16 @@ def _make_dl(
             [CVDRole.CASE_MANAGER] if actor_id == RECEIVING_ACTOR_ID else []
         ),
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 rm=RmDimension(state=receiving_rm),
                 context=CASE_ID,
                 attributed_to=RECEIVING_ACTOR_ID,
             )
         ],
     )
-    sender_participant = CaseParticipant(
+    sender_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/p-sender-guard",
         attributed_to=SENDER_ACTOR_ID,
         context=CASE_ID,
@@ -163,7 +169,8 @@ def _make_dl(
             [CVDRole.CASE_MANAGER] if actor_id == SENDER_ACTOR_ID else []
         ),
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 rm=RmDimension(state=sender_rm),
                 context=CASE_ID,
                 attributed_to=SENDER_ACTOR_ID,
@@ -171,7 +178,8 @@ def _make_dl(
         ],
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="Report Routing Guard Test Case",
         # attributed_to seeds the per-case genesis hash (CLP-08-003); the
@@ -209,7 +217,7 @@ def _rm_state(dl: SqliteDataLayer, actor_id: str) -> RM | None:
 def _offer() -> as_Offer:
     """The canonical ``Offer(VulnerabilityReport)`` the verdict rejects (CLP-10-013)."""
     return rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r"),
         to=RECEIVING_ACTOR_ID,
         actor=SENDER_ACTOR_ID,
     )

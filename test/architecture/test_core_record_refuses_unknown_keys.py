@@ -52,6 +52,7 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "unresolvable_uri": _URI,
         "actor_id": _URI,
         "activity_id": _URI,
+        "received_at": "2026-10-29T00:00:00Z",
     },
     "InboxDeadLetterEntry": {
         "activity_id": _URI,
@@ -94,6 +95,7 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
         "received_body": "{}",
+        "received_at": "2026-10-29T00:00:00Z",
     },
     "ReportClaimsRecord": {
         "report_id": _URI,
@@ -122,10 +124,14 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "sender_id": f"{_URI}/sender",
         "next_expected": 1,
     },
-    "VultronPendingCaseInbox": {"case_id": f"{_URI}/case"},
+    "VultronPendingCaseInbox": {
+        "case_id": f"{_URI}/case",
+        "queued_at": "2026-10-29T00:00:00Z",
+    },
     "VultronReplicationState": {
         "case_id": f"{_URI}/case",
         "peer_id": f"{_URI}/peer",
+        "updated_at": "2026-10-29T00:00:00Z",
     },
     "VultronReportCaseLink": {"report_id": f"{_URI}/report"},
 }

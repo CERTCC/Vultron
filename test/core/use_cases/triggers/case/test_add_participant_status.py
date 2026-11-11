@@ -31,6 +31,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -170,14 +171,15 @@ def _seed_copied_status(
     assert isinstance(participant, CaseParticipant)
     case_id = participant.context
     assert isinstance(case_id, str)
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=case_id,
         attributed_to=participant.attributed_to,
         rm=RmDimension(state=rm),
         vf=VfDimension(state=vf) if vf is not None else None,
         d=DDimension(state=d) if d is not None else None,
         case_status=(
-            CaseStatus(context=case_id, pxa=PxaDimension(state=pxa))
+            make(CaseStatus, context=case_id, pxa=PxaDimension(state=pxa))
             if pxa is not None
             else None
         ),
@@ -347,7 +349,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
 
         # Finder actor
-        self.actor = as_Service(name="Finder Actor")
+        self.actor = make(as_Service, name="Finder Actor")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -355,21 +357,25 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         self.dl.create(self.actor)
 
         # Case Actor (CASE_MANAGER)
-        self.case_actor = as_Service(name="Case Actor")
+        self.case_actor = make(as_Service, name="Case Actor")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
         # Case
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case #624"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case #624",
         )
 
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.REPORTER],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -548,15 +554,17 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             as_EmbargoEvent,
         )
 
-        embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now(30)
+        embargo = make(
+            as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(30)
         )
         self.dl.create(embargo)
         case = cast(VulnerabilityCase, self.dl.read(self.case.id_))
         activate(case, embargo.id_)
         if revising:
-            revision = as_EmbargoEvent(
-                context=self.case.id_, end_time=days_from_now(60)
+            revision = make(
+                as_EmbargoEvent,
+                context=self.case.id_,
+                end_time=days_from_now(60),
             )
             self.dl.create(revision)
             propose(case, revision.id_)
@@ -668,7 +676,8 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         from vultron.errors import VultronValidationError
 
-        foreign = ParticipantStatus(
+        foreign = make(
+            ParticipantStatus,
             context=self.case.id_,
             attributed_to=self.case_actor.id_,
             rm=RmDimension(state=RM.RECEIVED),
@@ -791,27 +800,31 @@ class TestCreateParticipantStatusNode:
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
 
-        self.actor = as_Service(name="Reporter")
+        self.actor = make(as_Service, name="Reporter")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         self.dl.clear_all()
         self.dl.create(self.actor)
 
-        self.case_actor = as_Service(name="Case Actor")
+        self.case_actor = make(as_Service, name="Case Actor")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case BT-15-001"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case BT-15-001",
         )
 
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -864,7 +877,8 @@ class TestCreateParticipantStatusNode:
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.models.participant_status import ParticipantStatus
 
-        seed = ParticipantStatus(
+        seed = make(
+            ParticipantStatus,
             context=self.case.id_,
             attributed_to=self.actor.id_,
             rm=RmDimension(state=RM.START),
@@ -886,13 +900,15 @@ class TestCreateParticipantStatusNode:
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.em import EM as _EM
 
-        case_status = CoreCaseStatus(
+        case_status = make(
+            CoreCaseStatus,
             context=self.case.id_,
             attributed_to=self.actor.id_,
             em=EmDimension(state=_EM.NONE),
             pxa=PxaDimension(state=pxa_target),
         )
-        seed = ParticipantStatus(
+        seed = make(
+            ParticipantStatus,
             context=self.case.id_,
             attributed_to=self.actor.id_,
             rm=RmDimension(state=RM.START),
@@ -1609,26 +1625,30 @@ class TestValidateTriggerTransitions:
             as_VulnerabilityCase,
         )
 
-        self.actor = as_Service(name="Vendor")
+        self.actor = make(as_Service, name="Vendor")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         self.dl.clear_all()
         self.dl.create(self.actor)
 
-        self.case_actor = as_Service(name="Case Actor")
+        self.case_actor = make(as_Service, name="Case Actor")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case AC-1..6"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case AC-1..6",
         )
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -1751,7 +1771,8 @@ class TestValidateTriggerTransitions:
         )
 
         self.dl.save(
-            as_CaseParticipant(
+            make(
+                as_CaseParticipant,
                 id_=self.actor_participant.id_,
                 attributed_to=self.actor.id_,
                 context=self.case.id_,
@@ -1912,26 +1933,30 @@ class TestSoleObserverVfdGuard:
             as_VulnerabilityCase,
         )
 
-        self.actor = as_Service(name="Observer")
+        self.actor = make(as_Service, name="Observer")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         self.dl.clear_all()
         self.dl.create(self.actor)
 
-        self.case_actor = as_Service(name="Case Manager")
+        self.case_actor = make(as_Service, name="Case Manager")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case CM-25-005"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case CM-25-005",
         )
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.OBSERVER],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -2038,35 +2063,40 @@ class TestVendorVfdRoleGuard:
             as_VulnerabilityCase,
         )
 
-        self.vendor_actor = as_Service(name="Vendor")
+        self.vendor_actor = make(as_Service, name="Vendor")
         vendor_id = self.vendor_actor.id_
         reset_datalayer(vendor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
         self.dl.clear_all()
         self.dl.create(self.vendor_actor)
 
-        self.coord_actor = as_Service(name="Coordinator")
+        self.coord_actor = make(as_Service, name="Coordinator")
         reset_datalayer(self.coord_actor.id_)
         self.dl.create(self.coord_actor)
 
-        self.case_manager_actor = as_Service(name="Case Manager")
+        self.case_manager_actor = make(as_Service, name="Case Manager")
         reset_datalayer(self.case_manager_actor.id_)
         self.dl.create(self.case_manager_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case #2862"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case #2862",
         )
-        self.vendor_participant = as_CaseParticipant(
+        self.vendor_participant = make(
+            as_CaseParticipant,
             attributed_to=vendor_id,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        self.coord_participant = as_CaseParticipant(
+        self.coord_participant = make(
+            as_CaseParticipant,
             attributed_to=self.coord_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.COORDINATOR],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_manager_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -2180,26 +2210,30 @@ class TestCrossMachineEntailments:
             as_VulnerabilityCase,
         )
 
-        self.actor = as_Service(name="Vendor")
+        self.actor = make(as_Service, name="Vendor")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         self.dl.clear_all()
         self.dl.create(self.actor)
 
-        self.case_actor = as_Service(name="Case Actor")
+        self.case_actor = make(as_Service, name="Case Actor")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case #2236"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case #2236",
         )
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -2307,7 +2341,8 @@ class TestCrossMachineEntailments:
         )
 
         # Re-register the participant as VENDOR+DEPLOYER so the d dimension is active.
-        deployer_participant = as_CaseParticipant(
+        deployer_participant = make(
+            as_CaseParticipant,
             id_=self.actor_participant.id_,
             attributed_to=self.actor.id_,
             context=self.case.id_,
@@ -2351,7 +2386,8 @@ class TestCrossMachineEntailments:
             as_CaseParticipant,
         )
 
-        deployer_participant = as_CaseParticipant(
+        deployer_participant = make(
+            as_CaseParticipant,
             id_=self.actor_participant.id_,
             attributed_to=self.actor.id_,
             context=self.case.id_,
@@ -2474,26 +2510,30 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
 
-        self.actor = as_Service(name="Vendor Bypass")
+        self.actor = make(as_Service, name="Vendor Bypass")
         actor_id = self.actor.id_
         reset_datalayer(actor_id)
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         self.dl.clear_all()
         self.dl.create(self.actor)
 
-        self.case_actor = as_Service(name="Case Actor Bypass")
+        self.case_actor = make(as_Service, name="Case Actor Bypass")
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case #3100"
+        self.case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Test Case #3100",
         )
-        self.actor_participant = as_CaseParticipant(
+        self.actor_participant = make(
+            as_CaseParticipant,
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        self.case_manager_participant = as_CaseParticipant(
+        self.case_manager_participant = make(
+            as_CaseParticipant,
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -2638,15 +2678,19 @@ def test_vf_steps_to_starts_after_the_current_vf(current, expected):
     )
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(name="Vendor")
+    actor = make(as_Service, name="Vendor")
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.create(actor)
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="VF-STEPS")
-    participant = CaseParticipant(
+    case = make(
+        VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="VF-STEPS"
+    )
+    participant = make(
+        CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case.id_,
                 rm=RmDimension(state=RM.ACCEPTED),

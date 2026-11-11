@@ -40,6 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_in_act, run_tree
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -164,7 +165,8 @@ class TestProposalCarriesTheProvenance:
 
     def test_they_survive_a_wire_round_trip(self):
         """The receiving side validates the dump back into a model."""
-        original = as_CaseProposal(
+        original = make(
+            as_CaseProposal,
             id_=_PROPOSAL_URI,
             attributed_to=_VENDOR_URI,
             object_=_REPORT_URI,
@@ -212,19 +214,25 @@ def _run_received_bt(
         as_VulnerabilityReport,
     )
 
-    dl.save(VulnerabilityReport(id_=_REPORT_URI, attributed_to=_REPORTER_URI))
-    proposal = as_CaseProposal(
+    dl.save(
+        make(VulnerabilityReport, id_=_REPORT_URI, attributed_to=_REPORTER_URI)
+    )
+    proposal = make(
+        as_CaseProposal,
         id_=_PROPOSAL_URI,
         attributed_to=_VENDOR_URI,
-        object_=as_VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=_REPORTER_URI
+        object_=make(
+            as_VulnerabilityReport,
+            id_=_REPORT_URI,
+            attributed_to=_REPORTER_URI,
         ),
         target=_CASE_ACTOR_URI,
         offer_id=offer_id,
         offer_actor_id=offer_actor_id,
     )
-    activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR_URI),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR_URI),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -329,7 +337,7 @@ class TestProposalCarriesTheOfferItself:
             report.model_dump(by_alias=True)
         )
         terms = (
-            EmbargoEvent(context=report.id_, end_time=self._END)
+            make(EmbargoEvent, context=report.id_, end_time=self._END)
             if with_terms
             else None
         )

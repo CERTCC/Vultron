@@ -73,6 +73,7 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
@@ -936,8 +937,8 @@ class TestTheSecondVendorAddsItsNote:
 
     def _answered(self, state: StoryState) -> as_Note:
         """Record the Vendor's answer, as the shared opening's gate does."""
-        answer = as_Note(
-            name="Vendor1 Response", content="A workaround exists."
+        answer = make(
+            as_Note, name="Vendor1 Response", content="A workaround exists."
         )
         state.keep(VENDORS_ANSWER, answer)
         return answer
@@ -1325,7 +1326,8 @@ class TestRvvLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """Three devlogs names, each keyed on its own client's actor id."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvv-test-case",
         )
@@ -1365,7 +1367,8 @@ class TestRvvLedgerDump:
         Vendor1 holds a replica, and dumping that as ``case-actor`` would hide
         exactly the topology fault this target exists to expose.
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvv-with-ca",
             actor_participant_index={
@@ -1401,7 +1404,8 @@ class TestRvvLedgerDump:
         the dump — and record a failure that is not the one that stopped the
         run (ISSUE-2239).
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvv-early-exit",
         )

@@ -31,6 +31,7 @@ cannot slip past it.
 
 import pytest
 
+from test.support.objects import make
 from test.support.participant_status import (
     assert_possible_participant_status,
     expect_recorded_violation,
@@ -91,7 +92,8 @@ _BAD_STATUS_ID = f"{PARTICIPANT_ID}/statuses/bad"
 def _status(
     rm: RM, vf: CS_vf | None, d: CS_d | None, status_id: str
 ) -> as_ParticipantStatus:
-    return as_ParticipantStatus(
+    return make(
+        as_ParticipantStatus,
         id_=status_id,
         context=CASE_ID,
         rm=RmDimension(state=rm),
@@ -125,7 +127,8 @@ def _participant(
     *statuses: as_ParticipantStatus, participant_id: str = PARTICIPANT_ID
 ) -> as_CaseParticipant:
     """A VENDOR+DEPLOYER participant whose history is *statuses*, in order."""
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=participant_id,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -218,7 +221,8 @@ class TestTheGuardIsLiveInThisPackage:
         arrives with its roster embedded, and that snapshot reaches the store.
         """
         dl = store_for(CASE_MANAGER_ID)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Guard case",
             attributed_to=CASE_MANAGER_ID,
@@ -293,7 +297,8 @@ class TestTheGuardIsLiveInThisPackage:
         write shape that bypassed it entirely.
         """
         dl = store_for(CASE_MANAGER_ID)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Guard case",
             attributed_to=CASE_MANAGER_ID,

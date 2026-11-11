@@ -15,7 +15,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
@@ -37,14 +39,18 @@ def _make_note_entry(note_id: str = NOTE_ID):
             semantic_type="add_note_to_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
 
 @pytest.fixture
 def case_with_notes(datalayer):
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=OWNER_ACTOR_ID,
     )
     datalayer.save(case)
     return case
@@ -126,6 +132,7 @@ def _make_remove_note_entry(note_id: str = NOTE_ID):
             semantic_type="remove_note_from_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -183,7 +190,8 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
     """A replica seeded from a case copy holds the note's id but not the note,
     which the copy names by id only; the replayed entry stores it (#5052)."""
     datalayer.save(
-        as_VulnerabilityCase(
+        make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="Seeded case",
             attributed_to=OWNER_ACTOR_ID,
@@ -205,6 +213,7 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
                 }
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

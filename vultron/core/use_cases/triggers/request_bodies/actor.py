@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.models._helpers import (
-    require_future_aware,
+    require_aware,
     timestamp_serializer,
 )
 from vultron.core.models.base import NonEmptyString, UriString
@@ -177,7 +177,8 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
     TRIG-03-001: Must include case_id and transferee_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     TRIG-11-007: Optional end_time, timezone-aware and in the future, is the
-    deadline to answer the Offer (CM-21-016); it is held in UTC.
+    deadline to answer the Offer (CM-21-016); it is held in UTC.  The body
+    checks it is aware; the trigger checks it is after its act's instant.
     """
 
     transferee_id: UriString
@@ -187,10 +188,10 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
 
     @field_validator("end_time")
     @classmethod
-    def end_time_must_be_tz_aware_and_future(
-        cls, v: datetime | None
-    ) -> datetime | None:
-        deadline = require_future_aware(v)
+    def end_time_must_be_tz_aware(cls, v: datetime | None) -> datetime | None:
+        # Whether it is in the future is the trigger's to judge, against its
+        # act's instant (ADR-0176).
+        deadline = require_aware(v)
         return deadline.astimezone(UTC) if deadline is not None else None
 
 

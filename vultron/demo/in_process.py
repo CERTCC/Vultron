@@ -56,6 +56,7 @@ from vultron.adapters.driving.fastapi.deps import (
     ACTOR_PROFILE_FETCHER_STATE,
     get_actor_dl,
 )
+from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.core.models.object_fetch import ObjectReference
 
 logger = logging.getLogger(__name__)
@@ -255,7 +256,7 @@ class InProcessObjectFetcher:
             parsed.path,
             headers={
                 REQUESTER_HEADER: requester_id,
-                "Accept": "application/activity+json",
+                "Accept": AS2_CONTENT_TYPE,
             },
         )
         # Off the calling loop, as ``InProcessRouter.emit`` posts: the
