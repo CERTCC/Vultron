@@ -145,8 +145,10 @@ class TestRenderedTimestamps(unittest.TestCase):
             with open(filename) as f:
                 payload = json.load(f)
 
-        self.assertIn("published", payload)
-        self.assertIn("updated", payload)
+        self.assertEqual(
+            payload["published"], format_timestamp(report.published)
+        )
+        self.assertEqual(payload["updated"], format_timestamp(report.updated))
         self.assertEqual(payload["name"], "FDR-0000001")
 
 
