@@ -22,6 +22,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BlackboardKeyProbe
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -50,7 +51,7 @@ ACTIVITY_ID = "https://example.org/activities/act-01"
 
 @pytest.fixture
 def dl():
-    actor = as_Service(name="finder")
+    actor = make(as_Service, name="finder")
     reset_datalayer(actor.id_)
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     store.clear_all()
@@ -68,12 +69,16 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
-    finder_participant = ReporterParticipant(
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=actor_id,
         context=case.id_,
     )
-    case_manager_participant = VendorParticipant(
+    case_manager_participant = make(
+        VendorParticipant,
         attributed_to=CASE_ACTOR_ID,
         context=case.id_,
     )
@@ -105,10 +110,14 @@ def _make_case_without_case_manager(
     actor_id: str,
 ) -> as_VulnerabilityCase:
     """A stored case whose only participant is *actor_id*, a reporter."""
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="No Manager Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="No Manager Case",
     )
-    participant = ReporterParticipant(attributed_to=actor_id, context=case.id_)
+    participant = make(
+        ReporterParticipant, attributed_to=actor_id, context=case.id_
+    )
     object.__setattr__(case, "case_participants", [participant.id_])
     object.__setattr__(
         case, "actor_participant_index", {actor_id: participant.id_}
@@ -153,10 +162,13 @@ class TestSenderSideBT:
     @pytest.mark.spec("CM-24-014")
     def test_bt_failure_when_case_manager_absent(self, dl, bridge):
         store, actor = dl
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="No Manager",
         )
-        participant = ReporterParticipant(
+        participant = make(
+            ReporterParticipant,
             attributed_to=actor.id_,
             context=case.id_,
         )

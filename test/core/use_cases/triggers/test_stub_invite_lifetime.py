@@ -53,6 +53,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -134,7 +135,8 @@ def _answer(
 
 
 def _plain_case(dl: Any, manager_id: str) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager_id,
         name="Lifetime",
         content="Content",
@@ -191,13 +193,15 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Short embargo",
         content="Content",
         stub_summary="Short embargo summary",
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo/e1",
         content="Active embargo",
         context=case.id_,
@@ -226,19 +230,22 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Revised embargo",
         content="Content",
         stub_summary="Revised embargo summary",
     )
-    in_force = as_EmbargoEvent(
+    in_force = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo/e1",
         content="Embargo in force",
         context=case.id_,
         end_time=days_from_now(2),
     )
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo/e2",
         content="Revision",
         context=case.id_,
@@ -770,7 +777,9 @@ def _send_stub_invite_during_revision(
     built, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     case = dl.read_case(built.id_)
     assert case is not None
-    revision = as_EmbargoEvent(context=case.id_, end_time=days_from_now(90))
+    revision = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(90)
+    )
     dl.create(revision)
     propose(case, revision.id_)
     dl.save(case)
@@ -896,7 +905,9 @@ def test_a_failed_replacement_waits_while_a_later_revision_is_open(
 
     stored = dl.read_case(case.id_)
     assert stored is not None
-    later = as_EmbargoEvent(context=case.id_, end_time=days_from_now(120))
+    later = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(120)
+    )
     dl.create(later)
     propose(stored, later.id_)
     dl.save(stored)

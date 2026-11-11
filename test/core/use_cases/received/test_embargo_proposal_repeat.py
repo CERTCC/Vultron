@@ -42,6 +42,7 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
 )
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
     EmbargoTermsNotHeldNode,
@@ -63,7 +64,8 @@ def run_node(node, dl, *, actor_id: str) -> Status:
 
 def _terms(dl, case_id: str, slug: str, end_time) -> as_EmbargoEvent:
     """Fresh terms under a fresh id, stored like a received proposal's."""
-    terms = as_EmbargoEvent(
+    terms = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/{slug}",
         content=f"Terms {slug}",
         context=case_id,

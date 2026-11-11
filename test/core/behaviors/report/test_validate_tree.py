@@ -29,6 +29,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.call_out import yes as call_out_yes
 from test.support.embargo_register import register
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
@@ -83,7 +84,8 @@ def reporter_actor_id():
 @pytest.fixture
 def report(datalayer, actor_id):
     """Create test VulnerabilityReport."""
-    report_obj = VulnerabilityReport(
+    report_obj = make(
+        VulnerabilityReport,
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Test vulnerability description",
@@ -97,7 +99,8 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
     """Create test Offer activity. The reporter submits the offer to the
     vendor inbox, so ``actor`` is the reporter's ID.
     """
-    offer_obj = VultronOffer(
+    offer_obj = make(
+        VultronOffer,
         id_="https://example.org/activities/offer-123",
         actor=reporter_actor_id,
         object_=report.id_,
@@ -110,7 +113,8 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create test vendor actor in the DataLayer."""
-    actor_obj = VultronService(
+    actor_obj = make(
+        VultronService,
         id_=actor_id,
         name="Vendor Co",
     )
@@ -121,7 +125,8 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create test reporter actor in the DataLayer."""
-    actor_obj = VultronService(
+    actor_obj = make(
+        VultronService,
         id_=reporter_actor_id,
         name="Reporter Co",
     )
@@ -181,7 +186,8 @@ def _seed_case_participant(
     from test.support.participant_status import advance_participant_rm
     from vultron.core.models.case_participant import CaseParticipant
 
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case_obj.id_}/participants/{slug}",
         attributed_to=participant_actor_id,
         context=case_obj.id_,
@@ -223,7 +229,8 @@ def _make_case(datalayer, actor_id, report_id):
     """
     from vultron.core.models.case import VulnerabilityCase
 
-    case_obj = VulnerabilityCase(
+    case_obj = make(
+        VulnerabilityCase,
         id_=f"{actor_id}/cases/test-case-validate",
         name="Validate-tree test case",
         attributed_to=actor_id,
@@ -792,17 +799,21 @@ def test_tree_execution_actor_isolation():
     ) -> tuple[SqliteDataLayer, BTBridge]:
         """A fully seeded, actor-scoped store — the ADR-0073 unit of isolation."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        dl.create(VulnerabilityReport(id_=report_id, name="R", content="c"))
         dl.create(
-            VultronOffer(
+            make(VulnerabilityReport, id_=report_id, name="R", content="c")
+        )
+        dl.create(
+            make(
+                VultronOffer,
                 id_=offer_id,
                 actor=reporter_id,
                 object_=report_id,
                 target=actor_id,
             )
         )
-        dl.create(VultronService(id_=actor_id, name=f"Actor {slug}"))
-        case_obj = VulnerabilityCase(
+        dl.create(make(VultronService, id_=actor_id, name=f"Actor {slug}"))
+        case_obj = make(
+            VulnerabilityCase,
             id_=f"{actor_id}/cases/test-case-validate",
             name="Validate-tree isolation case",
             attributed_to=actor_id,

@@ -29,6 +29,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.call_out import error as call_out_error, no as call_out_no
 from test.support.ledger import commit_case_manager_closure
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -72,7 +73,8 @@ _OTHER_URI = "https://example.org/vendors/other"
 
 
 def _make_proposal() -> as_CaseProposal:
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         attributed_to=_VENDOR_URI,
         object_=gen_report(),
         target=_CASE_ACTOR_URI,
@@ -91,8 +93,9 @@ def _run_create_proposal(
     were comparative ("no *second* case", "no *new* Accept"), so several passed
     while nothing happened at all.
     """
-    activity = as_Create(
-        actor=VultronOrganization(id_=proposer_uri),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=proposer_uri),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -124,8 +127,9 @@ class TestCreateCaseProposalReceivedUseCase:
             actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -209,8 +213,9 @@ class TestCreateCaseProposalReceivedUseCase:
             actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -251,8 +256,9 @@ class TestCreateCaseProposalReceivedUseCase:
             actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -286,8 +292,9 @@ class TestCreateCaseProposalReceivedUseCase:
             actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )
@@ -489,7 +496,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         )
         dl.create(link)
 
-        activity = as_Accept(
+        activity = make(
+            as_Accept,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -519,7 +527,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         )
         proposal = _make_proposal()
 
-        activity = as_Accept(
+        activity = make(
+            as_Accept,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -544,7 +553,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         )
 
         # Build an Accept whose object_ lacks a nested object (pathological case)
-        activity = as_Accept(
+        activity = make(
+            as_Accept,
             actor=_CASE_ACTOR_URI,
             object_="https://example.org/proposals/bare-id-only",
             to=[_VENDOR_URI],
@@ -583,7 +593,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         )
         dl.create(link)
 
-        activity = as_Accept(
+        activity = make(
+            as_Accept,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -629,7 +640,8 @@ class TestRejectCaseProposalReceivedUseCase:
         )
         dl.create(link)
 
-        activity = as_Reject(
+        activity = make(
+            as_Reject,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -671,7 +683,8 @@ class TestRejectCaseProposalReceivedUseCase:
         dl.create(link)
 
         rejection_summary = "Duplicate report; case already exists."
-        activity = as_Reject(
+        activity = make(
+            as_Reject,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -703,7 +716,8 @@ class TestRejectCaseProposalReceivedUseCase:
         )
         proposal = _make_proposal()
 
-        activity = as_Reject(
+        activity = make(
+            as_Reject,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -727,7 +741,8 @@ class TestRejectCaseProposalReceivedUseCase:
             actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
-        activity = as_Reject(
+        activity = make(
+            as_Reject,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -770,7 +785,8 @@ class TestRejectCaseProposalReceivedUseCase:
         )
         dl.create(link)
 
-        activity = as_Reject(
+        activity = make(
+            as_Reject,
             actor=_CASE_ACTOR_URI,
             object_=proposal,
             to=[_VENDOR_URI],
@@ -974,8 +990,9 @@ class TestCaseProposalDisposition:
     def test_create_without_proposal_id_is_refused(
         self, make_payload, tree_runs
     ):
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_make_proposal(),
             to=[_CASE_ACTOR_URI],
         )
@@ -1013,8 +1030,9 @@ class TestCaseProposalDisposition:
         from vultron.errors import VultronWiringError
 
         dl = self._case_actor_dl()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_make_proposal(),
             to=[_CASE_ACTOR_URI],
         )
@@ -1143,8 +1161,9 @@ class TestCoreInlineReport:
 
     def test_inline_report_is_returned_as_the_core_object(self):
         proposal = _make_proposal()
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
         )

@@ -25,6 +25,7 @@ import logging
 
 import pytest
 
+from test.support.objects import make
 from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import CoreActor, VultronOrganization
@@ -74,8 +75,11 @@ def _store() -> SqliteDataLayer:
 def _profile(
     keys: list[Multikey] | None = None, actor_id: str = AUTHOR
 ) -> VultronOrganization:
-    return VultronOrganization(
-        id_=actor_id, name="Author", assertion_method=keys or []
+    return make(
+        VultronOrganization,
+        id_=actor_id,
+        name="Author",
+        assertion_method=keys or [],
     )
 
 
@@ -287,7 +291,7 @@ def test_a_fault_in_the_fetcher_is_not_a_proof_refusal():
 
 def test_an_object_that_is_not_an_actor_lists_no_key():
     assert vk.published_key(None, METHOD) is None
-    assert vk.published_key(CoreObject(id_=AUTHOR), METHOD) is None
+    assert vk.published_key(make(CoreObject, id_=AUTHOR), METHOD) is None
 
 
 @pytest.mark.spec("SIG-01-002")

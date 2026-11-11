@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
@@ -58,7 +59,8 @@ def _stored(dl: SqliteDataLayer, type_: str, id_: str) -> dict[str, Any]:
 def test_a_participant_status_row_stores_rm_vf_and_d_as_bare_labels(
     dl: SqliteDataLayer,
 ):
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         id_="urn:uuid:ps-stored",
         context="urn:case:1",
         cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
@@ -77,7 +79,7 @@ def test_a_participant_status_row_stores_rm_vf_and_d_as_bare_labels(
 def test_a_case_status_row_stores_em_and_pxa_as_bare_labels(
     dl: SqliteDataLayer,
 ):
-    status = CaseStatus(id_="urn:uuid:cs-stored", context="urn:case:1")
+    status = make(CaseStatus, id_="urn:uuid:cs-stored", context="urn:case:1")
     dl.save(status)
 
     row = _stored(dl, "CaseStatus", status.id_)

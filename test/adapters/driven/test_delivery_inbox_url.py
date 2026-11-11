@@ -32,6 +32,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
+from test.support.objects import make
 from test.support.signing import serve_published_profiles, signed_body
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -216,13 +217,14 @@ def test_held_inboxes_reads_the_sender_store(dl):
     bare = "https://elsewhere.example/actors/bare"
     unknown = "https://elsewhere.example/actors/unknown"
     dl.create(
-        VultronOrganization(
+        make(
+            VultronOrganization,
             id_=stated,
             name="Stated",
             inbox="https://elsewhere.example/boxes/stated-in",
         )
     )
-    dl.create(CoreActor(id_=bare, published=None, updated=None))
+    dl.create(make(CoreActor, id_=bare, published=None, updated=None))
 
     assert held_inboxes(dl, [stated, bare, unknown]) == {
         stated: "https://elsewhere.example/boxes/stated-in"
@@ -278,7 +280,7 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(
     )
     path = urlparse(stated).path.removeprefix(base_path)
     payload = signed_body(
-        as_Activity(actor=_ACTOR_ID).model_dump(
+        make(as_Activity, actor=_ACTOR_ID).model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
     )
@@ -313,7 +315,8 @@ def test_derived_inbox_path_matches_fastapi_route(
     from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 
     local_actor_id = canonical_actor_uri(_ACTOR_UUID)
-    actor = as_Organization(
+    actor = make(
+        as_Organization,
         name="Finder",
         id_=local_actor_id,
     )
@@ -332,7 +335,7 @@ def test_derived_inbox_path_matches_fastapi_route(
     path_relative_to_app_v2 = parsed.path.removeprefix(base_path)
 
     # POST a minimal activity to the derived inbox path.
-    activity = as_Activity(actor=_ACTOR_ID)
+    activity = make(as_Activity, actor=_ACTOR_ID)
     payload = signed_body(
         activity.model_dump(by_alias=True, exclude_none=True, mode="json")
     )

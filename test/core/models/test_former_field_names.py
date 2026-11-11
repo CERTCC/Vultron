@@ -27,6 +27,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic.alias_generators import to_camel
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_proposal_admission import (
@@ -48,8 +49,11 @@ _PROPOSAL = {"proposal_id": PROPOSAL_ID, "case_actor_id": CASE_ACTOR_ID}
 
 
 def _case_data() -> dict[str, Any]:
-    case = VulnerabilityCase(
-        id_="https://example.org/cases/c-1", attributed_to=OWNER_ID, name="c"
+    case = make(
+        VulnerabilityCase,
+        id_="https://example.org/cases/c-1",
+        attributed_to=OWNER_ID,
+        name="c",
     )
     return case.model_dump(mode="json", by_alias=True)
 

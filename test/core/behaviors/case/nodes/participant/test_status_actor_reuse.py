@@ -26,6 +26,7 @@ the constructor value after every tick, making ``_actor_id`` execution-scoped.
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
@@ -52,14 +53,16 @@ def test_prebuilt_node_writes_to_the_executing_actor_each_tick(
     executed once per actor; each must reach ``RM.RECEIVED``.  Before #3268 the
     second execution latched actor A again, leaving actor B at ``RM.START``.
     """
-    case = VulnerabilityCase(name="reuse case", attributed_to=ACTOR_A)
-    participant_a = CaseParticipant(
+    case = make(VulnerabilityCase, name="reuse case", attributed_to=ACTOR_A)
+    participant_a = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/a",
         attributed_to=ACTOR_A,
         context=case.id_,
         case_roles=[CVDRole.COORDINATOR],
     )
-    participant_b = CaseParticipant(
+    participant_b = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/b",
         attributed_to=ACTOR_B,
         context=case.id_,

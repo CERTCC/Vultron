@@ -53,6 +53,7 @@ from test.architecture.test_received_tree_case_manager_gate import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
@@ -80,14 +81,21 @@ _CASE_ID = f"{_BASE}/cases/case"
 def _domain_values() -> dict[type, Any]:
     """One minimal value per domain type a factory parameter names."""
     return {
-        VulnerabilityCase: VulnerabilityCase(
-            id_=_CASE_ID, attributed_to=f"{_BASE}/actors/owner"
+        VulnerabilityCase: make(
+            VulnerabilityCase,
+            id_=_CASE_ID,
+            attributed_to=f"{_BASE}/actors/owner",
         ),
-        VultronNote: VultronNote(id_=f"{_BASE}/notes/note", content="note"),
-        VulnerabilityReport: VulnerabilityReport(
-            id_=f"{_BASE}/reports/report", content="report"
+        VultronNote: make(
+            VultronNote, id_=f"{_BASE}/notes/note", content="note"
         ),
-        EmbargoEvent: EmbargoEvent(
+        VulnerabilityReport: make(
+            VulnerabilityReport,
+            id_=f"{_BASE}/reports/report",
+            content="report",
+        ),
+        EmbargoEvent: make(
+            EmbargoEvent,
             id_=f"{_BASE}/embargoes/embargo",
             context=_CASE_ID,
             end_time=FAR_FUTURE,  # far-future; relative so tree builds do not time-bomb

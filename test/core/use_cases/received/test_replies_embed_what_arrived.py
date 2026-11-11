@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_record
 from test.support.signing import resigned
 from vultron.adapters.driven.clock import SystemClock
@@ -107,7 +108,7 @@ def test_the_accept_trigger_embeds_the_invite_as_received():
     net.receive(BYSTANDER, body)
     dl = net.stores[BYSTANDER]
     # The trigger runs as the actor whose store this is (ADR-0073).
-    dl.save(as_Service(id_=BYSTANDER, name="Vendor B"))
+    dl.save(make(as_Service, id_=BYSTANDER, name="Vendor B"))
 
     result = run_in_act(
         SvcAcceptEmbargoUseCase(

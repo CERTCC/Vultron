@@ -24,6 +24,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import (
     archive_received,
     hold_deferred,
@@ -48,7 +49,8 @@ def dl() -> SqliteDataLayer:
 
 
 def _wire_activity() -> Any:
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/signed-seed",
         content="signed seed",
         attributed_to=SENDER,
@@ -57,7 +59,8 @@ def _wire_activity() -> Any:
 
 
 def _core_activity() -> VultronActivity:
-    return VultronActivity(
+    return make(
+        VultronActivity,
         id_="https://example.org/activities/core-seed",
         type_="Create",
         actor=SENDER,

@@ -41,6 +41,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -137,7 +138,8 @@ def _active_case_with_revision(
         proposer_record.sign_embargo(embargo_a.id_)
         dl.save(proposer_record)
 
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/revision",
         content="Longer terms",
         context=case_id,
@@ -337,7 +339,8 @@ def _unbound_case(
         active=False,
     )
     assert cast(VulnerabilityCase, dl.read(case_id)).em_state == EM.NONE
-    first = as_EmbargoEvent(
+    first = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/first",
         content="First terms",
         context=case_id,
@@ -621,7 +624,8 @@ def test_counter_proposal_at_proposed_commits_without_a_transition(
     assert cast(
         VulnerabilityCase, dl.read(case_id)
     ).current_status.em.state == (EM.PROPOSED)
-    counter = as_EmbargoEvent(
+    counter = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/counter",
         content="Counter terms",
         context=case_id,
@@ -662,7 +666,8 @@ def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
     assert cast(
         VulnerabilityCase, dl.read(case_id)
     ).current_status.em.state == (EM.REVISE)
-    counter = as_EmbargoEvent(
+    counter = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/counter",
         content="Counter revision",
         context=case_id,
@@ -795,7 +800,8 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
         # REVISE; the racing proposal is OTHER_A's counter-revision.
         _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
         racing, racer = (
-            as_EmbargoEvent(
+            make(
+                as_EmbargoEvent,
                 id_=f"{case_id}/embargo_events/counter",
                 content="Counter revision",
                 context=case_id,
@@ -1026,7 +1032,8 @@ def test_the_manager_persists_the_proposed_embargo_from_the_message(
     dl, _ = _unbound_case(
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
-    fresh = as_EmbargoEvent(
+    fresh = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/fresh",
         content="Never seen here",
         context=case_id,
@@ -1345,7 +1352,8 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OTHER_A)
     case_id = "https://example.org/cases/relay-unknown-case"
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/revision",
         context=case_id,
         end_time=days_from_now(90),
@@ -1518,7 +1526,8 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
     register_before = len(case.embargo_register)
     outbox_before = set(dl.outbox_list())
 
-    repeat_terms = as_EmbargoEvent(
+    repeat_terms = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/repeat",
         content="Same end time, reworded",
         context=case_id,
@@ -1561,7 +1570,8 @@ def test_a_revision_repeating_the_embargo_in_force_registers_nothing(
     register_before = len(case.embargo_register)
     outbox_before = set(dl.outbox_list())
 
-    repeat_terms = as_EmbargoEvent(
+    repeat_terms = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/repeat",
         content="The terms already in force",
         context=case_id,

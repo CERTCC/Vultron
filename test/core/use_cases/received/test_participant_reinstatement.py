@@ -60,6 +60,7 @@ from test.support.act_runner import in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import terminate
 from test.support.ledger import with_genesis
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -758,7 +759,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     ``create_case_participant`` entry and its joined mark from the invitee's
     own ``Accept(Invite)`` entry, as the CASE_MANAGER holds them.
     """
-    case.dl.create(as_Organization(id_=NEWBIE))
+    case.dl.create(make(as_Organization, id_=NEWBIE))
     stub_invite = rm_invite_to_case_activity(
         NEWBIE,
         target=CASE_ID,
@@ -1056,8 +1057,10 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
         )
     )
     offer = offer_case_participant_activity(
-        as_Actor(id_=VENDOR),
-        target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
+        make(as_Actor, id_=VENDOR),
+        target=make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        ),
         actor=MANAGER,
         to=[OWNER],
         roles=[CVDRole.VENDOR],
@@ -1073,8 +1076,8 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
     result = case.route(
         accept_case_participant_offer_activity(
             offer,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            target=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
             ),
             actor=OWNER,
             to=[MANAGER],

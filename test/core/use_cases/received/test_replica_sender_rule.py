@@ -31,6 +31,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -74,9 +75,12 @@ def _replica_store(
     store and the vendor's participant record.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA_ID)
-    dl.create(as_Actor(id_=REPLICA_ID))  # type: ignore[arg-type]
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="ReplicaSenderRule", attributed_to=VENDOR_ID
+    dl.create(make(as_Actor, id_=REPLICA_ID))  # type: ignore[arg-type]
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="ReplicaSenderRule",
+        attributed_to=VENDOR_ID,
     )
     if with_manager:
         seed_case_manager_participant(dl, case, MANAGER_ID)
@@ -90,9 +94,12 @@ def _deliver_offer_actor(
     dl: SqliteDataLayer, make_payload: Callable[..., object], sender_id: str
 ) -> HandlerResult:
     activity = recommend_actor_activity(
-        as_Actor(id_=RECOMMENDED_ID),
-        target=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="ReplicaSenderRule"
+        make(as_Actor, id_=RECOMMENDED_ID),
+        target=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="ReplicaSenderRule",
         ),
         actor=sender_id,
         to=[REPLICA_ID],
@@ -114,16 +121,21 @@ def _deliver_participant_status(
 ) -> HandlerResult:
     vendor = dl.read(f"{CASE_ID}/participants/vendor")
     assert isinstance(vendor, CaseParticipant)
-    status = as_ParticipantStatus(
-        id_=f"{CASE_ID}/participants/vendor/statuses/s1", context=CASE_ID
+    status = make(
+        as_ParticipantStatus,
+        id_=f"{CASE_ID}/participants/vendor/statuses/s1",
+        context=CASE_ID,
     )
     dl.create(status)
     activity = add_status_to_participant_activity(
         status,
         target=vendor,
         actor=sender_id,
-        context=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="ReplicaSenderRule"
+        context=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="ReplicaSenderRule",
         ),
         to=[REPLICA_ID],
     )

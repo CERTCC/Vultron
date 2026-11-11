@@ -36,6 +36,7 @@ Issue: #2238
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
@@ -54,7 +55,7 @@ def hosted_actor_store():
     reset_datalayer(ACTOR_ID)
     dl = get_datalayer(ACTOR_ID, db_url="sqlite:///:memory:")
     dl.clear_all()
-    dl.create(as_Service(id_=ACTOR_ID, name="Route Reachable Actor"))
+    dl.create(make(as_Service, id_=ACTOR_ID, name="Route Reachable Actor"))
     yield dl
     dl.clear_all()
     reset_datalayer(ACTOR_ID)
@@ -124,7 +125,7 @@ def test_datalayer_read_answers_from_the_addressed_actors_store(
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(name="R", content="body")
+    report = make(as_VulnerabilityReport, name="R", content="body")
     hosted_actor_store.create(report)
 
     resp = client.get(f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{report.id_}")
@@ -139,7 +140,7 @@ def test_datalayer_read_answers_from_the_addressed_actors_store(
     )
     other.clear_all()
     other.create(
-        as_Service(id_=canonical_actor_uri(other_segment), name="Other")
+        make(as_Service, id_=canonical_actor_uri(other_segment), name="Other")
     )
     try:
         resp = client.get(

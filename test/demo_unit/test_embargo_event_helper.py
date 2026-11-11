@@ -25,6 +25,7 @@ from typing import Any
 import pytest
 
 from test.support.act_clock import recorded_clock_reads
+from test.support.objects import make
 from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -36,8 +37,11 @@ _MANAGER = "https://example.org/actors/embargo-helper-vendor"
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
-        name="Embargo helper case", attributed_to=_MANAGER, published=_MINTED
+    return make(
+        as_VulnerabilityCase,
+        name="Embargo helper case",
+        attributed_to=_MANAGER,
+        published=_MINTED,
     )
 
 

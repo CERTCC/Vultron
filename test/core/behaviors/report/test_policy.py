@@ -24,6 +24,7 @@ import logging
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.behaviors.report.policy import (
     AlwaysAcceptPolicy,
     ValidationPolicy,
@@ -37,7 +38,8 @@ class TestValidationPolicy:
     def test_abstract_is_credible_raises(self):
         """ValidationPolicy.is_credible() raises NotImplementedError."""
         policy = ValidationPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -49,7 +51,8 @@ class TestValidationPolicy:
     def test_abstract_is_valid_raises(self):
         """ValidationPolicy.is_valid() raises NotImplementedError."""
         policy = ValidationPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -73,7 +76,8 @@ class TestValidationPolicy:
         policy = CustomPolicy()
 
         # Short name → not credible
-        report1 = VulnerabilityReport(
+        report1 = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r1",
             name="CVE-1",
             content="Vulnerability found",
@@ -82,7 +86,8 @@ class TestValidationPolicy:
         assert policy.is_valid(report1)
 
         # Long name → credible
-        report2 = VulnerabilityReport(
+        report2 = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r2",
             name="CVE-2024-12345",
             content="Vulnerability found",
@@ -91,7 +96,8 @@ class TestValidationPolicy:
         assert policy.is_valid(report2)
 
         # No keyword → invalid
-        report3 = VulnerabilityReport(
+        report3 = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r3",
             name="CVE-2024-12345",
             content="Bug found",
@@ -106,7 +112,8 @@ class TestAlwaysAcceptPolicy:
     def test_is_credible_returns_true(self):
         """AlwaysAcceptPolicy.is_credible() always returns True."""
         policy = AlwaysAcceptPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -117,7 +124,8 @@ class TestAlwaysAcceptPolicy:
     def test_is_valid_returns_true(self):
         """AlwaysAcceptPolicy.is_valid() always returns True."""
         policy = AlwaysAcceptPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -128,7 +136,8 @@ class TestAlwaysAcceptPolicy:
     def test_is_credible_logs_at_info_level(self, caplog):
         """AlwaysAcceptPolicy.is_credible() logs acceptance at INFO level."""
         policy = AlwaysAcceptPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -147,7 +156,8 @@ class TestAlwaysAcceptPolicy:
     def test_is_valid_logs_at_info_level(self, caplog):
         """AlwaysAcceptPolicy.is_valid() logs acceptance at INFO level."""
         policy = AlwaysAcceptPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -168,17 +178,20 @@ class TestAlwaysAcceptPolicy:
         policy = AlwaysAcceptPolicy()
 
         reports = [
-            VulnerabilityReport(
+            make(
+                VulnerabilityReport,
                 id_="https://example.org/reports/r1",
                 name="CVE-2024-001",
                 content="Buffer overflow",
             ),
-            VulnerabilityReport(
+            make(
+                VulnerabilityReport,
                 id_="https://example.org/reports/r2",
                 name=None,
                 content=None,
             ),
-            VulnerabilityReport(
+            make(
+                VulnerabilityReport,
                 id_="https://example.org/reports/r3",
                 name="X" * 1000,  # Very long name
                 content="Y" * 10000,  # Very long content
@@ -195,12 +208,14 @@ class TestAlwaysAcceptPolicy:
         """Single AlwaysAcceptPolicy instance can evaluate multiple reports."""
         policy = AlwaysAcceptPolicy()
 
-        report1 = VulnerabilityReport(
+        report1 = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r1",
             name="Report 1",
             content="Content 1",
         )
-        report2 = VulnerabilityReport(
+        report2 = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r2",
             name="Report 2",
             content="Content 2",
@@ -217,7 +232,8 @@ class TestAlwaysAcceptPolicy:
     def test_policy_does_not_mutate_report(self):
         """AlwaysAcceptPolicy does not modify report object."""
         policy = AlwaysAcceptPolicy()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
@@ -246,7 +262,8 @@ class TestAlwaysAcceptPolicy:
         """Policy log messages include report ID for traceability."""
         policy = AlwaysAcceptPolicy()
         report_id = "https://example.org/reports/traced-report-123"
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_=report_id,
             name="TRACED-123",
             content="Traceable report",

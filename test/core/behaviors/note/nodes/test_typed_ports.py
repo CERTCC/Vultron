@@ -23,6 +23,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.note.nodes.creation import (
     CreateNoteNode,
 )
@@ -45,7 +46,8 @@ NOTE_ID = "https://example.org/notes/note-001"
 
 class TestSaveNoteNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        note = VultronNote(
+        note = make(
+            VultronNote,
             id_=NOTE_ID,
             name="Test Note",
             content="test content",
@@ -60,7 +62,8 @@ class TestSaveNoteNodePorts:
     def test_saves_note_via_bt_scenario(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        note = VultronNote(
+        note = make(
+            VultronNote,
             id_=NOTE_ID,
             name="Test Note",
             content="test content",
@@ -115,12 +118,14 @@ class TestAttachNoteToCaseNodePorts:
         bt_scenario.assert_success(result)
 
     def test_attaches_note_to_case(self, bt_scenario: BTTestScenario) -> None:
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Test Case",
             attributed_to=ACTOR_ID,
         )
-        note = VultronNote(
+        note = make(
+            VultronNote,
             id_=NOTE_ID,
             name="Test Note",
             content="test content",

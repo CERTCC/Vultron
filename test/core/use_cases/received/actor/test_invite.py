@@ -33,6 +33,7 @@ from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from test.support.ledger_records import with_ledger_records
+from test.support.objects import make
 from test.support.received import case_stub, settle_as_the_inbox
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -156,9 +157,10 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     # the case actor's store.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
     invitee_id = "https://example.org/users/late-joiner"
-    invitee = as_Organization(id_=invitee_id)
-    case_actor = as_Service(id_=case_actor_id, context="unused")
-    case = as_VulnerabilityCase(
+    invitee = make(as_Organization, id_=invitee_id)
+    case_actor = make(as_Service, id_=case_actor_id, context="unused")
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/caseLJ1",
         name="TEST-LATE-JOIN-BACKFILL",
         attributed_to=case_actor_id,
@@ -176,7 +178,8 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     dl.create(case_actor)
     dl.create(case)
 
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         id_=f"{case.id_}/participants/case-actor-p",
         attributed_to=case_actor_id,
         context=case.id_,
@@ -254,7 +257,7 @@ def _deliver_invite_to_invitee(
     """Deliver one Invite to a fresh invitee store and return that store."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=_INVITEE_ID),
+        make(as_Actor, id_=_INVITEE_ID),
         to=[_INVITEE_ID],
         target=target,
         actor=sender,
@@ -291,8 +294,9 @@ def _seed_pcr708_exchange(*, receiver_id: str) -> tuple[SqliteDataLayer, Any]:
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
-    invitee = as_Organization(id_=_PCR708_INVITEE)
-    case = VulnerabilityCase(
+    invitee = make(as_Organization, id_=_PCR708_INVITEE)
+    case = make(
+        VulnerabilityCase,
         id_=_PCR708_CASE_ID,
         name="TEST-PCR-07-008",
         attributed_to=_PCR708_OWNER,
@@ -354,7 +358,7 @@ class TestInviteActorUseCases:
         )
 
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
@@ -398,7 +402,7 @@ class TestInviteActorUseCases:
         )
 
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target=case_id,
             actor=sender_id,
@@ -442,7 +446,7 @@ class TestInviteActorUseCases:
             actor_id=invitee_id,
         )
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
@@ -556,14 +560,14 @@ class TestInviteActorUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
 
         invite1 = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target=case_stub(case_id),
             actor=first_sender,
             id_=f"{case_id}/invitations/a",
         )
         invite2 = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target=case_stub(case_id),
             actor=second_sender,
@@ -578,7 +582,7 @@ class TestInviteActorUseCases:
                 sync_port=SyncActivityAdapter(dl),
             )
         )
-        dl.create(as_Actor(id_=invitee_id, name="invitee"))
+        dl.create(make(as_Actor, id_=invitee_id, name="invitee"))
         accepted = run_in_act(
             SvcAcceptCaseInviteUseCase(
                 dl,
@@ -635,7 +639,7 @@ class TestInviteActorUseCases:
         )
         case_id = "https://example.org/cases/case1"
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target=case_id,
             actor="https://example.org/users/owner",
@@ -691,7 +695,7 @@ class TestInviteActorUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiving_actor_id)
 
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=named_invitee_id),  # object ≠ receiving actor
+            make(as_Actor, id_=named_invitee_id),  # object ≠ receiving actor
             to=[named_invitee_id],
             target=case_id,
             actor=case_manager_id,
@@ -725,7 +729,7 @@ class TestInviteActorUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            make(as_Actor, id_="https://example.org/users/coordinator"),
             to=["https://example.org/users/coordinator"],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
@@ -758,7 +762,7 @@ class TestInviteActorUseCases:
         owner_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=owner_id),
+            make(as_Actor, id_=owner_id),
             to=[owner_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
@@ -813,10 +817,14 @@ class TestInviteActorUseCases:
         case_id = "https://example.org/cases/case-redeliver-1"
         case_actor_id = f"{case_id}/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        case = as_VulnerabilityCase(
-            id_=case_id, name="TEST-REDELIVER", attributed_to=case_actor_id
+        case = make(
+            as_VulnerabilityCase,
+            id_=case_id,
+            name="TEST-REDELIVER",
+            attributed_to=case_actor_id,
         )
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -828,7 +836,7 @@ class TestInviteActorUseCases:
         dl.create(case)
 
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            make(as_Actor, id_="https://example.org/users/coordinator"),
             to=["https://example.org/users/coordinator"],
             target=case_id,
             actor=case_actor_id,
@@ -904,12 +912,14 @@ class TestInviteActorUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         invitee_id = "https://example.org/users/coordinator"
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="TEST-REJECT-INVITE",
             attributed_to=case_actor_id,
         )
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -920,7 +930,7 @@ class TestInviteActorUseCases:
             case_manager_participant.id_
         )
         invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
+            make(as_Actor, id_=invitee_id),
             to=[invitee_id],
             target=case_id,
             actor=case_actor_id,
@@ -931,13 +941,15 @@ class TestInviteActorUseCases:
         # CreateInertInviteeParticipantNode would create this at invite-send
         # time; we seed it directly for the received-side test.
         inert_participant_id = f"{case_id}/participants/coordinator"
-        inert_status = ParticipantStatus(
+        inert_status = make(
+            ParticipantStatus,
             context=case_id,
             attributed_to=invitee_id,
             rm=RmDimension(state=RM.RECEIVED),
             cvd_role=[CVDRole.VENDOR],
         )
-        inert_participant = CaseParticipant(
+        inert_participant = make(
+            CaseParticipant,
             id_=inert_participant_id,
             attributed_to=invitee_id,
             context=case_id,
@@ -1004,8 +1016,9 @@ class TestInviteActorUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
             attributed_to="https://example.org/users/owner",
@@ -1067,13 +1080,15 @@ class TestInviteActorUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/caseIA2",
             name="TEST-ACCEPT-INVITE-EMBARGO",
             attributed_to="https://example.org/users/owner",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
             context=case.id_,
@@ -1144,9 +1159,10 @@ class TestInviteActorUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/coordinator_rm1"
-        invitee = as_Organization(id_=invitee_id)
+        invitee = make(as_Organization, id_=invitee_id)
         owner_id = "https://example.org/users/owner"
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/caseRM001",
             name="TEST-RM-LIFECYCLE",
             attributed_to=owner_id,
@@ -1263,7 +1279,7 @@ class TestInviteActorUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/coordinator_rm2"
-        invitee = as_Organization(id_=invitee_id)
+        invitee = make(as_Organization, id_=invitee_id)
         owner_id = "https://example.org/users/owner"
         case_manager_participant_id = (
             "https://example.org/cases/caseRM002/participants/case-manager"
@@ -1272,14 +1288,16 @@ class TestInviteActorUseCases:
         # the receiving actor and the store owner must be one actor
         # (BT-05-006, BT-17-006).
         store_owner_id = "https://test.example/api/v2/actors/test-actor"
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = make(
+            CaseParticipant,
             id_=case_manager_participant_id,
             attributed_to=store_owner_id,
             context="https://example.org/cases/caseRM002",
             name="CaseManager",
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/caseRM002",
             name="TEST-RM-AUTO-ENGAGE",
             attributed_to=owner_id,
@@ -1404,8 +1422,9 @@ class TestInviteActorUseCases:
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-        invitee = as_Organization(id_=invitee_id)
-        case = as_VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
             attributed_to=case_actor_id,
@@ -1425,8 +1444,9 @@ class TestInviteActorUseCases:
             as_CaseParticipant,
         )
 
-        dl.create(as_Service(id_=case_actor_id, context=case.id_))
-        case_manager_participant = as_CaseParticipant(
+        dl.create(make(as_Service, id_=case_actor_id, context=case.id_))
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -1833,9 +1853,10 @@ class TestInviteActorUseCases:
         )
         invitee_id = "https://example.org/users/late-joiner-noannounce"
         case_actor_id = "https://example.org/actors/case-actor-lj4"
-        invitee = as_Organization(id_=invitee_id)
-        case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = as_VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case_actor = make(as_Service, id_=case_actor_id, context="unused")
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/caseLJ4",
             name="TEST-LATE-JOIN-NO-ANNOUNCE",
             attributed_to=case_actor_id,
@@ -1859,7 +1880,8 @@ class TestInviteActorUseCases:
             as_CaseParticipant,
         )
 
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -2070,16 +2092,19 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
         invitee_id = "https://example.org/users/seated-non-signatory"
         case_id = "https://example.org/cases/caseLJ4"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        invitee = as_Organization(id_=invitee_id)
+        invitee = make(as_Organization, id_=invitee_id)
         dl.create(invitee)
-        dl.create(as_Service(id_=case_actor_id, context=case_id))
-        embargo = EmbargoEvent(
+        dl.create(make(as_Service, id_=case_actor_id, context=case_id))
+        embargo = make(
+            EmbargoEvent,
             id_=f"{case_id}/embargoes/1",
             context=case_id,
             end_time=days_from_now(45),
         )
         dl.create(embargo)
-        case = VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
+        case = make(
+            VulnerabilityCase, id_=case_id, attributed_to=case_actor_id
+        )
         activate(case, embargo)
         for actor_id, consent, roles in (
             (
@@ -2089,7 +2114,8 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
             ),
             (invitee_id, EmbargoConsentState.INVITED, []),
         ):
-            participant = CaseParticipant(
+            participant = make(
+                CaseParticipant,
                 id_=f"{case_id}/participants/{actor_id.rsplit('/', 1)[-1]}",
                 attributed_to=actor_id,
                 context=case_id,
@@ -2169,8 +2195,9 @@ class TestAcceptInviteRolesAC4:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/vendor2"
-        invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/ac4-test",
             name="AC-4 roles test",
             attributed_to="https://example.org/users/owner",
@@ -2235,8 +2262,9 @@ class TestAcceptInviteRolesAC4:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         invitee_id = "https://example.org/users/vendor3"
-        invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        invitee = make(as_Organization, id_=invitee_id)
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/ac4-neg",
             name="AC-4 negative",
             attributed_to="https://example.org/users/owner",
@@ -2293,7 +2321,7 @@ class TestInviteDispositions:
         from vultron.enums.roles import CVDRole
 
         return rm_invite_to_case_activity(
-            as_Actor(id_=self._INVITEE),
+            make(as_Actor, id_=self._INVITEE),
             to=[self._INVITEE],
             target=case_id,
             actor=issuer or self._OWNER,
@@ -2316,11 +2344,15 @@ class TestInviteDispositions:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(
-            id_=case_id, name="DISPOSITION", attributed_to=self._OWNER
+        case = make(
+            as_VulnerabilityCase,
+            id_=case_id,
+            name="DISPOSITION",
+            attributed_to=self._OWNER,
         )
         if manager_id is not None:
-            manager = as_CaseParticipant(
+            manager = make(
+                as_CaseParticipant,
                 id_=f"{case_id}/participants/manager",
                 attributed_to=manager_id,
                 context=case_id,
@@ -2534,13 +2566,15 @@ class TestInviteDispositions:
 
         # Seed the inert participant record the reject will close.
         inert_id = f"{case_id}/participants/{self._INVITEE.split('/')[-1]}"
-        inert_status = ParticipantStatus(
+        inert_status = make(
+            ParticipantStatus,
             context=case_id,
             attributed_to=self._INVITEE,
             rm=RmDimension(state=RM.RECEIVED),
             cvd_role=[CVDRole.VENDOR],
         )
-        inert = CaseParticipant(
+        inert = make(
+            CaseParticipant,
             id_=inert_id,
             attributed_to=self._INVITEE,
             context=case_id,

@@ -43,6 +43,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
+from test.support.objects import make
 from test.support.received import extract_stamped
 from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import CoreObject
@@ -693,6 +694,6 @@ def test_authored_case_without_statuses_is_seeded():
     """The refusal is the inbound path's: a case this process builds is seeded."""
     from vultron.core.models.case import VulnerabilityCase
 
-    case = VulnerabilityCase(attributed_to=ACTOR, id_=CASE_ID)
+    case = make(VulnerabilityCase, attributed_to=ACTOR, id_=CASE_ID)
 
     assert len(case.case_statuses) == 1

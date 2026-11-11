@@ -34,6 +34,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import tick_call_out
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -86,7 +87,8 @@ def bt_scenario():
 
 @pytest.fixture
 def vendor_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -96,7 +98,8 @@ def vendor_participant() -> CaseParticipant:
 
 @pytest.fixture
 def coordinator_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=COORDINATOR_ACTOR_ID,
         context=CASE_ID,
@@ -109,7 +112,8 @@ def case_with_vendor(
     bt_scenario: BTTestScenario,
     vendor_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -137,7 +141,8 @@ def coordinator_case(
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     """The same two-participant case, seeded in the coordinator's store."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -162,7 +167,8 @@ def case_with_vendor_and_coordinator(
     vendor_participant: CaseParticipant,
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -183,7 +189,8 @@ def _seed_rm_state(
     bt_scenario: BTTestScenario, case_id: str, actor_id: str, rm: RM
 ) -> None:
     """Seed a ParticipantStatus record for the given RM state."""
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
@@ -206,7 +213,8 @@ def _seed_vf_state(
     bt_scenario: BTTestScenario, case_id: str, actor_id: str, vf: CS_vf | None
 ) -> None:
     """Seed a ParticipantStatus record for the given VF state."""
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=RM.ACCEPTED),
@@ -670,7 +678,8 @@ CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
 
 @pytest.fixture
 def case_manager_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/cm-cp-001",
         attributed_to=CASE_MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -684,7 +693,8 @@ def case_with_vendor_and_case_manager(
     vendor_participant: CaseParticipant,
     case_manager_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",

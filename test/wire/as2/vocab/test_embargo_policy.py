@@ -26,6 +26,7 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -64,7 +65,8 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
         self.assertEqual(VO_type.EMBARGO_POLICY, p.type_)
 
     def test_creation_accepts_timedelta_directly(self):
-        p = ep_module.as_EmbargoPolicy(
+        p = make(
+            ep_module.as_EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P60D,
@@ -296,7 +298,8 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_roundtrip_timedelta_to_iso8601_and_back(self):
         """DUR-05-001, DUR-05-002: timedelta → 'P90D' → timedelta round-trips correctly."""
-        p = ep_module.as_EmbargoPolicy(
+        p = make(
+            ep_module.as_EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=timedelta(days=90),
@@ -320,7 +323,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         self.assertNotEqual(self.policy.type_, case.type_)
 
 
@@ -338,7 +341,8 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
 
         self.core_cls = CoreEmbargoPolicy
         self.wire_cls = ep_module.as_EmbargoPolicy
-        self.core_policy = CoreEmbargoPolicy(
+        self.core_policy = make(
+            CoreEmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,

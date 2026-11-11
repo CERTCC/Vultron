@@ -20,6 +20,7 @@ from typing import cast
 import pytest
 
 from test.support.embargo_register import activate, register
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
@@ -37,8 +38,10 @@ def dl() -> SqliteDataLayer:
         "sqlite:///:memory:", actor_id="https://example.org/users/owner"
     )
     store.create(
-        VulnerabilityCase(
-            id_=CASE_ID, attributed_to="https://example.org/users/owner"
+        make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            attributed_to="https://example.org/users/owner",
         )
     )
     return store

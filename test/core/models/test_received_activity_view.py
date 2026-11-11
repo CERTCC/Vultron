@@ -19,6 +19,7 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from test.support.objects import make
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.note import VultronNote
 from vultron.core.models.received_activity_view import (
@@ -38,13 +39,16 @@ class _Holder(BaseModel):
 
 def _view() -> ReceivedActivityView:
     return ReceivedActivityView(
-        VultronActivity(
+        make(
+            VultronActivity,
             id_="https://example.org/activities/a-1",
             type_="Create",
             actor=_ACTOR,
             to=["https://example.org/actors/receiver"],
-            object_=VultronNote(
-                id_="https://example.org/notes/n-1", content="as received"
+            object_=make(
+                VultronNote,
+                id_="https://example.org/notes/n-1",
+                content="as received",
             ),
             instrument={"keys": ["a", "b"], "flags": {"x"}},
         )
@@ -109,7 +113,7 @@ def test_read_only_leaves_an_immutable_value_as_it_is():
 
 
 def test_views_compare_by_the_model_they_wrap():
-    activity = VultronActivity(type_="Create", actor=_ACTOR)
+    activity = make(VultronActivity, type_="Create", actor=_ACTOR)
 
     assert ReceivedActivityView(activity) == ReceivedActivityView(activity)
     assert ReceivedActivityView(activity) != "not a view"

@@ -44,6 +44,7 @@ from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.note_wire import assert_case_manager_note_recorded
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -161,7 +162,8 @@ def bridge(dl):
 
 @pytest.fixture
 def status_obj():
-    return as_ParticipantStatus(
+    return make(
+        as_ParticipantStatus,
         id_=STATUS_ID,
         context=CASE_ID,
     )
@@ -169,7 +171,8 @@ def status_obj():
 
 @pytest.fixture
 def participant():
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -179,7 +182,8 @@ def participant():
 
 @pytest.fixture
 def case_manager_participant():
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -190,8 +194,11 @@ def case_manager_participant():
 @pytest.fixture
 def case(participant, case_manager_participant):
     """VulnerabilityCase with vendor and Case Manager participants."""
-    obj = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    obj = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
@@ -367,7 +374,7 @@ class TestResolveAndPersistStatusObjectNode:
         """Persists fallback object when status not in DataLayer."""
         from vultron.core.models.participant_status import ParticipantStatus
 
-        fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+        fallback = make(ParticipantStatus, id_=STATUS_ID, context=CASE_ID)
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID,
             status_obj_fallback=fallback,
@@ -413,7 +420,8 @@ class TestValidateRMTransitionNode:
     ):
         """Backwards RM transition (CLOSED → RECEIVED) is rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -422,7 +430,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        regressed_status = as_ParticipantStatus(
+        regressed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -449,7 +458,8 @@ class TestValidateRMTransitionNode:
     ):
         """RM.CLOSED is terminal; CLOSED -> CLOSED rewrites are rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -458,7 +468,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        duplicate_closed_status = as_ParticipantStatus(
+        duplicate_closed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -484,7 +495,8 @@ class TestValidateRMTransitionNode:
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
-        received_status = as_ParticipantStatus(
+        received_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -493,7 +505,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(received_status)
 
-        accepted_status = as_ParticipantStatus(
+        accepted_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -608,7 +621,8 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A backwards RM transition (CLOSED → RECEIVED) is rejected."""
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -617,7 +631,8 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        regressed_status = as_ParticipantStatus(
+        regressed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -636,7 +651,8 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """Repeated CLOSED updates are rejected and do not append new status."""
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -645,7 +661,8 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        duplicate_closed = as_ParticipantStatus(
+        duplicate_closed = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -669,7 +686,8 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A non-adjacent but forward RM jump is accepted (sender authoritative)."""
-        received_status = as_ParticipantStatus(
+        received_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -678,7 +696,8 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(received_status)
 
-        accepted_status = as_ParticipantStatus(
+        accepted_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -717,12 +736,14 @@ class TestAllParticipantsRMClosedConditionNode:
         case_manager_participant,
     ):
         """All CVD participants (including CaseActor) at RM.CLOSED → SUCCESS (ADR-0051)."""
-        closed_vendor = as_ParticipantStatus(
+        closed_vendor = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
         )
-        closed_cm = as_ParticipantStatus(
+        closed_cm = make(
+            as_ParticipantStatus,
             id_=f"{CM_PARTICIPANT_ID}/statuses/closed",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -752,7 +773,8 @@ class TestAllParticipantsRMClosedConditionNode:
     ):
         """CaseActor not at RM.CLOSED → FAILURE; no CASE_MANAGER skip (ADR-0051)."""
         # Only the vendor is CLOSED; case_manager_participant has no RM.CLOSED status
-        closed_vendor = as_ParticipantStatus(
+        closed_vendor = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -812,7 +834,8 @@ class TestCloseNotYetEmittedConditionNode:
         """Leave(VulnerabilityCase) already in outbox → FAILURE (idempotency)."""
         from vultron.core.models.activity import VultronActivity
 
-        leave_activity = VultronActivity(
+        leave_activity = make(
+            VultronActivity,
             id_=f"{CASE_ID}/activities/leave-01",
             type_="Leave",
             actor=CASE_MANAGER_ID,
@@ -836,7 +859,8 @@ class TestCloseNotYetEmittedConditionNode:
         from vultron.core.models.activity import VultronActivity
 
         other_case_id = "https://example.org/cases/other-case"
-        leave_activity = VultronActivity(
+        leave_activity = make(
+            VultronActivity,
             id_=f"{other_case_id}/activities/leave-01",
             type_="Leave",
             actor=CASE_MANAGER_ID,
@@ -890,14 +914,20 @@ class TestAddParticipantStatusTree:
         from vultron.core.models.case import VulnerabilityCase as CoreCase
 
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -939,13 +969,19 @@ class TestAddParticipantStatusTree:
     ):
         """Unknown sender → SenderIsParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=OUTSIDER_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=OUTSIDER_ID,
             ),
             actor=OUTSIDER_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -982,19 +1018,27 @@ class TestAddParticipantStatusTree:
             status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
         )
         cm_status_id = f"{STATUS_ID}/cm"
-        cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
+        cm_status = make(
+            as_ParticipantStatus, id_=cm_status_id, context=CASE_ID
+        )
         populated_dl.create(cm_status)
         # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode will return FAILURE
         cm_activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=cm_status_id, context=CASE_ID),
-            target=as_CaseParticipant(
+            status=make(
+                as_ParticipantStatus, id_=cm_status_id, context=CASE_ID
+            ),
+            target=make(
+                as_CaseParticipant,
                 id_=CM_PARTICIPANT_ID,
                 context=CASE_ID,
                 attributed_to=CASE_MANAGER_ID,
             ),
             actor=CASE_MANAGER_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         cm_event = make_payload(cm_activity)
@@ -1032,19 +1076,25 @@ class TestAddParticipantStatusTree:
 
         bridge = self._bridge_with_factory(populated_dl)
         cm_status_id = f"{STATUS_ID}/cm-default"
-        cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
+        cm_status = make(
+            as_ParticipantStatus, id_=cm_status_id, context=CASE_ID
+        )
         populated_dl.create(cm_status)
         # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode returns FAILURE → call-out fires
         cm_activity = add_status_to_participant_activity(
             status=cm_status,
-            target=as_CaseParticipant(
+            target=make(
+                as_CaseParticipant,
                 id_=CM_PARTICIPANT_ID,
                 context=CASE_ID,
                 attributed_to=CASE_MANAGER_ID,
             ),
             actor=CASE_MANAGER_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(cm_activity)
@@ -1091,13 +1141,19 @@ class TestAddParticipantStatusTree:
         ``TeardownOrSkip`` wrapper around ``ThreatTerminationBranchNode``
         (RSH-01-004, RSH-03-001); the CS.P-only predecessor must be gone."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1136,13 +1192,19 @@ class TestAddParticipantStatusTree:
         entries alone (RSH-03-004).
         """
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         tree = add_participant_status_tree(
@@ -1181,13 +1243,19 @@ class TestAddParticipantStatusTree:
         """EmitCaseStatusUpdateNode and StatusAdoptionGate must be present
         in the tree (RSH-01-001, RSH-04-006)."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1247,13 +1315,19 @@ class TestNoAutoCloseSequenceInTree:
     def test_no_auto_close_sequence_node(self, make_payload):
         """AutoCloseSequence must not appear in add_participant_status_tree."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1278,13 +1352,19 @@ class TestNoAutoCloseSequenceInTree:
         )
 
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1476,24 +1556,30 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Fix1 Regression",
+            attributed_to=CASE_MANAGER_ID,
         )
         case.add_participant(cm_participant)
 
-        existing_status = as_ParticipantStatus(
+        existing_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),
         )
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
@@ -1508,7 +1594,8 @@ class TestRejectionValidatorBeforeCommit:
         dl.create(existing_status)
 
         # Incoming status: rm=VALID (backwards from ACCEPTED), vfd advances to Vfd
-        incoming_status = as_ParticipantStatus(
+        incoming_status = make(
+            as_ParticipantStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             rm=RmDimension(state=RM.VALID),
@@ -1521,7 +1608,8 @@ class TestRejectionValidatorBeforeCommit:
             target=vendor_participant,
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(
+            context=make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=CASE_ID,
                 name="Fix1 Regression",
@@ -1567,25 +1655,31 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Fix1 Full Reject",
+            attributed_to=CASE_MANAGER_ID,
         )
         case.add_participant(cm_participant)
 
-        existing_status = as_ParticipantStatus(
+        existing_status = make(
+            as_ParticipantStatus,
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
             vf=VfDimension(state=CS_vf.Vf),
         )
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
@@ -1600,7 +1694,8 @@ class TestRejectionValidatorBeforeCommit:
         dl.create(existing_status)
 
         # Incoming status: rm backwards AND vfd backwards → all dimensions refused
-        incoming_status = as_ParticipantStatus(
+        incoming_status = make(
+            as_ParticipantStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             rm=RmDimension(state=RM.VALID),
@@ -1611,7 +1706,8 @@ class TestRejectionValidatorBeforeCommit:
             status=incoming_status,
             target=vendor_participant,
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
+            context=make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=CASE_ID,
                 name="Fix1 Full Reject",
@@ -1833,13 +1929,19 @@ class TestAddParticipantStatusTeardownWiring:
     def test_threat_termination_branch_present(self, make_payload):
         """ThreatTerminationBranchNode must appear in add_participant_status_tree."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1863,13 +1965,19 @@ class TestAddParticipantStatusTeardownWiring:
     def test_teardown_after_emit_node(self, make_payload):
         """ThreatTerminationBranchNode must follow EmitCaseStatusUpdateNode in traversal order."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1898,13 +2006,19 @@ class TestAddParticipantStatusTeardownWiring:
     def test_teardown_wrapped_in_failure_is_success(self, make_payload):
         """TeardownOrSkip must be a FailureIsSuccess decorator."""
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            status=make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID),
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
         event = make_payload(activity)
@@ -1946,24 +2060,32 @@ def _pxa_report(
     from vultron.core.models.dimensions import EmDimension
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-    embedded = as_CaseStatus(
+    embedded = make(
+        as_CaseStatus,
         context=CASE_ID,
         pxa=PxaDimension(state=pxa),
         em=EmDimension(state=em) if em is not None else EmDimension(),
     )
     return add_status_to_participant_activity(
-        status=as_ParticipantStatus(
+        status=make(
+            as_ParticipantStatus,
             id_=f"{participant_id}/statuses/pxa",
             context=CASE_ID,
             case_status=embedded,
         ),
-        target=as_CaseParticipant(
-            id_=participant_id, context=CASE_ID, attributed_to=sender
+        target=make(
+            as_CaseParticipant,
+            id_=participant_id,
+            context=CASE_ID,
+            attributed_to=sender,
         ),
         actor=sender,
         to=[CASE_MANAGER_ID],
-        context=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+        context=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="Test",
         ),
     )
 
@@ -2181,16 +2303,24 @@ class TestAdoptedPxaReachesTheCaseStatus:
         """A status embedding no ``case_status`` reports no P/X/A."""
         _seed_case_pxa(populated_dl, CS_pxa.Pxa)
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(
-                id_=f"{PARTICIPANT_ID}/statuses/none", context=CASE_ID
+            status=make(
+                as_ParticipantStatus,
+                id_=f"{PARTICIPANT_ID}/statuses/none",
+                context=CASE_ID,
             ),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
 
@@ -2264,7 +2394,8 @@ class TestAdoptedPxaReachesTheCaseStatus:
         there fails the node and commits nothing."""
         from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-        wrong = as_CaseStatus(
+        wrong = make(
+            as_CaseStatus,
             id_=f"{CASE_ID}/statuses/not-a-participant-status",
             context=CASE_ID,
             pxa=PxaDimension(state=CS_pxa.Pxa),
@@ -2301,8 +2432,10 @@ class TestAdoptedPxa:
         status = (
             None
             if reported is None
-            else CaseStatus(
-                context=CASE_ID, pxa=PxaDimension(state=CS_pxa[reported])
+            else make(
+                CaseStatus,
+                context=CASE_ID,
+                pxa=PxaDimension(state=CS_pxa[reported]),
             )
         )
         assert adopted_pxa(CS_pxa[current], status) is CS_pxa[expected]
@@ -2342,33 +2475,40 @@ def _cm_store_with_embargo(
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Teardown Case", attributed_to=CASE_MANAGER_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Teardown Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     case.add_participant(vendor)
     case.add_participant(manager)
     seated = [vendor, manager]
     if with_reporter:
-        reporter = as_CaseParticipant(
+        reporter = make(
+            as_CaseParticipant,
             id_=REPORTER_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=REPORTER_ID,
         )
         case.add_participant(reporter)
         seated.append(reporter)
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{CASE_ID}/embargo_events/e1",
         context=CASE_ID,
         end_time=days_from_now(45),
@@ -2379,7 +2519,8 @@ def _cm_store_with_embargo(
     else:
         propose(case, embargo.id_)
     if em is EM.REVISE:
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/e2",
             context=CASE_ID,
             end_time=days_from_now(90),
@@ -2687,27 +2828,33 @@ def _vendor_store() -> SqliteDataLayer:
     from vultron.core.models.participant_status import ParticipantStatus
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR, CVDRole.DEPLOYER],
     )
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=CASE_MANAGER_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
     )
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     case.add_participant(vendor)
     case.add_participant(manager)
@@ -2760,19 +2907,26 @@ class TestReceiveVendorPathNotices:
         dl = _vendor_store()
         manager_before = _statuses(dl, CM_PARTICIPANT_ID)
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(
+            status=make(
+                as_ParticipantStatus,
                 id_=f"{PARTICIPANT_ID}/statuses/vfd",
                 context=CASE_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
                 **dimensions,
             ),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            target=make(
+                as_CaseParticipant,
+                id_=PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
             ),
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            context=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Test",
             ),
         )
 

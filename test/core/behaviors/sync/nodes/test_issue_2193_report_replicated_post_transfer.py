@@ -36,6 +36,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -84,7 +85,8 @@ def bridge(datalayer):
 @pytest.fixture
 def case_actor(datalayer):
     """The CaseActor that signs the replicated Announce(CaseLedgerEntry)s."""
-    actor = VultronService(
+    actor = make(
+        VultronService,
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
@@ -100,7 +102,9 @@ def case_replica(datalayer):
     Models the freshly-seeded case state the participant holds *before* it
     replays the replicated ledger stream — the report was never seeded here.
     """
-    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(
+        as_VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID
+    )
     datalayer.save(case)
     return case
 

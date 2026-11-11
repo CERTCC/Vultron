@@ -33,6 +33,7 @@ from pydantic import ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
@@ -56,15 +57,17 @@ def actor_id() -> str:
 
 @pytest.fixture
 def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
-    obj = VultronService(id_=actor_id, name="Vendor Co")
+    obj = make(VultronService, id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
-    obj = VulnerabilityReport(
-        name="TEST-001", content="Test vulnerability report"
+    obj = make(
+        VulnerabilityReport,
+        name="TEST-001",
+        content="Test vulnerability report",
     )
     bt_scenario.dl.create(obj)
     return obj
@@ -74,7 +77,8 @@ def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
 def case_obj(
     bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",
@@ -90,7 +94,8 @@ def participant(
     case_obj: VulnerabilityCase,
     actor_id: str,
 ) -> CaseParticipant:
-    p = CaseParticipant(
+    p = make(
+        CaseParticipant,
         attributed_to=actor_id,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
@@ -180,7 +185,7 @@ class TestVultronCaseIdContract:
         assert "context" not in locs
 
     def test_auto_generated_id_is_nonempty(self) -> None:
-        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         assert case.id_ and case.id_.strip()
 
 

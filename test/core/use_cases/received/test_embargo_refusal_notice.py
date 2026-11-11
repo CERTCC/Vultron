@@ -31,6 +31,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -422,7 +423,8 @@ def test_an_owners_threat_signal_remove_gets_the_notice():
 
 def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
     """BYSTANDER asks the CASE_MANAGER for new terms, its ask pending."""
-    terms = as_EmbargoEvent(
+    terms = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{tag}",
         context=net.case_id,
         end_time=days_from_now(90),

@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -44,11 +45,15 @@ def _store(*, with_case: bool = True) -> SqliteDataLayer:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER_ID)
     if not with_case:
         return dl
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Role condition", attributed_to=OWNER_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Role condition",
+        attributed_to=OWNER_ID,
     )
     for actor, roles in ((OWNER_ID, [CVDRole.CASE_OWNER]), (VENDOR_ID, [])):
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{actor.rsplit('/', 1)[-1]}",
             attributed_to=actor,
             context=CASE_ID,

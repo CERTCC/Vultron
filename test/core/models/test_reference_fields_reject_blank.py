@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from test.support.act_clock import ACT_AT
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -57,26 +58,33 @@ URI = "https://example.org/things/1"
 CASES: list[tuple[str, Callable[[Any], Any]]] = [
     (
         "VultronActivity.to",
-        lambda v: VultronActivity(type_="Offer", actor=ACTOR, to=[v]),
+        lambda v: make(VultronActivity, type_="Offer", actor=ACTOR, to=[v]),
     ),
-    ("VultronAccept.result", lambda v: VultronAccept(actor=ACTOR, result=v)),
+    (
+        "VultronAccept.result",
+        lambda v: make(VultronAccept, actor=ACTOR, result=v),
+    ),
     (
         "VultronCreateCaseActivity.context",
-        lambda v: VultronCreateCaseActivity(actor=ACTOR, context=v),
+        lambda v: make(VultronCreateCaseActivity, actor=ACTOR, context=v),
     ),
     (
         "VultronCreateCaseActivity.in_reply_to",
-        lambda v: VultronCreateCaseActivity(actor=ACTOR, in_reply_to=v),
+        lambda v: make(VultronCreateCaseActivity, actor=ACTOR, in_reply_to=v),
     ),
     (
         "VulnerabilityCase.case_participants",
-        lambda v: VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE, case_participants=[v]
+        lambda v: make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE,
+            case_participants=[v],
         ),
     ),
     (
         "VulnerabilityCase.actor_participant_index (value)",
-        lambda v: VulnerabilityCase(
+        lambda v: make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE,
             actor_participant_index={ACTOR: v},
@@ -84,7 +92,8 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VulnerabilityCase.actor_participant_index (key)",
-        lambda v: VulnerabilityCase(
+        lambda v: make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE,
             actor_participant_index={v: URI},
@@ -92,7 +101,8 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VulnerabilityCase.embargo_register (embargo)",
-        lambda v: VulnerabilityCase(
+        lambda v: make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE,
             embargo_register=[
@@ -118,14 +128,20 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VulnerabilityCase.parent_cases",
-        lambda v: VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE, parent_cases=[v]
+        lambda v: make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE,
+            parent_cases=[v],
         ),
     ),
     (
         "VulnerabilityCase.case_activity",
-        lambda v: VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE, case_activity=[v]
+        lambda v: make(
+            VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE,
+            case_activity=[v],
         ),
     ),
     (
@@ -148,7 +164,8 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "CaseLedgerEntry.case_id",
-        lambda v: CaseLedgerEntry(
+        lambda v: make(
+            CaseLedgerEntry,
             case_id=v,
             log_object_id=URI,
             semantic_type="note_added",
@@ -158,7 +175,8 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "CaseLedgerEntry.log_object_id",
-        lambda v: CaseLedgerEntry(
+        lambda v: make(
+            CaseLedgerEntry,
             case_id=CASE,
             log_object_id=v,
             semantic_type="note_added",

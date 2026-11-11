@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.events import (
     CASE_BOOTSTRAP_SEMANTICS,
     CASE_PRECEDING_SEMANTICS,
@@ -44,9 +45,13 @@ def _event(
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
         semantic_type=semantic_type,
-        object_=(CoreObject(id_=object_id, type_=None) if object_id else None),
+        object_=(
+            make(CoreObject, id_=object_id, type_=None) if object_id else None
+        ),
         context=(
-            CoreObject(id_=context_id, type_=None) if context_id else None
+            make(CoreObject, id_=context_id, type_=None)
+            if context_id
+            else None
         ),
     )
 
@@ -179,7 +184,7 @@ class TestResolveCaseContextIdNonBootstrap:
 
     def test_wire_context_object_with_id(self):
         event = _event(MessageSemantics.ENGAGE_CASE)
-        wire_context = CoreObject(id_=CASE_ID, type_=None)
+        wire_context = make(CoreObject, id_=CASE_ID, type_=None)
 
         assert resolve_case_context_id(event, wire_context) == CASE_ID
 

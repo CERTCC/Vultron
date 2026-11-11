@@ -31,6 +31,7 @@ import pytest
 
 from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -59,7 +60,8 @@ def _seat(
     slug: str,
     roles: list[CVDRole],
 ) -> None:
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{_CASE_ID}/participants/{slug}",
         attributed_to=actor_id,
         context=_CASE_ID,
@@ -73,7 +75,8 @@ def _seat(
 def _case_manager_store() -> SqliteDataLayer:
     """The CASE_MANAGER's store: a case with an owner and a finder seated."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER_ID)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="FanOutWiring",
         attributed_to=_OWNER_ID,
@@ -119,9 +122,12 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
     )
     dl = _case_manager_store()
     activity = recommend_actor_activity(
-        as_Actor(id_=_INVITEE_ID),
-        target=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="FanOutWiring"
+        make(as_Actor, id_=_INVITEE_ID),
+        target=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="FanOutWiring",
         ),
         actor=_OWNER_ID,
         to=[_MANAGER_ID],

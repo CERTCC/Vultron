@@ -13,6 +13,7 @@
 import unittest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.wire.as2.vocab.activities import actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -72,12 +73,16 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(
+            _case = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 name=f"{actor_class.__name__} Case",
             )
-            _recommendation = actor._RecommendActorActivity(
-                actor=_actor, object_=_actor, target=_case
+            _recommendation = make(
+                actor._RecommendActorActivity,
+                actor=_actor,
+                object_=_actor,
+                target=_case,
             )
             _object = cls(actor=_actor, object_=_recommendation, target=_case)  # type: ignore[arg-type]
 
@@ -108,7 +113,8 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(
+            _case = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 name=f"{actor_class.__name__} Case",
             )

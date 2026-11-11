@@ -32,6 +32,7 @@ from test.support.inbox_replay import (
     ledger_announce_event,
     replayed_event,
 )
+from test.support.objects import make
 from test.support.received import received_event, received_record
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -139,7 +140,8 @@ def genesis_entry(case_with_genesis) -> CaseLedgerEntry:
 
 def _make_case(case_id: str = CASE_URI) -> VulnerabilityCase:
     """Create a VulnerabilityCase with genesis_hash for test DataLayer storage."""
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         id_=case_id,
         attributed_to=ACTOR_URI,
     )
@@ -999,15 +1001,19 @@ class TestAnnounceLedgerEntryDisposition:
             as_VulnerabilityCase,
         )
 
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{CASE_URI}/participants/case-manager",
             context=CASE_URI,
             attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Disposition Case"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_URI,
+            name="Disposition Case",
         )
         case.case_participants.append(manager.id_)
         case.actor_participant_index[manager_id] = manager.id_

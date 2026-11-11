@@ -22,6 +22,7 @@ Fixtures (dl) come from conftest.
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -52,8 +53,8 @@ class TestRehydrateFields:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(
-            name="CVE-TEST-001", content="Test body"
+        report = make(
+            as_VulnerabilityReport, name="CVE-TEST-001", content="Test body"
         )
         offer = rm_submit_report_activity(
             report,
@@ -75,7 +76,9 @@ class TestRehydrateFields:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-MISSING", content="Body")
+        report = make(
+            as_VulnerabilityReport, name="CVE-MISSING", content="Body"
+        )
         offer = rm_submit_report_activity(
             report,
             "https://alice.example.org",
@@ -108,17 +111,19 @@ class TestRehydrateFields:
         )
 
         org_id = "https://example.org/actors/target-org"
-        org = as_Organization(id_=org_id, name="Target Org")
+        org = make(as_Organization, id_=org_id, name="Target Org")
         dl.save(org)
 
         case_id = "urn:uuid:case-sqlite-coerce-00000000000001"
         # target is a bare string URI — must be expanded on read-back via recursion
-        offer = as_Offer(
+        offer = make(
+            as_Offer,
             object_=case_id,
             target=org_id,
             actor="https://example.org/actors/sender",
         )
-        accept = as_Accept(
+        accept = make(
+            as_Accept,
             object_=offer,
             actor="https://example.org/actors/accepter",
         )
@@ -157,7 +162,9 @@ class TestCoerceToSemanticClass:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-ROUND-TRIP", content="Body")
+        report = make(
+            as_VulnerabilityReport, name="CVE-ROUND-TRIP", content="Body"
+        )
         offer = rm_submit_report_activity(
             report,
             "https://alice.example.org",
@@ -179,8 +186,10 @@ class TestCoerceToSemanticClass:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
-        embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+        case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
+        embargo = make(
+            as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+        )
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
@@ -237,7 +246,8 @@ class TestCoerceToSemanticClass:
         nested_invite = parsed.object_
         assert nested_invite is not None
         dl.save(
-            as_Organization(
+            make(
+                as_Organization,
                 id_="https://example.org/actors/coordinator",
                 name="Coordinator",
             )
@@ -305,7 +315,8 @@ class TestCoerceToSemanticClass:
             as_CaseLedgerEntry,
         )
 
-        ledger_entry = as_CaseLedgerEntry(
+        ledger_entry = make(
+            as_CaseLedgerEntry,
             case_id="https://example.org/cases/retype-recurse-1",
             log_object_id="https://example.org/activities/obj-retype-1",
             semantic_type="log_entry_committed",
@@ -313,11 +324,13 @@ class TestCoerceToSemanticClass:
             received_at=ACT_AT,
             published=ACT_AT,
         )
-        offer = as_Offer(
+        offer = make(
+            as_Offer,
             object_=ledger_entry,
             actor="https://example.org/actors/sender",
         )
-        accept = as_Accept(
+        accept = make(
+            as_Accept,
             object_=offer,
             actor="https://example.org/actors/accepter",
         )
@@ -350,7 +363,8 @@ class TestCoerceToSemanticClass:
         ``Invite``, not as the embargo proposal its verb's first pattern
         with a case context names.
         """
-        invite = as_Invite(
+        invite = make(
+            as_Invite,
             actor="https://alice.example.org",
             object_="https://example.org/cases/c1/embargo_events/unheld",
             context="https://example.org/cases/c1",
@@ -370,7 +384,7 @@ class TestCoerceToSemanticClass:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-PLAIN", content="Body")
+        report = make(as_VulnerabilityReport, name="CVE-PLAIN", content="Body")
         dl.save(report)
 
         result = dl.read(report.id_)
@@ -432,7 +446,7 @@ class TestCoerceByReferenceFields:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         invite = rm_invite_to_full_case_activity(
             "https://example.org/actors/vendor",
             case,
@@ -469,7 +483,7 @@ class TestCoerceByReferenceFields:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         position = LedgerPosition(log_index=0, entry_hash=_ZERO_HASH)
         invite = rm_invite_to_full_case_activity(
             "https://example.org/actors/vendor",
@@ -526,7 +540,7 @@ class TestCollapseByReferenceFields:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         result = self._collapse(
             self._invite(case), "INVITE_ACTOR_TO_FULL_CASE"
         )

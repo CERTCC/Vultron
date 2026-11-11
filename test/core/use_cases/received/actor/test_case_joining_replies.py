@@ -50,6 +50,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.ledger_records import with_ledger_records
+from test.support.objects import make
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -201,24 +202,27 @@ def joining_case() -> Any:
     case_actor_id = "https://example.org/actors/case-actor-join"
     invitee_id = "https://example.org/actors/vendor-join"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/case-join-1",
         name="CASE-JOINING",
         stub_summary="Case for joining test",
         attributed_to=case_actor_id,
     )
-    invitee = as_Organization(id_=invitee_id)
+    invitee = make(as_Organization, id_=invitee_id)
     dl.create(invitee)
-    dl.create(as_Service(id_=case_actor_id, context=case.id_))
+    dl.create(make(as_Service, id_=case_actor_id, context=case.id_))
     seed_case_manager_participant(dl, case, case_actor_id)
 
-    inert = CaseParticipant(
+    inert = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/vendor-join",
         attributed_to=invitee_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=invitee_id,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -573,7 +577,7 @@ def _full_case_invite_at(
     if joined:
         joining.join()
     invite = rm_invite_to_full_case_activity(
-        as_Organization(id_=joining.invitee_id),
+        make(as_Organization, id_=joining.invitee_id),
         joining.case.id_,
         _position(log_index, entry_hash),
         id_=f"{joining.case.id_}/invitations/full-floor-{log_index}",
@@ -735,7 +739,8 @@ def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:
     """Record *state* on the invitee's participant, as a full-case reply would."""
     participant = joining.participant()
     participant.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=joining.case.id_,
             attributed_to=joining.invitee_id,
             rm=RmDimension(state=state),

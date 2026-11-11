@@ -30,6 +30,7 @@ from pydantic import ValidationError
 
 from test.support.act_runner import run_tree
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, extract_stamped
 from test.support.signing import signed_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -189,7 +190,7 @@ def _extract(activity: Any) -> RemoveEmbargoEventFromCaseReceivedEvent:
 def _remove_body(
     reason: TerminationReason = TerminationReason.EARLY,
 ) -> dict[str, Any]:
-    embargo = as_EmbargoEvent(context=CASE, end_time=now_utc())
+    embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
     activity = remove_embargo_from_case_activity(
         embargo, origin=CASE, actor=OWNER, reason=reason
     )
@@ -274,8 +275,8 @@ def test_the_event_refuses_a_cause_on_an_end_time_termination() -> None:
 def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
     """Only a termination ``Remove`` has a why: a ``Remove(CaseParticipant)``
     naming one is refused, so the cause never reaches its ledger snapshot."""
-    participant = as_CaseParticipant(
-        attributed_to=VENDOR, context=CASE, name="vendor"
+    participant = make(
+        as_CaseParticipant, attributed_to=VENDOR, context=CASE, name="vendor"
     )
     activity = remove_participant_from_case_activity(
         participant, target=CASE, actor=OWNER
@@ -292,7 +293,7 @@ def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
 def test_the_factory_carries_the_cause_as_termination_cause(
     cause: TerminationCause,
 ) -> None:
-    embargo = as_EmbargoEvent(context=CASE, end_time=now_utc())
+    embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
     activity = remove_embargo_from_case_activity(
         embargo,
         origin=CASE,
@@ -313,7 +314,7 @@ def test_the_factory_carries_the_cause_as_termination_cause(
 
 @pytest.mark.spec("EMB-13-005")
 def test_the_factory_refuses_a_cause_on_an_end_time_termination() -> None:
-    embargo = as_EmbargoEvent(context=CASE, end_time=now_utc())
+    embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
 
     with pytest.raises(VultronActivityConstructionError):
         remove_embargo_from_case_activity(

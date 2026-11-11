@@ -33,6 +33,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -220,14 +221,16 @@ def _asserted_status(
     case_status = (
         None
         if pxa_state is None
-        else as_CaseStatus(
+        else make(
+            as_CaseStatus,
             id_=f"{status_id}/cs",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
             pxa=PxaDimension(state=pxa_state),
         )
     )
-    return as_ParticipantStatus(
+    return make(
+        as_ParticipantStatus,
         id_=status_id,
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
@@ -258,13 +261,19 @@ def _run_tree(
     """
     activity = add_status_to_participant_activity(
         status=asserted,
-        target=as_CaseParticipant(
-            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        target=make(
+            as_CaseParticipant,
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
         ),
         actor=ACTOR_ID,
         to=[executing_actor_id],
-        context=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
+        context=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="Issue 2235 Case",
         ),
     )
     event = make_payload(activity, at=dl)

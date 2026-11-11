@@ -41,6 +41,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.act_runner import run_tree
 from test.support.ledger import fail_commits
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -123,7 +124,8 @@ def _stub_invite() -> _Setup:
     case_id = "https://example.org/cases/ox-03-002-invite"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
     dl.create(
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             id_=case_id,
             name="OX-03-002 stub invite",
             attributed_to=_OWNER,
@@ -145,17 +147,22 @@ def _participant_offer() -> _Setup:
     case_manager = "https://example.org/actors/case-actor"
     case_id = "https://example.org/cases/ox-03-002-offer"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager)
-    case = VulnerabilityCase(
-        id_=case_id, name="OX-03-002 offer", attributed_to=_OWNER
+    case = make(
+        VulnerabilityCase,
+        id_=case_id,
+        name="OX-03-002 offer",
+        attributed_to=_OWNER,
     )
     records = [
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=f"{case_id}/participants/case-actor",
             attributed_to=case_manager,
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
         ),
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=f"{case_id}/participants/owner",
             attributed_to=_OWNER,
             context=case_id,

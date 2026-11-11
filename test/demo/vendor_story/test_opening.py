@@ -34,6 +34,7 @@ from test.demo._helpers import (
     story_state,
 )
 from test.demo.vendor_story._support import SEATED, family_state
+from test.support.objects import make
 from vultron.demo.helpers import (
     coordinated_story,
     vendor_story as family,
@@ -421,10 +422,14 @@ class TestTheReporterAsksAboutTheWorkaround:
         """
         state = family_state()
         posted = [
-            as_Note(
-                name="Question from Reporter", content=WORKAROUND_QUESTION
+            make(
+                as_Note,
+                name="Question from Reporter",
+                content=WORKAROUND_QUESTION,
             ),
-            as_Note(name=WORKAROUND_ANSWER_NAME, content=WORKAROUND_ANSWER),
+            make(
+                as_Note, name=WORKAROUND_ANSWER_NAME, content=WORKAROUND_ANSWER
+            ),
         ]
 
         with patch.object(
@@ -453,8 +458,8 @@ class TestTheReporterAsksAboutTheWorkaround:
         (DEMOCI-11-017).
         """
         state = family_state()
-        question = as_Note(name="Question from Reporter", content="q")
-        answer = as_Note(name=WORKAROUND_ANSWER_NAME, content="a")
+        question = make(as_Note, name="Question from Reporter", content="q")
+        answer = make(as_Note, name=WORKAROUND_ANSWER_NAME, content="a")
 
         with patch.object(
             vendor_opening, "reporter_asks", return_value=[question, answer]
@@ -489,7 +494,7 @@ class TestTheReporterAsksAboutTheWorkaround:
         continuations that reply to the answer stop the story.
         """
         state = family_state()
-        question = as_Note(name="Question from Reporter", content="q")
+        question = make(as_Note, name="Question from Reporter", content="q")
 
         with patch.object(
             vendor_opening, "reporter_asks", return_value=[question, None]

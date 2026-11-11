@@ -31,6 +31,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import propose
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -727,12 +728,14 @@ class TestApplyEmbargoTeardownNode:
     def test_leaves_consent_rows_and_leaves_nobody_a_signatory(self):
         """Teardown writes no consent: rows stay, but no embargo is in force."""
         dl, case = self._store("atn5", EM.ACTIVE)
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/finder",
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=_e1(case), state=EmbargoConsentState.AGREED
+                    embargo_id=_e1(case),
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )

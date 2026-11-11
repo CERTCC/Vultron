@@ -32,6 +32,7 @@ import pytest
 from test.support.act_runner import FixedClock, run_in_act, run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -92,7 +93,9 @@ def _net(name: str, *, owner: str = OWNER, **kwargs: Any) -> LedgerNetwork:
     net = LedgerNetwork(
         f"https://example.org/cases/copy-{name}", owner=owner, **kwargs
     )
-    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
+    net.stores[MANAGER].create(
+        make(as_Service, id_=MANAGER, name="Coordinator")
+    )
     return net
 
 
@@ -208,7 +211,8 @@ def _reject(net: LedgerNetwork) -> Any:
 
 def _participant_proposes(net: LedgerNetwork, suffix: str, days: int) -> str:
     """PROPOSER sends terms to the CASE_MANAGER only (EP-09-001)."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{suffix}",
         context=net.case_id,
         end_time=days_from_now(days),
@@ -627,7 +631,7 @@ INVITEE = "https://example.org/users/stub-invitee"
 def _stub_network(name: str) -> LedgerNetwork:
     net = _net(name, owner=MANAGER)
     dl = net.stores[MANAGER]
-    dl.create(as_Service(id_=INVITEE, name="Invitee"))
+    dl.create(make(as_Service, id_=INVITEE, name="Invitee"))
     # A stub Invite carries the case's summary (CM-17-010).
     case = net.case(MANAGER)
     case.stub_summary = "Summary shared before acceptance"
@@ -842,7 +846,8 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     node can write, so it is answered with a processing fault and nothing is
     committed (ADR-0122, CM-18-003, MSM-07-039)."""
     net = _net("answer-nothing")
-    stranger = as_EmbargoEvent(
+    stranger = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/stranger",
         context=net.case_id,
         end_time=days_from_now(30),

@@ -33,6 +33,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.signing import resigned
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import RefusalNoticeReceivedEvent
@@ -131,13 +132,13 @@ def test_a_reject_of_an_invite_or_an_offer_is_not_the_notice(verb: TAtype):
     "obj",
     [
         "https://example.org/activities/1",
-        as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Case"),
+        make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Case"),
     ],
     ids=["bare-uri", "non-activity"],
 )
 def test_a_reject_of_anything_but_an_inline_activity_is_not_the_notice(obj):
     assert not RefusalNoticePattern.match(
-        as_Reject(actor=CASE_MANAGER, object_=obj)
+        make(as_Reject, actor=CASE_MANAGER, object_=obj)
     )
 
 
@@ -145,8 +146,8 @@ def test_a_reject_of_anything_but_an_inline_activity_is_not_the_notice(obj):
 def test_a_decline_of_a_leave_routes_to_the_refusal_notice():
     """CM-23-011's ``Reject(Leave(VulnerabilityCase))`` no longer lands on
     ``UnknownUseCase``; the event finds the case the Leave acted on."""
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="Closing case"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Closing case"
     )
     leave = rm_close_case_activity(case=case, actor=VENDOR)
     decline = reject_close_case_activity(

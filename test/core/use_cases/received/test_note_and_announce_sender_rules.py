@@ -45,6 +45,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -121,9 +122,9 @@ class _World:
         store_owner: str = "manager",
         finder_closed: bool = False,
     ) -> None:
-        self.manager = as_Service(name="Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.stranger = as_Service(name="Stranger Co")
+        self.manager = make(as_Service, name="Vendor Co")
+        self.finder = make(as_Service, name="Finder Co")
+        self.stranger = make(as_Service, name="Stranger Co")
         owner_id = (
             self.manager.id_ if store_owner == "manager" else self.finder.id_
         )
@@ -131,26 +132,32 @@ class _World:
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
         for actor in (self.manager, self.finder, self.stranger):
             self.dl.create(actor)
-        case = VulnerabilityCase(
-            name="Note sender rule case", attributed_to=self.manager.id_
+        case = make(
+            VulnerabilityCase,
+            name="Note sender rule case",
+            attributed_to=self.manager.id_,
         )
-        self.embargo = as_EmbargoEvent(
+        self.embargo = make(
+            as_EmbargoEvent,
             context=case.id_,
             end_time=end_time or now_utc() + timedelta(days=30),
         )
-        manager_p = VendorParticipant(
-            attributed_to=self.manager.id_, context=case.id_
+        manager_p = make(
+            VendorParticipant, attributed_to=self.manager.id_, context=case.id_
         )
         manager_p.add_role(CVDRole.CASE_MANAGER)
-        finder_p = ReporterParticipant(
-            attributed_to=self.finder.id_, context=case.id_
+        finder_p = make(
+            ReporterParticipant,
+            attributed_to=self.finder.id_,
+            context=case.id_,
         )
         if finder_closed:
             finder_p = finder_p.model_copy(
                 update={
                     "participant_statuses": [
                         *finder_p.participant_statuses,
-                        ParticipantStatus(
+                        make(
+                            ParticipantStatus,
                             context=case.id_,
                             attributed_to=self.finder.id_,
                             rm=RmDimension(state=RM.CLOSED),
@@ -205,13 +212,15 @@ class _World:
         )
 
     def add_note_from(self, sender_id: str) -> tuple[HandlerResult, str]:
-        note = as_Note(content="A note", context=self.case_id)
+        note = make(as_Note, content="A note", context=self.case_id)
         # Addressed to this store, so the addressee door guard admits it
         # and the sender guard is what decides (HP-01-005).
         activity = add_note_to_case_activity(
             note,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=self.case_id
+            target=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=self.case_id,
             ),
             actor=sender_id,
             to=[self.receiver_id],
@@ -392,18 +401,22 @@ class _Replica:
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.receiver_id
         )
-        case = VulnerabilityCase(
-            name="Bootstrapped case", attributed_to=self.manager_id
+        case = make(
+            VulnerabilityCase,
+            name="Bootstrapped case",
+            attributed_to=self.manager_id,
         )
         holder = roster_manager or self.manager_id
         manager_p = (
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 attributed_to=holder,
                 context=case.id_,
                 case_roles=[CVDRole.CASE_MANAGER],
             )
             if roster_names_manager
-            else CaseParticipant(
+            else make(
+                CaseParticipant,
                 attributed_to=self.receiver_id,
                 context=case.id_,
                 case_roles=[CVDRole.REPORTER],
@@ -431,7 +444,8 @@ class _Replica:
         # later would name a different genesis than the replica holds.
         held = self.dl.read_case(self.case_id)
         assert held is not None
-        snapshot = as_VulnerabilityCase(
+        snapshot = make(
+            as_VulnerabilityCase,
             id_=self.case_id,
             name="Announced snapshot",
             attributed_to=self.manager_id,
@@ -510,7 +524,9 @@ def test_announce_from_a_stranger_to_a_bootstrapped_replica_is_refused() -> (
 def test_announce_tree_takes_no_clock_decision() -> None:
     """Only a participant replica receives the Announce, and a replica takes
     no clock decision: the tree names no case for the CASE_MANAGER gate."""
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="No clock")
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="No clock"
+    )
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
         received_event(
@@ -538,7 +554,7 @@ def test_announce_tree_takes_no_clock_decision() -> None:
 
     # The probe finds the stage where the factory composes one: a note tree.
     world = _World()
-    note = VultronNote(content="A note", context=world.case_id)
+    note = make(VultronNote, content="A note", context=world.case_id)
     note_tree = create_add_note_to_case_received_tree(
         note_obj=note,
         case_id=world.case_id,

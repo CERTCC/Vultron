@@ -13,6 +13,7 @@ that multiple tree test files can reuse them without redefinition.
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.actor import VultronService
@@ -55,7 +56,7 @@ def reporter_actor_id():
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create vendor actor in the DataLayer with an outbox."""
-    obj = VultronService(id_=actor_id, name="Vendor Co")
+    obj = make(VultronService, id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
@@ -63,7 +64,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create reporter actor in the DataLayer."""
-    obj = VultronService(id_=reporter_actor_id, name="Reporter Co")
+    obj = make(VultronService, id_=reporter_actor_id, name="Reporter Co")
     datalayer.create(obj)
     return obj
 
@@ -71,7 +72,8 @@ def reporter_actor(datalayer, reporter_actor_id):
 @pytest.fixture
 def report(datalayer):
     """Create test as_VulnerabilityReport."""
-    obj = as_VulnerabilityReport(
+    obj = make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Buffer overflow in component X",

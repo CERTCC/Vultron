@@ -25,6 +25,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -61,12 +62,14 @@ def make_case_and_embargo(
     without one ``ReconstructChainTailNode`` cannot anchor an empty chain and the
     commit fails with "per-case genesis hash is unavailable".
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=f"https://example.org/cases/case_{case_suffix}",
         name=f"Test Case {case_suffix}",
         attributed_to=attributed_to,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"https://example.org/cases/case_{case_suffix}/embargo_events/e1",
         context=case.id_,
         end_time=days_from_now(45),
@@ -136,7 +139,8 @@ def make_case_with_manager(
         if other_consent is None
         else [EmbargoConsent(embargo_id=embargo.id_, state=other_consent)]
     )
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         id_=f"{case.id_}/participants/cm",
         attributed_to=case_manager_actor,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -147,7 +151,8 @@ def make_case_with_manager(
     dl.create(cm_participant)
 
     for i, actor in enumerate(other_participants):
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/p{i}",
             attributed_to=actor,
             context=case.id_,

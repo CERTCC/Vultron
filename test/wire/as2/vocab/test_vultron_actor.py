@@ -21,6 +21,7 @@ from datetime import timedelta
 
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication as CoreVultronApplication,
@@ -48,7 +49,8 @@ INBOX = "https://example.org/actors/vendor/inbox"
 
 def _make_policy(actor_id: str = ACTOR_ID) -> as_EmbargoPolicy:
     """A policy for *actor_id* — the profile that carries it (EP-01-001)."""
-    return as_EmbargoPolicy(
+    return make(
+        as_EmbargoPolicy,
         actor_id=actor_id,
         inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=90),
@@ -62,16 +64,17 @@ class TestVultronPersonBasics(unittest.TestCase):
     """as_VultronPerson retains Person type and supports embargo_policy."""
 
     def test_as_type_is_person(self):
-        p = as_VultronPerson(id_="https://example.org/users/alice")
+        p = make(as_VultronPerson, id_="https://example.org/users/alice")
         self.assertEqual(as_ActorType.PERSON, p.type_)
 
     def test_embargo_policy_defaults_to_none(self):
-        p = as_VultronPerson(id_="https://example.org/users/alice")
+        p = make(as_VultronPerson, id_="https://example.org/users/alice")
         self.assertIsNone(p.embargo_policy)
 
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
-        p = as_VultronPerson(
+        p = make(
+            as_VultronPerson,
             id_=ACTOR_ID,
             embargo_policy=policy,
         )
@@ -98,18 +101,21 @@ class TestVultronPersonBasics(unittest.TestCase):
     def test_another_actors_policy_is_refused(self):
         """A profile carries only its own policy (EP-01-001, CP-01-010)."""
         with self.assertRaises(ValidationError):
-            as_VultronPerson(
+            make(
+                as_VultronPerson,
                 id_="https://example.org/users/alice",
                 embargo_policy=_make_policy(),
             )
 
     def test_is_instance_of_core_actor(self):
-        p = as_VultronPerson()
+        p = make(as_VultronPerson)
         self.assertIsInstance(p, CoreActor)
 
     def test_json_round_trip_no_policy(self):
-        p = as_VultronPerson(
-            name="Alice", id_="https://example.org/users/alice"
+        p = make(
+            as_VultronPerson,
+            name="Alice",
+            id_="https://example.org/users/alice",
         )
         j = p.model_dump_json(by_alias=True, exclude_none=True)
         self.assertIn("Person", j)
@@ -117,7 +123,8 @@ class TestVultronPersonBasics(unittest.TestCase):
 
     def test_json_round_trip_with_inline_policy(self):
         policy = _make_policy()
-        p = as_VultronPerson(
+        p = make(
+            as_VultronPerson,
             name="Alice",
             id_=ACTOR_ID,
             embargo_policy=policy,
@@ -133,16 +140,21 @@ class TestVultronOrganizationBasics(unittest.TestCase):
     embargo_policy."""
 
     def test_as_type_is_organization(self):
-        org = as_VultronOrganization(id_="https://example.org/orgs/vendor")
+        org = make(
+            as_VultronOrganization, id_="https://example.org/orgs/vendor"
+        )
         self.assertEqual(as_ActorType.ORGANIZATION, org.type_)
 
     def test_embargo_policy_defaults_to_none(self):
-        org = as_VultronOrganization(id_="https://example.org/orgs/vendor")
+        org = make(
+            as_VultronOrganization, id_="https://example.org/orgs/vendor"
+        )
         self.assertIsNone(org.embargo_policy)
 
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
-        org = as_VultronOrganization(
+        org = make(
+            as_VultronOrganization,
             id_=ACTOR_ID,
             embargo_policy=policy,
         )
@@ -152,7 +164,7 @@ class TestVultronOrganizationBasics(unittest.TestCase):
         )
 
     def test_is_instance_of_core_actor(self):
-        org = as_VultronOrganization()
+        org = make(as_VultronOrganization)
         self.assertIsInstance(org, CoreActor)
 
 
@@ -160,15 +172,15 @@ class TestVultronServiceBasics(unittest.TestCase):
     """as_VultronService retains Service type and supports embargo_policy."""
 
     def test_as_type_is_service(self):
-        svc = as_VultronService(id_="https://example.org/services/bot")
+        svc = make(as_VultronService, id_="https://example.org/services/bot")
         self.assertEqual(as_ActorType.SERVICE, svc.type_)
 
     def test_embargo_policy_defaults_to_none(self):
-        svc = as_VultronService(id_="https://example.org/services/bot")
+        svc = make(as_VultronService, id_="https://example.org/services/bot")
         self.assertIsNone(svc.embargo_policy)
 
     def test_is_instance_of_core_actor(self):
-        svc = as_VultronService()
+        svc = make(as_VultronService)
         self.assertIsInstance(svc, CoreActor)
 
 
@@ -176,13 +188,13 @@ class TestVultronActorTypePreservation(unittest.TestCase):
     """Subclass types remain distinct and don't override each other."""
 
     def test_person_and_org_have_different_types(self):
-        p = as_VultronPerson()
-        org = as_VultronOrganization()
+        p = make(as_VultronPerson)
+        org = make(as_VultronOrganization)
         self.assertNotEqual(p.type_, org.type_)
 
     def test_person_type_is_not_service(self):
-        p = as_VultronPerson()
-        svc = as_VultronService()
+        p = make(as_VultronPerson)
+        svc = make(as_VultronService)
         self.assertNotEqual(p.type_, svc.type_)
 
 
@@ -225,7 +237,8 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
             self.assertNotIn(class_stem, WIRE_TYPE_MAP)
 
     def test_core_person_to_wire_person_model_validate_round_trip(self):
-        core_actor = CoreVultronPerson(
+        core_actor = make(
+            CoreVultronPerson,
             id_="https://example.org/actors/alice",
             name="Alice",
             inbox="https://example.org/actors/alice/inbox",
@@ -282,7 +295,8 @@ class TestVultronActorAliasesAreCore(unittest.TestCase):
                 self.assertIsInstance(wire_cls(), CoreActor)
 
     def test_inbox_is_string(self):
-        p = as_VultronPerson(
+        p = make(
+            as_VultronPerson,
             id_="https://example.org/actors/alice",
             inbox="https://example.org/actors/alice/inbox",
         )
@@ -290,7 +304,8 @@ class TestVultronActorAliasesAreCore(unittest.TestCase):
 
     def test_embargo_policy_preserved(self):
         policy = _make_policy()
-        p = as_VultronPerson(
+        p = make(
+            as_VultronPerson,
             id_=ACTOR_ID,
             embargo_policy=policy,
         )

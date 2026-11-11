@@ -39,6 +39,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
@@ -136,8 +137,11 @@ Kind = SenderEntitlementKind
 def _store(receiver: str) -> BTTestScenario:
     """*receiver*'s store holding the case: MANAGER, OWNER, VENDOR, REPLICA."""
     scenario = BTTestScenario(actor_id=receiver)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sender rule case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Sender rule case",
     )
     seed_case_manager_participant(scenario.dl, case, MANAGER)
     seed_case_owner_participant(scenario.dl, case, OWNER)
@@ -562,7 +566,9 @@ NOTE_ID = "https://example.org/notes/sender-rule"
 
 def _store_with_note(author: str) -> BTTestScenario:
     scenario = _store(MANAGER)
-    scenario.dl.create(as_Note(id_=NOTE_ID, content="n", attributed_to=author))
+    scenario.dl.create(
+        make(as_Note, id_=NOTE_ID, content="n", attributed_to=author)
+    )
     return scenario
 
 
@@ -650,7 +656,8 @@ def _decline(proposer: str) -> CaseProposalDeclineRecord:
 def _stored_proposal(proposer: str) -> as_CaseProposal:
     """The proposal as the Accept or Reject path stores it, read on its own:
     CP-05-010 counts a stored proposal as recording it."""
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_=PROPOSAL_ID,
         attributed_to=proposer,
         object_=gen_report(),
@@ -741,7 +748,8 @@ _VENDOR_PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
 def _leave(record: CaseParticipant) -> None:
     """The vendor's closure recorded: its RM is ``CLOSED`` (CM-23-001)."""
     record.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=CASE_ID,
             attributed_to=VENDOR,
             rm=RmDimension(state=RM.CLOSED),
@@ -1055,7 +1063,8 @@ def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
     record = scenario.dl.read(case.actor_participant_index[OWNER])
     assert isinstance(record, CaseParticipant)
     record.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=CASE_ID,
             attributed_to=OWNER,
             rm=RmDimension(state=RM.CLOSED),
@@ -1229,8 +1238,11 @@ def test_factory_rejects_a_case_resolution_that_writes() -> None:
     """The steps run before the sender guard, so a write there would let an
     unentitled sender leave state behind."""
     writer = StoreEmbeddedParticipantsNode(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="snapshot"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="snapshot",
         ),
         CASE_ID,
     )
@@ -1333,13 +1345,15 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
             ledger_position=TEST_SENDER_POSITION,
             activity_id="https://example.org/activities/engage-guard",
             actor_id=sender,
-            object_=as_VulnerabilityCase(
+            object_=make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=CASE_ID,
                 name="Sender rule case",
             ),
             semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 id_="https://example.org/activities/engage-guard",
                 type_="Join",
                 actor=sender,

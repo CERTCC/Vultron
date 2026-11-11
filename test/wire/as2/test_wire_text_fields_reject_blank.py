@@ -42,6 +42,7 @@ from test.support.blank_strings import (
     rejects_blank,
     string_leaves,
 )
+from test.support.objects import make
 from test.support.wire_vocab import import_all_wire_vocab
 from vultron.core.models.base import CoreObject
 from vultron.primitives import NonEmptyString
@@ -257,8 +258,9 @@ def test_no_serialized_example_activity_holds_an_empty_string(
 
 @pytest.mark.spec("VM-07-005")
 def test_a_built_activity_serializes_without_an_empty_string_field() -> None:
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor="https://example.org/actors/alice",
-        object_=as_Note(content="A note.", name="Title"),
+        object_=make(as_Note, content="A note.", name="Title"),
     )
     assert _empty_string_paths(json.loads(activity.to_json())) == []

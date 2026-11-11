@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -71,20 +72,23 @@ def _seed_case(
     transferee: TransfereeStanding = TransfereeStanding.ACTIVE,
 ) -> None:
     """Seed the case, with the transferee in *transferee* standing."""
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/case-actor-make-cp",
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
     # Only the Case Owner may propose to offer the case (CM-21-019).
-    owner_participant = CaseParticipant(
+    owner_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-make-cp",
         attributed_to=VENDOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="MakeOffer test case",
         attributed_to=VENDOR_ID,
@@ -123,7 +127,8 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
         "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
         "target": {"id": TRANSFEREE_ID, "type": "Service"},
     }
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_=PROPOSAL_ID,
         type_="Offer",
         actor=VENDOR_ID,

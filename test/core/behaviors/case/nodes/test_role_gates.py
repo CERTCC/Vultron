@@ -37,6 +37,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -64,19 +65,22 @@ class _Spy(py_trees.behaviour.Behaviour):
 
 @pytest.fixture
 def case_with_manager(bt_scenario: BTTestScenario) -> VulnerabilityCase:
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-gate-001",
         attributed_to=MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    vendor = CaseParticipant(
+    vendor = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-gate-001",
         attributed_to=NON_MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Gated Case",

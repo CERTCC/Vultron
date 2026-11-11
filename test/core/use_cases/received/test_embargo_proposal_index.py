@@ -40,6 +40,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
@@ -96,18 +97,20 @@ def _make_case_with_case_manager(dl, actor_id, manager_id: str | None = None):
     """
     from vultron.enums.roles import CVDRole
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Proposal Index Test",
         attributed_to=actor_id,
     )
     dl.create(case)
 
     if manager_id is None:
-        case_manager = as_Service(name="CaseManager")
+        case_manager = make(as_Service, name="CaseManager")
         dl.create(case_manager)
     else:
         case_manager = cast(as_Service, dl.read(manager_id))
-    cm_p = as_CaseParticipant(
+    cm_p = make(
+        as_CaseParticipant,
         attributed_to=case_manager.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -131,7 +134,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor_id=actor_id,
         )
 
-        actor = as_Service(id_=actor_id, name="Vendor")
+        actor = make(as_Service, id_=actor_id, name="Vendor")
         dl.create(actor)
         # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
         # here and its index is written (ADR-0115: a replica takes a
@@ -140,7 +143,8 @@ class TestInviteToEmbargoRecordsIndex:
             dl, actor_id, manager_id=actor_id
         )
 
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -185,7 +189,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor_id=actor_id,
         )
 
-        actor = as_Service(id_=actor_id, name="Vendor")
+        actor = make(as_Service, id_=actor_id, name="Vendor")
         dl.create(actor)
         # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
         # here and its index is written (ADR-0115: a replica takes a
@@ -194,7 +198,8 @@ class TestInviteToEmbargoRecordsIndex:
             dl, actor_id, manager_id=actor_id
         )
 
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e_idem",
             context=case.id_,
             end_time=days_from_now(45),
@@ -252,7 +257,7 @@ class TestProposeTriggerRecordsIndex:
         # The store belongs to the actor these trees execute as.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
-        actor = as_Service(id_=actor_id, name="Coordinator")
+        actor = make(as_Service, id_=actor_id, name="Coordinator")
         dl.create(actor)
         # The CASE_MANAGER indexes its own proposal (EP-09-001, EP-09-008).
         case, _cm = _make_case_with_case_manager(
@@ -296,7 +301,7 @@ class TestProposeTriggerRecordsIndex:
 
         actor_id = "https://example.org/actors/finder"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        dl.create(as_Service(id_=actor_id, name="Finder"))
+        dl.create(make(as_Service, id_=actor_id, name="Finder"))
         case, _cm = _make_case_with_case_manager(dl, actor_id)
 
         run_in_act(
@@ -330,7 +335,8 @@ class TestAcceptRejectFromCoreState:
         case, _cm = _make_case_with_case_manager(
             dl, actor_id, manager_id=actor_id
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -354,7 +360,7 @@ class TestAcceptRejectFromCoreState:
         actor_id = "https://example.org/actors/accept-actor"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        actor = as_Service(id_=actor_id, name="AcceptActor")
+        actor = make(as_Service, id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
         case, _embargo, proposal = self._make_proposed_case(
@@ -393,13 +399,14 @@ class TestAcceptRejectFromCoreState:
         actor_id = "https://example.org/actors/accept-auto"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        actor = as_Service(id_=actor_id, name="AcceptAutoActor")
+        actor = make(as_Service, id_=actor_id, name="AcceptAutoActor")
         dl.create(actor)
 
         case, original, _original_proposal = self._make_proposed_case(
             dl, actor_id, actor
         )
-        counter = as_EmbargoEvent(
+        counter = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e2",
             context=case.id_,
             end_time=original.end_time - timedelta(days=10),
@@ -450,7 +457,7 @@ class TestAcceptRejectFromCoreState:
         actor_id = "https://example.org/actors/reject-actor"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        actor = as_Service(id_=actor_id, name="RejectActor")
+        actor = make(as_Service, id_=actor_id, name="RejectActor")
         dl.create(actor)
 
         case, _embargo, proposal = self._make_proposed_case(
@@ -484,7 +491,7 @@ class TestAcceptRejectFromCoreState:
         actor_id = "https://example.org/actors/accept-noproposal"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        actor = as_Service(id_=actor_id, name="AcceptNoProposalActor")
+        actor = make(as_Service, id_=actor_id, name="AcceptNoProposalActor")
         dl.create(actor)
 
         case, _cm = _make_case_with_case_manager(dl, actor_id)
@@ -514,7 +521,7 @@ class TestAcceptRejectFromCoreState:
         actor_id = "https://example.org/actors/reject-noproposal"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        actor = as_Service(id_=actor_id, name="RejectNoProposalActor")
+        actor = make(as_Service, id_=actor_id, name="RejectNoProposalActor")
         dl.create(actor)
 
         case, _cm = _make_case_with_case_manager(dl, actor_id)
@@ -558,12 +565,13 @@ class TestReceivedRejectPrunesOpenProposals:
         from vultron.wire.as2.factories import em_reject_embargo_activity
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._REPLICA)
-        dl.create(as_Service(id_=self._REPLICA, name="Manager"))
-        dl.create(as_Service(id_=self._OWNER, name="Owner"))
+        dl.create(make(as_Service, id_=self._REPLICA, name="Manager"))
+        dl.create(make(as_Service, id_=self._OWNER, name="Owner"))
         case, _cm = _make_case_with_case_manager(
             dl, self._OWNER, manager_id=self._REPLICA
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -677,7 +685,7 @@ class TestReceivedRejectPrunesOpenProposals:
             self._replica_with_open_proposal()
         )
         participant = "https://example.org/actors/reject-participant"
-        dl.create(as_Service(id_=participant, name="Participant"))
+        dl.create(make(as_Service, id_=participant, name="Participant"))
         # A participant on the roster, holding its row for the proposal
         # (ADR-0122): the row its Reject states is written there.
         stored = cast(VulnerabilityCase, dl.read(case.id_))
@@ -714,8 +722,11 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor_id = "https://example.org/actors/rejector"
         proposal_id = f"{case_id}/proposals/p1"
 
-        embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            id_=embargo_id,
+            context=case_id,
+            end_time=days_from_now(45),
         )
         proposal = em_propose_embargo_activity(
             embargo=embargo,
@@ -748,12 +759,13 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             actor_id=actor_id,
         )
 
-        actor = as_Service(id_=actor_id, name="RejActor")
+        actor = make(as_Service, id_=actor_id, name="RejActor")
         dl.create(actor)
         case, _cm = _make_case_with_case_manager(
             dl, actor_id, manager_id=actor_id
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),

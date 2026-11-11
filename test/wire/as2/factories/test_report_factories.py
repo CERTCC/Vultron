@@ -27,6 +27,7 @@ from typing import cast
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.wire.as2.extractor._instances import AckReportPattern
 from vultron.wire.as2.factories import (
@@ -69,12 +70,12 @@ _RECIPIENT_URI = "https://example.org/actors/vendor"
 
 @pytest.fixture
 def sample_report() -> as_VulnerabilityReport:
-    return as_VulnerabilityReport(name="Test CVE report")
+    return make(as_VulnerabilityReport, name="Test CVE report")
 
 
 @pytest.fixture
 def sample_actor() -> as_Person:
-    return as_Person(name="Alice", id_=_ACTOR_URI)
+    return make(as_Person, name="Alice", id_=_ACTOR_URI)
 
 
 @pytest.fixture
@@ -160,7 +161,7 @@ def test_rm_submit_report_to_is_normalized_list(sample_report, sample_actor):
 
 def test_rm_submit_report_to_accepts_actor_object(sample_report, sample_actor):
     """``to`` can be an actor object as well as a string."""
-    recipient = as_Person(name="Vendor", id_=_RECIPIENT_URI)
+    recipient = make(as_Person, name="Vendor", id_=_RECIPIENT_URI)
     result = rm_submit_report_activity(
         report=sample_report, to=recipient, actor=sample_actor
     )
@@ -240,8 +241,8 @@ def test_rm_read_report_kwargs_actor_forwarded(sample_offer, sample_actor):
 @pytest.mark.spec("AF-04-001")
 def test_rm_read_report_malformed_offer_raises(sample_actor):
     """An offer whose object_ is not an as_VulnerabilityReport must still fail."""
-    malformed_offer = as_Offer(
-        actor=None, object_=as_Note(name="not a report")
+    malformed_offer = make(
+        as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_read_report_activity(offer=malformed_offer, actor=sample_actor)
@@ -293,7 +294,7 @@ def test_rm_validate_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
-    plain_offer = as_Offer(actor=None, object_=sample_report)
+    plain_offer = make(as_Offer, actor=None, object_=sample_report)
     result = rm_validate_report_activity(offer=plain_offer, actor=sample_actor)
     assert isinstance(result, as_Accept)
 
@@ -301,8 +302,8 @@ def test_rm_validate_report_plain_offer_with_report_succeeds(
 @pytest.mark.spec("AF-04-001")
 def test_rm_validate_report_malformed_offer_raises(sample_actor):
     """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
-    malformed_offer = as_Offer(
-        actor=None, object_=as_Note(name="not a report")
+    malformed_offer = make(
+        as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_validate_report_activity(offer=malformed_offer, actor=sample_actor)
@@ -351,7 +352,7 @@ def test_rm_invalidate_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
-    plain_offer = as_Offer(actor=None, object_=sample_report)
+    plain_offer = make(as_Offer, actor=None, object_=sample_report)
     result = rm_invalidate_report_activity(
         offer=plain_offer, actor=sample_actor
     )
@@ -361,8 +362,8 @@ def test_rm_invalidate_report_plain_offer_with_report_succeeds(
 @pytest.mark.spec("AF-04-001")
 def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
     """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
-    malformed_offer = as_Offer(
-        actor=None, object_=as_Note(name="not a report")
+    malformed_offer = make(
+        as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_invalidate_report_activity(
@@ -402,7 +403,7 @@ def test_rm_close_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
-    plain_offer = as_Offer(actor=None, object_=sample_report)
+    plain_offer = make(as_Offer, actor=None, object_=sample_report)
     result = rm_close_report_activity(offer=plain_offer, actor=sample_actor)
     assert isinstance(result, as_Reject)
 
@@ -410,8 +411,8 @@ def test_rm_close_report_plain_offer_with_report_succeeds(
 @pytest.mark.spec("AF-04-001")
 def test_rm_close_report_malformed_offer_raises(sample_actor):
     """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
-    malformed_offer = as_Offer(
-        actor=None, object_=as_Note(name="not a report")
+    malformed_offer = make(
+        as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_close_report_activity(offer=malformed_offer, actor=sample_actor)
@@ -440,7 +441,7 @@ def test_parse_submit_report_offer_from_plain_offer(
     sample_report, sample_actor
 ):
     """parse_submit_report_offer coerces a plain as_Offer correctly."""
-    plain_offer = as_Offer(actor=None, object_=sample_report)
+    plain_offer = make(as_Offer, actor=None, object_=sample_report)
     report_out, _offer_out = parse_submit_report_offer(plain_offer)
     assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_

@@ -24,6 +24,7 @@ from test.support.act_runner import run_tree
 from test.support.ledger import (
     committed_semantic_types,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -57,8 +58,11 @@ def dl():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     # attributed_to triggers genesis_hash computation so that
     # commit_emitted_activity can bootstrap the chain (CLP-08-005).
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="Delegation Test Case", attributed_to=ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="Delegation Test Case",
+        attributed_to=ACTOR_ID,
     )
     dl.create(case)
     return dl
@@ -87,7 +91,8 @@ def bridge_with_sync(dl, factory):
 def _seed_participant(dl, actor_id: str, roles: list[CVDRole]) -> str:
     """Add *actor_id* to the case with *roles*; return the participant id."""
     case = dl.read(CASE_ID)
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -184,8 +189,11 @@ def _participant_store() -> SqliteDataLayer:
     """ACTOR_ID's store: a case MANAGER_ID manages, ACTOR_ID a participant."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     dl.create(
-        as_VulnerabilityCase(
-            id_=CASE_ID, name="Delegation Test Case", attributed_to=MANAGER_ID
+        make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="Delegation Test Case",
+            attributed_to=MANAGER_ID,
         )
     )
     _seed_participant(dl, MANAGER_ID, [CVDRole.CASE_MANAGER])

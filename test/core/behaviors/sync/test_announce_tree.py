@@ -18,6 +18,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -134,7 +135,8 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = VultronService(
+    actor = make(
+        VultronService,
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
@@ -145,7 +147,7 @@ def case_actor(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     datalayer.save(case)
     return case
 
@@ -185,7 +187,8 @@ def _make_event(
     )
     event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Announce",
         actor=actor_id,
@@ -267,13 +270,14 @@ def owner_bridge():
     OWNER_ACTOR_ID) doesn't clone an empty store for a foreign actor.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     dl.create(participant)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     case.case_participants.append(participant)
     dl.save(case)
     return BTBridge(datalayer=dl)
@@ -376,7 +380,8 @@ def _seed_case_manager(datalayer, case_obj) -> None:
     the participant's ``attributed_to`` (``CASE_ACTOR_ACTOR_ID``), the id the
     legitimate announces are sent from.
     """
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/case-manager",
         attributed_to=CASE_ACTOR_ACTOR_ID,
         context=CASE_ID,
@@ -560,8 +565,11 @@ def _make_remove_embargo_entry(
 def _make_case_with_em_active(
     datalayer: SqliteDataLayer,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=OWNER_ACTOR_ID,
     )
     activate(case, ACTIVE_EMBARGO_ID)
     datalayer.create(case)
@@ -601,8 +609,11 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         self, bridge, datalayer, case_actor
     ):
         """Already-stored entry exits early without re-applying effects (SYNC-12-003)."""
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=OWNER_ACTOR_ID,
         )
         # effect already applied
         activate(case, ACTIVE_EMBARGO_ID)
@@ -645,8 +656,11 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
     @pytest.mark.spec("SYNC-12-003")
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
         """Running BT when case is already EM.EXITED must succeed silently."""
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=OWNER_ACTOR_ID,
         )
         activate(case, ACTIVE_EMBARGO_ID)
         terminate(case)
@@ -749,7 +763,8 @@ def _seed_invited_participant(
     about it (``UNINVITED``, ADR-0122).
     """
     propose(case_obj, _ENTRY_EMBARGO_ID)
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to=PARTICIPANT_ACTOR_ID,
         context=CASE_ID,
         embargo_consents=(
@@ -1097,7 +1112,8 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         """BT applies participant status when entry has add_participant_status_to_participant."""
         from vultron.core.models.case_participant import CaseParticipant
 
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=PARTICIPANT_ACTOR_ID,
             context=CASE_ID,
@@ -1155,7 +1171,8 @@ _REPLIED_AT = datetime(2026, 10, 9, 13, 0, 0, tzinfo=UTC)
 
 def _invitee_record() -> CaseParticipant:
     """The inert record as the CASE_MANAGER stored it, ids and times fixed."""
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         id_=f"{CASE_ID}/statuses/birth",
         context=CASE_ID,
         attributed_to=INVITEE_ACTOR_ID,
@@ -1165,7 +1182,8 @@ def _invitee_record() -> CaseParticipant:
         published=_CREATED_AT,
         updated=_CREATED_AT,
     )
-    record = CaseParticipant(
+    record = make(
+        CaseParticipant,
         id_=INVITEE_RECORD_ID,
         attributed_to=INVITEE_ACTOR_ID,
         context=CASE_ID,
@@ -1177,7 +1195,8 @@ def _invitee_record() -> CaseParticipant:
     )
     record.embargo_consents = [
         EmbargoConsent(
-            embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.INVITED
+            embargo_id=ACTIVE_EMBARGO_ID,
+            state=EmbargoConsentState.INVITED,
         )
     ]
     return record
@@ -1478,9 +1497,13 @@ class TestAnnounceLogEntryAppliesStubPath:
         later = f"{CASE_ID}/embargo_events/later"
         ahead.embargo_consents = [
             EmbargoConsent(
-                embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.AGREED
+                embargo_id=ACTIVE_EMBARGO_ID,
+                state=EmbargoConsentState.AGREED,
             ),
-            EmbargoConsent(embargo_id=later, state=EmbargoConsentState.AGREED),
+            EmbargoConsent(
+                embargo_id=later,
+                state=EmbargoConsentState.AGREED,
+            ),
         ]
         ahead.updated = datetime(2026, 10, 9, 15, 0, 0, tzinfo=UTC)
         datalayer.create(ahead)
@@ -1669,8 +1692,9 @@ def _make_case_with_departing_participant(
     datalayer: SqliteDataLayer,
 ) -> VulnerabilityCase:
     """Seed CASE_ID with a departing participant so the apply node can find them."""
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    participant = CaseParticipant(
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    participant = make(
+        CaseParticipant,
         id_=DEPARTING_PARTICIPANT_ID,
         attributed_to=DEPARTING_ACTOR_ID,
         context=CASE_ID,
@@ -1829,7 +1853,7 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         self, bridge, datalayer, case_actor
     ):
         """Running BT when case already has correct owner must succeed silently."""
-        case = VulnerabilityCase(id_=CASE_ID, attributed_to=NEW_OWNER_ID)
+        case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=NEW_OWNER_ID)
         datalayer.save(case)
         entry = _make_ownership_transfer_entry(
             0, NEW_OWNER_ID, case.genesis_hash
@@ -1923,7 +1947,8 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
     _HELD_ID = "https://example.org/participants/new-owner"
 
     def _held(self, datalayer, case_obj) -> CaseParticipant:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=self._HELD_ID,
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
@@ -1974,7 +1999,8 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
         self, bridge, datalayer, case_actor, case_obj
     ):
         """An update seats no one: the roster entry that seats it does."""
-        stranger = CaseParticipant(
+        stranger = make(
+            CaseParticipant,
             id_="https://example.org/participants/stranger",
             attributed_to="https://example.org/actors/stranger",
             context=CASE_ID,
@@ -2050,14 +2076,19 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
     def test_reject_entry_is_persisted_and_ownership_unchanged(
         self, bridge, datalayer, case_actor
     ):
-        case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        case = make(
+            VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID
+        )
         roles: dict[str, list[CVDRole]] = {
             OWNER_ACTOR_ID: [CVDRole.CASE_OWNER],
             NEW_OWNER_ID: [],
         }
         for actor_id, case_roles in roles.items():
-            participant = CaseParticipant(
-                attributed_to=actor_id, context=CASE_ID, case_roles=case_roles
+            participant = make(
+                CaseParticipant,
+                attributed_to=actor_id,
+                context=CASE_ID,
+                case_roles=case_roles,
             )
             datalayer.create(participant)
             case.actor_participant_index[actor_id] = participant.id_
@@ -2172,14 +2203,16 @@ class TestAnnounceTreeEmitImpossibleStateFault:
             datalayer=datalayer, trigger_activity=trigger_activity
         )
 
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=PARTICIPANT_ACTOR_ID,
             context=CASE_ID,
         )
         datalayer.create(participant)
         # The fault goes to the case's CASE_MANAGER, the announcing actor.
-        manager = CaseParticipant(
+        manager = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/case-manager",
             attributed_to=case_actor.id_,
             context=CASE_ID,
@@ -2232,13 +2265,15 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         use case hands it to the tree, so the fault reaches the replica's
         outbox addressed to the CASE_MANAGER, and nothing is ledgered.
         """
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=PARTICIPANT_ACTOR_ID,
             context=CASE_ID,
         )
         datalayer.create(participant)
-        manager = CaseParticipant(
+        manager = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/case-manager",
             attributed_to=case_actor.id_,
             context=CASE_ID,
@@ -2418,8 +2453,10 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
         AnnounceVulnerabilityCaseReceivedEvent,
         received_event(
             announce_vulnerability_case_activity(
-                as_VulnerabilityCase(
-                    id_=CASE_ID, attributed_to=OWNER_ACTOR_ID
+                make(
+                    as_VulnerabilityCase,
+                    id_=CASE_ID,
+                    attributed_to=OWNER_ACTOR_ID,
                 ),
                 actor=CASE_ACTOR_ACTOR_ID,
                 context=CASE_ID,

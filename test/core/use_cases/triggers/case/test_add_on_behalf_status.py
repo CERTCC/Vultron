@@ -32,6 +32,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -67,7 +68,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(name=name, url=f"https://example.org/{name.lower()}")
+    return make(
+        as_Service, name=name, url=f"https://example.org/{name.lower()}"
+    )
 
 
 def _make_actor_dl(name: str) -> tuple[as_Service, SqliteDataLayer]:
@@ -95,8 +98,11 @@ def _make_base_case(
     case_manager_actor_id: str,
 ) -> as_VulnerabilityCase:
     """Return a case with one Case Manager participant; no vendor yet."""
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
-    cm_participant = as_CaseParticipant(
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=case_manager_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -117,12 +123,14 @@ def _add_participant(
     vf: CS_vf | None = None,
 ) -> as_CaseParticipant:
     """Attach an existing participant at ``rm`` (and ``vf``, for a vendor)."""
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=roles,
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor_id,
                 context=case.id_,
                 rm=RmDimension(state=rm),
@@ -337,7 +345,8 @@ class TestAddOnBehalfStatusVtoV:
         coordinator_actor = _make_actor("Coordinator")
         # Register coordinator in the same DL so resolve_actor succeeds
         self.dl.create(coordinator_actor)
-        coord_participant = as_CaseParticipant(
+        coord_participant = make(
+            as_CaseParticipant,
             attributed_to=coordinator_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.COORDINATOR],
@@ -649,13 +658,15 @@ class TestVendorImpliesVInvariant:
             as_ParticipantStatus as WireParticipantStatus,
         )
 
-        vendor_participant = WireCaseParticipant(
+        vendor_participant = make(
+            WireCaseParticipant,
             attributed_to=self.vendor_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(
+            make(
+                WireParticipantStatus,
                 context=self.case.id_,
                 rm=RmDimension(state=RM.ACCEPTED),
                 vf=VfDimension(state=CS_vf.Vf),

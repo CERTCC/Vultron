@@ -24,6 +24,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
@@ -77,7 +78,8 @@ def invited_bridge(invited_dl):
 
 
 def _make_wire_report() -> as_VulnerabilityReport:
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         id_=REPORT_ID,
         attributed_to=REPORTER_ACTOR_ID,
         content="Test vulnerability report",
@@ -87,7 +89,8 @@ def _make_wire_report() -> as_VulnerabilityReport:
 def _make_wire_case_with_embedded_report() -> as_VulnerabilityCase:
     """Return as_VulnerabilityCase with full embedded as_VulnerabilityReport (AKM-02-004)."""
     wire_report = _make_wire_report()
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="Invite Path Test Case",
         attributed_to=CASE_OWNER_ACTOR_ID,
@@ -207,7 +210,8 @@ class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
         self, invited_bridge, invited_dl
     ) -> None:
         """SUCCESS without error when embedded report is already in DataLayer."""
-        existing_report = VulnerabilityReport(
+        existing_report = make(
+            VulnerabilityReport,
             id_=REPORT_ID,
             attributed_to=REPORTER_ACTOR_ID,
         )
@@ -262,7 +266,8 @@ class TestApplyOfferReportFromLedgerNode:
 
     @pytest.fixture
     def case_actor(self, datalayer):
-        actor = VultronService(
+        actor = make(
+            VultronService,
             name="Case Actor",
             attributed_to=CASE_OWNER_ACTOR_ID,
             context=CASE_ID,
@@ -424,7 +429,8 @@ class TestInvitePathReportAvailableWithoutSpoof:
 
     @pytest.fixture
     def case_actor(self, datalayer):
-        actor = VultronService(
+        actor = make(
+            VultronService,
             name="Case Actor",
             attributed_to=CASE_OWNER_ACTOR_ID,
             context=CASE_ID,

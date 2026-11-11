@@ -18,6 +18,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -35,7 +36,8 @@ OWNER_ID = "https://example.org/actors/owner"
 
 
 def _participant(suffix: str, actor_id: str, *roles: CVDRole):
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{suffix}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -52,7 +54,8 @@ def dl() -> SqliteDataLayer:
 def seeded(dl: SqliteDataLayer) -> SqliteDataLayer:
     manager = _participant("manager", MANAGER_ID, CVDRole.CASE_MANAGER)
     vendor = _participant("vendor", VENDOR_ID, CVDRole.VENDOR)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="ROLE-PREDICATE",
         attributed_to=OWNER_ID,
@@ -77,7 +80,8 @@ def slashed(dl: SqliteDataLayer) -> SqliteDataLayer:
     """
     manager = _participant("manager", f"{MANAGER_ID}/", CVDRole.CASE_MANAGER)
     vendor = _participant("vendor", f"{VENDOR_ID}/", CVDRole.VENDOR)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="ROLE-PREDICATE",
         attributed_to=OWNER_ID,
@@ -133,7 +137,8 @@ def test_a_roster_with_no_manager_answers_false(dl: SqliteDataLayer) -> None:
     read).
     """
     vendor = _participant("vendor", VENDOR_ID, CVDRole.VENDOR)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="ROLE-PREDICATE",
         attributed_to=OWNER_ID,

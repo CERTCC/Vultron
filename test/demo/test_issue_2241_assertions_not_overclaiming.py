@@ -51,6 +51,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
@@ -162,7 +163,7 @@ def test_all_fetchable_participants_rm_closed_empty_is_false():
             _RECEIVER_ID: _PARTICIPANT_ID,
         },
     }
-    case = as_VulnerabilityCase(**case_data)
+    case = make(as_VulnerabilityCase, **case_data)
 
     # Every participant fetch raises AssertionError("404 Not Found") —
     # the test-client compat path inside _fetch_participant_data.
@@ -238,10 +239,13 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
         _wait_for_participant_status_field,
     )
 
-    ps = as_ParticipantStatus(
-        context=_CASE_ID, rm=RmDimension(state=RM.RECEIVED)
+    ps = make(
+        as_ParticipantStatus,
+        context=_CASE_ID,
+        rm=RmDimension(state=RM.RECEIVED),
     )
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[ps],
@@ -279,12 +283,14 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
 
 def _make_participant(vf: CS_vf | None, rm: RM) -> as_CaseParticipant:
     """Build a minimal CaseParticipant with given vf and rm state."""
-    ps = as_ParticipantStatus(
+    ps = make(
+        as_ParticipantStatus,
         context=_CASE_ID,
         vf=(VfDimension(state=vf) if vf is not None else None),
         rm=RmDimension(state=rm),
     )
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[ps],

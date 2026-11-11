@@ -33,6 +33,7 @@ from test.support.case_manager import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -78,7 +79,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -134,7 +135,8 @@ class TestSvcAddObjectToCaseUseCase:
     def test_add_object_to_case_happy_path(self):
         """SvcAddObjectToCaseUseCase adds an existing object to a case."""
         # Create a report to add
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -166,7 +168,9 @@ class TestSvcAddObjectToCaseUseCase:
     @pytest.mark.spec("PCR-08-005", "PCR-08-018")
     def test_add_object_to_case_addresses_case_manager_alone(self):
         """The queued Add goes to the CASE_MANAGER and no one else."""
-        report = as_VulnerabilityReport(name="To Report", content="content")
+        report = make(
+            as_VulnerabilityReport, name="To Report", content="content"
+        )
         self.dl.create(report)
 
         result = self._execute(report.id_)
@@ -178,11 +182,13 @@ class TestSvcAddObjectToCaseUseCase:
     @pytest.mark.spec("PCR-08-016")
     def test_add_object_to_case_without_case_manager_queues_nothing(self):
         """A case with no CASE_MANAGER fails fast with nothing queued."""
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="No Manager",
         )
         self.dl.create(case)
-        report = as_VulnerabilityReport(name="Orphan", content="content")
+        report = make(as_VulnerabilityReport, name="Orphan", content="content")
         self.dl.create(report)
 
         with pytest.raises(VultronValidationError):
@@ -195,12 +201,12 @@ class TestSvcAddObjectToCaseUseCase:
         ("make_object", "semantics"),
         [
             pytest.param(
-                lambda: as_VulnerabilityReport(name="R", content="c"),
+                lambda: make(as_VulnerabilityReport, name="R", content="c"),
                 MessageSemantics.ADD_REPORT_TO_CASE,
                 id="report",
             ),
             pytest.param(
-                lambda: as_Note(name="N", content="c"),
+                lambda: make(as_Note, name="N", content="c"),
                 MessageSemantics.ADD_NOTE_TO_CASE,
                 id="note",
             ),
@@ -227,7 +233,7 @@ class TestSvcAddObjectToCaseUseCase:
     def test_repeat_while_pending_is_suppressed(self):
         """Adding the same object again while the first Add is pending queues
         nothing and reports no activity."""
-        report = as_VulnerabilityReport(name="Twice", content="c")
+        report = make(as_VulnerabilityReport, name="Twice", content="c")
         self.dl.create(report)
         self._execute(report.id_)
         queued = len(self.dl.outbox_list())
@@ -241,7 +247,7 @@ class TestSvcAddObjectToCaseUseCase:
     def test_repeat_after_commit_is_sent(self):
         """Once the announced commit clears the assertion, the same object
         may be added again."""
-        report = as_VulnerabilityReport(name="Again", content="c")
+        report = make(as_VulnerabilityReport, name="Again", content="c")
         self.dl.create(report)
         first = self._execute(report.id_)
         get_pending_assertion_store(self.actor.id_).clear(
@@ -258,8 +264,8 @@ class TestSvcAddObjectToCaseUseCase:
     @pytest.mark.spec("SYNC-11-002")
     def test_pending_add_does_not_suppress_another_object(self):
         """A pending Add of one object does not hold back another's."""
-        first = as_VulnerabilityReport(name="One", content="c")
-        second = as_VulnerabilityReport(name="Two", content="c")
+        first = make(as_VulnerabilityReport, name="One", content="c")
+        second = make(as_VulnerabilityReport, name="Two", content="c")
         self.dl.create(first)
         self.dl.create(second)
         self._execute(first.id_)
@@ -273,24 +279,29 @@ class TestSvcAddObjectToCaseUseCase:
         "make_object",
         [
             pytest.param(
-                lambda case_id: as_Article(name="A", content="no pattern"),
+                lambda case_id: make(
+                    as_Article, name="A", content="no pattern"
+                ),
                 id="no-add-pattern",
             ),
             pytest.param(
-                lambda case_id: as_EmbargoEvent(
-                    context=case_id, end_time=days_from_now(45)
+                lambda case_id: make(
+                    as_EmbargoEvent,
+                    context=case_id,
+                    end_time=days_from_now(45),
                 ),
                 id="own-flow-embargo",
             ),
             pytest.param(
-                lambda case_id: as_CaseParticipant(
+                lambda case_id: make(
+                    as_CaseParticipant,
                     attributed_to="https://example.org/actors/other",
                     context=case_id,
                 ),
                 id="own-flow-participant",
             ),
             pytest.param(
-                lambda case_id: as_CaseStatus(context=case_id),
+                lambda case_id: make(as_CaseStatus, context=case_id),
                 id="own-flow-case-status",
             ),
         ],
@@ -341,7 +352,7 @@ class TestSvcAddObjectToCaseUseCase:
         case = make_case_with_case_manager(
             self.dl, case_manager_id=self.actor.id_
         )
-        report = as_VulnerabilityReport(name="Own", content="c")
+        report = make(as_VulnerabilityReport, name="Own", content="c")
         self.dl.create(report)
 
         first = self._execute(report.id_, case_id=case.id_)
@@ -354,7 +365,8 @@ class TestSvcAddObjectToCaseUseCase:
     def test_add_object_to_case_raises_when_actor_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when actor
         not found."""
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -378,7 +390,8 @@ class TestSvcAddObjectToCaseUseCase:
     def test_add_object_to_case_raises_when_case_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when case
         not found."""
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -420,7 +433,8 @@ class TestSvcAddObjectToCaseUseCase:
     def test_add_object_to_case_activity_queued_in_delivery_queue(self):
         """SvcAddObjectToCaseUseCase queues activity in delivery queue for
         outbox_handler."""
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -453,11 +467,13 @@ class TestSvcAddObjectToCaseUseCase:
 
     def test_add_multiple_objects_to_case(self):
         """SvcAddObjectToCaseUseCase can add multiple objects (called multiple times)."""
-        report1 = as_VulnerabilityReport(
+        report1 = make(
+            as_VulnerabilityReport,
             name="Test Report 1",
             content="Test report content 1",
         )
-        report2 = as_VulnerabilityReport(
+        report2 = make(
+            as_VulnerabilityReport,
             name="Test Report 2",
             content="Test report content 2",
         )

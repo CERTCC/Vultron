@@ -27,6 +27,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.clock import SystemClock
@@ -92,7 +93,8 @@ class TestEmbargoProposalLifecycle:
             actor_id="https://example.org/users/vendor",
         )
 
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
             context="https://example.org/cases/case_em2",
@@ -100,7 +102,8 @@ class TestEmbargoProposalLifecycle:
         )
         # The vendor's replica receives the CASE_MANAGER's relayed Invite.
         case_manager_id = "https://example.org/users/case-manager"
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em2",
             name="Invite Test",
             attributed_to=case_manager_id,
@@ -145,12 +148,14 @@ class TestEmbargoProposalLifecycle:
             actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em3",
             name="EM Accept Test",
             attributed_to=coordinator_id,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
             context=case.id_,
@@ -224,12 +229,14 @@ class TestEmbargoProposalLifecycle:
             actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_em3_warn",
             name="EM Accept Warn Test",
             attributed_to=coordinator_id,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
             context=case.id_,
@@ -298,18 +305,21 @@ class TestEmbargoProposalLifecycle:
             actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em5",
             name="EM Accept Participant Test",
             attributed_to=coordinator_id,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
             context=case.id_,
             end_time=days_from_now(45),
         )
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.id_,
@@ -370,12 +380,14 @@ class TestEmbargoProposalLifecycle:
         coordinator_id = "https://example.org/users/coordinator"
         owner_id = "https://example.org/users/vendor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em6",
             name="EM Owner Activation Test",
             attributed_to=owner_id,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
             context=case.id_,
@@ -423,7 +435,8 @@ class TestEmbargoProposalLifecycle:
             as_EmbargoEvent,
         )
 
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
             context="https://example.org/cases/case_em4",
@@ -475,13 +488,17 @@ class TestEmbargoProposalLifecycle:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id="https://example.org/users/vendor"
         )
-        actor = Actor(id_="https://example.org/users/vendor", name="Vendor")
-        case = as_VulnerabilityCase(
+        actor = make(
+            Actor, id_="https://example.org/users/vendor", name="Vendor"
+        )
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_eval_invalid",
             name="Evaluate Invalid EM State",
             attributed_to=actor.id_,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -512,7 +529,8 @@ class TestEmbargoProposalLifecycle:
             as_CaseParticipant as CP,
         )
 
-        cm_p = CP(
+        cm_p = make(
+            CP,
             attributed_to=actor.id_,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -570,13 +588,15 @@ def _make_pxa_case(
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
     case.append_case_status(ACT_AT, pxa=CS_pxa[pxa_state_name])
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=embargo_id,
         content="PXA test embargo",
         context=case_id,
@@ -600,7 +620,8 @@ def _make_pxa_case(
         as_CaseParticipant,
     )
 
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=f"{case_id}/participants/coordinator",
         attributed_to=coordinator_id,
         context=case_id,
@@ -778,8 +799,11 @@ class TestInviteToEmbargoReceivedPxaGuard:
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
 
-        case = as_VulnerabilityCase(
-            id_=case_id, name="PXA clear", attributed_to=coordinator_id
+        case = make(
+            as_VulnerabilityCase,
+            id_=case_id,
+            name="PXA clear",
+            attributed_to=coordinator_id,
         )
         dl.create(case)
         # The CASE_MANAGER role is never unfilled (CM-02-014).
@@ -788,7 +812,8 @@ class TestInviteToEmbargoReceivedPxaGuard:
             as_CaseParticipant as CP,
         )
 
-        cm_p = CP(
+        cm_p = make(
+            CP,
             attributed_to=coordinator_id,
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -797,7 +822,8 @@ class TestInviteToEmbargoReceivedPxaGuard:
         case.add_participant(cm_p)
         dl.create(cm_p)
         dl.save(case)
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
@@ -934,12 +960,16 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
 
-        case = VulnerabilityCase(
-            id_=case_id, name="PXA clear Accept", attributed_to=coordinator_id
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="PXA clear Accept",
+            attributed_to=coordinator_id,
         )
         # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
@@ -1154,12 +1184,14 @@ class _AnsweredInvite:
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.COORDINATOR_ID
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em_dup",
             name="Duplicate EM Answer Test",
             attributed_to=self.VENDOR_ID,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em_dup/embargo_events/e1",
             content="Embargo",
             context=case.id_,
@@ -1282,22 +1314,28 @@ def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CLOSED_MANAGER)
-    case = VulnerabilityCase(
-        id_=_CLOSED_CASE, name="Closed invitee", attributed_to=_CLOSED_MANAGER
+    case = make(
+        VulnerabilityCase,
+        id_=_CLOSED_CASE,
+        name="Closed invitee",
+        attributed_to=_CLOSED_MANAGER,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{_CLOSED_CASE}/embargo_events/e1",
         content="Embargo",
         context=case.id_,
         end_time=days_from_now(45),
     )
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{_CLOSED_CASE}/participants/coord",
         attributed_to=_CLOSED_MANAGER,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    vendor = CaseParticipant(
+    vendor = make(
+        CaseParticipant,
         id_=f"{_CLOSED_CASE}/participants/vendor",
         attributed_to=_CLOSED_VENDOR,
         context=case.id_,
@@ -1305,7 +1343,8 @@ def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
     )
     if closed:
         vendor.participant_statuses.append(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=_CLOSED_VENDOR,
                 rm=RmDimension(state=RM.CLOSED),

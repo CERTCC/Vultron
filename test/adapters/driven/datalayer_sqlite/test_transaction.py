@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.schema import (
     VultronObjectRecord as DBRecord,
@@ -64,7 +65,7 @@ def _row(id_: str) -> DBRecord:
 
 
 def _note(name: str) -> as_Note:
-    return as_Note(id_=f"https://example.org/notes/{name}", content=name)
+    return make(as_Note, id_=f"https://example.org/notes/{name}", content=name)
 
 
 def test_every_write_in_the_block_commits_together(dl: SqliteDataLayer):

@@ -20,6 +20,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT, no_clock
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.dead_letter.nodes.store import (
@@ -50,7 +51,7 @@ def bridge(dl):
 
 @pytest.fixture
 def unresolvable_event() -> UnresolvableObjectReceivedEvent:
-    accept = as_Accept(actor=ACTOR_URI, object_=UNRESOLVABLE_URI)
+    accept = make(as_Accept, actor=ACTOR_URI, object_=UNRESOLVABLE_URI)
     event = extract_event(accept)
     assert event.semantic_type == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     return event  # type: ignore[return-value]

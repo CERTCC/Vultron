@@ -28,6 +28,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.actor import VultronService
@@ -70,7 +71,8 @@ def bridge(dl):
 
 @pytest.fixture
 def new_owner_case_actor(dl):
-    actor = VultronService(
+    actor = make(
+        VultronService,
         name="New Owner",
         attributed_to=NEW_OWNER_ACTOR_ID,
         context=CASE_ID,

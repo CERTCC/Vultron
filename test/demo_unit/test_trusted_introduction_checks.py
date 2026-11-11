@@ -26,6 +26,7 @@ import pytest
 
 from test.demo import _helpers
 from test.demo._helpers import expect_trusted_introductions
+from test.support.objects import make
 from vultron.demo import utils
 from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.utils import DataLayerClient
@@ -36,9 +37,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _NODE = "http://node.test/api/v2"
-_REPORTER = as_Actor(id_=f"{_NODE}/actors/reporter", name="Reporter")
-_RECEIVER = as_Actor(id_=f"{_NODE}/actors/vendor", name="Vendor")
-_REPORT = as_VulnerabilityReport(
+_REPORTER = make(as_Actor, id_=f"{_NODE}/actors/reporter", name="Reporter")
+_RECEIVER = make(as_Actor, id_=f"{_NODE}/actors/vendor", name="Vendor")
+_REPORT = make(
+    as_VulnerabilityReport,
     id_="urn:uuid:88888888-8888-8888-8888-888888888888",
     attributed_to=_REPORTER.id_,
     name="n",

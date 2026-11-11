@@ -32,6 +32,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.embargo_register import activate
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -116,8 +117,8 @@ _POSITION = TEST_SENDER_POSITION.model_dump(by_alias=True)
 
 
 def _embargo(case_id: str) -> EmbargoEvent:
-    return EmbargoEvent(
-        context=case_id, end_time=now_utc() + timedelta(days=30)
+    return make(
+        EmbargoEvent, context=case_id, end_time=now_utc() + timedelta(days=30)
     )
 
 

@@ -7,6 +7,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT, CountingClock
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
@@ -494,7 +495,7 @@ def _store_with_case():
     from vultron.core.models.case import VulnerabilityCase
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
-    dl.create(VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR_ID))
+    dl.create(make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_ACTOR_ID))
     return dl
 
 

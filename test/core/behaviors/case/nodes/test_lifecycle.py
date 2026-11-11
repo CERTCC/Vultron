@@ -25,6 +25,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.signing import author_of, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -56,7 +57,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id=ACTOR_ID,
     )
-    actor = VultronService(id_=ACTOR_ID, name="Vendor Co")
+    actor = make(VultronService, id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 
@@ -310,7 +311,8 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     rather than reporting a wiring fault.
     """
     datalayer.create(
-        CaseLedgerEntry(
+        make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,
@@ -350,7 +352,8 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
     nothing (IE-10-001, VM-08-002).
     """
     datalayer.create(
-        CaseLedgerEntry(
+        make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,
@@ -385,7 +388,8 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
     with no entry; the node refuses it instead, committing nothing.
     """
     datalayer.create(
-        CaseLedgerEntry(
+        make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_object_id=ACTIVITY_ID,
             semantic_type=MessageSemantics.CREATE_CASE.value,

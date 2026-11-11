@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.addressee import (
@@ -90,9 +91,11 @@ def _store(
     on the roster but is no longer an active participant (CM-10-004).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    case = VulnerabilityCase(id_=_CASE, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE, attributed_to=_SENDER)
     for member in (*members, *removed):
-        participant = CaseParticipant(attributed_to=member, context=_CASE)
+        participant = make(
+            CaseParticipant, attributed_to=member, context=_CASE
+        )
         if member in removed:
             participant.record_removal(f"{_CASE}/activities/remove")
         case.add_participant(participant)

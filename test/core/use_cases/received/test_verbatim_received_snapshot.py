@@ -27,6 +27,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -55,7 +56,7 @@ def _add_note_body(note_id: str, **extra: Any) -> dict[str, Any]:
     case is named by URI, as every replica holds it (AKM-02-002).
     """
     activity = add_note_to_case_activity(
-        as_Note(id_=note_id, content="verbatim", context=CASE_ID),
+        make(as_Note, id_=note_id, content="verbatim", context=CASE_ID),
         target=CASE_ID,
         actor=OWNER,
         to=[MANAGER],

@@ -25,6 +25,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoWithdrawalFromLedgerNode,
 )
@@ -48,7 +49,8 @@ _SEMANTIC_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
 def _embargo(embargo_id: str, days: int) -> EmbargoEvent:
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=embargo_id,
         context=CASE_ID,
         end_time=now_utc() + timedelta(days=days),
@@ -87,7 +89,8 @@ def _leave_entry(
 def _seat(
     datalayer, case: VulnerabilityCase, actor_id: str, rows: dict[str, ECS]
 ) -> str:
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to=actor_id,
         context=CASE_ID,
         embargo_consents=[
@@ -107,7 +110,7 @@ def revising_replica(datalayer) -> VulnerabilityCase:
     """The participant is AGREED on the embargo in force and the revision."""
     datalayer.create(_embargo(ACTIVE_EMBARGO_ID, 30))
     datalayer.create(_embargo(REVISION_ID, 20))
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     activate(case, ACTIVE_EMBARGO_ID)
     propose(case, REVISION_ID)
     agreed = {ACTIVE_EMBARGO_ID: ECS.AGREED, REVISION_ID: ECS.AGREED}

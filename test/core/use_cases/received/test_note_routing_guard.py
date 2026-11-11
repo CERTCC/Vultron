@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -65,14 +66,18 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant + note."""
     dl = _make_dl()
 
-    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = make(VultronService, id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="AddNote Routing Test", attributed_to=CASE_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="AddNote Routing Test",
+        attributed_to=CASE_ACTOR_ID,
     )
 
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -82,7 +87,8 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
     # The sender is an active participant: only one may attach a note
     # (CM-23-018, HP-01-006).
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = make(
+        as_CaseParticipant,
         attributed_to=VENDOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
@@ -121,11 +127,11 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        case_ref = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
         )
-        note = as_Note(
-            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        note = make(
+            as_Note, id_=NOTE_ID, content="Test note content", context=CASE_ID
         )
         activity = add_note_to_case_activity(
             note=note,
@@ -158,11 +164,11 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        case_ref = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
         )
-        note = as_Note(
-            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        note = make(
+            as_Note, id_=NOTE_ID, content="Test note content", context=CASE_ID
         )
         activity = add_note_to_case_activity(
             note=note,
@@ -200,11 +206,11 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        case_ref = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
         )
-        note = as_Note(
-            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        note = make(
+            as_Note, id_=NOTE_ID, content="Test note content", context=CASE_ID
         )
         activity = add_note_to_case_activity(
             note=note,

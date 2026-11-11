@@ -31,6 +31,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import archive_received, intake_received
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -94,8 +95,12 @@ def _offer_of_stored_report(
     adds top-level keys before it is signed.
     """
     dl.save(
-        VulnerabilityReport(
-            id_=REPORT_ID, name="r", content="stored", attributed_to=ACTOR
+        make(
+            VulnerabilityReport,
+            id_=REPORT_ID,
+            name="r",
+            content="stored",
+            attributed_to=ACTOR,
         )
     )
     return signed_body(
@@ -177,7 +182,8 @@ def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
 
 def _announce_entry_body() -> dict[str, Any]:
     """An ``Announce(CaseLedgerEntry)``, signed, as a CASE_MANAGER sends it."""
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         id_=f"{CASE_ID}/log/entry-1",
         case_id=CASE_ID,
         log_object_id=ACTOR,

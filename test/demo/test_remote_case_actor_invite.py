@@ -54,6 +54,7 @@ import pytest
 
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -222,12 +223,14 @@ def _seed_case(
     fresh timestamp is used — callers seeding multiple replicas MUST pass the
     same value to all calls or they risk divergent genesis hashes (#2727).
     """
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
         end_time=days_from_now(45),
     )
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{case_id}/participants/case-actor",
         attributed_to=topo.ca_actor_id,
         case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
@@ -241,7 +244,8 @@ def _seed_case(
     # Party to the active embargo, so the owner is an active participant and
     # the CaseActor's ledger fan-out reaches it; otherwise the CM-10-005 gate
     # rightly withholds every ledger entry from it (CM-10-004).
-    owner_participant = CaseParticipant(
+    owner_participant = make(
+        CaseParticipant,
         id_=f"{case_id}/participants/owner",
         attributed_to=topo.owner_actor_id,
         case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
@@ -263,7 +267,8 @@ def _seed_case(
             topo.owner_actor_id: str(owner_participant.id_),
         },
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to=topo.ca_actor_id,
                 em=EmDimension(state=EM.ACTIVE),
@@ -273,7 +278,7 @@ def _seed_case(
     )
     if published is not None:
         case_kwargs["published"] = published
-    case = VulnerabilityCase(**case_kwargs)
+    case = make(VulnerabilityCase, **case_kwargs)
     dl.create(manager)
     dl.create(owner_participant)
     dl.create(embargo)
@@ -281,7 +286,7 @@ def _seed_case(
     if dl.read(topo.ca_actor_id) is None:
         # The owner knows the CaseActor as a peer — a handoff leaves this
         # behind — but knowing a URI is not the same as hosting what it names.
-        dl.create(CoreActor(id_=topo.ca_actor_id, name="Case Actor"))
+        dl.create(make(CoreActor, id_=topo.ca_actor_id, name="Case Actor"))
 
 
 def _bootstrap(topo: _Topology, case_id: str):

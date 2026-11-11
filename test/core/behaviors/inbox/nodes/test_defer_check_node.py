@@ -33,6 +33,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.models.activity import VultronActivity
@@ -73,7 +74,7 @@ def _make_event(
     activity: VultronActivity | None = None,
 ):
     """Return a minimal VultronEvent stub for DeferCheckNode."""
-    obj = CoreObject(id_=ACTIVITY_ID, type_=None)
+    obj = make(CoreObject, id_=ACTIVITY_ID, type_=None)
     return VultronEvent(
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
@@ -148,8 +149,8 @@ class TestDeferCheckNodeNonUriContextId:
     def test_the_deferral_queues_the_id_and_nothing_derived(self):
         """Only the id is queued: the adapter holds the received body, and no
         summary of it rides along for core readers (ADR-0149)."""
-        summary = VultronActivity(
-            id_=ACTIVITY_ID, type_="Announce", actor=ACTOR_ID
+        summary = make(
+            VultronActivity, id_=ACTIVITY_ID, type_="Announce", actor=ACTOR_ID
         )
         queue = _StubQueuePort(case_known=False)
         _run_node(

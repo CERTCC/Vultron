@@ -55,6 +55,7 @@ from test.ci.invariants.common import (
     check_clp14_timestamp_invariants,
 )
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.config.app import AppConfig
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
@@ -145,7 +146,8 @@ def test_clp_14_001_log_index_causal_order_by_construction():
 def test_clp_14_002_published_non_null_enforced_by_model():
     """CaseLedgerEntry.published cannot be None (CoreObject enforces datetime)."""
     with pytest.raises(ValidationError):
-        CaseLedgerEntry(
+        make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_object_id=OBJ_ID,
             semantic_type="test",
@@ -225,8 +227,8 @@ def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
 
     other_case_id = "https://example.org/cases/test-clp-14-012-other"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    dl.create(VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ID))
-    other = VulnerabilityCase(id_=other_case_id, attributed_to=OWNER_ID)
+    dl.create(make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ID))
+    other = make(VulnerabilityCase, id_=other_case_id, attributed_to=OWNER_ID)
     dl.create(other)
     foreign = _to_persistable_entry(
         HashChainLedgerRecord(

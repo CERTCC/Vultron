@@ -32,6 +32,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.inbox_replay import held_depth, ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import ledger_entry_to_wire
@@ -118,7 +119,8 @@ def test_the_wire_vocabulary_carries_the_hash_mismatch_class() -> None:
 def _replica() -> SqliteDataLayer:
     """A participant's replica of the case, managed by the CASE_MANAGER."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PARTICIPANT_ID)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="hash mismatch",
         attributed_to=_CASE_ACTOR_ID,
@@ -215,8 +217,11 @@ def test_no_case_ledger_gains_an_entry_for_a_hash_mismatch_fault() -> None:
     body = read_sealed_body_dict(replica, fault_id)
     assert body is not None
     manager = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="hash mismatch",
+        attributed_to=_CASE_ACTOR_ID,
     )
     seed_case_participant(
         manager, case, _CASE_ACTOR_ID, [CVDRole.CASE_MANAGER]
@@ -246,8 +251,11 @@ def _manager(
     store, the entry and the ``Announce``'s id.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="hash mismatch",
+        attributed_to=_CASE_ACTOR_ID,
     )
     if receiver_is_manager:
         seed_case_participant(dl, case, _CASE_ACTOR_ID, [CVDRole.CASE_MANAGER])
@@ -276,8 +284,10 @@ def _fault(
     when ``None``)."""
     activity = create_processing_fault_activity(
         actor=sender,
-        fault=as_ProcessingFault(
-            failure_class=_HASH_MISMATCH, in_reply_to=announce_id
+        fault=make(
+            as_ProcessingFault,
+            failure_class=_HASH_MISMATCH,
+            in_reply_to=announce_id,
         ),
         to=[_CASE_ACTOR_ID],
     )

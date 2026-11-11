@@ -23,6 +23,7 @@ The two Invites are also delivered to the joiner's own store.
 from typing import Any, cast
 
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -66,7 +67,7 @@ def _invited(name: str) -> tuple[LedgerNetwork, as_Invite]:
     net = LedgerNetwork(f"{_BASE}/{name}", em_state=EM.NONE)
     dl = net.stores[MANAGER]
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=JOINER),
+        make(as_Actor, id_=JOINER),
         to=[JOINER],
         target=case_stub(net.case_id),
         actor=MANAGER,
@@ -142,7 +143,7 @@ def accept_invite_actor_to_case_with_no_record() -> Scenario:
     """An Accept of a stub Invite that seated no record: refused."""
     net = LedgerNetwork(f"{_BASE}/accept-refused", em_state=EM.NONE)
     stub = rm_invite_to_case_activity(
-        as_Actor(id_=JOINER),
+        make(as_Actor, id_=JOINER),
         to=[JOINER],
         target=case_stub(net.case_id),
         actor=MANAGER,

@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import (
     delivered_body,
     extract_stamped,
@@ -362,7 +363,8 @@ def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
         json.loads(
             dump_outbound_body(
                 add_status_to_participant_activity(
-                    ParticipantStatus(
+                    make(
+                        ParticipantStatus,
                         context=net.case_id,
                         attributed_to=BYSTANDER,
                         rm=RmDimension(state=RM.VALID),
@@ -822,7 +824,8 @@ def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
 
     def _add(content: str, tag: str) -> Any:
         activity = add_note_to_case_activity(
-            as_Note(
+            make(
+                as_Note,
                 id_=note_id,
                 content=content,
                 attributed_to=BYSTANDER,
@@ -862,7 +865,8 @@ def test_a_participants_case_status_gets_no_notice_and_no_fault():
         "https://example.org/cases/refusal-notice-case-status",
         em_state=EM.NONE,
     )
-    status = CaseStatus(
+    status = make(
+        CaseStatus,
         context=net.case_id,
         attributed_to=BYSTANDER,
         em=EmDimension(state=EM.ACTIVE),

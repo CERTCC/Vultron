@@ -25,6 +25,7 @@ Spec coverage:
 
 import pytest
 
+from test.support.objects import make
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     accept_actor_recommendation_activity,
@@ -44,7 +45,7 @@ _CASE_URI = "https://example.org/cases/case-001"
 
 @pytest.fixture
 def sample_actor() -> as_Person:
-    return as_Person(name="Alice", id_=_ACTOR_URI)
+    return make(as_Person, name="Alice", id_=_ACTOR_URI)
 
 
 @pytest.fixture
@@ -125,7 +126,7 @@ def test_accept_actor_recommendation_target_is_set(sample_recommendation):
 @pytest.mark.spec("AF-04-001")
 def test_accept_actor_recommendation_plain_offer_raises(sample_actor):
     """A plain as_Offer (not from recommend_actor_activity) must fail."""
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_actor)
+    plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         accept_actor_recommendation_activity(offer=plain_offer)
     assert exc_info.value.__cause__ is not None
@@ -163,7 +164,7 @@ def test_reject_actor_recommendation_target_is_set(sample_recommendation):
 
 @pytest.mark.spec("AF-04-001")
 def test_reject_actor_recommendation_plain_offer_raises(sample_actor):
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_actor)
+    plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         reject_actor_recommendation_activity(offer=plain_offer)
     assert exc_info.value.__cause__ is not None

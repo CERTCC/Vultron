@@ -35,6 +35,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose, terminate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
@@ -95,7 +96,8 @@ def _participant(
         )
         if state is not None
     ]
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -131,7 +133,8 @@ def _seed_case(
         _participant(actor, consent, signatory=actor in signatories)
         for actor, consent in roster.items()
     ]
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Relay nodes",
         attributed_to=MANAGER,
@@ -140,11 +143,17 @@ def _seed_case(
             cast(str, p.attributed_to): p.id_ for p in records
         },
     )
-    embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(60),
     )
-    active = as_EmbargoEvent(
-        id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now(30)
+    active = make(
+        as_EmbargoEvent,
+        id_=ACTIVE_ID,
+        context=CASE_ID,
+        end_time=days_from_now(30),
     )
     if signatories and em_state not in (EM.ACTIVE, EM.REVISE):
         raise ValueError("signatories need an embargo in force")
@@ -319,12 +328,14 @@ class TestCollectEmbargoInviteRecipientsNode:
             CaseParticipant,
             bt_scenario.dl.read(case.actor_participant_index[OTHER_A]),
         ).model_copy(update={"joined": False})
-        closed = CaseParticipant(
+        closed = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/relay-closed",
             attributed_to=closed_actor,
             context=CASE_ID,
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=CASE_ID,
                     attributed_to=closed_actor,
                     rm=RmDimension(state=RM.CLOSED),

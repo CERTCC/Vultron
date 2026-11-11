@@ -17,6 +17,7 @@ import json
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.errors import VultronAlreadyExistsError
@@ -33,7 +34,9 @@ _CASE_ID = "https://example.org/cases/case-001"
 
 
 def _make_report(dl) -> as_VulnerabilityReport:
-    report = as_VulnerabilityReport(name="CVE-2025-001", content="PoC details")
+    report = make(
+        as_VulnerabilityReport, name="CVE-2025-001", content="PoC details"
+    )
     dl.create(report)
     return report
 
@@ -248,7 +251,9 @@ class TestSubmitReportProposedEmbargo:
         from test.support.future_dates import days_from_now
         from vultron.core.models.embargo_event import EmbargoEvent
 
-        terms = EmbargoEvent(context=report.id_, end_time=days_from_now(10))
+        terms = make(
+            EmbargoEvent, context=report.id_, end_time=days_from_now(10)
+        )
         dl.create(terms)
         return terms
 
@@ -304,7 +309,8 @@ class TestSubmitReportProposedEmbargo:
         from vultron.errors import VultronActivityConstructionError
 
         report = _make_report(dl)
-        foreign = EmbargoEvent(
+        foreign = make(
+            EmbargoEvent,
             context="https://example.org/reports/someone-elses",
             end_time=days_from_now(10),
         )
@@ -327,7 +333,7 @@ def _received_offer(dl) -> tuple[str, str]:
     Nothing is held under the Offer's own id (DL-06-006).  Returns
     ``(offer_id, report_id)``.
     """
-    report = as_VulnerabilityReport(name="CVE-2025-002", content="PoC")
+    report = make(as_VulnerabilityReport, name="CVE-2025-002", content="PoC")
     offer = rm_submit_report_activity(
         report=report, to=_COORDINATOR, actor=_ACTOR
     )

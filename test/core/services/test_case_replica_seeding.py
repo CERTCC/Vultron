@@ -25,6 +25,7 @@ import pytest
 from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -62,8 +63,8 @@ class TestParticipantRmStateShapeGuard:
         )
 
         actor = "https://example.org/actors/alice"
-        participant = CaseParticipant(
-            attributed_to=actor, context=self._CONTEXT
+        participant = make(
+            CaseParticipant, attributed_to=actor, context=self._CONTEXT
         )
         advance_participant_rm(
             participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
@@ -102,7 +103,8 @@ class TestParticipantRmStateShapeGuard:
             as_CaseParticipant,
         )
 
-        wire_participant = as_CaseParticipant(
+        wire_participant = make(
+            as_CaseParticipant,
             attributed_to="https://example.org/actors/vendor",
             context=self._CONTEXT,
         )
@@ -149,12 +151,14 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
             as_ParticipantStatus,
         )
 
-        wire_participant = as_CaseParticipant(
+        wire_participant = make(
+            as_CaseParticipant,
             id_=self._PARTICIPANT_ID,
             attributed_to=self._ACTOR_ID,
             context=self._CASE_ID,
             participant_statuses=[
-                as_ParticipantStatus(
+                make(
+                    as_ParticipantStatus,
                     context=self._CASE_ID,
                     attributed_to=self._ACTOR_ID,
                     rm=RmDimension(state=rm_state),
@@ -175,13 +179,15 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
     def _seed_core_participant(self, dl, rm_state: RM) -> None:
         """Store a core-shaped participant at *rm_state* before ingress."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             rm=RmDimension(state=rm_state),
             context=self._CASE_ID,
             attributed_to=self._ACTOR_ID,
         )
         dl.create(
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 id_=self._PARTICIPANT_ID,
                 attributed_to=self._ACTOR_ID,
                 context=self._CASE_ID,

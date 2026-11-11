@@ -17,6 +17,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.report_claims import (
     MAX_CSAF_CONTENT_CHARS,
@@ -42,8 +43,8 @@ def _submission(
     category: str | None = _REPORT,
     errors: tuple[SchemaError, ...] = (),
 ) -> SubmittedCsafDocument:
-    attachment = AttachedDocument(
-        media_type="application/json", content=content
+    attachment = make(
+        AttachedDocument, media_type="application/json", content=content
     )
     return SubmittedCsafDocument(
         attachment=attachment,
@@ -141,8 +142,8 @@ def test_the_reading_must_be_of_the_attachment() -> None:
 
     with pytest.raises(ValidationError, match="not the attachment"):
         SubmittedCsafDocument(
-            attachment=AttachedDocument(
-                media_type="application/json", content="{}"
+            attachment=make(
+                AttachedDocument, media_type="application/json", content="{}"
             ),
             reading=submission.reading,
         )
@@ -156,7 +157,7 @@ def test_the_reading_must_be_of_the_attachment() -> None:
     ],
 )
 def test_the_attachment_must_be_json_text(media_type, content, match) -> None:
-    attachment = AttachedDocument(media_type=media_type, content=content)
+    attachment = make(AttachedDocument, media_type=media_type, content=content)
     reading = _submission().reading.model_copy(
         update={"document_id": attachment.id_}
     )

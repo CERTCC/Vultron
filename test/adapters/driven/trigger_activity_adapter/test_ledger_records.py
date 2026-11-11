@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.ledger_labels import registry_label
+from test.support.objects import make
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -58,7 +59,9 @@ EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
 def _consent_row(state: EmbargoConsentState) -> EmbargoConsent:
     """The vendor's consent row, as a consent-row entry carries it."""
     return EmbargoConsent(
-        embargo_id=EMBARGO_ID, state=state, attributed_to=VENDOR_ID
+        embargo_id=EMBARGO_ID,
+        state=state,
+        attributed_to=VENDOR_ID,
     )
 
 
@@ -69,7 +72,8 @@ CASE_ID = "https://example.org/cases/urn:uuid:snapshot-test"
 REPORT_ID = "https://example.org/reports/urn:uuid:report-1"
 OFFER_ID = "https://example.org/activities/urn:uuid:offer-1"
 #: A creation-time embargo, built once so two builds of its record compare.
-_EMBARGO = EmbargoEvent(
+_EMBARGO = make(
+    EmbargoEvent,
     id_=f"{CASE_ID}/embargo_events/default",
     context=CASE_ID,
     start_time=datetime(2026, 1, 1, tzinfo=UTC),
@@ -79,21 +83,22 @@ _EMBARGO = EmbargoEvent(
 
 @pytest.fixture
 def vendor_actor(dl):
-    actor = VultronService(id_=VENDOR_ID, name="Vendor Co")
+    actor = make(VultronService, id_=VENDOR_ID, name="Vendor Co")
     dl.create(actor)
     return actor
 
 
 @pytest.fixture
 def report(dl):
-    r = VulnerabilityReport(id_=REPORT_ID, name="Test Report")
+    r = make(VulnerabilityReport, id_=REPORT_ID, name="Test Report")
     dl.create(r)
     return r
 
 
 @pytest.fixture
 def participant(dl):
-    p = CaseParticipant(
+    p = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/vendor",
         attributed_to=VENDOR_ID,
         context=CASE_ID,
@@ -105,8 +110,11 @@ def participant(dl):
 
 @pytest.fixture
 def case(dl, vendor_actor, report, participant):
-    c = VulnerabilityCase(
-        id_=CASE_ID, attributed_to=VENDOR_ID, name="Snapshot Test Case"
+    c = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        attributed_to=VENDOR_ID,
+        name="Snapshot Test Case",
     )
     c.vulnerability_reports.append(REPORT_ID)
     c.add_participant(participant)

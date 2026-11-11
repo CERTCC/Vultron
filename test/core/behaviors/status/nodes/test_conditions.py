@@ -24,6 +24,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
@@ -66,7 +67,8 @@ def bridge(dl):
 
 @pytest.fixture
 def participant():
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -76,7 +78,8 @@ def participant():
 
 @pytest.fixture
 def case_manager_participant():
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -86,13 +89,16 @@ def case_manager_participant():
 
 @pytest.fixture
 def status_obj():
-    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
 def populated_dl(dl, participant, case_manager_participant, status_obj):
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
@@ -151,7 +157,8 @@ class TestSenderIsParticipantNode:
 def _save_vendor(dl, **fields):
     """Re-save the vendor's participant record with *fields* changed."""
     dl.save(
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
@@ -252,12 +259,14 @@ class TestParticipantKindsDiffer:
 @pytest.fixture
 def closed_sender_dl(populated_dl):
     """The vendor's closure recorded: its RM is ``CLOSED`` (CM-23-001)."""
-    closed = CaseParticipant(
+    closed = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=ACTOR_ID,
                 rm=RmDimension(state=RM.CLOSED),
@@ -271,7 +280,8 @@ def closed_sender_dl(populated_dl):
 @pytest.fixture
 def inert_sender_dl(populated_dl):
     """The vendor is invited but has not joined, so it is inert (CM-10-004)."""
-    inert = CaseParticipant(
+    inert = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -284,7 +294,8 @@ def inert_sender_dl(populated_dl):
 @pytest.fixture
 def removed_sender_dl(populated_dl):
     """The vendor carries the removal fact (CM-31-001)."""
-    removed = CaseParticipant(
+    removed = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,

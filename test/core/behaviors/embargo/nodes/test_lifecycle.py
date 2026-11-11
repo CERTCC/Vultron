@@ -29,6 +29,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from test.support.act_runner import run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -74,7 +75,8 @@ def _make_case_with_manager(
     )
     case, _ = make_case_and_embargo(suffix, em_state=em_state)
 
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         id_=f"{case.id_}/participants/cm",
         attributed_to=CASE_MANAGER_ACTOR,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -96,7 +98,8 @@ def _store_active_embargo(
 ) -> None:
     """Store the embargo the case points at, which the factory renders."""
     dl.create(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=_embargo_id(case),
             context=case.id_,
             end_time=days_from_now(45),
@@ -651,12 +654,14 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
     def _case(self) -> tuple[SqliteDataLayer, VulnerabilityCase, str]:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ACTOR)
         case, embargo = make_case_and_embargo("obo1", em_state=EM.ACTIVE)
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/cm",
             attributed_to=CASE_MANAGER_ACTOR,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        proposer = as_CaseParticipant(
+        proposer = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/proposer",
             attributed_to=self.PROPOSER,
             context=case.id_,
@@ -667,7 +672,8 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
             dl.create(p)
         dl.create(case)
         dl.create(embargo)
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/revision",
             context=case.id_,
             end_time=days_from_now(90),

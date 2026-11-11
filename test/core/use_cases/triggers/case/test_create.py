@@ -36,6 +36,7 @@ from test.support.ledger import (
     ledger_entries,
 )
 from test.support.ledger_rebuild import case_naming_its_records
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -95,7 +96,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -222,7 +223,8 @@ class TestSvcCreateCaseUseCase:
     def test_create_case_with_linked_report(self):
         """SvcCreateCaseUseCase links a report to the new case."""
         # Create a report first
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Vulnerability Report",
             content="A test report",
         )
@@ -282,8 +284,10 @@ class TestSvcCreateCaseUseCase:
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
         not a VulnerabilityReport."""
         # Create a wrong type object (as_VulnerabilityCase instead)
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Not a Report"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Not a Report",
         )
         self.dl.create(case)
 
@@ -300,7 +304,7 @@ class TestSvcCreateCaseUseCase:
 
     def test_create_case_outbox_activity_addressed_to_case_actor(self):
         """Activity is addressed to the Case Actor only when ``to`` is set (PCR-08-001)."""
-        case_actor = as_Service(name="Case Actor")
+        case_actor = make(as_Service, name="Case Actor")
         self.dl.create(case_actor)
         request = CreateCaseTriggerRequest(
             actor_id=self.actor.id_,
@@ -540,7 +544,7 @@ class TestCreateCaseTriggerLedger:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.actor, self.dl = _make_actor_dl("Vendor Co")
-        self.report = as_VulnerabilityReport(name="Report", content="r")
+        self.report = make(as_VulnerabilityReport, name="Report", content="r")
         self.dl.create(self.report)
         yield
         self.dl.clear_all()

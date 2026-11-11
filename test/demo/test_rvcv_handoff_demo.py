@@ -75,6 +75,7 @@ from test.demo._helpers import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
@@ -698,7 +699,7 @@ class TestTheFourExchangeNotes:
         (``VENDORS_ANSWER``).
         """
         state = _four_party_state()
-        answer = as_Note(content="Vendor1's workaround answer")
+        answer = make(as_Note, content="Vendor1's workaround answer")
         state.keep(VENDORS_ANSWER, answer)
 
         thread = self._exchange(state)
@@ -981,7 +982,8 @@ class TestRvcvHandoffLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """Four devlogs names, each keyed on its client's own actor id."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvcv-test-case",
         )
@@ -1024,7 +1026,8 @@ class TestRvcvHandoffLedgerDump:
         authority for this family's replication checks — so a dump that read
         the CaseActor's log there would export a replica as canonical.
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvcv-with-ca",
             actor_participant_index={
@@ -1059,7 +1062,8 @@ class TestRvcvHandoffLedgerDump:
         (DEMOMA-23-001), and a run that failed before the Coordinator and
         Vendor2 were seeded must still export the two replicas it has.
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvcv-early-failure",
         )
@@ -1502,24 +1506,28 @@ def _otc_ownership_transferred(
                 # Build a case on the Coordinator's DataLayer directly so
                 # CommitCaseLedgerEntryNode can read participants and the
                 # FanOutLogEntryNode knows to broadcast to Reporter.
-                case = as_VulnerabilityCase(
+                case = make(
+                    as_VulnerabilityCase,
                     name="OTC Test Case",
                     attributed_to=vendor_id,
                     content="AC-5c integration test case",
                 )
                 case_id = case.id_
 
-                vendor_p = as_CaseParticipant(
+                vendor_p = make(
+                    as_CaseParticipant,
                     attributed_to=vendor_id,
                     context=case_id,
                     case_roles=[CVDRole.CASE_OWNER],
                 )
-                coordinator_p = as_CaseParticipant(
+                coordinator_p = make(
+                    as_CaseParticipant,
                     attributed_to=coordinator_id,
                     context=case_id,
                     case_roles=[CVDRole.CASE_MANAGER],
                 )
-                reporter_p = as_CaseParticipant(
+                reporter_p = make(
+                    as_CaseParticipant,
                     attributed_to=reporter_id,
                     context=case_id,
                     case_roles=[CVDRole.REPORTER],
@@ -1544,8 +1552,10 @@ def _otc_ownership_transferred(
                     as_Service,
                 )
 
-                cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
-                cdl.create(as_Service(id_=reporter_id, name="Reporter OTC"))
+                cdl.create(make(as_Service, id_=vendor_id, name="Vendor OTC"))
+                cdl.create(
+                    make(as_Service, id_=reporter_id, name="Reporter OTC")
+                )
 
                 # The Vendor proposes the transfer to the Reporter; the
                 # Coordinator, the CASE_MANAGER, makes and ledgers the Offer
@@ -1562,7 +1572,9 @@ def _otc_ownership_transferred(
                     case_wire,
                     # Inline, as the inbox rehydrates it: the ledger
                     # commit refuses a bare-id target (CLP-07).
-                    target=as_Service(id_=reporter_id, name="Reporter OTC"),
+                    target=make(
+                        as_Service, id_=reporter_id, name="Reporter OTC"
+                    ),
                     actor=vendor_id,
                     to=[coordinator_id],
                 )

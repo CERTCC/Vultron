@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 import vultron.adapters.driving.fastapi.outbox_handler.drain as _outbox_drain
 from test.conftest import seed_case_actor_replica
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import archive_received, case_stub
 from test.support.transferee import transferee_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -95,7 +96,7 @@ def other_actor_and_dl(dl):
     addressed to it is something it received. The inviter's store gets the actor
     record too, because an inviter must know the actor it is inviting.
     """
-    other = as_Service(name="Other Actor")
+    other = make(as_Service, name="Other Actor")
     other_dl = _store_for(other.id_)
     other_dl.clear_all()
     other_dl.create(other)
@@ -114,17 +115,19 @@ def other_actor(other_actor_and_dl):
 @pytest.fixture
 def case_obj(dl, actor):
     """Create and persist a as_VulnerabilityCase with a CASE_MANAGER participant."""
-    case_actor = as_Service(name="Case Actor")
+    case_actor = make(as_Service, name="Case Actor")
     dl.create(case_actor)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
     )
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -146,17 +149,19 @@ def case_obj_with_case_actor(dl, actor):
     Identical to ``case_obj`` but also persists the Case Actor service with
     ``context=case.id_`` so that ``_find_case_actor_id`` can resolve it.
     """
-    case_actor = as_Service(name="Case Actor Service")
+    case_actor = make(as_Service, name="Case Actor Service")
     dl.create(case_actor)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-OCM"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="TEST-CASE-OCM"
     )
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -170,7 +175,8 @@ def case_obj_with_case_actor(dl, actor):
     dl.create(case_manager_participant)
     # Update the Case Actor Service with context=case.id_ so that
     # _find_case_actor_id resolves it for this case.
-    case_actor_with_context = as_Service(
+    case_actor_with_context = make(
+        as_Service,
         id_=case_actor.id_,
         name="Case Actor Service",
         context=case.id_,
@@ -520,7 +526,7 @@ def test_trigger_reject_case_invite_unknown_invite_returns_404(
 @pytest.fixture
 def target_actor(dl):
     """A second actor to receive the role offer."""
-    target = as_Service(name="Target Actor")
+    target = make(as_Service, name="Target Actor")
     dl.create(target)
     return target
 
@@ -636,18 +642,21 @@ def case_for_invite(dl, actor):
     Sets attributed_to=actor.id_ on the case so the BT can bootstrap the
     ledger chain (genesis hash derived from attributed_to — CLP-08-005).
     """
-    case_actor = as_Service(name="Case Actor for Invite")
+    case_actor = make(as_Service, name="Case Actor for Invite")
     dl.create(case_actor)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="TEST-CASE-INVITE",
         attributed_to=actor.id_,
     )
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -665,7 +674,8 @@ def case_for_invite(dl, actor):
     seed_case_actor_replica(
         dl, case_actor.id_, case, owner_participant, case_manager_participant
     )
-    case_actor_with_context = as_Service(
+    case_actor_with_context = make(
+        as_Service,
         id_=case_actor.id_,
         name="Case Actor for Invite",
         context=case.id_,

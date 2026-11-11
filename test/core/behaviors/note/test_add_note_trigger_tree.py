@@ -21,6 +21,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -79,7 +80,7 @@ class _FakeTriggerFactory:
 
 @pytest.fixture
 def dl():
-    actor = as_Service(name="finder")
+    actor = make(as_Service, name="finder")
     reset_datalayer(actor.id_)
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     store.clear_all()
@@ -97,12 +98,16 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
-    finder_participant = ReporterParticipant(
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=actor_id,
         context=case.id_,
     )
-    case_manager_participant = VendorParticipant(
+    case_manager_participant = make(
+        VendorParticipant,
         attributed_to=CASE_ACTOR_ID,
         context=case.id_,
     )
@@ -221,10 +226,13 @@ class TestAddNoteToCaseTriggerBT:
 
     def test_failure_when_no_case_manager(self, dl, bridge):
         store, actor = dl
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="No Manager Case",
         )
-        participant = ReporterParticipant(
+        participant = make(
+            ReporterParticipant,
             attributed_to=actor.id_,
             context=case.id_,
         )

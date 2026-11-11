@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import delivered_body, received_event
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -82,7 +83,8 @@ class TestNoteUseCases:
 
         if create_case_actor:
             dl.create(
-                VultronService(
+                make(
+                    VultronService,
                     id_=case_actor_id,
                     name="CaseActor",
                     attributed_to="https://example.org/users/vendor",
@@ -92,12 +94,14 @@ class TestNoteUseCases:
 
         # attributed_to anchors the per-case ledger genesis, without which
         # the CaseActor's receipt commit fails (CLP-08-005).
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="Note Case",
             attributed_to="https://example.org/users/vendor",
         )
-        case_mgr_participant = as_CaseParticipant(
+        case_mgr_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -122,7 +126,8 @@ class TestNoteUseCases:
         case_id = "https://example.org/cases/case_n1"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
 
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note3",
             content="A note",
             context=case_id,
@@ -188,7 +193,8 @@ class TestNoteUseCases:
             case_actor_id,
             create_case_actor=False,
         )
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note-routed",
             content="For the addressed case only",
             context=addressed.id_,
@@ -237,7 +243,8 @@ class TestNoteUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n1b"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note3b",
             content="Carried inline",
             context=case_id,
@@ -282,12 +289,16 @@ class TestNoteUseCases:
         case_id = "https://example.org/cases/case_n1c"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
         note_id = "https://example.org/notes/note3c"
-        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+        dl.create(
+            make(as_Note, id_=note_id, content="Original", context=case_id)
+        )
         entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
         event = make_payload(
             add_note_to_case_activity(
-                as_Note(id_=note_id, content="Rewritten", context=case_id),
+                make(
+                    as_Note, id_=note_id, content="Rewritten", context=case_id
+                ),
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
@@ -354,13 +365,15 @@ class TestNoteUseCases:
         case_id = "https://example.org/cases/case_n1d"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
         note_id = "https://example.org/notes/note3d"
-        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+        dl.create(
+            make(as_Note, id_=note_id, content="Original", context=case_id)
+        )
         entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
         result = self._add_note_through_ingress(
             dl,
             case_actor_id,
-            as_Note(id_=note_id, content="Rewritten", context=case_id),
+            make(as_Note, id_=note_id, content="Rewritten", context=case_id),
             case,
         )
 
@@ -385,14 +398,18 @@ class TestNoteUseCases:
         case_b_id = "https://example.org/cases/case_xb"
         note_id = "https://example.org/notes/case-b-note"
         dl.create(
-            as_Note(id_=note_id, content="Case B only", context=case_b_id)
+            make(
+                as_Note, id_=note_id, content="Case B only", context=case_b_id
+            )
         )
         entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
         result = self._add_note_through_ingress(
             dl,
             case_actor_id,
-            as_Note(id_=note_id, content="Case B only", context=case_a.id_),
+            make(
+                as_Note, id_=note_id, content="Case B only", context=case_a.id_
+            ),
             case_a,
         )
 
@@ -422,8 +439,11 @@ class TestNoteUseCases:
 
         event = make_payload(
             add_note_to_case_activity(
-                as_Note(
-                    id_=note_id, content="Elsewhere", context=note_context
+                make(
+                    as_Note,
+                    id_=note_id,
+                    content="Elsewhere",
+                    context=note_context,
                 ),
                 target=case,
                 actor="https://example.org/users/finder",
@@ -461,7 +481,8 @@ class TestNoteUseCases:
         replied_to = "https://example.org/notes/note3f-question"
 
         activity = add_note_to_case_activity(
-            as_Note(
+            make(
+                as_Note,
                 id_=note_id,
                 content="An answer",
                 context=case_id,
@@ -506,7 +527,11 @@ class TestNoteUseCases:
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
         event = make_payload(
             add_note_to_case_activity(
-                as_Note(id_="https://example.org/notes/note3e", content="x"),
+                make(
+                    as_Note,
+                    id_="https://example.org/notes/note3e",
+                    content="x",
+                ),
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
@@ -537,7 +562,8 @@ class TestNoteUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n2"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note4",
             content="A note",
             context=case_id,
@@ -583,7 +609,8 @@ class TestNoteUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n2b"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note4b",
             content="A note",
             context=case_id,
@@ -634,7 +661,8 @@ class TestNoteUseCases:
             "sqlite:///:memory:",
             actor_id="https://example.org/actors/non-manager",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
@@ -644,7 +672,8 @@ class TestNoteUseCases:
         seed_case_manager_participant(
             dl, case, "https://example.org/actors/case-manager"
         )
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note_noop",
             content="A note",
             context=case.id_,
@@ -685,7 +714,8 @@ class TestNoteUseCases:
         self, dl: SqliteDataLayer, case_id: str, note: as_Note, owner_id: str
     ) -> as_VulnerabilityCase:
         """A case the store's actor manages, owned by *owner_id*, holding *note*."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="Remove Note Case",
             attributed_to=owner_id,
@@ -699,8 +729,12 @@ class TestNoteUseCases:
 
     def _remove(self, dl, make_payload, sender, note, case):
         event = make_payload(
-            as_Remove(
-                actor=sender, object_=note, target=case.id_, to=[dl.actor_id]
+            make(
+                as_Remove,
+                actor=sender,
+                object_=note,
+                target=case.id_,
+                to=[dl.actor_id],
             ),
             at=dl,
         )
@@ -720,7 +754,9 @@ class TestNoteUseCases:
     ):
         """The Case Owner's Remove(Note) detaches the note and commits an entry."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        note = as_Note(id_="https://example.org/notes/note5", content="A note")
+        note = make(
+            as_Note, id_="https://example.org/notes/note5", content="A note"
+        )
         case = self._managed_case_with_note(
             dl, "https://example.org/cases/case_n3", note, _OWNER
         )
@@ -742,7 +778,8 @@ class TestNoteUseCases:
         """The note's author, an active participant, may remove it."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
         author = "https://example.org/actors/note-author"
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note_author",
             content="A note",
             attributed_to=author,
@@ -765,7 +802,8 @@ class TestNoteUseCases:
         """An author who is no longer a participant has no standing."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
         author = "https://example.org/actors/departed-author"
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note_departed",
             content="A note",
             attributed_to=author,
@@ -786,8 +824,11 @@ class TestNoteUseCases:
         """A replica neither detaches nor commits; the CASE_MANAGER sent it."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
         manager = "https://example.org/actors/the-manager"
-        note = as_Note(id_="https://example.org/notes/note_rep", content="x")
-        case = as_VulnerabilityCase(
+        note = make(
+            as_Note, id_="https://example.org/notes/note_rep", content="x"
+        )
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_n3_replica",
             name="Replica",
             attributed_to=_OWNER,
@@ -810,8 +851,11 @@ class TestNoteUseCases:
     ):
         """At a replica only the CASE_MANAGER is an entitled sender."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        note = as_Note(id_="https://example.org/notes/note_rep2", content="x")
-        case = as_VulnerabilityCase(
+        note = make(
+            as_Note, id_="https://example.org/notes/note_rep2", content="x"
+        )
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_n3_replica2",
             name="Replica",
             attributed_to=_OWNER,
@@ -831,7 +875,9 @@ class TestNoteUseCases:
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """A note the case does not hold is SKIPPED and commits nothing."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        note = as_Note(id_="https://example.org/notes/note6", content="A note")
+        note = make(
+            as_Note, id_="https://example.org/notes/note6", content="A note"
+        )
         case = self._managed_case_with_note(
             dl, "https://example.org/cases/case_n4", note, _OWNER
         )
@@ -850,8 +896,11 @@ class TestNoteUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        note = as_Note(id_="https://example.org/notes/note7", content="x")
-        activity = as_Remove(
+        note = make(
+            as_Note, id_="https://example.org/notes/note7", content="x"
+        )
+        activity = make(
+            as_Remove,
             actor="https://example.org/users/finder",
             object_=note,
             target="https://example.org/cases/no-such-case",
@@ -895,12 +944,15 @@ class TestNoteUseCases:
             "sqlite:///:memory:",
             actor_id="https://example.org/actors/non-manager",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/never-stored",
             name="x",
         )
-        note = as_Note(id_="https://example.org/notes/note9", content="x")
+        note = make(
+            as_Note, id_="https://example.org/notes/note9", content="x"
+        )
         activity = add_note_to_case_activity(
             note,
             target=case,
@@ -950,7 +1002,8 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le1"
 
-        case_actor = VultronService(
+        case_actor = make(
+            VultronService,
             id_=case_actor_id,
             name="CaseActor le1",
             attributed_to=author_id,
@@ -958,7 +1011,8 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="Log Entry Cascade Case",
             attributed_to=author_id,
@@ -973,7 +1027,8 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -986,7 +1041,8 @@ class TestNoteUseCases:
         )
         dl.save(case)
 
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note_le1",
             content="Log entry cascade note",
             context=case_id,
@@ -1073,7 +1129,8 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le2"
 
-        case_actor = VultronService(
+        case_actor = make(
+            VultronService,
             id_=case_actor_id,
             name="CaseActor le2",
             attributed_to=author_id,
@@ -1081,7 +1138,8 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="No Sync Port Case",
             attributed_to=author_id,
@@ -1096,7 +1154,8 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -1109,7 +1168,8 @@ class TestNoteUseCases:
         )
         dl.save(case)
 
-        note = as_Note(
+        note = make(
+            as_Note,
             id_="https://example.org/notes/note_le2",
             content="No cascade note",
             context=case_id,

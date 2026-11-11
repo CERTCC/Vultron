@@ -17,6 +17,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -87,8 +88,8 @@ def _the_owner_invites_the_joiner(
     manager_case = net.case(MANAGER)
     manager_case.stub_summary = "Details shared after acceptance"
     net.stores[MANAGER].save(manager_case)
-    owner_dl.save(as_Actor(id_=OWNER))
-    owner_dl.save(as_Actor(id_=MANAGER))
+    owner_dl.save(make(as_Actor, id_=OWNER))
+    owner_dl.save(make(as_Actor, id_=MANAGER))
     before = set(owner_dl.outbox_list())
     run_in_act(
         SvcInviteActorToCaseUseCase(

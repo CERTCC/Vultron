@@ -30,6 +30,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
@@ -91,8 +92,11 @@ def _offer_body() -> dict[str, Any]:
 
 
 def _report() -> VulnerabilityReport:
-    return VulnerabilityReport(
-        id_="https://example.org/reports/1", name="FDR-1", content="x"
+    return make(
+        VulnerabilityReport,
+        id_="https://example.org/reports/1",
+        name="FDR-1",
+        content="x",
     )
 
 

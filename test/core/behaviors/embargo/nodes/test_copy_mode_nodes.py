@@ -32,6 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
+from test.support.objects import make
 from vultron.core.behaviors.embargo.decided_entries import EMBARGO_DECISION_KEY
 from vultron.core.behaviors.embargo.nodes import lifecycle, withdrawal
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -70,7 +71,8 @@ def test_a_refused_decision_fails_and_leaves_no_decision(
     """``EXITED`` admits no proposal: the decision fails, nothing staged."""
     case_id = _seed(bt_scenario, "copy-refused", EM.EXITED)
     result_out: dict[str, object] = {}
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/late",
         context=case_id,
         end_time=days_from_now(30),

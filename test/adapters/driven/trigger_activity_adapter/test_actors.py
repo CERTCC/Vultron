@@ -24,6 +24,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -62,15 +63,16 @@ _STUB = as_VulnerabilityCaseStub(case_id=_CASE_ID, summary="A case to join")
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
     )
     dl.create(case)
     return case
 
 
 def _make_participant(dl, case_id: str) -> as_CaseParticipant:
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         context=case_id,
         attributed_to=_INVITEE,
     )
@@ -99,14 +101,18 @@ class TestInviteActorToCaseWithInlineEmbargo:
         from vultron.core.states.em import EM
 
         case_id = "https://example.org/cases/case-inline-embargo"
-        embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
-        case = VulnerabilityCase(
+        embargo = make(
+            EmbargoEvent, context=case_id, end_time=days_from_now(30)
+        )
+        case = make(
+            VulnerabilityCase,
             id_=case_id,
             name="CVE-2025-009",
             attributed_to=_ACTOR,
             stub_summary="Security issue — embargo active, details after acceptance",
             case_statuses=[
-                CaseStatus(
+                make(
+                    CaseStatus,
                     context=case_id,
                     attributed_to=_ACTOR,
                     em=EmDimension(state=EM.ACTIVE),
@@ -146,7 +152,8 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         from vultron.core.models.embargo_event import EmbargoEvent
         from vultron.core.states.em import EM
 
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             context=case_id,
             name="Embargo for the stored-by-id case",
             attributed_to=_ACTOR,
@@ -155,13 +162,15 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         if store_embargo:
             dl.create(embargo)
         dl.create(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=case_id,
                 name="CVE-2025-013",
                 attributed_to=_ACTOR,
                 stub_summary="Security issue under embargo",
                 case_statuses=[
-                    CaseStatus(
+                    make(
+                        CaseStatus,
                         context=case_id,
                         attributed_to=_ACTOR,
                         em=EmDimension(state=EM.ACTIVE),
@@ -245,7 +254,7 @@ class TestInviteActorToCase:
 @pytest.mark.parametrize("store_owner", [_INVITEE])
 class TestAcceptCaseInvite:
     def _make_invite(self, dl) -> str:
-        invitee = as_Service(id_=_INVITEE, name="Vendor")
+        invitee = make(as_Service, id_=_INVITEE, name="Vendor")
         # Store invitee so _rehydrate_fields can expand the dehydrated
         # object_ URI back to a full actor when reading the invite.
         dl.create(invitee)
@@ -399,9 +408,10 @@ class TestAcceptCaseInvite:
             _helpers,
         )
 
-        held = as_Invite(
+        held = make(
+            as_Invite,
             actor=_ACTOR,
-            object_=as_Service(id_=_INVITEE),
+            object_=make(as_Service, id_=_INVITEE),
             target=held_target,
         )
         monkeypatch.setattr(
@@ -420,8 +430,11 @@ class TestAcceptCaseInvite:
     ):
         offer = recommend_actor_activity(
             _INVITEE,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Not an Invite"
+            target=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=_CASE_ID,
+                name="Not an Invite",
             ),
             actor=_ACTOR,
             to=[_INVITEE],
@@ -540,7 +553,7 @@ class TestAnswerCaseParticipantOffer:
     """
 
     def _make_cp_offer(self, dl) -> str:
-        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        vendor = make(as_Service, id_=_INVITEE, name="Vendor")
         dl.create(vendor)
         offer = offer_case_participant_activity(
             recommended=vendor,
@@ -600,7 +613,7 @@ class TestAnswerCaseParticipantOffer:
         )
 
         case = _make_case(dl)
-        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        vendor = make(as_Service, id_=_INVITEE, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor, target=case.id_, actor=_ACTOR, to=[_ACTOR]
         )
@@ -633,7 +646,7 @@ class TestAnswerCaseParticipantOffer:
         answer, so the answer embeds what arrived, never a re-dump of the
         parsed Offer (ADR-0149).
         """
-        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        vendor = make(as_Service, id_=_INVITEE, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor, target=_CASE_ID, actor=_ACTOR, to=[_ACTOR]
         )
@@ -660,8 +673,11 @@ def _make_role_case(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Role Test Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="Role Test Case",
     )
     dl.create(case)
     return case

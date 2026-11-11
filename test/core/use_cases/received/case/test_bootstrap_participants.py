@@ -27,6 +27,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -107,19 +108,22 @@ def dl():
 @pytest.fixture()
 def case_with_two_participants():
     """as_VulnerabilityCase with CASE_MANAGER and vendor participants inline."""
-    case_actor_p = as_CaseParticipant(
+    case_actor_p = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
     )
-    vendor_p = as_CaseParticipant(
+    vendor_p = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.VENDOR],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="CBT-05-005/006 participant storage case",
         vulnerability_reports=[_REPORT_ID],
@@ -352,7 +356,8 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # persist it independently.
         # A ready fix entails an accepted report (CSB-18-001), and the status
         # is accepted whole or refused whole (RSH-09-004).
-        status = WireParticipantStatus(
+        status = make(
+            WireParticipantStatus,
             id_=_vfd_status_id,
             context=_CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),

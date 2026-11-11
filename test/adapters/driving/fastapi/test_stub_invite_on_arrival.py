@@ -46,6 +46,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -110,7 +111,8 @@ def clear_actor_locks() -> Iterator[None]:
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="Widget overflow",
         attributed_to=_VENDOR_ID,
@@ -181,7 +183,9 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
 
 def _note_body(note_id: str, actor: str = _CASE_ACTOR_ID) -> dict[str, Any]:
     """A case-scoped activity the invitee cannot process before the case."""
-    note = as_Note(id_=note_id, content="pre-bootstrap", context=_CASE_ID)
+    note = make(
+        as_Note, id_=note_id, content="pre-bootstrap", context=_CASE_ID
+    )
     add = add_note_to_case_activity(
         note,
         target=_CASE_ID,
@@ -525,7 +529,7 @@ def _forged_invite_body(imposter_dl: SqliteDataLayer) -> dict:
 def _accept_invite(invitee_dl: SqliteDataLayer, invite_id: str) -> None:
     """The invitee accepts *invite_id* through the trigger use case."""
     if invitee_dl.read(_INVITEE_ID) is None:
-        invitee_dl.create(as_Actor(id_=_INVITEE_ID, name="invitee"))
+        invitee_dl.create(make(as_Actor, id_=_INVITEE_ID, name="invitee"))
     accepted = run_in_act(
         SvcAcceptCaseInviteUseCase(
             invitee_dl,
@@ -617,8 +621,11 @@ def test_an_actor_reference_does_not_replace_the_receiver_fuller_record(
         hosted_endpoints,
     )
 
-    profile = VultronOrganization(
-        id_=_INVITEE_ID, name="Invitee Co", **hosted_endpoints(_INVITEE_ID)
+    profile = make(
+        VultronOrganization,
+        id_=_INVITEE_ID,
+        name="Invitee Co",
+        **hosted_endpoints(_INVITEE_ID),
     )
     invitee_dl.create(profile)
     held_before = invitee_dl.read(_INVITEE_ID)

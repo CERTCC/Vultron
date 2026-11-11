@@ -39,6 +39,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
@@ -71,7 +72,8 @@ def _event(offer):
             activity_id=offer.id_,
             activity_type="Offer",
             actor_id=actor_id,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 id_=offer.id_,
                 type_="Offer",
                 actor=actor_id,
@@ -757,8 +759,8 @@ class TestConcurrentExecution:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(
-            id_=report_id, name=name, content=content
+        report = make(
+            as_VulnerabilityReport, id_=report_id, name=name, content=content
         )
         datalayer.create(report)
         offer = rm_submit_report_activity(
