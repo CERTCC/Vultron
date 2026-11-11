@@ -14,8 +14,10 @@
 
 The examples under ``docs/reference/examples/`` and the ones the docs pages
 render through ``json2md`` show each activity as its actor's outbox would
-seal it, signed by that example's own ``actor`` with a fixed ``created``
-(``signing.sign_docs_example``), so a regeneration writes the same bytes.
+seal it, signed by that example's own ``actor`` with its ``created`` taken
+from the example's ``published`` (``signing.sign_docs_example``), which the
+generator pins to ``EXAMPLE_TIMESTAMP``, so a regeneration writes the same
+bytes.
 """
 
 import json
@@ -81,10 +83,11 @@ def test_an_example_naming_no_actor_is_shown_unsigned():
             assert "proof" not in document, name
 
 
-def test_example_json_signs_as_the_actor_at_the_fixed_moment():
-    document = json.loads(_example_json(create_report()))
+def test_example_json_signs_as_the_actor_at_its_published_time():
+    document = json.loads(_example_json(_scoped_create_report()))
 
-    assert document["proof"]["created"] == format_timestamp(EXAMPLE_TIMESTAMP)
+    assert document["published"] == format_timestamp(EXAMPLE_TIMESTAMP)
+    assert document["proof"]["created"] == document["published"]
     assert document["proof"]["verificationMethod"] == signing.key_id_for(
         document["actor"]
     )
@@ -123,5 +126,19 @@ def test_json2md_shows_the_signed_example():
 def test_sign_docs_example_refuses_a_document_naming_no_actor():
     with pytest.raises(VultronUnsignableJsonError):
         signing.sign_docs_example(
-            {"id": "urn:uuid:1", "type": "Note"}, created=EXAMPLE_TIMESTAMP
+            {
+                "id": "urn:uuid:1",
+                "type": "Note",
+                "published": format_timestamp(EXAMPLE_TIMESTAMP),
+            }
         )
+
+
+def test_sign_docs_example_refuses_an_activity_with_no_published_time():
+    """The docs signer reads no fixed time of its own (``authored_time``)."""
+    document = json.loads(_example_json(_scoped_create_report()))
+    del document["proof"]
+    del document["published"]
+
+    with pytest.raises(VultronUnsignableJsonError, match="published"):
+        signing.sign_docs_example(document)

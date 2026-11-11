@@ -8,6 +8,8 @@
   "id": "urn:uuid:cae6d509-a5f0-4fbd-98c1-955a2a8abaf8",
   "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:60fbaa58-b92b-4a78-8efd-e407be78307a to Coordinator LLC",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're offering the coordinator role on case VendorCo Case #20260601 to Coordinator LLC.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
@@ -48,6 +50,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4FWZAmM43msM5PGotnFSygVASKsqQXrziAw2QaQ9TGuJchwJDd3tSdkdT4kggVD5jdb23SgNs9X7TYUSzLcgr5Ko"
+    "proofValue": "z419PULstomDSjHmzH7XuUAmamiRer2BNdknjj7eVnDEEaKsEj3g7NBcCVMJ6b9n9rGt9bmZjXCSHJz4t39Sjtbgt"
   }
 }

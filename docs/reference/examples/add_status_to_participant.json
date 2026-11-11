@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:6ed3e8d5-98e1-459b-ab09-012f499788ba",
   "name": "https://vultron.example/organizations/vendorco Add RECEIVED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "https://vultron.example/cases/1/participants/vendor",
   "object": {
@@ -44,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z24NvJf8Xy4WGZvbgRepQYFCG4QLymGbMJKSjrk13gGkzTyEp3qf8jAzJzpQfbseZDA77RZXAvKbSPZsNimMsRH9Y"
+    "proofValue": "z4HY8AoMGW8F3kqwmDE8SoFwg4oqZZZPuZ9fuQJpeJzKcGNVYg1ZUW3upZGwqySwiDmxBCquCPNNGPzJGZBF1xWK6"
   }
 }

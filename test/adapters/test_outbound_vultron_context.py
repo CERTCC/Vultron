@@ -30,6 +30,7 @@ from typing import Any
 
 import pytest
 
+from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     signed_outbound_body,
@@ -219,7 +220,7 @@ def test_a_signed_outbound_body_lists_every_context_and_parses():
     body = _offer_body()
     key = signing.seeded_signing_key(body["actor"])
 
-    signed = signing.sign(body, key)
+    signed = signing.sign(body, key, created=TEST_PROOF_CREATED)
 
     assert signed["@context"] == [
         *_DEFAULT_CONTEXT,

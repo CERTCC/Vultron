@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:9e68c971-847c-4e57-8b5f-da32618c2dc6",
   "name": "https://vultron.example/organizations/deployer Add ACCEPTED D NONE pxa to https://vultron.example/cases/1/participants/deployer",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/deployer",
   "target": "https://vultron.example/cases/1/participants/deployer",
   "object": {
@@ -44,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/deployer#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5T2aq74a6gawjZePVZ84nzZJJD7ZfjTDUpXjvCLHg8GVLSEDnvSpKAosogbyANi9UX1PJetgFU3U5VsRNmMSXjkU"
+    "proofValue": "z4sZQ6EiZAD51Gna8GUox37svj93KtiUEKmTAiwy31Za3G9jXxGw7aVimQ1iczHkNpuspNCZMYY38h7W9dP5WuoH3"
   }
 }

@@ -8,6 +8,8 @@
   "id": "urn:uuid:f4740aec-67af-4680-b41a-2427e33edef3",
   "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/users/finndervul Offer FDR-8675309",
   "inReplyTo": "urn:uuid:0ff0a347-3e73-4af8-b221-af087d20f7b7",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We've validated the report. We'll be creating a case shortly.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -41,6 +43,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3hHhQwtoffujHi368WSUKPhGEHTmwn28RMVNHNiBkxmUjhhiu6BUQ5uYZS8cCGBScFh3ge9XfytUpS5HBiazrFuo"
+    "proofValue": "z65SsQSVRHLVY6XjhAUGfzKVxEtyfXenRCWPcmdDczm7iYowpjdwbw5mE3mAoRMdSJR59X6c184Cz8GrCn4Fm6zLk"
   }
 }

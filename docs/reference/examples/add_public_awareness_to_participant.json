@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:90b2e06e-7eb0-4c05-bdf0-00ac48ea5a73",
   "name": "https://vultron.example/organizations/finder Add ACCEPTED NONE Pxa to https://vultron.example/cases/1/participants/finder",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/finder",
   "target": "https://vultron.example/cases/1/participants/finder",
   "object": {
@@ -43,6 +45,6 @@
     "verificationMethod": "https://vultron.example/organizations/finder#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5XFJzrLRLXpTGDruUTdWivKCQKHpqawUqmH9BfZPomKRG1L1EKaEWpwDEvyYFa2eJnQfiJbjqeUSiU8fmtvw8Uki"
+    "proofValue": "z34Wfy6sy6otstgvqtXbgwf6P5gYSzW3xucrdomet1hCBBriPJPnH7u84m6J2paNcqFNU9AvadG1RJ6uckCqysDu7"
   }
 }

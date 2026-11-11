@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:6d39485c-15bf-477d-b817-c526c51506c9",
   "name": "https://vultron.example/organizations/vendor Add ACCEPTED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendor",
   "target": "https://vultron.example/cases/1/participants/vendor",
   "object": {
@@ -44,6 +46,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z98z3CHmq8yfbn9jPhMNLWbfbN7Ue3EPKUX9Nc9HyyiSVBELC2Au3UFAaPpXtdvPo2DuTJoRV5y72oj7DB4xTdvT"
+    "proofValue": "z4EHwMPdzQPPgfK3L7TPAsvetx9RauvHaxf5wxYcB7ZsxiPULvmCTZ42m2MgT4uWrs5mB7MpN9RUqJVjcALFnkF7n"
   }
 }

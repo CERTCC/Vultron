@@ -177,11 +177,14 @@ def signed_outbound_body(activity: BaseModel, owner_id: str) -> str:
     activity's ``actor`` (SIG-01-001, SIG-01-002, SIG-05-004).  The proof
     covers the whole body, nested objects included (SIG-01-003), and the
     ``@context`` gains the data-integrity context, so a single context
-    becomes a list.
+    becomes a list.  The proof's ``created`` is the activity's
+    ``published``, the instant of the act that wrote it, never a clock read
+    (ADR-0176).
 
     Raises:
         VultronUnsignableJsonError: the activity names no ``actor``, so it
-            has no author to sign it, or holds a value that cannot be
+            has no author to sign it, has no ``published`` RFC 3339 date-time
+            to create its proof at, or holds a value that cannot be
             canonicalized.
         VultronForeignAuthorError: the activity's ``actor`` is not
             *owner_id*.

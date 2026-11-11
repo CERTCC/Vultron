@@ -9,6 +9,8 @@
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
     "type": "Invite",
@@ -42,6 +44,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "zNDRFZaATcszgBPWDdMHCRhnfDxRkE747GdzAifdptBrjsQaD51CfCqUGYHBkrtHnGK1WafDPA6XDnnudBYAVVQS"
+    "proofValue": "z2piNrrwxTahrEepm7Mk6hqqJb52PFwaxEsrF4Z47RT33WpX4EE5cbCxuabEFLxR5GZx5Q8AJzKjkS8CirZqi4CzD"
   }
 }

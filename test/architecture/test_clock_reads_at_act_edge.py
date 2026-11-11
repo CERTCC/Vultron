@@ -258,11 +258,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
         "from_now",
         "now_utc",
     ),
-    (
-        "vultron/wire/as2/signing.py",
-        "sign",
-        "now_utc",
-    ),
 )
 
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {

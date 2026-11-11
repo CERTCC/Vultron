@@ -7,6 +7,8 @@
   "type": "Leave",
   "id": "urn:uuid:a1aa73db-a618-4394-98b9-95f7ea83de39",
   "name": "https://vultron.example/organizations/vendorco Leave urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're closing this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -24,6 +26,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4jgU2AJ2Wa2JzPwTg8mdArj8y8qehHmEvCLs7nbiTyHkF89FGD3tFxNYN55JuaW8VwLKE2vKDXmCcWK1BsJVipcz"
+    "proofValue": "z2DHdA474HWxamKz7pxHj7UiivUqmVWMBCfXqsy3Hc4dKH8MWBaLU4USNZJ6B4eDPhNuy2kkXbgSDhMQnGPEoicCq"
   }
 }

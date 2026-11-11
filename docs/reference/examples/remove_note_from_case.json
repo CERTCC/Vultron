@@ -7,6 +7,8 @@
   "type": "Remove",
   "id": "urn:uuid:bea43757-e41d-4bf2-8761-dc2446ecb6bb",
   "name": "https://vultron.example/users/finndervul Remove Note to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
@@ -29,6 +31,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4ApZeMzwiHSbwVox47H4A1JqZHH8GCKzPR65VFew4PaZmp8dJb84zMX2q87Z2R37WyHgcdoLHoGNg5eNEUGvVa1G"
+    "proofValue": "z3xnVHBNQuUZrpFeao3L4pTko2KuYsErDWAfugozoRpJKBGMqYi3RhVUqqx2EkxxSeaHtrv6vXrGDgeqqWenbdiot"
   }
 }

@@ -8,6 +8,8 @@
   "id": "urn:uuid:dbe1756a-4767-4c6d-ba1d-547acf91faa4",
   "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "summary": "Vendor is removing the coordinator from the case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -52,6 +54,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z41PyrLXpghjBJNtxjibmJf2AL7qUZU8w349SpAW2oYgd3N6ouV2GsyzTbPzLRbndGzG3kukmXMGibeYTMmzsSwNC"
+    "proofValue": "z27Hhqhv3pVjNsm8yNLRvrdqHU4AyprPUM34XMdZPe2jXxdTkSVPMu7sKxj95PrvJvTVtmp6XZeuN1qMy32MZmuTw"
   }
 }

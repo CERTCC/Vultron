@@ -7,6 +7,8 @@
   "type": "Create",
   "id": "urn:uuid:b7ea11b6-fc44-49eb-b4a5-871add599847",
   "name": "VendorCo Create urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
@@ -60,6 +62,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2upaCsdFTwXRKxUmYpzbxJYG2p74wzbMhQWHk3ZhDirS7imux6sMfmtoCyrsbADxSGXW4yUncL8ewjamuXE4kMSB"
+    "proofValue": "z3gD5cZufbL118Z8AwGwqUa1QHQ6AnVBCoRLkS7o6LnPSrC5WeHy4KW8dAWqUKzbk8aSfDWnJ7WSHRgC1HsRvosqc"
   }
 }

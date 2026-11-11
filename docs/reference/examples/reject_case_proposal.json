@@ -7,6 +7,8 @@
   "type": "Reject",
   "id": "urn:uuid:78fbaa3b-85ca-4322-a607-90941aca4e8d",
   "name": "https://example.org/case-actors/alpha Reject urn:uuid:653760f5-776e-4047-a522-1174526ad048",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/organizations/vendorco"
   ],
@@ -43,6 +45,6 @@
     "verificationMethod": "https://example.org/case-actors/alpha#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2VyzQUuDRNdv9NVs5aScw9qcJgX48xbmAARYR8VA4462DT34YeWqBqeusYyFTqQZiArfApfu85u9ntJvf1PKcLEE"
+    "proofValue": "z2G11uHMqt2phwv1f9pB7g3B14E4VW7ARjrpoYm3iKpeLtD76Sj39FC6sCc1dBePTo4LksRCjhMUYqS6PxdRPijSm"
   }
 }
