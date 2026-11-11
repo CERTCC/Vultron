@@ -545,8 +545,9 @@ def test_withdraw_from_embargo_is_a_leave_of_the_embargo(sample_embargo):
 def test_withdraw_from_embargo_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         withdraw_from_embargo_activity(
-            embargo="not-an-embargo", at=authored_at()
-        )  # type: ignore[arg-type]
+            embargo="not-an-embargo",  # type: ignore[arg-type]
+            at=authored_at(),
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -585,8 +586,8 @@ def test_announce_embargo_context_is_set(sample_embargo):
 def test_announce_embargo_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         announce_embargo_activity(
-            embargo="not-an-embargo",
-            at=authored_at(),  # type: ignore[arg-type]
+            embargo="not-an-embargo",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 

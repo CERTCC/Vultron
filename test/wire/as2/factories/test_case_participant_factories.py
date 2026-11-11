@@ -110,8 +110,8 @@ def test_create_participant_explicit_name_preserved(sample_participant):
 def test_create_participant_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         create_participant_activity(
-            participant="not-a-participant",
-            at=authored_at(),  # type: ignore[arg-type]
+            participant="not-a-participant",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -150,8 +150,8 @@ def test_add_status_to_participant_target_is_set(sample_participant_status):
 def test_add_status_to_participant_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_participant_activity(
-            status="not-a-status",
-            at=authored_at(),  # type: ignore[arg-type]
+            status="not-a-status",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -190,8 +190,8 @@ def test_add_participant_to_case_target_is_set(sample_participant):
 def test_add_participant_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_participant_to_case_activity(
-            participant="not-a-participant",
-            at=authored_at(),  # type: ignore[arg-type]
+            participant="not-a-participant",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -232,8 +232,8 @@ def test_remove_participant_from_case_target_is_set(sample_participant):
 def test_remove_participant_from_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         remove_participant_from_case_activity(
-            participant="not-a-participant",
-            at=authored_at(),  # type: ignore[arg-type]
+            participant="not-a-participant",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
