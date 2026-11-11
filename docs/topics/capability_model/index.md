@@ -386,6 +386,7 @@ print(render_capability_table("report_management.close_report"))
 These capabilities find and notify the other parties a report should reach.
 They come from the simulator's report-to-others BT.
 To find who else belongs in a case, use a Sentinel that calls `suggest-actor-to-case` or `invite-actor-to-case` ([ADR-0047](../../adr/0047-report-to-others-sentinel-over-inline-bt.md)).
+The Sentinel asks a [participant suggester](#participant-and-actor-discovery) who is missing.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.docs.capability_catalog import render_capability_table
@@ -503,7 +504,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 | Embargo end date passes | Calls `terminate-embargo` with the reason `END_TIME_REACHED` |
 | Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/cs_model.md#the-attacks-observed-substate-a-a)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
 | Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/cs_model.md#the-fix-deployed-substate-d-d)) |
-| New party identified by a discovery service | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
+| New party named by a [participant suggester](#participant-and-actor-discovery) | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
 
 ---
 

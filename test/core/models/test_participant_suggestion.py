@@ -145,6 +145,12 @@ class _NotAList(ModelProfile):
     case_participants: ParticipantProfile | None = None
 
 
+class _WrongContainer(ModelProfile):
+    profile_of = VulnerabilityCase
+
+    case_participants: tuple[ParticipantProfile, ...] = ()
+
+
 class _BadLeaf(ModelProfile):
     profile_of = CaseParticipant
 
@@ -172,6 +178,7 @@ class _NoModel(ModelProfile):
         (_Widened, "_Widened.content"),
         (_WrongNested, "_WrongNested.vulnerability_reports"),
         (_NotAList, "_NotAList.case_participants"),
+        (_WrongContainer, "_WrongContainer.case_participants"),
         (_BadAtDepth, "_BadLeaf.case_roles"),
         (_NoModel, "names no model it profiles"),
     ],

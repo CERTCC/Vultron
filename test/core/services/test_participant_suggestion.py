@@ -141,6 +141,25 @@ def test_the_port_is_asked_about_the_projected_context_only(
     assert all(isinstance(p, str) for p in case.case_participants)
 
 
+def test_a_case_already_carrying_its_objects_reads_nothing_more() -> None:
+    """Objects the case holds inline are projected as they are."""
+    participant = make(
+        CaseParticipant,
+        attributed_to=_VENDOR,
+        context=_CASE,
+        case_roles=[CVDRole.VENDOR],
+    )
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE,
+        attributed_to=_OWNER,
+        case_participants=[participant],
+    )
+    empty = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
+    context = suggestion_context(case, empty)
+    assert [p.attributed_to for p in context.vendors] == [_VENDOR]
+
+
 @pytest.mark.spec("BT-24-004")
 def test_an_empty_answer_is_valid(dl: SqliteDataLayer) -> None:
     assert (

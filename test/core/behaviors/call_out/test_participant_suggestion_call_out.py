@@ -28,6 +28,7 @@ from datetime import timedelta
 import py_trees
 import pytest
 from py_trees.common import Access, Status
+from py_trees.ports import NoDataAvailable
 
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -209,6 +210,21 @@ def test_a_failure_to_find_out_is_an_error_not_a_no(
     with pytest.raises(CallOutBackendError, match=diagnostic):
         node.tick_once()
     assert _written() is None
+
+
+def test_no_case_id_on_the_blackboard_is_a_wiring_error(
+    dl: SqliteDataLayer,
+) -> None:
+    """A tree that places the Retriever without its input fails whole."""
+    port = _Port()
+    node = _node(
+        ParticipantSuggestionCallOutBundle(
+            suggest_participants_factory=suggest_participants_with(port, dl)
+        )
+    )
+    with pytest.raises(NoDataAvailable, match=SUGGESTION_CASE_ID_KEY):
+        node.tick_once()
+    assert port.asked == []
 
 
 @pytest.mark.spec("BT-23-013")
