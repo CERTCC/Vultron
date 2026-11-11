@@ -283,7 +283,13 @@ def vulnerability_item_from_claims(
         ],
         title=vul.title,
         notes=[
-            VulnerabilityItemNote(**note.model_dump()) for note in vul.notes
+            VulnerabilityItemNote(
+                category=note.category,
+                text=note.text,
+                title=note.title,
+                audience=note.audience,
+            )
+            for note in vul.notes
         ],
         references=[
             case_reference_from_claim(r, published=published)
