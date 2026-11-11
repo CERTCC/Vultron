@@ -35,6 +35,7 @@ tracks:
   - "#6259"   # concern: rebuilt replies
   - "#6260"   # concern: Create(CaseParticipant) target
   - "#6261"   # concern: stale Offer(EmbargoEvent) payload
+  - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
 description: >
   Decisions from a review of the wire protocol against the full ActivityStreams 2.0
   vocabulary: which AS2 verbs and properties say a CVD sentence more naturally than
@@ -587,11 +588,42 @@ extending the RSVP deadline is a separate Idea.
 
 ---
 
+## Create(CaseParticipant) Names Its Case in context
+
+Issue: #6260.
+
+**Decision.** The CASE_MANAGER's `Create(CaseParticipant)` ledger entry drops `target`
+and keeps `context` = the case. It stays a `Create`: the act is "this record now
+exists", and seating is not part of it. Only the CASE_MANAGER sends it, so a receiver
+needs no rule for a stray `target`.
+
+`Add(CaseParticipant, target=<case>)` was considered and rejected for now: that shape
+is already the Case Owner's reinstatement request (CM-31-011), and a pattern cannot
+tell the two apart by sender. Idea #6293 would move the Owner's requests to name the
+Actor, which frees `Add(CaseParticipant)`.
+
+**AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
+to `Add` with one.
+
+**Today.** `create_participant_activity` sets `target=case_target_ref(target)`
+(`vultron/wire/as2/factories/case_participant.py`); `_CreateParticipantActivity`
+declares `target`. Both callers already set `context`. The pattern and the replica's
+apply read no `target`: the apply takes the case from the ledger entry's `case_id`.
+
+**Touches.** The factory and wire class, `record_case_participant_created`, the
+`create_participant` example, the generated "Create case participant" message page.
+
+---
+
 ## Deferred Ideas
 
 Each is its own Idea; none is designed here. The three wire defects the review found
 are Concerns #6259, #6260 and #6261.
 
+- **Owner's requests name the Actor** (#6293). Removal and reinstatement name the
+  Actor, not the `CaseParticipant`; the CASE_MANAGER applies them to that actor's one
+  record (CM-19) and keeps it, so a reinstated participant keeps history and consent
+  (ADR-0116). Needs an ADR revising ADR-0116's choice of message.
 - **Fetchable ledger** (#5089). `GET <case>/ledger` paged by `OrderedCollectionPage` and
   `startIndex`. `Read(<case>/ledger)[ledgerPosition=N]` is then the push form of
   `GET …?startIndex=N+1`. Adds the first ledger fetch surface; needs authorization
