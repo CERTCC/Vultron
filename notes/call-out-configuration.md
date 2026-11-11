@@ -17,6 +17,7 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/prototype-shortcuts.yaml
 related_notes:
+  - notes/as2-vocabulary-alignment.md
   - notes/bt-pitfalls.md
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md

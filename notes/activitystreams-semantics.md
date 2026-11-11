@@ -67,10 +67,10 @@ The changes these rules imply for today's code are tracked in
 - **Use AS2's own term before inventing one, but never manufacture a use.** The aim
   is the most natural AS2 form of each CVD sentence, so check the Vocabulary for a
   verb or property with that meaning before adding a Vultron property or type.
-- **An extension type carries the core type it overlaps** (`"type": ["Refuse",
-  "Reject"]`), and every Vultron property has a JSON-LD term. A generic AS2 reader
-  then still understands the message, and a JSON-LD processor keeps the property
-  (AS2 Core § Extensibility).
+- **An extension type carries the core type it overlaps** (AS2 Core's example is
+  `"type": ["Resign", "Leave"]`), and every Vultron property gets a JSON-LD term. A
+  generic AS2 reader then still understands the message, and a JSON-LD processor
+  keeps the property (AS2 Core § Extensibility).
 - **A verb describes what was done.** If the sentence would be false, such as `Move`
   for a case that stays where it is, pick another verb.
 - **`origin` is where something comes from or leaves; `target` is where it goes.**

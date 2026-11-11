@@ -5,7 +5,7 @@ kind: plan
 tracks:
   - "#6238"   # epic: AS2 vocabulary alignment (wire-delivery, vocabulary-extensions)
   - "#3937"   # epic: multi-case operations (split, merge)
-  - "#2567"   # epic: complete participant lifecycle
+  - "#2567"   # epic: scope decisions for speculative protocol additions
   - "#5414"   # epic: vocabulary extensions
   - "#1092"   # epic: federated multi-org deployment
   - "#5410"   # epic: shared case history
@@ -20,10 +20,11 @@ tracks:
   - "#6254"   # Refuse(Reject)
   - "#6248"   # instrument, generator, tag
   - "#6239"   # CaseReference holds a Link (#6249 closed as its duplicate)
-  - "#6250"   # Update forms; dead CREATE_REPORT / REMOVE_NOTE paths
+  - "#6250"   # Update forms; dead REMOVE_NOTE path
   - "#6251"   # approvals as Offer of the act
   - "#6252"   # TentativeAccept and Undo withdrawal
   - "#5089"   # fetchable ledger (deferred)
+  - "#5090"   # epic: peers can fetch every object, actor and collection
   - "#6255"   # CASE_MANAGER relocation (deferred)
   - "#6256"   # Flag and case moderation (deferred)
   - "#5133"   # TLP markings (deferred)
@@ -45,9 +46,19 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/message-semantics-mapping.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/case-proposal.yaml
+  - specs/message-validation.yaml
+  - specs/vultron-as2-mapping.yaml
+  - specs/received-status-handling.yaml
+  - specs/csaf-report-content.yaml
+  - specs/vocabulary-model.yaml
+  - specs/case-bootstrap-trust.yaml
+  - specs/vultron-protocol-spec.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/activitystreams-state-update.md
+  - notes/vocabulary-registry.md
+  - notes/call-out-configuration.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/semantic_registry
@@ -132,7 +143,8 @@ ground truth. Plan it as an Idea to be grilled before any build.
 - Agreeing to Y replaces X. A participant is covered by an embargo when its agreed
   end date is on or after the embargo's end time. So agreeing to a later Y covers an
   earlier X; agreeing to an earlier Y does not cover a later X. This is the
-  shortest-wins vector agreement of EP-04-003 applied to consent.
+  shortest-wins rule of the EM formal model (§ "Why the shortest proposal wins")
+  applied to consent.
 - At a split, the child's new participant record copies the agreed end date from
   the parent's record. The child's embargo starts with the parent's end time, so the
   carried participant is covered without answering. After the split the two
@@ -258,7 +270,11 @@ rationale calls `attributedTo` "the AS2-standard field for recording who delegat
 an action"; AS2 says only "entities to which this object is attributed".
 
 **Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
-helper `vultron/core/behaviors/delegated_authorship.py`.
+helper `vultron/core/behaviors/delegated_authorship.py`. Moving `Remove(Note)` and
+`Remove(CaseParticipant)` to `origin` needs an `origin_` field on `ActivityPattern`,
+so the rule "no `origin_` field" in `vultron/wire/as2/AGENTS.md` and the root
+`AGENTS.md` pattern-matching row change with it; `notes/case-joining.md` shows
+today's `Remove(CaseParticipant)[target=…]`.
 
 ---
 
@@ -330,7 +346,7 @@ Issue: #6247.
 
 1. The case ledger gets wire identity: `<case>/ledger`, an `OrderedCollection` whose
    items are the entries in order, position = `logIndex`. Identity only — no fetch
-   surface (IE-02-003 stands).
+   surface; no ledger fetch surface exists today (#5089).
 2. The CASE_MANAGER publishes a commit as `Add(CaseLedgerEntry,
    target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)`. A replica receiving
    it appends to its copy.
@@ -369,7 +385,12 @@ only through the nested status's `context`. Delivery receipts are an open questi
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
 or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0137,
 `ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
-`ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`.
+`ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
+notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
+it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
+rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" bears
+on the open question below), `notes/case-actor-cluster.md`,
+`notes/ownership-transfer.md`.
 
 **Open for planning.** `result` on the ledger `Add` can list follow-on entries only if
 their ids are derived ahead of time (as stub and ownership-offer ids already are), or
@@ -568,9 +589,10 @@ are Concerns #6259, #6260 and #6261.
 
 - **Fetchable ledger** (#5089). `GET <case>/ledger` paged by `OrderedCollectionPage` and
   `startIndex`. `Read(<case>/ledger)[ledgerPosition=N]` is then the push form of
-  `GET …?startIndex=N+1`. Reverses IE-02-003; needs authorization design.
-- **CASE_MANAGER relocation** (#6255). If a case's ledger ever moves to another host, the
-  sentence is `Move(Case, origin=<old manager>, target=<new manager>)`. Touches
+  `GET …?startIndex=N+1`. Adds the first ledger fetch surface; needs authorization
+  design.
+- **CASE_MANAGER relocation** (#6255). If a case's ledger ever moves to another host,
+  the sentence is `Move(Case, origin=<old manager>, target=<new manager>)`. Touches
   ledger continuity, hash chains, and every replica's recipient.
 - **Flag and case moderation** (#6256). `Flag(object)` for conduct or content concerns
   ("V9 broke the embargo", "this note leaks exploit detail", abuse). Out of scope for
