@@ -14,7 +14,7 @@
 """Tests for the core CaseReference domain model (step 6 of issue #699)."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from test.support.objects import make
 from vultron.core.models.base import CoreObject
@@ -94,7 +94,10 @@ class TestUrlIsALink:
 
     @pytest.mark.spec("CM-05-004")
     def test_link_has_no_id(self):
-        assert "id_" not in CaseReferenceLink.model_fields
+        with pytest.raises(ValidationError):
+            CaseReferenceLink.model_validate(
+                {"href": _HREF, "id": "urn:test:link:1"}
+            )
 
     def test_link_serializes_in_wire_spelling(self):
         dumped = _ref(media_type="text/html", rel=[_PATCH]).model_dump(
@@ -118,6 +121,40 @@ class TestUrlIsALink:
             ref.model_dump_json(by_alias=True)
         )
         assert again == ref
+
+
+class _ParsedModel(BaseModel):
+    """Stands in for a model the parse edge built (the wire ``as_Link``)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    type_: str = Field(validation_alias="type", serialization_alias="type")
+    href: str
+    media_type: str | None = Field(default=None, alias="mediaType")
+    width: int | None = None
+
+
+class TestReadingAParsedModel:
+    """A Link the parser already built is read through its given fields."""
+
+    def test_given_fields_are_read(self):
+        parsed = _ParsedModel(type="Link", href=_HREF, mediaType="text/html")
+        link = CaseReferenceLink.model_validate(parsed)
+        assert link.href == _HREF
+        assert link.media_type == "text/html"
+
+    def test_a_refusal_names_the_wire_field(self):
+        parsed = _ParsedModel(type="Note", href=_HREF)
+        with pytest.raises(ValidationError) as exc_info:
+            CaseReferenceLink.model_validate(parsed)
+        assert [error["loc"] for error in exc_info.value.errors()] == [
+            ("type",)
+        ]
+
+    def test_a_field_the_link_does_not_hold_is_refused(self):
+        parsed = _ParsedModel(type="Link", href=_HREF, width=3)
+        with pytest.raises(ValidationError, match=r"given \['width'\]"):
+            CaseReferenceLink.model_validate(parsed)
 
 
 class TestRelVocabulary:
@@ -188,9 +225,6 @@ class TestRelVocabulary:
 
 class TestTagsFieldIsGone:
     """The Vultron ``tags`` field is removed with no alias (ADR-0175)."""
-
-    def test_no_tags_field(self):
-        assert "tags" not in CaseReference.model_fields
 
     def test_tags_key_refused(self):
         with pytest.raises(ValidationError):

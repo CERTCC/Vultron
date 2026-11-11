@@ -20,7 +20,10 @@ import pytest
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_reference import CaseReference
+from vultron.core.models.case_reference import (
+    CVE_REFERENCE_TAG_RELS,
+    CaseReference,
+)
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 
 OWNER = "https://test.example/actors/owner"
@@ -47,7 +50,14 @@ def test_both_lists_are_empty_by_default():
 def test_the_lists_survive_save_and_read(dl):
     item = make(VulnerabilityItem, cve="CVE-2024-0001")
     ref = make(
-        CaseReference, url={"href": "https://example.org/a"}, name="Advisory"
+        CaseReference,
+        url={
+            "href": "https://example.org/a",
+            "name": "Vendor bulletin",
+            "media_type": "text/html",
+            "rel": [CVE_REFERENCE_TAG_RELS["vendor-advisory"], "related"],
+        },
+        name="Advisory",
     )
     dl.save(item)
     dl.save(ref)

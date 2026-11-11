@@ -23,7 +23,6 @@ CVE JSON schema reference tags written as RFC 8288 link relation types
 (``notes/as2-vocabulary-alignment.md`` § "CaseReference Holds a Link").
 """
 
-import logging
 from types import MappingProxyType
 from typing import Literal
 
@@ -41,8 +40,6 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
-
-logger = logging.getLogger(__name__)
 
 #: Where Vultron's extension link relation types live.  RFC 8288 § 2.1.2
 #: writes a relation type that IANA has not registered as a URI.
@@ -159,24 +156,29 @@ class CaseReferenceLink(ValidatedAssignmentMixin, BaseModel):
         The parser turns every inline ``{"type": "Link"}`` into the wire Link
         class before the parent object validates (ISSUE-3217), so a received
         reference's ``url`` arrives here as that model, not as a dict.  Only
-        the fields the sender gave are read.  A Link property this class does
-        not hold (``hreflang``, ``width``, …) passed the parse edge's
-        unknown-key walk, which decides keys against the wire Link; it is set
-        aside and reported here, as that walk does for any other unknown key
-        (MV-11-003), rather than refusing the whole activity.
+        the fields the sender gave are read, under their wire names.  The
+        parse edge's unknown-key walk has already set aside, and reported,
+        every key this class does not hold (MV-11-003), so a model that still
+        carries one was built in-process: that is a bug, refused as
+        ``extra="forbid"`` refuses the same key in a dict.
         """
         if not isinstance(data, BaseModel) or isinstance(data, cls):
             return data
         given = data.model_fields_set - _IGNORED_PARSED_LINK_FIELDS
         unheld = given - set(cls.model_fields)
         if unheld:
-            logger.info(
-                "Set aside Link properties %s a case reference's url does not"
-                " hold (it holds %s) (MV-11-003)",
-                _wire_names(type(data), unheld),
-                _wire_names(cls, set(cls.model_fields)),
+            raise ValueError(
+                "A case reference's Link holds only "
+                f"{_wire_names(cls, set(cls.model_fields))}; it was given "
+                f"{_wire_names(type(data), unheld)}"
             )
-        return {name: getattr(data, name) for name in given - unheld}
+        fields = type(data).model_fields
+        return {
+            fields[name].serialization_alias or fields[name].alias or name: (
+                getattr(data, name)
+            )
+            for name in given
+        }
 
     @field_validator("rel", mode="before")
     @classmethod

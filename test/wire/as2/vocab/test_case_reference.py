@@ -130,28 +130,69 @@ def test_a_malformed_link_refuses_the_activity(url: object, fault: str):
         parse_activity(_create(_reference(url)))
 
 
-def test_a_link_property_a_reference_does_not_hold_is_set_aside(
-    caplog: pytest.LogCaptureFixture,
+def _set_aside_records(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.INFO
+        and "Set aside unknown key" in record.getMessage()
+    ]
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        pytest.param("hreflang", "en", id="an-as2-link-property"),
+        pytest.param("id", "urn:test:link:1", id="an-id-a-link-does-not-hold"),
+    ],
+)
+def test_a_link_key_a_reference_does_not_hold_is_set_aside_and_reported(
+    caplog: pytest.LogCaptureFixture, key: str, value: str
 ):
-    """An AS2 Link property beyond href/name/mediaType/rel (MV-11-003)."""
-    link = {"type": "Link", "href": _HREF, "hreflang": "en", "rel": [_PATCH]}
+    """The walk decides a typed Link's keys against ``CaseReferenceLink``,
+    the slot's own class, so it reports them with the activity's ids and
+    the key's location (MV-11-003, SL-02-001)."""
+    link = {"type": "Link", "href": _HREF, key: value, "rel": [_PATCH]}
     with caplog.at_level(logging.INFO):
         reference = _parsed(_create(_reference(link)))
     assert reference.url.href == _HREF
     assert reference.url.rel == [_PATCH]
-    assert "hreflang" not in reference.url.model_dump(by_alias=True)
-    assert any(
-        "hreflang" in record.getMessage() and record.levelno == logging.INFO
-        for record in caplog.records
-    )
+    [record] = _set_aside_records(caplog)
+    assert repr(key) in record
+    assert "'object.url'" in record
+    assert "urn:test:create:1" in record
 
 
-def test_a_tags_key_is_not_read():
-    """``tags`` is gone with no alias: an arriving one fills nothing (ADR-0175)."""
+def test_a_link_with_its_own_context_parses_with_nothing_set_aside(
+    caplog: pytest.LogCaptureFixture,
+):
+    link = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "Link",
+        "href": _HREF,
+    }
+    with caplog.at_level(logging.INFO):
+        reference = _parsed(_create(_reference(link)))
+    assert reference.url.href == _HREF
+    assert _set_aside_records(caplog) == []
+
+
+def test_a_url_holding_another_object_type_is_refused():
+    with pytest.raises(VultronParseValidationError, match="url"):
+        parse_activity(
+            _create(_reference({"type": "Note", "content": "not a link"}))
+        )
+
+
+def test_a_tags_key_is_not_read(caplog: pytest.LogCaptureFixture):
+    """``tags`` is gone with no alias: an arriving one is set aside and
+    reported, and fills nothing (ADR-0175, MV-11-003)."""
     body = _create(_reference({"type": "Link", "href": _HREF}, tags=["patch"]))
-    reference = _parsed(body)
-    assert "tags" not in CaseReference.model_fields
+    with caplog.at_level(logging.INFO):
+        reference = _parsed(body)
     assert reference.url.rel == []
+    [record] = _set_aside_records(caplog)
+    assert "'tags'" in record
 
 
 def test_wire_link_rel_is_not_functional():
