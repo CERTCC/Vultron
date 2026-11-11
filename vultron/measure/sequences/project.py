@@ -104,11 +104,9 @@ def _project_one(
             event.participant == participant or event.scope is EventScope.CASE
         )
     ]
+    members = _take_forced_ways_out(events, participant)
     try:
-        return CaseStateSequence(
-            participant=participant,
-            events=_take_forced_ways_out(events, participant),
-        )
+        return CaseStateSequence(participant=participant, events=members)
     except ValidationError as exc:
         return UnprojectableParticipant(
             participant=participant,

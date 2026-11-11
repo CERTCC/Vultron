@@ -291,6 +291,22 @@ def test_moved_and_implied_members_are_held_together():
             [(CSEvent.V, 0, _IMPLIED)],
             "V implied is not forced by vfdpxa",
         ),
+        (
+            [
+                (CSEvent.X, 1, _R),
+                (CSEvent.P, 1, _IMPLIED),
+                (CSEvent.V, 1, _IMPLIED),
+            ],
+            "no vendor-awareness event the ledger records",
+        ),
+        (
+            [
+                (CSEvent.X, 1, _R),
+                (CSEvent.P, 3, _MOVED),
+                (CSEvent.V, 3, _IMPLIED),
+            ],
+            "P moved must come before an event recorded no later than itself",
+        ),
     ],
     ids=[
         "moved-not-forced",
@@ -299,6 +315,8 @@ def test_moved_and_implied_members_are_held_together():
         "moved-last",
         "implied-own-clock",
         "implied-not-forced",
+        "implied-only-v",
+        "moved-before-only-implied",
     ],
 )
 def test_a_misplaced_event_is_refused(members, problem):

@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 import vultron.measure.sequences as sequences_package
 from test.measure.history.builders import (
@@ -438,6 +439,18 @@ def test_a_compound_that_does_not_replay_is_refused_with_its_reason():
     assert refused.detail.startswith(
         "VDF is not a valid case-state history prefix"
     )
+
+
+def test_a_projection_bug_raises_rather_than_reads_as_a_refusal(monkeypatch):
+    """Only the sequence model's refusal is reported unprojectable: a
+    ``ValidationError`` from building the members is a bug, so it raises."""
+
+    def broken(events, participant):
+        CaseEvent.model_validate({})
+
+    monkeypatch.setattr(sequences_project, "_take_forced_ways_out", broken)
+    with pytest.raises(ValidationError):
+        _projected(_deployed_before_ready_ledger())
 
 
 def _attacks_before_public_awareness_ledger() -> Ledger:

@@ -101,6 +101,17 @@ class SequenceEvent(BaseModel):
         return self.placement is not Placement.RECORDED
 
 
+def _is_recorded_v(member: SequenceEvent) -> bool:
+    """Whether *member* is a vendor-awareness event the ledger records.
+
+    An implied ``V`` is forced by the model, never recorded, so it does not
+    key a sequence (CEH-05-001).
+    """
+    return (
+        member.kind is CSEvent.V and member.placement is not Placement.IMPLIED
+    )
+
+
 class CaseStateSequence(BaseModel):
     """One vendor's case-state events, in replay order (CEH-05-001).
 
@@ -124,8 +135,12 @@ class CaseStateSequence(BaseModel):
 
     @property
     def awareness_index(self) -> int:
-        """The recorded log index of the vendor's vendor-awareness event."""
-        return next(m.log_index for m in self.events if m.kind is CSEvent.V)
+        """The recorded log index of the vendor's vendor-awareness event.
+
+        Only a recorded (or moved) ``V`` counts: an implied one borrows the
+        log index of the event before it.
+        """
+        return next(m.log_index for m in self.events if _is_recorded_v(m))
 
     @property
     def placed(self) -> tuple[SequenceEvent, ...]:
@@ -155,8 +170,11 @@ class CaseStateSequence(BaseModel):
                 )
         problems.extend(self._order_problems())
         kinds = [member.kind for member in self.events]
-        if CSEvent.V not in kinds:
-            problems.append("the events include no vendor-awareness event")
+        if not any(_is_recorded_v(member) for member in self.events):
+            problems.append(
+                "the events include no vendor-awareness event the ledger"
+                " records"
+            )
         if all(isinstance(kind, CSEvent) for kind in kinds):
             try:
                 replay_cs_history(kinds)
@@ -202,7 +220,8 @@ class CaseStateSequence(BaseModel):
         if member.kind not in required_next_cs_events(state):
             problems.append(f"{label} is not forced by {state.name}")
         if member.placement is Placement.MOVED and not any(
-            later.log_index <= member.log_index
+            later.placement is not Placement.IMPLIED
+            and later.log_index <= member.log_index
             for later in self.events[i + 1 :]
         ):
             problems.append(
