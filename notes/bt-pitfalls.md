@@ -378,9 +378,10 @@ DEBUG too".
 
 `get_input()` also raises `TypeError` when the value is not the port's declared
 `data_type`, and `_try_get_input()` does not catch it: the whole tree fails via
-`BTBridge`. That is deliberate — a violated blackboard type contract is a wiring
-error, so it fails closed. See `vultron/core/behaviors/AGENTS.md` § "Port
-`data_type` Is Enforced".
+`BTBridge` (BTND-03-021). A wiring error has no correct partial outcome, so do
+not turn the `TypeError` into `None` — that reads junk as "not supplied" — nor
+into a node-local `FAILURE`, which hands a Selector its fallback arm. See
+`vultron/core/behaviors/AGENTS.md` § "Port `data_type` Is Enforced".
 
 ---
 

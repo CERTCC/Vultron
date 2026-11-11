@@ -182,11 +182,11 @@ bug: the node narrows with `cast(Foo, ...)`, so a wrong-typed value surfaces as 
 `AttributeError` inside `update()` instead of at the port.
 
 Two consequences before tightening one: a violation fails the **whole tree**, not
-the one node (`_try_get_input()` does not catch `TypeError`), and a contract test
-MUST discover its roster reflectively via `test/core/behaviors/port_contract.py`
+the one node (BTND-03-021: `_try_get_input()` never catches `TypeError`), and a
+contract test MUST find its roster reflectively (`test/core/behaviors/port_contract.py`)
 — a hard-coded list cannot police a shared key. Details in `notes/bt-pitfalls.md`
-§ "`NoDataAvailable` Surfaces in `initialise()`"; worked examples in the two
-`test_typed_ports.py` files; ADR-0044 § Consequences; BTND-03-009.
+§ "`NoDataAvailable` Surfaces in `initialise()`"; examples in `test_typed_ports.py`
+and `test_optional_port_read.py`; ADR-0044 § Consequences; BTND-03-009.
 *Source: ISSUE-2907, ISSUE-3011*
 
 ---

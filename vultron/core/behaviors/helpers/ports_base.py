@@ -97,7 +97,28 @@ class _ActInstantPort:
         return at
 
 
-class DataLayerConditionWithPorts(_ActInstantPort, BehaviourWithPorts):
+class _OptionalPortRead:
+    """The optional-port read both ports bases share (BTND-03-021)."""
+
+    def _try_get_input(self, key: str) -> object | None:
+        """Return the value on port ``key``, or ``None`` when it is absent.
+
+        Only absence becomes ``None``: an unset key (``NoDataAvailable``) or an
+        undeclared port (``NotImplementedError``).  A value of the wrong
+        ``data_type`` raises ``TypeError`` out of the tick, and ``BTBridge``
+        fails the whole tree run.  Catching it here would let the junk read as
+        "not supplied" (BTND-03-021, ARCH-15).
+        """
+        node = cast(BehaviourWithPorts, self)
+        try:
+            return cast(object, node.get_input(key))
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
+
+class DataLayerConditionWithPorts(
+    _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
+):
     """Base class for typed-Ports BT condition nodes with DataLayer access.
 
     Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
@@ -141,12 +162,6 @@ class DataLayerConditionWithPorts(_ActInstantPort, BehaviourWithPorts):
     def _instance_port_remappings(self) -> dict[str, str]:
         """Override for instance-state-dependent port paths (dynamic keys)."""
         return {}
-
-    def _try_get_input(self, key: str) -> object | None:
-        try:
-            return cast(object, self.get_input(key))
-        except (NoDataAvailable, NotImplementedError):
-            return None
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -200,7 +215,9 @@ class DataLayerConditionWithPorts(_ActInstantPort, BehaviourWithPorts):
         )
 
 
-class DataLayerActionWithPorts(_ActInstantPort, BehaviourWithPorts):
+class DataLayerActionWithPorts(
+    _OptionalPortRead, _ActInstantPort, BehaviourWithPorts
+):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
     Declares ``datalayer``, ``actor_id``, and optionally
@@ -247,12 +264,6 @@ class DataLayerActionWithPorts(_ActInstantPort, BehaviourWithPorts):
     def _instance_port_remappings(self) -> dict[str, str]:
         """Override for instance-state-dependent port paths (dynamic keys)."""
         return {}
-
-    def _try_get_input(self, key: str) -> object | None:
-        try:
-            return cast(object, self.get_input(key))
-        except (NoDataAvailable, NotImplementedError):
-            return None
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
