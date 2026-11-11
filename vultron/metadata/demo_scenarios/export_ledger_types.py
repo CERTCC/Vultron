@@ -218,6 +218,8 @@ class _Projector:
             return {"kind": "literal", "value": args[0]}
         if origin is dict and _is_json_object(args):
             return {"kind": "object"}
+        if origin is dict and len(args) == 2:
+            return self._map_shape(annotation, args, enum_name, probe)
         if origin in (list, Sequence) and len(args) == 1:
             item_probe: Probe = lambda value: probe([value])[0]  # noqa: E731
             return {
@@ -236,6 +238,32 @@ class _Projector:
                 )
             return shape
         return self._class_shape(annotation, enum_name, probe)
+
+    def _map_shape(
+        self,
+        annotation: object,
+        args: tuple[object, ...],
+        enum_name: str,
+        probe: Probe,
+    ) -> dict[str, Any]:
+        """A JSON object with typed values, such as an AS2 language map.
+
+        Its keys are strings, as every JSON object's are; a key annotation
+        that is not a string fails the export, since the shape could not say
+        what the model refuses.
+        """
+        keys = _scalar_shape(args[0])
+        if keys is None or keys["kind"] != "string":
+            raise TypeError(
+                f"No ledger shape for mapping {annotation!r} (enum name "
+                f"{enum_name!r}): its keys are not strings."
+            )
+        value_probe: Probe = lambda value: probe({"k": value})["k"]  # noqa: E731
+        return {
+            "kind": "map",
+            "keys": keys,
+            "values": self.shape(args[1], enum_name, value_probe),
+        }
 
     def _class_shape(
         self, annotation: object, enum_name: str, probe: Probe
@@ -424,7 +452,10 @@ def _is_required(
 ) -> bool:
     """Whether a line must carry the field, by the model's role (LedgerType)."""
     if ledger_type.role == "written":
-        return field.is_required() or not nullable
+        # A field the dump may leave out (an empty language map) is not
+        # always written, so a line without it is well formed.
+        omittable = field.exclude_if is not None
+        return field.is_required() or not (nullable or omittable)
     if field.is_required():
         return True
     # A received object of a class that reads its sender's time is refused
@@ -495,6 +526,7 @@ export type FieldShape =
   | {{ readonly kind: 'literal'; readonly value: string }}
   | {{ readonly kind: 'enum'; readonly type: string; readonly values: readonly string[] }}
   | {{ readonly kind: 'array'; readonly items: FieldShape; readonly minItems?: number }}
+  | {{ readonly kind: 'map'; readonly keys: FieldShape; readonly values: FieldShape }}
   | {{ readonly kind: 'ref'; readonly type: LedgerTypeName }}
   | {{ readonly kind: 'union'; readonly of: readonly FieldShape[] }}
 
@@ -547,6 +579,8 @@ def _ts_type(shape: dict[str, Any]) -> str:
     if kind == "array":
         item = _ts_type(shape["items"])
         return f"Array<{item}>"
+    if kind == "map":
+        return f"Record<string, {_ts_type(shape['values'])}>"
     if kind == "union":
         return " | ".join(_ts_type(member) for member in shape["of"])
     raise ValueError(f"unknown shape kind {kind!r}")
@@ -569,6 +603,10 @@ def _ts_shape(shape: dict[str, Any], enums: dict[str, EnumType]) -> str:
             if key not in ("kind", "items")
         )
         return f"{{ kind: {_ts(kind)}, items: {items}{rest} }}"
+    if kind == "map":
+        keys = _ts_shape(shape["keys"], enums)
+        values = _ts_shape(shape["values"], enums)
+        return f"{{ kind: {_ts(kind)}, keys: {keys}, values: {values} }}"
     if kind == "union":
         members = ", ".join(_ts_shape(m, enums) for m in shape["of"])
         return f"{{ kind: {_ts(kind)}, of: [{members}] }}"

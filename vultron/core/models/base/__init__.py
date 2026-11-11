@@ -20,6 +20,7 @@ Grouped by concern (CS-18-005):
 - ``context`` — the Vultron JSON-LD ``@context`` and Vultron-property marker
 - ``record`` — the record root :class:`CoreRecord` and the assignment mixin
 - ``core_object`` — the AS2 object root :class:`CoreObject`
+- ``language_map`` — the AS2 natural-language map both roots declare
 - ``_computed`` — the computed-field contract (ARCH-23-005)
 """
 
@@ -32,6 +33,10 @@ from vultron.core.models.base.context import (
 from vultron.core.models.base.core_object import (
     CoreObject,
 )
+from vultron.core.models.base.language_map import (
+    LanguageMap,
+    language_map_field,
+)
 from vultron.core.models.base.record import (
     CoreRecord,
     ValidatedAssignmentMixin,
@@ -43,11 +48,13 @@ __all__ = [
     "CoreObject",
     "CoreRecord",
     "JsonLdContext",
+    "LanguageMap",
     "NonEmptyString",
     "VULTRON_CONTEXT_URI",
     "VULTRON_PROPERTY_EXTRA",
     "UriString",
     "VULTRON_PROPERTY_KEY",
     "ValidatedAssignmentMixin",
+    "language_map_field",
     "with_record_id",
 ]

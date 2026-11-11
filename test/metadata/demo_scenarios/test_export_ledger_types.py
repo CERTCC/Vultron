@@ -201,8 +201,14 @@ def test_the_projected_keys_are_the_keys_the_model_writes(
     name: str, fields: dict[str, dict[str, export_ledger_types.FieldDef]]
 ) -> None:
     # A full AS2 dump (no exclude_none) writes every field the model has on
-    # the wire, plus the JSON-LD context: the closed world of its keys.
-    instance = _instances()[name]
+    # the wire, plus the JSON-LD context: the closed world of its keys.  An
+    # empty language map is left out of every dump (#4471), so each holds one.
+    instance = _instances()[name].model_copy(
+        update={
+            field: {"en": "text"}
+            for field in ("content_map", "name_map", "summary_map")
+        }
+    )
     dumped = instance.model_dump(mode="json", by_alias=True)
     assert set(dumped) == set(fields[name])
     # And the model reads back every key it wrote.
@@ -326,18 +332,51 @@ class _TypedMapping(CoreObject):
     counts: dict[str, int] = {}
 
 
+class _IntKeyedMapping(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    by_index: dict[int, str] = {}
+
+
 class _NestedOptional(CoreObject):
     """No ``type_``, so it is not registered in the core vocabulary."""
 
     labels: list[str | None] = []
 
 
-def test_a_typed_mapping_fails_the_export_rather_than_typing_it_loosely() -> (
-    None
-):
-    # Only dict[str, Any] is an untyped JSON object; dict[str, int] says more.
-    with pytest.raises(TypeError, match="No ledger shape"):
-        project((LedgerType(_TypedMapping, "received"),))
+def test_a_typed_mapping_is_projected_with_its_value_shape() -> None:
+    # Only dict[str, Any] is an untyped JSON object; dict[str, int] says more,
+    # so its values keep their shape rather than being typed loosely.
+    shapes, _ = project((LedgerType(_TypedMapping, "received"),))
+    by_key = {field.key: field.shape for field in shapes["_TypedMapping"]}
+    assert by_key["counts"] == {
+        "kind": "map",
+        "keys": {"kind": "string", "nonEmpty": False},
+        "values": {"kind": "integer"},
+    }
+
+
+def test_a_mapping_whose_keys_are_not_strings_fails_the_export() -> None:
+    with pytest.raises(TypeError, match="keys are not strings"):
+        project((LedgerType(_IntKeyedMapping, "received"),))
+
+
+@pytest.mark.spec("ARCH-25-008", "CS-08-001")
+def test_the_language_maps_are_optional_non_blank_string_maps(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    """An empty map is left out of the dump (#4471), so no line needs one."""
+    non_empty = {"kind": "string", "nonEmpty": True}
+    for model in fields.values():
+        for key in ("contentMap", "nameMap", "summaryMap"):
+            field = model[key]
+            assert field.shape == {
+                "kind": "map",
+                "keys": non_empty,
+                "values": non_empty,
+            }
+            assert not field.required
+            assert not field.nullable
 
 
 def test_the_payload_snapshot_is_an_untyped_object(
