@@ -41,6 +41,7 @@ from test.support.act_runner import run_tree
 from test.support.call_out import (
     FixedAnswerActuator,
     acts,
+    refused_class,
     tick_call_out,
     yes,
     yes_with,
@@ -340,7 +341,7 @@ def test_actuator_contract_refuses_outputs():
 
 
 def test_actuator_that_overrides_answer_is_refused():
-    with pytest.raises(TypeError, match="act\\(request\\)"):
+    with refused_class("act\\(request\\)"):
 
         class _Answers(ActuatorBackend):
             def answer(self) -> CallOutAnswer:
@@ -349,14 +350,39 @@ def test_actuator_that_overrides_answer_is_refused():
 
 def test_actuator_that_inherits_another_answer_is_refused():
     """A base listed before ActuatorBackend cannot supply answer() either."""
-    with pytest.raises(TypeError, match="act\\(request\\)"):
+    with refused_class("act\\(request\\)"):
 
         class _ConstantFirst(AlwaysSucceed, ActuatorBackend):
             pass
 
 
+def test_a_refused_class_does_not_corrupt_a_bound_default():
+    """A refused class is collected, so it cannot poison ABC caches (#6303).
+
+    Left in ``ActuatorBackend.__subclasses__()`` with ``AlwaysSucceed``'s
+    ABC cache, ``_ConstantFirst`` made ``isinstance(node, ActuatorBackend)``
+    record a bound ``AlwaysSucceed`` default as not an ``AlwaysSucceed``.
+    """
+    from vultron.core.behaviors.call_out.capabilities.report_management.deploy_fix import (
+        PrioritizeDeploymentCapability,
+    )
+    from vultron.core.behaviors.call_out.nodes import always_succeed_as
+
+    with refused_class("act\\(request\\)"):
+
+        class _ConstantFirst(AlwaysSucceed, ActuatorBackend):
+            pass
+
+    assert "_ConstantFirst" not in {
+        cls.__name__ for cls in ActuatorBackend.__subclasses__()
+    }
+    node = always_succeed_as(PrioritizeDeploymentCapability)("probe")
+    assert not isinstance(node, ActuatorBackend)
+    assert isinstance(node, AlwaysSucceed)
+
+
 def test_actuator_that_declares_another_contract_is_refused():
-    with pytest.raises(TypeError, match="ActuatorContract"):
+    with refused_class("ActuatorContract"):
 
         class _Binary(ActuatorBackend):
             contract = CallOutContract()
