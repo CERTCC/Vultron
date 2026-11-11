@@ -930,6 +930,28 @@ groups:
           spec_id: PAD-04-002
         - rel_type: supersedes
           spec_id: PAD-04-005
+      - id: PAD-04-008
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A split's non-final PR, which says `Part of #N`, MUST NOT be opened
+          from the claim branch of #N. It opens from an unlinked sibling
+          branch, and the claim branch carries the final `Closes #N` PR.
+        rationale: >-
+          GitHub gives a PR from a linked branch a closing reference to its
+          Issue, whatever the body says, so a part opened from the claim branch
+          closes the Issue when it merges (#4805, PR #6267). The claim branch
+          stays the lock (PAD-04-001), so the part leaves it rather than
+          unlinking it.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py`: PRB-14 refuses a `Part of #N`
+          body on the claim branch of #N before the push, and refuses one whose
+          open PR lists #N in `closingIssuesReferences`.
+          `test/ci/test_stale_claim_sweeper.py`: an open part keeps the idle
+          claim branch, and an epic run holding #N, live.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-04-001
       - id: PAD-04-003
         priority: MUST_NOT
         kind: process
@@ -1684,10 +1706,13 @@ groups:
         rationale: >-
           GitHub creates a claim branch at the `main` tip, whose last commit
           can already be older than 3 days when the claim is taken. The claim
-          time (the Issue's latest assignment) is therefore activity too.
+          time (the Issue's latest assignment) is therefore activity too. An
+          open PR whose body says `Part of #N` outside code counts as the
+          claim's open PR: a split's non-final part opens from an unlinked
+          sibling branch, so the claim branch itself sits idle (PAD-04-008).
         verification: >-
           `test/ci/test_stale_claim_sweeper.py` pins the claim-branch parse for
-          every prefix and the staleness decision in
+          every prefix, the `Part of #N` parse, and the staleness decision in
           `.github/scripts/stale_claim_sweeper.py`.
         relationships:
         - rel_type: uses_definition

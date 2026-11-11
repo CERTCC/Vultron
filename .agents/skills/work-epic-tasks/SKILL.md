@@ -57,6 +57,9 @@ constants, one task needing another's helper, and shared specs. Build
 plan waves. A bundle never mixes Tasks and Bugs. If a Task is oversized or its
 parts need different review, propose a **split** into several PRs (each says
 `Part of #N`; only the last says `Closes #N`; no new issues) and say why.
+Every non-final part opens from an unlinked sibling branch `<prefix>/<N>a-…`,
+never the claim branch, and the builder's prompt says so
+(`shared/bundling.md` § "Split PRs").
 If the order makes an acceptance criterion moot, put the reworded criterion in
 the plan. Pick each task's build model: **Opus** for multi-file,
 protocol/architecture, or judgment work; **Sonnet** for mechanical work.

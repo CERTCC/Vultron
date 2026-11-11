@@ -231,7 +231,8 @@ refuses the placeholder and any `Docs:` line not in a final form, and fixes
 every finding before the session ends:
 
 ```bash
-gh pr view <PR> --json body,baseRefName,headRefOid \
+gh pr view <PR> \
+  --json body,baseRefName,headRefName,headRefOid,closingIssuesReferences \
   | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
