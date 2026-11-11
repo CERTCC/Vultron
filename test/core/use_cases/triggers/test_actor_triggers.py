@@ -1864,7 +1864,9 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
         One microsecond after the act's instant is taken, though the wall
         clock has passed it by the time the trigger runs (ADR-0176).  A
-        refused offer queues nothing.
+        refused offer queues nothing and records no peer: the transferee is
+        on the roster but not in this store, so the deadline is judged
+        before the peer record is written.
         """
         from datetime import UTC, datetime, timedelta
 
@@ -1877,16 +1879,18 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         )
 
         owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
-        case, _ = _seed_managed_case(owner, dl, transferee)
+        transferee_id = "https://example.org/actors/unstored-transferee"
+        case, _ = _seed_managed_case(
+            owner, dl, participant_ids=[transferee_id]
+        )
+        assert dl.read(transferee_id) is None
         at = datetime.now(UTC)
         use_case = SvcOfferCaseOwnershipTransferUseCase(
             dl,
             OfferCaseOwnershipTransferTriggerRequest(
                 actor_id=owner.id_,
                 case_id=case.id_,
-                transferee_id=transferee.id_,
+                transferee_id=transferee_id,
                 end_time=at + timedelta(microseconds=offset_us),
             ),
             trigger_activity=TriggerActivityAdapter(dl),
@@ -1899,8 +1903,10 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             with pytest.raises(VultronValidationError, match="in the future"):
                 use_case.execute()
             assert dl.outbox_list() == []
+            assert dl.read(transferee_id) is None
         else:
             assert use_case.execute().activity is not None
+            assert dl.read(transferee_id) is not None
 
     @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")

@@ -1189,8 +1189,11 @@ class TestSubmitReportProposedEmbargo:
         assert list(self.dl.list_objects("VulnerabilityReport")) == []
         assert list(self.dl.list_objects("EmbargoEvent")) == []
 
-    def test_an_end_after_the_act_is_kept_though_the_clock_is_past_it(self):
-        end = ACT_AT + timedelta(days=1)
+    @pytest.mark.spec("CS-13-002")
+    def test_an_end_just_after_the_act_is_kept_though_the_clock_is_past_it(
+        self,
+    ):
+        end = ACT_AT + timedelta(microseconds=1)
         request = SubmitReportTriggerRequest(
             actor_id=self.finder.id_,
             report_name="CVE-TEST",

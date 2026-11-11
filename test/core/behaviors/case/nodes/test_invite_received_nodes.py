@@ -32,7 +32,7 @@ import logging
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.act_clock import ACT_AT
+from test.support.act_clock import ACT_AT, no_clock
 from vultron.core.behaviors.case.nodes.invite_received import (
     FixInviteTrustAnchorNode,
     RecordInviteTrustAnchorNode,
@@ -112,6 +112,19 @@ class TestRecordInviteTrustAnchorNodeAC1:
         record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
         assert isinstance(record, VultronPendingCaseInbox)
         assert record.case_actor_id == CASE_ACTOR_ID
+
+    @pytest.mark.spec("CS-13-002")
+    def test_a_new_anchor_is_queued_at_the_acts_instant(self):
+        """``queued_at`` is the act's instant, read from no clock (ADR-0176)."""
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        with no_clock():
+            result = scenario.run(
+                _anchor_node(invitee_id=INVITEE_ID), at=ACT_AT
+            )
+        scenario.assert_success(result)
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.queued_at == ACT_AT
 
     def test_ac1_invitee_differs_from_receiver_returns_failure(self):
         """When invitee != receiving actor the node returns FAILURE, no record."""

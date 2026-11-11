@@ -18,12 +18,14 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT, no_clock
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.dead_letter.nodes.store import (
     StoreDeadLetterRecordNode,
 )
+from vultron.core.models.dead_letter import DeadLetterRecord
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
 from vultron.semantic_registry import extract_event
@@ -79,6 +81,25 @@ class TestStoreDeadLetterRecordNode:
         )
         record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
         assert record_data["unresolvable_uri"] == UNRESOLVABLE_URI
+
+    @pytest.mark.spec("CS-13-002")
+    def test_stored_record_is_stamped_with_the_acts_instant(
+        self, bridge, dl, unresolvable_event
+    ) -> None:
+        """``received_at`` is the act's instant, read from no clock (ADR-0176)."""
+        tree = StoreDeadLetterRecordNode(request=unresolvable_event)
+        with no_clock():
+            run_tree(
+                bridge,
+                tree=tree,
+                actor_id=ACTOR_URI,
+                activity=unresolvable_event,
+                at=ACT_AT,
+            )
+        record = DeadLetterRecord.model_validate(
+            next(iter(dl.by_type("DeadLetterRecord").values()))
+        )
+        assert record.received_at == ACT_AT
 
     def test_stored_record_contains_actor_id(
         self, bridge, dl, unresolvable_event
