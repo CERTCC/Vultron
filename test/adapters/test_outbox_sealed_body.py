@@ -22,6 +22,7 @@ import json
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
     OUTBOUND_DUMP_KWARGS,
@@ -56,7 +57,8 @@ def dl():
 
 
 def _invite(actor: str = _ACTOR):
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="CVE-2026-0001",
         stub_summary="RCE in widget for stub test",
         attributed_to=_ACTOR,

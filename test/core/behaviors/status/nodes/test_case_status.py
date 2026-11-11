@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -82,14 +83,17 @@ def bridge(dl):
 @pytest.fixture
 def case():
     # attributed_to triggers genesis_hash computation so ledger chain can bootstrap
-    return as_VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    return make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=ACTOR_ID,
     )
 
 
 @pytest.fixture
 def status_obj():
-    return as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+    return make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
@@ -250,13 +254,18 @@ class TestEmitCaseStatusUpdateNode:
     ):
         """The committed CaseStatus adds the reported latches, clearing none."""
         case.case_statuses.append(  # type: ignore[arg-type]
-            as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=case_pxa))
+            make(
+                as_CaseStatus,
+                context=CASE_ID,
+                pxa=PxaDimension(state=case_pxa),
+            )
         )
         dl.create(case)
-        report = ParticipantStatus(
+        report = make(
+            ParticipantStatus,
             context=CASE_ID,
-            case_status=CaseStatus(
-                context=CASE_ID, pxa=PxaDimension(state=reported)
+            case_status=make(
+                CaseStatus, context=CASE_ID, pxa=PxaDimension(state=reported)
             ),
         )
         dl.create(report)
@@ -340,10 +349,11 @@ class TestEmitCaseStatusUpdateNode:
             actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
-        report = ParticipantStatus(
+        report = make(
+            ParticipantStatus,
             context=CASE_ID,
-            case_status=CaseStatus(
-                context=CASE_ID, pxa=PxaDimension(state=reported)
+            case_status=make(
+                CaseStatus, context=CASE_ID, pxa=PxaDimension(state=reported)
             ),
         )
         populated_dl.create(report)

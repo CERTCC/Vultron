@@ -27,6 +27,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -72,32 +73,38 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05007"
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
-    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    report = make(
+        VulnerabilityReport, id_=_REPORT_ID, attributed_to=_FINDER_ID
+    )
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,
         case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    vendor_participant = CaseParticipant(
+    vendor_participant = make(
+        CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    finder_participant = CaseParticipant(
+    finder_participant = make(
+        CaseParticipant,
         id_=_FINDER_PARTICIPANT_ID,
         attributed_to=_FINDER_ID,
         context=_CASE_ID,
         participant_statuses=[
-            PS(
+            make(
+                PS,
                 context=_CASE_ID,
                 attributed_to=_FINDER_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-05-007 inline participant test",
@@ -141,20 +148,24 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05008"
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
-    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    report = make(
+        VulnerabilityReport, id_=_REPORT_ID, attributed_to=_FINDER_ID
+    )
     dl.create(report)
     link = VultronReportCaseLink(
         report_id=_REPORT_ID,
         case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    case_actor_participant = CoreCaseParticipant(
+    case_actor_participant = make(
+        CoreCaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-05-008 bare URI test",
@@ -232,23 +243,30 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
     dl.create(
-        VulnerabilityReport(id_=_CBT01011_REPORT_ID, attributed_to=_FINDER_ID)
+        make(
+            VulnerabilityReport,
+            id_=_CBT01011_REPORT_ID,
+            attributed_to=_FINDER_ID,
+        )
     )
     for link in anchors():
         dl.save(link)
-    impostor = CoreCaseParticipant(
+    impostor = make(
+        CoreCaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=f"{_CASE_ID}/participants/impostor",
         attributed_to=_IMPOSTOR_ID,
         context=_CASE_ID,
     )
-    finder = CoreCaseParticipant(
+    finder = make(
+        CoreCaseParticipant,
         case_roles=[CVDRole.REPORTER],
         id_=f"{_CASE_ID}/participants/finder",
         attributed_to=_FINDER_ID,
         context=_CASE_ID,
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-01-011 unanchored sender",

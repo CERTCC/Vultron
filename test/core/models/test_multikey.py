@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.actor import VultronOrganization, VultronPerson
 from vultron.core.models.multikey import Multikey
 
@@ -89,7 +90,7 @@ def test_a_key_of_another_type_is_refused():
 
 
 def test_a_profile_without_keys_dumps_no_assertion_method():
-    actor = VultronPerson(id_=ACTOR, name="Vendor")
+    actor = make(VultronPerson, id_=ACTOR, name="Vendor")
 
     assert actor.assertion_method == []
     assert "assertionMethod" not in actor.model_dump(by_alias=True)

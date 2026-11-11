@@ -23,6 +23,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -92,8 +93,8 @@ class TestEmbargoLogEntryCascade:
         dl.save(case_read)
         write_consent_rows(dl, case_read)
 
-        case_ref = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=case_id
+        case_ref = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
         )
         activity = factory(embargo, target=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)

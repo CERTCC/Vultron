@@ -24,6 +24,7 @@ import py_trees
 import pytest
 
 from test.support.child_env import REPO_ROOT, child_env
+from test.support.objects import make
 from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
     clock as helpers_clock,
@@ -120,7 +121,7 @@ class TestDeterministicRun:
         # reaches.  An object time still has the default (#5758 removes it
         # last); a record's time no longer does.
         with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):
-            report = VulnerabilityReport(name="r", content="c")
+            report = make(VulnerabilityReport, name="r", content="c")
         assert report.published is not None
         assert report.published.year == _START.year
         assert report.published.month == _START.month

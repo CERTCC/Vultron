@@ -17,6 +17,7 @@ import json
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.note import VultronNote
 from vultron.errors import VultronNotFoundError
@@ -67,7 +68,8 @@ class TestCreateNote:
 
     def test_idempotent_second_create_returns_same_id(self, adapter, dl):
         """Re-creating the same note object raises ValueError; adapter logs and continues."""
-        note = as_Note(
+        note = make(
+            as_Note,
             name="Static",
             content="content",
             context=_CASE_ID,

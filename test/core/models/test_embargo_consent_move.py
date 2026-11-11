@@ -22,6 +22,7 @@ stub ``Accept`` state, decided the same way on every node (CM-23-016).
 import pytest
 
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -63,19 +64,23 @@ def _case_file(
     *rows* maps ``owner``/``joiner`` to ``{embargo_id: state}``; every other
     register entry's row is ``UNINVITED``.
     """
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER)
     if active:
         activate(case, active)
     propose(case, *proposed)
     participants = {}
     for name, actor_id in (("owner", OWNER), ("joiner", JOINER)):
         held = rows.get(name, {})
-        record = CaseParticipant(
+        record = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{name}",
             attributed_to=actor_id,
             context=CASE_ID,
             embargo_consents=[
-                EmbargoConsent(embargo_id=e, state=held.get(e, _S.UNINVITED))
+                EmbargoConsent(
+                    embargo_id=e,
+                    state=held.get(e, _S.UNINVITED),
+                )
                 for e in (e.embargo_id for e in case.embargo_register)
             ],
         )

@@ -32,6 +32,8 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 
+from test.support.objects import make
+
 # Set VULTRON_DATABASE__DB_URL BEFORE any vultron module imports so that
 # get_config().database.db_url returns the in-memory value.
 # The legacy VULTRON_DB_URL is also cleared to avoid confusion.
@@ -369,7 +371,8 @@ def seed_case_owner_participant(dl, case):
 
     owner_id = _as_id(case.attributed_to)
     assert owner_id is not None, "case.attributed_to names no owner"
-    owner = CaseParticipant(
+    owner = make(
+        CaseParticipant,
         attributed_to=owner_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],

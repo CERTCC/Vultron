@@ -20,6 +20,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -58,7 +59,8 @@ def _case_with_embargo(case_id: str, *, ended: bool):
         case_id, OWNER, case_manager_actor_id=OWNER
     )
     if ended:
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=embargo.id_,
             context=case_id,
             end_time=now_utc() - timedelta(hours=1),
@@ -243,7 +245,8 @@ def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
     dl, case, _embargo = _case_with_embargo(
         "https://example.org/cases/tr-not-in-force", ended=False
     )
-    expired = as_EmbargoEvent(
+    expired = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/expired",
         context=case.id_,
         end_time=now_utc() - timedelta(hours=1),

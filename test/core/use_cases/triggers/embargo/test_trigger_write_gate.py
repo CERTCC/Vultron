@@ -30,6 +30,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import committed_semantic_types
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -80,13 +81,17 @@ def _case_managed_by_someone_else(
     dl: SqliteDataLayer, finder_id: str
 ) -> VulnerabilityCase:
     """Case at ``EM.NONE`` whose CASE_MANAGER is not the finder."""
-    case = VulnerabilityCase(name="Gated trigger case", attributed_to=MANAGER)
-    manager = VendorParticipant(
+    case = make(
+        VulnerabilityCase, name="Gated trigger case", attributed_to=MANAGER
+    )
+    manager = make(
+        VendorParticipant,
         attributed_to=MANAGER,
         context=case.id_,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
-    finder = ReporterParticipant(
+    finder = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )

@@ -8,6 +8,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import (
     assert_held_only_as_received,
     hold_deferred,
@@ -44,8 +45,8 @@ def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
         lambda activity: MessageSemantics.UNKNOWN,
     )
 
-    mapping_activity = as_Create(
-        id_="act-123", actor="actor-1", object_="obj-1"
+    mapping_activity = make(
+        as_Create, id_="act-123", actor="actor-1", object_="obj-1"
     )
     event = ih.prepare_for_dispatch(mapping_activity)
 
@@ -340,7 +341,7 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
     return add_note_to_case_activity(
-        as_Note(content="queued", context=case_id),
+        make(as_Note, content="queued", context=case_id),
         target=case_id,
         context=case_id,
         actor="https://example.org/actors/case-actor",
@@ -908,10 +909,11 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
 
     # The receiving vendor's own store (BT-05-005).
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR_ID)
-    dl.save(VultronService(id_=VENDOR_ID))
+    dl.save(make(VultronService, id_=VENDOR_ID))
 
-    report = VulnerabilityReport(id_=REPORT_ID)
-    activity = VultronActivity(
+    report = make(VulnerabilityReport, id_=REPORT_ID)
+    activity = make(
+        VultronActivity,
         id_=OFFER_ID,
         type_="Offer",
         actor=FINDER_ID,
@@ -1014,7 +1016,8 @@ def test_pending_case_queue_expiry_changes_no_local_state():
     queue_dl = shared_dl.clone_for_actor(actor_id)
     # State the receiver already held, which expiry must leave alone.
     queue_dl.save(
-        as_VulnerabilityCase(
+        make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/already-held",
         )
@@ -1085,11 +1088,16 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
     )
     published = datetime.now(tz=UTC)
     case_id = "https://example.org/cases/rsvp"
-    invite = as_Invite(
-        object_=as_EmbargoEvent(
-            context=case_id, end_time=published + timedelta(days=90)
+    invite = make(
+        as_Invite,
+        object_=make(
+            as_EmbargoEvent,
+            context=case_id,
+            end_time=published + timedelta(days=90),
         ),
-        context=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
+        context=make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
+        ),
         actor="https://example.org/alice",
         published=published,
     )

@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.errors import VultronOutboxObjectIntegrityError
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -66,7 +67,7 @@ def _make_activity(cls, object_, **fields):
     *fields* carries any other field the class requires (for example the
     case Invite's stub ``target``), so a refusal is about ``object_`` alone.
     """
-    return cls(actor=ACTOR_ID, object_=object_, **fields)
+    return make(cls, actor=ACTOR_ID, object_=object_, **fields)
 
 
 def _assert_rejects_string(cls, **fields):
@@ -85,7 +86,7 @@ def _assert_accepts_inline(cls, obj, **fields):
 
 
 def _participant_status() -> as_ParticipantStatus:
-    return as_ParticipantStatus(context="https://example.org/cases/c1")
+    return make(as_ParticipantStatus, context="https://example.org/cases/c1")
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +108,7 @@ class TestRmCreateReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+        _assert_accepts_inline(self.cls, make(as_VulnerabilityReport))
 
 
 class TestRmSubmitReportActivity:
@@ -124,7 +125,7 @@ class TestRmSubmitReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+        _assert_accepts_inline(self.cls, make(as_VulnerabilityReport))
 
 
 class TestRmReadReportActivity:
@@ -142,14 +143,16 @@ class TestRmReadReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_offer(self):
-        offer = self._RmSubmitReportActivity(
-            actor=ACTOR_ID, object_=as_VulnerabilityReport()
+        offer = make(
+            self._RmSubmitReportActivity,
+            actor=ACTOR_ID,
+            object_=make(as_VulnerabilityReport),
         )
         _assert_accepts_inline(self.cls, offer)
 
     def test_rejects_inline_bare_report(self):
         with pytest.raises(ValidationError):
-            _make_activity(self.cls, as_VulnerabilityReport())
+            _make_activity(self.cls, make(as_VulnerabilityReport))
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +174,7 @@ class TestAddReportToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+        _assert_accepts_inline(self.cls, make(as_VulnerabilityReport))
 
 
 class TestAddStatusToCaseActivity:
@@ -188,7 +191,7 @@ class TestAddStatusToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
+        _assert_accepts_inline(self.cls, make(as_CaseStatus, context=_STR_URI))
 
 
 class TestCreateCaseActivity:
@@ -206,7 +209,7 @@ class TestCreateCaseActivity:
 
     def test_accepts_inline_case(self):
         _assert_accepts_inline(
-            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+            self.cls, make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         )
 
 
@@ -224,7 +227,7 @@ class TestAddNoteToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_note(self):
-        _assert_accepts_inline(self.cls, as_Note(content="hello"))
+        _assert_accepts_inline(self.cls, make(as_Note, content="hello"))
 
 
 class TestUpdateCaseActivity:
@@ -242,7 +245,7 @@ class TestUpdateCaseActivity:
 
     def test_accepts_inline_case(self):
         _assert_accepts_inline(
-            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+            self.cls, make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         )
 
 
@@ -259,7 +262,7 @@ class TestRmEngageCaseActivity:
 
     def test_accepts_inline_case(self):
         _assert_accepts_inline(
-            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+            self.cls, make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         )
 
 
@@ -276,7 +279,7 @@ class TestRmDeferCaseActivity:
 
     def test_accepts_inline_case(self):
         _assert_accepts_inline(
-            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+            self.cls, make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         )
 
 
@@ -293,7 +296,7 @@ class TestRmCloseCaseActivity:
 
     def test_accepts_inline_case(self):
         _assert_accepts_inline(
-            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+            self.cls, make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         )
 
 
@@ -312,7 +315,7 @@ class TestRmInviteToCaseActivity:
         _assert_rejects_link(self.cls, **self.stub)
 
     def test_accepts_inline_actor(self):
-        _assert_accepts_inline(self.cls, as_Actor(), **self.stub)
+        _assert_accepts_inline(self.cls, make(as_Actor), **self.stub)
 
     @pytest.mark.spec("SE-08-002")
     @pytest.mark.parametrize(
@@ -324,7 +327,7 @@ class TestRmInviteToCaseActivity:
         """The stub is this Invite's discriminator, so the class requires it."""
         fields = {} if target is None else {"target": target}
         with pytest.raises(ValidationError):
-            _make_activity(self.cls, as_Actor(), **fields)
+            _make_activity(self.cls, make(as_Actor), **fields)
 
 
 # ---------------------------------------------------------------------------
@@ -356,8 +359,10 @@ class TestEmProposeEmbargoActivity:
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
             self.cls,
-            as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now(45)
+            make(
+                as_EmbargoEvent,
+                context="urn:uuid:case-123",
+                end_time=days_from_now(45),
             ),
         )
 
@@ -385,8 +390,10 @@ class TestActivateEmbargoActivity:
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
             self.cls,
-            as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now(45)
+            make(
+                as_EmbargoEvent,
+                context="urn:uuid:case-123",
+                end_time=days_from_now(45),
             ),
             **_OWNER_DECISION_FIELDS,
         )
@@ -408,8 +415,10 @@ class TestRejectEmbargoProposalActivity:
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
             self.cls,
-            as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now(45)
+            make(
+                as_EmbargoEvent,
+                context="urn:uuid:case-123",
+                end_time=days_from_now(45),
             ),
             **_OWNER_DECISION_FIELDS,
         )
@@ -431,8 +440,10 @@ class TestAnnounceEmbargoActivity:
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
             self.cls,
-            as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now(45)
+            make(
+                as_EmbargoEvent,
+                context="urn:uuid:case-123",
+                end_time=days_from_now(45),
             ),
         )
 
@@ -453,8 +464,10 @@ class TestRemoveEmbargoFromCaseActivity:
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
             self.cls,
-            as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now(45)
+            make(
+                as_EmbargoEvent,
+                context="urn:uuid:case-123",
+                end_time=days_from_now(45),
             ),
             content="EARLY",
         )
@@ -477,7 +490,8 @@ class TestRemoveEmbargoFromCaseActivity:
         with pytest.raises(ValidationError, match=match):
             _make_activity(
                 self.cls,
-                as_EmbargoEvent(
+                make(
+                    as_EmbargoEvent,
                     context="urn:uuid:case-123",
                     end_time=days_from_now(45),
                 ),
@@ -486,8 +500,10 @@ class TestRemoveEmbargoFromCaseActivity:
 
     @pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY"])
     def test_accepts_each_termination_reason(self, content):
-        embargo = as_EmbargoEvent(
-            context="urn:uuid:case-123", end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            context="urn:uuid:case-123",
+            end_time=days_from_now(45),
         )
         _assert_accepts_inline(self.cls, embargo, content=content)
 
@@ -509,7 +525,7 @@ class TestRecommendActorActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_actor(self):
-        _assert_accepts_inline(self.cls, as_Actor())
+        _assert_accepts_inline(self.cls, make(as_Actor))
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +547,7 @@ class TestCreateParticipantActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, as_CaseParticipant())
+        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
 
 
 class TestAddStatusToParticipantActivity:
@@ -565,7 +581,7 @@ class TestAddParticipantToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, as_CaseParticipant())
+        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
 
 
 class TestRemoveParticipantFromCaseActivity:
@@ -582,7 +598,7 @@ class TestRemoveParticipantFromCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, as_CaseParticipant())
+        _assert_accepts_inline(self.cls, make(as_CaseParticipant))
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +629,8 @@ class TestAnnounceLogEntryActivity:
 
         _assert_accepts_inline(
             self.cls,
-            as_CaseLedgerEntry(
+            make(
+                as_CaseLedgerEntry,
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 semantic_type="test_event",

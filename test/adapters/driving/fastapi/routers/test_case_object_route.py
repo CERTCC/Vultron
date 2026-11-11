@@ -20,6 +20,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from test.support.case_manager import make_case_with_case_manager
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -45,7 +46,9 @@ def host() -> Iterator[tuple[SqliteDataLayer, VulnerabilityCase]]:
     reset_datalayer(host_id)
     dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
     case = make_case_with_case_manager(dl, host_id)
-    participant = CaseParticipant(attributed_to=_PARTICIPANT, context=case.id_)
+    participant = make(
+        CaseParticipant, attributed_to=_PARTICIPANT, context=case.id_
+    )
     case.add_participant(participant)
     dl.save(case)
     dl.create(participant)
@@ -73,8 +76,8 @@ def _get(
 @pytest.mark.spec("AKM-05-006")
 def test_a_participant_gets_an_object_the_case_names(client, host):
     dl, case = host
-    embargo = EmbargoEvent(
-        context=case.id_, end_time=now_utc() + timedelta(days=30)
+    embargo = make(
+        EmbargoEvent, context=case.id_, end_time=now_utc() + timedelta(days=30)
     )
     dl.save(embargo)
 
@@ -149,7 +152,8 @@ def test_a_case_id_with_slashes_is_named_by_its_surrogate_key(client):
     host_id = canonical_actor_uri(_SLUG)
     reset_datalayer(host_id)
     dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/api/v2/cases/c-123",
         attributed_to="https://example.org/actors/owner",
         name="URL-keyed case",
@@ -158,7 +162,9 @@ def test_a_case_id_with_slashes_is_named_by_its_surrogate_key(client):
     from test.support.case_manager import add_case_manager_participant
 
     add_case_manager_participant(dl, case, host_id)
-    participant = CaseParticipant(attributed_to=_PARTICIPANT, context=case.id_)
+    participant = make(
+        CaseParticipant, attributed_to=_PARTICIPANT, context=case.id_
+    )
     case.add_participant(participant)
     dl.save(case)
     dl.create(participant)

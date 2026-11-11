@@ -30,6 +30,7 @@ from test.support.case_owner import (
 )
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -75,7 +76,8 @@ class TestAckReportNoStandaloneStatus:
 
     def test_ack_report_does_not_persist_participant_status(self):
         """AckReportReceivedUseCase stores the activity only, not a status."""
-        offer_activity = VultronActivity(
+        offer_activity = make(
+            VultronActivity,
             id_="https://example.org/activities/accept-ack-1",
             type_="Accept",
             actor="https://example.org/actors/vendor",
@@ -86,11 +88,13 @@ class TestAckReportNoStandaloneStatus:
                 semantic_type=MessageSemantics.ACK_REPORT,
                 activity_id="https://example.org/activities/accept-ack-1",
                 actor_id="https://example.org/actors/vendor",
-                object_=VulnerabilityReport(
-                    id_="https://example.org/activities/offer-ack-1"
+                object_=make(
+                    VulnerabilityReport,
+                    id_="https://example.org/activities/offer-ack-1",
                 ),
-                inner_object=VulnerabilityReport(
-                    id_="https://example.org/reports/r-ack-1"
+                inner_object=make(
+                    VulnerabilityReport,
+                    id_="https://example.org/reports/r-ack-1",
                 ),
                 activity=offer_activity,
             )
@@ -152,9 +156,10 @@ class TestFullReportFlow:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,
         )
-        report = VulnerabilityReport(id_=self.REPORT_ID)
-        vendor = VultronService(id_=self.VENDOR_ID)
-        offer = VultronOffer(
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
+        vendor = make(VultronService, id_=self.VENDOR_ID)
+        offer = make(
+            VultronOffer,
             id_=self.OFFER_ID,
             actor=self.FINDER_ID,
             object_=self.REPORT_ID,
@@ -193,19 +198,22 @@ class TestFullReportFlow:
             as_ParticipantStatus,
         )
 
-        case_manager = as_CaseParticipant(
+        case_manager = make(
+            as_CaseParticipant,
             id_=f"{self.CASE_ID}/participants/case-actor",
             attributed_to=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             id_=f"{self.CASE_ID}/participants/vendor",
             attributed_to=self.VENDOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.VENDOR],
             participant_statuses=[
-                as_ParticipantStatus(
+                make(
+                    as_ParticipantStatus,
                     attributed_to=self.VENDOR_ID,
                     context=self.CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
@@ -215,7 +223,8 @@ class TestFullReportFlow:
         # The receiver holds the embargo record its replica names, as the
         # replica store leaves it when the sender carries it inline
         # (EMB-18-003).
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             id_=f"{self.CASE_ID}/embargoes/flow-embargo",
             context=self.CASE_ID,
             end_time=days_from_now(45),
@@ -262,13 +271,14 @@ class TestFullReportFlow:
 
         It is an Offer(VulnerabilityReport) from finder to vendor.
         """
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        report = VulnerabilityReport(id_=self.REPORT_ID)
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
         return with_evidence(
             SubmitReportReceivedEvent(
                 semantic_type=MessageSemantics.SUBMIT_REPORT,
@@ -285,13 +295,14 @@ class TestFullReportFlow:
 
         It is an Accept(Offer(VulnerabilityReport)) from the vendor.
         """
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.ACCEPT_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
         )
-        offer = CoreObject(id_=self.OFFER_ID, type_="Offer")
-        report = VulnerabilityReport(id_=self.REPORT_ID)
+        offer = make(CoreObject, id_=self.OFFER_ID, type_="Offer")
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
         return with_evidence(
             ValidateReportReceivedEvent(
                 semantic_type=MessageSemantics.VALIDATE_REPORT,
@@ -553,14 +564,15 @@ class TestValidateReportReceivedGuardedCommit:
         receiving_actor_id: str | None = None,
     ) -> ValidateReportReceivedEvent:
         """Create a ValidateReportReceivedEvent with specified receiving_actor_id."""
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
             to=[self.CASE_ACTOR_ID],
         )
-        offer = CoreObject(id_=offer_id, type_="Offer")
-        report = VulnerabilityReport(id_=report_id)
+        offer = make(CoreObject, id_=offer_id, type_="Offer")
+        report = make(VulnerabilityReport, id_=report_id)
         return with_evidence(
             ValidateReportReceivedEvent(
                 semantic_type=MessageSemantics.VALIDATE_REPORT,
@@ -667,10 +679,11 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         # Create a report and link it to a case with CaseActor
-        report = VulnerabilityReport(id_=self.REPORT_ID)
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
         dl.save(report)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/c-guarded",
             name="Guarded Commit Test Case",
@@ -682,7 +695,8 @@ class TestValidateReportReceivedGuardedCommit:
             as_CaseParticipant,
         )
 
-        cm_participant = as_CaseParticipant(
+        cm_participant = make(
+            as_CaseParticipant,
             attributed_to=self.CASE_ACTOR_ID,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -744,17 +758,19 @@ class TestValidateReportReceivedGuardedCommit:
             actor_id=self.CASE_ACTOR_ID,
         )
 
-        report = VulnerabilityReport(id_=self.REPORT_ID)
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
         dl.save(report)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="Guarded Commit Positive Test",
         )
         case.vulnerability_reports.append(self.REPORT_ID)
         # Register the CASE_ACTOR as CASE_MANAGER so CheckIsCaseManagerNode passes
-        cm_participant = as_CaseParticipant(
+        cm_participant = make(
+            as_CaseParticipant,
             attributed_to=self.CASE_ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],

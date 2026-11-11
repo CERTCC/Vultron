@@ -18,6 +18,7 @@ Both suites need one inbound activity carrying an inline object, so they can
 check what intake archives and what, if anything, gets stored.
 """
 
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -36,7 +37,8 @@ def add_note_delivery(
     The activity is addressed *to* the actor the tree runs as: every received
     tree refuses a copy that does not name the receiver (HP-01-005).
     """
-    note = as_Note(
+    note = make(
+        as_Note,
         id_=f"{CASE_ID}/notes/n1",
         name="intake-only",
         content="a note",

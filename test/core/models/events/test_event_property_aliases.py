@@ -11,6 +11,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
@@ -79,37 +80,43 @@ _ACTOR_ID = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/c1"
 _ACTOR_URI = "https://example.org/actors/alice"
 
-_report = VulnerabilityReport(id_="https://example.org/reports/r1")
-_case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
-_note = VultronNote(
+_report = make(VulnerabilityReport, id_="https://example.org/reports/r1")
+_case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
+_note = make(
+    VultronNote,
     id_="https://example.org/notes/n1",
     content="test note",
 )
-_participant = CaseParticipant(
+_participant = make(
+    CaseParticipant,
     id_="https://example.org/participants/p1",
     context=_CASE_URI,
     attributed_to=_ACTOR_URI,
 )
-_case_status = CaseStatus(
+_case_status = make(
+    CaseStatus,
     id_="https://example.org/statuses/cs1",
     context=_CASE_URI,
     attributed_to=_ACTOR_URI,
 )
-_participant_status = ParticipantStatus(
+_participant_status = make(
+    ParticipantStatus,
     id_="https://example.org/statuses/ps1",
     context=_CASE_URI,
 )
-_embargo = EmbargoEvent(
+_embargo = make(
+    EmbargoEvent,
     id_="https://example.org/embargoes/e1",
     context=_CASE_URI,
     end_time=days_from_now(45),
 )
-_activity = VultronActivity(
+_activity = make(
+    VultronActivity,
     id_="https://example.org/activities/offer-1",
     type_="Offer",
     actor=_ACTOR_URI,
 )
-_obj = CoreObject(id_="https://example.org/objects/o1")
+_obj = make(CoreObject, id_="https://example.org/objects/o1")
 
 
 def _mk(cls, semantic, **fields):
@@ -474,8 +481,11 @@ def test_aliases_return_none_when_backing_field_is_absent(
         )
 
 
-_stub = CaseStubReference(
-    id_=f"{_CASE_URI}/stub", type_="VulnerabilityCaseStub", case_id=_CASE_URI
+_stub = make(
+    CaseStubReference,
+    id_=f"{_CASE_URI}/stub",
+    type_="VulnerabilityCaseStub",
+    case_id=_CASE_URI,
 )
 
 _STUB_CASES = [

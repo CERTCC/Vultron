@@ -33,6 +33,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -97,8 +98,11 @@ def dl():
 
 @pytest.fixture()
 def case():
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="DR-10 Announce Case"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="DR-10 Announce Case",
     )
 
 
@@ -111,7 +115,8 @@ def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
 
 @pytest.fixture()
 def case_actor():
-    return VultronService(
+    return make(
+        VultronService,
         id_=_CASE_ACTOR_ID,
         attributed_to=_OWNER_ID,
         context=_CASE_ID,
@@ -360,8 +365,11 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         # Build an Announce that wraps a non-case object; we can't use the typed
         # factory here because it requires as_VulnerabilityCase,
         # so we inject via model_copy to simulate a malformed incoming payload.
-        good_case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID2, name="Placeholder"
+        good_case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID2,
+            name="Placeholder",
         )
         announce = announce_vulnerability_case_activity(
             good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
@@ -369,7 +377,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         event = make_payload(announce, at=dl)
 
         # Replace the object_ on the event's activity with a non-case
-        report = as_VulnerabilityReport(name="Not a case")
+        report = make(as_VulnerabilityReport, name="Not a case")
         patched_activity = event.activity.model_copy(
             update={"object_": report}
         )
@@ -620,13 +628,15 @@ class TestAnnounceDrainsPreGenesisBuffer:
         (CP-09-004), so the replayed Announce from that actor passes its
         sender guard (SYNC-13-006).
         """
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             case_roles=[CVDRole.CASE_MANAGER],
             id_=_CASE_ACTOR_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
         )
-        return as_VulnerabilityCase(
+        return make(
+            as_VulnerabilityCase,
             id_=_CASE_ID,
             name="DR-10 Announce Case (pre-genesis drain)",
             attributed_to=_CASE_ACTOR_ID,
@@ -752,13 +762,15 @@ class TestAnnounceStoresEmbeddedParticipants:
     @pytest.fixture()
     def case_with_participants(self):
         """as_VulnerabilityCase with two embedded participants (inline objects)."""
-        case_actor_p = as_CaseParticipant(
+        case_actor_p = make(
+            as_CaseParticipant,
             case_roles=[CVDRole.CASE_MANAGER],
             id_=_CASE_ACTOR_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
         )
-        vendor_p = as_CaseParticipant(
+        vendor_p = make(
+            as_CaseParticipant,
             id_=_VENDOR_PARTICIPANT_ID,
             attributed_to=_VENDOR_ID,
             context=_CASE_ID,
@@ -833,7 +845,8 @@ class TestAnnounceStoresEmbeddedParticipants:
         Only inline participant objects are stored; bare ID strings are left
         as-is (they reference objects the receiver doesn't have locally).
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_CASE_ID,
             name="Announce with string participants",
@@ -907,19 +920,22 @@ def _joined_case(
     manager_id: str = _CASE_ACTOR_ID,
 ) -> as_VulnerabilityCase:
     """A copy of the case that lists the receiver, at *position*."""
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_CASE_ACTOR_PARTICIPANT_ID,
         attributed_to=manager_id,
         context=_CASE_ID,
     )
-    receiver = as_CaseParticipant(
+    receiver = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.VENDOR],
         id_=_RECEIVER_PARTICIPANT_ID,
         attributed_to=_RECEIVER_ID,
         context=_CASE_ID,
     )
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="SYNC-17-008 joined case",
         attributed_to=_OWNER_ID,
@@ -1018,8 +1034,11 @@ class TestFirstSeedStatesLedgerPosition:
     def test_a_copy_at_the_empty_ledger_states_nothing(self, dl, make_payload):
         """The empty ledger's position names no entry to state."""
         _anchor_expected_authority(dl)
-        empty = as_VulnerabilityCase(
-            id_=_CASE_ID, attributed_to=_OWNER_ID, published=_CASE_PUBLISHED
+        empty = make(
+            as_VulnerabilityCase,
+            id_=_CASE_ID,
+            attributed_to=_OWNER_ID,
+            published=_CASE_PUBLISHED,
         ).ledger_position
 
         result = self._seed(dl, make_payload, _joined_case(empty))

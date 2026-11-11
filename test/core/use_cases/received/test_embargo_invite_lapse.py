@@ -40,6 +40,7 @@ from test.support.ledger import (
     fail_commits,
     is_consent_row_update,
 )
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.refusal_notice import (
     assert_refusal_notice,
@@ -229,20 +230,25 @@ def _make_active_embargo_case(
 
     Returns (case, embargo, invitee_participant_id).
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Expiry Test Case",
         attributed_to=_COORD,
     )
-    embargo = as_EmbargoEvent(
-        id_=embargo_id, context=case_id, end_time=days_from_now(45)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=embargo_id,
+        context=case_id,
+        end_time=days_from_now(45),
     )
     if em_active:
         activate(case, embargo_id)
 
     # The invitee holds a row only for an embargo the register holds; the
     # deadline belongs to the INVITED row (CM-28-013).
-    invitee_cp = WireCP(
+    invitee_cp = make(
+        WireCP,
         attributed_to=_INVITEE,
         context=case_id,
         embargo_consents=(
@@ -456,24 +462,30 @@ def _receive_invite_at_invitee(
     dl = _make_dl(actor_id=_INVITEE)
     embargo_id = f"{_RECEIPT_CASE}/embargos/e1"
 
-    case = VulnerabilityCase(
-        id_=_RECEIPT_CASE, name="Store Deadline", attributed_to=_COORD
+    case = make(
+        VulnerabilityCase,
+        id_=_RECEIPT_CASE,
+        name="Store Deadline",
+        attributed_to=_COORD,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=embargo_id,
         context=_RECEIPT_CASE,
         end_time=published + timedelta(days=45),
     )
     propose(case, embargo_id)
 
-    invitee_cp = WireCP(
+    invitee_cp = make(
+        WireCP,
         attributed_to=_INVITEE,
         context=_RECEIPT_CASE,
         case_roles=[CVDRole.VENDOR],
     )
     # The CASE_MANAGER role is never unfilled (CM-02-014); the invitee
     # addresses its answer to the holder.
-    coord_cp = WireCP(
+    coord_cp = make(
+        WireCP,
         attributed_to=_COORD,
         context=_RECEIPT_CASE,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -602,18 +614,25 @@ class TestInviteeIsTheAddressee:
         in force) or ``"unknown"`` (EM NONE, the case has never seen
         it).  ``invitee_accepted`` seeds AGREED rows for the invitee.
         """
-        case = VulnerabilityCase(
-            id_=case_id, name="Addressee Test", attributed_to=_COORD
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="Addressee Test",
+            attributed_to=_COORD,
         )
-        embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            id_=embargo_id,
+            context=case_id,
+            end_time=days_from_now(45),
         )
         if embargo_is == "active":
             activate(case, embargo_id)
         elif embargo_is == "proposed":
             propose(case, embargo_id)
 
-        coord_cp = WireCP(
+        coord_cp = make(
+            WireCP,
             attributed_to=_COORD,
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -630,7 +649,8 @@ class TestInviteeIsTheAddressee:
         if embargo_is == "unknown" and invitee_rows[embargo_id] is None:
             # The register holds no entry for it, so nobody has a row.
             del invitee_rows[embargo_id]
-        invitee_cp = WireCP(
+        invitee_cp = make(
+            WireCP,
             attributed_to=_INVITEE,
             context=case_id,
             embargo_consents=_rows(invitee_rows),
@@ -650,7 +670,8 @@ class TestInviteeIsTheAddressee:
 
         self.extra_participant_ids: dict[str, str] = {}
         for actor in extra_actors:
-            extra_cp = WireCP(
+            extra_cp = make(
+                WireCP,
                 attributed_to=actor,
                 context=case_id,
                 case_roles=[CVDRole.VENDOR],
@@ -1218,7 +1239,8 @@ class TestInviteeIsTheAddressee:
             invitee_consent=EmbargoConsentState.AGREED,
             embargo_is="active",
         )
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/revision",
             context=case_id,
             end_time=days_from_now(90),
@@ -1294,7 +1316,8 @@ class TestInviteeIsTheAddressee:
             embargo_is="active",
             invitee_accepted=(active_id,),
         )
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/revision",
             context=case_id,
             end_time=days_from_now(90),
@@ -1576,7 +1599,8 @@ class TestInviteeIdProperty:
     """Unit tests for the ``to:``-derived invitee accessors."""
 
     def _event(self, make_payload, to):
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/prop/embargos/e1",
             context="https://example.org/cases/prop",
             end_time=days_from_now(45),
@@ -1681,17 +1705,22 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-gap"
         missing_id = f"{case_id}/embargos/not-replicated"
-        case = VulnerabilityCase(
-            id_=case_id, name="Replica gap", attributed_to=_COORD
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="Replica gap",
+            attributed_to=_COORD,
         )
         activate(case, missing_id)
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/e2",
             context=case_id,
             end_time=days_from_now(90),
         )
         propose(case, revision.id_)
-        coord_cp = WireCP(
+        coord_cp = make(
+            WireCP,
             attributed_to=_COORD,
             context=case_id,
             embargo_consents=_rows(
@@ -2334,7 +2363,8 @@ class TestLateAcceptHandling:
         dl.save(case)
         write_consent_rows(dl, case)
         dl.create(
-            as_EmbargoEvent(
+            make(
+                as_EmbargoEvent,
                 id_=current_embargo_id,
                 context=case_id,
                 end_time=days_from_now(30),
@@ -2621,7 +2651,8 @@ class TestLateAcceptHandling:
             invitee_deadline=_PAST,
         )
         # An open revision puts EM in REVISE; the same embargo stays active.
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/e2",
             context=case_id,
             end_time=days_from_now(90),
@@ -2669,15 +2700,22 @@ class TestLateAcceptHandling:
         embargo_id = "https://example.org/cases/ea4/embargos/e4"
 
         # Set up case with PROPOSED EM and vendor participant
-        case = VulnerabilityCase(
-            id_=case_id, name="Normal Accept", attributed_to=_COORD
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="Normal Accept",
+            attributed_to=_COORD,
         )
-        embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            id_=embargo_id,
+            context=case_id,
+            end_time=days_from_now(45),
         )
         propose(case, embargo_id)
 
-        invitee_cp = WireCP(
+        invitee_cp = make(
+            WireCP,
             attributed_to=_INVITEE,
             context=case_id,
             embargo_consents=_rows(
@@ -2732,15 +2770,22 @@ class TestLateAcceptHandling:
         case_id = "https://example.org/cases/ea5"
         embargo_id = "https://example.org/cases/ea5/embargos/e5"
 
-        case = VulnerabilityCase(
-            id_=case_id, name="No Deadline Accept", attributed_to=_COORD
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="No Deadline Accept",
+            attributed_to=_COORD,
         )
-        embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            id_=embargo_id,
+            context=case_id,
+            end_time=days_from_now(45),
         )
         propose(case, embargo_id)
 
-        invitee_cp = WireCP(
+        invitee_cp = make(
+            WireCP,
             attributed_to=_INVITEE,
             context=case_id,
             embargo_consents=_rows({embargo_id: EmbargoConsentState.INVITED}),
@@ -2926,7 +2971,8 @@ class TestLateAcceptHandling:
             invitee_deadline=_PAST,
         )
 
-        stale_embargo = as_EmbargoEvent(
+        stale_embargo = make(
+            as_EmbargoEvent,
             id_=stale_embargo_id,
             context=case_id,
             end_time=days_from_now(45),
@@ -3052,11 +3098,15 @@ class TestLapseIsDerived:
     @staticmethod
     def _case_with_signatory(dl: SqliteDataLayer, active_id: str, a_id: str):
         case_id = "https://example.org/cases/derived-lapse"
-        case = VulnerabilityCase(
-            id_=case_id, name="Derived lapse", attributed_to=_COORD
+        case = make(
+            VulnerabilityCase,
+            id_=case_id,
+            name="Derived lapse",
+            attributed_to=_COORD,
         )
         activate(case, active_id)
-        signatory = WireCP(
+        signatory = make(
+            WireCP,
             attributed_to=_INVITEE,
             context=case_id,
             case_roles=[CVDRole.VENDOR],
@@ -3232,7 +3282,8 @@ class TestOwnerAnswerToRelayedInvite:
             proposal_days=10,
             policy_days=30,
         )
-        other = as_EmbargoEvent(
+        other = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargos/e-other",
             context=case.id_,
             end_time=days_from_now(20),

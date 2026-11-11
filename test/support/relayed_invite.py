@@ -26,6 +26,7 @@ from typing import Any
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -69,17 +70,22 @@ def seed_invitee_case(
     a revision; at ``REVISE`` another revision is open as well.  The invitee
     holds *roles* and publishes an embargo policy of *policy_days*, or none.
     """
-    case = VulnerabilityCase(
-        id_=case_id, name="Owner Answer", attributed_to=COORD
+    case = make(
+        VulnerabilityCase,
+        id_=case_id,
+        name="Owner Answer",
+        attributed_to=COORD,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargos/e1",
         context=case_id,
         end_time=days_from_now(proposal_days),
     )
     dl.create(embargo)
     if em_state in (EM.ACTIVE, EM.REVISE):
-        prior = as_EmbargoEvent(
+        prior = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/e0",
             context=case_id,
             end_time=days_from_now(30),
@@ -87,7 +93,8 @@ def seed_invitee_case(
         dl.create(prior)
         activate(case, prior.id_)
     if em_state == EM.REVISE:
-        other = as_EmbargoEvent(
+        other = make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargos/e-other",
             context=case_id,
             end_time=days_from_now(20),
@@ -95,12 +102,14 @@ def seed_invitee_case(
         dl.create(other)
         propose(case, other.id_)
     assert case.em_state == em_state
-    coord_cp = WireCP(
+    coord_cp = make(
+        WireCP,
         attributed_to=COORD,
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    invitee_cp = WireCP(
+    invitee_cp = make(
+        WireCP,
         attributed_to=INVITEE,
         context=case_id,
         case_roles=roles,
@@ -110,12 +119,14 @@ def seed_invitee_case(
     case.actor_participant_index[COORD] = coord_cp.id_
     case.actor_participant_index[INVITEE] = invitee_cp.id_
     dl.create(case)
-    profile = VultronOrganization(
+    profile = make(
+        VultronOrganization,
         id_=INVITEE,
         embargo_policy=(
             None
             if policy_days is None
-            else EmbargoPolicy(
+            else make(
+                EmbargoPolicy,
                 actor_id=INVITEE,
                 inbox=f"{INVITEE}/inbox",
                 preferred_duration=timedelta(days=policy_days),

@@ -30,6 +30,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
+from test.support.objects import make
 from test.support.signing import resigned
 from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -62,7 +63,7 @@ def _note_body(
 ) -> dict[str, Any]:
     dl = net.stores[actor]
     note_id = f"{net.case_id}/notes/{tag}"
-    dl.create(as_Note(id_=note_id, content=tag, context=net.case_id))
+    dl.create(make(as_Note, id_=note_id, content=tag, context=net.case_id))
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
         note_id=note_id, case_id=net.case_id, actor=actor, to=[to]
     )
@@ -98,7 +99,7 @@ def test_a_number_whose_body_is_never_sealed_is_given_back() -> None:
     net = _network("rollback")
     dl = net.stores[OWNER]
     note = add_note_to_case_activity(
-        as_Note(id_=f"{net.case_id}/notes/lost", context=net.case_id),
+        make(as_Note, id_=f"{net.case_id}/notes/lost", context=net.case_id),
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],
@@ -161,7 +162,7 @@ def test_a_stale_expected_number_never_moves_the_count_down() -> None:
 
 def _bare_note(net: LedgerNetwork, tag: str, *, to: object) -> Any:
     return add_note_to_case_activity(
-        as_Note(id_=f"{net.case_id}/notes/{tag}", context=net.case_id),
+        make(as_Note, id_=f"{net.case_id}/notes/{tag}", context=net.case_id),
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],

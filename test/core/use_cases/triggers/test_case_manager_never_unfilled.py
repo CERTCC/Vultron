@@ -21,6 +21,7 @@ directly as the requester (a fallback an earlier, now retired, requirement allow
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
@@ -41,8 +42,8 @@ TRANSFEREE = "https://example.org/actors/transferee"
 def test_delegated_trigger_fails_when_no_case_manager_holds_the_role() -> None:
     """A roster with no CASE_MANAGER is a fault, not a fallback."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
-    dl.create(as_Service(id_=OWNER, name="Owner"))
-    case = VulnerabilityCase(name="Corrupt roster", attributed_to=OWNER)
+    dl.create(make(as_Service, id_=OWNER, name="Owner"))
+    case = make(VulnerabilityCase, name="Corrupt roster", attributed_to=OWNER)
     dl.create(case)
     request = OfferCaseOwnershipTransferTriggerRequest(
         actor_id=OWNER, case_id=case.id_, transferee_id=TRANSFEREE

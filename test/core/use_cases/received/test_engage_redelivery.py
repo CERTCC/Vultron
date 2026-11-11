@@ -34,6 +34,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -75,14 +76,18 @@ def _declare_accepted_body(net: LedgerNetwork, sender: str) -> dict[str, Any]:
     record = net.record(MANAGER, sender)
     return delivered_body(
         add_status_to_participant_activity(
-            status=as_ParticipantStatus(
+            status=make(
+                as_ParticipantStatus,
                 id_=f"{record.id_}/statuses/declared-accepted",
                 context=CASE_ID,
                 attributed_to=sender,
                 rm=RmDimension(state=RM.ACCEPTED),
             ),
-            target=as_CaseParticipant(
-                id_=record.id_, context=CASE_ID, attributed_to=sender
+            target=make(
+                as_CaseParticipant,
+                id_=record.id_,
+                context=CASE_ID,
+                attributed_to=sender,
             ),
             actor=sender,
             to=[MANAGER],

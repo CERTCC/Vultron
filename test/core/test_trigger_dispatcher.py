@@ -35,6 +35,7 @@ import py_trees.behaviour
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -207,7 +208,7 @@ def _stub_rows() -> list[TriggerEntry]:
 
 @pytest.fixture
 def actor_and_dl():
-    actor = as_Service(name="Case Manager Co")
+    actor = make(as_Service, name="Case Manager Co")
     reset_datalayer(actor.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
@@ -337,21 +338,24 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
     The vendor is an existing invitee: an on-behalf assertion never creates
     a participant (PRM-06-006)."""
     actor, dl = actor_and_dl
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="Dispatch Case"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Dispatch Case"
     )
-    cm = as_CaseParticipant(
+    cm = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     vendor_id = "https://example.org/actors/vendor-co"
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=vendor_id,
                 context=case.id_,
                 rm=RmDimension(state=RM.RECEIVED),

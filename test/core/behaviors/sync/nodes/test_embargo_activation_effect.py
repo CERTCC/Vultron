@@ -39,6 +39,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
@@ -87,11 +88,12 @@ def _seed(
     ``REVISE`` adds an earlier embargo in force, which the activation
     supersedes.  EM is derived from the register (ADR-0122).
     """
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     if em is EM.REVISE:
         # The activation reads the embargo it replaces (EMB-18-003).
         datalayer.save(
-            EmbargoEvent(
+            make(
+                EmbargoEvent,
                 id_=PRIOR_EMBARGO_ID,
                 context=CASE_ID,
                 end_time=now_utc() + timedelta(days=90),
@@ -101,7 +103,8 @@ def _seed(
     propose(case, EMBARGO_ID)
     assert case.em_state == em
     if owner_participant:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/owner",
             attributed_to=OWNER_ACTOR_ID,
             context=CASE_ID,
@@ -253,7 +256,8 @@ def test_the_replica_carries_nobody_over_from_the_accept_alone(
     it is until that entry arrives; the replica runs no EP-05-001 logic.
     """
     _seed(datalayer, EM.REVISE)
-    signatory = CaseParticipant(
+    signatory = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/signatory",
         attributed_to=PARTICIPANT_ACTOR_ID,
         context=CASE_ID,
@@ -263,7 +267,8 @@ def test_the_replica_carries_nobody_over_from_the_accept_alone(
                 state=EmbargoConsentState.AGREED,
             ),
             EmbargoConsent(
-                embargo_id=EMBARGO_ID, state=EmbargoConsentState.UNINVITED
+                embargo_id=EMBARGO_ID,
+                state=EmbargoConsentState.UNINVITED,
             ),
         ],
     )
@@ -287,7 +292,7 @@ def test_an_activation_of_an_embargo_not_open_here_is_refused(
     """The register here never saw the proposal: the step does not apply,
     so the entry is refused, never patched over (ADR-0124)."""
     datalayer.save(
-        VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     )
 
     assert _apply(bridge, _embargo_snapshot()).status == Status.FAILURE
@@ -373,7 +378,7 @@ def test_a_rejection_naming_a_bare_id_copies_the_step(bridge, datalayer):
 def test_a_rejection_of_an_embargo_not_open_here_is_refused(bridge, datalayer):
     """The register here never saw the proposal: refused, never patched."""
     datalayer.save(
-        VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     )
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.FAILURE

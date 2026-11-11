@@ -19,6 +19,7 @@ import pytest
 from py_trees.composites import Sequence
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
@@ -440,7 +441,8 @@ def test_two_participants_one_report_both_reach_valid_in_shared_store(
     case = case_with_participant
     actor_a = actor.id_  # already a participant at RECEIVED (the fixture)
     actor_b = "https://example.org/actors/second-participant"
-    participant_b = CaseParticipant(
+    participant_b = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/second",
         attributed_to=actor_b,
         context=case.id_,

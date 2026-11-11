@@ -104,7 +104,8 @@ def _invited_only(
             )
             if row.embargo_id == embargo_id
             else EmbargoConsent(
-                embargo_id=row.embargo_id, state=EmbargoConsentState.UNINVITED
+                embargo_id=row.embargo_id,
+                state=EmbargoConsentState.UNINVITED,
             )
         )
         for row in participant.embargo_consents

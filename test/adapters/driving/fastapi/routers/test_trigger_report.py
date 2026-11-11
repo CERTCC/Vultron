@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
@@ -88,7 +89,8 @@ def client_triggers(dl):
 
 @pytest.fixture
 def report(dl, actor):
-    report_obj = as_VulnerabilityReport(
+    report_obj = make(
+        as_VulnerabilityReport,
         name="Test Vulnerability",
         content="Test content",
     )
@@ -98,14 +100,15 @@ def report(dl, actor):
 
 @pytest.fixture
 def reporter(dl):
-    reporter_obj = as_Service(name="Finder Co")
+    reporter_obj = make(as_Service, name="Finder Co")
     dl.create(reporter_obj)
     return reporter_obj
 
 
 @pytest.fixture
 def offer(dl, report, actor, reporter):
-    offer_obj = as_Offer(
+    offer_obj = make(
+        as_Offer,
         actor=reporter.id_,
         object_=report.id_,
         target=actor.id_,
@@ -131,7 +134,8 @@ def received_report(dl, actor, report):
     from vultron.core.models.case import VulnerabilityCase
 
     embargo_id = f"{actor.id_}/embargoes/test-embargo"
-    case_obj = VulnerabilityCase(
+    case_obj = make(
+        VulnerabilityCase,
         id_=f"{actor.id_}/cases/test-case-received",
         name="Test Case at Received",
         attributed_to=actor.id_,
@@ -139,9 +143,10 @@ def received_report(dl, actor, report):
         embargo_register=register(active=embargo_id),
     )
     dl.create(case_obj)
-    case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
+    case_actor = make(as_Service, name=f"Case Actor for {case_obj.name}")
     dl.create(case_actor)
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -155,12 +160,14 @@ def received_report(dl, actor, report):
     # replica, which is what Create(VulnerabilityCase) delivers (ADR-0041,
     # CBT-01-002).  Without it the validate-report BT correctly refuses to act
     # rather than latching a transition that never happened (ISSUE-2548).
-    self_participant = as_CaseParticipant(
+    self_participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_obj.id_,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -189,17 +196,21 @@ def _seed_owner_case(dl, actor_id, report_id):
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant
 
-    owner_p = CaseParticipant(
+    owner_p = make(
+        CaseParticipant,
         attributed_to=actor_id,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager_actor = as_Service(name="Case Manager")
-    manager_p = CaseParticipant(
+    manager_actor = make(as_Service, name="Case Manager")
+    manager_p = make(
+        CaseParticipant,
         attributed_to=manager_actor.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="Owner Case for Close"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="Owner Case for Close",
     )
     case.vulnerability_reports.append(report_id)
     case.actor_participant_index[actor_id] = owner_p.id_
@@ -225,8 +236,10 @@ def non_report_object(dl):
     """An as_EmbargoEvent stored in the datalayer — not an Offer."""
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    obj = as_EmbargoEvent(
-        context="urn:uuid:some-case", end_time=days_from_now(45)
+    obj = make(
+        as_EmbargoEvent,
+        context="urn:uuid:some-case",
+        end_time=days_from_now(45),
     )
     dl.create(obj)
     return obj

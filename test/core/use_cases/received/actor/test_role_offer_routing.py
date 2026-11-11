@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act, run_tree
+from test.support.objects import make
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -94,8 +95,11 @@ def _store(actor_id: str) -> SqliteDataLayer:
     role is offered to, and a coordinator that is neither.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="Role offer routing", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Role offer routing",
+        attributed_to=_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, _CASE_MANAGER_ID)
     seed_case_owner_participant(dl, case, _OWNER_ID)
@@ -114,7 +118,7 @@ def _offer(
 ) -> Any:
     return offer_case_participant_role_activity(
         role=role,
-        target_actor=as_Actor(id_=target),
+        target_actor=make(as_Actor, id_=target),
         case=_CASE_ID,
         actor=sender,
         to=[to],
@@ -126,7 +130,7 @@ def _forward() -> Any:
     """The CASE_MANAGER's forward of the Case Owner's Offer to the target."""
     return offer_case_participant_role_activity(
         role=CVDRole.VENDOR,
-        target_actor=as_Actor(id_=_TARGET_ID),
+        target_actor=make(as_Actor, id_=_TARGET_ID),
         case=_CASE_ID,
         actor=_CASE_MANAGER_ID,
         attributed_to=_OWNER_ID,
@@ -538,7 +542,7 @@ def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
     dl = _store(_BYSTANDER_ID)
     offer = offer_case_participant_role_activity(
         role=CVDRole.VENDOR,
-        target_actor=as_Actor(id_=_TARGET_ID),
+        target_actor=make(as_Actor, id_=_TARGET_ID),
         case=_CASE_ID,
         actor=_CASE_MANAGER_ID,
         attributed_to=_OWNER_ID,
@@ -1021,7 +1025,7 @@ def test_answer_naming_an_offer_no_forward_links_is_refused(make_payload):
     entries_before = _semantic_types(dl)
     made_up = offer_case_participant_role_activity(
         role=CVDRole.VENDOR,
-        target_actor=as_Actor(id_=_TARGET_ID),
+        target_actor=make(as_Actor, id_=_TARGET_ID),
         case=_CASE_ID,
         actor=_CASE_MANAGER_ID,
         to=[_TARGET_ID],
@@ -1120,7 +1124,8 @@ def test_a_target_that_left_the_case_cannot_answer(make_payload):
     record = dl.read(case.actor_participant_index[_TARGET_ID])
     assert isinstance(record, CaseParticipant)
     record.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=_CASE_ID,
             attributed_to=_TARGET_ID,
             rm=RmDimension(state=RM.CLOSED),

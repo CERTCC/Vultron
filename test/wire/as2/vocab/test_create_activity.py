@@ -13,6 +13,7 @@
 
 import unittest
 
+from test.support.objects import make
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 
 
@@ -34,7 +35,7 @@ class MyTestCase(unittest.TestCase):
         del data["type"]
         # data["type_"] = data.pop("type")
         data["object_"] = data.pop("object")
-        as_Create(**data)
+        make(as_Create, **data)
 
 
 if __name__ == "__main__":

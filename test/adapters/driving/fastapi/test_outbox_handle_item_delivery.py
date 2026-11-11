@@ -36,6 +36,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
@@ -181,8 +182,11 @@ def test_handle_outbox_item_hands_over_the_held_inbox():
         "urn:test:act-held-inbox",
         {"type": "Offer", "actor": SENDER, "to": [RECIPIENT], "object": {}},
     )
-    held = VultronOrganization(
-        id_=RECIPIENT, name="Alice", inbox="https://boxes.example/alice-in"
+    held = make(
+        VultronOrganization,
+        id_=RECIPIENT,
+        name="Alice",
+        inbox="https://boxes.example/alice-in",
     )
     dl = MagicMock()
     dl.read.side_effect = {sealed.id_: sealed, RECIPIENT: held}.get
@@ -206,7 +210,7 @@ def test_handle_outbox_item_delivers_an_activitystreams_activity():
     sets the proof aside (MV-11-003).
     """
     offer = rm_submit_report_activity(
-        as_VulnerabilityReport(name="VU#OX-02-002", content="a report"),
+        make(as_VulnerabilityReport, name="VU#OX-02-002", content="a report"),
         to=RECIPIENT,
         actor=SENDER,
     )

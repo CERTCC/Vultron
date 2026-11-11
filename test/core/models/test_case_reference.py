@@ -16,6 +16,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_reference import (
     CASE_REFERENCE_TAG_VOCABULARY,
@@ -33,36 +34,36 @@ class TestCaseReferenceBasics:
         assert issubclass(CaseReference, CoreObject)
 
     def test_type_literal(self):
-        ref = CaseReference(url=_URL)
+        ref = make(CaseReference, url=_URL)
         assert ref.type_ == "CaseReference"
 
     @pytest.mark.spec("CM-05-005")
     def test_url_required(self):
         with pytest.raises(ValidationError):
-            CaseReference()  # pyright: ignore[reportCallIssue]
+            make(CaseReference)  # pyright: ignore[reportCallIssue]
 
     def test_url_must_be_non_empty(self):
         with pytest.raises(ValidationError):
-            CaseReference(url="")
+            make(CaseReference, url="")
 
     def test_name_optional(self):
-        ref = CaseReference(url=_URL, name="Advisory Title")
+        ref = make(CaseReference, url=_URL, name="Advisory Title")
         assert ref.name == "Advisory Title"
 
     def test_name_none_by_default(self):
-        ref = CaseReference(url=_URL)
+        ref = make(CaseReference, url=_URL)
         assert ref.name is None
 
     def test_tags_optional(self):
-        ref = CaseReference(url=_URL, tags=["patch"])
+        ref = make(CaseReference, url=_URL, tags=["patch"])
         assert ref.tags == ["patch"]
 
     def test_tags_none_by_default(self):
-        ref = CaseReference(url=_URL)
+        ref = make(CaseReference, url=_URL)
         assert ref.tags is None
 
     def test_id_auto_generated_as_urn(self):
-        ref = CaseReference(url=_URL)
+        ref = make(CaseReference, url=_URL)
         assert ref.id_.startswith("urn:uuid:")
 
 
@@ -70,29 +71,29 @@ class TestCaseReferenceTagValidation:
     """tags field validates against CASE_REFERENCE_TAG_VOCABULARY."""
 
     def test_valid_single_tag(self):
-        ref = CaseReference(url=_URL, tags=["patch"])
+        ref = make(CaseReference, url=_URL, tags=["patch"])
         assert ref.tags == ["patch"]
 
     def test_valid_multiple_tags(self):
-        ref = CaseReference(url=_URL, tags=["patch", "vendor-advisory"])
+        ref = make(CaseReference, url=_URL, tags=["patch", "vendor-advisory"])
         assert ref.tags is not None
         assert len(ref.tags) == 2
 
     def test_invalid_tag_raises(self):
         with pytest.raises(ValidationError):
-            CaseReference(url=_URL, tags=["invalid-tag-xyz"])
+            make(CaseReference, url=_URL, tags=["invalid-tag-xyz"])
 
     def test_empty_tags_list_raises(self):
         with pytest.raises(ValidationError):
-            CaseReference(url=_URL, tags=[])
+            make(CaseReference, url=_URL, tags=[])
 
     def test_empty_string_tag_raises(self):
         with pytest.raises(ValidationError):
-            CaseReference(url=_URL, tags=[""])
+            make(CaseReference, url=_URL, tags=[""])
 
     def test_all_vocabulary_tags_are_valid(self):
         for tag in CASE_REFERENCE_TAG_VOCABULARY:
-            ref = CaseReference(url=_URL, tags=[tag])
+            ref = make(CaseReference, url=_URL, tags=[tag])
             assert ref.tags == [tag]
 
 
@@ -113,7 +114,8 @@ class TestCaseReferenceWireRoundTrip:
         )
 
         assert WireCaseReference is CaseReference
-        core_ref = CaseReference(
+        core_ref = make(
+            CaseReference,
             id_="urn:uuid:ref-test",
             url=_URL,
             name="Example Advisory",
@@ -128,7 +130,7 @@ class TestCaseReferenceWireRoundTrip:
         )
 
         assert WireCaseReference is CaseReference
-        wire_ref = WireCaseReference(url=_URL, tags=["vendor-advisory"])
+        wire_ref = make(WireCaseReference, url=_URL, tags=["vendor-advisory"])
         assert isinstance(wire_ref, CaseReference)
         assert wire_ref.url == _URL
         assert wire_ref.tags == ["vendor-advisory"]
@@ -139,7 +141,8 @@ class TestCaseReferenceWireRoundTrip:
         )
 
         assert WireCaseReference is CaseReference
-        core_ref = CaseReference(
+        core_ref = make(
+            CaseReference,
             id_="urn:uuid:ref-roundtrip",
             url=_URL,
         )

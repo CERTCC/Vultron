@@ -49,6 +49,7 @@ from test.support.emitter import RecordingEmitter
 from test.support.future_dates import days_from_now
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.ledger_rebuild import case_file_differences
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models.case_participant import CaseParticipant
@@ -84,7 +85,8 @@ def served_manager():
 
 def _proposal_body(net: LedgerNetwork) -> tuple[dict[str, Any], str]:
     """PROPOSER's revision, sent to the CASE_MANAGER only (EP-09-001)."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/revision",
         content="Longer terms",
         context=net.case_id,

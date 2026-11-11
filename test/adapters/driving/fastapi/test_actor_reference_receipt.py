@@ -32,6 +32,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driven.clock import SystemClock
@@ -68,7 +69,8 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
     """The CASE_MANAGER's store, holding the peer's full profile."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     dl.clear_all()
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="Reference receipt",
         stub_summary="A case the peer is recommended to",
@@ -77,7 +79,7 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
     seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, _VENDOR_ID)
     dl.create(case)
-    dl.create(as_Organization(id_=_PEER_ID, name="Peer Co"))
+    dl.create(make(as_Organization, id_=_PEER_ID, name="Peer Co"))
     yield dl
     dl.clear_all()
     dl.close()

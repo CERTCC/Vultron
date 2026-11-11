@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -47,14 +48,15 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     datalayer.save(case)
     return case
 
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = VultronService(
+    actor = make(
+        VultronService,
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,

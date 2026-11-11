@@ -20,6 +20,7 @@ import pytest
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register
+from test.support.objects import make
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -184,7 +185,8 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
     report: VulnerabilityReport,
 ) -> None:
     """EnsureEmbargoExists returns SUCCESS when the linked case has embargo."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Embargoed Case",
         vulnerability_reports=[report.id_],
         embargo_register=register(
@@ -232,7 +234,8 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
     The case has none of P, X or A set, so it could carry an embargo and
     must have one before RM.VALID.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="No Embargo Case",
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,
@@ -265,7 +268,8 @@ def test_ensure_embargo_exists_succeeds_for_ineligible_case_without_embargo(
     With P, X or A set the case never receives an embargo (EP-04-020), so
     DUR-07-004 does not apply and validation proceeds at ``EM.NONE``.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Public Case",
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,
@@ -315,7 +319,8 @@ def test_evaluate_case_priority(
     actor: VultronService,
 ) -> None:
     """EvaluateCasePriority always returns SUCCESS."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-priority",
         name="Priority Case",
         attributed_to=actor.id_,

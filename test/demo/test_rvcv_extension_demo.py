@@ -74,6 +74,7 @@ from test.demo._helpers import (
     story_state,
     stub_closure_gate,
 )
+from test.support.objects import make
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
@@ -714,7 +715,8 @@ class TestTheFourExchangeNotes:
     """The Coordinator and Vendor2 answer the thread the opening posted."""
 
     def _answer(self) -> as_Note:
-        return as_Note(
+        return make(
+            as_Note,
             id_="urn:test:workaround-answer",
             name="Vendor1 Response",
             content="A workaround is available.",

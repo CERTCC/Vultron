@@ -15,6 +15,7 @@
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -50,7 +51,7 @@ _TAIL = LedgerPosition(log_index=4, entry_hash="ab" * 32)
 
 def _note():
     return add_note_to_case_activity(
-        as_Note(id_=f"{_CASE}/notes/1", content="n", context=_CASE),
+        make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
     )
@@ -89,7 +90,7 @@ def test_the_case_comes_first_from_context_then_target() -> None:
 def test_a_participant_status_names_its_case_on_the_status() -> None:
     participant_id = f"{_CASE}/participants/vendor"
     add = add_status_to_participant_activity(
-        as_ParticipantStatus(id_=f"{participant_id}/s1", context=_CASE),
+        make(as_ParticipantStatus, id_=f"{participant_id}/s1", context=_CASE),
         target=participant_id,
         actor=_ACTOR,
     )
@@ -102,7 +103,7 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
     None
 ):
     invite = rm_invite_to_case_activity(
-        as_Organization(id_="https://example.org/users/invitee"),
+        make(as_Organization, id_="https://example.org/users/invitee"),
         target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
         actor=_ACTOR,
     )
@@ -119,7 +120,8 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
     "build",
     [
         lambda: announce_log_entry_activity(
-            as_CaseLedgerEntry(
+            make(
+                as_CaseLedgerEntry,
                 case_id=_CASE,
                 log_index=0,
                 log_object_id=f"{_CASE}/activities/0",
@@ -133,15 +135,15 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
             actor=_ACTOR,
         ),
         lambda: announce_vulnerability_case_activity(
-            as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR),
+            make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
         ),
         lambda: create_case_activity(
-            as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR),
+            make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
         ),
         lambda: update_case_activity(
-            as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR),
+            make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
         ),
     ],
@@ -169,7 +171,8 @@ def test_an_act_on_a_named_case_names_it_to_be_stamped() -> None:
 def test_a_processing_fault_names_no_case() -> None:
     fault = create_processing_fault_activity(
         actor=_ACTOR,
-        fault=as_ProcessingFault(
+        fault=make(
+            as_ProcessingFault,
             failure_class="https://example.org/faults/x",
             in_reply_to=f"{_CASE}/activities/9",
         ),

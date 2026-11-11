@@ -23,6 +23,7 @@ writes the stub from the delivery's own body (CLP-10-018).
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -65,7 +66,8 @@ def dl() -> SqliteDataLayer:
 
 
 def _participant() -> as_CaseParticipant:
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=f"{_CASE_ID}/participants/coord",
         attributed_to="https://example.org/users/coordinator",
         context=_CASE_ID,
@@ -85,7 +87,8 @@ def _move_event(make_payload, verb: str):
             )
         )
     return make_payload(
-        as_Remove(
+        make(
+            as_Remove,
             actor=_OWNER,
             object_=_participant(),
             target=_CASE_ID,

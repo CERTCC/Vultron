@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -264,7 +265,8 @@ def test_tree_ascii_contains_both_arm_names():
 
 @pytest.fixture
 def deployer_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/deployer-comb-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -277,7 +279,8 @@ def case_with_deployer(
     bt_scenario: BTTestScenario,
     deployer_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Deploy Combinator Case",
@@ -297,7 +300,8 @@ def _seed_status(
     d: CS_d | None = None,
 ) -> None:
     """Seed a ParticipantStatus record with the given RM, vf, and d states."""
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),

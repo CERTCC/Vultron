@@ -34,6 +34,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -83,7 +84,7 @@ FINDER_URL = "https://example.org/actors/finder-rt"
 
 
 def _make_actor_dl(url: str) -> tuple[as_Service, SqliteDataLayer]:
-    actor = as_Service(name=url.rsplit("/", maxsplit=1)[-1], url=url)
+    actor = make(as_Service, name=url.rsplit("/", maxsplit=1)[-1], url=url)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
     dl.create(actor)
@@ -101,33 +102,46 @@ def _seed_case(
 
     Returns the case and the seeded participant for ``actor_id``.
     """
-    case = as_VulnerabilityCase(
-        id_=case_id, name="Round-Trip Test Case", attributed_to=case_actor_id
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="Round-Trip Test Case",
+        attributed_to=case_actor_id,
     )
 
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case_id,
         case_roles=[role],
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case_id, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case_id,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case_id,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+        make(
+            WireParticipantStatus,
+            context=case_id,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
     )
     dl.create(participant)
     case.actor_participant_index[actor_id] = participant.id_
     case.case_participants.append(participant.id_)
 
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -137,7 +151,11 @@ def _seed_case(
     # add it during owner Leave; pre-seeding would make the assertion vacuous.
     for state in [RM.RECEIVED, RM.VALID, RM.ACCEPTED]:
         cm_participant.participant_statuses.append(
-            WireParticipantStatus(context=case_id, rm=RmDimension(state=state))
+            make(
+                WireParticipantStatus,
+                context=case_id,
+                rm=RmDimension(state=state),
+            )
         )
     dl.create(cm_participant)
     case.actor_participant_index[case_actor_id] = cm_participant.id_
@@ -172,11 +190,14 @@ def _make_close_case_event(
     case_id: str,
     receiving_actor_id: str,
 ) -> CloseCaseReceivedEvent:
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
-        object_=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
+        object_=make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
+        ),
         to=[receiving_actor_id],
     )
     return with_evidence(

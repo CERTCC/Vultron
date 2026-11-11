@@ -13,6 +13,7 @@
 import unittest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.wire.as2.vocab.activities import actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -71,15 +72,21 @@ class MyTestCase(unittest.TestCase):
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
-            _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(
+            _actor = make(actor_class, name=actor_class.__name__)
+            _case = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 name=f"{actor_class.__name__} Case",
             )
-            _recommendation = actor._RecommendActorActivity(
-                actor=_actor, object_=_actor, target=_case
+            _recommendation = make(
+                actor._RecommendActorActivity,
+                actor=_actor,
+                object_=_actor,
+                target=_case,
             )
-            _object = cls(actor=_actor, object_=_recommendation, target=_case)  # type: ignore[arg-type]
+            _object = make(
+                cls, actor=_actor, object_=_recommendation, target=_case
+            )
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -107,12 +114,13 @@ class MyTestCase(unittest.TestCase):
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
-            _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(
+            _actor = make(actor_class, name=actor_class.__name__)
+            _case = make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 name=f"{actor_class.__name__} Case",
             )
-            _object = cls(actor=_actor, object_=_actor, target=_case)  # type: ignore[arg-type]
+            _object = make(cls, actor=_actor, object_=_actor, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)

@@ -24,6 +24,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers import (
@@ -120,7 +121,8 @@ def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
     """
     from datetime import timedelta
 
-    return as_EmbargoPolicy(
+    return make(
+        as_EmbargoPolicy,
         actor_id=actor_id,
         inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=90),
@@ -134,7 +136,8 @@ def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
 # can never be addressed on this node — it is not an actor this node hosts.
 @pytest.fixture
 def vultron_person():
-    return as_VultronPerson(
+    return make(
+        as_VultronPerson,
         name="Alice",
         id_=canonical_actor_uri("alice"),
         embargo_policy=_embargo_policy(canonical_actor_uri("alice")),
@@ -143,7 +146,8 @@ def vultron_person():
 
 @pytest.fixture
 def vultron_organization():
-    return as_VultronOrganization(
+    return make(
+        as_VultronOrganization,
         name="ACME Corp",
         id_=canonical_actor_uri("acme"),
         embargo_policy=_embargo_policy(canonical_actor_uri("acme")),
@@ -152,7 +156,8 @@ def vultron_organization():
 
 @pytest.fixture
 def vultron_service():
-    return as_VultronService(
+    return make(
+        as_VultronService,
         name="VulnBot",
         id_=canonical_actor_uri("vulnbot"),
         embargo_policy=_embargo_policy(canonical_actor_uri("vulnbot")),
@@ -161,7 +166,8 @@ def vultron_service():
 
 @pytest.fixture
 def vultron_application():
-    return as_VultronApplication(
+    return make(
+        as_VultronApplication,
         name="VulnApp",
         id_=canonical_actor_uri("vulnapp"),
         embargo_policy=_embargo_policy(canonical_actor_uri("vulnapp")),
@@ -170,7 +176,8 @@ def vultron_application():
 
 @pytest.fixture
 def vultron_group():
-    return as_VultronGroup(
+    return make(
+        as_VultronGroup,
         name="VulnGroup",
         id_=canonical_actor_uri("vulngroup"),
         embargo_policy=_embargo_policy(canonical_actor_uri("vulngroup")),

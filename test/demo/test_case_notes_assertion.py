@@ -17,6 +17,7 @@ from typing import cast
 
 import pytest
 
+from test.support.objects import make
 from vultron.demo.helpers.verification.records import (
     verify_receiver_case_state,
 )
@@ -33,7 +34,9 @@ R = "https://example.org/notes/r"
 
 def _case(*note_ids: str) -> as_VulnerabilityCase:
     """A case holding exactly *note_ids* in its notes."""
-    return as_VulnerabilityCase(attributed_to=ACTOR, notes=list(note_ids))
+    return make(
+        as_VulnerabilityCase, attributed_to=ACTOR, notes=list(note_ids)
+    )
 
 
 class _RecordingClient:

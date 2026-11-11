@@ -24,6 +24,7 @@ import pytest
 from fastapi import status
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.factories import (
@@ -48,7 +49,7 @@ REPORT_ID = "https://finder.example/reports/r-1"
 
 def _received_offer(to: str):
     return rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r", content="c"),
         to=to,
         actor=FINDER,
         id_=OFFER_ID,
@@ -147,8 +148,9 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
     client_datalayer, datalayer, dl_route_key, dl_actor_id, ingress_row
 ):
     invite = rm_invite_to_case_activity(
-        as_Service(id_=dl_actor_id),
-        target=as_VulnerabilityCase(
+        make(as_Service, id_=dl_actor_id),
+        target=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/c-1",
             stub_summary="s",
@@ -193,7 +195,7 @@ def test_an_offer_the_actor_sent_is_served_by_id(
 ):
     """An authored Offer is stored under its own id and names its recipient."""
     sent = rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r", content="c"),
         to="https://vendor.example/actors/vendor",
         actor=dl_actor_id,
         id_=OFFER_ID,

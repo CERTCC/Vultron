@@ -63,6 +63,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -213,7 +214,8 @@ def _record(
     *,
     rm: RM | None = None,
 ) -> CaseParticipant:
-    record = CaseParticipant(
+    record = make(
+        CaseParticipant,
         id_=_participant_id(actor_id),
         attributed_to=actor_id,
         context=CASE_ID,
@@ -226,7 +228,8 @@ def _record(
     )
     if rm is None:
         return record
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=CASE_ID,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
@@ -238,12 +241,15 @@ def _record(
 def _seed(
     dl: SqliteDataLayer, *, vendor_rm: RM | None = None
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="CASE-REMOVAL", attributed_to=OWNER
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="CASE-REMOVAL",
+        attributed_to=OWNER,
     )
-    dl.create(as_Service(id_=MANAGER, context=CASE_ID))
+    dl.create(make(as_Service, id_=MANAGER, context=CASE_ID))
     for actor_id in (OWNER, VENDOR, OTHER):
-        dl.create(as_Organization(id_=actor_id))
+        dl.create(make(as_Organization, id_=actor_id))
     seed_case_manager_participant(dl, case, MANAGER)
     for actor_id, roles in (
         (OWNER, [CVDRole.CASE_OWNER, CVDRole.VENDOR]),
@@ -256,8 +262,11 @@ def _seed(
         dl.create(record)
         case.case_participants.append(record.id_)
         case.actor_participant_index[actor_id] = record.id_
-    embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(60),
     )
     dl.create(embargo)
     activate(case, EMBARGO_ID)

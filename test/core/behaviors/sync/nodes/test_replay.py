@@ -17,6 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
 )
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
@@ -86,8 +87,8 @@ def case_actor(datalayer):
     Announce is signed by its sender, and an outbox signs only its own
     actor's activities (SIG-05-004), so the sender is the store's owner.
     """
-    actor = VultronService(
-        id_=OWNER_ACTOR_ID, name="Case Actor", context=CASE_ID
+    actor = make(
+        VultronService, id_=OWNER_ACTOR_ID, name="Case Actor", context=CASE_ID
     )
     datalayer.create(actor)
     return actor
@@ -100,13 +101,14 @@ def case_obj(datalayer):
     Shadows the package fixture: replay is case content, so a peer outside
     the roster is refused (CM-10-004).
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/reporter",
         attributed_to=PARTICIPANT_ACTOR_ID,
         context=CASE_ID,
     )
     datalayer.create(participant)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     case.add_participant(participant)
     datalayer.save(case)
     return case
@@ -192,14 +194,15 @@ MANAGER_ACTOR_ID = "https://example.org/actors/the-case-manager"
 
 def _seed_case_with_manager(datalayer, manager_actor_id: str) -> None:
     """Seed a case whose CASE_MANAGER is *manager_actor_id*."""
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/manager",
         attributed_to=manager_actor_id,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     case.add_participant(participant)
     datalayer.save(case)
 
@@ -271,7 +274,7 @@ class TestFindCaseActorNode:
         """
         _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
         datalayer.create(
-            VultronService(id_=MANAGER_ACTOR_ID, name="CaseActor")
+            make(VultronService, id_=MANAGER_ACTOR_ID, name="CaseActor")
         )
         event = _make_reject_event(tail_hash="")
 
@@ -301,14 +304,15 @@ class TestFindCaseActorNode:
         roster the honest answer is FAILURE.
         """
         datalayer.create(
-            VultronService(
+            make(
+                VultronService,
                 id_="https://example.org/actors/some-other-case-actor",
                 name="Unrelated CaseActor",
                 context="https://example.org/cases/a-different-case",
             )
         )
         datalayer.save(
-            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+            make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
         )
         event = _make_reject_event(tail_hash="")
 
@@ -437,7 +441,8 @@ def test_replay_missing_entries_node_replays_from_divergence(
 
 def _seed_owner_and_participant_case(datalayer) -> None:
     """Seed a case whose only peer of the owner is the participant."""
-    case_obj = VulnerabilityCase(
+    case_obj = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         actor_participant_index={
@@ -447,7 +452,12 @@ def _seed_owner_and_participant_case(datalayer) -> None:
     )
     for actor_id, pid in case_obj.actor_participant_index.items():
         datalayer.save(
-            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+            make(
+                CaseParticipant,
+                id_=pid,
+                attributed_to=actor_id,
+                context=CASE_ID,
+            )
         )
     datalayer.save(case_obj)
 

@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from test.support.embargo_register import activate, propose
 from test.support.emitter import RecordingEmitter
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -61,7 +62,7 @@ def actor_and_dl():
     The actor is then persisted into its own DataLayer.  Callers should
     unpack via the ``actor`` and ``dl`` fixtures below.
     """
-    actor_obj = as_Service(name="Vendor Co")
+    actor_obj = make(as_Service, name="Vendor Co")
     actor_id = actor_obj.id_
     reset_datalayer(actor_id)
     actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -196,14 +197,14 @@ def created_actors(actor_classes):
 # Lightweight as_VulnerabilityReport fixture
 @pytest.fixture
 def report():
-    return as_VulnerabilityReport()
+    return make(as_VulnerabilityReport)
 
 
 # Lightweight Offer fixture tied to the report
 @pytest.fixture
 def offer(report):
     # use current parameter name `object_` (legacy name was `as_object` / JSON `object`)
-    return as_Offer(actor="urn:uuid:test-actor", object_=report)
+    return make(as_Offer, actor="urn:uuid:test-actor", object_=report)
 
 
 # ---------------------------------------------------------------------------
@@ -213,9 +214,10 @@ def offer(report):
 
 def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
-    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    case_actor = make(as_Service, name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -249,7 +251,8 @@ def make_case_manager(case_id: str, actor_id: str, dl) -> None:
         existing.case_roles = [*existing.case_roles, CVDRole.CASE_MANAGER]
         dl.save(existing)
         return
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -278,8 +281,10 @@ def client_triggers(dl):
 @pytest.fixture
 def case_without_participant(dl, actor):
     """A VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = VulnerabilityCase(
-        name="TEST-CASE-NO-PARTICIPANT", attributed_to=actor.id_
+    case_obj = make(
+        VulnerabilityCase,
+        name="TEST-CASE-NO-PARTICIPANT",
+        attributed_to=actor.id_,
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
@@ -289,10 +294,12 @@ def case_without_participant(dl, actor):
 @pytest.fixture
 def case_with_embargo(dl, actor):
     """A VulnerabilityCase with an active as_EmbargoEvent."""
-    case_obj = VulnerabilityCase(
-        name="EMBARGO-CASE-001", attributed_to=actor.id_
+    case_obj = make(
+        VulnerabilityCase, name="EMBARGO-CASE-001", attributed_to=actor.id_
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case_obj.id_, end_time=days_from_now(45)
+    )
     dl.create(embargo)
     activate(case_obj, embargo.id_)
     dl.create(case_obj)
@@ -303,11 +310,14 @@ def case_with_embargo(dl, actor):
 @pytest.fixture
 def case_with_proposal(dl, actor):
     """A VulnerabilityCase with a pending EmProposeEmbargoActivity in EM.PROPOSED state."""
-    case_obj = VulnerabilityCase(
+    case_obj = make(
+        VulnerabilityCase,
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case_obj.id_, end_time=days_from_now(45)
+    )
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
         embargo, context=case_obj.id_, actor=actor.id_

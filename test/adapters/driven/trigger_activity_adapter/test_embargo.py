@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
@@ -37,7 +38,9 @@ _CASE_ID = "https://example.org/cases/case-001"
 
 
 def _make_embargo(dl) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=_CASE_ID, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=_CASE_ID, end_time=days_from_now(45)
+    )
     dl.create(embargo)
     return embargo
 

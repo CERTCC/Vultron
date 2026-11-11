@@ -36,6 +36,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -172,13 +173,17 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     dl.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="current copy"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="current copy",
         )
     )
     activity = create_processing_fault_activity(
         actor=_REPLICA_ID,
-        fault=as_ProcessingFault(
+        fault=make(
+            as_ProcessingFault,
             failure_class=_CASE_DIVERGED,
             in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
         ),
@@ -210,7 +215,8 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     activity = create_processing_fault_activity(
         actor=_STRANGER_ID,
-        fault=as_ProcessingFault(
+        fault=make(
+            as_ProcessingFault,
             failure_class=_CASE_DIVERGED,
             in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
         ),
@@ -264,7 +270,8 @@ def _replica_holding(
     """A replica that holds the case, whose roster names its CASE_MANAGER."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.create(
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=_MANAGER_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
@@ -277,7 +284,8 @@ def _replica_holding(
 
 def _owned_case(name: str) -> as_VulnerabilityCase:
     """The case, with an owner so it has a genesis hash to anchor its chain."""
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name=name,
         attributed_to=_CASE_ACTOR_ID,
@@ -409,8 +417,11 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
 
 def _stored_owned_case(dl: SqliteDataLayer, name: str) -> as_VulnerabilityCase:
     """An owned case stored in *dl*, at its empty ledger (SYNC-16-005)."""
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name=name, attributed_to=_CASE_ACTOR_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name=name,
+        attributed_to=_CASE_ACTOR_ID,
     )
     dl.create(case)
     return case
@@ -676,7 +687,8 @@ def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     copy, at the copy's position (ADR-0124)."""
     dl = _replica_store()
     dl.create(
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=_MANAGER_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
@@ -796,7 +808,8 @@ def test_a_genesis_copy_naming_another_genesis_hash_is_refused() -> None:
     """At index -1 the hash compared is the case's genesis hash: a copy whose
     own genesis differs, from another ``published`` time, conflicts."""
     dl = _replica_holding("replica case")
-    foreign = as_VulnerabilityCase(
+    foreign = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="foreign copy",
         attributed_to=_CASE_ACTOR_ID,
@@ -1038,12 +1051,14 @@ def test_a_current_copy_replaces_a_participant_the_replica_holds_ahead() -> (
     participant_id = f"{_CASE_ID}/participants/vendor"
 
     def participant(rm: RM) -> CaseParticipant:
-        return CaseParticipant(
+        return make(
+            CaseParticipant,
             id_=participant_id,
             attributed_to=_REPLICA_ID,
             context=_CASE_ID,
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=_CASE_ID,
                     attributed_to=_REPLICA_ID,
                     rm=RmDimension(state=rm),
@@ -1108,7 +1123,7 @@ def test_a_reflected_entry_copies_nothing_from_a_case_an_act_names(
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
         "caseStatuses": [
-            CaseStatus(id_=status_id, context=_CASE_ID).model_dump(
+            make(CaseStatus, id_=status_id, context=_CASE_ID).model_dump(
                 mode="json", by_alias=True
             )
         ],
@@ -1138,12 +1153,13 @@ def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
             }
         )
     )
-    proposal = EmbargoEvent(
+    proposal = make(
+        EmbargoEvent,
         id_=proposal_id,
         context=_CASE_ID,
         end_time=datetime(2026, 12, 1, tzinfo=UTC),
     )
-    status = CaseStatus(id_=status_id, context=_CASE_ID)
+    status = make(CaseStatus, id_=status_id, context=_CASE_ID)
     (entry,) = _chain(
         dl,
         [
@@ -1304,12 +1320,14 @@ def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
 
 
 def _vendor(rm: RM) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{_CASE_ID}/participants/vendor",
         attributed_to=_REPLICA_ID,
         context=_CASE_ID,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_CASE_ID,
                 attributed_to=_REPLICA_ID,
                 rm=RmDimension(state=rm),

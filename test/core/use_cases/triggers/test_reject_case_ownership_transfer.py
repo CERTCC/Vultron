@@ -30,6 +30,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -59,15 +60,21 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
     """A case owned by *owner_id* and managed by *case_manager_id*."""
-    case = as_VulnerabilityCase(
-        attributed_to=owner_id, name="Reject Case", content="Content"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=owner_id,
+        name="Reject Case",
+        content="Content",
     )
     for actor_id, role in (
         (owner_id, CVDRole.CASE_OWNER),
         (case_manager_id, CVDRole.CASE_MANAGER),
     ):
-        participant = as_CaseParticipant(
-            attributed_to=actor_id, context=case.id_, case_roles=[role]
+        participant = make(
+            as_CaseParticipant,
+            attributed_to=actor_id,
+            context=case.id_,
+            case_roles=[role],
         )
         case.actor_participant_index[actor_id] = participant.id_
         case.case_participants.append(participant.id_)
@@ -223,7 +230,7 @@ def test_raises_when_offer_names_no_case(monkeypatch):
         actor_triggers,
         "read_received_activity",
         lambda *_args: ReceivedActivityView(
-            VultronActivity(type_="Offer", actor=actor_id, object_=None)
+            make(VultronActivity, type_="Offer", actor=actor_id, object_=None)
         ),
     )
 

@@ -32,6 +32,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -116,7 +117,8 @@ def _carrying_a_full_case(
         mode="json", by_alias=True, exclude_none=True
     )
     copy_["name"] = "the participant's own copy"
-    planted = CaseParticipant(
+    planted = make(
+        CaseParticipant,
         id_=_PLANTED_PARTICIPANT,
         attributed_to=_PLANTED_ACTOR,
         context=CASE_ID,

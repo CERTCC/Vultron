@@ -35,6 +35,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
 )
@@ -82,8 +83,9 @@ def _entry(snapshot: dict[str, Any]):
 def _seed_participant(
     datalayer, *, roles: list[CVDRole] | None = None
 ) -> None:
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    participant = CaseParticipant(
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    participant = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/target",
         attributed_to=TARGET,
         context=CASE_ID,
@@ -141,7 +143,7 @@ def test_redelivery_is_idempotent(bridge, datalayer):
 @pytest.mark.spec("CM-02-020")
 def test_missing_target_participant_is_a_non_fatal_skip(bridge, datalayer):
     """A replica that does not know the target writes nothing and does not fail."""
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     datalayer.save(case)  # no participant for TARGET on this replica
 
     assert _apply_node(bridge, datalayer, _accept_snapshot()) == Status.SUCCESS

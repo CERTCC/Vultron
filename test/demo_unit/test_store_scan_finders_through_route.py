@@ -29,6 +29,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -137,7 +138,7 @@ def _full_case_invite():
 
 def _ownership_offer():
     return offer_case_ownership_transfer_activity(
-        as_VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER),
+        make(as_VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER),
         target=INVITEE,
         actor=MANAGER,
         id_="http://example.com/activities/forwarded-offer-1",
@@ -146,8 +147,9 @@ def _ownership_offer():
 
 def _stub_invite():
     return rm_invite_to_case_activity(
-        as_Service(id_=INVITEE),
-        target=as_VulnerabilityCase(
+        make(as_Service, id_=INVITEE),
+        target=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             stub_summary="Security issue for test invite",
@@ -159,7 +161,7 @@ def _stub_invite():
 
 def _report_offer():
     return rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r", content="c"),
         to=INVITEE,
         actor=FINDER,
         id_="urn:uuid:2b6f6d5e-1c8a-4c39-9d43-6a7c4c1b0f11",
@@ -316,7 +318,7 @@ def test_find_case_for_offer_reads_the_report_from_the_received_offer(
 ):
     offer = _report_offer()
     client = _route_client(_receive(offer, ingress_row=ingress_row))
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID)
 
     with patch.object(
         case_lookup, "find_case_by_report_id", return_value=case

@@ -23,6 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.participant_status import advance_participant_rm
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -89,7 +90,8 @@ def bridge(datalayer):
 @pytest.fixture
 def sample_report():
     """Sample as_VulnerabilityReport for testing CRUD operations."""
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         id_="https://example.org/objects/test-123",
         name="Test Object",
     )
@@ -223,12 +225,14 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
 ):
     """FindParticipantByActorIdNode stores the matched participant."""
     target_actor_id = "https://example.org/actors/vendor-1"
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-1",
         attributed_to=target_actor_id,
         context="https://example.org/cases/case-1",
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-1",
         name="Case 1",
         case_participants=[participant.id_],
@@ -293,12 +297,14 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode returns FAILURE on actor mismatch."""
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-2",
         attributed_to="https://example.org/actors/vendor-2",
         context="https://example.org/cases/case-2",
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-2",
         name="Case 2",
         case_participants=[participant.id_],
@@ -325,7 +331,8 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
 ):
     """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
     target_actor_id = "https://example.org/actors/vendor-1"
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-diverge",
         name="Case Divergence",
         case_participants=[],
@@ -365,7 +372,8 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     from vultron.core.states.rm import RM
 
     # Live DL record at VALID (simulates what validate-report produces)
-    live = CaseParticipant(
+    live = make(
+        CaseParticipant,
         id_=participant_id,
         attributed_to=target_actor_id,
         context=case_id,
@@ -379,7 +387,8 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     datalayer.save(live)
 
     # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
-    stale_inline = CaseParticipant(
+    stale_inline = make(
+        CaseParticipant,
         id_=participant_id,
         attributed_to=target_actor_id,
         context=case_id,
@@ -388,7 +397,8 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         stale_inline, RM.RECEIVED, actor=target_actor_id, context=case_id
     )
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Case Live",
         case_participants=[stale_inline],  # inline, not string ID

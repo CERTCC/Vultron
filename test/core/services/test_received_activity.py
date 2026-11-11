@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.received import archive_received, case_stub, hold_deferred
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -121,7 +122,7 @@ def test_an_activity_this_store_does_not_hold_is_not_found(
 
 def _deferred_add(dl: SqliteDataLayer):
     add = add_note_to_case_activity(
-        as_Note(content="waiting on its case", context=_CASE),
+        make(as_Note, content="waiting on its case", context=_CASE),
         target=_CASE,
         context=_CASE,
         actor=_PEER,

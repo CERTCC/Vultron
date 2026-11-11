@@ -25,6 +25,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -91,7 +92,8 @@ def dl() -> SqliteDataLayer:
 
 
 def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=f"{_CASE_ID}/participants/manager",
         attributed_to=manager,
@@ -345,7 +347,8 @@ def _participant(
     consents: list[EmbargoConsent] | None = None,
     also: CVDRole | None = None,
 ) -> as_CaseParticipant:
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         case_roles=[role] if also is None else [role, also],
         id_=f"{_CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
@@ -375,7 +378,8 @@ def _owned_case(
         for p in participants:
             if not p.embargo_consents:
                 p.write_uninvited_rows([embargo_id])
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_ID,
         name="introduction test",
         attributed_to=_OWNER,
@@ -392,7 +396,7 @@ def _owner_store() -> SqliteDataLayer:
     """The owner's store, holding the report the reporter sent it."""
     owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
     owner_dl.create(
-        VulnerabilityReport(id_=_REPORT_ID, attributed_to=_REPORTER)
+        make(VulnerabilityReport, id_=_REPORT_ID, attributed_to=_REPORTER)
     )
     return owner_dl
 
@@ -516,19 +520,22 @@ def test_bootstrap_addressees_withhold_an_inert_finder():
         EmbargoConsentState,
     )
 
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{_CASE_ID}/embargo",
         context=_CASE_ID,
         end_time=days_from_now(45),
     )
     agreed = [
         EmbargoConsent(
-            embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
+            embargo_id=embargo.id_,
+            state=EmbargoConsentState.AGREED,
         )
     ]
     uninvited = [
         EmbargoConsent(
-            embargo_id=embargo.id_, state=EmbargoConsentState.UNINVITED
+            embargo_id=embargo.id_,
+            state=EmbargoConsentState.UNINVITED,
         )
     ]
     case = _owned_case(

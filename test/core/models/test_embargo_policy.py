@@ -19,6 +19,7 @@ from datetime import timedelta
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -38,7 +39,8 @@ class TestCoreEmbargoPolicyCreation:
         assert issubclass(EmbargoPolicy, CoreObject)
 
     def test_type_literal(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -46,7 +48,8 @@ class TestCoreEmbargoPolicyCreation:
         assert p.type_ == "EmbargoPolicy"
 
     def test_required_fields(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -62,7 +65,8 @@ class TestCoreEmbargoPolicyCreation:
         assert p.notes == "Prefer 90 days."
 
     def test_optional_fields_default_to_none(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -73,29 +77,38 @@ class TestCoreEmbargoPolicyCreation:
 
     def test_missing_actor_id_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(inbox=INBOX, preferred_duration=_P90D)  # type: ignore[call-arg]
+            make(EmbargoPolicy, inbox=INBOX, preferred_duration=_P90D)  # type: ignore[call-arg]
 
     def test_missing_inbox_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(actor_id=ACTOR_ID, preferred_duration=_P90D)  # type: ignore[call-arg]
+            make(EmbargoPolicy, actor_id=ACTOR_ID, preferred_duration=_P90D)  # type: ignore[call-arg]
 
     def test_missing_preferred_duration_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(actor_id=ACTOR_ID, inbox=INBOX)  # type: ignore[call-arg]
+            make(EmbargoPolicy, actor_id=ACTOR_ID, inbox=INBOX)  # type: ignore[call-arg]
 
     def test_empty_actor_id_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(actor_id="", inbox=INBOX, preferred_duration=_P90D)
+            make(
+                EmbargoPolicy,
+                actor_id="",
+                inbox=INBOX,
+                preferred_duration=_P90D,
+            )
 
     def test_empty_inbox_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(
-                actor_id=ACTOR_ID, inbox="", preferred_duration=_P90D
+            make(
+                EmbargoPolicy,
+                actor_id=ACTOR_ID,
+                inbox="",
+                preferred_duration=_P90D,
             )
 
     def test_empty_notes_raises(self):
         with pytest.raises(ValidationError):
-            EmbargoPolicy(
+            make(
+                EmbargoPolicy,
                 actor_id=ACTOR_ID,
                 inbox=INBOX,
                 preferred_duration=_P90D,
@@ -117,7 +130,8 @@ class TestCoreEmbargoPolicyDurationParsing:
         assert p.preferred_duration == _P90D
 
     def test_timedelta_accepted_directly(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -182,7 +196,8 @@ class TestCoreEmbargoPolicySerialization:
 
     @pytest.mark.spec("DUR-01-002")
     def test_duration_serializes_to_iso8601(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -198,7 +213,8 @@ class TestCoreEmbargoPolicySerialization:
     def test_a_whole_day_duration_carries_no_time_units(self):
         """A whole-day policy duration is written in days alone, never mixed
         with hours, minutes or seconds."""
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -214,7 +230,8 @@ class TestCoreEmbargoPolicySerialization:
             assert "T" not in data[field], data[field]
 
     def test_none_duration_serializes_to_null(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,
@@ -224,7 +241,8 @@ class TestCoreEmbargoPolicySerialization:
         assert data["maximum_duration"] is None
 
     def test_json_roundtrip(self):
-        p = EmbargoPolicy(
+        p = make(
+            EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,

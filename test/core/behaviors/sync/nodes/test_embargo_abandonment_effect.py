@@ -37,6 +37,7 @@ from test.core.behaviors.sync.nodes.test_embargo_relay_effect import (
     _run,
 )
 from test.support.embargo_register import propose
+from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
 )
@@ -63,13 +64,14 @@ def proposed_case(datalayer) -> VulnerabilityCase:
     """A replica case at EM ``PROPOSED`` with two open proposals."""
     for embargo_id in (FIRST_ID, SECOND_ID):
         datalayer.create(
-            EmbargoEvent(
+            make(
+                EmbargoEvent,
                 id_=embargo_id,
                 context=CASE_ID,
                 end_time=now_utc() + timedelta(days=30),
             )
         )
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     propose(case, FIRST_ID, SECOND_ID)
     _participant(
         datalayer,
@@ -267,13 +269,14 @@ def test_a_reject_is_the_abandonment_on_a_slash_spelled_roster(
     """
     for embargo_id in (FIRST_ID, SECOND_ID):
         datalayer.create(
-            EmbargoEvent(
+            make(
+                EmbargoEvent,
                 id_=embargo_id,
                 context=CASE_ID,
                 end_time=now_utc() + timedelta(days=30),
             )
         )
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     propose(case, FIRST_ID, SECOND_ID)
     _participant(
         datalayer,

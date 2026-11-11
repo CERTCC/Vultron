@@ -33,6 +33,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_tree
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.core.models.fault_classes import (
@@ -101,7 +102,8 @@ def _fault_from(
     """
     activity = create_processing_fault_activity(
         actor=sender,
-        fault=as_ProcessingFault(
+        fault=make(
+            as_ProcessingFault,
             failure_class=VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
             in_reply_to=announce_id,
         ),

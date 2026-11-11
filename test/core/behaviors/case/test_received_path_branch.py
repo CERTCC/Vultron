@@ -29,6 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.path_branch import (
     OnPaths,
     PathBranch,
@@ -143,13 +144,15 @@ def _run_branch(
 
 
 def _run(tree, actor_id: str) -> None:
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/manager",
         attributed_to=MANAGER_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    vendor = CaseParticipant(
+    vendor = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/vendor",
         attributed_to=VENDOR_ID,
         context=CASE_ID,
@@ -159,7 +162,8 @@ def _run(tree, actor_id: str) -> None:
     scenario.seed(
         manager,
         vendor,
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="PATH-BRANCH",
             attributed_to=OWNER_ID,

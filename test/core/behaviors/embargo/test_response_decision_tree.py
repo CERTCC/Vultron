@@ -33,6 +33,7 @@ import pytest
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import no as call_out_no
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -403,7 +404,8 @@ def _make_participant(
     case_id: str = _INT_CASE_ID,
 ) -> CaseParticipant:
     slug = actor_id.rsplit("/", 1)[-1]
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{case_id}/participants/{slug}",
         attributed_to=actor_id,
         context=case_id,
@@ -415,7 +417,8 @@ def _make_case_with_participants(
     scenario: BTTestScenario,
     *participants: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_INT_CASE_ID,
         name="EMB-15 Integration Test Case",
@@ -637,7 +640,8 @@ class TestBTBridgeIntegration:
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         # Case has no entry for _UNKNOWN_ACTOR so CheckIsCaseOwner returns FAILURE
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow A Counter Test",
@@ -680,7 +684,8 @@ class TestBTBridgeIntegration:
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow A Reject Test",
@@ -747,7 +752,8 @@ class TestBTBridgeIntegration:
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow B Reject Test",

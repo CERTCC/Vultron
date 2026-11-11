@@ -43,6 +43,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, reject
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -368,7 +369,8 @@ def test_a_closed_or_off_roster_peer_is_owed_nothing(make_payload):
         CaseParticipant, dl.read(case.actor_participant_index[JOINER])
     )
     record.participant_statuses = [
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=case_id,
             attributed_to=JOINER,
             rm=RmDimension(state=RM.CLOSED),

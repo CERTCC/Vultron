@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -48,8 +49,11 @@ REF = "https://example.org/notes/n1"
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Refs"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Refs",
     )
     seed_case_manager_participant(store, case, ACTOR)
     store.create(case)
@@ -169,7 +173,7 @@ def test_pending_guard_resets_its_duplicate_flag_each_run(dl):
     ],
 )
 def test_note_author_guard(dl, note_author, sender, participant, passes):
-    note = as_Note(id_=REF, content="x", attributed_to=note_author)
+    note = make(as_Note, id_=REF, content="x", attributed_to=note_author)
     dl.create(note)
     if participant:
         case = _case(dl)

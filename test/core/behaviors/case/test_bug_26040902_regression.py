@@ -41,6 +41,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import with_evidence
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -137,20 +138,24 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
 
     # Seed minimal DataLayer state (mirrors what upstream use cases create)
-    actor = VultronService(id_=_actor_id, name="Vendor Co")
+    actor = make(VultronService, id_=_actor_id, name="Vendor Co")
     dl.create(actor)
 
-    reporter_actor = VultronService(id_=_reporter_actor_id, name="Reporter Co")
+    reporter_actor = make(
+        VultronService, id_=_reporter_actor_id, name="Reporter Co"
+    )
     dl.create(reporter_actor)
 
-    report = VulnerabilityReport(
+    report = make(
+        VulnerabilityReport,
         id_=_report_id,
         name="BUG-26040902 Regression Report",
         content="Buffer overflow in regression test component",
     )
     dl.create(report)
 
-    offer = VultronOffer(
+    offer = make(
+        VultronOffer,
         id_=_offer_id,
         actor=_reporter_actor_id,
         object_=_report_id,
@@ -166,7 +171,8 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     from vultron.core.models.events import MessageSemantics
     from vultron.core.models.events.report import SubmitReportReceivedEvent
 
-    offer_activity_snapshot = VultronActivity(
+    offer_activity_snapshot = make(
+        VultronActivity,
         id_=_offer_id,
         type_="Offer",
         actor=_reporter_actor_id,

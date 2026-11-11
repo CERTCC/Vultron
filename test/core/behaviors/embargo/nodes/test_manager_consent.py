@@ -30,6 +30,7 @@ from test.support.call_out import no as call_out_no
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import make
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
@@ -69,7 +70,8 @@ def _seed(
     owner: str = OWNER,
 ) -> None:
     records = [
-        CaseParticipant(
+        make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{actor.rsplit('/', 1)[-1]}",
             attributed_to=actor,
             context=CASE_ID,
@@ -81,7 +83,8 @@ def _seed(
             (OWNER, [CVDRole.CASE_OWNER]),
         )
     ]
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Manager consent",
         attributed_to=owner,
@@ -94,8 +97,11 @@ def _seed(
     for record in records:
         # The row the proposal wrote for every participant (ADR-0122).
         record.write_uninvited_rows([EMBARGO_ID])
-    embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(30)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(30),
     )
     scenario.seed(*records, case, embargo)
 

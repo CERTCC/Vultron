@@ -36,6 +36,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -71,8 +72,11 @@ def datalayer():
 @pytest.fixture
 def case_actor(datalayer) -> VultronService:
     """The CaseActor that signs the replicated Announce(CaseLedgerEntry)."""
-    actor = VultronService(
-        name="Case Actor", attributed_to=OWNER_ID, context=CASE_ID
+    actor = make(
+        VultronService,
+        name="Case Actor",
+        attributed_to=OWNER_ID,
+        context=CASE_ID,
     )
     datalayer.create(actor)
     return actor
@@ -80,7 +84,7 @@ def case_actor(datalayer) -> VultronService:
 
 @pytest.fixture
 def case_replica(datalayer) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ID)
+    case = make(as_VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ID)
     datalayer.save(case)
     return case
 

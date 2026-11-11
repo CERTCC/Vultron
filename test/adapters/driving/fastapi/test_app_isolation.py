@@ -25,6 +25,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.core.models._helpers import (
@@ -67,7 +68,7 @@ def test_create_app_datalayers_are_isolated(app1, app2):
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
     actor_id = "https://example.org/actors/isolated-test-actor"
-    actor = as_Service(id_=actor_id, name="IsolatedTestActor")
+    actor = make(as_Service, id_=actor_id, name="IsolatedTestActor")
 
     with TestClient(app1), TestClient(app2):
         from vultron.adapters.driving.fastapi.deps import get_actor_dl

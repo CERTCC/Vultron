@@ -36,6 +36,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from test.support.received import (
     TEST_SENDER_POSITION,
     archive_received,
@@ -96,10 +97,14 @@ class _Ran(py_trees.behaviour.Behaviour):
 
 
 def _event() -> AddNoteToCaseReceivedEvent:
-    note = VultronNote(
-        id_="https://example.org/notes/n-seen", content="x", context=CASE_ID
+    note = make(
+        VultronNote,
+        id_="https://example.org/notes/n-seen",
+        content="x",
+        context=CASE_ID,
     )
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_=ACTIVITY_ID,
         type_="Add",
         actor=SENDER,

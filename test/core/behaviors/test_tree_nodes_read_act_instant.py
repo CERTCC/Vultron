@@ -33,6 +33,7 @@ from test.support.act_clock import clock_at, recorded_clock_reads
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -185,7 +186,11 @@ def _manager_store(end_time: datetime):
     dl, _, case, embargo = make_embargo_case_with_actor(
         _CASE, _OWNER, case_manager_actor_id=_OWNER
     )
-    dl.save(as_EmbargoEvent(id_=embargo.id_, context=_CASE, end_time=end_time))
+    dl.save(
+        make(
+            as_EmbargoEvent, id_=embargo.id_, context=_CASE, end_time=end_time
+        )
+    )
     stored = cast(VulnerabilityCase, dl.read(case.id_))
     activate(stored, embargo.id_)
     dl.save(stored)

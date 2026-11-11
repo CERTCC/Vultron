@@ -21,6 +21,7 @@ duplicate of the ``vultron.wire.as2.parser`` line that follows it.
 
 import logging
 
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driving.fastapi.routers.actors import _inbox
 from vultron.wire.as2.factories import rm_create_report_activity
@@ -35,8 +36,10 @@ _INBOX_LOGGER = "uvicorn.error"
 
 def _body() -> dict:
     activity = rm_create_report_activity(
-        report=as_VulnerabilityReport(
-            name="LOG-001", content="log-level test report"
+        report=make(
+            as_VulnerabilityReport,
+            name="LOG-001",
+            content="log-level test report",
         ),
         actor="https://example.org/actors/finder",
         to=["https://example.org/actors/vendor"],
