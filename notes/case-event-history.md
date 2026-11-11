@@ -221,27 +221,27 @@ Only a **trailing** event may be missing (CEH-05-005). Many cases never see a pu
 exploit, and an open case has not closed, so a sequence that stops early is normal. A
 *gap* is not: the ephemeral rules forbid it.
 
-### Place late vendor awareness at public awareness
+### Place late coupled events where the model couples them
 
-When a vendor's `V` is recorded after `P` with a later public-state event between
-them, place that `V` immediately after `P` and mark it placed; keep its recorded log
-index and clocks, and leave the event history as recorded (CEH-05-009). Reason: the
-model couples the two awarenesses. The public-aware, vendor-unaware state `vP` is
-transient (CSB-17-003), so once the public knows, the vendor counts as aware, and an
-`X` or `A` in between is an independent event the recorded `V` merely trails. A
-vendor that joins after the exploit is public sits on a valid ledger whose recorded
-`P, X, V` is the model's `P, V, X` (decided by the project owner on PR #6283).
-Projection lives in `vultron/measure/sequences/` (`case_state_sequences`); the mark is
-`SequenceEvent.placed_at_public_awareness`.
+Place a `P` recorded after `X` with another event between them immediately after
+`X`, then a `V` recorded after `P` with another event between them immediately after
+`P`, marking each with its `Placement`; keep the recorded log index and clocks, and
+leave the event history as recorded (CEH-05-009). Reason: the model couples both
+pairs. `pX` and `vP` are transient (CSB-17-003): a published exploit makes the public
+aware at once, and an aware public makes the vendor aware at once, so an event in
+between is independent and the recorded `P` or `V` merely trails it. The two rules
+compose, `P` first: recorded `X, V, P` is `X, P, V`, and `X, A, V, P` is `X, P, V, A`
+(decided by the project owner on PR #6283). The code is
+`vultron/measure/sequences/` (`case_state_sequences`, `SequenceEvent.placement`).
 
-The rule reaches only `V` after `P`. An exploit recorded while the public is unaware,
-with the vendor's `V` before `P` (`X, V, P`), breaks the other transient state, `pX`,
-and is still reported unprojectable as not a valid prefix (CEH-05-004, CEH-05-007).
+One recorded shape stays unprojectable as not a valid prefix: an exploit published,
+no public awareness recorded, and some event after it. There is no `P` to place, and
+the layer adds no event the ledger does not hold (CEH-05-004, CEH-05-007).
 
 ### The prefix check is this layer's, not the CASE_MANAGER's
 
 A sequence that fails the prefix check means the derivation is wrong or the recorded
-order is one the placement rule above does not reach — never that the CASE_MANAGER
+order is one the placement rules above do not reach — never that the CASE_MANAGER
 already refused the transition. It validates a participant's
 dimensions and the case's public state *separately*, and skips any rule that reads a
 dimension the participant does not have (`composite_state_violations`, and

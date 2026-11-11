@@ -25,6 +25,7 @@ from vultron.measure.history import CaseEvent, CaseEventKind, EventKind
 from vultron.measure.sequences import (
     CaseStateSequence,
     CaseStateSequences,
+    Placement,
     SequenceEvent,
     UnprojectableParticipant,
     UnprojectableReason,
@@ -215,14 +216,21 @@ def test_the_sequences_answer_each_participant_once_in_order(
         )
 
 
-def _placed(*members: tuple[CaseEventKind, int, bool]) -> CaseStateSequence:
+_R, _AT_X, _AT_P = (
+    Placement.RECORDED,
+    Placement.AT_EXPLOIT_PUBLICATION,
+    Placement.AT_PUBLIC_AWARENESS,
+)
+
+
+def _placed(
+    *members: tuple[CaseEventKind, int, Placement],
+) -> CaseStateSequence:
     return CaseStateSequence(
         participant=VENDOR,
         events=[
-            SequenceEvent(
-                event=_event(kind, index), placed_at_public_awareness=flag
-            )
-            for kind, index, flag in members
+            SequenceEvent(event=_event(kind, index), placement=placement)
+            for kind, index, placement in members
         ],
     )
 
@@ -230,11 +238,24 @@ def _placed(*members: tuple[CaseEventKind, int, bool]) -> CaseStateSequence:
 @pytest.mark.spec("CEH-05-009")
 def test_a_vendor_awareness_placed_at_public_awareness_is_held():
     sequence = _placed(
-        (CSEvent.P, 1, False), (CSEvent.V, 5, True), (CSEvent.X, 3, False)
+        (CSEvent.P, 1, _R), (CSEvent.V, 5, _AT_P), (CSEvent.X, 3, _R)
     )
     assert sequence.kinds == (CSEvent.P, CSEvent.V, CSEvent.X)
     assert sequence.awareness_index == 5
-    assert sequence.awareness_placed_at_public_awareness
+    assert [m.kind for m in sequence.placed] == [CSEvent.V]
+
+
+@pytest.mark.spec("CEH-05-009")
+def test_both_placements_are_held_together():
+    """Recorded X, A, P, V: P placed at the exploit, then V at P."""
+    sequence = _placed(
+        (CSEvent.X, 1, _R),
+        (CSEvent.P, 3, _AT_X),
+        (CSEvent.V, 4, _AT_P),
+        (CSEvent.A, 2, _R),
+    )
+    assert sequence.kinds == (CSEvent.X, CSEvent.P, CSEvent.V, CSEvent.A)
+    assert [m.placement for m in sequence.placed] == [_AT_X, _AT_P]
 
 
 @pytest.mark.spec("CEH-05-009")
@@ -242,36 +263,44 @@ def test_a_vendor_awareness_placed_at_public_awareness_is_held():
     ("members", "problem"),
     [
         (
-            [
-                (CSEvent.V, 0, False),
-                (CSEvent.P, 1, True),
-                (CSEvent.X, 0, False),
-            ],
-            "only a vendor-awareness event is placed",
+            [(CSEvent.V, 0, _R), (CSEvent.P, 1, _AT_P), (CSEvent.X, 0, _R)],
+            "only V is placed at_public_awareness, not P",
         ),
         (
-            [
-                (CSEvent.X, 1, False),
-                (CSEvent.V, 5, True),
-                (CSEvent.P, 3, False),
-            ],
-            "must follow public awareness",
+            [(CSEvent.X, 1, _R), (CSEvent.V, 5, _AT_P), (CSEvent.P, 3, _R)],
+            "must directly follow P",
         ),
         (
-            [
-                (CSEvent.P, 1, False),
-                (CSEvent.V, 2, True),
-                (CSEvent.X, 3, False),
-            ],
+            [(CSEvent.P, 1, _R), (CSEvent.V, 2, _AT_P), (CSEvent.X, 3, _R)],
             "recorded no later than itself",
         ),
         (
-            [(CSEvent.P, 1, False), (CSEvent.V, 2, True)],
+            [(CSEvent.P, 1, _R), (CSEvent.V, 2, _AT_P)],
+            "recorded no later than itself",
+        ),
+        (
+            [(CSEvent.X, 0, _R), (CSEvent.V, 1, _AT_X), (CSEvent.P, 0, _R)],
+            "only P is placed at_exploit_publication, not V",
+        ),
+        (
+            [(CSEvent.V, 0, _R), (CSEvent.P, 4, _AT_X), (CSEvent.X, 2, _R)],
+            "must directly follow X",
+        ),
+        (
+            [(CSEvent.V, 0, _R), (CSEvent.X, 1, _R), (CSEvent.P, 2, _AT_X)],
             "recorded no later than itself",
         ),
     ],
-    ids=["not-v", "not-after-p", "not-moved", "last"],
+    ids=[
+        "v-rule-not-v",
+        "v-rule-not-after-p",
+        "v-rule-not-moved",
+        "v-rule-last",
+        "p-rule-not-p",
+        "p-rule-not-after-x",
+        "p-rule-last",
+    ],
 )
-def test_a_misplaced_awareness_is_refused(members, problem):
+def test_a_misplaced_event_is_refused(members, problem):
     with pytest.raises(ValidationError, match=problem):
         _placed(*members)

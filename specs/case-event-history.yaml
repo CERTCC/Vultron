@@ -941,19 +941,21 @@ groups:
     statement: >-
       Every projected sequence MUST be a valid case-state history prefix.
     rationale: >-
-      Checking the prefix turns a derivation bug, or a recorded order the model cannot
-      place even after CEH-05-009, into a reported refusal instead of a wrong score. The
-      CASE_MANAGER does not catch these: it validates a participant's dimensions and the
-      case's public state separately and skips a rule reading a dimension the
-      participant lacks (ADR-0075). A ledger whose every entry it accepted can therefore
-      project a compound that does not replay, so this layer owns the check.
+      Checking the prefix turns a derivation bug, or a recorded order CEH-05-009 cannot
+      place, into a reported refusal instead of a wrong score. The CASE_MANAGER does not
+      catch these: it validates a participant's dimensions and the case's public state
+      separately and skips a rule reading a dimension the participant lacks (ADR-0075).
+      A ledger whose every entry it accepted can therefore project a compound that does
+      not replay, so this layer owns the check.
     verification: >-
       `test/measure/sequences/test_project.py::test_every_sequence_from_a_recording_is_a_valid_prefix`
       runs the prefix validator over every sequence projected from every committed
-      recording, and
-      `test/measure/sequences/test_project.py::test_a_compound_that_does_not_replay_is_refused_with_its_reason`
-      asserts the check refuses an exploit-first compound from a hand-built ledger
-      whose every entry the CASE_MANAGER admits.
+      recording;
+      `test/measure/sequences/test_project.py::test_an_exploit_with_no_public_awareness_and_a_later_event_is_refused`
+      asserts the check refuses a compound from a hand-built ledger of individually
+      valid entries; and
+      `test/measure/sequences/test_project.py::test_every_recorded_order_projects_unless_an_exploit_has_no_public_awareness`
+      asserts that is the only recorded order left unplaced.
     relationships:
     - rel_type: depends_on
       spec_id: CSB-17-005
@@ -967,8 +969,8 @@ groups:
       Many cases never see a public exploit or observed attacks, and an open case has
       not closed, so a sequence that stops early is normal. Only a trailing event may be
       missing. The ephemeral rules (CSB-17-003) oblige a specific next event, so a
-      public-state event with no vendor awareness in front of it is refused. A vendor-
-      awareness event recorded later is not missing: CEH-05-009 places it.
+      public-state event with no vendor awareness in front of it is refused. A coupled
+      event recorded later is not missing: CEH-05-009 places it.
     verification: >-
       `test/measure/sequences/test_project.py::test_a_sequence_missing_trailing_events_is_an_incomplete_prefix`
       projects a ledger with no public exploit and asserts the sequences are held, and
@@ -1038,22 +1040,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST place a late vendor-awareness event immediately after the case's
-      public-awareness event and mark it as placed. A late one is recorded after
-      public awareness with a later public-state event between them.
+      The layer MUST place a late public-awareness event right after exploit
+      publication, and a late vendor-awareness event right after public awareness,
+      marking each. A late one is recorded after the event it is coupled to, with
+      another event between them.
     rationale: >-
-      Once the public is aware, the model counts the vendor as aware at once, because
-      the state vP is transient (CSB-17-003). An exploit or attacks recorded in between
-      are independent events, so a recorded P, X, V is the model's P, V, X. A vendor
-      that joins late is the usual cause. The mark and the recorded log index and clocks
-      keep the real order visible; the event history is unchanged. Decided by the
+      The model couples each pair: a published exploit makes the public aware at once,
+      and an aware public makes the vendor aware at once, because pX and vP are
+      transient (CSB-17-003). So a recorded P, X, V is P, V, X, and X, V, P is X, P, V.
+      A vendor that joins late is the usual cause. The mark, recorded log index and
+      clocks keep the real order visible; the history is unchanged. Decided by the
       project owner on PR #6283.
     verification: >-
       `test/measure/sequences/test_project.py::test_awareness_recorded_after_publication_is_placed_at_public_awareness`
-      projects a recorded P, X, V as P, V, X with the vendor-awareness event marked
-      and asserts the prefix validator accepts it, and
-      `test/measure/sequences/test_model.py::test_a_misplaced_awareness_is_refused`
-      asserts a mark on any other position is refused.
+      and
+      `test/measure/sequences/test_project.py::test_public_awareness_recorded_after_publication_is_placed_at_the_exploit`
+      assert each placement, marked and accepted by the prefix validator;
+      `test/measure/sequences/test_project.py::test_both_placements_compose` asserts the
+      two compose;
+      `test/measure/sequences/test_model.py::test_a_misplaced_event_is_refused` asserts
+      a mark anywhere else is refused.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-004

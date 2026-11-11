@@ -26,6 +26,7 @@ The layer stops at the validated sequence: it scores nothing (CEH-05-008).
 from vultron.measure.sequences.model import (
     CaseStateSequence,
     CaseStateSequences,
+    Placement,
     SequenceEvent,
     UnprojectableParticipant,
     UnprojectableReason,
@@ -35,6 +36,7 @@ from vultron.measure.sequences.project import case_state_sequences
 __all__ = [
     "CaseStateSequence",
     "CaseStateSequences",
+    "Placement",
     "SequenceEvent",
     "UnprojectableParticipant",
     "UnprojectableReason",

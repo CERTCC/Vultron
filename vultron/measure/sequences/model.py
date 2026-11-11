@@ -15,9 +15,10 @@
 A :class:`CaseStateSequence` is one vendor's case-state events, in log order:
 its own fix-path and deployment events combined with the case's public-state
 events (CEH-05-001, CEH-05-003).  Each member is a :class:`SequenceEvent`, the
-history's event plus whether the model placed it: a vendor-awareness event
-recorded after public awareness sits immediately after ``P`` (CEH-05-009,
-CSB-17-003), keeping its recorded log index and clocks.  It refuses at
+history's event plus its :class:`Placement`: a public-awareness event recorded
+late sits immediately after ``X``, and a vendor-awareness event recorded late
+immediately after ``P`` (CEH-05-009, CSB-17-003), each keeping its recorded
+log index and clocks.  It refuses at
 construction anything the case-state history validator would not replay as a
 prefix (CEH-05-002, CEH-05-004), so a held sequence is always a valid,
 possibly incomplete, prefix (CEH-05-005).
@@ -43,26 +44,50 @@ from vultron.measure.history import CaseEvent, CaseEventKind, EventScope
 from vultron.primitives import NonEmptyString
 
 
+class Placement(StrEnum):
+    """Where a sequence member sits relative to its recorded position.
+
+    The model couples two pairs of events: an exploit made public makes the
+    public aware at once, and a public that is aware makes the vendor aware at
+    once, because ``pX`` and ``vP`` are transient states (CSB-17-003).  A
+    coupled event the ledger records late is placed where the model puts it
+    (CEH-05-009).
+    """
+
+    #: In the order the event history records it.
+    RECORDED = "recorded"
+    #: A public-awareness event recorded after exploit publication with
+    #: another event between them, placed immediately after ``X``.
+    AT_EXPLOIT_PUBLICATION = "at_exploit_publication"
+    #: A vendor-awareness event recorded after public awareness with another
+    #: event between them, placed immediately after ``P``.
+    AT_PUBLIC_AWARENESS = "at_public_awareness"
+
+
+#: For each placement other than as recorded: the kind it places and the kind
+#: it places that event after, in the order the projection applies them.  The
+#: public-awareness rule runs first so the vendor-awareness rule anchors on
+#: the placed ``P``.
+PLACEMENT_RULES: dict[Placement, tuple[CSEvent, CSEvent]] = {
+    Placement.AT_EXPLOIT_PUBLICATION: (CSEvent.P, CSEvent.X),
+    Placement.AT_PUBLIC_AWARENESS: (CSEvent.V, CSEvent.P),
+}
+
+
 class SequenceEvent(BaseModel):
     """One member of a projected sequence: a history event and where it sits.
 
     Fields:
         event: The event from the case event history, unchanged: its kind,
             log index, clocks and gap labels are the recorded ones.
-        placed_at_public_awareness: ``True`` for a vendor-awareness event the
-            ledger records after the case's public awareness with a later
-            public-state event between them.  The model couples the two: once
-            the public is aware the vendor counts as aware at once, because
-            the vendor-unaware, public-aware state is transient (CSB-17-003).
-            So the sequence places that ``V`` immediately after ``P``, out of
-            log order (CEH-05-009).  ``False`` for an event in its recorded
-            position.
+        placement: ``RECORDED`` for an event in its recorded position;
+            otherwise the rule that placed it out of log order (CEH-05-009).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     event: CaseEvent
-    placed_at_public_awareness: bool = False
+    placement: Placement = Placement.RECORDED
 
     @property
     def kind(self) -> CaseEventKind:
@@ -74,6 +99,11 @@ class SequenceEvent(BaseModel):
         """The recorded log index of the event."""
         return self.event.log_index
 
+    @property
+    def is_placed(self) -> bool:
+        """Whether the event sits out of its recorded position."""
+        return self.placement is not Placement.RECORDED
+
 
 class CaseStateSequence(BaseModel):
     """One vendor's case-state events, in replay order (CEH-05-001).
@@ -82,8 +112,8 @@ class CaseStateSequence(BaseModel):
         participant: The vendor the sequence belongs to.
         events: The vendor's own ``V``, ``F`` and ``D`` events and the case's
             ``P``, ``X`` and ``A`` events, in event-history order, except a
-            ``V`` recorded after public awareness, which sits immediately
-            after ``P`` and says so (CEH-05-009).
+            late ``P`` or ``V``, which sits where the model couples it and
+            says so (CEH-05-009).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -102,9 +132,9 @@ class CaseStateSequence(BaseModel):
         return next(m.log_index for m in self.events if m.kind is CSEvent.V)
 
     @property
-    def awareness_placed_at_public_awareness(self) -> bool:
-        """Whether the vendor's awareness was placed at public awareness."""
-        return any(m.placed_at_public_awareness for m in self.events)
+    def placed(self) -> tuple[SequenceEvent, ...]:
+        """The members placed out of their recorded position (CEH-05-009)."""
+        return tuple(m for m in self.events if m.is_placed)
 
     @model_validator(mode="after")
     def _is_a_valid_prefix(self) -> CaseStateSequence:
@@ -147,41 +177,34 @@ class CaseStateSequence(BaseModel):
         return self
 
     def _order_problems(self) -> list[str]:
-        """Recorded events keep log order; a placed ``V`` follows ``P`` and
-        precedes at least one event recorded no later than itself."""
+        """Recorded members keep log order; a placed member is the kind its
+        rule places, directly follows the kind the rule names, and comes
+        before some member recorded no later than itself."""
         problems: list[str] = []
-        recorded = [
-            m.log_index
-            for m in self.events
-            if not m.placed_at_public_awareness
-        ]
+        recorded = [m.log_index for m in self.events if not m.is_placed]
         if recorded != sorted(recorded):
             problems.append("the events are not in log order")
-        placed = [
-            i
-            for i, m in enumerate(self.events)
-            if m.placed_at_public_awareness
-        ]
-        for i in placed:
-            member = self.events[i]
-            previous = self.events[i - 1] if i > 0 else None
-            following = (
-                self.events[i + 1] if i + 1 < len(self.events) else None
-            )
-            if member.kind is not CSEvent.V:
+        for i, member in enumerate(self.events):
+            if not member.is_placed:
+                continue
+            kind, after = PLACEMENT_RULES[member.placement]
+            if member.kind is not kind:
                 problems.append(
-                    f"only a vendor-awareness event is placed at public"
-                    f" awareness, not {member.kind}"
+                    f"only {kind} is placed {member.placement}, not"
+                    f" {member.kind}"
                 )
-            if previous is None or previous.kind is not CSEvent.P:
+            if i == 0 or self.events[i - 1].kind is not after:
                 problems.append(
-                    "a placed vendor-awareness event must follow public"
-                    " awareness"
+                    f"{member.kind} placed {member.placement} must directly"
+                    f" follow {after}"
                 )
-            if following is None or following.log_index > member.log_index:
+            if not any(
+                later.log_index <= member.log_index
+                for later in self.events[i + 1 :]
+            ):
                 problems.append(
-                    "a placed vendor-awareness event must come before an"
-                    " event recorded no later than itself"
+                    f"{member.kind} placed {member.placement} must come"
+                    " before an event recorded no later than itself"
                 )
         return problems
 
@@ -196,10 +219,11 @@ class UnprojectableReason(StrEnum):
     #: (CSB-15-004).  The case-state model has no state for it.
     NO_VENDOR_AWARENESS = "no_vendor_awareness"
     #: The participant's events combined with the case's public-state events
-    #: do not replay as a case-state history prefix even after its
-    #: awareness is placed at public awareness (CEH-05-004, CEH-05-009).
-    #: An exploit recorded before public awareness with the vendor's
-    #: awareness between them (``X, V, P``) still lands here.
+    #: do not replay as a case-state history prefix even after the coupled
+    #: events are placed (CEH-05-004, CEH-05-009).  Two shapes reach it: an
+    #: exploit published with no public awareness recorded and some event
+    #: after it, since there is no ``P`` to place; and an entry a
+    #: CASE_MANAGER would refuse, such as a fix deployed before it is ready.
     NOT_A_VALID_PREFIX = "not_a_valid_prefix"
 
 

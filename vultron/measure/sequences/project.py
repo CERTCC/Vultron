@@ -15,10 +15,10 @@
 The projection is keyed on the vendor-awareness event, never on a role
 (CEH-05-001): a participant whose events include ``V`` gets one sequence
 holding its own fix-path and deployment events and the case's public-state
-events, in event-history order (CEH-05-003), except that a vendor-awareness
-event recorded after public awareness is placed immediately after it
-(CEH-05-009).  Every other participant is
-reported with the reason it has none (CEH-05-007).
+events, in event-history order (CEH-05-003), except that a late
+public-awareness event is placed right after exploit publication and a late
+vendor-awareness event right after public awareness (CEH-05-009).  Every
+other participant is reported with the reason it has none (CEH-05-007).
 
 The sequence is the deliverable; nothing here scores it (CEH-05-008).  The
 history's own holes (``missing_log_indices``, ``end_confirmed``) are the
@@ -32,8 +32,10 @@ from pydantic import ValidationError
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.history import CaseEvent, CaseEventHistory, EventScope
 from vultron.measure.sequences.model import (
+    PLACEMENT_RULES,
     CaseStateSequence,
     CaseStateSequences,
+    Placement,
     SequenceEvent,
     UnprojectableParticipant,
     UnprojectableReason,
@@ -91,7 +93,7 @@ def _project_one(
     ]
     try:
         return CaseStateSequence(
-            participant=participant, events=_place_awareness(events)
+            participant=participant, events=_place_coupled_events(events)
         )
     except ValidationError as exc:
         return UnprojectableParticipant(
@@ -101,29 +103,42 @@ def _project_one(
         )
 
 
-def _place_awareness(events: list[CaseEvent]) -> list[SequenceEvent]:
-    """Place a ``V`` recorded after public awareness right after ``P``.
+def _place_coupled_events(events: list[CaseEvent]) -> list[SequenceEvent]:
+    """Place each coupled event the ledger records late (CEH-05-009).
 
-    The model couples public and vendor awareness: once the public is aware
-    the vendor counts as aware at once, since the vendor-unaware,
-    public-aware state is transient (CSB-17-003).  A ``V`` recorded after
-    ``P`` with a later public-state event between them is therefore placed
-    immediately after ``P`` and marked; every event keeps its recorded log
-    index and clocks (CEH-05-009).  Every other event stays where the
+    The model couples exploit publication to public awareness and public
+    awareness to vendor awareness, because ``pX`` and ``vP`` are transient
+    (CSB-17-003).  A ``P`` recorded after ``X`` with another event between
+    them is placed immediately after ``X``; then a ``V`` recorded after that
+    ``P`` with another event between them is placed immediately after ``P``.
+    The order composes: ``X, V, P`` becomes ``X, P, V``.  Every event keeps
+    its recorded log index and clocks, and every other event stays where the
     history put it.
     """
-    placed = [SequenceEvent(event=event) for event in events]
-    kinds = [event.kind for event in events]
-    if CSEvent.P not in kinds or CSEvent.V not in kinds:
-        return placed
-    public, aware = kinds.index(CSEvent.P), kinds.index(CSEvent.V)
-    if aware > public + 1:
-        moved = placed.pop(aware)
-        placed.insert(
-            public + 1,
-            SequenceEvent(event=moved.event, placed_at_public_awareness=True),
-        )
-    return placed
+    members = [SequenceEvent(event=event) for event in events]
+    for placement, (kind, after) in PLACEMENT_RULES.items():
+        members = _place(members, kind, after, placement)
+    return members
+
+
+def _place(
+    members: list[SequenceEvent],
+    kind: CSEvent,
+    after: CSEvent,
+    placement: Placement,
+) -> list[SequenceEvent]:
+    """Move *kind* to directly after *after* when something lies between."""
+    kinds = [member.kind for member in members]
+    if kind not in kinds or after not in kinds:
+        return members
+    anchor, found = kinds.index(after), kinds.index(kind)
+    if found <= anchor + 1:
+        return members
+    moved = members.pop(found)
+    members.insert(
+        anchor + 1, SequenceEvent(event=moved.event, placement=placement)
+    )
+    return members
 
 
 def _messages(exc: ValidationError) -> list[str]:

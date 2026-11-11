@@ -334,7 +334,10 @@ For embargo times, the measure connects the embargo register and the consent row
     The history lists every entry that named a state behind the state already reached, and it records no event for that state.
     From the history, the measure layer builds one case-state sequence for each participant that has a vendor-awareness event (`vultron/measure/sequences/`).
     Each sequence holds that vendor's fix-path and deployment events and the case's public-state events, in log order, and must replay as a valid start of a case history.
-    When a vendor becomes aware only after public awareness and a later public event, such as a published exploit, the sequence places its awareness immediately after public awareness and marks it, because the model counts the vendor as aware once the public is.
+    The model counts the public as aware once an exploit is published, and the vendor as aware once the public is.
+    So when the ledger records public awareness late, after a published exploit and another event, the sequence places it immediately after the exploit and marks it.
+    When the ledger records vendor awareness late in the same way, the sequence places it immediately after public awareness and marks it.
+    Each placed event keeps its recorded log index and times.
     The layer reports every other participant with the reason it has no sequence, and it computes no score.
 
 ## Further reading
