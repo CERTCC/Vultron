@@ -946,9 +946,9 @@ groups:
         verification: >-
           `test/metadata/test_pr_body_lint.py`: PRB-14 refuses a `Part of #N`
           body on the claim branch of #N before the push, and refuses one whose
-          open PR lists #N in `closingIssuesReferences`. `test/ci/test_stale_claim_sweeper.py`: an
-          open part keeps the idle claim branch, and an epic run holding #N,
-          live.
+          open PR lists #N in `closingIssuesReferences`.
+          `test/ci/test_stale_claim_sweeper.py`: an open part keeps the idle
+          claim branch, and an epic run holding #N, live.
         relationships:
         - rel_type: refines
           spec_id: PAD-04-001
