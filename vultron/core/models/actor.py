@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, TypedDict
+from typing import Any, Literal, Self, TypeAlias, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -55,6 +55,14 @@ def endpoint_uri(endpoint: Any) -> str | None:
 def _no_keys(keys: list[Multikey]) -> bool:
     """Leave ``assertionMethod`` out of a dump that would carry no key."""
     return not keys
+
+
+#: An ActivityPub actor's ``endpoints``: the IRI of an endpoints object, or the
+#: object inline, whose every property (``sharedInbox``, ``proxyUrl``, ...) is
+#: an IRI.  Blank in either place names nothing (CS-08-001, #3894).
+ActorEndpoints: TypeAlias = (
+    NonEmptyString | dict[NonEmptyString, NonEmptyString]
+)
 
 
 class CoreActor(CoreObject):
@@ -98,7 +106,7 @@ class CoreActor(CoreObject):
         return endpoint_uri(v)
 
     preferred_username: NonEmptyString | None = None
-    endpoints: Any | None = None
+    endpoints: ActorEndpoints | None = None
     embargo_policy: EmbargoPolicy | None = Field(
         default=None,
         description=(

@@ -340,6 +340,23 @@ def test_the_payload_snapshot_is_an_untyped_object(
     assert shape == {"kind": "object"}
 
 
+@pytest.mark.parametrize("key", ["to", "context", "inReplyTo"])
+def test_an_as2_reference_slot_is_an_object_or_non_empty_iri(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]], key: str
+) -> None:
+    """One embedded object (core or another layer's) or IRI, or a list (#3894).
+
+    The core object and the already-built model both project to a JSON
+    object, so the union carries that member once.
+    """
+    one = [{"kind": "object"}, {"kind": "string", "nonEmpty": True}]
+    shape = fields["CaseLedgerEntry"][key].shape
+    assert shape == {
+        "kind": "union",
+        "of": [*one, {"kind": "array", "items": {"kind": "union", "of": one}}],
+    }
+
+
 def test_a_nested_optional_fails_the_export_rather_than_dropping_none() -> (
     None
 ):

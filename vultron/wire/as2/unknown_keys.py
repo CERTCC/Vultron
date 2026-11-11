@@ -40,7 +40,7 @@ Vultron supports one protocol version, so no list of retired names is kept
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import types
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cache
 from types import MappingProxyType
@@ -212,7 +212,7 @@ def _model_candidates(
             return all(visit(arg) for arg in get_args(ann))
         if origin in (dict, Mapping) or ann is dict:
             return False
-        if origin in (list, set, frozenset, tuple):
+        if origin in (list, set, frozenset, tuple, Sequence):
             return all(visit(arg) for arg in get_args(ann) if arg is not ...)
         return True
 

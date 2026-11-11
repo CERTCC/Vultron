@@ -19,13 +19,17 @@ ARCH-25-004 (ADR-0099): the core classes *are* the AS2 objects.
 """
 
 import inspect
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar, TypeAlias
 
 from pydantic import (
+    BaseModel,
     ConfigDict,
     Field,
+    PlainValidator,
     SerializationInfo,
+    SerializeAsAny,
     SerializerFunctionWrapHandler,
     ValidationInfo,
     field_serializer,
@@ -127,12 +131,18 @@ class CoreObject(CoreRecord):
 
     preview: NonEmptyString | None = None
     media_type: NonEmptyString | None = None
-    replies: Any | None = None
+    # The AS2 reference properties hold an embedded object or a non-blank IRI,
+    # one or many (``replies`` one only), as on the wire base.  Core names only
+    # its own objects; a wire ``Link`` or case stub is held as the wire layer
+    # built it (``UnmodelledObject``, ARCH-01-001).  A blank IRI is refused
+    # when the object is built (CS-08-001, #3894).  The aliases are declared
+    # below the class they name.
+    replies: "CoreObjectOrIri | None" = None
     url: NonEmptyString | None = None
-    generator: Any | None = None
-    context: Any | None = None
-    tag: Any | None = None
-    in_reply_to: Any | None = None
+    generator: "CoreObjectOrIriValues" = None
+    context: "CoreObjectOrIriValues" = None
+    tag: "CoreObjectOrIriValues" = None
+    in_reply_to: "CoreObjectOrIriValues" = None
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -150,15 +160,15 @@ class CoreObject(CoreRecord):
 
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
-    icon: Any | None = None
-    image: Any | None = None
-    attachment: Any | None = None
-    location: Any | None = None
-    to: Any | None = None
-    cc: Any | None = None
-    bto: Any | None = None
-    bcc: Any | None = None
-    audience: Any | None = None
+    icon: "CoreObjectOrIriValues" = None
+    image: "CoreObjectOrIriValues" = None
+    attachment: "CoreObjectOrIriValues" = None
+    location: "CoreObjectOrIriValues" = None
+    to: "CoreObjectOrIriValues" = None
+    cc: "CoreObjectOrIriValues" = None
+    bto: "CoreObjectOrIriValues" = None
+    bcc: "CoreObjectOrIriValues" = None
+    audience: "CoreObjectOrIriValues" = None
     attributed_to: NonEmptyString | None = None
 
     context_: JsonLdContext | None = Field(
@@ -472,3 +482,39 @@ class CoreObject(CoreRecord):
                 data = dict(data)
                 data["type"] = cls.__name__
         return data
+
+
+def _require_built_object(value: object) -> BaseModel:
+    """Admit *value* only if it is an object another layer already built."""
+    if isinstance(value, BaseModel):
+        return value
+    raise ValueError(
+        "an AS2 reference must be an embedded object or a non-blank IRI"
+    )
+
+
+#: An embedded object of a class core does not model (an AS2 ``Link``, a case
+#: stub, a case reference), held as the wire layer built it.  Core cannot name
+#: those classes (ARCH-01-001), yet the parse edge must keep one in a core
+#: object until its placement check names the fault (MV-10-002, AKM-03-004).
+#: Only a built model passes; a raw mapping must validate as a ``CoreObject``.
+#: ``SerializeAsAny`` dumps it by its own class, not as a bare ``BaseModel``.
+UnmodelledObject: TypeAlias = Annotated[
+    BaseModel, PlainValidator(_require_built_object), SerializeAsAny()
+]
+
+#: One value of an AS2 reference property as core holds it: an embedded
+#: object or a non-blank IRI (CS-08-001).
+CoreObjectOrIri: TypeAlias = CoreObject | UnmodelledObject | NonEmptyString
+
+#: A non-functional AS2 reference property: one value or a list of them.
+#: ``Sequence`` rather than ``list``, because ``list`` is invariant: a
+#: subclass narrowing ``to`` to ``list[NonEmptyString]`` is then a valid
+#: override.
+CoreObjectOrIriValues: TypeAlias = (
+    CoreObjectOrIri | Sequence[CoreObjectOrIri] | None
+)
+
+# The fields above name these aliases, which name the class, so the schema is
+# completed here, before any subclass is declared.
+CoreObject.model_rebuild()

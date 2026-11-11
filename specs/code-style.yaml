@@ -292,7 +292,12 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Optional string fields MUST NOT contain empty strings when present; the invariant is "if present, then non-empty"
-    rationale: Distinguishes "not provided" from "provided but blank", avoiding ambiguous database states.
+    rationale: >-
+      Distinguishes "not provided" from "provided but blank", avoiding ambiguous database states.
+      It covers the wire AS2 reference properties (`to`, `context`, `inReplyTo`, ...) too: a
+      blank IRI names nothing. Lenient inbound parsing (ARCH-21-002) means accepting every
+      shape AS2 allows, and a blank is none of them. ARCH-12-004 no longer exempts `Any | None`
+      wire types; it constrains only validators that read case state or stored data (#3894).
   - id: CS-08-002
     priority: SHOULD
     kind: project
