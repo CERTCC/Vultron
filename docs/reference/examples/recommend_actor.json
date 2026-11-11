@@ -8,6 +8,8 @@
   "id": "urn:uuid:890aea69-4c7f-46d4-aef4-40987a1db820",
   "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "I'm recommending we add Coordinator LLC to the case.",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/users/finndervul",
@@ -40,6 +42,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z64hXQ5YMkcU8bk39kAYrH6U9KADUvcugGYZMDqFmvY2KFzGwjkkqopVQT1z1D3m25Uh3gfNBB8QXF95SyUQaxDof"
+    "proofValue": "z2K1vhzm2LSUPdpPGNh5mVZRGUAxY4x2hnCYpq4L1FtUD34XL9ADufhvs5zJxas6kwuapHrPd2z8Zx9zxxTuDpBTj"
   }
 }

@@ -8,6 +8,8 @@
   "id": "urn:uuid:59d8109b-effb-4ead-ab33-2fdb21a37399",
   "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/full-case-invitation/1",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/organizations/coordinator",
   "ledgerPosition": {
@@ -57,6 +59,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2kRYeW6VvB8onJv7JRQiuVR1ct4vS5GpesW5hUrqKH7nMvxu1cWFTCA9ikR6Bp8RhCfdeA35Rx3svhkZfanrztsw"
+    "proofValue": "zYJappWLfto1icYA8nB8aCXZGNBc2ftXAxgY9ynGyg1NkMREmjoXPmYmubABPM2mwguEsN1BksUXqytGMBmj1wSh"
   }
 }

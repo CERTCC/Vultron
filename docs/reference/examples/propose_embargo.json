@@ -8,6 +8,8 @@
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
   "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "summary": "We propose to embargo case 1 for 90 days.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -32,6 +34,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3mfG7VY3p4RX6dJLATvuesuuTiueD9D7MTpJB4nqPzpPQv3MDJrHjZ4eFx3dV9RjVZFgQvnEEhAnN2MoueKfQ27N"
+    "proofValue": "z382rK9aCq4rDYoAr1vCdJwgyx28VGMKQQEXWVEHntMAPnSS3qK2gWD1VcQLfWcnDD7qG4642iyCJoA6ZtvPKJSn7"
   }
 }

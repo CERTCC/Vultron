@@ -7,6 +7,8 @@
   "type": "Announce",
   "id": "urn:uuid:6a39650d-c253-4913-9ea4-10a5522d0e8e",
   "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #20260601",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -133,6 +135,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z66GVtrBy6KUxvu83LfLPfyEvRvaPMuX7n3qaKzYoXMUK2fMjH8ceiwmgrMMVitPcNrdCx5r43DQfdApk4XMxGC1s"
+    "proofValue": "z2PWEeYZTYj8UcEiMHAQgNGF8rE5iRmDYA5wvAM4nJDRVCZWCLhLhyFs2LqAGv3ALPZDXtzeUpzGvhQqHuyhvPTtE"
   }
 }

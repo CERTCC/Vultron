@@ -7,6 +7,8 @@
   "type": "Offer",
   "id": "urn:uuid:1f075842-1506-4058-b7b1-60fa31e9a619",
   "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/organizations/vendorco"
   ],
@@ -31,6 +33,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5oJVjjPf6HWaMQYY2okRadY9henKd6PMJ9t6hxcEZyQpvFYGrS52ANGURj5Bk5aVVWBVVi4mhoDcNUwTgq6N47fr"
+    "proofValue": "z2Ed1ifAniZwq2KJ67ze9A8ApVaCCCcfAXAHobg64cLZQyUfR8VzAgELhU3W519F1gDs26pGUdQqN8JqL472Smw78"
   }
 }

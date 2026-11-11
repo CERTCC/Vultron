@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:50c3f505-a71d-40e2-9304-2b5eca6f89a9",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE pxa to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/users/finndervul"
   ],
@@ -32,6 +34,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4zpYxcQxNzbz8Xct3pVCGijytE1mErkXp7CCfp3mgCeB4StQpXsqY6tHTshMa7B2EZHSF1h1zdBam6oZdAsq6tjK"
+    "proofValue": "z3TYEpTbbYJpFmk68ZfxSkEt2hkUwtoGq1TiW7p8kX9FxnTwSZFQRFTFv9GCuz18DBoqoD2Ccftj8s8ss5Aw7ysSq"
   }
 }

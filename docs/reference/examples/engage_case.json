@@ -7,6 +7,8 @@
   "type": "Join",
   "id": "urn:uuid:b7bdf598-2a01-4afb-8ac6-642c64da31d6",
   "name": "https://vultron.example/organizations/vendorco Join urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're engaging this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -24,6 +26,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3Z8PgcHU8oYSCNQ72zugJLTCXGNxScpQwAjkB4e4Wg2KqAXgw4jaBxRrBRrPrtFq9HMTp93zU9YaH3BStJ9hh2Ft"
+    "proofValue": "zAvc7eAJiDbF6seQHDDT61bX1qoUg9PuP791mNTTAjAGunzf4s48qzw8YuzQmmhfhhiTED4Q8nPwBHtzWKaNeuTX"
   }
 }
