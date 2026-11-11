@@ -11,9 +11,11 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
 * :mod:`vultron.measure.ledger` — the tolerant case-ledger JSONL reader, its
   field-spelling helpers, the display-name resolver, and the complete-copy
   selection that every measure reads through (CEH-02).
+* :mod:`vultron.measure.history` — the case event history derived from one
+  case's ledger (CEH-03, CEH-04).
 
-Later layers (the case event history, the chance baselines) are sibling
-subpackages that read through :mod:`vultron.measure.ledger`.
+Later layers (the chance baselines) are sibling subpackages that read
+through :mod:`vultron.measure.ledger`.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.

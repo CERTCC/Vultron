@@ -76,6 +76,29 @@ may name a state *behind* the one already reached, which is a change but not a f
 one — it is excluded from the events and reported, never emitted as a backward step
 (CEH-04-015, CEH-04-016).
 
+## What the Derivation Reads
+
+These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
+
+- **Read only the activity's carried `object`.** An `Add(ParticipantStatus)`'s
+  `target` holds the participant as stored when the snapshot was taken, which can
+  already hold the statuses the next entries add: in `rccv-extension` entry 48's
+  target holds the `CLOSED` that entry 49 records (CM-23-022).
+- **Identify a status by its `id`.** A carried participant or case repeats its whole
+  status list, so a status seen before is a restatement, never a regression; only an
+  unseen status is compared with the state reached (CEH-04-013, CEH-04-015).
+- **Skip everything under an `Offer`.** A recommendation and an ownership offer both
+  carry copies that are not the record's own state (CEH-04-014).
+- **Read the case's public state from case statuses only.** A case status nested in
+  a participant status is that participant's report; adoption is the event
+  (CEH-03-012).
+- **Activation is the owner's consent.** The Case Owner's `Add(EmbargoEvent)` makes
+  its own row `AGREED`, and a revision ending no later carries every signatory over,
+  so derive both from the activation entry rather than from a later snapshot that
+  shows the row (CM-10-001, `EmbargoLifecycle` activation).
+- **The creation sequence is genesis plus the CASE_MANAGER's unbroken run after it.**
+  Its events carry the seated-at-creation label (CM-14-001, CEH-03-011).
+
 ## Joining Is the Other Exception
 
 Joining has no state change of its own, so state comparison cannot see it, and the
@@ -85,7 +108,10 @@ participant is still inert (CM-11-006), and accepting the stub Invite then *leav
 report management at `RM.RECEIVED` (CM-11-001). So the only entry a "first records the
 participant" rule can find is the one that predates joining.
 
-Key the joining event on the **acceptance** entry instead (CEH-04-010). That is also
+Key the joining event on the **acceptance** entry instead (CEH-04-010). An inert
+participant's seated state is held until then and emitted at the acceptance entry, so
+a joiner's joining and report-received events share a log index; an invitee that
+never accepts yields only its consent answer. That is also
 what keeps a joining event off a participant that never joined: a refused invitation
 and an expired one both leave the inert record untouched, so the creation entry is
 there for them too. In the `rcv-reject` recording the invitee is seated, then the
@@ -305,8 +331,9 @@ which states only the boundary that nothing in the protocol path imports the lay
 (CEH-01-001):
 
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
-  subpackage that reads through the one below it; the event history and the chance
-  baselines are later siblings of `ledger/`, never part of it.
+  subpackage that reads through the one below it: the event history is
+  `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
+  and the chance baselines are a later sibling of `ledger/`, never part of it.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
   display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`
