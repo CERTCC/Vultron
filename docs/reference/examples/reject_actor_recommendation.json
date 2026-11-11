@@ -9,6 +9,8 @@
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:4fb0c76e-bec2-46c2-80ac-79c0d1c86ab1",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're declining your recommendation to add Coordinator LLC to the case. Thanks anyway.",
   "to": "https://vultron.example/users/finndervul",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
@@ -53,6 +55,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z42NBWmiB16mR52dsR1a17uCDn81pMrPpWMr6wUt2PQvrDBkGcTwdhjjEA1HBKjqC73GkVyrsVne9epif8argx5mV"
+    "proofValue": "z3zXTctWzNHZuGc9tzRKpBDk9qrCTAiKUhH3MyAo4ZNgpiK1n8aNRKm3YzDDsdgzyAK8YpCnQYzY1dnFd5VN9jVgB"
   }
 }

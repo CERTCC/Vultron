@@ -110,15 +110,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#3660](https://github.com/CERTCC/Vultron/issues/3660)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "HTTP-01-004",
-))
-```
-
 ### Tracked by [#3698](https://github.com/CERTCC/Vultron/issues/3698)
 
 ```python exec="true" idprefix=""

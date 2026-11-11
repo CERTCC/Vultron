@@ -8,6 +8,8 @@
   "id": "urn:uuid:ec3ff70e-77ca-485a-bb62-34dd745c5591",
   "name": "https://vultron.example/organizations/vendorco Read urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
@@ -28,6 +30,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4YAEB1xNa69k6J3SQMxLVy4Pw5pr5QbvjVcc9xiUifzehe7hziCchkqHbXP6XGjJU56HG9Fb3wTWxuDWHiuWmyfU"
+    "proofValue": "z4fj88j63F1zczHza2t7vZHwzhVPmRMHpnJKxZ71KJ8UEzQnyZH4m5i3pEboCJhNcHFZuJBDQ2GqHnGm9hUpFzfWr"
   }
 }

@@ -26,7 +26,7 @@ from test.adapters.driving.fastapi._redelivery import (
     get_from_store,
     served_store,
 )
-from test.support.signing import published_multikeys
+from test.support.signing import TEST_PROOF_CREATED, published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -109,7 +109,9 @@ def test_the_published_key_verifies_the_actors_proofs(tmp_path: Path):
     actor_id = canonical_actor_uri("profile-key-signer")
     owner_key = signing.seeded_signing_key(actor_id)
     signed = signing.sign(
-        {"id": f"{actor_id}/activities/1", "type": "Create"}, owner_key
+        {"id": f"{actor_id}/activities/1", "type": "Create"},
+        owner_key,
+        created=TEST_PROOF_CREATED,
     )
 
     [key] = published_multikeys(

@@ -213,7 +213,7 @@ For this reason, the formal protocol pages count three machines (RM, EM, CS), wh
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Case Activity Log** | A list of Activity IDs associated with a Case, recording the protocol history without storing full Activity payloads | Activity history, message log |
-| **Case Event** | A trusted-timestamp record of a protocol-relevant state change (V, F, D, P, X, A event), recorded when a handler processes an incoming Activity | Event, state change record |
+| **Case Event** | One CVD event derived from a case ledger entry: a report-management, fix-path, deployment or public-state change, a participant joining, an embargo starting or ending, or a consent answer. It names whom it belongs to (a participant, or the case), the entry that caused it with that entry's commit stamp and claimed time, and the data gaps that limit what its time means. The case ledger is the record; the case event is read from it and never stored | Event, state change record |
 | **Note** | Unstructured text attached to a Case by a Participant; used for comments, observations, and negotiation | Comment, annotation, memo |
 | **Parent/Child/Sibling Cases** | Hierarchical relationships between Cases: a Case can split (children) or merge (parent); siblings share a common parent | Case relationships, case graph |
 

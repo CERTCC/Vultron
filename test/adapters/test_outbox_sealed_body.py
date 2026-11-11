@@ -190,6 +190,64 @@ def test_sign_as_author_refuses_an_empty_owner():
         )
 
 
+@pytest.mark.spec("CS-13-002")
+def test_a_sealed_proof_is_created_at_the_activitys_published_time(dl):
+    """The proof takes the time the act wrote the activity, not a clock read.
+
+    ADR-0176: an act reads the clock once, at its edge; the activity's
+    ``published`` carries that act's time, so the proof is created then.
+    """
+    invite = _invite()
+    body = json.loads(seal_outbound_body(dl, invite))
+
+    assert body["proof"]["created"] == body["published"]
+    signing.verify(body, _published_key(_ACTOR))
+
+
+@pytest.mark.spec("SIG-05-001")
+def test_one_activity_sealed_in_two_stores_carries_one_proof():
+    """Sealing reads no clock, so one activity always seals to one text."""
+    invite = _invite()
+    bodies = []
+    for _ in range(2):
+        store = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
+        try:
+            bodies.append(seal_outbound_body(store, invite))
+        finally:
+            store.clear_all()
+            store.close()
+
+    assert bodies[0] == bodies[1]
+
+
+@pytest.mark.parametrize(
+    "published",
+    [None, "", "2026-01-01", "2026-01-01T00:00:00", "not a time", 0],
+    ids=["missing", "empty", "date-only", "no-offset", "text", "number"],
+)
+def test_sign_as_author_refuses_a_document_with_no_authored_time(published):
+    """No ``published`` timestamp is no time to create a proof at.
+
+    The signer refuses rather than reading a clock in its place (ADR-0176,
+    ARCH-10-001).
+    """
+    document: dict = {"id": "urn:uuid:x", "actor": _ACTOR}
+    if published is not None:
+        document["published"] = published
+
+    with pytest.raises(VultronUnsignableJsonError, match="published"):
+        signing.sign_as_author(document, owner_id=_ACTOR)
+
+
+def test_seal_refuses_an_activity_with_no_authored_time(dl):
+    """A body with no ``published`` is refused, and nothing is stored."""
+    invite = _invite().model_copy(update={"published": None})
+
+    with pytest.raises(VultronUnsignableJsonError):
+        seal_outbound_body(dl, invite)
+    assert read_sealed_body(dl, invite.id_) is None
+
+
 @pytest.mark.spec("VM-08-003")
 def test_sealed_body_keeps_the_case_stub_inline(dl):
     """What is sealed is what the factory built: the Invite's case stub.

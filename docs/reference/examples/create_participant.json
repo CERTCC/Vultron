@@ -8,6 +8,8 @@
   "id": "urn:uuid:19f8ed08-881b-4ffb-a326-af232e51dd50",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Create as_CaseParticipant urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/https://vultron.example/organizations/coordinator from https://vultron.example/organizations/coordinator in urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
@@ -51,6 +53,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5VqjkBBirQECaMGbg43ugWtU1BvEsfzjQJafEQAh9s6YeG7viy6nZ1eZVAJfDZhBwAaKyJgekMFskkiQ1FhgKpp9"
+    "proofValue": "z67D69F7x3nvURmLk3aP9iMiERx2zhr4EvkLrQHS6TZWBuTLDp6Rni6MyKX69X7GyMuywUrsmimvUERFWhPNE1XsG"
   }
 }

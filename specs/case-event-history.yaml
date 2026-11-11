@@ -63,8 +63,10 @@ groups:
       directly. A library entry point lets them import it without a subprocess, and
       keeps the command a thin wrapper over the same code the tests exercise.
     verification: >-
-      A unit test calls the function with a ledger source and asserts the returned
-      history, without running the command.
+      `test/measure/history/test_recordings.py::test_a_recording_yields_the_events_its_narrative_requires`
+      calls `read_case_event_histories` on each recording, and every test in
+      `test/measure/history/test_derive.py` calls `case_event_history` on a selected
+      ledger; neither runs a command.
   - id: CEH-01-004
     priority: MUST
     kind: project
@@ -328,8 +330,9 @@ groups:
       caller in turn. Which validation library enforces it is a code-style matter
       settled project-wide by CS-17-001.
     verification: >-
-      A unit test asserts that constructing an event record with a missing required
-      field raises a validation error.
+      `test/measure/history/test_model.py::test_a_record_missing_a_required_field_is_refused`
+      asserts that an event record missing each required field raises a validation
+      error.
     relationships:
     - rel_type: depends_on
       spec_id: CS-17-001
@@ -343,8 +346,10 @@ groups:
       A measure selects events by kind, and a free string lets two spellings of one
       kind both pass. A closed enumeration makes an unhandled kind a load-time error.
     verification: >-
-      A unit test asserts that an event record refuses a kind outside the enumeration,
-      and that the enumeration covers every kind the derivation emits.
+      `test/measure/history/test_model.py::test_the_kind_comes_from_a_closed_enumeration`
+      asserts a kind outside the enumeration is refused, and
+      `test/measure/history/test_model.py::test_every_report_management_state_entered_has_a_kind`
+      that every report-management state entered has its own kind.
   - id: CEH-03-003
     priority: MUST
     kind: project
@@ -356,8 +361,10 @@ groups:
       per-participant, so vendor awareness and fix readiness occur once for each
       vendor. An unlabeled event cannot be assigned to the vendor it describes.
     verification: >-
-      A unit test builds a history from a two-vendor ledger and asserts that each
-      fix-readiness event names the vendor it belongs to.
+      `test/measure/history/test_derive.py::test_awareness_and_readiness_are_separate_events_for_each_vendor`
+      builds a two-vendor ledger and asserts each fix-readiness event names its vendor;
+      `test/measure/history/test_model.py::test_a_participant_event_names_its_participant`
+      refuses one that names none.
   - id: CEH-03-004
     priority: MUST
     kind: project
@@ -369,8 +376,10 @@ groups:
       the embargo happen at most once for the whole case. Attributing one to the
       participant whose entry carried it would count it once per participant.
     verification: >-
-      A unit test asserts that a history holds one public-awareness event, and that it
-      names no participant.
+      `test/measure/history/test_recordings.py::test_a_recording_yields_the_events_its_narrative_requires`
+      asserts one public-awareness event naming no participant, and
+      `test/measure/history/test_model.py::test_a_case_event_records_the_case_rather_than_a_participant`
+      refuses a case event that names one.
     relationships:
     - rel_type: extends
       spec_id: CEH-03-003
@@ -384,8 +393,8 @@ groups:
       changes, and the only order a measure may treat as causal. A timestamp order is
       supporting evidence.
     verification: >-
-      A unit test asserts that each event's log index equals that of the entry it came
-      from.
+      `test/measure/history/test_recordings.py::test_every_event_carries_its_entrys_index_type_and_clocks`
+      asserts each event's log index is that of the entry it came from.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-14-001
@@ -399,8 +408,8 @@ groups:
       interval between two of them is a valid comparison. It is the default clock for
       a measure that spans two senders.
     verification: >-
-      A unit test asserts that an event's commit stamp equals the envelope timestamp of
-      the entry it came from.
+      `test/measure/history/test_recordings.py::test_every_event_carries_its_entrys_index_type_and_clocks`
+      asserts each event's commit stamp equals the envelope timestamp of its entry.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-14-002
@@ -418,8 +427,9 @@ groups:
       `published`, but this layer is handed archived and foreign ledgers it never
       validated, and an absent claimed time must read as absent.
     verification: >-
-      A unit test uses an entry whose two timestamps differ, and asserts that the event
-      carries each one in its own field.
+      `test/measure/history/test_derive.py::test_each_clock_is_read_from_its_own_field`
+      uses an entry whose two timestamps differ and asserts the event carries each in
+      its own field.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-15-006
@@ -434,9 +444,9 @@ groups:
       reader that cannot tell which clock a value came from cannot judge whether an
       interval is valid.
     verification: >-
-      A unit test derives an event from an archived entry that states no claimed time —
-      the shape CLP-15-008 refuses inbound but an archived ledger can still hold — and
-      asserts the claimed-time field is empty and holds no copy of the commit stamp.
+      `test/measure/history/test_derive.py::test_an_entry_with_no_claimed_time_leaves_the_field_empty`
+      derives an event from an entry that states no claimed time and asserts the field
+      is empty while the commit stamp is set.
     relationships:
     - rel_type: refines
       spec_id: CEH-03-007
@@ -450,8 +460,10 @@ groups:
       it is part of what a process measure reports. Naming the semantic type also lets
       a reader trace an event back to its entry.
     verification: >-
-      A unit test asserts that the same kind of event derived from two different
-      semantic types carries each one.
+      `test/measure/history/test_recordings.py::test_one_kind_from_two_semantic_types_names_each`
+      asserts report-received events derived from two semantic types carry each, and
+      `test/measure/history/test_recordings.py::test_every_event_carries_its_entrys_index_type_and_clocks`
+      that every event names its entry's type.
   - id: CEH-03-010
     priority: MUST
     kind: project
@@ -463,8 +475,10 @@ groups:
       record lets a measure state its own limits instead of each measure rediscovering
       the gap.
     verification: >-
-      A unit test asserts that an event with two applicable gaps carries both, and that
-      an event with none carries an empty set.
+      `test/measure/history/test_derive.py::TestGapLabels::test_public_state_is_stamped_at_adoption_and_x_and_a_out_of_band`
+      asserts an event with two applicable gaps carries both, and
+      `test/measure/history/test_derive.py::TestGapLabels::test_events_seated_by_the_creation_sequence_are_labelled`
+      that an event with none carries an empty list.
   - id: CEH-03-011
     priority: MUST
     kind: project
@@ -476,8 +490,11 @@ groups:
       report accepted, and the CASE_MANAGER commits both during creation. So the
       commit stamp of each is the creation time, not the time of the event.
     verification: >-
-      A unit test asserts the creation label on the Case Owner's report-received event
-      and on the reporter's report-accepted event.
+      `test/measure/history/test_derive.py::TestGapLabels::test_events_seated_by_the_creation_sequence_are_labelled`
+      asserts the creation label on the Case Owner's report-received event and on the
+      reporter's report-accepted event;
+      `test/measure/history/test_recordings.py::test_the_reporter_is_seated_at_accepted_by_the_creation_sequence`
+      asserts it on a recording.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010
@@ -492,8 +509,9 @@ groups:
       status. Both times on that entry come from the CASE_MANAGER's clock at adoption,
       so neither is when a participant first reported the event.
     verification: >-
-      A unit test asserts the adoption label on a public-awareness event whose ledger
-      shows a participant reporting it in an earlier entry.
+      `test/measure/history/test_recordings.py::test_public_awareness_is_dated_to_adoption_not_the_first_report`
+      asserts the adoption label on a public-awareness event whose ledger shows a
+      participant reporting it an entry earlier.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010
@@ -501,20 +519,27 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST label an event that a passing deadline caused as stamped when the
-      CASE_MANAGER next acted.
+      The layer MUST label every end-time embargo exit the CASE_MANAGER commits, and
+      every timed-out invitation, as stamped when the CASE_MANAGER next acted.
     rationale: >-
-      The CASE_MANAGER's own lazy check makes the change when it next handles the case,
-      so the stamp can be much later than the deadline. The label marks that distance,
-      which is why it is wrong to apply where the distance is not there: EMB-13-003
-      also admits an outside request at the end time, such as from a Sentinel watching
-      embargo timers, and an exit committed on that path is stamped close to its
-      deadline. Label the lazy path, not the requested one.
+      The label means the stamp may lag the deadline that caused the change. The
+      CASE_MANAGER's lazy check makes the change when it next handles the case, so the
+      stamp can be much later than the deadline. EMB-13-003 also admits an outside
+      request at the end time, such as from a Sentinel watching embargo timers, but the
+      ledger records both paths as the same `Remove(EmbargoEvent)` with no requester,
+      so the label cannot tell them apart. The deadline the event carries (CEH-03-015)
+      gives the true end time.
     verification: >-
-      A unit test asserts the deadline label on an embargo exit reached by the
-      CASE_MANAGER's lazy check and on an invitation that timed out, and asserts the
-      label is absent on an exit committed from an outside request made at the end
-      time.
+      `test/measure/history/test_derive.py::TestGapLabels::test_an_end_time_exit_by_the_case_manager_is_stamped_when_next_handled`
+      asserts the label on an end-time exit the CASE_MANAGER committed, with the end
+      time as its deadline;
+      `test/measure/history/test_derive.py::test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline`
+      asserts it on a timed-out invitation; and
+      `test/measure/history/test_derive.py::test_an_end_time_exit_not_committed_by_the_case_manager_is_unlabelled`
+      and
+      `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
+      assert it is absent on an end-time exit another actor committed and on an early
+      exit.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010
@@ -531,8 +556,9 @@ groups:
       participant reports it. The record does not show how long that took, so no
       measure on these events can bound the delay.
     verification: >-
-      A unit test asserts the out-of-band label on a public-exploit event and on an
-      observed-attacks event.
+      `test/measure/history/test_derive.py::TestGapLabels::test_public_state_is_stamped_at_adoption_and_x_and_a_out_of_band`
+      asserts the out-of-band label on a public-exploit event and on an observed-attacks
+      event.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010
@@ -550,10 +576,11 @@ groups:
       hold one, and the row has already moved to `TIMED_OUT`. The layer must carry that
       deadline forward from the earlier invitation entry.
     verification: >-
-      A unit test asserts that an embargo exit at its end time carries that end time,
-      and that a timed-out invitation carries the RSVP deadline stated on the earlier
-      entry that recorded the invitation, with no deadline on the timing-out entry
-      itself.
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
+      asserts an exit at its end time carries that end time, and
+      `test/measure/history/test_derive.py::test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline`
+      that a timed-out invitation carries the RSVP deadline stated on the earlier entry,
+      with none on the timing-out entry itself.
     relationships:
     - rel_type: extends
       spec_id: CEH-03-013
@@ -571,8 +598,9 @@ groups:
       answering a full-case invitation and leaving a case all change report management.
       A table keyed on the semantic type alone would miss whichever act it omitted.
     verification: >-
-      A unit test asserts that an entry repeating a state already reached yields no
-      event, and that an entry changing it yields one.
+      `test/measure/history/test_derive.py::test_a_status_restating_the_state_reached_yields_no_event`
+      asserts an entry repeating a state already reached yields no event, and one
+      changing it yields one.
   - id: CEH-04-002
     priority: MUST
     kind: project
@@ -585,9 +613,8 @@ groups:
       Emitting only the four states that have a symbol in the research pages would drop
       the deferred and invalid verdicts.
     verification: >-
-      A unit test asserts that a ledger reaching a deferred verdict and one reaching an
-      invalid verdict each yield their own event, and that the event enumeration covers
-      every member of the report-management state enumeration.
+      `test/measure/history/test_derive.py::test_every_report_management_state_entered_is_one_event`
+      asserts one event per state entered, the invalid and deferred verdicts included.
     relationships:
     - rel_type: implements
       spec_id: CEH-04-001
@@ -602,8 +629,11 @@ groups:
       level expectations most often limit. A case with ten vendors has ten of each
       event.
     verification: >-
-      A unit test builds a history from a two-vendor ledger and asserts two
-      vendor-awareness events and two fix-readiness events.
+      `test/measure/history/test_derive.py::test_awareness_and_readiness_are_separate_events_for_each_vendor`
+      asserts two vendor-awareness and two fix-readiness events on a two-vendor ledger,
+      and
+      `test/measure/history/test_derive.py::test_a_fix_path_on_a_participant_without_the_vendor_role_is_no_event`
+      none for a non-vendor.
     relationships:
     - rel_type: implements
       spec_id: CEH-04-001
@@ -618,8 +648,8 @@ groups:
       that is not also a vendor may deploy after any vendor in the case has a fix
       ready, so the case does not say whose fix it deployed.
     verification: >-
-      A unit test builds a history from a ledger with a deployer and asserts one
-      fix-deployed event naming that participant.
+      `test/measure/history/test_derive.py::test_a_vendorless_deployer_yields_its_fix_deployed_event`
+      asserts one fix-deployed event naming the deployer.
     relationships:
     - rel_type: implements
       spec_id: CEH-04-001
@@ -634,8 +664,9 @@ groups:
       cannot find them. The embargo register entries and the consent rows carry no
       time of their own, so only the entry that recorded a step holds its time.
     verification: >-
-      A unit test builds a history from an embargo ledger and asserts the start, the
-      exit and each consent answer, with the time of the entry that recorded it.
+      `test/measure/history/test_recordings.py::test_rcv_embargo_yields_each_embargo_step_at_its_own_entry`
+      asserts the start, the exit and each consent answer of an embargo recording at the
+      entry that recorded it.
   - id: CEH-04-006
     priority: MUST
     kind: project
@@ -647,7 +678,10 @@ groups:
       that ran to its end time ended on its own terms, and one that ended early ended
       with time left that a measure can report as the cost.
     verification: >-
-      A unit test asserts the reason on an exit at the end time and on an early exit.
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
+      and
+      `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
+      assert the reason on an exit at the end time and on an early exit.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-005
@@ -662,8 +696,10 @@ groups:
       from one caused by every fix being ready. Only an early termination carries a
       cause, and a replica never works one out from its own state.
     verification: >-
-      A unit test asserts that an early exit with a threat-signal cause carries that
-      cause and its signals, and that an exit at the end time carries none.
+      `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
+      asserts a threat-signal cause is carried with its signals, and
+      `test/measure/history/test_derive.py::test_an_end_time_exit_carries_its_reason_and_deadline_and_no_cause`
+      that an exit at the end time carries none.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-006
@@ -678,8 +714,8 @@ groups:
       of those time-outs is a measure of its own. Collapsing the three answers would
       make an unanswered invitation indistinguishable from a refusal.
     verification: >-
-      A unit test asserts a different event kind for each of the three answers on one
-      ledger.
+      `test/measure/history/test_derive.py::test_agreeing_declining_and_timing_out_are_distinct_named_events`
+      asserts a different event kind for each of the three answers on one ledger.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-005
@@ -694,8 +730,9 @@ groups:
       consent row for every entry in the register. An answer that did not name its
       entry could not be matched to the embargo it was about.
     verification: >-
-      A unit test uses a ledger with an embargo and a revision, and asserts that each
-      consent event names the one it answers.
+      `test/measure/history/test_recordings.py::test_rcvv_embargo_consents_name_the_embargo_each_answers`
+      uses a recording with an embargo and a revision and asserts each consent event
+      names the one it answers.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-008
@@ -714,10 +751,13 @@ groups:
       participant that never joined: a refused or expired invitation leaves that inert
       record untouched.
     verification: >-
-      A unit test asserts one joining event for each participant that accepted, that a
-      later joiner's joining and report-received events share a log index, and that a
-      ledger in which an invitation was refused and one in which it expired each yield
-      no joining event for that invitee.
+      `test/measure/history/test_derive.py::test_joining_is_derived_from_the_acceptance_entry`
+      asserts the joining and report-received events share the acceptance entry's log
+      index;
+      `test/measure/history/test_derive.py::test_an_expired_invitation_yields_no_joining_event`
+      and
+      `test/measure/history/test_recordings.py::test_the_refused_invitee_in_rcv_reject_never_joins`
+      assert an expired and a refused invitation yield no joining event.
     relationships:
     - rel_type: implements
       spec_id: CEH-04-005
@@ -733,8 +773,9 @@ groups:
       The log index is the authoritative causal order. Ordering by either timestamp
       instead would reorder the entries whose claimed times came from two clocks.
     verification: >-
-      A unit test uses a ledger whose claimed times disagree with its log order, and
-      asserts the history follows the log order.
+      `test/measure/history/test_derive.py::test_the_history_follows_log_order_not_claimed_times`
+      uses entries whose claimed times disagree with their log order and asserts the
+      history follows the log order.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-14-001
@@ -752,9 +793,9 @@ groups:
       example and must not be read as one. CM-23-022 commits one entry per transition,
       so a leave from valid gives two entries rather than one entry holding two events.
     verification: >-
-      A unit test asserts that a genesis entry seating a participant at several
-      report-management states yields one event per state, in the order the entry
-      records them.
+      `test/measure/history/test_derive.py::test_a_genesis_seating_several_states_yields_one_event_each_in_order`
+      asserts a genesis entry seating a participant at three report-management states
+      yields one event per state, in order.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-011
@@ -769,8 +810,9 @@ groups:
       recommendations, and most of those are not events the measures use. An event for
       each entry would make the history a copy of the ledger.
     verification: >-
-      A unit test asserts that an entry adding a note and an entry transferring
-      ownership each yield no event.
+      `test/measure/history/test_derive.py::test_a_note_and_an_ownership_transfer_yield_no_event`
+      asserts that an entry adding a note and the entries transferring ownership each
+      yield no event.
     relationships:
     - rel_type: refines
       spec_id: CEH-04-001
@@ -787,9 +829,11 @@ groups:
       that read every participant-shaped object would date the actor's first event to
       before it was invited, and would give a recommendation a vendor-awareness slot.
     verification: >-
-      A unit test builds a history from a ledger whose recommendation entry precedes
-      the recommended actor's own record, and asserts the actor's first event is dated
-      to its own record and that the recommendation yields none.
+      `test/measure/history/test_derive.py::test_a_recommended_participant_yields_no_event_before_its_own_record`
+      builds a ledger whose recommendation precedes the actor's own record and asserts
+      its first event is dated to that record;
+      `test/measure/history/test_recordings.py::test_the_recommended_vendor_in_rccv_extension_is_dated_to_its_own_record`
+      asserts it on a recording.
     relationships:
     - rel_type: refines
       spec_id: CEH-04-001
@@ -805,9 +849,9 @@ groups:
       history the state machines forbid, so a measure would read a regression the case
       never had.
     verification: >-
-      A unit test feeds an entry naming a report-management state behind the one
-      already reached, and asserts no event is emitted for it while the following
-      entries still yield theirs.
+      `test/measure/history/test_derive.py::test_a_state_behind_the_one_reached_is_excluded_and_reported`
+      feeds an entry naming a report-management state behind the one reached and asserts
+      no event for it while the following entry still yields its own.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-013
@@ -822,8 +866,8 @@ groups:
       of a case, which is a finding in its own right. Surfacing it beside the events
       lets a caller judge the history, as CEH-02-006 does for a merge hole.
     verification: >-
-      A unit test asserts that an entry naming an earlier state is named in the
-      history's report of excluded entries.
+      `test/measure/history/test_derive.py::test_a_state_behind_the_one_reached_is_excluded_and_reported`
+      asserts the entry is named in the history's excluded states.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-015
@@ -994,8 +1038,9 @@ groups:
       covering an embargo termination, an embargo revision, a refused invitation and
       several vendors. They give known histories to check a derivation against.
     verification: >-
-      A parametrized test builds the history of every committed recording and asserts
-      the events its scenario requires.
+      `test/measure/history/test_recordings.py::test_a_recording_yields_the_events_its_narrative_requires`
+      builds the history of every committed recording and asserts the events its
+      scenario's branch choices require.
   - id: CEH-06-002
     priority: MUST
     kind: project
@@ -1074,7 +1119,8 @@ groups:
       creation, one stamped at adoption, one a passing deadline caused, and one
       reported out of band. One test per kind keeps each attachment honest.
     verification: >-
-      A test class asserts the label on one event of each of the four gap kinds.
+      `test/measure/history/test_derive.py::TestGapLabels` asserts the label on one
+      event of each of the four gap kinds.
     relationships:
     - rel_type: depends_on
       spec_id: CEH-03-010

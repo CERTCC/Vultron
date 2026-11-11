@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven import http_actor_profile_fetch as apf
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -101,6 +102,7 @@ def test_a_served_profile_yields_the_key_that_verifies_the_actors_proof(
     signed = signing.sign(
         {"id": f"{author}/activities/1", "type": "Create"},
         signing.seeded_signing_key(author),
+        created=TEST_PROOF_CREATED,
     )
     actor = VultronOrganization(id_=author, name=segment)
 

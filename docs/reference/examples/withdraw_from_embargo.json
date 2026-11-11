@@ -8,6 +8,8 @@
   "id": "urn:uuid:51c5ebbb-9095-47be-b49c-b854df2a2ec6",
   "name": "https://vultron.example/users/finndervul Leave Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/users/finndervul",
   "object": {
@@ -32,6 +34,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2BBVmA2zF7yUaASSfiXSZtw6HpCDWPgurkgYgA2wAewLbERo84hRZQd3ePL1EtMqASyhT1hWPep1G6uv6EnfP9dE"
+    "proofValue": "zgcq1sCotoFPHUiEh52q2mTCXJEu2cj4Vz99Wc4qWkNLHZEPaUC6sEPK5avq1TNtKV4yRWLTcufd8TfcRns71XE4"
   }
 }

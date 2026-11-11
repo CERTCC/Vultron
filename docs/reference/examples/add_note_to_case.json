@@ -8,6 +8,8 @@
   "id": "urn:uuid:4c69711a-7a32-46cd-b76b-04fc466bec2c",
   "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
@@ -30,6 +32,6 @@
     "verificationMethod": "https://vultron.example/users/finndervul#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "znwsrFArziXEEFfhn825dsF126p4MKftmKSRL4a4wJXVHeT3SdLgiE795HTJFjm6LC7EouAa6Mremo2jHqT4EJhX"
+    "proofValue": "z3QkTjxaUQANJakacWzDCXJZ8gPz99jUAwhdr8L163vwVikrtFai1Y9NGaGK1DShithejQgPkfsveMDYqyKuLGiHT"
   }
 }

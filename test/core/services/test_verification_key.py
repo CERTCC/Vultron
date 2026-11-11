@@ -25,6 +25,7 @@ import logging
 
 import pytest
 
+from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.base import CoreObject
@@ -355,6 +356,7 @@ def test_resolving_and_verifying_derives_no_key_from_a_seed(
     signed = signing.sign(
         {"id": f"{AUTHOR}/activities/1", "type": "Create"},
         signing.seeded_signing_key(AUTHOR),
+        created=TEST_PROOF_CREATED,
     )
     fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
 
