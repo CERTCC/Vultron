@@ -328,8 +328,9 @@ For embargo times, the measure connects the embargo register and the consent row
     Completeness can only be judged against the files the reader is given, so the reader also reports whether the ledger's end is confirmed.
     The end is confirmed when the last entry is the CASE_MANAGER's own closure, or when another copy ends on the same entry.
     The measure layer then derives the case's event history from the entries (`vultron/measure/history/`).
-    Each event in the history names its kind, the participant it belongs to or the case, the semantic type and log index of the entry that recorded it, the commit stamp, and the claimed time in a separate field.
-    Each event also carries the labels of the data gaps on this page that affect its time, and a deadline when the ledger records one that bounds the time.
+    Each event in the history names its kind, and the participant it belongs to or the case.
+    Each event also names the semantic type and log index of the entry that recorded it, the commit stamp, and the claimed time in a separate field.
+    Each event carries the labels of the data gaps on this page that affect its time, and a deadline when the ledger records one that bounds the time.
     The history lists every entry that named a state behind the state already reached, and it records no event for that state.
 
 ## Further reading
