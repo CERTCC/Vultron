@@ -10,13 +10,11 @@ tracks:
   - "#1893"
   - "#1943"
   - "#2450"
-  - "#3422"
   - "#3426"
   - "#6078"
 description: >
-  Design for the capability layer's unbuilt work: deriving DETERMINISTIC
-  defaults from the core capability declarations (#3422), the
-  participant-suggestion port (#3426), and the Sentinel call-in
+  Design for the capability layer's unbuilt work: the participant-suggestion
+  port (#3426) and the Sentinel call-in
   pattern (#2450). Also states the
   call-out time budget rule, routes a design question to a capability, an
   ask, or a call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
@@ -64,7 +62,7 @@ because no answer exists at the moment of asking (ADR-0080). If the answer must
 come from a peer, see `notes/protocol-asks.md`. A synchronous boolean query of an
 external system is a **Retriever**, never a Sentinel (BT-18-013).
 
-## Capability Declarations Are the Roster (#3422, #3426)
+## Capability Declarations Are the Roster (#3426)
 
 Every named capability is declared once, in core, under
 `vultron/core/behaviors/call_out/capabilities/`, as a subclass of a shape base in
@@ -72,10 +70,13 @@ Every named capability is declared once, in core, under
 (BT-18-012, BT-18-020, BT-18-021).
 
 - Derive any per-capability list from `capability_declarations()`, never a hand-kept
-  list: a DETERMINISTIC default that must write a capability's outputs (#3422) reads
-  its `OUTPUT_PORTS`, and the docs catalog renders from the same roster
+  list: a bundle field's DETERMINISTIC default binds to its capability's
+  declaration (`always_succeed_as` / `always_fail_as`) and writes its
+  `OUTPUT_PORTS`, and the docs catalog renders from the same roster
   (`vultron/metadata/docs/capability_catalog.py`). Reason: a second list drifts,
   which is what ADR-0097#core-declared-typed-port-contract removed.
+- A field answers what its simulation node binds, so a new capability's field binds
+  both sides (`test/core/behaviors/call_out/test_defaults_write_declared_outputs.py`).
 - A declaration in a new module needs a domain section on
   `docs/topics/capability_model/index.md` that names the module in a
   `render_capability_table` block; `test/metadata/docs/test_capability_catalog.py`

@@ -25,7 +25,7 @@ and
 
 Ceiling/floor mapping (BT-23-002):
 
-- ``prioritize_publication_intents_factory`` — PrioritizePublicationIntents (p=1.0) → _DeterministicPrioritizePublicationIntents
+- ``prioritize_publication_intents_factory`` — PrioritizePublicationIntents (p=1.0) → AlwaysSucceed
 - ``prepare_exploit_factory``               — PrepareExploit               (p=0.90) → AlwaysSucceed
 - ``prepare_fix_factory``                   — PrepareFix                   (p=0.90) → AlwaysSucceed
 - ``prepare_report_factory``                — PrepareReport                (p=0.90) → AlwaysSucceed
@@ -33,65 +33,37 @@ Ceiling/floor mapping (BT-23-002):
 - ``review_advisory_draft_factory``         — ReviewAdvisoryDraft          (p=1.0) → AlwaysSucceed
 - ``revise_advisory_draft_factory``         — ReviseAdvisoryDraft          (p=0.90) → AlwaysSucceed
 - ``submit_advisory_artifact_factory``      — SubmitAdvisoryArtifact       (p=0.90) → AlwaysSucceed
+
+Every default binds to its capability's core declaration
+(:func:`~vultron.core.behaviors.call_out.nodes.always_succeed_as`), so its
+*yes* writes the declared output ports (BT-23-013).  For
+``prioritize_publication_intents_factory`` that is the default
+:class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
+(publish the fix and the report, withhold the exploit), which the
+``ShouldPublish*`` gates read.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
-from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.advisory import (
+    DraftAdvisoryArtifactCapability,
+    ReviewAdvisoryDraftCapability,
+    ReviseAdvisoryDraftCapability,
+    SubmitAdvisoryArtifactCapability,
+)
 from vultron.core.behaviors.call_out.capabilities.report_management.publication.intents import (
+    PrepareExploitCapability,
+    PrepareFixCapability,
+    PrepareReportCapability,
     PrioritizePublicationIntentsCapability,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
-from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-from vultron.core.behaviors.report.publication_intent import (
-    INTENT_DECISION_KEY,
-    PublicationIntentDecision,
+from vultron.core.behaviors.call_out.nodes import (
+    always_succeed_as,
 )
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
-
-
-class _DeterministicPrioritizePublicationIntents(
-    PrioritizePublicationIntentsCapability
-):
-    """DETERMINISTIC PrioritizePublicationIntents: *yes* with the default intents.
-
-    Gives :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
-    (``publish_fix=True``, ``publish_report=True``, ``publish_exploit=False``)
-    for :data:`~vultron.core.behaviors.report.publication_intent.INTENT_DECISION_KEY`
-    on *yes*, which the seam writes so that the ``ShouldPublish*`` gate nodes
-    can read it.
-
-    This is the core-layer DETERMINISTIC backend for the
-    ``prioritize_publication_intents_factory`` call-out point (BT-23-002). It
-    encodes the standard CVD outcome: publish the fix and advisory, withhold the
-    exploit.  A real Evaluator backend overrides these per case policy via
-    ``call_out=PUBLICATION_STOCHASTIC`` (or a custom :class:`PublicationCallOutBundle`).
-
-    It binds to :class:`PrioritizePublicationIntentsCapability`, whose ports
-    are its blackboard contract (BT-18-021).
-    """
-
-    #: Read-only rate interface parity with the simulation backends.
-    success_rate: float = 1.0
-
-    def answer(self) -> CallOutAnswer:
-        return CallOutAnswer.yes(
-            {INTENT_DECISION_KEY: PublicationIntentDecision()}
-        )
-
-
-def _deterministic_prioritize_intents(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return _DeterministicPrioritizePublicationIntents(name)
+from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
 @dataclass(frozen=True)
@@ -105,39 +77,38 @@ class PublicationCallOutBundle(CallOutBundle):
     """
 
     prioritize_publication_intents_factory: CallOutBackendFactory = field(
-        default=_deterministic_prioritize_intents  # type: ignore[assignment]
+        default=always_succeed_as(PrioritizePublicationIntentsCapability)  # type: ignore[assignment]
     )
     prepare_exploit_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(PrepareExploitCapability)  # type: ignore[assignment]
     )
     prepare_fix_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(PrepareFixCapability)  # type: ignore[assignment]
     )
     prepare_report_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(PrepareReportCapability)  # type: ignore[assignment]
     )
     draft_advisory_artifact_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(DraftAdvisoryArtifactCapability)  # type: ignore[assignment]
     )
     review_advisory_draft_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(ReviewAdvisoryDraftCapability)  # type: ignore[assignment]
     )
     revise_advisory_draft_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(ReviseAdvisoryDraftCapability)  # type: ignore[assignment]
     )
     submit_advisory_artifact_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(SubmitAdvisoryArtifactCapability)  # type: ignore[assignment]
     )
 
 
 PUBLICATION_DETERMINISTIC = PublicationCallOutBundle()
 """Deterministic bundle: happy-path default for production use (BT-23-001, BT-23-002).
 
-``prioritize_publication_intents_factory`` uses
-:class:`_DeterministicPrioritizePublicationIntents`, which answers *yes* with
-the standard CVD default intent record
-(:class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`)
-to the blackboard. All other factories use :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed`.
+Every factory is an :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed`
+bound to its capability, so each *yes* writes the declared outputs
+(BT-23-013); ``prioritize_publication_intents_factory`` writes the standard
+CVD :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`.
 """
 
 __all__ = [

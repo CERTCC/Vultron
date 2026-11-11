@@ -18,6 +18,10 @@ import re
 import pytest
 from pydantic.fields import FieldInfo
 
+from vultron.core.models.case_reference import (
+    CASE_REFERENCE_REL_VOCABULARY,
+    CVE_REFERENCE_TAG_RELS,
+)
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
@@ -38,6 +42,18 @@ from vultron.wire.as2.vocab.base.base import (
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+
+
+def _ns_page_section(heading: str) -> str:
+    """The text of ``docs/ns/index.md``'s ``## <heading>`` section."""
+    page = (repo_root() / "docs/ns/index.md").read_text(encoding="utf-8")
+    match = re.search(
+        rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)",
+        page,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert match, f"docs/ns/index.md has no '## {heading}' section"
+    return match.group(1)
 
 
 def _committed_context() -> dict:
@@ -282,9 +298,10 @@ def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
     trusting the page would have expected ``vultron:VulnerabilityCaseStub`` to
     resolve.
     """
-    page = (repo_root() / "docs/ns/index.md").read_text(encoding="utf-8")
+    page = _ns_page_section("Declared types") + _ns_page_section(
+        "Declared properties"
+    )
     rows = re.findall(r"^\|\s*`(\w+)`\s*\|", page, flags=re.MULTILINE)
-    # The "Declared types" and "Declared properties" tables together.
     terms = set(vultron_context_terms()) | set(vultron_property_terms())
 
     assert rows, "found no 'Declared types' rows in docs/ns/index.md"
@@ -294,3 +311,21 @@ def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
         f"only in the context: {sorted(terms - set(rows))}. "
         f"Regenerate with '{WRITE_COMMAND}' and update the tables to match."
     )
+
+
+def test_namespace_index_page_lists_exactly_the_reference_rel_values() -> None:
+    """``docs/ns/index.md``'s "Link relation types" table matches the code.
+
+    The table tells a receiver which ``rel`` values a case reference's Link
+    may carry (CM-05-012); a value the page names and the model refuses, or
+    the reverse, would mislead it.
+    """
+    section = _ns_page_section("Link relation types")
+    rows = re.findall(
+        r"^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|", section, flags=re.MULTILINE
+    )
+    assert rows, "found no 'Link relation types' rows in docs/ns/index.md"
+    assert dict(rows) == {
+        rel: tag for tag, rel in CVE_REFERENCE_TAG_RELS.items()
+    }
+    assert {rel for rel, _ in rows} == CASE_REFERENCE_REL_VOCABULARY

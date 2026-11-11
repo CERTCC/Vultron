@@ -36,7 +36,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.call_out import tick_call_out
+from test.support.call_out import refused_class, tick_call_out
 from vultron.core.behaviors.call_out.actuator import ActuatorContract
 from vultron.core.behaviors.call_out.answer import (
     REFUSAL_REASON_KEY,
@@ -145,7 +145,7 @@ def test_contract_is_derived_from_the_ports() -> None:
 
 @pytest.mark.spec("BT-18-012")
 def test_a_declaration_cannot_set_contract_by_hand() -> None:
-    with pytest.raises(TypeError, match="derived from its declared ports"):
+    with refused_class("derived from its declared ports"):
 
         class _HandContract(EvaluatorCapability):
             contract = CallOutContract(outputs={_OUT: int})
@@ -164,7 +164,7 @@ def test_a_bound_class_takes_the_declaration_unchanged() -> None:
     "attribute", ["INPUT_PORTS", "OUTPUT_PORTS", "REFUSAL_PORTS"]
 )
 def test_a_bound_class_cannot_restate_ports(attribute: str) -> None:
-    with pytest.raises(TypeError, match="does not restate them"):
+    with refused_class("does not restate them"):
         type("_Restates", (_Declared,), {attribute: {}})
 
 
@@ -191,17 +191,17 @@ def test_a_bound_class_cannot_restate_ports(attribute: str) -> None:
 def test_a_declaration_refuses_a_port_it_cannot_enforce(
     ports: dict[str, object], match: str
 ) -> None:
-    with pytest.raises(TypeError, match=match):
+    with refused_class(match):
         type("_Bad", (EvaluatorCapability,), {"OUTPUT_PORTS": ports})
 
 
 def test_ports_must_be_a_mapping() -> None:
-    with pytest.raises(TypeError, match="not a mapping"):
+    with refused_class("not a mapping"):
         type("_NotMapping", (EvaluatorCapability,), {"OUTPUT_PORTS": [_OUT]})
 
 
 def test_a_port_cannot_be_both_read_and_written() -> None:
-    with pytest.raises(TypeError, match="both input and written"):
+    with refused_class("both input and written"):
         type(
             "_Overlap",
             (EvaluatorCapability,),
@@ -235,20 +235,20 @@ class _Other(EvaluatorCapability):
 
 @pytest.mark.spec("BT-18-021")
 def test_a_class_binds_to_one_declaration_only() -> None:
-    with pytest.raises(TypeError, match="binds to one declaration"):
+    with refused_class("binds to one declaration"):
         type("_Both", (_Declared, _Other), {})
 
 
 @pytest.mark.spec("BT-18-028")
 def test_a_composer_declares_its_artifact() -> None:
-    with pytest.raises(TypeError, match="declares no output port"):
+    with refused_class("declares no output port"):
         type("_NoArtifact", (ComposerCapability,), {})
 
 
 @pytest.mark.spec("BT-18-028")
 def test_an_actuator_declares_no_outputs() -> None:
     assert isinstance(ActuatorCapability.contract, ActuatorContract)
-    with pytest.raises(TypeError, match="BT-18-028"):
+    with refused_class("BT-18-028"):
         type(
             "_ActuatorWithOutput",
             (ActuatorCapability,),

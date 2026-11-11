@@ -28,15 +28,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.assignment import (
+    IdAssignableCapability,
+)
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.eligibility import (
+    InScopeCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -48,10 +50,10 @@ class AssignVulIdCallOutBundle(CallOutBundle):
     """
 
     id_assignable_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(IdAssignableCapability)  # type: ignore[assignment]
     )
     in_scope_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(InScopeCapability)  # type: ignore[assignment]
     )
 
 

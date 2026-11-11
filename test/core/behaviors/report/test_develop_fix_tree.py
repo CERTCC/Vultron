@@ -42,6 +42,9 @@ from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
 )
+from vultron.core.behaviors.call_out.capabilities.report_management.develop_fix import (
+    CreateFixCapability,
+)
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.develop_fix_tree import (
     create_develop_fix_tree,
@@ -282,7 +285,10 @@ def test_default_child_is_always_succeed():
     assert inner_seq.name == "_CreateFixForAcceptedReports"
     # child[1] of inner sequence is the CreateFix call-out node
     create_fix_node = inner_seq.children[1]
-    assert isinstance(unwrap_call_out(create_fix_node), AlwaysSucceed)
+    backend = unwrap_call_out(create_fix_node)
+    assert isinstance(backend, AlwaysSucceed)
+    # Bound to its capability, so its yes writes fix_artifact (BT-23-013).
+    assert isinstance(backend, CreateFixCapability)
     assert create_fix_node.name == "CreateFix"
 
 

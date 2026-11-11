@@ -31,15 +31,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
+from vultron.core.behaviors.call_out.capabilities.report_management.prioritize import (
+    EnoughPrioritizationInfoCapability,
+    EvaluateCasePriorityCapability,
+    GatherPrioritizationInfoCapability,
+    OnAcceptCapability,
+    OnDeferCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -51,19 +54,19 @@ class PrioritizationCallOutBundle(CallOutBundle):
     """
 
     evaluate_priority_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EvaluateCasePriorityCapability)  # type: ignore[assignment]
     )
     on_accept_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(OnAcceptCapability)  # type: ignore[assignment]
     )
     on_defer_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(OnDeferCapability)  # type: ignore[assignment]
     )
     enough_info_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EnoughPrioritizationInfoCapability)  # type: ignore[assignment]
     )
     gather_info_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(GatherPrioritizationInfoCapability)  # type: ignore[assignment]
     )
     """GatherPrioritizationInfo (Retriever): p=0.90 → AlwaysSucceed.
 

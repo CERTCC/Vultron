@@ -53,7 +53,9 @@ class as_Link(as_Base):
     )
     width: int | None = None
     height: int | None = None
-    rel: NonEmptyString | None = None
+    #: AS2 ``rel`` is not functional: one relation type as a string, or
+    #: several as an array (VOC ``rel``).
+    rel: NonEmptyString | list[NonEmptyString] | None = None
     #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
     href: NonEmptyString | None = None
     hreflang: NonEmptyString | None = None

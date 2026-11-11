@@ -38,17 +38,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.deploy_monitoring import (
     DeploymentMonitoringBundle,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail
+from vultron.core.behaviors.call_out.capabilities.report_management.deploy_fix import (
+    DeployFixCapability,
+)
+from vultron.core.behaviors.call_out.nodes import always_fail_as
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysFail(name)
 
 
 @dataclass(frozen=True)
@@ -64,7 +61,7 @@ class DeployFixCallOutBundle(DeploymentMonitoringBundle):
     """
 
     deploy_fix_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(DeployFixCapability)  # type: ignore[assignment]
     )
 
 
