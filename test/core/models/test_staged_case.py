@@ -22,6 +22,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose, terminate
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -47,11 +48,13 @@ _REVISION_ID = "urn:uuid:embargo-2"
 
 def _minimal_case_participants() -> list[str | CaseParticipant]:
     """Return two participant IDs representing reporter + receiver."""
-    reporter = ReporterParticipant(
+    reporter = make(
+        ReporterParticipant,
         id_="urn:uuid:participant-reporter",
         attributed_to="https://example.org/reporter",
     )
-    receiver = VendorParticipant(
+    receiver = make(
+        VendorParticipant,
         id_="urn:uuid:participant-receiver",
         attributed_to="https://example.org/receiver",
     )
@@ -60,7 +63,7 @@ def _minimal_case_participants() -> list[str | CaseParticipant]:
 
 def _minimal_case() -> VulnerabilityCase:
     """Minimal VulnerabilityCase that satisfies Case invariants."""
-    vc = VulnerabilityCase(attributed_to=_ACTOR)
+    vc = make(VulnerabilityCase, attributed_to=_ACTOR)
     vc.vulnerability_reports.append(_REPORT_ID)
     object.__setattr__(vc, "case_participants", _minimal_case_participants())
     # case_statuses is seeded by _init_case_statuses when attributed_to is set
@@ -89,8 +92,10 @@ class TestIncomingReport:
 
     def test_type_literal_unchanged(self):
         """IncomingReport shares type_='VulnerabilityCase' (LST-05-003)."""
-        ir = IncomingReport(
-            attributed_to=CASE_OWNER_ID, vulnerability_reports=[_REPORT_ID]
+        ir = make(
+            IncomingReport,
+            attributed_to=CASE_OWNER_ID,
+            vulnerability_reports=[_REPORT_ID],
         )
         assert ir.type_ == "VulnerabilityCase"
 
@@ -99,20 +104,23 @@ class TestIncomingReport:
         assert "IncomingReport" not in CORE_VOCABULARY
 
     def test_valid_with_one_report_no_participants(self):
-        ir = IncomingReport(
-            attributed_to=CASE_OWNER_ID, vulnerability_reports=[_REPORT_ID]
+        ir = make(
+            IncomingReport,
+            attributed_to=CASE_OWNER_ID,
+            vulnerability_reports=[_REPORT_ID],
         )
         assert ir.vulnerability_reports == [_REPORT_ID]
         assert ir.case_participants == []
 
     def test_raises_when_no_reports(self):
         with pytest.raises(ValidationError, match="IncomingReport"):
-            IncomingReport(attributed_to=CASE_OWNER_ID)
+            make(IncomingReport, attributed_to=CASE_OWNER_ID)
 
     def test_raises_when_participants_present(self):
-        p = CaseParticipant(id_="urn:uuid:p1")
+        p = make(CaseParticipant, id_="urn:uuid:p1")
         with pytest.raises(ValidationError, match="participants"):
-            IncomingReport(
+            make(
+                IncomingReport,
                 attributed_to=CASE_OWNER_ID,
                 vulnerability_reports=[_REPORT_ID],
                 case_participants=[p.id_],
@@ -120,19 +128,19 @@ class TestIncomingReport:
 
     def test_model_validate_from_vulnerability_case(self):
         """model_validate promotes a plain VulnerabilityCase (LST-05-001)."""
-        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         # No participants yet: satisfies IncomingReport constraint
         ir = IncomingReport.model_validate(vc)
         assert isinstance(ir, IncomingReport)
 
     def test_model_validate_raises_on_missing_report(self):
-        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         with pytest.raises(ValidationError):
             IncomingReport.model_validate(vc)
 
     def test_model_validate_raises_when_participants_present(self):
-        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
@@ -167,7 +175,7 @@ class TestCase:
         assert c.case_statuses
 
     def test_raises_when_no_reports(self):
-        vc = VulnerabilityCase(attributed_to=_ACTOR)
+        vc = make(VulnerabilityCase, attributed_to=_ACTOR)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
         )
@@ -175,7 +183,7 @@ class TestCase:
             Case.model_validate(vc)
 
     def test_raises_when_fewer_than_two_participants(self):
-        vc = VulnerabilityCase(attributed_to=_ACTOR)
+        vc = make(VulnerabilityCase, attributed_to=_ACTOR)
         vc.vulnerability_reports.append(_REPORT_ID)
         one: list[str | CaseParticipant] = ["urn:uuid:p1"]
         object.__setattr__(vc, "case_participants", one)
@@ -183,7 +191,7 @@ class TestCase:
             Case.model_validate(vc)
 
     def test_raises_when_no_participants(self):
-        vc = VulnerabilityCase(attributed_to=_ACTOR)
+        vc = make(VulnerabilityCase, attributed_to=_ACTOR)
         vc.vulnerability_reports.append(_REPORT_ID)
         none: list[str | CaseParticipant] = []
         object.__setattr__(vc, "case_participants", none)
@@ -191,7 +199,7 @@ class TestCase:
             Case.model_validate(vc)
 
     def test_raises_when_no_case_statuses(self):
-        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
@@ -203,7 +211,7 @@ class TestCase:
 
     def test_raises_when_case_statuses_contains_only_string_ids(self):
         """String-only case_statuses must not pass the Case invariant (LST-02-002)."""
-        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
@@ -294,7 +302,8 @@ class TestEmbargoedCase:
             {
                 **vc.model_dump(by_alias=True),
                 "caseStatuses": [
-                    CaseStatus(
+                    make(
+                        CaseStatus,
                         context=vc.id_,
                         attributed_to=_ACTOR,
                         em=EmDimension(state=EM.ACTIVE),
@@ -309,7 +318,7 @@ class TestEmbargoedCase:
 
     def test_inherits_case_invariants(self):
         """EmbargoedCase is a Case: it also enforces Case invariants."""
-        vc = VulnerabilityCase(attributed_to=_ACTOR)
+        vc = make(VulnerabilityCase, attributed_to=_ACTOR)
         activate(vc, _EMBARGO_ID)
         # No reports: should fail the Case check first
         with pytest.raises(ValidationError):

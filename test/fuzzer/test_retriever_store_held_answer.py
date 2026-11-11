@@ -5,11 +5,11 @@ own store can hold the fact a Retriever fetches.  Which Retrievers that is
 depends on the data model, so each one states it in its docstring, and this
 test keeps a new Retriever from arriving without the statement.
 
-A Retriever is stated in two places: the fuzzer node's class docstring, and
-the docstring of the core call-out bundle field that places it in a tree.
-Both are checked.  A bundle field is a Retriever when its STOCHASTIC
-backend is a fuzzer Retriever node; actor resolution has no fuzzer node, so
-its field is named here.
+A Retriever is stated in two places: the docstring of its core capability
+declaration (BT-18-021), and the docstring of the core call-out bundle field
+that places it in a tree.  Both are checked.  A bundle field is a Retriever
+when its STOCHASTIC backend is a fuzzer Retriever node; actor resolution has no
+fuzzer node, so its field is named here.
 """
 
 import ast
@@ -22,14 +22,16 @@ import textwrap
 
 import pytest
 
-import vultron.demo.fuzzer as fuzzer_pkg
 import vultron.demo.fuzzer.bundles as stochastic_pkg
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities import (
+    capability_declarations,
+)
+from vultron.core.behaviors.call_out.capability import RetrieverCapability
 from vultron.core.behaviors.call_out.guard import unwrap_call_out
-from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
 _MARKER = "Store-held answer (BT-18-039):"
 
@@ -40,18 +42,11 @@ _RETRIEVER_FIELDS_WITHOUT_FUZZER_NODE: list[tuple[type, str]] = [
 
 
 def _retriever_classes() -> list[type]:
-    for module in pkgutil.walk_packages(
-        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
-    ):
-        importlib.import_module(module.name)
-    found: list[type] = []
-    pending = list(RetrieverCallOutPoint.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls not in found:
-            found.append(cls)
-            pending.extend(cls.__subclasses__())
-    return sorted(found, key=lambda c: f"{c.__module__}.{c.__qualname__}")
+    return [
+        cls
+        for cls in capability_declarations()
+        if issubclass(cls, RetrieverCapability)
+    ]
 
 
 def _field_docstring(bundle_cls: type, field_name: str) -> str:
@@ -91,7 +86,7 @@ def _bundle_retriever_fields() -> list[tuple[type, str]]:
                 if not field.name.endswith("_factory"):
                     continue
                 node = unwrap_call_out(getattr(bundle, field.name)(field.name))
-                if isinstance(node, RetrieverCallOutPoint):
+                if isinstance(node, RetrieverCapability):
                     fields.add((type(bundle), field.name))
     return sorted(fields, key=lambda f: f"{f[0].__qualname__}.{f[1]}")
 

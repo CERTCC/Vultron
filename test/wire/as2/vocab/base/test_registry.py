@@ -24,6 +24,7 @@ Verifies:
 
 import pytest
 
+from test.support.objects import make
 from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -660,7 +661,7 @@ class TestSetTypeFromClassName:
                 serialization_alias="type",
             )
 
-        obj = as_Widget()
+        obj = make(as_Widget)
         assert obj.type_ == "Widget"
 
         del VOCABULARY["as_Widget"]

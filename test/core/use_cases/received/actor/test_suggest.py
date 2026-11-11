@@ -31,6 +31,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
+from test.support.objects import make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -57,8 +58,11 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
     The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
     test that reaches that commit must send what production sends.
     """
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=case_id, name="OfferActorTest"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        name="OfferActorTest",
     )
 
 
@@ -88,12 +92,13 @@ class TestOfferActorToCaseReceivedUseCase:
             actor_id=TEST_ACTOR_ID,
         )
         local_actor_id = "https://example.org/actors/case-actor"
-        local_actor = as_Service(id_=local_actor_id)
+        local_actor = make(as_Service, id_=local_actor_id)
         case_id = "https://example.org/cases/offer-actor-test-case"
         owner_id = (
             local_actor_id if owner_is_local else "https://other.org/actor"
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="OfferActorTest",
             attributed_to=owner_id,
@@ -119,7 +124,7 @@ class TestOfferActorToCaseReceivedUseCase:
         dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         recommended_id = "https://example.org/actors/vendor-new"
-        recommended = as_Actor(id_=recommended_id)
+        recommended = make(as_Actor, id_=recommended_id)
 
         # Build Offer(Actor)[target=VulnerabilityCase] — the wire activity matched by OFFER_ACTOR_TO_CASE.
         # CM-11-050: roles must be explicit; no default to VENDOR.
@@ -175,7 +180,7 @@ class TestOfferActorToCaseReceivedUseCase:
             seed_case_manager, recommender_roles=[CVDRole.COORDINATOR]
         )
         activity = recommend_actor_activity(
-            as_Actor(id_="https://example.org/actors/vendor-new"),
+            make(as_Actor, id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
@@ -242,7 +247,7 @@ class TestOfferActorToCaseReceivedUseCase:
             seed_case_participant(dl, case, recommended_id)
             dl.save(case)
         activity = recommend_actor_activity(
-            as_Actor(id_=recommended_id),
+            make(as_Actor, id_=recommended_id),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
@@ -309,7 +314,7 @@ class TestOfferActorToCaseReceivedUseCase:
         """
         dl, _, case_id = self._setup_dl(seed_case_manager)
         activity = recommend_actor_activity(
-            as_Actor(id_="https://example.org/actors/vendor-new"),
+            make(as_Actor, id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
@@ -353,7 +358,8 @@ class TestOfferActorToCaseReceivedUseCase:
         record = dl.read(case.actor_participant_index[self._RECOMMENDER_ID])
         assert isinstance(record, CaseParticipant)
         record.participant_statuses.append(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case_id,
                 attributed_to=self._RECOMMENDER_ID,
                 rm=RmDimension(state=RM.CLOSED),
@@ -361,7 +367,7 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         dl.save(record)
         activity = recommend_actor_activity(
-            as_Actor(id_="https://example.org/actors/vendor-new"),
+            make(as_Actor, id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
@@ -407,7 +413,9 @@ class TestOfferActorToCaseReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=TEST_ACTOR_ID,
         )
-        recommended = as_Actor(id_="https://example.org/actors/vendor-new")
+        recommended = make(
+            as_Actor, id_="https://example.org/actors/vendor-new"
+        )
         activity = recommend_actor_activity(
             recommended,
             target="https://example.org/cases/no-actor-case",
@@ -484,7 +492,7 @@ class TestOfferActorToCaseReceivedUseCase:
         dl, _, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         recommended_id = "https://example.org/actors/vendor-new"
-        recommended = as_Actor(id_=recommended_id)
+        recommended = make(as_Actor, id_=recommended_id)
 
         activity = recommend_actor_activity(
             recommended,
@@ -541,7 +549,7 @@ class TestOfferActorToCaseReceivedUseCase:
         dl, _, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         activity = recommend_actor_activity(
-            as_Actor(id_="https://example.org/actors/vendor-new"),
+            make(as_Actor, id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
@@ -591,8 +599,9 @@ class TestOfferActorToCaseAtNonCaseManager:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
-        dl.create(as_Actor(id_=TEST_ACTOR_ID))  # type: ignore[arg-type]
-        case = as_VulnerabilityCase(
+        dl.create(make(as_Actor, id_=TEST_ACTOR_ID))  # type: ignore[arg-type]
+        case = make(
+            as_VulnerabilityCase,
             id_=self._CASE_ID,
             name="OfferActorCcTest",
             attributed_to=self._OWNER_ID,
@@ -604,7 +613,7 @@ class TestOfferActorToCaseAtNonCaseManager:
 
     def _event(self, make_payload):
         activity = recommend_actor_activity(
-            as_Actor(id_=self._RECOMMENDED_ID),
+            make(as_Actor, id_=self._RECOMMENDED_ID),
             target=_case_ref(self._CASE_ID),
             actor=self._RECOMMENDER_ID,
             # The copy is addressed to this participant too, so the door
@@ -686,14 +695,16 @@ class TestOwnerDirectInviteAtCaseManager:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=self._CASE_ID,
             name="OwnerDirect",
             attributed_to=self._OWNER_ID,
             stub_summary="Security issue — details shared after acceptance",
         )
         seed_case_manager(dl, case, TEST_ACTOR_ID)
-        owner = CaseParticipant(
+        owner = make(
+            CaseParticipant,
             id_=f"{case.id_}/participants/owner",
             attributed_to=self._OWNER_ID,
             context=case.id_,
@@ -703,7 +714,8 @@ class TestOwnerDirectInviteAtCaseManager:
         case.case_participants.append(owner.id_)
         case.actor_participant_index[self._OWNER_ID] = owner.id_
         if with_active_embargo:
-            embargo = as_EmbargoEvent(
+            embargo = make(
+                as_EmbargoEvent,
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
                 end_time=FAR_FUTURE,
@@ -721,7 +733,7 @@ class TestOwnerDirectInviteAtCaseManager:
 
     def _event(self, dl, make_payload, roles=None):
         activity = recommend_actor_activity(
-            as_Actor(id_=self._INVITEE_ID),
+            make(as_Actor, id_=self._INVITEE_ID),
             target=_case_ref(self._CASE_ID),
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
@@ -893,7 +905,7 @@ class TestOwnerDirectInviteAtCaseManager:
         slash: the Invite and the invitee's participant name one spelling."""
         dl = self._setup_dl(seed_case_manager)
         activity = recommend_actor_activity(
-            as_Actor(id_=self._INVITEE_ID + "/"),
+            make(as_Actor, id_=self._INVITEE_ID + "/"),
             target=_case_ref(self._CASE_ID),
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
@@ -938,7 +950,8 @@ class TestSuggestionFromNonParticipant:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=self._CASE_ID,
             name="SuggestNonParticipant",
             attributed_to=self._OWNER_ID,
@@ -950,7 +963,7 @@ class TestSuggestionFromNonParticipant:
 
     def _deliver(self, dl, make_payload, sender_id: str):
         activity = recommend_actor_activity(
-            as_Actor(id_=self._RECOMMENDED_ID),
+            make(as_Actor, id_=self._RECOMMENDED_ID),
             target=_case_ref(self._CASE_ID),
             actor=sender_id,
             to=[TEST_ACTOR_ID],

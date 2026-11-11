@@ -32,6 +32,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger_labels import registry_label
+from test.support.objects import make
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -66,7 +67,7 @@ _FOREIGN_CM_ID = "https://elsewhere.example/actors/other-cm"
 
 @pytest.fixture
 def actor_and_dl():
-    actor = as_Service(name="Case Manager Co")
+    actor = make(as_Service, name="Case Manager Co")
     reset_datalayer(actor.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
@@ -84,15 +85,17 @@ def _seed_case(
     ``attributed_to`` names the authority so the case mints its per-case
     genesis hash at construction; the first commit anchors on it (CLP-08-005).
     """
-    case = as_VulnerabilityCase(
-        name="Sync Case", attributed_to=case_manager_id
+    case = make(
+        as_VulnerabilityCase, name="Sync Case", attributed_to=case_manager_id
     )
-    cm = as_CaseParticipant(
+    cm = make(
+        as_CaseParticipant,
         attributed_to=case_manager_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer = as_CaseParticipant(
+    peer = make(
+        as_CaseParticipant,
         attributed_to=_PEER_ID,
         context=case.id_,
         case_roles=[CVDRole.REPORTER],
@@ -249,7 +252,7 @@ def test_single_container_commit_lands_in_the_case_managers_store(
     Nothing is written to the requester's own store.
     """
     requester, dl = actor_and_dl
-    cm_actor = as_Service(name="Hosted Case Manager")
+    cm_actor = make(as_Service, name="Hosted Case Manager")
     reset_datalayer(cm_actor.id_)
     cm_dl = dl.clone_for_actor(cm_actor.id_)
     cm_dl.clear_all()

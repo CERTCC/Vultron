@@ -31,7 +31,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
@@ -58,7 +60,8 @@ STATUS_ID = f"urn:uuid:{uuid.uuid4()}"
 def _make_participant(
     participant_id: str = VENDOR_PARTICIPANT_ID,
 ) -> as_CaseParticipant:
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=participant_id,
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -111,6 +114,7 @@ def _make_status_entry(
             semantic_type="add_participant_status_to_participant",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
+            received_at=ACT_AT,
         )
     )
 
@@ -391,7 +395,8 @@ class TestEmitImpossibleStateFaultNode:
         from vultron.core.ports.trigger_activity import TriggerActivityPort
         from vultron.enums.roles import CVDRole
 
-        manager = CaseParticipant(
+        manager = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/case-manager",
             attributed_to=case_actor.id_,
             context=CASE_ID,
@@ -399,7 +404,8 @@ class TestEmitImpossibleStateFaultNode:
         )
         datalayer.create(manager)
         datalayer.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=CASE_ID,
                 attributed_to=OWNER_ACTOR_ID,
                 case_participants=[manager.id_],

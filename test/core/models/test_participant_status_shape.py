@@ -56,6 +56,7 @@ dimension.  Related: #2264 (RM.START substitution sites).
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from test.support.participant_status import advance_participant_rm
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -80,7 +81,7 @@ _CONTEXT = "https://example.org/cases/case-2232"
 
 def _core_participant_with_ladder() -> CaseParticipant:
     """Return a core participant whose RM ladder is START → RECEIVED."""
-    participant = CaseParticipant(attributed_to=_ACTOR, context=_CONTEXT)
+    participant = make(CaseParticipant, attributed_to=_ACTOR, context=_CONTEXT)
     advance_participant_rm(
         participant, RM.RECEIVED, actor=_ACTOR, context=_CONTEXT
     )
@@ -169,8 +170,10 @@ class TestParticipantStatusRmStateHelper:
     """``participant_status_rm_state`` is the canonical RM-dimension reader."""
 
     def test_returns_state_for_core_shaped_status(self):
-        status = ParticipantStatus(
-            context=_CONTEXT, rm=RmDimension(state=RM.RECEIVED)
+        status = make(
+            ParticipantStatus,
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         assert participant_status_rm_state(status) is RM.RECEIVED
 
@@ -195,8 +198,10 @@ class TestParticipantStatusRmStateHelper:
             as_ParticipantStatus,
         )
 
-        status = as_ParticipantStatus(
-            context=_CONTEXT, rm=RmDimension(state=RM.RECEIVED)
+        status = make(
+            as_ParticipantStatus,
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         assert status.rm.state is RM.RECEIVED
         assert participant_status_rm_state(status) is RM.RECEIVED
@@ -228,14 +233,14 @@ class TestParticipantStatusVfStateHelper:
     """``participant_status_vf_state`` is the canonical VF-dimension reader."""
 
     def test_returns_state_for_core_shaped_vendor_status(self):
-        status = ParticipantStatus(
-            context=_CONTEXT, vf=VfDimension(state=CS_vf.Vf)
+        status = make(
+            ParticipantStatus, context=_CONTEXT, vf=VfDimension(state=CS_vf.Vf)
         )
         assert participant_status_vf_state(status) is CS_vf.Vf
 
     def test_returns_none_when_no_vf_dimension(self):
         """A non-vendor status has no vf dimension — returns None, not an error."""
-        status = ParticipantStatus(context=_CONTEXT)
+        status = make(ParticipantStatus, context=_CONTEXT)
         assert participant_status_vf_state(status) is None
 
     def test_raises_when_vf_carries_no_valid_state(self):
@@ -252,14 +257,14 @@ class TestParticipantStatusDStateHelper:
     """``participant_status_d_state`` is the canonical D-dimension reader."""
 
     def test_returns_state_for_core_shaped_deployer_status(self):
-        status = ParticipantStatus(
-            context=_CONTEXT, d=DDimension(state=CS_d.D)
+        status = make(
+            ParticipantStatus, context=_CONTEXT, d=DDimension(state=CS_d.D)
         )
         assert participant_status_d_state(status) is CS_d.D
 
     def test_returns_none_when_no_d_dimension(self):
         """A non-deployer status has no d dimension — returns None, not an error."""
-        status = ParticipantStatus(context=_CONTEXT)
+        status = make(ParticipantStatus, context=_CONTEXT)
         assert participant_status_d_state(status) is None
 
     def test_raises_when_d_carries_no_valid_state(self):
@@ -303,20 +308,23 @@ class TestRoleDimensionInvariant:
 
     def test_vendor_role_auto_seeds_vf_dimension(self):
         """VENDOR role seeds a non-None vf dimension at its initial state."""
-        status = ParticipantStatus(context=_CONTEXT, cvd_role=[CVDRole.VENDOR])
+        status = make(
+            ParticipantStatus, context=_CONTEXT, cvd_role=[CVDRole.VENDOR]
+        )
         assert status.vf is not None
         assert status.d is None
 
     def test_deployer_role_auto_seeds_d_dimension(self):
         """DEPLOYER role seeds a non-None d dimension at its initial state."""
-        status = ParticipantStatus(
-            context=_CONTEXT, cvd_role=[CVDRole.DEPLOYER]
+        status = make(
+            ParticipantStatus, context=_CONTEXT, cvd_role=[CVDRole.DEPLOYER]
         )
         assert status.d is not None
         assert status.vf is None
 
     def test_vendor_and_deployer_roles_seed_both_dimensions(self):
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         )
@@ -325,7 +333,7 @@ class TestRoleDimensionInvariant:
 
     def test_observer_default_seeds_neither_dimension(self):
         """The default OBSERVER role seeds no vf/d dimension."""
-        status = ParticipantStatus(context=_CONTEXT)
+        status = make(ParticipantStatus, context=_CONTEXT)
         assert status.cvd_role == [CVDRole.OBSERVER]
         assert status.vf is None
         assert status.d is None
@@ -339,7 +347,8 @@ class TestRoleDimensionInvariant:
         docstring). This pins the #2860 decision: a construction-time raise
         here would judge the sender by its claimed roles, not its recorded ones.
         """
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             cvd_role=[CVDRole.OBSERVER],
             vf=VfDimension(state=CS_vf.VF),
@@ -350,7 +359,8 @@ class TestRoleDimensionInvariant:
     @pytest.mark.spec("CSB-15-006")
     @pytest.mark.spec("CSB-15-010")
     def test_stray_d_on_non_deployer_is_not_rejected_by_the_model(self):
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             cvd_role=[CVDRole.OBSERVER],
             d=DDimension(state=CS_d.D),
@@ -368,12 +378,14 @@ class TestStatusCarriesNoConsent:
     """Consent is per embargo on the participant, never on a status."""
 
     def test_no_consent_or_adherence_attribute(self):
-        status = ParticipantStatus(context=_CONTEXT)
+        status = make(ParticipantStatus, context=_CONTEXT)
         assert not hasattr(status, "consent")
         assert not hasattr(status, "embargo_adherence")
 
     def test_dump_has_no_consent_keys(self):
-        dumped = ParticipantStatus(context=_CONTEXT).model_dump(by_alias=True)
+        dumped = make(ParticipantStatus, context=_CONTEXT).model_dump(
+            by_alias=True
+        )
         assert not {
             "consent",
             "embargo_adherence",
@@ -410,7 +422,7 @@ class TestParticipantStatusCarriesNoFlatShim:
         """No getter, setter or field survives under the flat name (SDO-03-003)."""
         assert not hasattr(ParticipantStatus, flat)
         assert flat not in ParticipantStatus.model_fields
-        assert not hasattr(ParticipantStatus(context=_CONTEXT), flat)
+        assert not hasattr(make(ParticipantStatus, context=_CONTEXT), flat)
 
     @pytest.mark.spec("SDO-03-003")
     @pytest.mark.spec("SDO-03-005")
@@ -474,7 +486,8 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_no_previous_rm_state_always_passes(self):
         """Without previous_rm_state the validator is a no-op."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             rm=RmDimension(state=RM.START),
         )
@@ -482,7 +495,8 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_valid_forward_step_passes(self):
         """START → RECEIVED is a valid adjacent forward step."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             rm=RmDimension(state=RM.RECEIVED),
             previous_rm_state=RM.START,
@@ -492,7 +506,8 @@ class TestParticipantStatusBackwardRMValidator:
     def test_backward_step_raises(self):
         """RECEIVED → START is backward; construction must raise."""
         with pytest.raises(ValueError, match="Invalid RM transition"):
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_CONTEXT,
                 rm=RmDimension(state=RM.START),
                 previous_rm_state=RM.RECEIVED,
@@ -501,7 +516,8 @@ class TestParticipantStatusBackwardRMValidator:
     def test_non_adjacent_backward_raises(self):
         """CLOSED → RECEIVED is a backward regression; must be refused."""
         with pytest.raises(ValueError, match="Invalid RM transition"):
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_CONTEXT,
                 rm=RmDimension(state=RM.RECEIVED),
                 previous_rm_state=RM.CLOSED,
@@ -509,7 +525,8 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_force_rm_state_bypasses_check(self):
         """force_rm_state=True suppresses the validator (sanctioned override)."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             rm=RmDimension(state=RM.START),
             previous_rm_state=RM.RECEIVED,
@@ -519,7 +536,8 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_excluded_from_serialization(self):
         """previous_rm_state and force_rm_state must not appear in model_dump."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             rm=RmDimension(state=RM.RECEIVED),
             previous_rm_state=RM.START,
@@ -531,7 +549,8 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_same_state_passes(self):
         """Asserting the same RM state is not a backward step."""
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=_CONTEXT,
             rm=RmDimension(state=RM.RECEIVED),
             previous_rm_state=RM.RECEIVED,
@@ -541,7 +560,8 @@ class TestParticipantStatusBackwardRMValidator:
     def test_non_adjacent_forward_raises(self):
         """A non-adjacent forward jump (e.g. START → ACCEPTED) must be refused."""
         with pytest.raises(ValueError, match="Invalid RM transition"):
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_CONTEXT,
                 rm=RmDimension(state=RM.ACCEPTED),
                 previous_rm_state=RM.START,

@@ -31,6 +31,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import extract_stamped, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -129,14 +130,15 @@ def _event(
 def _store(receiver_id: str = RECOMMENDER_ID) -> SqliteDataLayer:
     """A participant replica whose case names ``CASE_ACTOR_ID`` as manager."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="RecommendationAnswerTest",
         attributed_to=CASE_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
     seed_case_participant(dl, case, receiver_id, [CVDRole.REPORTER])
-    dl.create(as_Actor(id_=receiver_id))  # type: ignore[arg-type]
+    dl.create(make(as_Actor, id_=receiver_id))  # type: ignore[arg-type]
     dl.create(case)
     return dl
 
@@ -261,13 +263,14 @@ def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
     (HP-01-039).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="RecommendationAnswerTest",
         attributed_to=CASE_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
-    dl.create(as_Actor(id_=CASE_ACTOR_ID))  # type: ignore[arg-type]
+    dl.create(make(as_Actor, id_=CASE_ACTOR_ID))  # type: ignore[arg-type]
     dl.create(case)
 
     result = _run(dl, verb, _event(verb, to=[CASE_ACTOR_ID]))
@@ -293,7 +296,7 @@ def test_a_store_holding_no_replica_is_refused_for_holding_none(verb: Verb):
     replica, not the role (HP-01-039).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECOMMENDER_ID)
-    dl.create(as_Actor(id_=RECOMMENDER_ID))  # type: ignore[arg-type]
+    dl.create(make(as_Actor, id_=RECOMMENDER_ID))  # type: ignore[arg-type]
 
     result = _run(dl, verb)
 

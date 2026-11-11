@@ -72,7 +72,11 @@ class TestCreateFixIsWeightedBehavior:
         assert CreateFix.contract.outputs["fix_artifact"] is str
 
     def test_docstring_has_blackboard_contract(self) -> None:
-        assert CreateFix.__doc__ and "Blackboard contract" in CreateFix.__doc__
+        """The contract is documented on the core declaration it binds to."""
+        declaration = CreateFix.declaration()
+        assert declaration is not None
+        assert declaration.__module__.startswith("vultron.core.")
+        assert "Blackboard contract" in (declaration.__doc__ or "")
 
     def test_is_py_trees_behaviour(self) -> None:
         assert isinstance(CreateFix(), py_trees.behaviour.Behaviour)

@@ -37,7 +37,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
 from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
@@ -84,7 +86,8 @@ def datalayer():
 @pytest.fixture
 def timed_case(datalayer):
     """A stored case whose ``published`` is a known hour in the past."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         published=CASE_CREATED,
@@ -105,6 +108,7 @@ def _persist_prior_entry(
             semantic_type="note_added",
             payload_snapshot=_note_snapshot(actor_id, published),
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
     datalayer.save(entry)
@@ -431,7 +435,8 @@ OLD_CASE_CREATED = datetime.now(tz=UTC) - timedelta(days=365)
 @pytest.fixture
 def old_case(datalayer):
     """A stored case created a year ago, so stale claims clear CLP-14-013."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         published=OLD_CASE_CREATED,
@@ -487,6 +492,7 @@ def test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window
                 semantic_type="note_added",
                 payload_snapshot=snapshot,
                 prev_log_hash=_ZERO_HASH,
+                received_at=ACT_AT,
             )
         )
     )

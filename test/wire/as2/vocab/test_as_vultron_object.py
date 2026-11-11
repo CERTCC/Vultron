@@ -17,6 +17,7 @@
 import pytest
 from pydantic import BaseModel
 
+from test.support.objects import make
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 
@@ -98,17 +99,17 @@ class TestAsVultronObjectFromCore:
 
 class TestAsVultronObjectToCore:
     def test_to_core_raises_not_implemented(self):
-        wire = as_VultronObject()
+        wire = make(as_VultronObject)
         with pytest.raises(NotImplementedError):
             wire.to_core()
 
     def test_to_core_raises_on_subclass_without_override(self):
-        wire = _MappedWireObj()
+        wire = make(_MappedWireObj)
         with pytest.raises(NotImplementedError):
             wire.to_core()
 
     def test_to_core_error_mentions_class_name(self):
-        wire = _MappedWireObj()
+        wire = make(_MappedWireObj)
         with pytest.raises(NotImplementedError, match="_MappedWireObj"):
             wire.to_core()
 

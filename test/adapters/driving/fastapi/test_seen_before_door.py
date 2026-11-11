@@ -36,6 +36,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import (
     archive_received,
     delivered_body,
@@ -84,7 +85,9 @@ def dl():
 @pytest.fixture
 def activity():
     return rm_create_report_activity(
-        report=as_VulnerabilityReport(id_=_REPORT_ID, content="seen before"),
+        report=make(
+            as_VulnerabilityReport, id_=_REPORT_ID, content="seen before"
+        ),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
     )

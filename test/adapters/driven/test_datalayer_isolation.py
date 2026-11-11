@@ -23,6 +23,7 @@ from test.support.case_owner import (
     CASE_OWNER_ID,
     STORED_CASE_OWNERSHIP,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     get_all_actor_datalayers,
@@ -51,8 +52,11 @@ def _record_obj(
     cross-actor tests need a real core object rather than ``_record``.
     """
     assert type_ == "VulnerabilityCase", f"unsupported test type {type_!r}"
-    return VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=id_, summary=summary
+    return make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=id_,
+        summary=summary,
     )
 
 

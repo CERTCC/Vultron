@@ -22,6 +22,7 @@ from py_trees.common import Status
 from test.core.use_cases.received.conftest import make_embargo_case_with_actor
 from test.support.act_clock import CountingClock, tree_lock_held
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemBookkeepingClock, SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -334,8 +335,11 @@ def test_a_clock_decision_outside_an_act_is_an_internal_error() -> None:
         _CASE, _ACTOR, case_manager_actor_id=_ACTOR
     )
     store.save(
-        as_EmbargoEvent(
-            id_=embargo.id_, context=_CASE, end_time=_AT + timedelta(days=30)
+        make(
+            as_EmbargoEvent,
+            id_=embargo.id_,
+            context=_CASE,
+            end_time=_AT + timedelta(days=30),
         )
     )
     stored = cast(VulnerabilityCase, store.read(case.id_))

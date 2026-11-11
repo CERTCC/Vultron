@@ -20,6 +20,7 @@ import uuid
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models._helpers import URN_UUID_PREFIX, new_object_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import generate_new_id, name_of
@@ -142,10 +143,14 @@ class TestSetNameUsesNameOf:
 
         actor_id = "https://example.org/actors/alice"
         case_id = "https://example.org/cases/case-001"
-        target_obj = as_Object(id_=case_id)  # name=None by default
-        object_obj = as_Object(id_="https://example.org/objects/object-001")
+        target_obj = make(as_Object, id_=case_id)  # name=None by default
+        object_obj = make(
+            as_Object, id_="https://example.org/objects/object-001"
+        )
 
-        act = as_Add(actor=actor_id, target=target_obj, object_=object_obj)
+        act = make(
+            as_Add, actor=actor_id, target=target_obj, object_=object_obj
+        )
         assert act.name is not None
         assert case_id in act.name
         # Must not contain Pydantic/repr noise
@@ -160,11 +165,17 @@ class TestSetNameUsesNameOf:
         from vultron.wire.as2.vocab.base.objects.base import as_Object
 
         actor_id = "https://example.org/actors/alice"
-        target_obj = as_Object(
-            id_="https://example.org/cases/case-002", name="Demo Case"
+        target_obj = make(
+            as_Object,
+            id_="https://example.org/cases/case-002",
+            name="Demo Case",
         )
-        object_obj = as_Object(id_="https://example.org/objects/object-002")
+        object_obj = make(
+            as_Object, id_="https://example.org/objects/object-002"
+        )
 
-        act = as_Add(actor=actor_id, target=target_obj, object_=object_obj)
+        act = make(
+            as_Add, actor=actor_id, target=target_obj, object_=object_obj
+        )
         assert act.name is not None
         assert "Demo Case" in act.name

@@ -6,6 +6,7 @@ Covers AC4 of ISSUE-2489: new typed-dispatch tests for ≥3 representative seman
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import extract_stamped
 from vultron.wire.as2.factories import (
     accept_case_proposal_activity,
@@ -43,7 +44,8 @@ class TestTypedEventDispatch:
             AcceptCaseProposalReceivedEvent,
         )
 
-        proposal = as_CaseProposal(
+        proposal = make(
+            as_CaseProposal,
             attributed_to=_ACTOR_URI,
             object_=gen_report(),
             target=_CASE_ACTOR_URI,
@@ -66,7 +68,9 @@ class TestTypedEventDispatch:
             OfferActorToCaseReceivedEvent,
         )
 
-        recommended = as_Actor(id_="https://example.org/actors/vendor-new")
+        recommended = make(
+            as_Actor, id_="https://example.org/actors/vendor-new"
+        )
         activity = recommend_actor_activity(
             recommended,
             target=_CASE_URI,

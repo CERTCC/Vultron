@@ -18,6 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -37,7 +38,7 @@ S = EmbargoConsentState
 
 
 def _case(*, embargo: bool) -> VulnerabilityCase:
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=ACTOR_ID)
     if embargo:
         activate(case, EMBARGO_ID)
     return case
@@ -49,7 +50,8 @@ def _participant(
     consents: dict[str, EmbargoConsentState] | None = None,
     rm_state: RM = RM.ACCEPTED,
 ) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         attributed_to=ACTOR_ID,
         context=CASE_ID,
         joined=joined,
@@ -58,7 +60,8 @@ def _participant(
             for eid, state in (consents or {}).items()
         ],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=ACTOR_ID,
                 rm=RmDimension(state=rm_state),
@@ -69,7 +72,9 @@ def _participant(
 
 def test_joined_defaults_true_and_round_trips() -> None:
     """Every record today is seated or accepted, so ``joined`` defaults True."""
-    assert CaseParticipant(attributed_to=ACTOR_ID, context=CASE_ID).joined
+    assert make(
+        CaseParticipant, attributed_to=ACTOR_ID, context=CASE_ID
+    ).joined
     inert = _participant(joined=False)
     restored = CaseParticipant.model_validate(inert.model_dump(by_alias=True))
     assert restored.joined is False
@@ -185,7 +190,9 @@ def test_closed_participant_stays_active(embargo: bool) -> None:
 
 
 def test_no_statuses_is_not_closed() -> None:
-    participant = CaseParticipant(attributed_to=ACTOR_ID, context=CASE_ID)
+    participant = make(
+        CaseParticipant, attributed_to=ACTOR_ID, context=CASE_ID
+    )
     assert not participant.rm_closed
 
 
@@ -229,8 +236,11 @@ def test_removal_fact_is_stored_and_can_be_set_and_cleared() -> None:
 def test_removal_fact_refuses_a_blank_value(blank: str) -> None:
     """If present, then non-empty: at construction and on assignment."""
     with pytest.raises(ValidationError):
-        CaseParticipant(
-            attributed_to=ACTOR_ID, context=CASE_ID, removal_activity=blank
+        make(
+            CaseParticipant,
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            removal_activity=blank,
         )
     participant = _participant()
     with pytest.raises(ValidationError):
@@ -294,7 +304,8 @@ def _carrying_case(*participants: CaseParticipant) -> VulnerabilityCase:
 def _signatory(
     name: str, *, removal_activity: str | None = None, joined: bool = True
 ) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{name}",
         attributed_to=f"https://example.org/actors/{name}",
         context=CASE_ID,
@@ -414,7 +425,7 @@ def test_active_participants_is_left_out_while_the_roster_holds_a_reference() ->
 @pytest.mark.spec("CM-31-003")
 def test_a_reference_only_case_publishes_no_view() -> None:
     """A stored case holds participant references only: no view on the wire."""
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=ACTOR_ID)
     case.case_participants.append(f"{CASE_ID}/participants/stored")
 
     assert case.active_participants == []
@@ -424,6 +435,6 @@ def test_a_reference_only_case_publishes_no_view() -> None:
 @pytest.mark.spec("CM-31-003")
 def test_an_empty_roster_publishes_an_empty_view() -> None:
     """With no roster entries the view is exact, and it is empty."""
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=ACTOR_ID)
 
     assert case.model_dump(by_alias=True)["activeParticipants"] == []

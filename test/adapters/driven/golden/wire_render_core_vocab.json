@@ -52,7 +52,7 @@
     "payloadSnapshot": {},
     "prevLogHash": "",
     "published": "2026-01-02T03:04:05.000000+00:00",
-    "receivedAt": "<clock>",
+    "receivedAt": "2026-01-02T03:04:05.000000+00:00",
     "semanticType": "urn:test:semantic_type:1",
     "type": "CaseLedgerEntry",
     "updated": "2026-01-02T03:04:05.000000+00:00"

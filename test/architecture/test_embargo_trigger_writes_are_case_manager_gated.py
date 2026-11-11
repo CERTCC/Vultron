@@ -35,6 +35,7 @@ import py_trees
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.role_gates import (
     CheckIsCaseManagerNode,
 )
@@ -67,7 +68,7 @@ def _builder(_to: list[str] | None) -> tuple[str, str]:
 
 
 def _embargo() -> EmbargoEvent:
-    return EmbargoEvent(context=_CASE, end_time=days_from_now(30))
+    return make(EmbargoEvent, context=_CASE, end_time=days_from_now(30))
 
 
 _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {

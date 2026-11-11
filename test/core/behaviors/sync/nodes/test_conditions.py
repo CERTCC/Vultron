@@ -10,7 +10,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes import (
@@ -158,7 +160,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         e0 = _make_entry(0)
         datalayer.save(e0)
         # Skip index 1; jump to index 2
-        e2 = CaseLedgerEntry(
+        e2 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
@@ -166,6 +169,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="f" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(e2)
 
@@ -183,7 +188,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         """SYNC-10-004: hash mismatch at any link is stale."""
         e0 = _make_entry(0)
         datalayer.save(e0)
-        bad_e1 = CaseLedgerEntry(
+        bad_e1 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
@@ -191,6 +197,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 1},
             prev_log_hash="0" * 64,  # wrong: does not match e0.entry_hash
             entry_hash="1" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(bad_e1)
 
@@ -211,7 +219,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         # Create a gap
         e0 = _make_entry(0)
         datalayer.save(e0)
-        e2 = CaseLedgerEntry(
+        e2 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
@@ -219,6 +228,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(e2)
 

@@ -34,6 +34,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.case_manager import add_case_manager_participant
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import (
@@ -96,7 +97,7 @@ def dispatcher() -> ActivityDispatcher:
 
 
 def _case() -> VulnerabilityCase:
-    return VulnerabilityCase(id_=_CASE_ID, attributed_to=_CASE_MANAGER)
+    return make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_CASE_MANAGER)
 
 
 def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
@@ -110,6 +111,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             semantic_type="test_event",
             payload_snapshot={"index": index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         )
         entry = _to_persistable_entry(record)
         entries.append(entry)
@@ -207,12 +209,14 @@ def test_out_of_order_pair_converges_through_the_replay(dl, dispatcher):
 def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     # The CASE_MANAGER's case embeds its own participant record, as every
     # seeded replica does (CP-09-004); the entries chain from its genesis.
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         attributed_to=_CASE_MANAGER,
         context=_CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=_CASE_ID,
         attributed_to=_CASE_MANAGER,
         case_participants=[manager],
@@ -223,7 +227,10 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     # actor's case Announce before it holds the case (PCR-03-004).
     dl.save(
         VultronPendingCaseInbox(
-            case_id=_CASE_ID, case_actor_id=_CASE_MANAGER, invite_anchored=True
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_MANAGER,
+            invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
 
@@ -267,22 +274,26 @@ def test_pre_genesis_entries_converge_on_the_report_receivers_introduction(
     and must drain the held entries (SYNC-15-005), not leave them to the
     CASE_MANAGER's rate-limited replay (#5521).
     """
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         attributed_to=_CASE_MANAGER,
         context=_CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    owner = CaseParticipant(
+    owner = make(
+        CaseParticipant,
         attributed_to=_REPORT_RECEIVER,
         context=_CASE_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    reporter = CaseParticipant(
+    reporter = make(
+        CaseParticipant,
         attributed_to=_RECEIVER,
         context=_CASE_ID,
         case_roles=[CVDRole.REPORTER],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=_CASE_ID,
         attributed_to=_REPORT_RECEIVER,
         case_participants=[manager, owner, reporter],

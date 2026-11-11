@@ -43,6 +43,7 @@ from test.core.use_cases.received._ledger_network import (
 from test.support.act_clock import ACT_AT, clock_at
 from test.support.emitter import RecordingEmitter
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.rerun_from_holding import effects
 from vultron.adapters.driving.fastapi import inbox_startup_replay
@@ -75,7 +76,8 @@ class _ProcessStop(BaseException):
 
 def _add_note_body(net: LedgerNetwork) -> dict[str, Any]:
     activity = add_note_to_case_activity(
-        as_Note(
+        make(
+            as_Note,
             id_=f"{CASE_ID}/notes/interrupted",
             content="interrupted",
             context=CASE_ID,
@@ -317,6 +319,7 @@ def test_one_failing_rerun_does_not_keep_the_others_back(
             activity_id=f"{CASE_ID}/activities/{name}",
             received_body=json.dumps({"id": name, "type": "Add"}),
             stage=ReceivedStage.HELD,
+            received_at=ACT_AT,
         )
         for name in ("first", "second")
     )
@@ -366,7 +369,7 @@ def _left(dl, name: str, **fields: Any) -> ReceivedActivityRecord:
     record = ReceivedActivityRecord(
         activity_id=f"{CASE_ID}/activities/{name}",
         received_body=json.dumps({"id": name, "type": "Add"}),
-        **fields,
+        **{"received_at": ACT_AT, **fields},
     )
     dl.create(record)
     return record

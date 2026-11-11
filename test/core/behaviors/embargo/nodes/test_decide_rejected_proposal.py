@@ -29,6 +29,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import reject_proposed
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
@@ -66,7 +67,8 @@ def _revising_case(
         em_state=EM.ACTIVE if with_active else EM.NONE,
         attributed_to=OWNER,
     )
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/revision",
         context=case.id_,
         end_time=days_from_now(90),

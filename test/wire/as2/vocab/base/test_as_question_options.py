@@ -26,6 +26,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -38,7 +39,11 @@ _ACTOR = "https://example.org/actors/coordinator"
 
 def _options(n: int) -> list[as_Object]:
     return [
-        as_Object(id_=f"https://example.org/options/{i}", name=f"option {i}")
+        make(
+            as_Object,
+            id_=f"https://example.org/options/{i}",
+            name=f"option {i}",
+        )
         for i in range(n)
     ]
 
@@ -66,7 +71,7 @@ def test_question_with_several_options_round_trips(field: str) -> None:
 def test_question_with_a_single_option_is_still_accepted() -> None:
     """AS2 lets a non-functional property carry one value; that still parses."""
     (option,) = _options(1)
-    question = as_Question(actor=_ACTOR, oneOf=option)
+    question = make(as_Question, actor=_ACTOR, oneOf=option)
     body = json.loads(question.model_dump_json(by_alias=True))
     parsed = parse_activity(body)
     assert isinstance(parsed, as_Question)
@@ -79,7 +84,7 @@ def test_question_options_accept_uri_references() -> None:
     uris: list[as_Object | as_Link | str] = [
         f"https://example.org/options/{i}" for i in range(2)
     ]
-    question = as_Question(actor=_ACTOR, anyOf=uris)
+    question = make(as_Question, actor=_ACTOR, anyOf=uris)
     body = json.loads(question.model_dump_json(by_alias=True))
     assert body["anyOf"] == uris
     parsed = parse_activity(body)

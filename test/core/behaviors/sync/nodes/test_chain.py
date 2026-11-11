@@ -15,7 +15,9 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -27,10 +29,7 @@ from vultron.core.behaviors.sync.nodes import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import (
-    HashChainLedgerRecord,
-    record as case_ledger_module,
-)
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
@@ -275,7 +274,7 @@ class TestPersistLogEntryNodeLogging:
         # A ledger entry belongs to a stored case, whose position its commit
         # moves (SYNC-16-005); the commit runs in the owner's store.
         owner_store.save(
-            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+            make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
         )
         return _make_entry(log_index=0, prev_hash=_ZERO_HASH)
 
@@ -384,7 +383,9 @@ def _reject_event(
 
 
 def _replication_state_id(peer_id: str) -> str:
-    return VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+    return VultronReplicationState(
+        case_id=CASE_ID, peer_id=peer_id, updated_at=ACT_AT
+    ).id_
 
 
 @pytest.fixture
@@ -552,17 +553,14 @@ def test_update_replication_state_node_reads_a_naive_held_claim_as_utc(
 
 @pytest.mark.spec("SYNC-01-003")
 @pytest.mark.spec("CLP-14-002")
-def test_create_log_entry_node_entry_carries_hashed_received_at(
-    bridge, monkeypatch
-):
+def test_create_log_entry_node_entry_carries_hashed_received_at(bridge):
     """The stored entry keeps the time its hash was computed over (#3744).
 
-    The hashed record's clock is pinned to a past second, so an entry that
-    stamped its own times would carry a different ``received_at`` and its
-    content would no longer reproduce ``entry_hash``.
+    The act runs at an instant the clock has already passed, so an entry
+    that stamped its own times would carry a different ``received_at`` and
+    its content would no longer reproduce ``entry_hash`` (ADR-0176).
     """
-    hashed_at = now_utc().replace(year=2020)
-    monkeypatch.setattr(case_ledger_module, "now_utc", lambda: hashed_at)
+    hashed_at = now_utc() - timedelta(seconds=30)
 
     result = run_tree(
         bridge,
@@ -576,6 +574,7 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
         tail_index=-1,
+        at=hashed_at,
     )
 
     assert result.status == Status.SUCCESS
@@ -594,15 +593,15 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(
 @pytest.mark.spec("CLP-14-002")
 @pytest.mark.spec("CLP-14-011")
 def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
-    bridge, monkeypatch
+    bridge,
 ):
     """The envelope carries the commit stamp; the snapshot keeps the claim.
 
-    The commit clock is pinned to a second the sender never claimed, so the
-    two times can only match if one overwrote the other (ADR-0103).
+    The act's instant, the commit stamp, is a second the sender never
+    claimed, so the two times can only match if one overwrote the other
+    (ADR-0103, ADR-0176).
     """
-    committed_at = now_utc().replace(year=2020)
-    monkeypatch.setattr(case_ledger_module, "now_utc", lambda: committed_at)
+    committed_at = now_utc() - timedelta(seconds=30)
     snapshot = _canonical_note_snapshot(PARTICIPANT_ACTOR_ID)
     claimed = (now_utc() - timedelta(minutes=1)).isoformat()
     snapshot["published"] = claimed
@@ -619,6 +618,7 @@ def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
         tail_index=-1,
+        at=committed_at,
     )
 
     assert result.status == Status.SUCCESS

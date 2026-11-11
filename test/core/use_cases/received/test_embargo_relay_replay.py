@@ -27,6 +27,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
@@ -89,7 +90,8 @@ from ._ledger_network import (
 
 def _propose(net: _Network, suffix: str, days: int) -> str:
     """PROPOSER sends a revision to the CASE_MANAGER only (EP-09-001)."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
@@ -584,7 +586,8 @@ def _pxa_invite_body(
 
     *cc* names copy recipients that are not the invitee.
     """
-    terms = as_EmbargoEvent(
+    terms = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
@@ -755,7 +758,9 @@ def _manager_ports(net: _Network) -> dict[str, Any]:
 def _managing_owner_network(case_id: str, **kwargs: Any) -> _Network:
     """A network whose case owner is the CASE_MANAGER and has an actor."""
     net = _Network(case_id, owner=MANAGER, **kwargs)
-    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
+    net.stores[MANAGER].create(
+        make(as_Service, id_=MANAGER, name="Coordinator")
+    )
     return net
 
 

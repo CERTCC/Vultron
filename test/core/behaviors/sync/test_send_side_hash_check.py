@@ -25,6 +25,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.broken_ledger_entry import BreakEntry, broken_entries
 from vultron.core.behaviors.sync.nodes.embargo_pause import send_ledger_suffix
 from vultron.core.behaviors.sync.nodes.verified_send import (
@@ -69,6 +70,7 @@ def _chain(length: int) -> list[CaseLedgerEntry]:
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         ).to_ledger_entry()
         entries.append(entry)
         prev = entry.entry_hash

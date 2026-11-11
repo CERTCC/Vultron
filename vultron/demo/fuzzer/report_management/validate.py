@@ -33,25 +33,25 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.validate import (
+    EvaluateReportCredibilityCapability,
+    EvaluateReportValidityCapability,
+    GatherValidationInfoCapability,
+    NoNewValidationInfoCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     ProbablySucceed,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    EvaluatorCallOutPoint,
-    RetrieverCallOutPoint,
-)
 
 
-class NoNewValidationInfo(RetrieverCallOutPoint, ProbablySucceed):
+class NoNewValidationInfo(NoNewValidationInfoCapability, ProbablySucceed):
     """Check whether any new information has arrived that should trigger
     re-evaluation of the report's validity.
+
+    Simulates :class:`NoNewValidationInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — ask the sources of validation-relevant information
@@ -62,14 +62,6 @@ class NoNewValidationInfo(RetrieverCallOutPoint, ProbablySucceed):
         re-evaluation loops.  A binary Retriever: the tree asks on its own
         tick, so this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
-    Store-held answer (BT-18-039): **cannot** — whether new information
-    reached the outside sources since the last evaluation is not recorded
-    in the case file or the actor's store.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries validation-relevant information sources)
-      Output keys: (none — binary result only, per BT-18-006)
-
     Input category: Environmental check.
 
     Success probability: 0.67 (``ProbablySucceed``).
@@ -79,18 +71,19 @@ class NoNewValidationInfo(RetrieverCallOutPoint, ProbablySucceed):
     """
 
 
-class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class EvaluateReportCredibility(
+    EvaluateReportCredibilityCapability, AlmostAlwaysSucceed
+):
     """Assess whether the report's source and content are credible.
+
+    Simulates :class:`EvaluateReportCredibilityCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — assess whether the report's source and content are
         credible (i.e., likely to describe a real vulnerability).
         Credibility criteria may include reporter reputation, technical
         plausibility, and SSVC exploitation status.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_credibility_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -102,23 +95,20 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     requires human analyst review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"report_credibility_verdict": str}
-    )
 
-
-class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class EvaluateReportValidity(
+    EvaluateReportValidityCapability, AlmostAlwaysSucceed
+):
     """Assess whether the report is valid for this organization's scope.
+
+    Simulates :class:`EvaluateReportValidityCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — assess whether the report is valid for this
         organization's scope (credible AND meeting org-specific
         acceptance criteria).  A report can be credible but out of
         scope; validity is contextual and role-dependent.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_validity_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -128,10 +118,6 @@ class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     CNA/charter rules are automatable; organizational-context validity
     judgment often requires human review.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"report_validity_verdict": str}
-    )
 
 
 class EnoughValidationInfo(UsuallySucceed):
@@ -153,22 +139,19 @@ class EnoughValidationInfo(UsuallySucceed):
     """
 
 
-class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
+class GatherValidationInfo(
+    GatherValidationInfoCapability, AlmostAlwaysSucceed
+):
     """Request or collect additional information needed to validate.
+
+    Simulates :class:`GatherValidationInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — request or collect additional information needed to
         validate the report (e.g., reproduction steps, affected
         versions, proof-of-concept).  Succeeds most of the time in
         simulation to keep the workflow progressing.
-
-    Store-held answer (BT-18-039): **cannot** — it collects outside
-    information, such as reproduction steps, that the case file does not
-    record.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries external source / reporter directly)
-      Output keys: validation_info_gathered: str  (yes only)
 
     Input category: System integration / Human analyst outreach.
 
@@ -179,7 +162,3 @@ class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     automatable; direct reporter outreach typically requires human
     involvement.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"validation_info_gathered": str}
-    )

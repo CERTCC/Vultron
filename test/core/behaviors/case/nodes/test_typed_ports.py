@@ -29,6 +29,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.embargo import (
     InitializeCreationEmbargoNode,
 )
@@ -87,7 +88,8 @@ class TestActorAlreadyParticipantNodePorts:
     def test_failure_when_actor_not_participant(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Test Case",
             attributed_to=ACTOR_ID,
@@ -187,8 +189,11 @@ class TestBroadcastCaseUpdateNodePorts:
 
         monkeypatch.setattr(update_nodes, "broadcast_case_update", _refuse)
         bt_scenario.seed(
-            VulnerabilityCase(
-                id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+            make(
+                VulnerabilityCase,
+                id_=CASE_ID,
+                name="Test Case",
+                attributed_to=ACTOR_ID,
             )
         )
 

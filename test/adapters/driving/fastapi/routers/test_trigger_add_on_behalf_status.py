@@ -31,6 +31,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
@@ -79,10 +80,13 @@ def client(dl) -> Iterator[TestClient]:
 @pytest.fixture
 def managed_case(dl, actor) -> as_VulnerabilityCase:
     """A case the ``actor`` fixture manages; no vendor or deployer yet."""
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="On-Behalf Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="On-Behalf Case",
     )
-    cm = as_CaseParticipant(
+    cm = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -96,12 +100,14 @@ def managed_case(dl, actor) -> as_VulnerabilityCase:
 
 def _add_inert_vendor(dl, case: as_VulnerabilityCase) -> None:
     """A VENDOR invitee at RM RECEIVED, VF ``vf``: not yet replied."""
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         attributed_to=_VENDOR_ID,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=_VENDOR_ID,
                 context=case.id_,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -117,12 +123,14 @@ def _add_inert_vendor(dl, case: as_VulnerabilityCase) -> None:
 
 def _add_vendor_at_vf(dl, case: as_VulnerabilityCase) -> None:
     """A joined VENDOR at fix-ready, the causal precondition for d→D."""
-    vendor = as_CaseParticipant(
+    vendor = make(
+        as_CaseParticipant,
         attributed_to=_VENDOR_ID,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=_VENDOR_ID,
                 context=case.id_,
                 vf=VfDimension(state=CS_vf.VF),
@@ -145,12 +153,14 @@ def _add_joined_deployer(
     a deployer whose RM has already advanced.  PRM-06-004 calls the on-behalf
     d→D rare, and this is why.
     """
-    deployer = as_CaseParticipant(
+    deployer = make(
+        as_CaseParticipant,
         attributed_to=_DEPLOYER_ID,
         context=case.id_,
         case_roles=[CVDRole.DEPLOYER],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=_DEPLOYER_ID,
                 context=case.id_,
                 rm=RmDimension(state=rm),

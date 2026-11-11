@@ -19,6 +19,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.case_participant_received import (
@@ -58,14 +59,18 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return VulnerabilityCase(
-        id_=CASE_ID, name="CP Node Test Case", attributed_to=ACTOR_ID
+    return make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="CP Node Test Case",
+        attributed_to=ACTOR_ID,
     )
 
 
 @pytest.fixture
 def participant(case):
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=PARTICIPANT_ID,
         attributed_to=COORDINATOR_ID,
         context=case.id_,
@@ -252,7 +257,8 @@ class TestReinstatementGuards:
     def test_has_joined_guard_refuses_an_invitee_that_never_joined(
         self, bridge, dl, case
     ) -> None:
-        invitee = as_CaseParticipant(
+        invitee = make(
+            as_CaseParticipant,
             id_=PARTICIPANT_ID,
             attributed_to=COORDINATOR_ID,
             context=CASE_ID,

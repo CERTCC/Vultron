@@ -13,6 +13,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import Record
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -90,4 +91,4 @@ def base_object():
 
 @pytest.fixture
 def note_object():
-    return as_Note(content="Test Content")
+    return make(as_Note, content="Test Content")

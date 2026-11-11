@@ -10,13 +10,14 @@ tracks:
   - "#1893"
   - "#1943"
   - "#2450"
-  - "#3421"
+  - "#3422"
   - "#3426"
   - "#6078"
 description: >
-  Design for the capability layer's unbuilt work: core-owned typed-port
-  contracts and renamed shape base classes (#3421), the participant-suggestion
-  port (#3426), and the Sentinel call-in pattern (#2450). Also states the
+  Design for the capability layer's unbuilt work: deriving DETERMINISTIC
+  defaults from the core capability declarations (#3422), the
+  participant-suggestion port (#3426), and the Sentinel call-in
+  pattern (#2450). Also states the
   call-out time budget rule, routes a design question to a capability, an
   ask, or a call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
   call-out surfaces themselves are defined in call-out-configuration.md.
@@ -63,23 +64,29 @@ because no answer exists at the moment of asking (ADR-0080). If the answer must
 come from a peer, see `notes/protocol-asks.md`. A synchronous boolean query of an
 external system is a **Retriever**, never a Sentinel (BT-18-013).
 
-## Core-Owned Typed-Port Contracts (#3421)
+## Capability Declarations Are the Roster (#3422, #3426)
 
-Target state set by ADR-0097 and BT-18-012; today the mixins are still in
-`vultron/demo/fuzzer/call_out_point.py`, and each fuzzer node declares a
-`CallOutContract` (ADR-0183) rather than typed ports.
+Every named capability is declared once, in core, under
+`vultron/core/behaviors/call_out/capabilities/`, as a subclass of a shape base in
+`vultron/core/behaviors/call_out/capability.py` whose typed ports are its contract
+(BT-18-012, BT-18-020, BT-18-021).
 
-- Each named capability gets a **core-owned declaration** carrying py_trees typed
-  ports (`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044). The shape base class cannot
-  hold a per-capability contract, because many capabilities share a shape.
-- The probabilistic fuzzer stand-in stays in `vultron/demo/fuzzer/` (BT-16-001)
-  and binds to that declaration instead of restating it.
-- The docstring is description, not authority: BT-18-001 still requires it, but a
-  test reads the ports, and a disagreeing docstring is a doc bug.
-- The shape bases move to `vultron/core/behaviors/call_out/` as
-  `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`,
-  `ActuatorCapability`; the fuzzer layer re-exports the old `*CallOutPoint` names
-  and new code uses the capability names.
+- Derive any per-capability list from `capability_declarations()`, never a hand-kept
+  list: a DETERMINISTIC default that must write a capability's outputs (#3422) reads
+  its `OUTPUT_PORTS`, and the docs catalog renders from the same roster
+  (`vultron/metadata/docs/capability_catalog.py`). Reason: a second list drifts,
+  which is what ADR-0097#core-declared-typed-port-contract removed.
+- A declaration in a new module needs a domain section on
+  `docs/topics/capability_model/index.md` that names the module in a
+  `render_capability_table` block; `test/metadata/docs/test_capability_catalog.py`
+  fails until it does, because the page's headings and prose are hand-written.
+- A new capability (#3426) adds a declaration there, then a fuzzer node that
+  subclasses it; the roster tests then require the docstring contract to match the
+  ports and the node to write every output on *yes*
+  (`test/core/behaviors/call_out/test_capability_declarations.py`).
+- A port names a concrete `data_type`, never `object`: a mismatch on read or write
+  fails the whole tree run (BTND-03-021), and `object` would let every value
+  through.
 
 Why a contract declared outside core fails: `notes/call-out-configuration.md` §
 "A data-producing capability's default must write its outputs".

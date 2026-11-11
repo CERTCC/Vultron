@@ -31,6 +31,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -422,7 +423,8 @@ def test_an_owners_threat_signal_remove_gets_the_notice():
 
 def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
     """BYSTANDER asks the CASE_MANAGER for new terms, its ask pending."""
-    terms = as_EmbargoEvent(
+    terms = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{tag}",
         context=net.case_id,
         end_time=days_from_now(90),
@@ -438,7 +440,12 @@ def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
     # (EP-09-008, SYNC-11-002).
     net.stores[BYSTANDER].create(proposal)
     record_pending_assertion(
-        BYSTANDER, net.case_id, _INVITE, proposal.id_, subject_id=terms.id_
+        BYSTANDER,
+        net.case_id,
+        _INVITE,
+        proposal.id_,
+        subject_id=terms.id_,
+        at=now_utc(),
     )
     return cast(dict[str, Any], json.loads(dump_outbound_body(proposal)))
 
@@ -486,7 +493,12 @@ def test_the_notice_of_a_refused_accept_closes_the_accepters_ask():
     _, invite_id = _decided(net, "accept-notice-read")
     body = _answer_body(net, BYSTANDER, invite_id, accept=True, tag="late")
     record_pending_assertion(
-        BYSTANDER, net.case_id, _ACCEPT, body["id"], subject_id=invite_id
+        BYSTANDER,
+        net.case_id,
+        _ACCEPT,
+        body["id"],
+        subject_id=invite_id,
+        at=now_utc(),
     )
     assert net.receive(MANAGER, body).disposition is (
         HandlerDisposition.REFUSED
@@ -519,7 +531,12 @@ def test_the_case_managers_reject_to_an_accept_closes_the_accepters_ask():
     _set_pxa(net, MANAGER)
     body = _answer_body(net, BYSTANDER, invite_id, accept=True, tag="pxa")
     record_pending_assertion(
-        BYSTANDER, net.case_id, _ACCEPT, body["id"], subject_id=invite_id
+        BYSTANDER,
+        net.case_id,
+        _ACCEPT,
+        body["id"],
+        subject_id=invite_id,
+        at=now_utc(),
     )
     assert net.receive(MANAGER, body).disposition is (
         HandlerDisposition.REFUSED

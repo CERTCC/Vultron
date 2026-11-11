@@ -30,6 +30,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -101,13 +102,15 @@ NEWCOMER_ID = "https://example.org/actors/newcomer-4304"
 def _participant(
     actor_id: str, rm: RM, *roles: CVDRole, tag: str
 ) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{tag}",
         attributed_to=actor_id,
         context=CASE_ID,
         case_roles=list(roles),
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 rm=RmDimension(state=rm),
                 context=CASE_ID,
                 attributed_to=actor_id,
@@ -127,10 +130,13 @@ def _store(
     *finder_known* is false.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
-    dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="r"))
-    dl.save(VultronService(id_=MANAGER_ID, context=CASE_ID))
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="4304", attributed_to=MANAGER_ID
+    dl.save(make(as_VulnerabilityReport, id_=REPORT_ID, name="r"))
+    dl.save(make(VultronService, id_=MANAGER_ID, context=CASE_ID))
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="4304",
+        attributed_to=MANAGER_ID,
     )
     case.vulnerability_reports.append(REPORT_ID)
     roster = [
@@ -165,7 +171,7 @@ def _ports(dl: SqliteDataLayer) -> dict:
 
 def _offer():
     return rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r"),
         to=VENDOR_ID,
         actor=FINDER_ID,
     )
@@ -395,8 +401,11 @@ def test_announce_case_tree_has_no_commit_stage():
     Only the CASE_MANAGER sends it and only a participant replica receives it,
     so the tree carries no commit stage.
     """
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="4304"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="4304",
     )
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
@@ -424,8 +433,11 @@ def test_bootstrap_create_case_tree_has_no_commit_stage():
     case's genesis entry was committed where the CASE_MANAGER created the
     case, so the participant's tree carries no commit stage.
     """
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="4476"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="4476",
     )
 
     tree = create_create_case_received_tree(

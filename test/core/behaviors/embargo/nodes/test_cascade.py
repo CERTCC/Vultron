@@ -25,6 +25,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
@@ -34,7 +35,8 @@ from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 
 def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:
     """Create a minimal core-layer EmbargoEvent for persistence tests."""
-    return CoreEmbargoEvent(
+    return make(
+        CoreEmbargoEvent,
         id_=f"https://example.org/embargo_events/e{suffix}",
         context=f"https://example.org/cases/case_{suffix}",
         end_time=days_from_now(45),

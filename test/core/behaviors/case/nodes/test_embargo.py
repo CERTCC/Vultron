@@ -30,6 +30,7 @@ from py_trees.common import Status
 from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
@@ -65,10 +66,12 @@ def _profile(
 ) -> VultronOrganization:
     """The CASE_OWNER's inline profile, as the Create carried it (CP-01-010)."""
     if policy_duration is None:
-        return VultronOrganization(id_=actor_id)
-    return VultronOrganization(
+        return make(VultronOrganization, id_=actor_id)
+    return make(
+        VultronOrganization,
         id_=actor_id,
-        embargo_policy=EmbargoPolicy(
+        embargo_policy=make(
+            EmbargoPolicy,
             actor_id=actor_id,
             inbox=f"{actor_id}/inbox",
             preferred_duration=policy_duration,
@@ -86,15 +89,17 @@ def actor_id() -> str:
 
 @pytest.fixture
 def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
-    obj = VultronService(id_=actor_id, name="Vendor Co")
+    obj = make(VultronService, id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
-    obj = VulnerabilityReport(
-        name="TEST-001", content="Test vulnerability report"
+    obj = make(
+        VulnerabilityReport,
+        name="TEST-001",
+        content="Test vulnerability report",
     )
     bt_scenario.dl.create(obj)
     return obj
@@ -105,7 +110,8 @@ def case_obj(
     bt_scenario: BTTestScenario, actor_id: str, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     """A case whose owner participant exists, as CM-14-002 requires."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-001",
         name="Test Case",
         attributed_to=actor_id,
@@ -280,12 +286,14 @@ class TestInitializeDefaultEmbargoNode:
 
         from test.support.future_dates import days_from_now
 
-        proposal = EmbargoEvent(
+        proposal = make(
+            EmbargoEvent,
             context="https://example.org/reports/r-1",
             end_time=days_from_now(10),
         )
         # The contest's other party is the reporter (#4152).
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             name="TEST-REV",
             content="Test report",
             attributed_to="https://example.org/actors/reporter",
@@ -349,7 +357,8 @@ class TestInitializeDefaultEmbargoNode:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         calls: list[tuple[str, str, str, str]] = []
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case_obj.id_,
         )
@@ -410,7 +419,8 @@ class TestInitializeCreationEmbargoNodeAC1:
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
         from vultron.errors import VultronInvalidStateTransitionError
 
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case_obj.id_,
         )
@@ -446,11 +456,13 @@ class TestInitializeCreationEmbargoNodeAC1:
         state is inconsistent.  The node reports the service's refusal as
         FAILURE instead of a SUCCESS that initialized nothing (ARCH-15).
         """
-        attached = EmbargoEvent(
+        attached = make(
+            EmbargoEvent,
             end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case_obj.id_,
         )
-        default = EmbargoEvent(
+        default = make(
+            EmbargoEvent,
             end_time=datetime.now(tz=UTC) + timedelta(days=2),
             context=case_obj.id_,
         )
@@ -488,18 +500,21 @@ def _seed_manager_run_case(scenario: BTTestScenario) -> VulnerabilityCase:
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
 
-    report = VulnerabilityReport(name="TEST-CM", content="Test report")
-    case = VulnerabilityCase(
+    report = make(VulnerabilityReport, name="TEST-CM", content="Test report")
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-cm",
         attributed_to=_OWNER_ID,
         vulnerability_reports=[report.id_],
     )
-    owner = CaseParticipant(
+    owner = make(
+        CaseParticipant,
         attributed_to=_OWNER_ID,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         attributed_to=_CASE_MANAGER_ID,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -540,7 +555,8 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         stranger = "https://example.org/actors/stranger"
         scenario = BTTestScenario(actor_id=stranger)
         case = _seed_manager_run_case(scenario)
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             end_time=datetime.now(tz=UTC) + timedelta(days=1),
             context=case.id_,
         )
@@ -563,8 +579,11 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
     ) -> None:
         """No owner record to seed is a broken precondition, not a success."""
         scenario = BTTestScenario(actor_id=_OWNER_ID)
-        report = VulnerabilityReport(name="TEST-NO", content="Test report")
-        case = VulnerabilityCase(
+        report = make(
+            VulnerabilityReport, name="TEST-NO", content="Test report"
+        )
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case-no-owner",
             attributed_to=_OWNER_ID,
             vulnerability_reports=[report.id_],

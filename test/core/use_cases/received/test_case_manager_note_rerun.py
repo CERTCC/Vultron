@@ -38,6 +38,7 @@ import pytest
 from test.architecture._received_tree_builds import built_received_trees
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.rerun_from_holding import Rerun, rerun_from_holding
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
@@ -131,7 +132,8 @@ def _regression_event(net: LedgerNetwork) -> Any:
         net.case(MANAGER).actor_participant_index[BYSTANDER]
     )
     assert isinstance(participant, CaseParticipant)
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=net.case_id,
         attributed_to=BYSTANDER,
         rm=RmDimension(state=RM.VALID),

@@ -13,6 +13,7 @@
 
 import unittest
 
+from test.support.objects import make
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.activities.case_participant import (
     _CreateParticipantActivity,
@@ -39,12 +40,14 @@ class TestCreateParticipantName(unittest.TestCase):
         self.case_id = "https://vultron.example/cases/1"
         self.attributed_to = "https://vultron.example/users/finndervul"
 
-        self.participant = as_CaseParticipant(
+        self.participant = make(
+            as_CaseParticipant,
             attributed_to=self.attributed_to,
             context=self.case_id,
             case_roles=[CVDRole.VENDOR],
         )
-        self.activity = _CreateParticipantActivity(
+        self.activity = make(
+            _CreateParticipantActivity,
             actor=self.actor_id,
             object_=self.participant,
             context=self.case_id,

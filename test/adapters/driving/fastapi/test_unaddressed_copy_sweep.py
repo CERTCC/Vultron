@@ -39,6 +39,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
+from test.support.objects import make
 from test.support.received import extract_stamped
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.clock import SystemClock
@@ -129,7 +130,9 @@ def _seed_named_case(dl: SqliteDataLayer, activity: as_Activity) -> None:
     # case as its ``case_id``; any other names it as its context.
     case_id = resolve_case_context_id(event) or getattr(event, "case_id", None)
     if case_id and dl.read(case_id) is None:
-        dl.create(VulnerabilityCase(id_=case_id, attributed_to=_ADDRESSEE))
+        dl.create(
+            make(VulnerabilityCase, id_=case_id, attributed_to=_ADDRESSEE)
+        )
 
 
 def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:

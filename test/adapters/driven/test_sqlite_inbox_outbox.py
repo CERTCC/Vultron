@@ -20,6 +20,7 @@ Fixtures (dl, file_dl, scoped_dl) come from conftest.
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 # ---------------------------------------------------------------------------
@@ -210,7 +211,7 @@ def test_file_backed_store_and_retrieve(file_dl):
     """Data written to a file-backed DataLayer is readable from the same URL."""
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(content="Integration test note")
+    note = make(as_Note, content="Integration test note")
     file_dl.save(note)
     result = file_dl.read(note.id_)
     assert result is not None

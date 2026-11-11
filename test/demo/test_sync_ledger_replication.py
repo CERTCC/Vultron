@@ -22,7 +22,9 @@ from typing import cast
 import anyio
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_in_act
+from test.support.objects import make
 from test.support.received import delivered, peer_position, received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -138,6 +140,7 @@ def _make_log_entry(
         semantic_type=semantic_type,
         payload_snapshot=snapshot,
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
     return _to_persistable_entry(record)
 
@@ -183,10 +186,13 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         case_actor_tc, "case-actor-sync-901", peer_actor_id, "peer-sync-901"
     )
 
-    case = as_VulnerabilityCase(
-        name="SYNC-901 integration case", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        name="SYNC-901 integration case",
+        attributed_to=_OWNER_ID,
     )
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
@@ -194,7 +200,8 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer_participant = as_CaseParticipant(
+    peer_participant = make(
+        as_CaseParticipant,
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -288,11 +295,13 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         "Service",
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="SYNC-902 mismatch/replay integration case",
         attributed_to=_OWNER_ID,
     )
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
@@ -300,7 +309,8 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer_participant = as_CaseParticipant(
+    peer_participant = make(
+        as_CaseParticipant,
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -311,7 +321,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_dl.save(case_actor_participant)
     case_actor_dl.save(peer_participant)
     case_actor_dl.save(case)
-    case_actor_dl.save(VultronService(id_=case_actor_id, context=case.id_))
+    case_actor_dl.save(
+        make(VultronService, id_=case_actor_id, context=case.id_)
+    )
 
     entry0 = _make_log_entry(
         case.id_, 0, case.genesis_hash, "sync_902_base", case_actor_id
@@ -407,7 +419,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         pass
 
     state_id = VultronReplicationState(
-        case_id=case.id_, peer_id=peer_actor_id
+        case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
     ).id_
     replication_state = case_actor_dl.read(state_id)
     assert replication_state is not None
@@ -449,11 +461,13 @@ def test_sync_duplicate_delivery_idempotency(
     case_actor_dl = case_actor_iso.store_for(case_actor_id)
     peer_dl = peer_iso.store_for(peer_actor_id)
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="SYNC-903 duplicate delivery integration case",
         attributed_to=_OWNER_ID,
     )
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
@@ -461,7 +475,8 @@ def test_sync_duplicate_delivery_idempotency(
         # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer_participant = as_CaseParticipant(
+    peer_participant = make(
+        as_CaseParticipant,
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -557,16 +572,19 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         case_actor_tc, "case-actor-sync-917", peer_actor_id, "peer-sync-917"
     )
 
-    case = as_VulnerabilityCase(
-        name="SYNC-17 lost last entry case", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        name="SYNC-17 lost last entry case",
+        attributed_to=_OWNER_ID,
     )
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer_participant = as_CaseParticipant(
-        attributed_to=peer_actor_id, context=case.id_
+    peer_participant = make(
+        as_CaseParticipant, attributed_to=peer_actor_id, context=case.id_
     )
     case.case_participants.append(case_actor_participant.id_)
     case.case_participants.append(peer_participant.id_)
@@ -629,7 +647,9 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     )
 
     state = case_actor_dl.read(
-        VultronReplicationState(case_id=case.id_, peer_id=peer_actor_id).id_
+        VultronReplicationState(
+            case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
+        ).id_
     )
     assert state is not None
     assert state.last_acknowledged_hash == entry1.entry_hash
@@ -730,21 +750,25 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         "Service",
     )
 
-    case = as_VulnerabilityCase(
-        name="SYNC-16 divergence recovery case", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        name="SYNC-16 divergence recovery case",
+        attributed_to=_OWNER_ID,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
         end_time=days_from_now(45),
     )
-    manager_participant = as_CaseParticipant(
+    manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    peer_participant = as_CaseParticipant(
-        attributed_to=peer_actor_id, context=case.id_
+    peer_participant = make(
+        as_CaseParticipant, attributed_to=peer_actor_id, context=case.id_
     )
     for participant in (manager_participant, peer_participant):
         case.case_participants.append(participant.id_)
@@ -758,7 +782,9 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     case_actor_dl.save(manager_participant)
     case_actor_dl.save(peer_participant)
     case_actor_dl.save(case)
-    case_actor_dl.save(VultronService(id_=case_actor_id, context=case.id_))
+    case_actor_dl.save(
+        make(VultronService, id_=case_actor_id, context=case.id_)
+    )
     write_consent_rows(
         case_actor_dl, cast(VulnerabilityCase, case_actor_dl.read(case.id_))
     )
@@ -829,7 +855,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         VultronReplicationState,
         case_actor_dl.read(
             VultronReplicationState(
-                case_id=case.id_, peer_id=peer_actor_id
+                case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
             ).id_
         ),
     )

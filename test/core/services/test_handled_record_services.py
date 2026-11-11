@@ -32,6 +32,7 @@ from test.core.services.test_received_holding import (
     _record,
     _stored,
 )
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
@@ -65,6 +66,7 @@ def _handled(dl, activity_id: str) -> ReceivedActivityRecord:
         activity_id=activity_id,
         received_body=_body(activity_id),
         stage=ReceivedStage.HANDLED,
+        received_at=ACT_AT,
     )
     dl.create(record)
     return record

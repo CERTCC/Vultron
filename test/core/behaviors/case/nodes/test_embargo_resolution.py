@@ -33,6 +33,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose, terminate
 from test.support.future_dates import from_now
+from test.support.objects import make
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
@@ -89,13 +90,16 @@ PROTOCOL_DEFAULT = timedelta(hours=96)
 
 @pytest.fixture
 def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
-    bt_scenario.dl.create(VultronService(id_=ACTOR_ID, name="Vendor Co"))
-    case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
+    bt_scenario.dl.create(make(VultronService, id_=ACTOR_ID, name="Vendor Co"))
+    case = make(
+        VulnerabilityCase, id_=CASE_ID, name="Case", attributed_to=ACTOR_ID
+    )
     seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)
     # The sender's terms are the reporter's (EP-04-004, #4152).
     bt_scenario.dl.create(
-        VulnerabilityReport(
+        make(
+            VulnerabilityReport,
             id_=REPORT_ID,
             name="Report",
             content="Report",
@@ -115,10 +119,12 @@ def _profile(
     (CP-01-010).
     """
     if duration is None:
-        return VultronOrganization(id_=actor_id)
-    return VultronOrganization(
+        return make(VultronOrganization, id_=actor_id)
+    return make(
+        VultronOrganization,
         id_=actor_id,
-        embargo_policy=EmbargoPolicy(
+        embargo_policy=make(
+            EmbargoPolicy,
             actor_id=actor_id,
             inbox=f"{actor_id}/inbox",
             preferred_duration=duration,
@@ -131,7 +137,8 @@ def _store_policy_record(
 ) -> None:
     """A free-standing ``EmbargoPolicy`` record in the store — never read."""
     bt_scenario.dl.create(
-        EmbargoPolicy(
+        make(
+            EmbargoPolicy,
             actor_id=actor_id,
             inbox=f"{actor_id}/inbox",
             preferred_duration=duration,
@@ -182,8 +189,10 @@ def _run(
         if with_sender_event:
             extra.setdefault(
                 "sender_proposed_embargo",
-                EmbargoEvent(
-                    context=REPORT_ID, end_time=from_now(sender_proposal)
+                make(
+                    EmbargoEvent,
+                    context=REPORT_ID,
+                    end_time=from_now(sender_proposal),
                 ),
             )
     node = InitializeDefaultEmbargoNode(
@@ -709,7 +718,7 @@ def test_a_contest_with_no_report_raises_before_registering(
 def _sender_event(
     end_time: datetime, *, event_id: str, context: str = "urn:report:r-1"
 ) -> EmbargoEvent:
-    return EmbargoEvent(id_=event_id, context=context, end_time=end_time)
+    return make(EmbargoEvent, id_=event_id, context=context, end_time=end_time)
 
 
 @pytest.mark.spec("EP-04-004")
@@ -722,7 +731,8 @@ def test_a_sender_id_already_held_by_another_embargo_is_refused(
     shortest-wins compared the terms the sender stated."""
     foreign_id = "https://example.org/embargoes/reused"
     bt_scenario.dl.create(
-        EmbargoEvent(
+        make(
+            EmbargoEvent,
             id_=foreign_id,
             context="https://example.org/cases/some-other-case",
             end_time=datetime(2099, 1, 1, tzinfo=UTC),
@@ -754,7 +764,7 @@ def test_a_replay_of_the_same_sender_embargo_is_idempotent(
         days=5
     )
     bt_scenario.dl.create(
-        EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stated_end)
+        make(EmbargoEvent, id_=event_id, context=CASE_ID, end_time=stated_end)
     )
 
     status, _, _ = _run(
@@ -1009,8 +1019,8 @@ class TestCaseEmbargoAlreadyInitializedNode:
     ) -> None:
         """A rerun of the sender branch adopts the Reporter's own event,
         under the Reporter's id (``persist_creation_time_embargo``)."""
-        sender_event = EmbargoEvent(
-            context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
+        sender_event = make(
+            EmbargoEvent, context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
         )
         run_args: dict[str, Any] = {
             "sender_proposal": SENDER_PROPOSAL,
@@ -1091,7 +1101,12 @@ class TestCaseEmbargoAlreadyInitializedNode:
         event_id = "https://example.org/embargoes/sender-twin"
         stored_end = datetime(2099, 1, 1, tzinfo=UTC)
         bt_scenario.dl.create(
-            EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stored_end)
+            make(
+                EmbargoEvent,
+                id_=event_id,
+                context=CASE_ID,
+                end_time=stored_end,
+            )
         )
 
         status, _, _ = _run(
@@ -1117,7 +1132,8 @@ class TestCaseEmbargoAlreadyInitializedNode:
         embargo_id = creation_time_embargo_id(CASE_ID)
         other_case = "https://example.org/cases/some-other-case"
         bt_scenario.dl.create(
-            EmbargoEvent(
+            make(
+                EmbargoEvent,
                 id_=embargo_id,
                 context=other_case,
                 end_time=datetime(2099, 1, 1, tzinfo=UTC),
@@ -1384,7 +1400,8 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         A second ``from_now`` would give the rerun a different
         ``end_time``, which the stored twin then refuses (EP-04-004).
         """
-        return EmbargoEvent(
+        return make(
+            EmbargoEvent,
             id_=self.SENDER_EVENT_ID,
             context=REPORT_ID,
             end_time=from_now(SENDER_PROPOSAL),
@@ -1548,7 +1565,9 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
 def _seed_reporter_participant(bt_scenario: BTTestScenario) -> str:
     """Add the reporter's participant to the fixture case; return its id."""
     case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
-    participant = CaseParticipant(attributed_to=REPORTER_ID, context=CASE_ID)
+    participant = make(
+        CaseParticipant, attributed_to=REPORTER_ID, context=CASE_ID
+    )
     bt_scenario.dl.create(participant)
     case.case_participants.append(participant.id_)
     case.actor_participant_index[REPORTER_ID] = participant.id_
@@ -1601,8 +1620,10 @@ class TestTheRevisionIsConsentedToByItsProposer:
             case_id=CASE_ID,
             owner_profile=_profile(timedelta(days=10)),
             sender_proposed_embargo_duration=SENDER_PROPOSAL,
-            sender_proposed_embargo=EmbargoEvent(
-                context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
+            sender_proposed_embargo=make(
+                EmbargoEvent,
+                context=REPORT_ID,
+                end_time=from_now(SENDER_PROPOSAL),
             ),
         )
 

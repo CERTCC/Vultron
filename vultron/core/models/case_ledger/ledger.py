@@ -16,6 +16,7 @@
 """The append-only, hash-chained canonical ledger of one case (SYNC-01)."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from vultron.core.models.case_ledger.record import HashChainLedgerRecord
@@ -53,6 +54,7 @@ class CaseLedger:
             object_id="urn:uuid:report1",
             semantic_type="add_report_to_case",
             payload_snapshot={"id": "urn:uuid:report1"},
+            at=created_at,
         )
         assert entry.log_index == 0
         assert entry.prev_log_hash == g_hash
@@ -126,6 +128,8 @@ class CaseLedger:
         semantic_type: str,
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
+        *,
+        at: datetime,
     ) -> HashChainLedgerRecord:
         """Append a new canonical entry to the log and return it.
 
@@ -138,6 +142,8 @@ class CaseLedger:
             payload_snapshot: The asserted activity payload verbatim, for
                 deterministic replay (CLP-02-003, CLP-07-011).
             term: Raft cluster term; ``None`` for single-node deployments.
+            at: The committing act's instant, the entry's ``received_at``
+                (ADR-0176).
 
         Returns:
             The newly created and appended :class:`HashChainLedgerRecord`.
@@ -150,6 +156,7 @@ class CaseLedger:
             semantic_type=semantic_type,
             payload_snapshot=payload_snapshot or {},
             prev_log_hash=self.tail_hash,
+            received_at=at,
         )
         self._entries.append(entry)
         logger.info(

@@ -27,6 +27,7 @@ from enum import Enum
 
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -77,7 +78,8 @@ def _activate_embargo_without(
 ) -> None:
     """Put an embargo in force that every listed participant but *actor_id*
     agreed to; *actor_id*'s row for it is ``INVITED``."""
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{case.id_}/transferee-test-embargo",
         context=case.id_,
         end_time=days_from_now(45),
@@ -127,7 +129,8 @@ def make_inactive(
         record.record_removal(f"{case.id_}/transferee-test-removal")
     elif standing is TransfereeStanding.CLOSED:
         record.participant_statuses.append(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=actor_id,
                 rm=RmDimension(state=RM.CLOSED),
@@ -150,7 +153,8 @@ def transferee_record(
 
     Neither is saved: the caller persists the record and the case.
     """
-    record = CaseParticipant(
+    record = make(
+        CaseParticipant,
         id_=transferee_participant_id(actor_id),
         attributed_to=actor_id,
         context=case.id_,

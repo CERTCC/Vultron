@@ -52,6 +52,7 @@ from test.demo.test_remote_case_actor_invite import (
     _invite,
     _Topology,
 )
+from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.demo.helpers.seeding import seed_case_actor_peers
 from vultron.demo.in_process import (
@@ -265,8 +266,8 @@ def _seed_like_the_demos(topo, monkeypatch) -> None:
             self, method, path, **kw
         ),
     )
-    owner = as_Organization(id_=topo.owner_actor_id, name="Owner")
-    invitee = as_Organization(id_=topo.invitee_actor_id, name="Invitee")
+    owner = make(as_Organization, id_=topo.owner_actor_id, name="Owner")
+    invitee = make(as_Organization, id_=topo.invitee_actor_id, name="Invitee")
     seed_peer(
         DataLayerClient(base_url=f"{topo.owner.base_url}/api/v2"),
         local_actor_id=topo.owner_actor_id,

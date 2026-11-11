@@ -33,6 +33,7 @@ import pytest
 
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -121,13 +122,15 @@ def _vendor_public_report(net: LedgerNetwork) -> Any:
     record = net.record(MANAGER, OWNER)
     current = record.participant_status
     assert current is not None
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=net.case_id,
         attributed_to=OWNER,
         rm=current.rm,
         vf=VfDimension(state=CS_vf.vf),
         cvd_role=record.case_roles,
-        case_status=CaseStatus(
+        case_status=make(
+            CaseStatus,
             context=net.case_id,
             attributed_to=OWNER,
             em=EmDimension(state=net.case(MANAGER).em_state),
@@ -136,8 +139,11 @@ def _vendor_public_report(net: LedgerNetwork) -> Any:
     )
     return add_status_to_participant_activity(
         status,
-        target=as_CaseParticipant(
-            id_=record.id_, context=net.case_id, attributed_to=OWNER
+        target=make(
+            as_CaseParticipant,
+            id_=record.id_,
+            context=net.case_id,
+            attributed_to=OWNER,
         ),
         actor=OWNER,
         to=[MANAGER],
@@ -218,7 +224,8 @@ def _no_threat_report(net: LedgerNetwork) -> Any:
     record = net.record(MANAGER, OWNER)
     current = record.participant_status
     assert current is not None
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context=net.case_id,
         attributed_to=OWNER,
         rm=current.rm,
@@ -228,8 +235,11 @@ def _no_threat_report(net: LedgerNetwork) -> Any:
     )
     return add_status_to_participant_activity(
         status,
-        target=as_CaseParticipant(
-            id_=record.id_, context=net.case_id, attributed_to=OWNER
+        target=make(
+            as_CaseParticipant,
+            id_=record.id_,
+            context=net.case_id,
+            attributed_to=OWNER,
         ),
         actor=OWNER,
         to=[MANAGER],

@@ -53,6 +53,7 @@ from typing import cast
 from pydantic.alias_generators import to_camel
 
 from test.support.core_vocab import minimal_kwargs
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -141,7 +142,7 @@ def _collect_wire_escapes() -> frozenset[str]:
         kwargs = minimal_kwargs(cls)
         kwargs["id_"] = f"urn:test:{vocab_key.lower()}:ratchet"
         try:
-            obj: CoreObject = cls(**kwargs)
+            obj: CoreObject = make(cls, **kwargs)
         except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             # If we cannot construct a minimal instance we skip — the type
             # is not a concern for this ratchet (no core code saves it without
@@ -201,7 +202,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
         kwargs = minimal_kwargs(cls)
         kwargs["id_"] = row_id
         try:
-            core_obj: CoreObject = cls(**kwargs)
+            core_obj: CoreObject = make(cls, **kwargs)
         except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             continue
         # Build a *wire-shaped* copy of valid core data: camelCase spellings plus

@@ -23,6 +23,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers import info as info_router
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -93,8 +94,8 @@ def test_info_actors_lists_hosted_actors_only(client_info):
     finder_id = canonical_actor_uri("finder")
     vendor_id = canonical_actor_uri("vendorco")
     for actor_id, actor in (
-        (finder_id, as_Person(id_=finder_id, name="Finder")),
-        (vendor_id, as_Organization(id_=vendor_id, name="VendorCo")),
+        (finder_id, make(as_Person, id_=finder_id, name="Finder")),
+        (vendor_id, make(as_Organization, id_=vendor_id, name="VendorCo")),
     ):
         dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
         dl.create(object_to_record(actor))

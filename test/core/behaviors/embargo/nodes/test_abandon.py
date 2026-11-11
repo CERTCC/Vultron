@@ -36,6 +36,7 @@ from test.support.act_runner import in_act, run_tree
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -88,7 +89,8 @@ def _proposed_case(
     case = cast(VulnerabilityCase, dl.read(case.id_))
     proposals: dict[str, str] = {}
     for d in days:
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/{d}d",
             context=case.id_,
             end_time=days_from_now(d),
@@ -155,7 +157,8 @@ def _own_proposal_case(
     """
     case, _cm, dl = make_case_with_manager(suffix, em_state=EM.NONE)
     case = cast(VulnerabilityCase, dl.read(case.id_))
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/own",
         context=case.id_,
         end_time=days_from_now(45),

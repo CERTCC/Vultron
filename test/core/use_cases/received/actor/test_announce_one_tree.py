@@ -24,8 +24,10 @@ from typing import Any
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -54,8 +56,11 @@ def dl() -> SqliteDataLayer:
 
 @pytest.fixture()
 def event(make_payload) -> Any:
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="One tree"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="One tree",
     )
     return make_payload(
         announce_vulnerability_case_activity(
@@ -71,6 +76,7 @@ def _anchor(dl: SqliteDataLayer) -> None:
             case_id=_CASE_ID,
             case_actor_id=_CASE_ACTOR_ID,
             invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
 
@@ -86,7 +92,7 @@ def _anchor(dl: SqliteDataLayer) -> None:
         (None, "an unaddressed copy is refused (HP-01-005)"),
         ({"object_": None}, "Announce carries no case object"),
         (
-            {"object_": as_VulnerabilityReport(name="Not a case")},
+            {"object_": make(as_VulnerabilityReport, name="Not a case")},
             "Announce object is not a VulnerabilityCase (VulnerabilityReport)",
         ),
         (

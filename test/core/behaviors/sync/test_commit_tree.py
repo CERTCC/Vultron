@@ -8,7 +8,9 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
@@ -69,7 +71,8 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         actor_participant_index={
@@ -80,7 +83,12 @@ def case_obj(datalayer):
     # The fan-out reads each roster entry's record (CM-10-007).
     for actor_id, pid in case.actor_participant_index.items():
         datalayer.save(
-            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+            make(
+                CaseParticipant,
+                id_=pid,
+                attributed_to=actor_id,
+                context=CASE_ID,
+            )
         )
     datalayer.save(case)
     return case
@@ -95,6 +103,7 @@ def _make_entry(log_index: int, prev_hash: str):
             semantic_type="test_event",
             payload_snapshot={},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 

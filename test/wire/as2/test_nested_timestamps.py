@@ -43,6 +43,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
+from test.support.objects import make
 from test.support.received import extract_stamped
 from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import CoreObject
@@ -530,10 +531,13 @@ def test_replicated_ledger_entry_keeps_the_case_actor_stamps():
 def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
     key: str,
 ):
-    """An entry missing a time it must carry is refused, not stamped locally."""
+    """An entry missing a time it must carry is refused, not stamped locally.
+
+    Refused for that field: no model default supplies the time (ADR-0176).
+    """
     entry = {k: v for k, v in LEDGER_ENTRY.items() if k != key}
 
-    with pytest.raises(VultronParseValidationError):
+    with pytest.raises(VultronParseValidationError, match=key):
         parse_activity(_body(entry, "Announce"))
 
 
@@ -690,6 +694,6 @@ def test_authored_case_without_statuses_is_seeded():
     """The refusal is the inbound path's: a case this process builds is seeded."""
     from vultron.core.models.case import VulnerabilityCase
 
-    case = VulnerabilityCase(attributed_to=ACTOR, id_=CASE_ID)
+    case = make(VulnerabilityCase, attributed_to=ACTOR, id_=CASE_ID)
 
     assert len(case.case_statuses) == 1

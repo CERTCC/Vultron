@@ -21,6 +21,7 @@ the compare-and-set refuses rather than overwriting it (EP-02-007).
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import CoreActor, VultronOrganization
 
@@ -40,7 +41,7 @@ def _renamed(actor: CoreActor, name: str) -> CoreActor:
 @pytest.fixture
 def seeded(dl: SqliteDataLayer) -> CoreActor:
     """The profile as a caller reads it before modifying it."""
-    dl.save(VultronOrganization(id_=_ACTOR_ID, name="Original"))
+    dl.save(make(VultronOrganization, id_=_ACTOR_ID, name="Original"))
     return _stored(dl)
 
 
@@ -63,15 +64,17 @@ class TestSaveIfUnchanged:
 
     @pytest.mark.spec("DL-02-003")
     def test_refuses_a_record_that_is_not_stored(self, dl):
-        absent = VultronOrganization(id_=_ACTOR_ID, name="Original")
+        absent = make(VultronOrganization, id_=_ACTOR_ID, name="Original")
 
         assert dl.save_if_unchanged(_renamed(absent, "Mine"), absent) is False
         assert dl.read(_ACTOR_ID) is None
 
     @pytest.mark.spec("DL-02-003")
     def test_rejects_a_replacement_for_a_different_record(self, dl, seeded):
-        other = VultronOrganization(
-            id_="https://test.example/api/v2/actors/other", name="Other"
+        other = make(
+            VultronOrganization,
+            id_="https://test.example/api/v2/actors/other",
+            name="Other",
         )
 
         with pytest.raises(ValueError, match="different records"):
@@ -92,7 +95,7 @@ def test_refuses_a_write_committed_between_its_own_read_and_write(
     calls between the two — and the conditional ``UPDATE`` must then match no
     row, so the concurrent write survives.
     """
-    file_dl.save(VultronOrganization(id_=_ACTOR_ID, name="Original"))
+    file_dl.save(make(VultronOrganization, id_=_ACTOR_ID, name="Original"))
     expected = _stored(file_dl)
     real_from_row = file_dl._from_row
     interleaved: list[bool] = []

@@ -23,7 +23,9 @@ Verifies:
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
@@ -72,7 +74,8 @@ def _seed_ledger_entry(
 
     _ledger_counter[case_id] = _ledger_counter.get(case_id, -1) + 1
     index = _ledger_counter[case_id]
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id=case_id,
         log_index=index,
         log_object_id=object_id,
@@ -80,6 +83,8 @@ def _seed_ledger_entry(
         payload_snapshot=payload_snapshot or {},
         prev_log_hash="",
         entry_hash="",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     dl.save(entry)
     return entry
@@ -98,8 +103,11 @@ def dl():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="CLP11Test"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="CLP11Test",
     )
     layer.create(case)
     return layer

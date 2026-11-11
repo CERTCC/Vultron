@@ -45,6 +45,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.helpers.story import Story, StoryState, story
@@ -266,7 +267,8 @@ class TestDumpRunsAfterMidStoryFailure:
         module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/issue-2239",
         )
@@ -301,7 +303,8 @@ class TestDumpRunsAfterMidStoryFailure:
         module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/issue-2239-mask",
         )

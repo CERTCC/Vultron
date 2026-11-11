@@ -32,6 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -104,11 +105,12 @@ def _make_remove_event(
             ledger_position=TEST_SENDER_POSITION,
             activity_id=activity_id,
             actor_id=sender,
-            object_=CoreObject(id_=embargo.id_),
-            origin=CoreObject(id_=case.id_),
+            object_=make(CoreObject, id_=embargo.id_),
+            origin=make(CoreObject, id_=case.id_),
             receiving_actor_id=receiver,
             termination_reason=TerminationReason.EARLY,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 id_=activity_id,
                 type_="Remove",
                 actor=sender,

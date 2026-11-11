@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.support.signing import resigned, signed_body
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -58,7 +59,8 @@ _END = datetime(2099, 6, 1, tzinfo=UTC)
 
 
 def _report() -> as_VulnerabilityReport:
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/r-001",
         attributed_to=_FINDER,
         content="An overflow in the widget parser.",
@@ -66,7 +68,8 @@ def _report() -> as_VulnerabilityReport:
 
 
 def _proposal_for(report: as_VulnerabilityReport) -> EmbargoEvent:
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=f"{report.id_}/embargo_proposals/1",
         context=report.id_,
         end_time=_END,
@@ -116,7 +119,7 @@ def test_factory_carries_the_proposal_under_its_wire_name() -> None:
 def test_factory_refuses_a_proposal_about_something_else() -> None:
     """Before a case exists the subject is the report; a stray context is a bug."""
     report = _report()
-    other = EmbargoEvent(context=_CASE, end_time=_END)
+    other = make(EmbargoEvent, context=_CASE, end_time=_END)
     with pytest.raises(VultronActivityConstructionError, match="EP-04-009"):
         rm_submit_report_activity(
             report, to=_VENDOR, actor=_FINDER, proposed_embargo=other
@@ -198,7 +201,8 @@ def test_a_proposal_named_by_reference_is_read_as_absent(
 def _case_proposal(offer: as_Offer | None = None) -> as_CaseProposal:
     report = _report()
     offer = offer if offer is not None else _offer(report)
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_="https://example.org/proposals/p-001",
         attributed_to=_VENDOR,
         object_=report,
@@ -212,8 +216,9 @@ def _case_proposal(offer: as_Offer | None = None) -> as_CaseProposal:
 @pytest.mark.spec("CP-01-008")
 def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
     """An activity nested inside an object: the first such shape in the vocab."""
-    activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR),
         object_=_case_proposal(),
         to=[_CASE_ACTOR],
     )
@@ -237,7 +242,8 @@ def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
 def test_case_proposal_refuses_provenance_that_names_a_different_offer():
     offer = _offer()
     with pytest.raises(ValueError, match="CP-01-020"):
-        as_CaseProposal(
+        make(
+            as_CaseProposal,
             attributed_to=_VENDOR,
             object_=_report(),
             target=_CASE_ACTOR,
@@ -248,16 +254,20 @@ def test_case_proposal_refuses_provenance_that_names_a_different_offer():
 
 @pytest.mark.spec("CP-01-008")
 def test_case_proposal_without_the_offer_still_validates():
-    proposal = as_CaseProposal(
-        attributed_to=_VENDOR, object_=_report(), target=_CASE_ACTOR
+    proposal = make(
+        as_CaseProposal,
+        attributed_to=_VENDOR,
+        object_=_report(),
+        target=_CASE_ACTOR,
     )
     assert proposal.in_reply_to is None
 
 
 @pytest.mark.spec("EP-04-004")
 def test_extraction_surfaces_the_proposal_on_the_case_proposal_event():
-    activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR),
         object_=_case_proposal(),
         to=[_CASE_ACTOR],
     )
@@ -270,8 +280,9 @@ def test_extraction_surfaces_the_proposal_on_the_case_proposal_event():
 
 def test_case_proposal_without_terms_extracts_none():
     offer = rm_submit_report_activity(_report(), to=_VENDOR, actor=_FINDER)
-    activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=_VENDOR),
         object_=_case_proposal(offer),
         to=[_CASE_ACTOR],
     )
@@ -284,7 +295,8 @@ def test_case_proposal_without_terms_extracts_none():
 def test_case_proposal_refuses_a_sender_that_is_not_the_inline_offers_actor():
     offer = _offer()
     with pytest.raises(ValueError, match="offerActorId"):
-        as_CaseProposal(
+        make(
+            as_CaseProposal,
             attributed_to=_VENDOR,
             object_=_report(),
             target=_CASE_ACTOR,
@@ -325,14 +337,16 @@ def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
 def test_case_proposal_refuses_an_offer_for_a_different_report():
     """The inline Offer must be the one that brought *this* report; otherwise
     the case-actor would read another report's proposed terms."""
-    other = as_VulnerabilityReport(
+    other = make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/r-999",
         attributed_to=_FINDER,
         content="A different report.",
     )
     offer = _offer(other)
     with pytest.raises(ValueError, match="not the report"):
-        as_CaseProposal(
+        make(
+            as_CaseProposal,
             attributed_to=_VENDOR,
             object_=_report(),
             target=_CASE_ACTOR,

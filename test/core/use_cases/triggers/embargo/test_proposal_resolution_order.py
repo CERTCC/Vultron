@@ -46,6 +46,7 @@ from test.support.embargo_register import (
     reject,
     write_consent_rows,
 )
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -101,7 +102,8 @@ def _build_case_with_two_open_proposals(
     Returns the case plus the proposal IDs of the later- and earlier-expiring
     proposals, in that order.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Two open embargo proposals",
         attributed_to=owner_id,
     )
@@ -110,12 +112,14 @@ def _build_case_with_two_open_proposals(
     # (ADR-0074), so assigning ``end_time`` afterwards raises and would make
     # these tests fail for a reason that has nothing to do with EP-08.
     start = now_utc()
-    later = as_EmbargoEvent(
+    later = make(
+        as_EmbargoEvent,
         context=case.id_,
         start_time=start,
         end_time=start + timedelta(days=90),
     )
-    earlier = as_EmbargoEvent(
+    earlier = make(
+        as_EmbargoEvent,
         context=case.id_,
         start_time=start,
         end_time=start + timedelta(days=30),
@@ -128,16 +132,21 @@ def _build_case_with_two_open_proposals(
         earlier, context=case.id_, actor=owner_id
     )
 
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = ReporterParticipant(
+    participant = make(
+        ReporterParticipant,
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[
-            EmbargoConsent(embargo_id=eid, state=EmbargoConsentState.INVITED)
+            EmbargoConsent(
+                embargo_id=eid,
+                state=EmbargoConsentState.INVITED,
+            )
             for eid in (later.id_, earlier.id_)
         ],
     )
@@ -147,7 +156,8 @@ def _build_case_with_two_open_proposals(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    in_force = as_EmbargoEvent(
+    in_force = make(
+        as_EmbargoEvent,
         context=case.id_,
         start_time=start,
         end_time=start + timedelta(days=120),
@@ -252,13 +262,15 @@ def _build_case_with_one_open_proposal(
     nothing — which is the shape ``_build_active_embargo_case`` produces and
     ``test_accept.py`` already covers.  EP-08-003 is about the *decision* path.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="One open embargo proposal",
         attributed_to=owner_id,
     )
 
     start = now_utc()
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context=case.id_,
         start_time=start,
         end_time=start + timedelta(days=30),
@@ -267,16 +279,21 @@ def _build_case_with_one_open_proposal(
         embargo, context=case.id_, actor=owner_id
     )
 
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = ReporterParticipant(
+    participant = make(
+        ReporterParticipant,
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[
-            EmbargoConsent(embargo_id=eid, state=EmbargoConsentState.INVITED)
+            EmbargoConsent(
+                embargo_id=eid,
+                state=EmbargoConsentState.INVITED,
+            )
             for eid in (embargo.id_,)
         ],
     )
@@ -358,13 +375,14 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
     """
     _finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
-    case = VulnerabilityCase(
-        name="Three open proposals", attributed_to=owner.id_
+    case = make(
+        VulnerabilityCase, name="Three open proposals", attributed_to=owner.id_
     )
     start = now_utc()
     proposals: dict[int, str] = {}
     for days in (60, 15, 30):
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             context=case.id_,
             start_time=start,
             end_time=start + timedelta(days=days),

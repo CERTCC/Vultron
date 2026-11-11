@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -40,7 +41,9 @@ _CONTEXT = "https://example.org/cases/case-001"
 
 
 def _make(attributed_to=_ACTOR, context=_CONTEXT, **kw) -> CaseParticipant:
-    return CaseParticipant(attributed_to=attributed_to, context=context, **kw)
+    return make(
+        CaseParticipant, attributed_to=attributed_to, context=context, **kw
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -100,19 +103,22 @@ class TestSetNameIfEmpty:
 
     def test_name_derived_from_attributed_to_string(self):
         """When name is None and attributed_to is a string, name = attributed_to."""
-        p = CaseParticipant(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(CaseParticipant, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.name == _ACTOR
 
     def test_explicit_name_preserved(self):
         """When name is provided it is not overwritten."""
-        p = CaseParticipant(
-            attributed_to=_ACTOR, context=_CONTEXT, name="Explicit"
+        p = make(
+            CaseParticipant,
+            attributed_to=_ACTOR,
+            context=_CONTEXT,
+            name="Explicit",
         )
         assert p.name == "Explicit"
 
     def test_name_none_when_attributed_to_none(self):
         """When both name and attributed_to are None, name stays None."""
-        p = CaseParticipant()
+        p = make(CaseParticipant)
         assert p.name is None
 
     def test_name_derived_from_the_as2_spelling(self):
@@ -148,7 +154,8 @@ class TestInitParticipantStatusIfEmpty:
 
     def test_pre_populated_list_preserved(self):
         """When participant_statuses is non-empty the validator does not replace it."""
-        existing = ParticipantStatus(
+        existing = make(
+            ParticipantStatus,
             context=_CONTEXT,
             attributed_to=_ACTOR,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -191,7 +198,8 @@ class TestParticipantStatusProperty:
     def test_returns_last_element(self):
         """participant_status returns participant_statuses[-1]."""
         p = _make()
-        second = ParticipantStatus(
+        second = make(
+            ParticipantStatus,
             context=_CONTEXT,
             attributed_to=_ACTOR,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -222,7 +230,9 @@ class TestAddParticipantStatus:
     def test_valid_status_appended(self):
         p = _make()
         initial_len = len(p.participant_statuses)
-        status = ParticipantStatus(context=_CONTEXT, attributed_to=_ACTOR)
+        status = make(
+            ParticipantStatus, context=_CONTEXT, attributed_to=_ACTOR
+        )
         p.add_participant_status(status)
         assert len(p.participant_statuses) == initial_len + 1
         assert p.participant_statuses[-1] is status
@@ -236,7 +246,7 @@ class TestAddParticipantStatus:
         # so the status is accepted rather than refused.  ``test_rejects_non_status_object``
         # below still covers a genuinely wrong type.
         p = _make()
-        wire_status = as_ParticipantStatus(context=_CONTEXT)
+        wire_status = make(as_ParticipantStatus, context=_CONTEXT)
         p.add_participant_status(wire_status)
         assert p.participant_statuses[-1] is wire_status
 
@@ -267,7 +277,7 @@ class TestRoleSubclasses:
     @pytest.mark.parametrize("cls,expected_roles", _ROLE_SUBCLASS_CASES)
     def test_case_roles_set_by_validator(self, cls, expected_roles):
         """Role subclass sets exactly the expected roles."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert set(p.case_roles) == set(expected_roles), (
             f"{cls.__name__} should have roles {expected_roles}, "
             f"got {p.case_roles}"
@@ -281,7 +291,7 @@ class TestRoleSubclasses:
     @pytest.mark.parametrize("cls,expected_roles", _ROLE_SUBCLASS_CASES)
     def test_type_still_case_participant(self, cls, expected_roles):
         """All role subclasses retain type_ == 'CaseParticipant'."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.type_ == "CaseParticipant"
 
 
@@ -345,7 +355,7 @@ class TestAcceptedStatusOnReporterSubclasses:
 
     def test_participant_status_accepted(self):
         """ReporterParticipant starts with RM.ACCEPTED participant status."""
-        p = ReporterParticipant(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(ReporterParticipant, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
         assert p.participant_status.rm.state == RM.ACCEPTED
 
@@ -354,7 +364,7 @@ class TestAcceptedStatusOnReporterSubclasses:
     )
     def test_non_reporter_status_rm_start(self, cls):
         """Non-reporter subclasses start at RM.START."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
         assert p.participant_status.rm.state == RM.START
 
@@ -530,12 +540,16 @@ class TestRsvpDeadlineOnTheRow:
     @pytest.mark.spec("CM-28-013")
     def test_only_an_invited_row_carries_a_deadline(self):
         EmbargoConsent(
-            embargo_id=_EMBARGO, state=S.INVITED, rsvp_deadline=_DEADLINE
+            embargo_id=_EMBARGO,
+            state=S.INVITED,
+            rsvp_deadline=_DEADLINE,
         )
         for state in (S.UNINVITED, S.AGREED, S.DECLINED, S.TIMED_OUT):
             with pytest.raises(ValidationError):
                 EmbargoConsent(
-                    embargo_id=_EMBARGO, state=state, rsvp_deadline=_DEADLINE
+                    embargo_id=_EMBARGO,
+                    state=state,
+                    rsvp_deadline=_DEADLINE,
                 )
 
     @pytest.mark.spec("CM-28-006")
@@ -862,7 +876,8 @@ _REMOVAL_ID = "https://example.org/activities/remove-1"
 
 
 def _participant_for_removal() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/case-1",
     )

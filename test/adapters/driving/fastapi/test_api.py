@@ -21,6 +21,7 @@ Provides API v2 tests
 
 from datetime import timedelta
 
+from test.support.objects import make
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models._helpers import clock as helpers_clock, now_utc
 from vultron.demo.determinism import SteppingClock
@@ -83,7 +84,8 @@ def test_datalayer_get_existing_actor(
     round-trip equality below is a claim about what was stored, not about
     timing (#3726).
     """
-    actor = as_Person(
+    actor = make(
+        as_Person,
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))
@@ -108,7 +110,8 @@ def test_datalayer_get_existing_actor_by_id(
     Same clock pin as ``test_datalayer_get_existing_actor``: the read is in a
     later second than the create, deterministically (#3732).
     """
-    actor = as_Person(
+    actor = make(
+        as_Person,
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))

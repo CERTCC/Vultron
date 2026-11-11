@@ -165,10 +165,9 @@ def test_prepare_exploit_output_key_type_is_str():
 
 
 def test_prepare_exploit_docstring_has_blackboard_contract():
-    assert (
-        PrepareExploit.__doc__
-        and "Blackboard contract" in PrepareExploit.__doc__
-    )
+    declaration = PrepareExploit.declaration()
+    assert declaration is not None
+    assert "Blackboard contract" in (declaration.__doc__ or "")
 
 
 def test_reprioritize_exploit_base_type():
@@ -196,7 +195,9 @@ def test_prepare_fix_output_key_type_is_str():
 
 
 def test_prepare_fix_docstring_has_blackboard_contract():
-    assert PrepareFix.__doc__ and "Blackboard contract" in PrepareFix.__doc__
+    declaration = PrepareFix.declaration()
+    assert declaration is not None
+    assert "Blackboard contract" in (declaration.__doc__ or "")
 
 
 def test_reprioritize_fix_base_type():

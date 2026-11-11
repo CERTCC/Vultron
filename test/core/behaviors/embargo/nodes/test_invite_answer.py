@@ -30,6 +30,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -62,14 +63,18 @@ def _store(
 ):
     """The invitee's store, holding the Invite the CASE_MANAGER relayed."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
-    embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(45),
     )
     if with_embargo:
         dl.create(embargo)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER)
     if with_manager:
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{CASE_ID}/participants/cm",
             attributed_to=MANAGER,
             context=CASE_ID,
@@ -77,7 +82,8 @@ def _store(
         )
         dl.create(manager)
         case.actor_participant_index[MANAGER] = manager.id_
-    invitee = as_CaseParticipant(
+    invitee = make(
+        as_CaseParticipant,
         id_=f"{CASE_ID}/participants/vendor",
         attributed_to=INVITEE,
         context=CASE_ID,

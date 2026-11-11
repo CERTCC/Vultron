@@ -29,6 +29,7 @@ import pytest
 from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -85,15 +86,19 @@ def _proposer_with_pending_proposal(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PROPOSER)
     for actor_id in (_PROPOSER, _MANAGER, _OTHER):
-        dl.create(as_Service(id_=actor_id, name=actor_id.rsplit("/", 1)[-1]))
-    case = VulnerabilityCase(name="Refusal case", attributed_to=_MANAGER)
-    manager = VendorParticipant(
+        dl.create(
+            make(as_Service, id_=actor_id, name=actor_id.rsplit("/", 1)[-1])
+        )
+    case = make(VulnerabilityCase, name="Refusal case", attributed_to=_MANAGER)
+    manager = make(
+        VendorParticipant,
         attributed_to=manager_roster_id,
         context=case.id_,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
     finders = [
-        ReporterParticipant(
+        make(
+            ReporterParticipant,
             attributed_to=actor_id,
             context=case.id_,
         )
@@ -111,13 +116,17 @@ def _proposer_with_pending_proposal(
     for participant in (manager, *finders):
         dl.create(participant)
 
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(30))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(30)
+    )
     proposal = em_propose_embargo_activity(
         embargo=embargo, context=case.id_, actor=_PROPOSER, to=[_MANAGER]
     )
     dl.create(embargo)
     dl.create(proposal)
-    record_pending_assertion(_PROPOSER, case.id_, _INVITE, proposal.id_)
+    record_pending_assertion(
+        _PROPOSER, case.id_, _INVITE, proposal.id_, at=now_utc()
+    )
     return dl, case, proposal
 
 
@@ -282,6 +291,7 @@ def test_the_managers_reject_judges_the_pending_accept_at_the_acts_instant(
         _ACCEPT,
         f"{case.id_}/activities/pending-accept",
         subject_id=proposal.id_,
+        at=now_utc(),
     )
     emitted = now_utc()
     accept = store.pending_for_subject(

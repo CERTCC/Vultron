@@ -30,6 +30,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -171,14 +172,16 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         delivery there, naming the case rather than the tree (HP-01-039,
         HP-01-040).
         """
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/nope/embargo_events/e1",
             context="https://example.org/cases/nope",
             end_time=days_from_now(45),
         )
         activity = factory(
             embargo,
-            target=as_VulnerabilityCase(
+            target=make(
+                as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/nope",
             ),
@@ -221,12 +224,14 @@ class TestFailedTeardownIsRefused:
         monkeypatch.setattr(nodes.ClearActiveEmbargoNode, "update", _fail)
 
         dl = _make_dl()
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_tdf",
             name="Teardown Failure",
             attributed_to=_COORD,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_tdf/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -239,8 +244,8 @@ class TestFailedTeardownIsRefused:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            origin=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_VENDOR,
             to=[_COORD],

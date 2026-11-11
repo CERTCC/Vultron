@@ -27,6 +27,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -119,28 +120,36 @@ class _World:
     """
 
     def __init__(self, end_time: datetime) -> None:
-        self.manager = as_Service(name="Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.stranger = as_Service(name="Stranger Co")
+        self.manager = make(as_Service, name="Vendor Co")
+        self.finder = make(as_Service, name="Finder Co")
+        self.stranger = make(as_Service, name="Stranger Co")
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.manager.id_
         )
         self.dl.create(self.manager)
         self.dl.create(self.finder)
         self.dl.create(self.stranger)
-        case = VulnerabilityCase(
-            name="End-time case", attributed_to=self.manager.id_
+        case = make(
+            VulnerabilityCase,
+            name="End-time case",
+            attributed_to=self.manager.id_,
         )
-        self.embargo = as_EmbargoEvent(context=case.id_, end_time=end_time)
-        self.revision = as_EmbargoEvent(
-            context=case.id_, end_time=end_time + timedelta(days=30)
+        self.embargo = make(
+            as_EmbargoEvent, context=case.id_, end_time=end_time
         )
-        owner = VendorParticipant(
-            attributed_to=self.manager.id_, context=case.id_
+        self.revision = make(
+            as_EmbargoEvent,
+            context=case.id_,
+            end_time=end_time + timedelta(days=30),
+        )
+        owner = make(
+            VendorParticipant, attributed_to=self.manager.id_, context=case.id_
         )
         owner.add_role(CVDRole.CASE_MANAGER)
-        finder = ReporterParticipant(
-            attributed_to=self.finder.id_, context=case.id_
+        finder = make(
+            ReporterParticipant,
+            attributed_to=self.finder.id_,
+            context=case.id_,
         )
         case.case_participants = [owner.id_, finder.id_]
         case.actor_participant_index = {
@@ -178,7 +187,8 @@ class _World:
         # refused whole, so a regression would refuse it outright (RSH-09-001).
         current = self.finder_participant.participant_status
         assert current is not None
-        status = as_ParticipantStatus(
+        status = make(
+            as_ParticipantStatus,
             context=self.case_id,
             attributed_to=sender_id,
             rm=RmDimension(state=current.rm.state),
@@ -588,8 +598,10 @@ def test_a_threat_status_records_the_signals_it_carries() -> None:
     """The cascade a received threat status starts records ``EARLY`` on the
     wire and ``THREAT_SIGNAL`` with the status's signals on the entry."""
     world = _World(end_time=days_from_now(10))
-    status = as_CaseStatus(
-        context=world.case_id, pxa=PxaDimension(state=CS_pxa.PXa)
+    status = make(
+        as_CaseStatus,
+        context=world.case_id,
+        pxa=PxaDimension(state=CS_pxa.PXa),
     )
 
     result = run_tree(

@@ -23,6 +23,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
 )
@@ -64,7 +65,8 @@ class TestCheckCaseStatusIdempotencyNodePorts:
     def test_success_when_status_not_yet_present(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Test Case",
             attributed_to=ACTOR_ID,
@@ -94,7 +96,8 @@ class TestAllParticipantsRMClosedConditionNodePorts:
     def test_failure_when_no_participants(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Test Case",
             attributed_to=ACTOR_ID,
@@ -111,29 +114,36 @@ class TestAllParticipantsRMClosedConditionNodePorts:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """Every joined participant closed; an unanswered invitee is skipped."""
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
         )
-        closed = CaseParticipant(
+        closed = make(
+            CaseParticipant,
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.VENDOR],
         )
         closed.participant_statuses = [
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=ACTOR_ID,
                 rm=RmDimension(state=RM.CLOSED),
             )
         ]
-        silent = CaseParticipant(
+        silent = make(
+            CaseParticipant,
             attributed_to=INVITEE_ID,
             context=CASE_ID,
             case_roles=[CVDRole.VENDOR],
             joined=False,
         )
         silent.participant_statuses = [
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=INVITEE_ID,
                 rm=RmDimension(state=RM.RECEIVED),

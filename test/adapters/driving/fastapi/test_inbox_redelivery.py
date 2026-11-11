@@ -44,6 +44,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
+from test.support.objects import make
 from test.support.received import delivered_body
 from test.support.signing import resigned, serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -92,8 +93,10 @@ _API_PREFIX = "/api/v2"
 
 def _create_report_body() -> dict[str, Any]:
     """A ``Create(VulnerabilityReport)`` addressed to the test actor."""
-    report = as_VulnerabilityReport(
-        name="Redelivery Test Report", content="test body"
+    report = make(
+        as_VulnerabilityReport,
+        name="Redelivery Test Report",
+        content="test body",
     )
     activity = rm_create_report_activity(
         report=report,
@@ -189,7 +192,8 @@ def actor_client():
         # Lifespan has run; auto-injected per-actor registry is live.
         factory = app.dependency_overrides[get_actor_dl]
         store: SqliteDataLayer = factory(_ACTOR_SLUG)
-        actor = CoreActor(
+        actor = make(
+            CoreActor,
             id_=_ACTOR_ID,
             name="Redelivery Test Actor",
             inbox=f"{_ACTOR_ID}/inbox",

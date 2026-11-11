@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import activate, propose, terminate
+from test.support.objects import make
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import (
@@ -137,7 +138,9 @@ def test_a_threat_request_with_no_signal_anywhere_is_refused() -> None:
     ],
 )
 def test_the_terminated_entry_records_the_termination(termination) -> None:
-    case = VulnerabilityCase(name="c", attributed_to="https://example.org/o")
+    case = make(
+        VulnerabilityCase, name="c", attributed_to="https://example.org/o"
+    )
     activate(case, A)
     propose(case, B)
 
@@ -166,7 +169,9 @@ def test_only_a_terminated_entry_carries_a_termination() -> None:
 
 
 def test_the_termination_step_carries_the_termination() -> None:
-    case = VulnerabilityCase(name="c", attributed_to="https://example.org/o")
+    case = make(
+        VulnerabilityCase, name="c", attributed_to="https://example.org/o"
+    )
     activate(case, A)
     (change,) = termination_changes(
         case.embargo_register, EmbargoTermination.end_time_reached()
@@ -175,7 +180,9 @@ def test_the_termination_step_carries_the_termination() -> None:
 
 
 def test_a_case_with_no_ended_embargo_records_no_termination() -> None:
-    case = VulnerabilityCase(name="c", attributed_to="https://example.org/o")
+    case = make(
+        VulnerabilityCase, name="c", attributed_to="https://example.org/o"
+    )
     activate(case, A)
     assert case.embargo_termination is None
 

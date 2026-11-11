@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
@@ -88,8 +89,11 @@ def test_a_staged_non_case_shadows_the_store_for_read_case(
 ) -> None:
     case = _case(dl)
     staged = StagedCasePersistence(dl)
-    embargo = as_EmbargoEvent(
-        id_=case.id_, context=case.id_, end_time=days_from_now(9)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=case.id_,
+        context=case.id_,
+        end_time=days_from_now(9),
     )
     staged.save(embargo)
 
@@ -112,7 +116,9 @@ def test_a_staged_create_is_read_back_and_refused_twice(
 ) -> None:
     case = _case(dl)
     staged = StagedCasePersistence(dl)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(9))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(9)
+    )
     staged.create(embargo)
 
     assert staged.read(embargo.id_) == embargo

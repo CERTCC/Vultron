@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
@@ -90,7 +91,8 @@ def test_core_object_absent_inbound_time_stays_none(field):
 @pytest.mark.spec("CS-13-001")
 def test_subclass_inherits_normalisation():
     """A collapsed type (here ``CaseParticipant``) gets the same guarantee."""
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to="https://example.org/actors/vendor",
         context="urn:uuid:case",
         published=NAIVE_DT,

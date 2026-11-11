@@ -19,6 +19,7 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
@@ -31,15 +32,17 @@ def actor_id() -> str:
 
 @pytest.fixture
 def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
-    obj = VultronService(id_=actor_id, name="Vendor Co")
+    obj = make(VultronService, id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
-    obj = VulnerabilityReport(
-        name="TEST-001", content="Test vulnerability report"
+    obj = make(
+        VulnerabilityReport,
+        name="TEST-001",
+        content="Test vulnerability report",
     )
     bt_scenario.dl.create(obj)
     return obj
@@ -49,7 +52,8 @@ def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
 def case_obj(
     bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",

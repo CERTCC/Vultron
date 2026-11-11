@@ -27,6 +27,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import (
     SyncActivityAdapter,
@@ -56,6 +57,7 @@ def _entry(index: int) -> CaseLedgerEntry:
             semantic_type="add_note",
             payload_snapshot={"log_index": index},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

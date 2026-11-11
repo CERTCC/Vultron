@@ -16,6 +16,8 @@ from collections.abc import Iterator
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -49,14 +51,15 @@ def dl() -> Iterator[SqliteDataLayer]:
 
 def _note():
     return add_note_to_case_activity(
-        as_Note(id_=f"{_CASE}/notes/1", content="n", context=_CASE),
+        make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
     )
 
 
 def _entry(log_index: int, prev: str, entry_hash: str) -> CaseLedgerEntry:
-    return CaseLedgerEntry(
+    return make(
+        CaseLedgerEntry,
         case_id=_CASE,
         log_index=log_index,
         log_object_id=f"{_CASE}/activities/{log_index}",
@@ -64,12 +67,14 @@ def _entry(log_index: int, prev: str, entry_hash: str) -> CaseLedgerEntry:
         payload_snapshot={},
         prev_log_hash=prev,
         entry_hash=entry_hash,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 
 @pytest.mark.spec("SYNC-18-001")
 def test_a_store_holding_the_case_stamps_its_empty_ledger(dl) -> None:
-    case = VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR)
+    case = make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR)
     dl.create(case)
 
     stamped = with_sender_ledger_position(dl, _note())
@@ -100,8 +105,8 @@ def test_a_store_holding_no_ledger_for_the_case_stamps_nothing(dl) -> None:
 
 @pytest.mark.spec("SYNC-18-001")
 def test_something_that_is_no_activity_passes_through(dl) -> None:
-    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
-    note = as_Note(id_=f"{_CASE}/notes/2", content="n", context=_CASE)
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
+    note = make(as_Note, id_=f"{_CASE}/notes/2", content="n", context=_CASE)
 
     assert with_sender_ledger_position(dl, note) is note
 
@@ -110,7 +115,7 @@ def test_something_that_is_no_activity_passes_through(dl) -> None:
 def test_a_processing_fault_from_a_case_holder_carries_no_position(
     dl,
 ) -> None:
-    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
 
     fault_id = TriggerActivityAdapter(dl).emit_processing_fault(
         actor=_ACTOR,
@@ -129,8 +134,10 @@ def test_a_processing_fault_from_a_case_holder_carries_no_position(
 def test_the_stored_activity_and_its_sealed_body_carry_one_position(
     dl,
 ) -> None:
-    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
-    dl.create(as_Note(id_=f"{_CASE}/notes/3", content="n", context=_CASE))
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
+    dl.create(
+        make(as_Note, id_=f"{_CASE}/notes/3", content="n", context=_CASE)
+    )
 
     activity_id, _ = TriggerActivityAdapter(dl).add_note_to_case(
         note_id=f"{_CASE}/notes/3", case_id=_CASE, actor=_ACTOR
@@ -163,7 +170,7 @@ def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
 
 @pytest.mark.spec("SYNC-16-027")
 def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
-    case = VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR)
+    case = make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR)
     dl.create(case)
 
     SyncActivityAdapter(dl).send_genesis_replay_reject(
@@ -191,7 +198,7 @@ def test_a_genesis_replay_repeat_under_another_announce_names_the_first(
     """``inReplyTo`` does not key the genesis-replay Reject's id, so a repeat
     for the same copy under another Announce sends the stored body, which
     names the first Announce."""
-    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
+    dl.create(make(VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR))
     adapter = SyncActivityAdapter(dl)
     first_announce = "https://example.org/activities/first-copy-announce"
 

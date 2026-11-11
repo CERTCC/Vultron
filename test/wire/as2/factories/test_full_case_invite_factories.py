@@ -20,6 +20,7 @@ import json
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     rm_accept_full_case_invite_activity,
@@ -39,7 +40,7 @@ _OWN = LedgerPosition(log_index=5, entry_hash="ef" * 32)
 
 def _invite():
     return rm_invite_to_full_case_activity(
-        as_Organization(id_=_INVITEE),
+        make(as_Organization, id_=_INVITEE),
         _CASE,
         _FLOOR,
         actor=_MANAGER,
@@ -100,7 +101,7 @@ def test_a_non_full_case_invite_cannot_be_answered():
     )
 
     stub_invite = rm_invite_to_case_activity(
-        as_Organization(id_=_INVITEE),
+        make(as_Organization, id_=_INVITEE),
         target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
         actor=_MANAGER,
     )

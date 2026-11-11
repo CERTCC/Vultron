@@ -42,19 +42,18 @@ Ceiling/floor mapping (BT-23-002, p→deterministic):
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import ClassVar, Final
+from typing import Final
 
 import py_trees
 
-from vultron.core.behaviors.call_out.answer import (
-    CallOutAnswer,
-    CallOutContract,
-)
-from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.eligibility import (
+    CVE_ELIGIBILITY_RATIONALE_KEY,
+    CVE_ELIGIBILITY_VERDICT_KEY,
+    EvaluateCveEligibilityCapability,
+)
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -62,27 +61,6 @@ from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 #: backends apply (BTND-05-008, ADR-0071).  Adopting a newer edition means
 #: updating this value, the spec, and the implementing factory together.
 CNA_RULES_REFERENCE_EDITION: Final[str] = "4.1.0"
-
-#: Blackboard key for the ``EvaluateCveEligibility`` verdict (``bool``).
-CVE_ELIGIBILITY_VERDICT_KEY: Final[str] = "cve_eligibility_verdict"
-
-#: Blackboard key for the ``EvaluateCveEligibility`` rationale (``str``).
-CVE_ELIGIBILITY_RATIONALE_KEY: Final[str] = "cve_eligibility_rationale"
-
-#: Output keys every ``EvaluateCveEligibility`` backend gives on *yes*
-#: (BT-18-001, BT-18-002).
-CVE_ELIGIBILITY_OUTPUT_KEYS: Final[Mapping[str, type]] = MappingProxyType(
-    {
-        CVE_ELIGIBILITY_VERDICT_KEY: bool,
-        CVE_ELIGIBILITY_RATIONALE_KEY: str,
-    }
-)
-
-#: The ``EvaluateCveEligibility`` capability declaration (ADR-0183).  The
-#: simulation node binds to it rather than restating it.
-CVE_ELIGIBILITY_CONTRACT: Final[CallOutContract] = CallOutContract(
-    outputs=CVE_ELIGIBILITY_OUTPUT_KEYS
-)
 
 
 def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
@@ -93,28 +71,22 @@ def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
     return AlwaysFail(name)
 
 
-class DeterministicEvaluateCveEligibility(CallOutBackend):
+class DeterministicEvaluateCveEligibility(EvaluateCveEligibilityCapability):
     """DETERMINISTIC ``EvaluateCveEligibility``: always eligible, outputs given.
 
     The core ceiling backend for ``evaluate_cve_eligibility_factory``
     (BT-23-002).  It answers *yes*, reporting the vulnerability eligible for a
     CVE ID under CNA Operational Rules :data:`CNA_RULES_REFERENCE_EDITION`,
     and, because the capability declares output ports, carries both of them
-    rather than a bare *yes* (BT-23-013).  The seam writes them.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates the report from the caller's DataLayer)
-      Output keys: cve_eligibility_verdict: bool  (yes only)
-                   cve_eligibility_rationale: str  (yes only)
-      Refusal keys: call_out_refusal_reason: str  (no only)
+    rather than a bare *yes* (BT-23-013).  The seam writes them.  It binds
+    to :class:`EvaluateCveEligibilityCapability`, whose ports are its
+    blackboard contract (BT-18-021).
 
     Reference rules edition: CNA Operational Rules v4.1.0 (BTND-05-008).
     """
 
     #: Read-only rate interface parity with the simulation backends.
     success_rate: float = 1.0
-
-    contract: ClassVar[CallOutContract] = CVE_ELIGIBILITY_CONTRACT
 
     def answer(self) -> CallOutAnswer:
         return CallOutAnswer.yes(
@@ -216,8 +188,6 @@ __all__ = [
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "AssignCveIdCallOutBundle",
     "CNA_RULES_REFERENCE_EDITION",
-    "CVE_ELIGIBILITY_CONTRACT",
-    "CVE_ELIGIBILITY_OUTPUT_KEYS",
     "CVE_ELIGIBILITY_RATIONALE_KEY",
     "CVE_ELIGIBILITY_VERDICT_KEY",
     "DeterministicEvaluateCveEligibility",

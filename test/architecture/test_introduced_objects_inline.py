@@ -46,6 +46,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
+from test.support.objects import make
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -195,7 +196,7 @@ BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
     "offer_case_participant_role_activity": (
         lambda: offer_case_participant_role_activity(
             role=CVDRole.CASE_MANAGER,
-            target_actor=as_Actor(id_=_PEER),
+            target_actor=make(as_Actor, id_=_PEER),
             case=_CASE,
             actor=_ACTOR,
             to=[_PEER],
@@ -539,8 +540,11 @@ def test_a_case_naming_factory_carries_only_the_case_reference(factory, held):
     from vultron.core.models.case import VulnerabilityCase
 
     case: Any = (
-        VulnerabilityCase(
-            id_=_CASE, attributed_to=CASE_OWNER_ID, name="held copy"
+        make(
+            VulnerabilityCase,
+            id_=_CASE,
+            attributed_to=CASE_OWNER_ID,
+            name="held copy",
         )
         if held
         else _CASE
