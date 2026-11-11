@@ -183,7 +183,15 @@ def test_a_url_holding_another_object_type_is_refused():
         match=r"(?s)url.*A case reference's Link holds only",
     ):
         parse_activity(
-            _create(_reference({"type": "Note", "content": "not a link"}))
+            _create(
+                _reference(
+                    {
+                        "type": "Note",
+                        "id": "urn:test:note:1",
+                        "content": "not a link",
+                    }
+                )
+            )
         )
 
 
