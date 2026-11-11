@@ -26,10 +26,17 @@ from urllib.parse import urlparse
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.actor_resolution_tree import (
+    create_actor_resolution_tree,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ACTOR_RESOLUTION_DETERMINISTIC,
     ActorResolutionCallOutBundle,
+)
+from vultron.core.behaviors.call_out.capabilities.actor_resolution import (
+    PEER_ACTOR_ID_KEY,
+    RESOLVED_ACTOR_KEY,
 )
 from vultron.core.models.actor import CoreActor
 from vultron.errors import (
@@ -78,29 +85,41 @@ def _record_named_peer(
     was reachable, just not locally recorded (#2548, rcvcv).
 
     Recording it is the honest Actor Knowledge Model move: this actor has now
-    been told about that peer, so it legitimately knows it.  What it does not
-    have is the peer's details; the Retriever call-out in *call_out* is the
-    injectable seam for a real directory service (ADR-0024, ADR-0025).
+    been told about that peer, so it legitimately knows it.  What it may
+    lack is the peer's details, which the ResolveActorDetails Retriever in
+    *call_out* supplies when a source is wired (AKM-05-002, ADR-0024,
+    ADR-0025).
 
     The fact this function needs is whether this actor already knows the
     peer, and the actor's own store holds that, so the store is read first: a
     peer already recorded there is not looked up again (BT-18-039).  A
     second lookup would spend call-out budget on a peer the actor already
-    knows.  The record kept here is the URI alone, whatever the backend
-    answered, so a peer recorded after a failed lookup is not looked up again
-    either.
+    knows.  Whatever is recorded, the peer is then held, so a peer recorded
+    after a failed lookup is not looked up again either.
 
     Minting from an unvalidated string would accept anything, though, so the id
     has to be a deliverable URI first: it *is* the address outbound delivery
     posts to, and a typo'd or relative id becomes an unreachable participant
     that fails much later, in the delivery retry loop, with no trace back here.
 
-    The discovery backend runs as one tick of a ``BTBridge`` tree, acting as
-    *acting_actor_id*, so its ports are wired before ``update()`` (#2707).  A
-    backend that fails, returns RUNNING, or raises still ends in a minimal
-    peer: discovery never blocks the request.  A raise, RUNNING included, is
-    an internal error the bridge logs at ERROR with its traceback, before this
-    function's WARNING.
+    What is recorded:
+
+    - on *yes* with a record whose id is *actor_id*, that record, as the
+      source states it;
+    - otherwise the minimal record, the URI alone (AKM-05-001).  That covers
+      *no*, *error*, a raise, a ``RUNNING`` return, a *yes* without a record
+      and a *yes* whose record names another actor, such as the
+      DETERMINISTIC default's placeholder.  A record of another actor is
+      never stored under the peer's id, and the minimal record holds no
+      value nobody asserted (AKM-02-006, ADR-0159).
+
+    The discovery backend runs in a one-tick ``BTBridge`` tree
+    (:func:`~vultron.core.behaviors.actor_resolution_tree.create_actor_resolution_tree`),
+    acting as *acting_actor_id*, so its ports are wired before ``update()``
+    (#2707).  A backend that fails, returns RUNNING, or raises still ends in
+    a minimal peer: discovery never blocks the request.  A raise, RUNNING
+    included, is an internal error the bridge logs at ERROR with its
+    traceback, before this function's WARNING.
 
     Args:
         dl: The acting actor's own DataLayer.
@@ -108,17 +127,23 @@ def _record_named_peer(
         field: Name of the request field it came from, for the messages.
         acting_actor_id: The acting actor; the backend's tree runs as it.
         call_out: Actor-resolution call-out bundle; defaults to
-            :data:`ACTOR_RESOLUTION_DETERMINISTIC` (``AlwaysSucceed``).
-            Inject a directory-service backend to resolve actor details.
+            :data:`ACTOR_RESOLUTION_DETERMINISTIC`.  Build one over an
+            :class:`~vultron.core.ports.actor_resolution.ActorResolutionPort`
+            with
+            :func:`~vultron.core.behaviors.call_out.bundles.actor_resolution.actor_resolution_bundle`
+            to resolve actor details.
     """
     if dl.read(actor_id) is not None:
         return
     _require_deliverable_actor_uri(actor_id, field)
-    backend = call_out.resolve_actor_factory("ResolveActorDetails")
-    # Run the node through a BTBridge so py_trees setup() and initialise() run
+    kept: dict[str, CoreActor] = {}
+    tree = create_actor_resolution_tree(call_out.resolve_actor_factory, kept)
+    # Run the tree through a BTBridge so py_trees setup() and initialise() run
     # and the backend's ports (datalayer, actor_id) are wired (#2707); the
     # bundle hands out a SynchronousCallOut guard wrapper (BT-18-011) that
-    # needs its child ticked.
+    # needs its child ticked.  The peer's URI goes on the backend's input
+    # port, and the output port is cleared for the run, so a record an
+    # earlier run left there is never kept.
     #
     # A backend that returns RUNNING violates the synchronous-answer contract
     # and the guard rejects it by raising (BT-18-011).  The bridge never
@@ -128,14 +153,19 @@ def _record_named_peer(
     # details cannot be resolved, so it degrades the same as any other
     # non-SUCCESS rather than crashing the request; the WARNING below carries
     # the bridge's message, so the offending backend is named there too.
+    run_context: dict[str, Any] = {
+        PEER_ACTOR_ID_KEY: actor_id,
+        RESOLVED_ACTOR_KEY: None,
+    }
     result = BTBridge(datalayer=dl).execute_with_setup(
-        backend, actor_id=acting_actor_id, max_iterations=1
+        tree, actor_id=acting_actor_id, max_iterations=1, **run_context
     )
     status = result.status
-    reason = status.name
-    if result.feedback_message and status != Status.SUCCESS:
-        reason = f"{reason} ({result.feedback_message})"
+    record = kept.get(RESOLVED_ACTOR_KEY)
     if status != Status.SUCCESS:
+        reason = status.name
+        if result.feedback_message:
+            reason = f"{reason} ({result.feedback_message})"
         logger.warning(
             "actor resolution returned %s for %s '%s' — recording minimal peer"
             " (only URI known, not details)",
@@ -143,12 +173,26 @@ def _record_named_peer(
             field,
             actor_id,
         )
+        record = None
+    elif record is None or record.id_ != actor_id:
+        # INFO, not WARNING: the DETERMINISTIC default answers so on every
+        # unknown peer, as does any backend with nothing to add.
+        logger.info(
+            "actor resolution answered no record of %s '%s' (%s) — recording"
+            " minimal peer (only URI known, not details)",
+            field,
+            actor_id,
+            "none given" if record is None else f"record of '{record.id_}'",
+        )
+        record = None
     else:
         logger.debug(
-            "actor resolution succeeded for %s '%s' — recording peer",
+            "actor resolution resolved %s '%s' — recording its record",
             field,
             actor_id,
         )
-    # Only the URI is known: no clock time and no endpoint derived from the
-    # id, since the peer stated neither (AKM-02-006, ADR-0159).
-    dl.create(CoreActor(id_=actor_id, published=None, updated=None))
+    if record is None:
+        # Only the URI is known: no clock time and no endpoint derived from
+        # the id, since the peer stated neither (AKM-02-006, ADR-0159).
+        record = CoreActor(id_=actor_id, published=None, updated=None)
+    dl.create(record)

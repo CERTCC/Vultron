@@ -18,6 +18,8 @@ relevant_packages:
   - vultron/core/behaviors
   - vultron/core/use_cases
   - vultron/adapters/driving/fastapi
+  - vultron/adapters/driven
+  - vultron/core/ports
 related_notes:
   - notes/case-bootstrap-trust.md
   - notes/spec-authoring-rules.md
@@ -120,14 +122,25 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   creation (`hosted_endpoints`, `vultron/core/models/actor.py`), so its published
   profile carries both (ISSUE-3616). A peer record built with no endpoints
   passes `published=None, updated=None` too, or the base class stamps the clock.
-- **Actor resolution is an injectable Retriever call-out (AKM-05-002).** With no local
-  record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor/_peers.py`) asks
-  the injected `ActorResolutionCallOutBundle` before recording a minimal
-  `CoreActor`, which holds only the id (AKM-02-006). The default,
-  `ACTOR_RESOLUTION_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing
-  production backend logs a WARNING and still proceeds: resolution never blocks an
-  invite. That holds for a backend that raises or returns RUNNING too. The bridge
-  logs the raise at ERROR as an internal error, and the WARNING follows.
+- **Actor resolution is the `ResolveActorDetails` Retriever (AKM-05-002).** With no
+  local record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor/_peers.py`)
+  puts the peer's URI on `peer_actor_id` and asks the injected
+  `ActorResolutionCallOutBundle`. On *yes* the capability writes the peer's record
+  to its `resolved_actor: CoreActor` output port, and the caller stores it only when
+  its id is the peer's. Otherwise, on *no*, *error*, a raise or a record of another
+  actor, it stores a minimal `CoreActor` holding only the id (AKM-05-001,
+  AKM-02-006). Reason: a record of another actor under the peer's id is an invented
+  value. The DETERMINISTIC default is `always_succeed_as` the declaration: its
+  placeholder record names no peer, so it yields the minimal record and logs at INFO.
+  A failing backend logs a WARNING after the bridge's ERROR for a raise.
+- **A source answers through `ActorResolutionPort` (`vultron/core/ports/`).** Give it
+  a peer id and it returns that peer's profile, or `None` for *no*.
+  `actor_resolution_bundle(port)` builds the bundle. The static adapter returns a
+  declared profile and the live one fetches the peer's profile through
+  `ActorProfileFetchPort` (`vultron/adapters/driven/actor_resolution.py`). The port
+  is synchronous: the live adapter runs the async fetch on its own loop in a worker
+  thread, with one attempt and a wait of at most the call-out budget. Reason: a
+  call-out answers in one tick within that budget (BT-18-011, BT-18-015).
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
   peer changes no protocol-observable state, so BT-15-001 does not apply. The
   backend still runs as a one-tick tree through `BTBridge`, acting as the acting

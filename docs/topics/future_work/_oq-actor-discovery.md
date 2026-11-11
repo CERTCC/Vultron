@@ -37,7 +37,8 @@
     The method to retire stale or offline instances is a third open point.
 
     The reference implementation reserves the seam.
-    Its behavior trees have an actor-resolution call-out ([#2469](https://github.com/CERTCC/Vultron/issues/2469)), and the backend that answers it is not built.
+    Its behavior trees have an actor-resolution call-out, `ResolveActorDetails`, that answers through one port: a static adapter returns a profile declared up front, and a live adapter fetches the peer's profile from its actor URL.
+    No directory or registry backend is built.
     Demo deployments do not have this problem.
     Each container receives the URL of each other container at start-up (CP-08).
     This is an alternative to a directory service, and the specification records it as one.

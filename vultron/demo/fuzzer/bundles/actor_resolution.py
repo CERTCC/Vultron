@@ -20,31 +20,25 @@ re-exported here for backward-compatible import paths.
 
 Actor resolution is a production-only domain: the demo seeds actors into each
 other's DataLayers so scenarios need no global directory (AC-2).  The
-STOCHASTIC singleton uses ``AlmostAlwaysSucceed`` (p=0.90) to occasionally
-exercise the FAILURE path during fuzz runs, matching the convention for
-lookup-style Retriever call-outs with no named simulator fuzzer node.  The
-DETERMINISTIC ceiling of p=0.90 is ``AlwaysSucceed`` (BT-23-002).
+STOCHASTIC singleton places the named node
+:class:`~vultron.demo.fuzzer.actor_resolution.ResolveActorDetails`, an
+``AlmostAlwaysSucceed`` (p=0.90) bound to the core declaration, to
+occasionally exercise the FAILURE path during fuzz runs.  The DETERMINISTIC ceiling of p=0.90 is the
+``AlwaysSucceed`` bound to that declaration (BT-23-002, BT-23-013).
 """
 
 from __future__ import annotations
-
-import py_trees
 
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ACTOR_RESOLUTION_DETERMINISTIC,
     ActorResolutionCallOutBundle,
 )
-from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-
-
-def _stochastic_resolve_actor(name: str) -> py_trees.behaviour.Behaviour:
-    return AlmostAlwaysSucceed(name)
-
+from vultron.demo.fuzzer.actor_resolution import ResolveActorDetails
 
 ACTOR_RESOLUTION_STOCHASTIC = ActorResolutionCallOutBundle(
-    resolve_actor_factory=_stochastic_resolve_actor,  # type: ignore[arg-type]
+    resolve_actor_factory=ResolveActorDetails,  # type: ignore[arg-type]
 )
-"""Stochastic bundle: resolve_actor uses AlmostAlwaysSucceed (p=0.90)."""
+"""Stochastic bundle: resolve_actor uses ResolveActorDetails (p=0.90)."""
 
 __all__ = [
     "ActorResolutionCallOutBundle",
