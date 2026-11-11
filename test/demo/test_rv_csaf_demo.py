@@ -37,6 +37,7 @@ from pydantic import JsonValue
 
 import vultron.demo.scenario.rv_csaf_demo as demo
 from test.demo._helpers import mock_case, story_state
+from test.support.objects import make
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import REPORTER
 from vultron.demo.helpers.csaf_report import (
@@ -113,7 +114,8 @@ def _canonical_case(
 def _proposal(
     context: str = "urn:test:report", end_time: datetime = _DISCLOSURE
 ) -> as_EmbargoEvent:
-    return as_EmbargoEvent(
+    return make(
+        as_EmbargoEvent,
         id_="urn:test:csaf-proposal",
         context=context,
         end_time=end_time,
