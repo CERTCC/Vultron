@@ -26,7 +26,7 @@ field added to that model later reaches the profile only when someone
 declares it there, and code that takes the model never takes a profile.
 :func:`profile_violations` is the check that the fields stay a subset, at
 every nesting level (BT-24-009); every profile in ``vultron/`` is held to it
-by a ratchet test.
+by a ratchet test that finds each one by its source.
 
 The suggestion context the participant-suggestion port takes is the first
 profile (:mod:`vultron.core.models.participant_suggestion`); a CSAF adapter
@@ -37,7 +37,8 @@ from __future__ import annotations
 
 import types
 import typing
-from typing import Any, ClassVar, Self, get_args, get_origin
+from collections.abc import Mapping
+from typing import ClassVar, Self, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -80,10 +81,19 @@ class ModelProfile(BaseModel):
         )
 
     @classmethod
-    def _build(cls, values: dict[str, Any], source: BaseModel) -> Self:
-        """Validate *values* as this profile, naming *source* on a refusal."""
+    def _build(
+        cls,
+        values: dict[str, object],
+        source: BaseModel,
+        context: Mapping[str, object] | None = None,
+    ) -> Self:
+        """Validate *values* as this profile, naming *source* on a refusal.
+
+        *context* is passed to validation, for a profile whose validator
+        admits only its own constructor.
+        """
         try:
-            return cls.model_validate(values)
+            return cls.model_validate(values, context=context)
         except ValidationError as exc:
             source_id = getattr(source, "id_", None) or "<no id>"
             raise VultronValidationError(

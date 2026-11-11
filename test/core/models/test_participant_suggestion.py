@@ -22,10 +22,11 @@
 
 from __future__ import annotations
 
+import ast
 import datetime
 import importlib
-import pkgutil
 import typing
+from pathlib import Path
 from typing import ClassVar
 
 import pytest
@@ -53,12 +54,39 @@ _CASE = "https://example.org/cases/c-1"
 _REPORT = "https://example.org/reports/r-1"
 
 
+_VULTRON = Path(core_models.__file__).resolve().parents[2]
+
+
+def _profile_modules() -> list[str]:
+    """Every module in ``vultron/`` whose source subclasses a profile.
+
+    Found from the source, not from what happens to be imported, so a
+    profile declared anywhere in ``vultron/`` is checked.
+    """
+    modules: list[str] = []
+    for path in sorted(_VULTRON.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if "Profile" not in text:
+            continue
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, ast.ClassDef) and any(
+                (isinstance(base, ast.Name) and base.id.endswith("Profile"))
+                or (
+                    isinstance(base, ast.Attribute)
+                    and base.attr.endswith("Profile")
+                )
+                for base in node.bases
+            ):
+                relative = path.relative_to(_VULTRON.parent).with_suffix("")
+                modules.append(".".join(relative.parts))
+                break
+    return modules
+
+
 def _profiles() -> list[type[ModelProfile]]:
-    """Every concrete profile under ``vultron.core.models``."""
-    for info in pkgutil.walk_packages(
-        core_models.__path__, prefix=f"{core_models.__name__}."
-    ):
-        importlib.import_module(info.name)
+    """Every concrete profile in ``vultron/``."""
+    for module in _profile_modules():
+        importlib.import_module(module)
     found: list[type[ModelProfile]] = []
     pending = list(ModelProfile.__subclasses__())
     while pending:
@@ -76,6 +104,7 @@ def test_the_profiles_are_found() -> None:
     assert {SuggestionContext, ReportProfile, ParticipantProfile} <= set(
         _PROFILES
     )
+    assert "vultron.core.models.participant_suggestion" in _profile_modules()
 
 
 @pytest.mark.spec("BT-24-009")
@@ -151,6 +180,47 @@ class _WrongContainer(ModelProfile):
     case_participants: tuple[ParticipantProfile, ...] = ()
 
 
+class _Source(BaseModel):
+    plain: str = ""
+    pair: tuple[int, int] = (0, 0)
+    first: _SourceLeaf | None = None
+    second: _SourceLeaf | None = None
+
+
+class _SourceLeaf(BaseModel):
+    label: str = ""
+
+
+_Source.model_rebuild()
+
+
+class _LeafProfile(ModelProfile):
+    profile_of = _SourceLeaf
+
+    label: NonEmptyString
+
+
+class _AnnotatedOverPlain(ModelProfile):
+    profile_of = _Source
+
+    plain: NonEmptyString
+
+
+class _FewerArgs(ModelProfile):
+    profile_of = _Source
+
+    pair: tuple[int]
+
+
+class _SharedNested(ModelProfile):
+    """Two fields nest one profile: it is checked once, and still checked."""
+
+    profile_of = _Source
+
+    first: _LeafProfile | None = None
+    second: _LeafProfile | None = None
+
+
 class _BadLeaf(ModelProfile):
     profile_of = CaseParticipant
 
@@ -181,6 +251,9 @@ class _NoModel(ModelProfile):
         (_WrongContainer, "_WrongContainer.case_participants"),
         (_BadAtDepth, "_BadLeaf.case_roles"),
         (_NoModel, "names no model it profiles"),
+        (_AnnotatedOverPlain, "_AnnotatedOverPlain.plain"),
+        (_FewerArgs, "_FewerArgs.pair"),
+        (_SharedNested, "_LeafProfile.label"),
     ],
     ids=lambda v: v.__name__ if isinstance(v, type) else v,
 )
@@ -189,6 +262,16 @@ def test_the_subset_check_reports_a_breach(
 ) -> None:
     problems = profile_violations(profile)
     assert any(fragment in p for p in problems), problems
+
+
+def test_a_nested_profile_shared_by_two_fields_is_reported_once() -> None:
+    problems = profile_violations(_SharedNested)
+    assert len([p for p in problems if "_LeafProfile.label" in p]) == 1
+
+
+def test_a_refusal_names_a_source_with_no_id() -> None:
+    with pytest.raises(VultronValidationError, match="_SourceLeaf '<no id>'"):
+        _LeafProfile.from_model(_SourceLeaf())
 
 
 def test_the_test_profiles_are_not_in_the_roster() -> None:
@@ -277,6 +360,16 @@ def test_from_case_refuses_a_participant_with_no_actor() -> None:
     nobody = make(CaseParticipant, context=_CASE, name="unnamed")
     with pytest.raises(VultronValidationError, match="ParticipantProfile"):
         SuggestionContext.from_case(_case(case_participants=[nobody]))
+
+
+@pytest.mark.spec("BT-24-003")
+def test_the_context_is_built_only_by_from_case() -> None:
+    with pytest.raises(ValidationError, match="only by"):
+        SuggestionContext(id_=_CASE)
+    with pytest.raises(ValidationError, match="only by"):
+        SuggestionContext.model_validate({"id_": _CASE})
+    with pytest.raises(TypeError, match="only by"):
+        SuggestionContext.from_model(_case())
 
 
 def test_a_profile_built_from_the_wrong_model_is_refused() -> None:

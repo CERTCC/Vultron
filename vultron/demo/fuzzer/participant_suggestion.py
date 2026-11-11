@@ -11,6 +11,7 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Probabilistic fuzzer node for participant suggestion (ADR-0186).
 
 The node stands in for a participant suggester in fuzz runs.  It answers

@@ -31,7 +31,15 @@ a change to this module, which is the point (BT-24-003).
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Final, Self
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    model_validator,
+)
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -40,6 +48,10 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.enums import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.primitives import NonEmptyString
+
+#: The validation-context key :meth:`SuggestionContext.from_case` sets; a
+#: context built any other way lacks it and is refused (BT-24-003).
+_PROJECTION_KEY: Final[str] = "_vultron_suggestion_projection"
 
 
 class ReportProfile(ModelProfile):
@@ -78,9 +90,11 @@ class ParticipantProfile(ModelProfile):
 class SuggestionContext(ModelProfile):
     """The case, narrowed to what a participant suggester may see.
 
-    Built only by :meth:`from_case`.  Every field has the name and type of a
-    field of :class:`~vultron.core.models.case.VulnerabilityCase` or of an
-    object the case holds (BT-24-009).
+    Built only by :meth:`from_case`: constructing one directly, or
+    validating a mapping as one, is refused, so the projection is defined
+    once (BT-24-003).  Every field has the name and type of a field of
+    :class:`~vultron.core.models.case.VulnerabilityCase` or of an object the
+    case holds (BT-24-009).
 
     Attributes:
         id_: The case's id, so an adapter can tell one case from another.
@@ -93,6 +107,29 @@ class SuggestionContext(ModelProfile):
     id_: NonEmptyString
     vulnerability_reports: list[ReportProfile] = Field(default_factory=list)
     case_participants: list[ParticipantProfile] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _only_from_case(cls, data: Any, info: ValidationInfo) -> Any:
+        """Refuse a context not built by :meth:`from_case` (BT-24-003)."""
+        if not (info.context or {}).get(_PROJECTION_KEY):
+            raise ValueError(
+                "a SuggestionContext is built only by "
+                "SuggestionContext.from_case(case) (BT-24-003)"
+            )
+        return data
+
+    @classmethod
+    def from_model(cls, source: BaseModel) -> Self:
+        """Refused: the case is projected only by :meth:`from_case`.
+
+        Raises:
+            TypeError: Always.
+        """
+        raise TypeError(
+            "SuggestionContext is projected only by "
+            "SuggestionContext.from_case(case) (BT-24-003)."
+        )
 
     @classmethod
     def from_case(cls, case: VulnerabilityCase) -> SuggestionContext:
@@ -135,6 +172,7 @@ class SuggestionContext(ModelProfile):
                 ],
             },
             case,
+            context={_PROJECTION_KEY: True},
         )
 
     @property

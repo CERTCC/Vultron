@@ -212,6 +212,22 @@ def test_a_failure_to_find_out_is_an_error_not_a_no(
     assert _written() is None
 
 
+def test_a_wrong_typed_answer_fails_the_tick_whole(
+    dl: SqliteDataLayer,
+) -> None:
+    """A wiring error is not caught as *error*: it is not a VultronError."""
+    port = _Port([{"actor_id": "x"}])  # type: ignore[list-item]
+    node = _node(
+        ParticipantSuggestionCallOutBundle(
+            suggest_participants_factory=suggest_participants_with(port, dl)
+        )
+    )
+    _place_case_id()
+    with pytest.raises(TypeError, match="ParticipantSuggestion objects"):
+        node.tick_once()
+    assert _written() is None
+
+
 def test_no_case_id_on_the_blackboard_is_a_wiring_error(
     dl: SqliteDataLayer,
 ) -> None:
