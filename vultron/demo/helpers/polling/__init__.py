@@ -96,6 +96,7 @@ from vultron.demo.helpers.polling.received import (
     wait_for_received_activity,
     wait_for_report_submission_stored,
     wait_for_reporter_introduction,
+    wait_for_verified_proofs,
 )
 
 __all__ = [
@@ -149,4 +150,5 @@ __all__ = [
     "wait_for_reporter_introduction",
     "wait_for_reporter_log_entry",
     "wait_for_semantic_type_in_ledger",
+    "wait_for_verified_proofs",
 ]

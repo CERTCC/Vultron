@@ -63,27 +63,49 @@ def test_vendor_create_body_matches_documented_fields():
     }
 
 
+def test_finder_create_body_matches_documented_fields():
+    body = t.finder_create_body()
+
+    assert body == {
+        "name": t.FINDER_NAME,
+        "actor_type": t.FINDER_ACTOR_TYPE,
+        "id": t.FINDER_SLUG,
+    }
+
+
+def test_the_finder_is_hosted_on_the_tutorial_server():
+    """The vendor reads the finder's key from the finder's profile, so the
+    finder must be an actor the tutorial's server hosts (SIG-02-001)."""
+    assert f"{t.API_BASE_URL}/actors/{t.FINDER_SLUG}" == t.FINDER_ID
+
+
 def test_endpoint_paths_are_the_documented_ones():
     assert t.actors_path() == "/api/v2/actors/"
     assert t.inbox_path() == "/api/v2/actors/vendorco/inbox/"
+    assert t.outbox_path() == "/api/v2/actors/finn/outbox/"
     assert t.reports_path() == "/api/v2/actors/vendorco/datalayer/Reports/"
     assert t.health_path() == "/api/v2/health/live"
 
 
 def test_rendered_commands_are_bash_blocks_with_canonical_values():
     create = t.render_create_actor()
+    create_finder = t.render_create_finder()
     submit = t.render_submit_report()
     verify = t.render_verify()
 
-    for block in (create, submit, verify):
+    for block in (create, create_finder, submit, verify):
         assert block.startswith("```bash\n")
         assert block.rstrip().endswith("```")
         assert "http://localhost:7999" in block
 
-    # The create command carries the actor body; the submit command carries the
-    # report; the verify command reads the reports store.
+    # The create commands carry the actor bodies; the submit command hands
+    # the report to the finder's outbox, which signs it; the verify command
+    # reads the reports store.
     assert '"id": "vendorco"' in create
+    assert '"id": "finn"' in create_finder
     assert t.REPORT_CONTENT in submit
+    assert t.outbox_path() in submit
+    assert t.inbox_path() not in submit
     assert t.reports_path() in verify
 
 

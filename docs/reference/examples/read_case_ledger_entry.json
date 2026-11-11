@@ -1,7 +1,8 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Read",
   "id": "urn:uuid:ec3ff70e-77ca-485a-bb62-34dd745c5591",
@@ -15,5 +16,18 @@
     "logIndex": 1,
     "entryHash": "67bc0404dc325f47fc23af06c78abf9369264c0402873628dff816ca198875bb"
   },
-  "object": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1"
+  "object": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/1",
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4YAEB1xNa69k6J3SQMxLVy4Pw5pr5QbvjVcc9xiUifzehe7hziCchkqHbXP6XGjJU56HG9Fb3wTWxuDWHiuWmyfU"
+  }
 }

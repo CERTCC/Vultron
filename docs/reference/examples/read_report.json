@@ -1,7 +1,8 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Read",
   "id": "urn:uuid:28fc50c5-d5d5-4278-a718-99ef7bed2af7",
@@ -27,5 +28,18 @@
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul"
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z5J7EgHhQMbabcmzmYgGTbWtEs2VeJc2AJaxyHNpDcgFnxyZCiphGQ57FegscqmyU3U1B6fjMDRUg2pJFnBuJCHaC"
   }
 }

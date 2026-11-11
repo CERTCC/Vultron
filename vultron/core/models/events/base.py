@@ -9,7 +9,7 @@ import json
 from enum import StrEnum, auto
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
@@ -22,6 +22,7 @@ from vultron.core.models.ledger_position import (
     accepted_entry_hash,
 )
 from vultron.core.models.received_body import require_json_object_text
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
@@ -180,6 +181,12 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # activity the receiver built itself, or one dispatched outside the inbox
     # path.
     received_evidence: NonEmptyString | None = None
+
+    # The proofs the inbox verified on that body, each with the key it
+    # verified against as fetched (SIG-03-004).  Carried from the parsed
+    # wire activity like the evidence, so intake records them with it.
+    # Empty on an event no inbox verified.
+    verified_proofs: list[VerifiedProof] = Field(default_factory=list)
 
     @field_validator("received_evidence")
     @classmethod
