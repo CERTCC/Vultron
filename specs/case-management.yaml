@@ -12015,23 +12015,26 @@ groups:
     A participant proposes a new vulnerability item, a change to one, or a new case
     reference by offering it to the case. The CASE_MANAGER records the offer, then admits
     or declines it, and answers the sender either way; a deployment may admit offers
-    automatically (ADR-0187). An item or reference offer is an `Offer`, with the case as
-    `target`, of a new `VulnerabilityItem`, of an `Update` of one, or of a new
-    `CaseReference`.
+    automatically (ADR-0187). An item or reference offer is an `Offer` of the act it
+    proposes: an `Add` of a new `VulnerabilityItem` to the case, an `Update` of one, or
+    an `Add` of a new `CaseReference` to the case.
   specs:
   - id: CM-34-001
     priority: MUST
     kind: protocol
     statement: >-
       A participant that proposes a new vulnerability item for a case MUST send the
-      CASE_MANAGER an `Offer` whose `object` is the `VulnerabilityItem` and whose
-      `target` is the case.
+      CASE_MANAGER an `Offer` whose `object` is an `Add` of the `VulnerabilityItem`
+      with the case as the `Add`'s `target`.
     rationale: >-
       A participant's statement about what the case is about is a claim until the
-      CASE_MANAGER admits it, as with the other things participants assert (ADR-0187).
+      CASE_MANAGER admits it, as with the other things participants assert. Offering
+      the act itself means an admitted offer's ledgered change is exactly the offered
+      `Add` (ADR-0187).
     verification: >-
       A test marked `CM-34-001` runs the propose-item trigger and asserts one queued
-      `Offer(VulnerabilityItem)` addressed to the CASE_MANAGER with the case as `target`.
+      `Offer(Add(VulnerabilityItem))` addressed to the CASE_MANAGER with the case as the
+      `Add`'s `target`.
     adr:
     - ADR-0187
     stories:
@@ -12041,15 +12044,13 @@ groups:
     kind: protocol
     statement: >-
       A participant that proposes a change to a vulnerability item MUST send the
-      CASE_MANAGER an `Offer` whose `object` is an `Update` of that item and whose
-      `target` is the case.
+      CASE_MANAGER an `Offer` whose `object` is an `Update` of that item.
     rationale: >-
       A CVE ID is usually assigned after the item exists, so the case learns of it as a
       change to that item, not as a second item for the same vulnerability (ADR-0187).
     verification: >-
       A test marked `CM-34-002` runs the propose-change trigger and asserts one queued
-      `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER with the case as
-      `target`.
+      `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER.
     adr:
     - ADR-0187
     stories:
@@ -12059,13 +12060,15 @@ groups:
     kind: protocol
     statement: >-
       A participant that proposes a new case reference MUST send the CASE_MANAGER an
-      `Offer` whose `object` is the `CaseReference` and whose `target` is the case.
+      `Offer` whose `object` is an `Add` of the `CaseReference` with the case as the
+      `Add`'s `target`.
     rationale: >-
       A reference is a claim about the case like an item, so it takes the same path
       (ADR-0187).
     verification: >-
       A test marked `CM-34-003` runs the propose-reference trigger and asserts one queued
-      `Offer(CaseReference)` addressed to the CASE_MANAGER with the case as `target`.
+      `Offer(Add(CaseReference))` addressed to the CASE_MANAGER with the case as the
+      `Add`'s `target`.
     adr:
     - ADR-0187
     stories:

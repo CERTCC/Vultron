@@ -2,8 +2,9 @@
 status: accepted-provisional
 date: 2026-11-10
 created: 2026-11-10
-updated: 2026-11-10
-revision: 1
+updated: 2026-11-11
+revision: 2
+status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249."
 lint_suppress: [phantom_symbol_ref, phantom_path_ref]
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5
@@ -62,7 +63,8 @@ The decision has five parts.
    The CVE ID has its own field, as in CSAF, and that field may be checked against the CVE ID format because it is CVE-typed on purpose.
    The CVE JSON schema applies only to a CVE record carried as an item's content, never to a CVE ID alone.
 4. **A participant offers; the CASE_MANAGER admits or declines.**
-   A participant proposes a new item or a new reference by offering it to the case, and proposes a change to an item by offering an update of it.
+   A participant offers the act it proposes: adding a new item or a new reference to the case, or updating an item.
+   An admitted offer's recorded change is then exactly the offered act.
    The CASE_MANAGER records the offer, then admits it, applying and recording the change, or declines it, and answers the sender either way.
    A deployment may admit offers automatically.
    The CASE_MANAGER itself fills items and references when it creates a case from a report.
@@ -70,7 +72,8 @@ The decision has five parts.
    An offered update replaces the fields it supplies and leaves the rest as they were, the partial-update meaning ActivityStreams gives `Update`.
    A full revision is an update that supplies every field.
 
-Removing an item or a reference, relationships between items beyond "same vulnerability", content documents carried by an item, and whether a reference should be a kind of link are not decided here.
+Removing an item or a reference, relationships between items beyond "same vulnerability", and content documents carried by an item are not decided here.
+Whether a reference becomes a kind of link is decided separately, and a link has no identity of its own, so that decision must settle how a reference is offered and listed.
 
 ### Consequences
 
@@ -104,8 +107,14 @@ Removing an item or a reference, relationships between items beyond "same vulner
 
 ## More Information
 
-The CSAF 2.1 schema pinned under `third_party/csaf/` is the source for the item's fields.
+The CSAF 2.1 schema is the source for the item's fields.
+Its upstream is <https://github.com/oasis-tcs/csaf>, file `csaf_2.1/json_schema/csaf.json`, and this codebase pins it at commit `29b1e27` (CSD04) under `third_party/csaf/`.
 The VXref 0.3 prototype of the FIRST VRDX SIG defines further relationships between vulnerability identifiers, such as superset, subset and overlap, and is the starting point for that later decision.
+Its source is <https://github.com/FIRSTdotorg/vrdx-sig-vxref-wip>, schema `vxref/schema/vxref_schema_03.json`.
+
+The review of the wire protocol against ActivityStreams 2.0 (Epic #6238, `notes/as2-vocabulary-alignment.md`) shapes three parts of this decision.
+A proposed act travels as an offer of that act (#6251), identity decides between an update and a new object (#6250), and a reference may become a link (#6249).
+There, `tag` lets another object refer to an item by reference, while the case's item list holds items by inclusion (#6248).
 
 Source: #5132.
 
