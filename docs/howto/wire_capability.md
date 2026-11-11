@@ -80,7 +80,9 @@ Each fuzzer node's docstring tells you the following:
 ### Read the capability declaration
 
 Each call-out point is a named **capability**, declared once in core under `vultron/core/behaviors/call_out/capabilities/`.
-That package mirrors the fuzzer layout: the declaration for a node in `vultron/demo/fuzzer/report_management/validate.py` is in `vultron/core/behaviors/call_out/capabilities/report_management/validate.py`, and its name is the fuzzer node's name with `Capability` added.
+That package mirrors the fuzzer layout.
+The declaration for a node in `vultron/demo/fuzzer/report_management/validate.py` is in `vultron/core/behaviors/call_out/capabilities/report_management/validate.py`.
+Its name is the fuzzer node's name with `Capability` added.
 The fuzzer node subclasses the declaration, so both answer against the same contract (BT-18-021).
 
 A declaration subclasses one of the four shape base classes, `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability` or `ActuatorCapability`, and declares its blackboard contract as typed ports (BT-18-012):
@@ -122,7 +124,8 @@ The seam refuses a *yes* that omits a declared port, so the omission is named at
 
 ### Port types are checked on read and on write
 
-Each port names a concrete class as its `data_type`, and a declaration that names `object` is refused when it is defined, because such a port would accept any value.
+Each port names a concrete class as its `data_type`.
+A declaration that names `object` is refused when it is defined, because such a port would accept any value.
 A value of the wrong type is a wiring error, so it ends the whole tree run as an internal error, not just your node (BTND-03-021):
 
 - your backend's `get_input()` raises `TypeError` when the value on an input port is of the wrong type;
