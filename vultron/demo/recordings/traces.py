@@ -148,6 +148,7 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "category",
         "closed",
         "content",
+        "contentMap",
         "cve",
         "describes",
         "failureClass",
@@ -164,6 +165,7 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "longitude",
         "mediaType",
         "name",
+        "nameMap",
         "oneOf",
         "preview",
         "radius",
@@ -173,6 +175,7 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "replies",
         "subject",
         "summary",
+        "summaryMap",
         "systemName",
         "tag",
         "text",
@@ -304,6 +307,25 @@ def _normalize_text(text: str, ids: _IdLabels) -> str:
     return _TIMESTAMP_RE.sub(TIMESTAMP_PLACEHOLDER, ids.relabel(text))
 
 
+#: Verdict fields holding a mapping keyed by data rather than by field names:
+#: an AS2 natural-language map, from a language tag to the text in that
+#: language (AS2 Core section 4.7).  The projection keeps every key, so the
+#: text in each language is compared, as ``content`` is.
+DATA_KEYED_MAPPINGS: frozenset[str] = frozenset(
+    {"contentMap", "nameMap", "summaryMap"}
+)
+
+
+def _project_data_keyed(value: Any, ids: _IdLabels) -> Any:
+    """Project a :data:`DATA_KEYED_MAPPINGS` value: every key, each value."""
+    if not isinstance(value, Mapping):
+        return _project(value, ids)
+    return {
+        _normalize_text(str(key), ids): _project(value[key], ids)
+        for key in sorted(value)
+    }
+
+
 def _project(value: Any, ids: _IdLabels) -> Any:
     """Return *value* projected onto :data:`VERDICT_FIELDS`, at every depth.
 
@@ -314,7 +336,11 @@ def _project(value: Any, ids: _IdLabels) -> Any:
     """
     if isinstance(value, Mapping):
         return {
-            key: _project(value[key], ids)
+            key: (
+                _project_data_keyed(value[key], ids)
+                if key in DATA_KEYED_MAPPINGS
+                else _project(value[key], ids)
+            )
             for key in sorted(value)
             if key in VERDICT_FIELDS
         }

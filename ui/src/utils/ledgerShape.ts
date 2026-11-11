@@ -148,7 +148,7 @@ class ShapeChecker {
         if (!isRecord(value)) return `expected an object, got ${describe(value)}`
         for (const [key, item] of Object.entries(value)) {
           const keyProblem = this.valueProblem(key, shape.keys, path)
-          if (keyProblem !== null) this.problems.push(`${path}: key ${keyProblem}`)
+          if (keyProblem !== null) this.problems.push(`${path}: key ${JSON.stringify(key)} ${keyProblem}`)
           this.checkValue(item, shape.values, join(path, key))
         }
         return null

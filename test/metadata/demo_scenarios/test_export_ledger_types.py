@@ -332,6 +332,12 @@ class _TypedMapping(CoreObject):
     counts: dict[str, int] = {}
 
 
+class _EnumValuedMapping(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    roles: dict[str, EmbargoConsentState] = {}
+
+
 class _IntKeyedMapping(CoreObject):
     """No ``type_``, so it is not registered in the core vocabulary."""
 
@@ -356,8 +362,18 @@ def test_a_typed_mapping_is_projected_with_its_value_shape() -> None:
     }
 
 
+def test_a_mapping_value_is_projected_as_the_model_writes_it() -> None:
+    """The value probe dumps an enum member through the mapping, so the
+    shape carries the wire values, not the member names."""
+    shapes, enums = project((LedgerType(_EnumValuedMapping, "received"),))
+    by_key = {field.key: field.shape for field in shapes["_EnumValuedMapping"]}
+    assert by_key["roles"]["kind"] == "map"
+    assert by_key["roles"]["values"] == {"kind": "enum", "type": "Roles"}
+    assert enums["Roles"].values == tuple(m.value for m in EmbargoConsentState)
+
+
 def test_a_mapping_whose_keys_are_not_strings_fails_the_export() -> None:
-    with pytest.raises(TypeError, match="keys are not strings"):
+    with pytest.raises(TypeError, match="keys are not str or NonEmptyString"):
         project((LedgerType(_IntKeyedMapping, "received"),))
 
 
@@ -365,7 +381,8 @@ def test_a_mapping_whose_keys_are_not_strings_fails_the_export() -> None:
 def test_the_language_maps_are_optional_non_blank_string_maps(
     fields: dict[str, dict[str, export_ledger_types.FieldDef]],
 ) -> None:
-    """An empty map is left out of the dump (#4471), so no line needs one."""
+    """An empty map is left out of the dump (#4471), so no line needs one;
+    a ``null`` map is read as empty, so a line may carry one."""
     non_empty = {"kind": "string", "nonEmpty": True}
     for model in fields.values():
         for key in ("contentMap", "nameMap", "summaryMap"):
@@ -376,7 +393,7 @@ def test_the_language_maps_are_optional_non_blank_string_maps(
                 "values": non_empty,
             }
             assert not field.required
-            assert not field.nullable
+            assert field.nullable
 
 
 def test_the_payload_snapshot_is_an_untyped_object(

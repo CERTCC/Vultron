@@ -95,9 +95,9 @@ export interface CaseLedgerEntry {
   bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
-  contentMap?: Record<string, string>
-  nameMap?: Record<string, string>
-  summaryMap?: Record<string, string>
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   caseId: string
   logIndex: number
@@ -139,9 +139,9 @@ export interface ParticipantStatus {
   bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
-  contentMap?: Record<string, string>
-  nameMap?: Record<string, string>
-  summaryMap?: Record<string, string>
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   rmState?: RmState
   vfState?: VfState | null
@@ -181,9 +181,9 @@ export interface CaseStatus {
   bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
-  contentMap?: Record<string, string>
-  nameMap?: Record<string, string>
-  summaryMap?: Record<string, string>
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   emState?: EmState
   pxaState?: PxaState
@@ -218,9 +218,9 @@ export interface CaseParticipant {
   bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
-  contentMap?: Record<string, string>
-  nameMap?: Record<string, string>
-  summaryMap?: Record<string, string>
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   caseRoles?: Array<CaseRoles>
   participantStatuses?: Array<ParticipantStatus>
@@ -259,9 +259,9 @@ export interface EmbargoConsent {
   bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
-  contentMap?: Record<string, string>
-  nameMap?: Record<string, string>
-  summaryMap?: Record<string, string>
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   embargoId: string
   state: EmbargoConsentState
@@ -300,9 +300,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "contentMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "nameMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "summaryMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "caseId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "logIndex", required: true, nullable: false, shape: { kind: "integer", minimum: -1 } },
@@ -346,9 +346,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "contentMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "nameMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "summaryMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "rmState", required: false, nullable: false, shape: { kind: "enum", type: "RmState", values: RM_STATE_VALUES } },
       { key: "vfState", required: false, nullable: true, shape: { kind: "enum", type: "VfState", values: VF_STATE_VALUES } },
@@ -390,9 +390,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "contentMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "nameMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "summaryMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "emState", required: false, nullable: false, shape: { kind: "enum", type: "EmState", values: EM_STATE_VALUES } },
       { key: "pxaState", required: false, nullable: false, shape: { kind: "enum", type: "PxaState", values: PXA_STATE_VALUES } },
@@ -429,9 +429,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "contentMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "nameMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "summaryMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "caseRoles", required: false, nullable: false, shape: { kind: "array", items: { kind: "enum", type: "CaseRoles", values: CASE_ROLES_VALUES } } },
       { key: "participantStatuses", required: false, nullable: false, shape: { kind: "array", items: { kind: "ref", type: "ParticipantStatus" } } },
@@ -472,9 +472,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "contentMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "nameMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
-      { key: "summaryMap", required: false, nullable: false, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "embargoId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "state", required: true, nullable: false, shape: { kind: "enum", type: "EmbargoConsentState", values: EMBARGO_CONSENT_STATE_VALUES } },

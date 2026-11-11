@@ -80,11 +80,12 @@ from pathlib import Path
 from typing import Any, Literal
 
 import annotated_types
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 from pydantic.fields import FieldInfo
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.base.core_object import UnmodelledObject
+from vultron.core.models.base.language_map import absent_as_empty
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -182,6 +183,11 @@ class _Projector:
         self, annotation: object, enum_name: str, probe: Probe
     ) -> tuple[dict[str, Any], bool]:
         """Return the shape of *annotation* and whether it admits ``None``."""
+        annotation, reads_null = _strip_absent_as_empty(annotation)
+        if reads_null:
+            # The model reads ``null`` as an empty value, so a line may carry
+            # one, though the model never writes it.
+            return self.field_shape(annotation, enum_name, probe)[0], True
         args = typing.get_args(annotation)
         if _is_union(annotation):
             rest = [arg for arg in args if arg is not type(None)]
@@ -256,7 +262,7 @@ class _Projector:
         if keys is None or keys["kind"] != "string":
             raise TypeError(
                 f"No ledger shape for mapping {annotation!r} (enum name "
-                f"{enum_name!r}): its keys are not strings."
+                f"{enum_name!r}): its keys are not str or NonEmptyString."
             )
         value_probe: Probe = lambda value: probe({"k": value})["k"]  # noqa: E731
         return {
@@ -310,6 +316,30 @@ class _Projector:
                 f"{known.values} and {enum.values}"
             )
         return {"kind": "enum", "type": name}
+
+
+def _strip_absent_as_empty(annotation: object) -> tuple[object, bool]:
+    """Remove a ``null``-as-empty reader from *annotation*'s metadata.
+
+    Returns the annotation without it, and whether it was there
+    (:func:`~vultron.core.models.base.language_map.absent_as_empty`).
+    """
+    if typing.get_origin(annotation) is not typing.Annotated:
+        return annotation, False
+    base, *metadata = typing.get_args(annotation)
+    flat = _metadata(metadata)
+    kept = [
+        item
+        for item in flat
+        if not (
+            isinstance(item, BeforeValidator) and item.func is absent_as_empty
+        )
+    ]
+    if len(kept) == len(flat):
+        return annotation, False
+    if not kept:
+        return base, True
+    return typing.Annotated[(base, *kept)], True  # type: ignore[valid-type]
 
 
 def _metadata(items: Sequence[object]) -> list[object]:

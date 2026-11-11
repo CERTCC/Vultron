@@ -43,6 +43,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.demo.recordings.traces import (
     CHECKS_FILENAME,
+    DATA_KEYED_MAPPINGS,
     LEDGER_FILENAME,
     TIMESTAMP_PLACEHOLDER,
     VERDICT_FIELDS,
@@ -658,11 +659,31 @@ class TestWhatTheVerdictHolds:
             if _is_mapping(field.annotation)
         }
         assert "payloadSnapshot" in mappings, "the walk found no mapping"
-        mappings -= _FIELD_NAMED_MAPPINGS
+        mappings -= _FIELD_NAMED_MAPPINGS | DATA_KEYED_MAPPINGS
         assert not mappings & VERDICT_FIELDS, (
             "a verdict field holds a mapping keyed by data, which the "
             f"projection would empty: {sorted(mappings & VERDICT_FIELDS)}"
         )
+
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_language_map_is_compared_whole(self):
+        """A natural-language map is keyed by language tag, not by field
+        name, so the projection keeps every tag and its text (#4471)."""
+        entry = _entry(0)
+        snapshot = entry["payloadSnapshot"]
+        assert isinstance(snapshot, dict)
+        snapshot["contentMap"] = {
+            "fr": "premier contact",
+            "en": "ends 2026-01-04T00:00:00+00:00",
+        }
+        projected = json.loads(normalize_run(_run(_ledger(entry))).ledger[0])
+        assert projected["payloadSnapshot"]["contentMap"] == {
+            "en": f"ends {TIMESTAMP_PLACEHOLDER}",
+            "fr": "premier contact",
+        }
+
+    def test_every_data_keyed_mapping_is_a_verdict_field(self):
+        assert DATA_KEYED_MAPPINGS <= VERDICT_FIELDS
 
     def test_the_two_lists_do_not_overlap(self):
         assert not VERDICT_FIELDS & _OUTSIDE_THE_VERDICT

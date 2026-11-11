@@ -172,6 +172,24 @@ def test_a_received_blank_value_is_refused_at_the_parse_edge(
         parse_activity(_create(_inline(obj_type, **{key: {"en": " "}})))
 
 
+@pytest.mark.spec("ARCH-21-002")
+@pytest.mark.parametrize("obj_type, branch", INLINE_TYPES)
+def test_a_received_null_map_is_read_as_empty(
+    obj_type: str, branch: type
+) -> None:
+    """JSON-LD reads ``null`` as no value, as every other AS2 property on
+    the roots admits it."""
+    nulls = dict.fromkeys(MAPS)
+
+    activity = parse_activity(_create(_inline(obj_type, **nulls)))
+
+    assert isinstance(activity, as_TransitiveActivity)
+    inline = activity.object_
+    assert isinstance(inline, branch)
+    for field in FIELDS.values():
+        assert getattr(inline, field) == {}
+
+
 @pytest.mark.spec("ARCH-25-008")
 @pytest.mark.parametrize("root", ROOTS)
 def test_an_empty_map_is_left_out_of_every_dump(root: type[BaseModel]) -> None:

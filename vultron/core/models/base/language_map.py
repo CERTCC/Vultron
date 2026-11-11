@@ -22,23 +22,33 @@ from a language tag to the text in that language.  ``CoreObject`` and the wire
 edge reads them instead of setting them aside (MV-11-001).
 """
 
-from typing import Any, TypeAlias
+from typing import Annotated, Any, TypeAlias
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
+from vultron.core.models._helpers import is_empty
 from vultron.primitives import NonEmptyString
 
-LanguageMap: TypeAlias = dict[NonEmptyString, NonEmptyString]
+
+def absent_as_empty(value: object) -> object:
+    """Read a ``null`` language map as an absent one, which is empty.
+
+    JSON-LD reads a ``null`` value as no value, and every other AS2 property
+    on the object roots admits ``null``, so a peer that writes
+    ``"contentMap": null`` is read, not refused (ARCH-21-002).
+    """
+    return {} if value is None else value
+
+
+LanguageMap: TypeAlias = Annotated[
+    dict[NonEmptyString, NonEmptyString], BeforeValidator(absent_as_empty)
+]
 """A language tag mapped to the text in that language (AS2 Core section 4.7).
 
 Both sides are "if present, then non-empty" (CS-08-001): a blank tag names no
-language and a blank value is no text, so either refuses the object.
+language and a blank value is no text, so either refuses the object.  A
+``null`` map is read as empty (:func:`absent_as_empty`).
 """
-
-
-def _no_entries(value: LanguageMap) -> bool:
-    """Leave a map out of a dump that would carry no entry."""
-    return not value
 
 
 def language_map_field() -> Any:
@@ -48,7 +58,7 @@ def language_map_field() -> Any:
     ``CoreActor.assertion_method`` omits an empty key list.  Reading a dump
     without the key gives the empty default back, so it round-trips.
     """
-    return Field(default_factory=dict, exclude_if=_no_entries)
+    return Field(default_factory=dict, exclude_if=is_empty)
 
 
-__all__ = ["LanguageMap", "language_map_field"]
+__all__ = ["LanguageMap", "absent_as_empty", "language_map_field"]
