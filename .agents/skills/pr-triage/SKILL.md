@@ -149,7 +149,8 @@ commit (the tool reads the changed files there and exits 2 on any other
 commit):
 
 ```bash
-gh pr view <number> --json body,baseRefName,headRefOid \
+gh pr view <number> \
+  --json body,baseRefName,headRefName,headRefOid,closingIssuesReferences \
   | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 

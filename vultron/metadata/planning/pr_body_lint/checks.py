@@ -83,6 +83,12 @@ _DOCS_GAP_RE = re.compile(
 )
 
 
+#: ``Part of #N``, the reference a split's non-final PR carries in place of
+#: ``Closes #N`` (``bundling.md`` § "Split PRs"). Twinned in
+#: ``.github/scripts/stale_claim_sweeper.py``, which cannot import this module.
+_PART_OF_RE = re.compile(r"\bPart of #(\d+)\b", re.I)
+
+
 @dataclass(frozen=True)
 class Finding:
     """One rule violation."""
@@ -404,6 +410,57 @@ def _check_length(text: str) -> Iterator[Finding]:
         )
 
 
+def _is_claim_branch(branch: str | None, issue: int) -> bool:
+    """Whether *branch* has the claim-branch name of *issue* (PAD-04-001).
+
+    ``claim-issue.sh`` always names it ``<prefix>/<issue>-<slug>``, so the
+    name alone says GitHub linked it to *issue*. A split's sibling branch
+    ``<prefix>/<issue>a-<slug>`` does not match.
+    """
+    if branch is None:
+        return False
+    _, sep, rest = branch.partition("/")
+    return bool(sep) and rest.startswith(f"{issue}-")
+
+
+def _part_of_refs(body: _Body) -> list[int]:
+    """The issue numbers of every ``Part of #N`` outside code, in order."""
+    numbers: list[int] = []
+    for line, fenced in zip(body.lines, body.fenced, strict=True):
+        if fenced:
+            continue
+        for match in _PART_OF_RE.finditer(_CODE_SPAN_RE.sub("", line)):
+            number = int(match.group(1))
+            if number not in numbers:
+                numbers.append(number)
+    return numbers
+
+
+def _check_part_of(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
+    """PRB-14: a `Part of #N` PR must not close #N (PAD-04-008)."""
+    fix = (
+        "open this part from an unlinked sibling branch such as "
+        "`task/<N>a-<slug>` and keep the claim branch for the final "
+        '`Closes #N` PR (bundling.md § "Split PRs")'
+    )
+    for issue in _part_of_refs(body):
+        if issue in facts.closing_refs:
+            yield Finding(
+                "PRB-14",
+                f"the body says `Part of #{issue}`, but GitHub lists #{issue} "
+                f"in this PR's closingIssuesReferences, so merging closes it; "
+                f"{fix.replace('<N>', str(issue))}",
+            )
+        elif _is_claim_branch(facts.head_branch, issue):
+            yield Finding(
+                "PRB-14",
+                f"the body says `Part of #{issue}`, but the head branch "
+                f"`{facts.head_branch}` is #{issue}'s linked claim branch, "
+                f"so merging closes #{issue}; "
+                f"{fix.replace('<N>', str(issue))}",
+            )
+
+
 def lint_body(text: str, facts: BodyFacts) -> list[Finding]:
     """Every finding for the body *text*, in rule order."""
     body = _Body(text)
@@ -416,6 +473,7 @@ def lint_body(text: str, facts: BodyFacts) -> list[Finding]:
         *_check_attribution(body),
         *_check_length(text),
         *_check_maintainer_docs(body, facts),
+        *_check_part_of(body, facts),
     ]
     order = {rule.rule_id: i for i, rule in enumerate(RULES)}
     return sorted(findings, key=lambda f: order[f.rule_id])

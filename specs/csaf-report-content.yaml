@@ -429,21 +429,21 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
-      vulnerability record for each entry in `vulnerabilities[]`, named by its
-      `cve` or else its first `ids[]` entry, with the other identifiers as aliases
-      and the entry's title and summary or description note as its description.
+      vulnerability item for each entry in `vulnerabilities[]`, with the entry's `cve`,
+      `ids`, `title`, `notes` and `references`.
     rationale: >-
-      The profile requires an identifier for each reported vulnerability, and the
-      identifiers are what later messages and projections refer to (CM-05-003,
-      CM-05-009). The case has no field for records until #5132 adds one.
+      A vulnerability item takes the identity fields of a CSAF vulnerability entry
+      (CM-05-018), so each entry becomes an item with no translation. The identifiers are
+      what later messages and projections refer to (CM-05-003, ADR-0187).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_vulnerability_becomes_a_vulnerability_record`
+      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
       holds a strict xfail probe until a behavioral test marked with this ID lands. That
       test replaces the probe: a receive-path test attaches a document with two
-      vulnerabilities, and checks that the case gets a vulnerability record for each,
-      with its name, aliases and description.
+      vulnerabilities, and checks that the case gets a vulnerability item for each, with
+      its `cve`, `ids`, `title`, `notes` and `references`.
     adr:
     - ADR-0184
+    - ADR-0187
     stories:
     - story_2026_099
     tracking_issue: '#6093'
@@ -452,20 +452,22 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
-      case reference for each entry in `document.references[]` and
-      `vulnerabilities[].references[]`.
+      case reference for each entry in `document.references[]`, with the entry's `url`
+      and its `summary` as the reference's `name`.
     rationale: >-
-      CSAF references and case references have the same shape, a URL and a
-      summary, and the profile uses them for evidence of exploitation (CM-05-004,
-      CM-05-005). The case has no field for references until #5132 adds one.
+      A document-level reference is about the whole report, so it belongs to the case;
+      a vulnerability's own references go on its vulnerability item (CSAF-03-008). The
+      profile uses references for evidence of exploitation (CM-05-004, CM-05-005,
+      ADR-0187).
     verification: >-
       `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_reference_becomes_a_case_reference`
       holds a strict xfail probe until a behavioral test marked with this ID lands. That
       test replaces the probe: a receive-path test attaches a document with
-      document-level and vulnerability-level references, and checks that the case gets a
-      case reference with the URL and summary of each.
+      document-level references, and checks that the case gets a case reference with
+      the URL and summary of each.
     adr:
     - ADR-0184
+    - ADR-0187
     stories:
     - story_2026_099
     tracking_issue: '#6093'

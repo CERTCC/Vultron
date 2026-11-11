@@ -170,12 +170,14 @@ class _FakeGitHub:
         branches: dict[str, str],
         *,
         open_pr_heads: tuple[str, ...] = (),
+        open_pr_bodies: dict[str, str | None] | None = None,
         sub_issues: dict[int, list[dict]] | None = None,
         assigned_at: str = OLD,
     ) -> None:
         self.issues = issues
         self.branches = branches  # branch name -> last commit date
         self.open_pr_heads = open_pr_heads
+        self.open_pr_bodies = open_pr_bodies or {}  # head -> body
         self.sub_issues = sub_issues or {}
         self.assigned_at = assigned_at
         self.writes: list[tuple[str, ...]] = []
@@ -198,10 +200,16 @@ class _FakeGitHub:
         if not retry:
             self.unretried.append(args[:2])
         if args[:2] == ("pr", "list"):
+            heads: dict[str, str | None] = {h: "" for h in self.open_pr_heads}
+            heads |= self.open_pr_bodies
             return json.dumps(
                 [
-                    {"headRefName": h, "closingIssuesReferences": []}
-                    for h in self.open_pr_heads
+                    {
+                        "headRefName": h,
+                        "closingIssuesReferences": [],
+                        "body": b,
+                    }
+                    for h, b in heads.items()
                 ]
             )
         if args[0] == "api":
@@ -236,13 +244,15 @@ def test_an_orphaned_issue_claim_is_labelled_and_commented(
     ]
 
 
-@pytest.mark.spec("PAD-10-001")
+@pytest.mark.spec("PAD-10-001", "PAD-04-008")
 @pytest.mark.parametrize(
     ("issue", "kw"),
     [
         (_issue(7, assigned=False), {}),
         (_issue(7, labels=("stale-claim",)), {}),
         (_issue(7), {"open_pr_heads": ("bug/7-x",)}),
+        # A split's part, open from its unlinked sibling branch (PAD-04-008).
+        (_issue(7), {"open_pr_bodies": {"bug/7a-x": "- Part of #7\n"}}),
         (_issue(8), {}),  # the branch names an issue that is not open
     ],
 )
@@ -294,3 +304,87 @@ def test_a_hung_gh_call_ends_well_before_the_job_cap() -> None:
     (job,) = load_workflow(_WORKFLOW)["jobs"].values()
     timeout = float(job["env"]["GH_CALL_TIMEOUT_SECONDS"])
     assert 2 * timeout <= 60 * job["timeout-minutes"]
+
+
+@pytest.mark.spec("PAD-10-001", "PAD-04-008")
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("- Part of #7", {7}),
+        ("- part of #7\n- Part of #12", {7, 12}),
+        ("- Closes #7", set()),
+        ("Part of #7a", set()),
+        ("Depart of #7", set()),
+        ("", set()),
+        # Quoted, not claimed: a code span or a fenced block keeps nothing live.
+        ("Like `Part of #7`.", set()),
+        ("```text\n- Part of #7\n```\n- Part of #9", {9}),
+        ("~~~~\n```\nPart of #7\n~~~~", set()),
+    ],
+)
+def test_part_of_issues(body: str, expected: set[int]) -> None:
+    assert _sweeper.part_of_issues(body) == expected
+
+
+@pytest.mark.spec("PAD-10-001", "PAD-04-008")
+def test_another_issues_part_pr_does_not_keep_a_claim_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [_issue(7)],
+            {"bug/7-x": OLD},
+            open_pr_bodies={"task/8a-x": "- Part of #8\n"},
+        ),
+    )
+    assert fake.writes == [("issue", "edit", "7"), ("issue", "comment", "7")]
+
+
+@pytest.mark.spec("PAD-19-005", "PAD-04-008")
+def test_an_open_split_part_keeps_an_epic_run_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic, child = _issue(1, "Epic"), _issue(2, assigned=False)
+    subs = {1: [{"number": 2, "type": {"name": "Task"}}]}
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [epic, child],
+            {"task/2-x": OLD},
+            open_pr_bodies={"task/2a-x": "- Part of #2\n"},
+            sub_issues=subs,
+        ),
+    )
+    assert fake.writes == []
+
+
+@pytest.mark.spec("PAD-19-005", "PAD-04-008")
+def test_a_part_pr_for_an_issue_the_run_does_not_hold_leaves_it_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic, child = _issue(1, "Epic"), _issue(2, assigned=False)
+    subs = {1: [{"number": 2, "type": {"name": "Task"}}]}
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [epic, child],
+            {"task/2-x": OLD},
+            open_pr_bodies={"task/9a-x": "- Part of #9\n"},
+            sub_issues=subs,
+        ),
+    )
+    assert fake.writes == [("issue", "edit", "1"), ("issue", "comment", "1")]
+
+
+@pytest.mark.spec("PAD-10-001")
+def test_a_pr_with_a_null_body_keeps_nothing_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [_issue(7)], {"bug/7-x": OLD}, open_pr_bodies={"x/1": None}
+        ),
+    )
+    assert fake.writes == [("issue", "edit", "7"), ("issue", "comment", "7")]

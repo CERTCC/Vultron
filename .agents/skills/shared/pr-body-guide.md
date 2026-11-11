@@ -12,7 +12,8 @@ The rules below need no judgment, so a tool checks them (PAD-20-001):
 # Before the push, on the composed body:
 PYTHONPATH= uv run pr-body-lint --body <file> [--manifest <file>]
 # Once Docs: is recorded, on the open PR (the tool never calls GitHub itself):
-gh pr view <N> --json body,baseRefName,headRefOid \
+gh pr view <N> \
+  --json body,baseRefName,headRefName,headRefOid,closingIssuesReferences \
   | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
@@ -44,6 +45,7 @@ This table and the tool's `RULES` are one list; a test fails when they differ.
 | PRB-11 | body-length | The body is at most GitHub's 65,536-character limit |
 | PRB-12 | maintainer-docs-followup | Tooling diff with no maintainer doc: a `Docs:` line; at `final`, `deferred to #N` or `no maintainer docs impact — …` |
 | PRB-13 | questions-line | Implementation: `## Summary` ends with `Questions: asked N, filed M`, right after the `Issues:` line |
+| PRB-14 | part-of-unlinked | A `Part of #N` PR is not on the claim branch of #N, and GitHub does not list #N in its `closingIssuesReferences` (`bundling.md` § "Split PRs") |
 
 ---
 

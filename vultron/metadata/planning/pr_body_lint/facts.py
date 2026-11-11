@@ -37,6 +37,12 @@ class BodyFacts:
         undocumented_tooling: The workflow or tooling files the diff changes
             when it changes no maintainer-facing doc (PD-03-014); see
             :func:`undocumented_tooling`.
+        head_branch: The PR's head branch, or ``None`` on a detached
+            checkout; PRB-14 refuses a `Part of #N` body on #N's claim branch.
+        closing_refs: The issue numbers GitHub will close when the open PR
+            merges (its ``closingIssuesReferences``); empty before the PR
+            exists. A linked claim branch puts its issue here with no closing
+            keyword in the body (PAD-04-008).
     """
 
     pr_type: PrType
@@ -46,6 +52,8 @@ class BodyFacts:
     manifest: str | None = None
     closes_work_item: bool = False
     undocumented_tooling: tuple[str, ...] = ()
+    head_branch: str | None = None
+    closing_refs: tuple[int, ...] = ()
 
     @property
     def needs_docs_line(self) -> bool:
@@ -110,11 +118,40 @@ def _head_sha(root: Path) -> str:
         raise SetupError(str(exc)) from exc
 
 
-_PAYLOAD_FIELDS = "body,baseRefName,headRefOid"
+def _current_branch(root: Path) -> str | None:
+    """The checked-out branch, or ``None`` on a detached ``HEAD``."""
+    try:
+        name = run_git(root)(["branch", "--show-current"]).strip()
+    except BackstopError as exc:
+        raise SetupError(str(exc)) from exc
+    return name or None
+
+
+_PAYLOAD_FIELDS = (
+    "body,baseRefName,headRefName,headRefOid,closingIssuesReferences"
+)
+
+
+def _closing_refs(view: dict[str, object]) -> tuple[int, ...] | None:
+    """The issue numbers in ``closingIssuesReferences``, or ``None`` if bad."""
+    refs = view.get("closingIssuesReferences")
+    if not isinstance(refs, list):
+        return None
+    numbers: list[int] = []
+    for ref in refs:
+        number = ref.get("number") if isinstance(ref, dict) else None
+        if not isinstance(number, int) or isinstance(number, bool):
+            return None
+        numbers.append(number)
+    return tuple(numbers)
 
 
 def _pr_payload(path: str) -> dict[str, object]:
-    """The ``gh pr view --json body,baseRefName,headRefOid`` payload."""
+    """The ``gh pr view --json`` payload of :data:`_PAYLOAD_FIELDS`.
+
+    ``closingIssuesReferences`` is required: without it PRB-14 could not see
+    the closing reference a linked claim branch adds, and would pass silently.
+    """
     try:
         view = json.loads(_read(path))
     except json.JSONDecodeError as exc:
@@ -123,6 +160,8 @@ def _pr_payload(path: str) -> dict[str, object]:
         not isinstance(view, dict)
         or not isinstance(view.get("body"), str)
         or not isinstance(view.get("headRefOid"), str)
+        or not isinstance(view.get("headRefName"), str)
+        or _closing_refs(view) is None
     ):
         raise SetupError(
             f"--pr-json {path}: expected the object `gh pr view --json "
@@ -142,9 +181,12 @@ def _gather(
     args: argparse.Namespace, root: Path, run: Runner
 ) -> tuple[str, BodyFacts]:
     base = args.base or "origin/main"
+    closing_refs: tuple[int, ...] = ()
     if args.pr_json is not None:
         view = _pr_payload(args.pr_json)
         text = str(view["body"])
+        head_branch: str | None = str(view["headRefName"]) or None
+        closing_refs = _closing_refs(view) or ()
         if args.base is None and view.get("baseRefName"):
             base = f"origin/{view['baseRefName']}"
         head = _head_sha(root)
@@ -156,6 +198,7 @@ def _gather(
             )
     else:
         text = _read(args.body)
+        head_branch = _current_branch(root)
     files = _branch_files(root, base)
     py_changed = any(f.endswith(".py") for f in files)
     if args.type:
@@ -170,5 +213,7 @@ def _gather(
         manifest=_read(args.manifest) if args.manifest else None,
         closes_work_item=args.closes_work_item,
         undocumented_tooling=undocumented_tooling(files),
+        head_branch=head_branch,
+        closing_refs=closing_refs,
     )
     return text, facts

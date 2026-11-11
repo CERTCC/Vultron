@@ -179,9 +179,13 @@ Invoke the `orient-agent` skill.
    ```
 
    GitHub creates the branch, linked to the issue, and that branch is the
-   lock (PAD-04-001). The script then assigns you, comments, and sets
-   `Status = In Progress`. Abort immediately if it exits non-zero: exit 1 means
-   already claimed or failed, and exit 3 means held by an epic run (step 5).
+   lock (PAD-04-001). A build that is a non-final part of a split (its PR
+   says `Part of #N`) keeps that claim and works on an unlinked sibling
+   branch instead, because a PR from the linked branch closes #N
+   (PAD-04-008; `shared/bundling.md` § "Split PRs"). The script then assigns
+   you, comments, and sets `Status = In Progress`. Abort immediately if it
+   exits non-zero: exit 1 means already claimed or failed, and exit 3 means
+   held by an epic run (step 5).
 
 8. Fetch each issue's body and comments (including any comments not yet
    loaded in step 6). Use the full content as implementation context

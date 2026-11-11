@@ -45,6 +45,7 @@ from vultron.metadata.planning.pr_body_lint import (
     main,
     undocumented_tooling,
 )
+from vultron.metadata.planning.pr_body_lint.facts import _PAYLOAD_FIELDS
 
 REPO_ROOT = Path(__file__).parents[2]
 SKILLS = REPO_ROOT / ".agents" / "skills"
@@ -569,6 +570,80 @@ class TestAttributionLast:
         assert _ids(_body(tail=f"{ATTRIBUTION}\n\n\n")) == []
 
 
+PART_OF = "- Part of #5758"
+
+
+@pytest.mark.spec("PAD-04-008", "PAD-20-001")
+class TestPartOfUnlinked:
+    """A split's Part PR must not close its issue (#4805, PR #6267)."""
+
+    @staticmethod
+    def _facts(
+        branch: str | None = "task/5758a-instant-reads",
+        refs: tuple[int, ...] = (),
+    ) -> BodyFacts:
+        return BodyFacts(
+            pr_type=PrType.IMPLEMENTATION,
+            py_changed=True,
+            head_branch=branch,
+            closing_refs=refs,
+        )
+
+    def test_a_part_pr_on_a_sibling_branch_is_clean(self):
+        assert _ids(_body(top=PART_OF), self._facts()) == []
+
+    def test_a_part_pr_on_the_claim_branch_is_found(self):
+        facts = self._facts(branch="task/5758-instant-reads")
+        findings = lint_body(_body(top=PART_OF), facts)
+        assert [f.rule_id for f in findings] == ["PRB-14"]
+        assert "task/5758a-<slug>" in findings[0].message
+
+    def test_a_closing_reference_github_added_is_found(self):
+        """The live PR's refs catch any linked branch, whatever its name."""
+        facts = self._facts(branch="feature/whatever", refs=(5758,))
+        findings = lint_body(_body(top=PART_OF), facts)
+        assert [f.rule_id for f in findings] == ["PRB-14"]
+        assert "closingIssuesReferences" in findings[0].message
+
+    def test_both_signals_report_once(self):
+        facts = self._facts(branch="task/5758-instant-reads", refs=(5758,))
+        assert _ids(_body(top=PART_OF), facts) == ["PRB-14"]
+
+    @pytest.mark.parametrize(
+        "branch",
+        ["task/57580-other", "task/5758", "5758-no-prefix", None],
+    )
+    def test_a_branch_of_another_issue_or_shape_is_not_a_claim(self, branch):
+        assert _ids(_body(top=PART_OF), self._facts(branch=branch)) == []
+
+    def test_a_closing_reference_to_another_issue_is_not_found(self):
+        facts = self._facts(refs=(1,))
+        assert _ids(_body(top=f"- Closes #1\n{PART_OF}"), facts) == []
+
+    def test_each_part_of_issue_is_judged(self):
+        top = f"{PART_OF}\n- Part of #6000"
+        findings = lint_body(_body(top=top), self._facts(refs=(5758, 6000)))
+        assert [f.rule_id for f in findings] == ["PRB-14", "PRB-14"]
+
+    def test_part_of_in_code_is_not_a_reference(self):
+        summary = (
+            "Splits say `Part of #5758`.\n\nIssues: closed 0, opened 0\n"
+            + QUESTIONS
+        )
+        body = _body(top="- Closes #1", summary=summary)
+        facts = self._facts(branch="task/5758-instant-reads", refs=(5758,))
+        assert _ids(body, facts) == []
+
+    def test_part_of_in_a_fence_is_not_a_reference(self):
+        summary = (
+            "Example:\n\n```text\nPart of #5758\n```\n\n"
+            "Issues: closed 0, opened 0\n" + QUESTIONS
+        )
+        body = _body(top="- Closes #1", summary=summary)
+        facts = self._facts(refs=(5758,))
+        assert _ids(body, facts) == []
+
+
 @pytest.mark.spec("PAD-20-001")
 class TestBodyLength:
     """GitHub refuses a body over its limit, after the push (#5163)."""
@@ -633,7 +708,9 @@ def _view(root: Path, body: str, **extra: object) -> None:
     view: dict[str, object] = {
         "body": body,
         "baseRefName": "base",
+        "headRefName": "work",
         "headRefOid": head_sha(root),
+        "closingIssuesReferences": [],
     }
     view.update(extra)
     (root / "view.json").write_text(json.dumps(view))
@@ -772,6 +849,47 @@ class TestCli:
         assert main(argv, run=_FakeRunner()) == 1
         assert "PRB-12" in capsys.readouterr().out
 
+    @pytest.mark.spec("PAD-04-008")
+    def test_a_part_pr_whose_payload_closes_its_issue_is_found(
+        self, repo, capsys
+    ):
+        """The PR #6267 shape: `Part of #N`, and GitHub closes #N anyway."""
+        _view(
+            repo,
+            _body(top=PART_OF),
+            headRefName="task/5758-instant-reads",
+            closingIssuesReferences=[{"number": 5758}],
+        )
+        argv = ["--pr-json", "view.json", "--stage", "final"]
+        assert main(argv, run=_FakeRunner()) == 1
+        assert "PRB-14" in capsys.readouterr().out
+
+    @pytest.mark.spec("PAD-04-008")
+    def test_the_pre_push_body_is_judged_on_the_checked_out_branch(
+        self, repo, capsys
+    ):
+        git(repo, "checkout", "-q", "-b", "task/5758-instant-reads")
+        (repo / "body.md").write_text(_body(top=PART_OF))
+        argv = ["--body", "body.md", "--base", "base"]
+        assert main(argv, run=_FakeRunner()) == 1
+        assert "PRB-14" in capsys.readouterr().out
+        git(repo, "checkout", "-q", "-b", "task/5758a-instant-reads")
+        assert main(argv, run=_FakeRunner()) == 0
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {"closingIssuesReferences": None},
+            {"closingIssuesReferences": [{"number": "5758"}]},
+            {"closingIssuesReferences": [5758]},
+            {"headRefName": None},
+        ],
+    )
+    def test_a_payload_without_closing_refs_exits_2(self, repo, extra):
+        """No silent pass: a payload missing the refs is a setup error."""
+        _view(repo, _body(), **extra)
+        assert main(["--pr-json", "view.json"], run=_FakeRunner()) == 2
+
     def test_list_rules_prints_every_rule(self, capsys):
         assert main(["--list-rules"]) == 0
         out = capsys.readouterr().out.splitlines()
@@ -819,10 +937,8 @@ class TestSkillsRunTheGates:
             "### Phase 4",
         )
         first_step = phase.split("```bash", 1)[1].split("```", 1)[0]
-        assert (
-            "gh pr view <number> --json body,baseRefName,headRefOid"
-            in first_step
-        )
+        assert "gh pr view <number>" in first_step
+        assert f"--json {_PAYLOAD_FIELDS}" in first_step
         assert "pr-body-lint --pr-json - --stage final" in first_step
 
     @pytest.mark.spec("PAD-20-005")

@@ -4,9 +4,10 @@ status: active
 kind: guidance
 description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
-  the issue hierarchy, label taxonomy, bundle selection, task claiming, the
-  Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
-  shared-`.git` pruning danger, the two paths through GitHub Project #24
+  the issue hierarchy, label taxonomy, bundle selection, task claiming (and
+  the unlinked branch a split's Part PR opens from), the Epic claim an epic
+  run holds, stale-claim and merge-conflict recovery, the shared-`.git`
+  pruning danger, the two paths through GitHub Project #24
   (Schedule on Epics; Status and PR ship stage mirrored from facts), and the
   GitHub issue tracker CLI conventions.
 related_specs:
@@ -121,6 +122,12 @@ Because every agent is the same GitHub user, only that flag tells the run from a
 stray session (PAD-19-003). An Epic claimed to plan it is commented on, never
 assigned: an Epic's assignee means an epic run (PAD-04-007).
 
+A split's non-final PR (`Part of #N`) opens from an unlinked sibling branch
+`<prefix>/<N>a-<slug>`, never the claim branch: GitHub makes a PR from a linked
+branch close its issue, whatever the body says, and the linked branch must stay
+the lock. `pr-body-lint` PRB-14 refuses the claim-branch case (PAD-04-008;
+recipe in `.agents/skills/shared/bundling.md` § "Split PRs").
+
 Pre-push review findings are FAIL, IMPROVE or DEFER
 (`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are fixed
 before the PR opens; there is no advisory category to log and forget. The
@@ -133,13 +140,13 @@ live-PR phases and the delta (PAD-07-007, PAD-07-012, ADR-0139).
 ```text
 Sweeper (stale_claim_sweeper.yml, weekly or on demand):
   For each Issue that is assigned, has a claim branch on GitHub (any prefix),
-  no open PR for that branch, and neither a branch commit nor its claim
-  in the last 3 days:
+  no open PR (on that branch, or from any branch saying `Part of #N`), and
+  neither a branch commit nor its claim in the last 3 days:
   → add stale-claim label
   → comment: "Orphaned claim on branch <branch>. Human review needed."
   For each Epic that is assigned (an epic run), was claimed > 3 days ago, and
   none of whose held issues (descendants down to a nested Epic) has an open
-  PR or claim-branch activity in 3 days:
+  PR (closing it, or saying `Part of` it) or claim-branch activity in 3 days:
   → add stale-claim label, comment
   (logic and tests: .github/scripts/stale_claim_sweeper.py)
 

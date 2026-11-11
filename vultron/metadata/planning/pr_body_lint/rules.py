@@ -114,6 +114,13 @@ RULES: tuple[Rule, ...] = (
         "An implementation PR's `## Summary` ends with `Questions: asked N, "
         "filed M`, directly after the `Issues:` line.",
     ),
+    Rule(
+        "PRB-14",
+        "part-of-unlinked",
+        "A `Part of #N` line names an issue the PR does not close: the head "
+        "branch is not #N's claim branch `<prefix>/<N>-<slug>`, and the open "
+        "PR's `closingIssuesReferences` does not hold N.",
+    ),
 )
 
 

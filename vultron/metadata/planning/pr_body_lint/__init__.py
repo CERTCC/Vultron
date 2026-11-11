@@ -27,7 +27,8 @@ Usage::
     pr-body-lint --body body.md                     # facts from the branch diff
     pr-body-lint --body body.md --stage final       # after check-docs-sync
     pr-body-lint --body - --manifest /tmp/m.txt     # body on stdin
-    gh pr view 4710 --json body,baseRefName,headRefOid \
+    gh pr view 4710 \
+      --json body,baseRefName,headRefName,headRefOid,closingIssuesReferences \
       | pr-body-lint --pr-json - --stage final      # an open PR's body
 
 Two stages: ``pre-push`` (default) accepts the placeholders ``create-pr``
