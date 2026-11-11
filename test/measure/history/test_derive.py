@@ -751,9 +751,20 @@ class TestGapLabels:
 
     @pytest.mark.spec("CEH-03-013")
     @pytest.mark.spec("CEH-06-005")
+    @pytest.mark.parametrize(
+        "claimed",
+        [
+            # The lazy check, long after the end time.
+            "2026-01-09T00:00:00+00:00",
+            # An outside request at the end time: the ledger records it alike.
+            EMBARGO_END,
+        ],
+    )
     def test_an_end_time_exit_by_the_case_manager_is_stamped_when_next_handled(
-        self,
+        self, claimed
     ):
+        """Every CASE_MANAGER end-time exit, whichever path: the stamp may lag
+        the deadline, which the event carries (CEH-03-013, CEH-03-015)."""
         ledger = Ledger()
         ledger.standard_genesis()
         ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
@@ -763,9 +774,11 @@ class TestGapLabels:
             CM,
             embargo(),
             content="END_TIME_REACHED",
+            claimed=claimed,
         )
         (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
         assert event.gaps == [GapLabel.STAMPED_WHEN_NEXT_HANDLED]
+        assert event.deadline == datetime.fromisoformat(EMBARGO_END)
 
 
 # ---------------------------------------------------------------------------

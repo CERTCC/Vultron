@@ -164,7 +164,7 @@ in `what_a_case_records.md` change an event's time:
 |---|---|
 | Seated at creation | The creation sequence committed this status, so its stamp is the creation time (CM-14-009, CM-14-012) |
 | Stamped at adoption | The case's public state changed when the CASE_MANAGER committed its own case status, not when a participant first reported it |
-| Stamped when next handled | A passing deadline caused the change, and the CASE_MANAGER made it on its own lazy check, when it next handled the case (EMB-13-003, CM-28-015) |
+| Stamped when next handled | A passing deadline caused the change, so the stamp may lag it; the event carries the deadline (EMB-13-003, CM-28-015, CEH-03-015) |
 | Reported out of band | A public exploit or observed attacks happened outside the protocol, and the delay before the report is not recorded |
 
 The other gaps carry no label because they produce no event: refusals and replay
@@ -172,15 +172,13 @@ requests are never ledgered (CLP-02-013), an ownership-transfer expiry changes n
 participant record (CM-21-043), and the untimed register and consent rows are the
 reason for the join described above rather than a gap in an event.
 
-The "stamped when next handled" label marks the *distance* between the deadline and
-the commit, so it is wrong where that distance is not there. EMB-13-003 reaches the
-same termination two ways: the CASE_MANAGER's own lazy check, which can be much later,
-and an outside request made at the end time, such as from a Sentinel watching embargo
-timers, which is stamped close to the deadline. Label the lazy path only (CEH-03-013).
-The ledger does not yet say which path committed an exit: both are the CASE_MANAGER's
-`Remove(EmbargoEvent)` with `END_TIME_REACHED` and no requester. Until the decision
-on issue #5780 settles that, the layer labels every `END_TIME_REACHED` exit the
-CASE_MANAGER commits, and carries the end time as the bound.
+The "stamped when next handled" label says the stamp may lag the deadline that caused
+the change. Put it on every `END_TIME_REACHED` exit the CASE_MANAGER commits, and on
+every timed-out invitation (CEH-03-013). EMB-13-003 reaches an end-time exit two ways,
+the CASE_MANAGER's own lazy check and an outside request such as a Sentinel's, and the
+ledger records both as the same `Remove(EmbargoEvent)` with no requester. So the label
+cannot tell the paths apart, and the deadline the event carries (CEH-03-015) is what
+gives the true end time. An end-time exit some other actor committed is not labelled.
 
 Where the ledger holds a deadline that bounds the real time better than the stamp,
 carry the deadline too (CEH-03-015). An embargo terminated `END_TIME_REACHED` really

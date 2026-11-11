@@ -519,23 +519,27 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The layer MUST label an event that a passing deadline caused as stamped when the
-      CASE_MANAGER next acted.
+      The layer MUST label every end-time embargo exit the CASE_MANAGER commits, and
+      every timed-out invitation, as stamped when the CASE_MANAGER next acted.
     rationale: >-
-      The CASE_MANAGER's own lazy check makes the change when it next handles the case,
-      so the stamp can be much later than the deadline. The label marks that distance,
-      which is why it is wrong to apply where the distance is not there: EMB-13-003
-      also admits an outside request at the end time, such as from a Sentinel watching
-      embargo timers, and an exit committed on that path is stamped close to its
-      deadline. Label the lazy path, not the requested one.
+      The label means the stamp may lag the deadline that caused the change. The
+      CASE_MANAGER's lazy check makes the change when it next handles the case, so the
+      stamp can be much later than the deadline. EMB-13-003 also admits an outside
+      request at the end time, such as from a Sentinel watching embargo timers, but the
+      ledger records both paths as the same `Remove(EmbargoEvent)` with no requester,
+      so the label cannot tell them apart. The deadline the event carries (CEH-03-015)
+      gives the true end time.
     verification: >-
       `test/measure/history/test_derive.py::TestGapLabels::test_an_end_time_exit_by_the_case_manager_is_stamped_when_next_handled`
-      asserts the deadline label on an end-time exit the CASE_MANAGER committed, and
+      asserts the label on an end-time exit the CASE_MANAGER committed, with the end
+      time as its deadline;
       `test/measure/history/test_derive.py::test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline`
-      on an invitation that timed out. A unit test must also assert the label is
-      absent on an exit committed from an outside request made at the end time; none
-      exists yet, because the ledger records both paths with the same entry (open on
-      #5780).
+      asserts it on a timed-out invitation; and
+      `test/measure/history/test_derive.py::test_an_end_time_exit_not_committed_by_the_case_manager_is_unlabelled`
+      and
+      `test/measure/history/test_derive.py::test_an_early_exit_carries_its_cause_as_recorded`
+      assert it is absent on an end-time exit another actor committed and on an early
+      exit.
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010

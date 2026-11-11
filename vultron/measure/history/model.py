@@ -136,8 +136,9 @@ class GapLabel(StrEnum):
     #: The case's public state changed when the CASE_MANAGER adopted it, not
     #: when a participant first reported it (CEH-03-012).
     STAMPED_AT_ADOPTION = "stamped_at_adoption"
-    #: A passing deadline caused the change, and the CASE_MANAGER made it
-    #: when it next handled the case (CEH-03-013, EMB-13-003, CM-28-015).
+    #: A passing deadline caused the change, so the stamp may lag the
+    #: deadline, which the event carries (CEH-03-013, CEH-03-015, EMB-13-003,
+    #: CM-28-015).
     STAMPED_WHEN_NEXT_HANDLED = "stamped_when_next_handled"
     #: The event happened outside the protocol, and the delay before it was
     #: reported is not recorded (CEH-03-014).

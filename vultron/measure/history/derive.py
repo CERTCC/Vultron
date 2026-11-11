@@ -443,7 +443,8 @@ class _Deriver:
         ``terminationCause``, carried as recorded.  An exit at the end time
         carries the end time as its bounding deadline (CEH-03-015), and,
         when the CASE_MANAGER committed it, the stamped-when-next-handled
-        label (CEH-03-013).
+        label (CEH-03-013), whichever path reached it: the ledger records the
+        lazy check and an outside request alike.
         """
         self._remember_end_time(embargo)
         embargo_id = actor_uri(embargo) or self.active_embargo
