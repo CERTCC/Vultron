@@ -19,6 +19,7 @@ related_specs:
   - specs/message-validation.yaml (MV-04-003)
   - specs/csaf-report-content.yaml (CSAF-01-001)
 related_notes:
+  - notes/as2-vocabulary-alignment.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/core-wire-rendering-port.md
