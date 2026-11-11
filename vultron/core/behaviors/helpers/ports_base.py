@@ -103,8 +103,8 @@ class _OptionalPortRead:
     def _try_get_input(self, key: str) -> object | None:
         """Return the value on port ``key``, or ``None`` when it is absent.
 
-        Only absence becomes ``None``: an unset key (``NoDataAvailable``) or an
-        undeclared port (``NotImplementedError``).  A value of the wrong
+        Only absence becomes ``None``: an unset key (``NoDataAvailable``) or a
+        key holding ``None`` (``NotImplementedError``).  A value of the wrong
         ``data_type`` raises ``TypeError`` out of the tick, and ``BTBridge``
         fails the whole tree run.  Catching it here would let the junk read as
         "not supplied" (BTND-03-021, ARCH-15).

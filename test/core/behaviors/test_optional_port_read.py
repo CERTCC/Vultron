@@ -23,10 +23,13 @@ import pytest
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+import vultron.core.behaviors as behaviors_pkg
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.port_contract import iter_port_node_classes
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    _OptionalPortRead,
 )
 
 _PORT = "probe"
@@ -88,6 +91,14 @@ class TestOptionalPortRead:
         node.setup()
         assert node._try_get_input(_PORT) is None
 
+    def test_key_holding_none_reads_as_none(self, node_cls: type) -> None:
+        # py_trees raises NotImplementedError for a stored None; that is
+        # absence too, not a type mismatch.
+        node = node_cls(name="probe-reader")
+        node.setup()
+        py_trees.blackboard.Blackboard.set(_KEY, None)
+        assert node._try_get_input(_PORT) is None
+
     def test_value_of_declared_type_is_returned(self, node_cls: type) -> None:
         node = node_cls(name="probe-reader")
         node.setup()
@@ -111,3 +122,24 @@ class TestOptionalPortRead:
         bt_scenario.assert_failure(
             result, reason="not of type", allow_internal=True
         )
+
+
+@pytest.mark.spec("BTND-03-021")
+def test_no_node_overrides_the_shared_optional_read() -> None:
+    """Every ports node reads optional ports through ``_OptionalPortRead``.
+
+    A node class that defined its own ``_try_get_input()`` could catch
+    ``TypeError`` and read a wrong-typed value as absent, and the probe-node
+    tests above would stay green.  The roster is discovered reflectively, so a
+    node added later is checked too.
+    """
+    roster = list(iter_port_node_classes(behaviors_pkg))
+    assert roster, "reflective walk found no typed-Ports node classes"
+    shared = _OptionalPortRead._try_get_input
+    overriding = sorted(
+        f"{cls.__module__}.{cls.__qualname__}"
+        for cls in roster
+        if not issubclass(cls, _OptionalPortRead)
+        or cls._try_get_input is not shared
+    )
+    assert overriding == []

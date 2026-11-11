@@ -469,8 +469,10 @@ groups:
       `test/core/behaviors/test_optional_port_read.py` sets a wrong-typed
       value on an optional port of a condition node and of an action node, and
       asserts that `_try_get_input()` raises `TypeError` and that a tree run reports
-      an internal-error `FAILURE` naming the type mismatch.
-      `TestLedgerPortTickLevelEnforcement` in
+      an internal-error `FAILURE` naming the type mismatch. The same file walks
+      every typed-Ports node class under `vultron/core/behaviors/` and asserts
+      none defines its own `_try_get_input()`, so no node can swallow the
+      `TypeError` locally. `TestLedgerPortTickLevelEnforcement` in
       `test/core/behaviors/sync/nodes/test_typed_ports.py` checks the same outcome
       on the ledger ports, which call `get_input()` directly.
     relationships:

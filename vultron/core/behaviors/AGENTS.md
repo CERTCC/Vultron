@@ -185,8 +185,8 @@ Two consequences before tightening one: a violation fails the **whole tree**, no
 the one node (BTND-03-021: `_try_get_input()` never catches `TypeError`), and a
 contract test MUST find its roster reflectively (`test/core/behaviors/port_contract.py`)
 — a hard-coded list cannot police a shared key. Details in `notes/bt-pitfalls.md`
-§ "`NoDataAvailable` Surfaces in `initialise()`"; examples in `test_typed_ports.py`
-and `test_optional_port_read.py`; ADR-0044 § Consequences; BTND-03-009.
+§ "`NoDataAvailable` Surfaces in `initialise()`"; examples in each domain's
+`test_typed_ports.py`, `test_optional_port_read.py`; ADR-0044; BTND-03-009.
 *Source: ISSUE-2907, ISSUE-3011*
 
 ---
