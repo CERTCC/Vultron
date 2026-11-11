@@ -225,6 +225,13 @@ baseline on the number of participants. An incomplete sequence is scored through
 completions under the same walk (expected, best and worst), and a case reports
 per-vendor scores with their unweighted median and spread.
 
+Score through `vultron.measure.baselines`, never a second walk: its
+`completion_probabilities(prefix)` weights each six-event completion from where the
+case stands, and `frequency` serves any joint-model query. Reason: one walk keeps
+the completions and the baselines under the same chance model (ADR-0182). Its joint
+models obey only enforced rules — a SHOULD never constrains them, because the
+desiderata measure exactly those preferences.
+
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
 Only the CASE_MANAGER's ledger is complete. A participant's replica stops receiving
@@ -305,8 +312,9 @@ which states only the boundary that nothing in the protocol path imports the lay
 (CEH-01-001):
 
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
-  subpackage that reads through the one below it; the event history and the chance
-  baselines are later siblings of `ledger/`, never part of it.
+  subpackage that reads through the one below it; the event history is a later
+  sibling of `ledger/`, never part of it. The chance baselines
+  (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
   display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`
