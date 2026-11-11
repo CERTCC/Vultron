@@ -4,9 +4,7 @@ stakeholder_type: [project-contributor]
 
 # First day maintainer setup
 
-By the end of this tutorial, we will have a working local maintainer
-environment: dependencies installed, baseline tests running, and local docs
-available.
+By the end of this tutorial, we will have a working local maintainer environment: dependencies installed, baseline tests running, and local docs available.
 
 ## Prerequisites
 
@@ -23,8 +21,7 @@ git clone https://github.com/CERTCC/Vultron.git
 cd Vultron
 ```
 
-Notice that the repository root contains `vultron/`, `test/`, `docs/`,
-`notes/`, and `specs/`.
+Notice that the repository root contains `vultron/`, `test/`, `docs/`, `notes/`, and `specs/`.
 
 ## Step 2: install the dev environment
 
@@ -73,14 +70,10 @@ Then open <http://127.0.0.1:8000/developer/>.
 
 ## What we accomplished
 
-We now have a local maintainer setup that supports code changes, test runs, and
-dev-only maintainer docs.
+We now have a local maintainer setup that supports code changes, test runs, and dev-only maintainer docs.
 
 ## Troubleshooting
 
 - If `uv sync --dev` fails, verify Python 3.13+ and rerun `uv sync --dev`.
-- If `mkdocs serve` starts but `/developer/` is missing, confirm you are
-  running `mkdocs serve` (not `mkdocs build`) — draft pages are served locally
-  but excluded from production builds.
-- If Docker docs do not include maintainer pages, ensure you started the
-  `docs` service from `docker/docker-compose.yml`.
+- If `mkdocs serve` starts but `/developer/` is missing, confirm you are running `mkdocs serve` (not `mkdocs build`) — draft pages are served locally but excluded from production builds.
+- If Docker docs do not include maintainer pages, ensure you started the `docs` service from `docker/docker-compose.yml`.
