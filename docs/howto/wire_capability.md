@@ -49,22 +49,8 @@ The three-step process is:
 
 ### Find the fuzzer node
 
-Every call-out point in the reference implementation has a corresponding
-fuzzer node in `vultron/demo/fuzzer/`. Browse by domain:
-
-| Domain | Fuzzer module |
-|---|---|
-| Report validation | `vultron/demo/fuzzer/report_management/validate.py` |
-| Report prioritization | `vultron/demo/fuzzer/report_management/prioritize.py` |
-| Embargo management | `vultron/demo/fuzzer/embargo/` |
-| CVE / Vulnerability ID assignment | `vultron/demo/fuzzer/report_management/assign_vul_id/` |
-| Fix development | `vultron/demo/fuzzer/report_management/develop_fix.py` |
-| Fix deployment | `vultron/demo/fuzzer/report_management/deploy_fix.py` |
-| Exploit acquisition | `vultron/demo/fuzzer/report_management/acquire_exploit.py` |
-| Publication | `vultron/demo/fuzzer/report_management/publication/` |
-
-The [Capability Model](../topics/capability_model/index.md) page lists every
-known integration point by domain and shape.
+Each declared capability has a fuzzer node in `vultron/demo/fuzzer/`, at the same module path as its declaration under `vultron/core/behaviors/call_out/capabilities/`.
+The [capability catalog](../topics/capability_model/index.md#capability-hierarchy) lists every declared capability by domain and shape, with the module that declares it.
 
 Each fuzzer node's docstring tells you the following:
 
@@ -222,8 +208,12 @@ It still answers through `answer()`.
 
 A call-out point that has no declaration yet gets one in `vultron/core/behaviors/call_out/capabilities/`, never in `vultron/demo/` (BT-18-020).
 Subclass the shape base that matches what the capability produces, declare its ports, and describe them in a `Blackboard contract (BT-18-001):` section of the docstring.
+[The four shapes](../topics/capability_model/index.md#the-four-shapes) say which base matches.
+A condition watched over time is not a capability: it is a [Sentinel](../topics/capability_model/index.md#the-sentinel-call-in-pattern), which gets no declaration.
 A Retriever's docstring also says, in a `Store-held answer (BT-18-039):` line, whether the case file can hold the fact it fetches.
 `capability_declarations()` in that package lists every declaration, so the checks that cover each capability reach the new one without a list to update.
+The [capability catalog](../topics/capability_model/index.md#capability-hierarchy) shows a new declaration in an existing module without a docs edit.
+A declaration in a new module needs a domain section on that page, and a test fails until the section exists.
 
 ### A binary backend
 
@@ -514,7 +504,7 @@ unchanged.
 
 ## Reference
 
-- **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
+- **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the catalog of declared capabilities, generated from the code
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
 - **`vultron/core/behaviors/call_out/capabilities/`** — one declaration per capability, with its typed ports, and `capability_declarations()`
 - **`vultron/core/behaviors/call_out/`** — the four shape base classes, `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam and its time-bounded form `TimeBoundedCallOut`, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
