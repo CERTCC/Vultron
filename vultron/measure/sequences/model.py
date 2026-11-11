@@ -17,10 +17,10 @@ its own fix-path and deployment events combined with the case's public-state
 events (CEH-05-001, CEH-05-003).  Each member is a :class:`SequenceEvent`, the
 history's event plus whether the model placed it: a vendor-awareness event
 recorded after public awareness sits immediately after ``P`` (CEH-05-009,
-CSB-17-003), keeping its recorded log index and clocks.  It refuses at construction anything the
-case-state history validator would not replay as a prefix (CEH-05-002,
-CEH-05-004), so a held sequence is always a valid, possibly incomplete,
-prefix (CEH-05-005).
+CSB-17-003), keeping its recorded log index and clocks.  It refuses at
+construction anything the case-state history validator would not replay as a
+prefix (CEH-05-002, CEH-05-004), so a held sequence is always a valid,
+possibly incomplete, prefix (CEH-05-005).
 
 A participant with no sequence is an :class:`UnprojectableParticipant`, with
 the reason (CEH-05-007).  :class:`CaseStateSequences` holds both, and holds no
