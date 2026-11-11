@@ -54,7 +54,8 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     ``as_Actor | as_Link | NonEmptyString | None``) is not, because its ``T`` is a
     subclass of ``as_Object`` rather than ``as_Object`` itself.  This is the
     single property that separates the AS2 Activity object-reference fields
-    from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
+    from narrowed refs, the one-or-many AS2 properties such as ``context`` and
+    ``in_reply_to`` (whose list branch keeps them out),
     and unrelated types' refs (``as_Relationship.subject``, …).
 
     Under ARCH-25-003 (ADR-0099) the aliases also admit ``CoreObject`` — a core
@@ -156,8 +157,9 @@ def _inline_typed_fields(cls: type[BaseModel]) -> frozenset[str]:
 
     ``context`` is here and not in :func:`object_ref_fields`.  It is never
     dehydrated, so it is always stored whole — but nothing re-typed it either,
-    and ``as_Activity.context`` is loosely typed, so read-back left a raw
-    ``dict``.  That is enough to break semantic matching:
+    and ``as_Activity.context`` names only the generic object classes, so
+    read-back cannot recover the stored object's own class.  That is enough to
+    break semantic matching:
     ``_OfferCaseParticipantRoleActivity`` is recognised by its ``context``
     being a ``VulnerabilityCase`` (ADR-0039), so a stored role offer came back
     classified UNKNOWN, was never coerced out of the base ``as_Offer``, and the

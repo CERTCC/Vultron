@@ -20,7 +20,7 @@ the answers live here once (CS-08-002).
 """
 
 import inspect
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Annotated, Any, get_args, get_origin
 
 from pydantic import TypeAdapter, ValidationError
@@ -81,7 +81,7 @@ def _union_members(annotation: Any) -> list[Any]:
     A container's own parameters (``list[X]``) and an ``Annotated`` wrapper are
     not union members, so they come back whole.
     """
-    if get_origin(annotation) in (Annotated, list, dict, set, tuple):
+    if get_origin(annotation) in (Annotated, list, dict, set, tuple, Sequence):
         return [annotation]
     args = [a for a in get_args(annotation) if a is not type(None)]
     return args or [annotation]
@@ -99,7 +99,7 @@ def blank_probes(annotation: Any, blank: str) -> Iterator[Any]:
     for member in _union_members(annotation):
         origin = get_origin(member)
         probes: list[Any]
-        if origin in (list, set, tuple):
+        if origin in (list, set, tuple, Sequence):
             probes = [[blank]]
         elif origin is dict:
             # Probe only the positions that hold a string: a ``dict[NonEmptyString,

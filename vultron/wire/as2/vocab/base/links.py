@@ -16,12 +16,13 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal, TypeAlias, TypeVar
+from typing import Any, ClassVar, Literal, TypeAlias, TypeVar
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo, model_validator
 
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 
 class as_Link(as_Base):
@@ -41,6 +42,15 @@ class as_Link(as_Base):
         validation_alias="type",
         serialization_alias="type",
     )
+    #: A Link is not an Object, and AS2 gives it no id of its own.  One this
+    #: process builds still takes a minted id; a received one that omits it
+    #: keeps none (OID-01-013).
+    _inbound_requires_id: ClassVar[bool] = False
+    id_: NonEmptyString | None = Field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=generate_new_id,
+        validation_alias="id",
+        serialization_alias="id",
+    )
     width: int | None = None
     height: int | None = None
     #: AS2 ``rel`` is not functional: one relation type as a string, or
@@ -49,6 +59,47 @@ class as_Link(as_Base):
     #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
     href: NonEmptyString | None = None
     hreflang: NonEmptyString | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_received_link_without_href(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
+        """Refuse a received Link that names no ``href``.
+
+        A Link has no id to name its resource by (OID-01-013); its ``href`` is
+        the reference.  Without one it points nowhere, like a blank IRI
+        (CS-08-001), so an id-less mapping such as ``{}`` is refused rather
+        than read as a Link to nothing.
+        """
+        if not isinstance(data, dict):
+            return data
+        context = info.context
+        if not isinstance(context, dict) or not context.get(
+            cls.INBOUND_CONTEXT_KEY
+        ):
+            return data
+        if data.get("href") is None:
+            raise ValueError(
+                f"a received {cls.__name__} carries no 'href', so it names"
+                " no resource (CS-08-001, OID-01-013)"
+            )
+        return data
+
+
+class as_Mention(as_Link):
+    """A specialized Link that represents an @mention (AS2 Vocabulary 3.2).
+
+    A Link subtype, so a received one keeps its ``href`` and needs no ``id``.
+    See definition in ActivityStreams Vocabulary
+    <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-mention>
+    """
+
+    type_: Literal["Mention"] = Field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+        default="Mention",
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 T_co = TypeVar("T_co", covariant=True)

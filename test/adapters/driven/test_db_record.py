@@ -1227,3 +1227,36 @@ def test_a_case_reference_round_trips_as_a_reference():
     assert isinstance(
         getattr(back, "object_", None), as_VulnerabilityCaseReference
     )
+
+
+@pytest.mark.spec("OID-02-003")
+@pytest.mark.parametrize("slot", ["tag", "context"])
+def test_core_object_holding_a_wire_link_reads_back(slot: str) -> None:
+    """A Link in a core object's AS2 slot survives the store (#3894).
+
+    The parse edge builds a received Link inside a core object; the slot holds
+    it as a built model.  Stored, it is a mapping that is not a ``CoreObject``,
+    so the row builds it as its own class before the core class reads it.
+    """
+    from vultron.core.models.report import VulnerabilityReport
+    from vultron.wire.as2.vocab.base.links import as_Link, as_Mention
+
+    links = [
+        as_Link(href="https://example.org/x"),
+        as_Mention(href="https://example.org/actors/bob"),
+    ]
+    value = links if slot == "tag" else links[0]
+    report = VulnerabilityReport.model_validate(
+        {
+            "name": "r",
+            "content": "c",
+            "attributed_to": "https://example.org/actors/alice",
+            slot: value,
+        }
+    )
+
+    back = Record.from_obj(report).to_obj()
+
+    held = getattr(back, slot)
+    expected = links if slot == "tag" else links[0]
+    assert held == expected
