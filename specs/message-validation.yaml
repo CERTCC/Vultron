@@ -620,8 +620,11 @@ groups:
       spellings before it validates the object. The objects are the activity envelope,
       and an inline object whose `type` resolves to a wire class or to a core class.
       They also include an inline `Link`, and an inline object with no `type`. A
-      declared spelling is a field name, the camelCase alias the class generates for it,
-      an explicit validation alias, or `@context`.
+      fetched object (AKM-05-007) is inbound data too: `parse_fetched_object` in
+      `vultron/adapters/driven/http_object_fetch.py` MUST apply the same partition to
+      the fetched body, at every depth, before it validates the body. A declared
+      spelling is a field name, the camelCase alias the class generates for it, an
+      explicit validation alias, or `@context`.
     rationale: >-
       Without one rule at the parse edge, the result for an unknown key depends on the
       class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
@@ -634,10 +637,16 @@ groups:
       `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an
       unknown key in each of the positions this requirement names: refused when the
       key is a near miss (MV-11-002), set aside and reported when it is foreign
-      (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
+      (MV-11-003). `TestAFetchedObjectsUnknownKeys` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts the same for a fetched
+      object of a core class and of a wire class, and for an object nested in a
+      fetched body (#5486). The partition is `vultron/wire/as2/unknown_keys.py`
+      (#3921).
     relationships:
     - rel_type: part_of
       spec_id: ARCH-25-007
+    - rel_type: constrains
+      spec_id: AKM-05-007
     adr:
     - ADR-0099
     - ADR-0032

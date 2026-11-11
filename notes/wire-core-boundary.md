@@ -208,6 +208,10 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
 5. **Never re-validate from the raw body after parse** (MV-11-005). Set-aside keys
    would reappear on a core class and the wrong type would be stored. Ingress
    storage persists the parsed object.
+6. **A fetched body takes the same partition** (MV-11-001, AKM-05-007).
+   `parse_fetched_object` runs `partition_unknown_keys` and `report_set_aside`
+   before it validates; a bare `cls.model_validate(document)` would let `forbid`
+   refuse a core object's extension key and a wire class drop a near miss (#5486).
 
 **`@id` and `@type` are near misses by design** (CONCERN-3958). AS2 spells them
 `id` and `type`: the normative context aliases them and AS2 Core § 2.1 requires
