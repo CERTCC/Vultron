@@ -32,10 +32,12 @@ class CaseTriggers(SessionBinding):
     def submit_report(
         self,
         *,
-        report_name: str,
+        report_name: str | None = None,
         report_content: str,
         recipient_id: str,
         proposed_embargo_end_time: datetime | None = None,
+        csaf_document: dict[str, Any] | None = None,
+        report_summary: str | None = None,
     ) -> WireTriggerResult:
         """Create a report and offer it to *recipient_id* (submit-report).
 
@@ -43,16 +45,26 @@ class CaseTriggers(SessionBinding):
         the report; the Offer then carries them as ``proposedEmbargo``
         (EP-04-004).  ``None`` states none — the receiver's default applies
         (EP-04-001).
+
+        *csaf_document* attaches a CSAF 2.1 vulnerability report as a JSON
+        object.  *report_summary* is the report's summary.  When
+        *csaf_document* is given, *report_name* is optional; the trigger
+        fills it from the document's title (CSAF-04-010).
         """
         body: dict[str, Any] = {
-            "report_name": report_name,
             "report_content": report_content,
             "recipient_id": recipient_id,
         }
+        if report_name is not None:
+            body["report_name"] = report_name
         if proposed_embargo_end_time is not None:
             body["proposed_embargo_end_time"] = (
                 proposed_embargo_end_time.isoformat()
             )
+        if csaf_document is not None:
+            body["csaf_document"] = csaf_document
+        if report_summary is not None:
+            body["report_summary"] = report_summary
         return self._post("submit-report", body)
 
     def ack_report(
