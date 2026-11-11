@@ -42,9 +42,7 @@ the actor; the helpers bind the case themselves.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
 
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
@@ -65,6 +63,7 @@ from vultron.demo.utils import (
     demo_step,
     ref_id,
 )
+from vultron.demo.wall_clock import days_from_now
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -83,11 +82,6 @@ REVISED_EMBARGO_DAYS = 120
 #: hop, the ledger-coverage budget.
 INVITE_TIMEOUT_SECONDS = PARTICIPANT_JOIN_TIMEOUT
 COMMIT_TIMEOUT_SECONDS = LEDGER_COVERAGE_TIMEOUT
-
-
-def _end_time(days: int) -> datetime:
-    """A timezone-aware embargo end *days* from now (the trigger requires one)."""
-    return days_from_now_utc(days)
 
 
 def _proposed_embargo_id(result_activity_object: object, verb: str) -> str:
@@ -305,7 +299,7 @@ def demo_propose_and_activate_embargo(
     }
     with demo_gate("Reporter's proposal reaches the CASE_MANAGER"):
         proposal = sessions["Reporter"].propose_embargo(
-            end_time=_end_time(days)
+            end_time=days_from_now(days)
         )
         embargo_id = _proposed_embargo_id(
             proposal.activity.object_, "propose-embargo"
@@ -395,7 +389,9 @@ def demo_propose_embargo_revision(
         deciding.client, case.id_, case_manager_client
     )
     with demo_gate("Proposer's revision reaches the CASE_MANAGER"):
-        proposal = proposer.propose_embargo_revision(end_time=_end_time(days))
+        proposal = proposer.propose_embargo_revision(
+            end_time=days_from_now(days)
+        )
         embargo_id = _proposed_embargo_id(
             proposal.activity.object_, "propose-embargo-revision"
         )

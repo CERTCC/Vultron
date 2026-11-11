@@ -53,11 +53,11 @@ from datetime import UTC, datetime
 import pytest
 
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -225,7 +225,7 @@ def _seed_case(
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     manager = CaseParticipant(
         id_=f"{case_id}/participants/case-actor",

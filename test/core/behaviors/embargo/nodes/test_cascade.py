@@ -24,11 +24,11 @@ from py_trees.ports import NoDataAvailable
 from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 
 
@@ -37,7 +37,7 @@ def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:
     return CoreEmbargoEvent(
         id_=f"https://example.org/embargo_events/e{suffix}",
         context=f"https://example.org/cases/case_{suffix}",
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
 
 

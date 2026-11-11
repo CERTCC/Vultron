@@ -45,6 +45,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import fail_commits, is_consent_row_update
 from test.support.received import (
     TEST_SENDER_POSITION,
@@ -64,7 +65,6 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -775,7 +775,7 @@ def _seed_pending_invite(
     embargo = as_EmbargoEvent(
         id_=f"{CASE_ID}/embargo_events/{suffix}",
         context=CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     propose(case, embargo.id_)
@@ -787,7 +787,7 @@ def _seed_pending_invite(
         embargo.id_,
         PEC_Trigger.INVITE,
         entry_status=EmbargoRegisterStatus.PROPOSED,
-        rsvp_deadline=days_from_now_utc(365),
+        rsvp_deadline=days_from_now(365),
     )
     dl.save(invitee)
     return embargo.id_
@@ -1009,7 +1009,7 @@ class TestOwnerCloseSettlesPendingInvites:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/in-force",
             context=CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         activate(case, embargo.id_)
@@ -1021,7 +1021,7 @@ class TestOwnerCloseSettlesPendingInvites:
             embargo.id_,
             PEC_Trigger.INVITE,
             entry_status=EmbargoRegisterStatus.ACTIVE,
-            rsvp_deadline=days_from_now_utc(365),
+            rsvp_deadline=days_from_now(365),
         )
         dl.save(invitee)
         case = dl.read_case(CASE_ID)
@@ -2497,7 +2497,7 @@ def _seed_active_embargo(
     embargo = EmbargoEvent(
         id_=f"{CASE_ID}/embargo_events/e1",
         context=CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.save(embargo)
     activate(case, embargo.id_)
@@ -2505,7 +2505,7 @@ def _seed_active_embargo(
         revision = EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e2",
             context=CASE_ID,
-            end_time=days_from_now_utc(60),
+            end_time=days_from_now(60),
         )
         dl.save(revision)
         propose(case, revision.id_)

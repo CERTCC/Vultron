@@ -46,11 +46,11 @@ from test.core.use_cases.received._ledger_network import (
     LedgerNetwork,
 )
 from test.support.emitter import RecordingEmitter
+from test.support.future_dates import days_from_now
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.ledger_rebuild import case_file_differences
 from test.support.received import delivered_body
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
@@ -88,7 +88,7 @@ def _proposal_body(net: LedgerNetwork) -> tuple[dict[str, Any], str]:
         id_=f"{net.case_id}/embargo_events/revision",
         content="Longer terms",
         context=net.case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     proposal = em_propose_embargo_activity(
         revision,

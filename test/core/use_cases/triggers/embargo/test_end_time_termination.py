@@ -25,6 +25,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -44,7 +45,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
 from vultron.core.behaviors.sync.nodes import CheckLedgerFreshnessNode
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     ReporterParticipant,
@@ -266,7 +267,7 @@ def test_lazy_check_ends_an_embargo_whose_end_time_has_passed() -> None:
 
 @pytest.mark.spec("EMB-13-003")
 def test_lazy_check_leaves_an_embargo_still_in_force() -> None:
-    world = _World(end_time=days_from_now_utc(10))
+    world = _World(end_time=days_from_now(10))
 
     result = world.lazy_check(now_utc())
 
@@ -320,7 +321,7 @@ def test_sentinel_request_ends_the_embargo_at_its_end_time() -> None:
 @pytest.mark.spec("EMB-13-003")
 @pytest.mark.spec("EMB-13-008")
 def test_sentinel_request_before_the_end_time_is_refused() -> None:
-    world = _World(end_time=days_from_now_utc(10))
+    world = _World(end_time=days_from_now(10))
 
     with pytest.raises(VultronInvalidStateTransitionError, match="before"):
         world.sentinel_request()
@@ -542,7 +543,7 @@ def test_the_termination_commits_one_entry_per_as2_activity_in_order() -> None:
 
 @pytest.mark.spec("EP-08-004")
 def test_an_early_termination_runs_the_full_cascade() -> None:
-    world = _World(end_time=days_from_now_utc(10))
+    world = _World(end_time=days_from_now(10))
 
     world.sentinel_request(reason=TerminationReason.EARLY)
 
@@ -558,7 +559,7 @@ def test_an_early_termination_runs_the_full_cascade() -> None:
 def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
     None
 ):
-    world = _World(end_time=days_from_now_utc(10))
+    world = _World(end_time=days_from_now(10))
     sync_port = SyncActivityAdapter(world.dl)
 
     result = run_tree(
@@ -586,7 +587,7 @@ def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
 def test_a_threat_status_records_the_signals_it_carries() -> None:
     """The cascade a received threat status starts records ``EARLY`` on the
     wire and ``THREAT_SIGNAL`` with the status's signals on the entry."""
-    world = _World(end_time=days_from_now_utc(10))
+    world = _World(end_time=days_from_now(10))
     status = as_CaseStatus(
         context=world.case_id, pxa=PxaDimension(state=CS_pxa.PXa)
     )
@@ -625,7 +626,7 @@ def test_revising_after_the_end_time_is_refused_and_extends_nothing() -> None:
                 ProposeEmbargoRevisionTriggerRequest(
                     actor_id=world.manager.id_,
                     case_id=world.case_id,
-                    end_time=days_from_now_utc(20),
+                    end_time=days_from_now(20),
                 ),
                 **world.ports(),
                 clock=SystemClock(),
@@ -719,7 +720,7 @@ def test_a_refused_end_time_commit_lets_the_received_tree_run(
 ) -> None:
     """The same refusal in a received tree is logged, and the activity is
     still judged, against the case as it stands."""
-    in_force = _World(end_time=days_from_now_utc(10))
+    in_force = _World(end_time=days_from_now(10))
     expected = in_force.status_from(in_force.finder.id_).disposition
     world = _World(end_time=now_utc() - timedelta(minutes=5))
     _refuse_the_end_time_commit(monkeypatch)

@@ -30,9 +30,9 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.future_dates import days_from_now
 from test.support.received import delivered_body
 from test.support.signing import resigned
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
@@ -68,7 +68,7 @@ _PUBLISHED = datetime.now(tz=UTC)
 
 @pytest.fixture
 def sample_embargo() -> as_EmbargoEvent:
-    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now_utc(45))
+    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now(45))
 
 
 @pytest.fixture

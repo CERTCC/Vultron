@@ -34,13 +34,13 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -202,7 +202,7 @@ class TestRecordParticipantAcceptanceNode:
         revision = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e2",
             context=case.id_,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         propose(case, revision)
         owner_p = as_CaseParticipant(

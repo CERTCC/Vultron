@@ -33,12 +33,14 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -47,7 +49,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes import ThreatTerminationBranchNode
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -140,7 +141,7 @@ def _active_case_with_revision(
         id_=f"{case_id}/embargo_events/revision",
         content="Longer terms",
         context=case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     dl.create(revision)
     return dl, revision
@@ -340,7 +341,7 @@ def _unbound_case(
         id_=f"{case_id}/embargo_events/first",
         content="First terms",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(first)
     return dl, first
@@ -624,7 +625,7 @@ def test_counter_proposal_at_proposed_commits_without_a_transition(
         id_=f"{case_id}/embargo_events/counter",
         content="Counter terms",
         context=case_id,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     dl.create(counter)
     entries_before = len(_ledger_entries(dl, case_id))
@@ -665,7 +666,7 @@ def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
         id_=f"{case_id}/embargo_events/counter",
         content="Counter revision",
         context=case_id,
-        end_time=days_from_now_utc(75),
+        end_time=days_from_now(75),
     )
     dl.create(counter)
     # OTHER_A is bound to the active embargo, so its counter is admissible.
@@ -739,7 +740,7 @@ def test_a_revision_of_a_public_case_is_refused_with_a_reject(make_payload):
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
     case = cast(VulnerabilityCase, dl.read(case_id))
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(case)
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
@@ -798,7 +799,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
                 id_=f"{case_id}/embargo_events/counter",
                 content="Counter revision",
                 context=case_id,
-                end_time=days_from_now_utc(75),
+                end_time=days_from_now(75),
             ),
             OTHER_A,
         )
@@ -808,7 +809,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
         dl.save(other_a)
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == em_at_race
-    case.append_case_status(pxa=pxa_state)
+    case.append_case_status(ACT_AT, pxa=pxa_state)
     dl.save(case)
     invites_before = len(_relayed_invites(dl))
     proposed_before = list(case.proposed_embargo_ids)
@@ -1029,7 +1030,7 @@ def test_the_manager_persists_the_proposed_embargo_from_the_message(
         id_=f"{case_id}/embargo_events/fresh",
         content="Never seen here",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     assert dl.read(fresh.id_) is None
 
@@ -1347,7 +1348,7 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     revision = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/revision",
         context=case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     invite = _proposal(
         revision, case_id, actor=MANAGER, attributed_to=PROPOSER

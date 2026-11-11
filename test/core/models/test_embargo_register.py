@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import (
     activate,
     cancel_on_threat,
@@ -532,7 +533,7 @@ def test_an_appended_status_cannot_carry_another_em() -> None:
 def test_append_case_status_refuses_an_em() -> None:
     case = _case()
     with pytest.raises(VultronValidationError, match="register"):
-        case.append_case_status(em=EmDimension(state=EM.ACTIVE))
+        case.append_case_status(ACT_AT, em=EmDimension(state=EM.ACTIVE))
 
 
 @pytest.mark.parametrize("keyword", ["pxa_state", "em_state", "no_such_field"])
@@ -540,7 +541,7 @@ def test_append_case_status_refuses_an_unknown_keyword(keyword: str) -> None:
     """The retired flat spellings are unknown keywords, not translated (SDO-03-003)."""
     case = _case()
     with pytest.raises(VultronValidationError, match=keyword):
-        case.append_case_status(**{keyword: CS_pxa.Pxa})
+        case.append_case_status(ACT_AT, **{keyword: CS_pxa.Pxa})
 
 
 @pytest.mark.parametrize(
@@ -553,7 +554,7 @@ def test_append_case_status_sets_the_pxa_dimension(
 ) -> None:
     case = _case()
     before = case.current_status
-    case.append_case_status(pxa=value)
+    case.append_case_status(ACT_AT, pxa=value)
     assert case.current_status is not before
     assert case.current_status.pxa.state is CS_pxa.Pxa
     assert case.current_status.em.state is before.em.state
@@ -568,7 +569,9 @@ def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
     case = _case()
     before = case.current_status
     stale = now_utc() - timedelta(days=1)
-    case.append_case_status(published=stale, updated=stale, pxa=CS_pxa.Pxa)
+    case.append_case_status(
+        ACT_AT, published=stale, updated=stale, pxa=CS_pxa.Pxa
+    )
     after = case.current_status
     assert after is not before
     assert after.context == case.id_
@@ -580,7 +583,7 @@ def test_append_case_status_mints_a_fresh_id() -> None:
     """The appended status is its own entry, not a second copy (#4637)."""
     case = _case()
     before = case.current_status
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     ids = [
         status.id_ if isinstance(status, CaseStatus) else status
         for status in case.case_statuses
@@ -592,14 +595,14 @@ def test_append_case_status_mints_a_fresh_id() -> None:
 def test_append_case_status_rederives_the_name() -> None:
     """The label names the appended status's own states (#4637)."""
     case = _case()
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     status = case.current_status
     assert status.name == f"{status.em.state.name} {CS_pxa.Pxa.name}"
 
 
 def test_append_case_status_keeps_an_explicit_name() -> None:
     case = _case()
-    case.append_case_status(name="chosen", pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, name="chosen", pxa=CS_pxa.Pxa)
     assert case.current_status.name == "chosen"
 
 

@@ -57,6 +57,7 @@ from vultron.core.behaviors.blackboard_scope import (
     snapshot_keys,
 )
 from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+from vultron.core.models._helpers import is_aware
 from vultron.core.ports.clock import ClockPort
 from vultron.errors import VultronMissingActInstantError, VultronWiringError
 
@@ -72,7 +73,7 @@ def _require_aware(at: object, source: str) -> datetime:
             f"{source} gave {type(at).__name__}, not a datetime, as an act's"
             " instant (ADR-0176)"
         )
-    if at.tzinfo is None or at.utcoffset() is None:
+    if not is_aware(at):
         raise VultronWiringError(
             f"{source} gave a naive datetime as an act's instant (CS-13-001)"
         )

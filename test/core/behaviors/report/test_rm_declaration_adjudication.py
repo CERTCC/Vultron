@@ -47,6 +47,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.received import settle_as_the_inbox
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -77,7 +78,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -183,7 +183,7 @@ def _seed(dl: SqliteDataLayer, current: RM) -> None:
     embargo = EmbargoEvent(
         id_=f"{CASE_ID}/embargoes/shared-table",
         context=CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     case = cast(VulnerabilityCase, dl.read(CASE_ID))

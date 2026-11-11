@@ -30,6 +30,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -39,7 +40,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -166,7 +166,7 @@ class _GateScenario:
             id_=f"{CASE_ID}/embargo_events/e2",
             content="Shorter revision",
             context=CASE_ID,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
         self.dl.create(revision)
         stored = cast(VulnerabilityCase, self.dl.read(CASE_ID))

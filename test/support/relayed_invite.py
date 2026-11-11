@@ -25,13 +25,13 @@ from typing import Any
 
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_policy import EmbargoPolicy
@@ -75,14 +75,14 @@ def seed_invitee_case(
     embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargos/e1",
         context=case_id,
-        end_time=days_from_now_utc(proposal_days),
+        end_time=days_from_now(proposal_days),
     )
     dl.create(embargo)
     if em_state in (EM.ACTIVE, EM.REVISE):
         prior = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e0",
             context=case_id,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
         dl.create(prior)
         activate(case, prior.id_)
@@ -90,7 +90,7 @@ def seed_invitee_case(
         other = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e-other",
             context=case_id,
-            end_time=days_from_now_utc(20),
+            end_time=days_from_now(20),
         )
         dl.create(other)
         propose(case, other.id_)

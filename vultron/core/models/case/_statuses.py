@@ -21,11 +21,12 @@ stamped copy of the embargo register's (ADR-0122).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.models._helpers import (
     new_object_id,
-    now_utc_after,
+    stamp_after,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.errors import VultronValidationError
@@ -69,7 +70,7 @@ class CaseStatusHistoryMixin:
         # EM is the register's, never the appended status's (ADR-0122).
         self._stamp_em()
 
-    def append_case_status(self, **updates: Any) -> None:
+    def append_case_status(self, at: datetime, **updates: Any) -> None:
         """Append a new CaseStatus derived from the current one with fields overridden.
 
         Inherits all fields from ``current_status`` then assigns each of
@@ -77,18 +78,24 @@ class CaseStatusHistoryMixin:
         ``pxa=CS_pxa.Pxa`` (or a ``PxaDimension``) keeps every other
         dimension.  Each assignment is validated (ARCH-21-001).  The new
         entry gets a fresh ``id_`` and a ``name`` derived from its own states
-        unless one is passed.  Its ``published`` comes from ``now_utc_after``,
-        so it is strictly later than the current status's (CM-29-005),
-        and it carries no ``updated``: a status is never changed
-        after it is appended, so ``published`` is its one time (CM-29-006).
-        EM is
-        not a status field to set: it is derived from the embargo register
-        (ADR-0122), so ``em`` is refused.
+        unless one is passed.  Its ``published`` is the act's instant *at*,
+        bumped by ``stamp_after`` so it is strictly later than the current
+        status's (CM-29-005): two statuses appended in one act share *at*,
+        and the bump sorts them in append order (ADR-0167).  The method reads
+        no clock (ADR-0176).  The new status carries no ``updated``: a status
+        is never changed after it is appended, so ``published`` is its one
+        time (CM-29-006).  EM is not a status field to set: it is derived
+        from the embargo register (ADR-0122), so ``em`` is refused.
+
+        Args:
+            at: The act's instant; timezone-aware.
+            **updates: ``CaseStatus`` field names and their new values.
 
         Raises:
             VultronValidationError: when ``em`` is passed, or when a keyword
                 names no ``CaseStatus`` field (the retired flat spellings
                 ``pxa_state`` / ``em_state`` included, SDO-03-003).
+            ValueError: when *at* is naive (CS-13-001).
         """
         if "em" in updates:
             raise VultronValidationError(
@@ -102,7 +109,7 @@ class CaseStatusHistoryMixin:
                 " CaseStatus field"
             )
         current = self.current_status
-        now = now_utc_after(current.published)
+        stamp = stamp_after(at, current.published)
 
         # The new entry is its own status: a fresh ``id_``, and a ``name``
         # left unset so ``CaseStatus._set_name`` re-derives the label from
@@ -118,7 +125,7 @@ class CaseStatusHistoryMixin:
         for name, value in {
             **updates,
             "context": self.id_,
-            "published": now,
+            "published": stamp,
             "updated": None,
         }.items():
             setattr(status, name, value)

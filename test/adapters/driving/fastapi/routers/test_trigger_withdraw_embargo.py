@@ -24,7 +24,7 @@ import pytest
 from fastapi import status
 
 from test.support.embargo_register import activate
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
@@ -54,7 +54,7 @@ def _case_with_signatory(
 ) -> tuple[VulnerabilityCase, as_EmbargoEvent]:
     """A case another actor owns, with *actor_id* holding *consent*."""
     case = VulnerabilityCase(name="WITHDRAW-CASE", attributed_to=_OWNER)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     dl.create(embargo)
     activate(case, embargo.id_)
     dl.create(case)

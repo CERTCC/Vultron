@@ -27,13 +27,13 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     embargo_paused_from_index,
 )
 from vultron.core.behaviors.sync.nodes.fanout import FanOutLogEntryNode
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -70,7 +70,7 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     active embargo, so the gate has nothing to withhold.
     """
     embargo = EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
     )
     datalayer.create(embargo)
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)

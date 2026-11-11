@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -50,7 +51,6 @@ from vultron.core.behaviors.inbox import (
     process_payload,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.factories import rm_create_report_activity
@@ -181,7 +181,7 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
         as_EmbargoEvent(
             id_="https://example.org/embargoes/e-chain-1",
             context="https://example.org/cases/c-chain-remove",
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         ),
         reason=TerminationReason.EARLY,
         actor=_SENDER_ID,

@@ -25,6 +25,7 @@ in that order, and the other arm declares nothing.
 import py_trees
 import pytest
 
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -55,7 +56,6 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -90,7 +90,7 @@ def dummy_embargo() -> "as_EmbargoEvent":
     return as_EmbargoEvent(
         id_=EMBARGO_ID,
         context=CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
 
 

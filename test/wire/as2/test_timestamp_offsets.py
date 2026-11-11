@@ -26,8 +26,8 @@ from typing import Any
 
 import pytest
 
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -88,7 +88,7 @@ def test_carried_non_utc_offset_round_trips_through_storage() -> None:
 @pytest.mark.spec("CS-13-006")
 def test_minted_timestamp_serialises_with_a_utc_offset() -> None:
     """A time this node generates is written with ``Z`` or ``+00:00``."""
-    embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(30))
+    embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(30))
     wire = json.loads(
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )

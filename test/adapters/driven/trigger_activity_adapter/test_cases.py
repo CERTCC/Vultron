@@ -21,11 +21,11 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -233,7 +233,7 @@ class TestAddObjectToCaseSemantics:
             ),
             pytest.param(
                 lambda case_id: as_EmbargoEvent(
-                    context=case_id, end_time=days_from_now_utc(45)
+                    context=case_id, end_time=days_from_now(45)
                 ),
                 id="embargo-event",
             ),
@@ -833,7 +833,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
         embargo = EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         activate(case, embargo.id_)
@@ -885,7 +885,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
         embargo = EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         activate(case, embargo.id_)

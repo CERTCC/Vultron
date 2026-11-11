@@ -19,6 +19,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from test.support.received import (
     TEST_SENDER_POSITION,
     in_step_position,
@@ -30,7 +31,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -704,7 +704,7 @@ class TestEngageCaseLedgerCommit:
         return EmbargoEvent(
             id_=f"{self._CASE_ID}/embargo_events/carried",
             context=self._CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
 
     def _engage_carrying(

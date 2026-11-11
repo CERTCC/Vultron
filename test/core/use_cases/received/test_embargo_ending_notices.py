@@ -43,7 +43,9 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support import embargo_register
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -67,7 +69,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -200,7 +202,7 @@ def _seed(dl: SqliteDataLayer, *, end_in_days: int = 60) -> None:
         as_EmbargoEvent(
             id_=EMBARGO_ID,
             context=CASE_ID,
-            end_time=days_from_now_utc(end_in_days),
+            end_time=days_from_now(end_in_days),
         )
     )
     embargo_register.activate(case, EMBARGO_ID)
@@ -275,7 +277,7 @@ class _Manager:
         revision = as_EmbargoEvent(
             id_=REVISION_ID,
             context=CASE_ID,
-            end_time=days_from_now_utc(end_in_days),
+            end_time=days_from_now(end_in_days),
         )
         self.dl.create(revision)
         case = self.dl.read(CASE_ID)
@@ -399,7 +401,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
     revision = manager.stage_revision(end_in_days=30)
     case = manager.dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     manager.dl.save(case)
     invite = em_propose_embargo_activity(
         revision,
@@ -529,7 +531,7 @@ def test_expiry_on_or_after_the_agreed_end_sends_no_unreached_notice() -> None:
     # The agreed end passes after REMOVED was removed.
     manager.dl.save(
         as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(-1)
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(-1)
         )
     )
 
@@ -571,7 +573,7 @@ def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
     manager = _Manager()
     manager.dl.save(
         as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(-1)
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(-1)
         )
     )
 
@@ -740,7 +742,7 @@ def test_embargo_ending_notice_decision() -> None:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
     # One clock read per distinct end: two reads either side of a second
     # boundary would make the tie a one-second difference.
-    later, sooner = days_from_now_utc(60), days_from_now_utc(30)
+    later, sooner = days_from_now(60), days_from_now(30)
     for embargo_id, end_time in (
         ("a", later),
         ("same", later),
@@ -939,7 +941,7 @@ def _shorter_revision_announced_by(
     revision = as_EmbargoEvent(
         id_=REVISION_ID,
         context=CASE_ID,
-        end_time=days_from_now_utc(end_in_days),
+        end_time=days_from_now(end_in_days),
     )
     # The inbox ingress stores no inline object (IO-03-004), so the apply
     # node stores the inline embargo when it is still missing (EMB-18-003).
@@ -1022,7 +1024,7 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     longer = as_EmbargoEvent(
         id_=REVISION_ID,
         context=CASE_ID,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
 
     result = replica.receive(_remove_of(longer, to=REMOVED))
@@ -1049,7 +1051,7 @@ def _removed_revision(
     revision = as_EmbargoEvent(
         id_=REVISION_ID,
         context=CASE_ID,
-        end_time=days_from_now_utc(end_in_days),
+        end_time=days_from_now(end_in_days),
     )
     return remove_embargo_from_case_activity(
         revision,
@@ -1143,7 +1145,7 @@ def test_paused_replica_refuses_an_expiry_remove_of_another_case() -> None:
     foreign = as_EmbargoEvent(
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
-        end_time=days_from_now_utc(-1),
+        end_time=days_from_now(-1),
     )
 
     result = replica.receive(
@@ -1171,7 +1173,7 @@ def test_paused_replica_refuses_a_removed_revision_of_another_case() -> None:
     foreign = as_EmbargoEvent(
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
 
     result = replica.receive(_remove_of(foreign, to=REMOVED))
@@ -1350,7 +1352,7 @@ def test_paused_replica_refuses_an_announced_embargo_of_another_case() -> None:
     foreign = as_EmbargoEvent(
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
 
     result = replica.receive(
@@ -1394,7 +1396,7 @@ def test_paused_replica_refuses_a_stored_embargo_of_another_case() -> None:
         as_EmbargoEvent(
             id_=REVISION_ID,
             context="https://example.org/cases/another-case",
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
     )
     before = replica.embargo_state()
@@ -1435,7 +1437,7 @@ def test_paused_replica_checks_a_stored_revision_about_a_report(
         as_EmbargoEvent(
             id_=REVISION_ID,
             context=held_context,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
     )
     before = replica.embargo_state()

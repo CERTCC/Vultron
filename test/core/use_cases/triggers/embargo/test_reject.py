@@ -5,6 +5,7 @@ from typing import NoReturn, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
@@ -329,7 +330,7 @@ def _owner_manager_revision_after_disclosure(
         dl, case.id_, owner_id, participant_id
     )
     case = cast(VulnerabilityCase, dl.read(case.id_))
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(case)
     return case, proposal.id_, revision_id
 
