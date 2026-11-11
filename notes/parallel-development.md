@@ -4,8 +4,8 @@ status: active
 kind: guidance
 description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
-  the issue hierarchy, label taxonomy, bundle selection, task claiming, the
-  Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
+  the issue hierarchy, label taxonomy, bundle selection, task claiming (and
+  the unlinked branch a split's Part PR opens from), the Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
   shared-`.git` pruning danger, the two paths through GitHub Project #24
   (Schedule on Epics; Status and PR ship stage mirrored from facts), and the
   GitHub issue tracker CLI conventions.
@@ -120,6 +120,12 @@ refuses a held Task or Feature (exit 3) unless `--epic-run` names its Epic.
 Because every agent is the same GitHub user, only that flag tells the run from a
 stray session (PAD-19-003). An Epic claimed to plan it is commented on, never
 assigned: an Epic's assignee means an epic run (PAD-04-007).
+
+A split's non-final PR (`Part of #N`) opens from an unlinked sibling branch
+`<prefix>/<N>a-<slug>`, never the claim branch: GitHub makes a PR from a linked
+branch close its issue, whatever the body says, and the linked branch must stay
+the lock. `pr-body-lint` PRB-14 refuses the claim-branch case (PAD-04-008;
+recipe in `.agents/skills/shared/bundling.md` § "Split PRs").
 
 Pre-push review findings are FAIL, IMPROVE or DEFER
 (`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are fixed

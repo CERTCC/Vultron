@@ -94,3 +94,38 @@ discarded — do not ask the user whether to take only the first.
 If the bundle cannot be finished, finish the members you can, close only
 those, and say plainly which members you left and why. Never close a member
 the PR did not deliver.
+
+## Split PRs
+
+A split delivers one issue in several PRs (`work-epic-tasks` § "2. Plan"):
+each non-final PR says `- Part of #N`, and only the last says `- Closes #N`.
+
+GitHub links the claim branch `<prefix>/<N>-<slug>` to #N, and gives every PR
+opened from a linked branch a closing reference to #N, whatever its body says.
+A Part PR from the claim branch therefore closes #N when it merges (#4805). The
+claim branch is also the lock (PAD-04-001), so it stays linked; the Part PR
+leaves it instead (PAD-04-008):
+
+1. **Claim #N as usual.** The linked claim branch holds the lock for the whole
+   split. Do not delete or unlink it.
+2. **Open each non-final part from an unlinked sibling branch.** Name it with a
+   letter after the number (`a` for the first part, then `b`, `c`, …), cut it
+   from `origin/main`, and work the part there:
+
+   ```bash
+   git fetch origin main
+   git switch -c <prefix>/<N>a-<slug> origin/main
+   ```
+
+   Never create it with `claim-issue.sh` or `createLinkedBranch`: either links
+   it. `create-pr` pushes it with a plain `git push`, which does not. The body
+   carries `- Part of #N` and no closing line for #N.
+3. **Open the final part from the claim branch**, after the earlier parts
+   merge, with `- Closes #N`. `create-pr` freshens it onto `origin/main`, so it
+   starts from the merged parts.
+
+`pr-body-lint` PRB-14 refuses a `Part of #N` body on the claim branch of #N
+before the push, and at the final stage refuses one whose PR GitHub lists #N
+in `closingIssuesReferences` (`pr-body-guide.md` § "Mechanical Checks").
+Editing the body does not remove that reference: close the PR and open it
+again from a sibling branch, as PR #6267 was reopened as #6268.
