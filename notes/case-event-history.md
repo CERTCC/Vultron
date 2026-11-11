@@ -240,12 +240,20 @@ answer misreads the scenario name as the actor name, finds no CASE_MANAGER, and 
 every recording down the merge path to be reported as holed.
 
 No entry names the copy's holder: a replica's entry is byte-identical to the
-CASE_MANAGER's (CLP-07-013). What the entries do show is completeness, so a copy is
-canonical when it holds one entry at each index from `0` up with no gap (CLP-14-010)
-and every entry hash any other copy of the case holds
-(`vultron/measure/ledger/copies.py`). Reason: the CASE_MANAGER's copy always passes,
-and a replica that passes holds the same entries, so selecting it changes nothing. A
-gapped or shorter copy fails and leads to the merge.
+CASE_MANAGER's (CLP-07-013). So the layer identifies the copy by **completeness**: a
+copy is read alone when it holds one entry at each index from `0` up with no gap
+(CLP-14-010) and every entry hash any other copy of the case holds
+(`vultron/measure/ledger/copies.py`). The CASE_MANAGER's copy always passes.
+
+Completeness is known only relative to the input, so carry the end separately. A
+replica cut off at the tail, as when its report closed, passes when no fuller copy is
+handed over, and the result calls it a complete copy with no holes. `end_confirmed`
+is set only when the entries prove nothing follows the last entry
+(`vultron/measure/ledger/ends.py`). Two things prove it: the last entry is the
+CASE_MANAGER's own closure (`closure_boundary_indices`, CM-23-013), or another copy
+ends on the same entry. A measure that needs the whole case refuses a history whose
+end is unconfirmed. Do not try to name the copy's holder: the entries cannot say it
+(decided for #5779).
 
 Two copies holding different entries at one index are reported, never resolved: a
 conforming ledger has none, so a history over one is not to be trusted.
@@ -298,8 +306,9 @@ which states only the boundary that nothing in the protocol path imports the lay
   baselines are later siblings of `ledger/`, never part of it.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
-  display-name resolver), `jsonl.py` (the tolerant file reader) and `copies.py`
-  (per-case canonical-copy selection, merge and holes). Its public names are
+  display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`
+  (per-case complete-copy selection, merge and holes) and `ends.py` (whether the
+  entries confirm the ledger's end). Its public names are
   re-exported from `vultron.measure.ledger`; import from there.
 - The walker came out of `vultron/demo/report/`, and the report tool imports it from
   `vultron.measure.ledger`. The demo layer sits above the measure package, so that

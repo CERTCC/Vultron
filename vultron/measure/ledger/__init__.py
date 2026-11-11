@@ -6,9 +6,11 @@
   (CEH-01-006, DRPT-03-001).
 * :mod:`~vultron.measure.ledger.jsonl` — the tolerant JSONL reader
   (CEH-02-001, CEH-02-008).
-* :mod:`~vultron.measure.ledger.copies` — per-case canonical-copy selection,
+* :mod:`~vultron.measure.ledger.copies` — per-case complete-copy selection,
   replica merge and gap reporting (CEH-02-003 through CEH-02-007, CEH-02-009,
   CEH-02-010).
+* :mod:`~vultron.measure.ledger.ends` — whether the entries prove a ledger's
+  last entry is the case's last (CEH-02-006).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -34,6 +36,7 @@ from vultron.measure.ledger.copies import (
     read_case_ledgers,
     select_case_ledger,
 )
+from vultron.measure.ledger.ends import case_manager_ids, ends_in_case_closure
 from vultron.measure.ledger.fields import (
     FLAT_SPELLINGS,
     Dimension,
@@ -73,10 +76,12 @@ __all__ = [
     "actor_uri",
     "candidate_dicts",
     "case_id_of",
+    "case_manager_ids",
     "case_ledgers_from_files",
     "coerce_int",
     "collect_actor_names",
     "dimension_state",
+    "ends_in_case_closure",
     "entry_hash_of",
     "first_present",
     "friendly_actor_name",

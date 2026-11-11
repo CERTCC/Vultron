@@ -3,19 +3,24 @@
 The caller hands over ledger files; this module groups their entries by case
 (CEH-02-007) and, per case, picks one of two sources:
 
-* **The canonical copy.**  The CASE_MANAGER assigns log indices as a gapless
-  sequence from genesis (CLP-14-010) and holds every entry of its case, while a
-  participant's replica misses entries in a lapsed-consent gap and after its
-  report closes (CM-10-005, CM-23-004).  So a copy is canonical when its
-  entries alone show it: one entry at each index from ``0`` up, no gap, and
-  every entry any other copy of the case holds (CEH-02-004, CEH-02-009).  The
-  test reads the entries only — never a file or directory name.  A replica
-  that happens to hold the whole ledger is byte-identical to the CASE_MANAGER's
-  copy entry for entry (CLP-07-013), so selecting it yields the same history.
+* **A complete copy, as far as the input shows.**  The CASE_MANAGER assigns log
+  indices as a gapless sequence from genesis (CLP-14-010) and holds every entry
+  of its case, while a participant's replica misses entries in a lapsed-consent
+  gap and after its report closes (CM-10-005, CM-23-004).  No entry names the
+  copy's holder — a replica's entries are byte-identical to the CASE_MANAGER's
+  (CLP-07-013) — so the copy is identified by completeness, from its entries
+  alone: one entry at each index from ``0`` up, no gap, and every entry any
+  other copy of the case holds (CEH-02-004, CEH-02-009).  The test never reads
+  a file or directory name.  The CASE_MANAGER's own copy always passes.
 * **A merge of replicas**, when no copy passes that test.  Entries are
   de-duplicated by entry hash (CEH-02-005), and the result records that it was
   merged and names the log indices no copy supplied (CEH-02-006), so a caller
   can refuse a holed history instead of scoring it.
+
+Completeness can only be judged relative to the input: a replica cut off at the
+tail passes when no fuller copy is handed over.  So every result also carries
+``end_confirmed`` (:mod:`vultron.measure.ledger.ends`), set only when the
+entries prove that nothing follows the last one.
 
 A row that cannot be placed in a case — no case id, no usable log index, or no
 entry hash — is reported as unusable and the rest are read (CEH-02-008).
@@ -36,13 +41,14 @@ entry hash — is reported as unusable and the rest are read (CEH-02-008).
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vultron.measure.ledger.ends import ends_in_case_closure
 from vultron.measure.ledger.fields import (
     case_id_of,
     entry_hash_of,
@@ -60,8 +66,9 @@ from vultron.primitives import NonEmptyString
 class LedgerSource(StrEnum):
     """Where a case's entries came from."""
 
-    #: One copy holding the whole ledger, read alone (CEH-02-004).
-    CANONICAL_COPY = "canonical_copy"
+    #: One copy holding the whole ledger as far as the input shows, read alone
+    #: (CEH-02-004).  Whether its end is the case's end is ``end_confirmed``.
+    COMPLETE_COPY = "complete_copy"
     #: The de-duplicated union of partial replicas (CEH-02-005).
     MERGED_REPLICAS = "merged_replicas"
 
@@ -94,24 +101,29 @@ class CaseLedger(BaseModel):
 
     Fields:
         case_id: The case.
-        source: Whether the entries are one canonical copy or a merge.
+        source: Whether the entries are one complete copy or a merge.
         rows: One row per distinct (log index, entry hash), ordered by log
             index.
         copies: Every file that held an entry of this case, in caller order.
-        canonical_path: The file read alone, when ``source`` is the
-            canonical copy; ``None`` for a merge.
+        complete_copy_path: The file read alone, when ``source`` is a
+            complete copy; ``None`` for a merge.
         missing_log_indices: Indices from ``0`` through the highest present
-            that no copy supplied (CEH-02-006).  Always empty for a canonical
-            copy, which is gapless by selection.
+            that no copy supplied (CEH-02-006).  Always empty for a complete
+            copy, which is gapless by selection.  A tail no copy holds cannot
+            be seen here; see ``end_confirmed``.
         conflicting_log_indices: Indices at which the copies disagree: two
             entry hashes at one index, or one entry hash at two indices.  A
             conforming ledger has none (CLP-07-013); a history built over one
             is not trustworthy, so it is reported, not resolved, and no copy
-            is canonical while any exists.
+            is complete while any exists.
         unusable_rows: Rows naming this case that could not be placed — a
             missing or invalid log index or entry hash (CEH-02-008).  A copy
-            with such a row is never canonical, since the row may be the
+            with such a row is never complete, since the row may be the
             entry its index range lacks.
+        end_confirmed: Whether the entries prove the last entry is the
+            case's last: it is the CASE_MANAGER's own closure entry, or
+            another copy ends on the same entry.  ``False`` means the ledger
+            may continue past what the input holds, never that it does.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -120,10 +132,11 @@ class CaseLedger(BaseModel):
     source: LedgerSource
     rows: list[PlacedRow]
     copies: list[Path]
-    canonical_path: Path | None = None
+    complete_copy_path: Path | None = None
     missing_log_indices: list[int] = Field(default_factory=list)
     conflicting_log_indices: list[int] = Field(default_factory=list)
     unusable_rows: list[UnusableRow] = Field(default_factory=list)
+    end_confirmed: bool = False
 
     @property
     def merged(self) -> bool:
@@ -137,7 +150,7 @@ class CaseLedger(BaseModel):
 
 
 class LedgerCopy(BaseModel):
-    """One file's rows for one case: the unit canonical selection judges.
+    """One file's rows for one case: the unit complete-copy selection judges.
 
     Fields:
         path: The file.
@@ -240,6 +253,23 @@ def _holds_whole_ledger(
     return {_key(p) for p in rows} >= all_keys
 
 
+def _end_confirmed(
+    rows: list[PlacedRow], copies: Mapping[Path, list[PlacedRow]]
+) -> bool:
+    """Whether the entries prove *rows*' last entry is the case's last.
+
+    Two copies ending on the same entry confirm it, and so does a last entry
+    that is the CASE_MANAGER's own closure (:mod:`vultron.measure.ledger.ends`).
+    """
+    if not rows:
+        return False
+    last = _key(rows[-1])
+    ending_there = sum(
+        1 for held in copies.values() if held and _key(held[-1]) == last
+    )
+    return ending_there >= 2 or ends_in_case_closure([p.data for p in rows])
+
+
 def _missing_indices(rows: Sequence[PlacedRow]) -> list[int]:
     """Indices from genesis (``0``) through the highest present that are absent."""
     present = {p.log_index for p in rows}
@@ -251,7 +281,7 @@ def _missing_indices(rows: Sequence[PlacedRow]) -> list[int]:
 def select_case_ledger(
     case_id: str, copies: Sequence[LedgerCopy]
 ) -> CaseLedger:
-    """Pick the canonical copy of one case's ledger, or merge its replicas.
+    """Pick a complete copy of one case's ledger, or merge its replicas.
 
     Args:
         case_id: The case every row in *copies* belongs to.
@@ -259,7 +289,7 @@ def select_case_ledger(
             listed twice is one copy.
 
     Returns:
-        The canonical copy read alone when one holds the whole ledger and no
+        A complete copy read alone when one holds the whole ledger and no
         two copies disagree (CEH-02-004); otherwise the de-duplicated merge,
         marked merged and carrying its holes and conflicts (CEH-02-005,
         CEH-02-006).  The result does not depend on the order of *copies*
@@ -292,11 +322,12 @@ def select_case_ledger(
             if _holds_whole_ledger(by_path[path], rows, all_keys):
                 return CaseLedger(
                     case_id=case_id,
-                    source=LedgerSource.CANONICAL_COPY,
+                    source=LedgerSource.COMPLETE_COPY,
                     rows=rows,
                     copies=paths,
-                    canonical_path=path,
+                    complete_copy_path=path,
                     unusable_rows=unusable,
+                    end_confirmed=_end_confirmed(rows, distinct),
                 )
 
     merged = _distinct(p for rows in distinct.values() for p in rows)
@@ -308,6 +339,7 @@ def select_case_ledger(
         missing_log_indices=_missing_indices(merged),
         conflicting_log_indices=conflicts,
         unusable_rows=unusable,
+        end_confirmed=not conflicts and _end_confirmed(merged, distinct),
     )
 
 

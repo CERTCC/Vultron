@@ -9,7 +9,7 @@ reverse.
 Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
 
 * :mod:`vultron.measure.ledger` — the tolerant case-ledger JSONL reader, its
-  field-spelling helpers, the display-name resolver, and the canonical-copy
+  field-spelling helpers, the display-name resolver, and the complete-copy
   selection that every measure reads through (CEH-02).
 
 Later layers (the case event history, the chance baselines) are sibling

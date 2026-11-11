@@ -216,16 +216,19 @@ groups:
       The layer MUST identify the CASE_MANAGER's copy of a ledger from the entries
       themselves, never from the file's name or its directory's name.
     rationale: >-
-      A recording's ledger file is named for neither its actor nor its role, so a
-      path-derived answer misidentifies the canonical copy and sends every recording
-      down the merge path, where it is reported as holed. No entry names the copy's
-      holder, since a replica's entries are byte-identical to the CASE_MANAGER's; the
-      entries show completeness instead, and only the CASE_MANAGER's copy, or a
-      replica identical to it, holds every index without a gap.
+      A ledger file is named for neither its actor nor its role, so a path-derived
+      answer finds no CASE_MANAGER and sends every recording down the merge path. No
+      entry names a copy's holder either: a replica's entries are byte-identical to
+      the CASE_MANAGER's. So the copy is identified by completeness, which is known
+      only relative to the input, and the layer reports separately whether the
+      entries confirm the ledger's end.
     verification: >-
-      `test/measure/ledger/test_copies.py::test_a_renamed_and_moved_recording_is_still_canonical`
+      `test/measure/ledger/test_copies.py::test_a_renamed_and_moved_recording_is_still_the_complete_copy`
       renames a CASE_MANAGER ledger file and moves it to a differently named
-      directory, and asserts the layer still selects it as the canonical copy.
+      directory, and asserts the layer still selects it as the complete copy;
+      `test/measure/ledger/test_ends.py::test_a_lone_replica_cut_off_at_the_tail_has_no_confirmed_end`
+      asserts that a lone replica cut off at the tail is not reported with a
+      confirmed end.
     relationships:
     - rel_type: extends
       spec_id: CEH-02-004

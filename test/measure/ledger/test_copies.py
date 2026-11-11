@@ -73,7 +73,7 @@ def test_both_naming_shapes_build_the_same_history(tmp_path):
         for path in (recording, dump, unfamiliar)
     ]
 
-    assert {h.source for h in histories} == {LedgerSource.CANONICAL_COPY}
+    assert {h.source for h in histories} == {LedgerSource.COMPLETE_COPY}
     assert all(h.entries == entries for h in histories)
 
 
@@ -89,7 +89,7 @@ def test_the_layer_reads_only_the_files_it_is_named(tmp_path):
 
 @pytest.mark.spec("CEH-02-009")
 @pytest.mark.spec("CEH-02-004")
-def test_a_renamed_and_moved_recording_is_still_canonical(tmp_path):
+def test_a_renamed_and_moved_recording_is_still_the_complete_copy(tmp_path):
     original = read_ledger_file(_RECORDING).entries
     moved = tmp_path / "somewhere-else" / "not-a-ledger-name.txt"
     moved.parent.mkdir()
@@ -99,8 +99,8 @@ def test_a_renamed_and_moved_recording_is_still_canonical(tmp_path):
     read = read_case_ledgers([replica, moved])
 
     (case,) = read.cases.values()
-    assert case.source is LedgerSource.CANONICAL_COPY
-    assert case.canonical_path == moved
+    assert case.source is LedgerSource.COMPLETE_COPY
+    assert case.complete_copy_path == moved
     assert case.entries == original
     assert case.missing_log_indices == []
 
@@ -113,15 +113,15 @@ def test_the_complete_copy_wins_over_a_truncated_replica(tmp_path):
 
     case = read_case_ledgers([truncated, manager]).cases[_CASE]
 
-    assert case.source is LedgerSource.CANONICAL_COPY
+    assert case.source is LedgerSource.COMPLETE_COPY
     assert not case.merged
-    assert case.canonical_path == manager
+    assert case.complete_copy_path == manager
     assert case.entries == complete
     assert case.copies == [truncated, manager]
 
 
 @pytest.mark.spec("CEH-02-004")
-def test_a_copy_with_a_gap_is_never_canonical(tmp_path):
+def test_a_copy_with_a_gap_is_never_complete(tmp_path):
     # A replica that missed a lapsed-consent window (CM-10-005) holds a gap.
     gapped = _write(
         tmp_path / "vendor.jsonl", [_entry(0), _entry(1), _entry(3)]
@@ -143,7 +143,7 @@ def test_overlapping_replicas_merge_each_entry_once(tmp_path):
     case = read_case_ledgers([reporter, vendor, late]).cases[_CASE]
 
     assert case.source is LedgerSource.MERGED_REPLICAS
-    assert case.canonical_path is None
+    assert case.complete_copy_path is None
     assert _indices(case.rows) == [0, 1, 2, 3, 4]
     assert len({p.entry_hash for p in case.rows}) == 5
     assert case.missing_log_indices == []
@@ -163,7 +163,7 @@ def test_a_merge_reports_the_indices_no_replica_supplied(tmp_path):
     assert _indices(case.rows) == [0, 1, 3, 4, 6]
 
 
-def test_a_complete_copy_with_an_unplaceable_row_is_not_canonical(tmp_path):
+def test_a_copy_with_an_unplaceable_row_is_not_complete(tmp_path):
     bad_index = _entry(2, logIndex="2")
     path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1), bad_index])
 
@@ -176,7 +176,7 @@ def test_a_complete_copy_with_an_unplaceable_row_is_not_canonical(tmp_path):
     assert read.unusable_rows == case.unusable_rows
 
 
-def test_an_unparseable_row_keeps_its_file_from_being_canonical(tmp_path):
+def test_an_unparseable_row_keeps_its_file_from_being_complete(tmp_path):
     path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1)], "{cut off")
 
     read = read_case_ledgers([path])
@@ -186,14 +186,14 @@ def test_an_unparseable_row_keeps_its_file_from_being_canonical(tmp_path):
     assert [r.line for r in read.unusable_rows] == [3]
 
 
-def test_a_complete_copy_beside_a_damaged_replica_is_canonical(tmp_path):
+def test_a_complete_copy_beside_a_damaged_replica_is_selected(tmp_path):
     manager = _write(tmp_path / "m.jsonl", [_entry(i) for i in range(3)])
     replica = _write(tmp_path / "r.jsonl", [_entry(0)], "{cut off")
 
     case = read_case_ledgers([replica, manager]).cases[_CASE]
 
-    assert case.source is LedgerSource.CANONICAL_COPY
-    assert case.canonical_path == manager
+    assert case.source is LedgerSource.COMPLETE_COPY
+    assert case.complete_copy_path == manager
 
 
 def test_a_merge_reports_two_copies_disagreeing_at_one_index(tmp_path):
@@ -208,7 +208,7 @@ def test_a_merge_reports_two_copies_disagreeing_at_one_index(tmp_path):
     assert _indices(case.rows) == [0, 1, 1]
 
 
-def test_a_replica_contradicting_a_complete_copy_blocks_canonical(tmp_path):
+def test_a_replica_contradicting_a_complete_copy_blocks_selection(tmp_path):
     complete = _write(tmp_path / "a.jsonl", [_entry(i) for i in range(3)])
     corrupt = _write(tmp_path / "b.jsonl", [_entry(0), _entry(2, logIndex=1)])
 
@@ -232,7 +232,7 @@ def test_one_hash_at_two_indices_is_a_conflict_in_any_order(tmp_path, reverse):
     assert _indices(case.rows) == [0, 1, 2]
 
 
-def test_a_single_copy_repeating_one_hash_is_not_canonical(tmp_path):
+def test_a_single_copy_repeating_one_hash_is_not_complete(tmp_path):
     path = _write(
         tmp_path / "a.jsonl", [_entry(0), _entry(1, entryHash=f"{_CASE}#0")]
     )
@@ -248,7 +248,7 @@ def test_a_file_named_twice_is_one_copy(tmp_path):
 
     case = read_case_ledgers([path, path]).cases[_CASE]
 
-    assert case.source is LedgerSource.CANONICAL_COPY
+    assert case.source is LedgerSource.COMPLETE_COPY
     assert case.copies == [path]
     assert _indices(case.rows) == [0, 1]
 
