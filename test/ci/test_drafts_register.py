@@ -644,6 +644,22 @@ def test_show_fails_on_a_ref_with_no_register(
     assert words in capsys.readouterr().err
 
 
+@pytest.mark.spec("DOCBW-08-001")
+def test_show_prints_null_for_a_ref_with_no_register_when_asked(
+    repo, monkeypatch, capsys
+):
+    """The promote reads a release older than the register as carrying no draft."""
+    git(repo, "commit", "--allow-empty", "-q", "-m", "before the register")
+    git(repo, "tag", "-a", "v2025.1.0", "-m", "old release")
+    monkeypatch.setattr(dr, "repo_root", lambda: repo)
+    dr.main(["show", "--ref", "v2025.1.0", "--absent-ok"])
+    assert json.loads(capsys.readouterr().out) is None
+    # A ref git cannot read is still an error.
+    with pytest.raises(SystemExit) as exited:
+        dr.main(["show", "--ref", "no-such-ref", "--absent-ok"])
+    assert exited.value.code == 1
+
+
 @pytest.mark.spec("DOCBW-08-003")
 def test_the_cli_passes_an_agreeing_register(repo, monkeypatch, capsys):
     _released_at_tag(repo)

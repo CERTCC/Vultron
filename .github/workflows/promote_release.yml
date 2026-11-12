@@ -3,10 +3,24 @@
 # for the newest one. The run tags that tag's commit with the next `vYYYY.M.P`,
 # numbered by today's UTC month, and opens a draft GitHub Release with notes
 # generated since the previous release. The maintainer edits the notes and
-# publishes the draft. A tag this run pushes starts no other workflow, so the
-# script checks its own input. Tags are append-only (#5545): the run creates
-# one tag and never moves or deletes any. The logic lives in
-# .github/scripts/release.py, with its tests in test/ci/test_release.py.
+# publishes the draft; the run never publishes. A tag this run pushes starts
+# no other workflow, so the script checks its own input. Tags are append-only
+# (#5545): the run creates one tag and never moves or deletes any.
+#
+# When the drafts register at the promoted commit names the new release as a
+# draft's release, the draft release carries that draft's frozen pages
+# (ADR-0188, DOCBW-08): `vultron-spec-draft-N.tar.gz` and its SHA-256 manifest.
+# The order of the jobs keeps a draft release from ever lacking them:
+#   plan          names the release and its draft; reads only.
+#   frozen-draft  builds the site at the promoted commit and the archive from
+#                 it, with no token that can write (DOCBW-08-019).
+#   promote       runs only main's code (DOCBW-08-020). It checks the archive
+#                 before it pushes the tag, creates the draft release with
+#                 both files attached in one call, checks what was attached,
+#                 and deletes that draft release if anything after its
+#                 creation fails (DOCBW-08-021 to DOCBW-08-023).
+# The logic lives in .github/scripts/release.py and frozen_draft.py, with
+# their tests in test/ci/test_release.py and test/ci/test_frozen_drafts.py.
 name: Promote a publish to a release
 
 on:
@@ -30,22 +44,152 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  promote:
-    name: Tag the release and draft its notes
+  plan:
+    name: Name the release and the draft it carries
     runs-on: ubuntu-latest
-    # A fetch, a push and two API calls. Cap at 10 min so a hang fails fast
-    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    # A checkout, a dependency install and a few git reads. Cap at 10 min so
+    # a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
     timeout-minutes: 10
-    # Pushes the release tag and creates the draft release (DOCBW-07-005).
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      commit: ${{ steps.plan.outputs.commit }}
+      publish-tag: ${{ steps.plan.outputs.publish-tag }}
+      publish-date: ${{ steps.plan.outputs.publish-date }}
+      release: ${{ steps.plan.outputs.release }}
+      # draft-N, or empty for a release that carries no draft.
+      draft: ${{ steps.plan.outputs.draft }}
     steps:
-      # Full history and every tag: the run reads every publish-* and v* tag.
+      # Full history and every tag: the run reads every publish-* and v* tag
+      # and the drafts register at the promoted commit and at release tags.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      # main's drafts-register reads the register, which needs the project.
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          uv-sync-args: "--no-dev"
+
+      # A manual run from another ref is refused: it would run that ref's copy
+      # of this workflow (DOCBW-07-004). The promote job decides again.
+      - name: Plan the promotion
+        id: plan
+        env:
+          REF: ${{ github.ref }}
+          PUBLISH_TAG: ${{ inputs.publish-tag }}
+        run: |
+          python3 -I .github/scripts/release.py plan \
+            --ref "$REF" --publish-tag "$PUBLISH_TAG"
+
+  frozen-draft:
+    name: Build the frozen draft archive
+    needs: plan
+    if: needs.plan.outputs.draft != ''
+    runs-on: ubuntu-latest
+    # The site build and its publication checks, as deploy_site.yml's build
+    # job runs them, seen at up to 16 min. Cap at 30 min so a hang fails fast
+    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 30
+    # Read-only: the build runs the promoted commit's code (DOCBW-08-019).
+    permissions:
+      contents: read
+    steps:
+      # Only loads the local actions, from main: build-site re-checks out the
+      # promoted commit, with the history and tags the build needs
+      # (DOCBW-06-004).
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The pages' footers name the publish and the release (DOCBW-08-014,
+      # DOCBW-06-031); the archive build checks that they do.
+      - name: Build Site
+        uses: ./.github/actions/build-site
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+        env:
+          VULTRON_PUBLISH_TAG: ${{ needs.plan.outputs.publish-tag }}
+          VULTRON_PUBLISH_DATE: ${{ needs.plan.outputs.publish-date }}
+          VULTRON_RELEASE_TAG: ${{ needs.plan.outputs.release }}
+
+      # The checks every site build runs (DOCBW-03-006, DOCBW-06-002), at the
+      # promoted commit, so the archive is taken from a site that passes them.
+      - name: Check site publication
+        uses: ./.github/actions/check-site-publication
+
+      # main's archive builder, whatever the promoted commit holds: a publish
+      # from before the builder existed has none. Only the scripts, beside
+      # the built site.
+      - name: Check out main's scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .promote
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Build the archive and its manifest
+        env:
+          DRAFT: ${{ needs.plan.outputs.draft }}
+          RELEASE: ${{ needs.plan.outputs.release }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          PUBLISH_TAG: ${{ needs.plan.outputs.publish-tag }}
+        run: |
+          python3 -I .promote/.github/scripts/frozen_draft.py build \
+            --site site --out frozen --draft "$DRAFT" --release "$RELEASE" \
+            --commit "$COMMIT" --publish-tag "$PUBLISH_TAG"
+
+      # One artifact per run attempt: a re-run must not download an earlier
+      # attempt's archive (notes/ci-workflow-authoring.md).
+      - name: Upload the archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frozen-draft-attempt-${{ github.run_attempt }}
+          path: frozen/
+          if-no-files-found: error
+          retention-days: 7
+
+  promote:
+    name: Tag the release and draft its notes
+    needs: [plan, frozen-draft]
+    # frozen-draft is skipped for a release that carries no draft.
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      (needs.frozen-draft.result == 'success' ||
+      needs.frozen-draft.result == 'skipped')
+    runs-on: ubuntu-latest
+    # A fetch, a push, a few API calls and two archive checks. Cap at 10 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h
+    # limit (TB-14-006).
+    timeout-minutes: 10
+    # Pushes the release tag and creates the draft release (DOCBW-07-005).
+    permissions:
+      contents: write
+    steps:
+      # main, the run's own commit: this job runs no code of the promoted
+      # commit (DOCBW-08-020). Full history and every tag: the run reads
+      # every publish-* and v* tag.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          uv-sync-args: "--no-dev"
+
+      - name: Download the archive
+        if: needs.plan.outputs.draft != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frozen-draft-attempt-${{ github.run_attempt }}
+          path: frozen/
 
       # A manual run from another ref is refused: it would run that ref's copy
       # of this workflow with write access (DOCBW-07-004).
@@ -56,8 +200,12 @@ jobs:
           REF: ${{ github.ref }}
           ACTOR: ${{ github.actor }}
           PUBLISH_TAG: ${{ inputs.publish-tag }}
+          PLANNED_RELEASE: ${{ needs.plan.outputs.release }}
+          PLANNED_DRAFT: ${{ needs.plan.outputs.draft }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 -I .github/scripts/release.py promote \
             --repo "$REPO" --ref "$REF" --actor "$ACTOR" \
-            --run-url "$RUN_URL" --publish-tag "$PUBLISH_TAG"
+            --run-url "$RUN_URL" --publish-tag "$PUBLISH_TAG" \
+            --planned-release "$PLANNED_RELEASE" \
+            --planned-draft "$PLANNED_DRAFT" --frozen-dir frozen

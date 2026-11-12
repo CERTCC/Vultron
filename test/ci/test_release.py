@@ -108,16 +108,12 @@ def test_promote_refuses_an_input_that_is_no_publish(
 # --- naming the release ---------------------------------------------------------
 
 
-def _never(name: str) -> bool:
-    raise AssertionError(f"asked whether {name} has a release")
-
-
 @pytest.mark.spec("DOCBW-07-011")
 def test_the_release_month_is_the_promotion_date() -> None:
     """A publish from October promoted in November is a November release."""
     source = _bot("publish-2026-10-30.1")
     releases = [_bot("v2026.10.0", "c0"), _bot("v2026.10.1", "c0b")]
-    plan = _rel.plan_promotion(source, releases, TODAY, has_release=_never)
+    plan = _rel.plan_promotion(source, releases, TODAY)
     assert plan.release == "v2026.11.0"
     assert plan.previous == "v2026.10.1"
     assert plan.create_tag
@@ -125,9 +121,7 @@ def test_the_release_month_is_the_promotion_date() -> None:
 
 @pytest.mark.spec("DOCBW-07-001")
 def test_the_first_release_has_no_previous_release() -> None:
-    plan = _rel.plan_promotion(
-        _bot("publish-2026-11-02.1"), [], TODAY, has_release=_never
-    )
+    plan = _rel.plan_promotion(_bot("publish-2026-11-02.1"), [], TODAY)
     assert (plan.release, plan.previous) == ("v2026.11.0", None)
 
 
@@ -138,7 +132,6 @@ def test_promote_never_names_a_release_below_the_latest() -> None:
             _bot("publish-2026-11-02.1"),
             [_hand("v2026.12.0", "c9")],
             TODAY,
-            has_release=_never,
         )
 
 
@@ -147,41 +140,59 @@ def test_a_tagged_commit_without_a_release_gets_its_draft() -> None:
     """A run whose release step failed left the tag; the re-run reuses it."""
     source = _bot("publish-2026-11-02.1")
     releases = [_bot("v2026.10.0", "c0"), _bot("v2026.11.0", "c1")]
-    plan = _rel.plan_promotion(
-        source, releases, TODAY, has_release=lambda name: False
-    )
+    plan = _rel.plan_promotion(source, releases, TODAY)
     assert (plan.release, plan.previous, plan.create_tag) == (
         "v2026.11.0",
         "v2026.10.0",
         False,
     )
+    assert _rel.resume_action(plan, None, None, _never_matched) == "create"
+
+
+def _never_matched() -> bool:
+    raise AssertionError("asked whether a release's archive matches")
 
 
 @pytest.mark.spec("DOCBW-07-016")
 @pytest.mark.parametrize(
-    ("releases", "has_release", "why"),
+    ("releases", "why"),
     [
-        ([_bot("v2026.11.0", "c1")], True, "it is released already"),
         (
             [_bot("v2026.11.0", "c1"), _bot("v2026.11.1", "c2")],
-            False,
             "a later release, v2026.11.1, exists",
         ),
         # A hand-pushed tag is no promote run's leftover.
-        ([_hand("v2026.11.0", "c1")], False, "not made by this workflow"),
+        ([_hand("v2026.11.0", "c1")], "not made by this workflow"),
     ],
-    ids=["released", "superseded", "by-hand"],
+    ids=["superseded", "by-hand"],
 )
 def test_a_released_commit_is_not_promoted_again(
-    releases: list[Any], has_release: bool, why: str
+    releases: list[Any], why: str
 ) -> None:
     with pytest.raises(_rel.PromotionRefusedError, match=why):
-        _rel.plan_promotion(
-            _bot("publish-2026-11-02.1"),
-            releases,
-            TODAY,
-            has_release=lambda name: has_release,
-        )
+        _rel.plan_promotion(_bot("publish-2026-11-02.1"), releases, TODAY)
+
+
+@pytest.mark.spec("DOCBW-07-016")
+@pytest.mark.parametrize("is_draft", [True, False], ids=["draft", "published"])
+def test_a_release_that_carries_no_draft_is_not_promoted_again(
+    is_draft: bool,
+) -> None:
+    """With no draft to attach, any release of the tag ends the promotion."""
+    plan = _rel.plan_promotion(
+        _bot("publish-2026-11-02.1"), [_bot("v2026.11.0", "c1")], TODAY
+    )
+    state = _rel.ReleaseState(is_draft, ())
+    with pytest.raises(_rel.PromotionRefusedError, match="released already"):
+        _rel.resume_action(plan, None, state, _never_matched)
+
+
+@pytest.mark.spec("DOCBW-07-016")
+def test_a_release_of_a_tag_not_made_yet_is_refused() -> None:
+    plan = _rel.plan_promotion(_bot("publish-2026-11-02.1"), [], TODAY)
+    state = _rel.ReleaseState(True, ())
+    with pytest.raises(_rel.PromotionRefusedError, match="without its tag"):
+        _rel.resume_action(plan, None, state, _never_matched)
 
 
 def test_release_tag_message_names_the_publish_and_the_actor() -> None:
@@ -317,6 +328,9 @@ def fake_gh(monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
     fake = _FakeGh()
     monkeypatch.setattr(_rel, "gh", fake)
     monkeypatch.setattr(_rel, "_today", lambda: TODAY)
+    # These repositories hold no drafts register, so no release carries a
+    # draft; test_frozen_drafts.py covers the releases that do.
+    monkeypatch.setattr(_rel, "register_at", lambda ref: None)
     return fake
 
 
@@ -431,11 +445,15 @@ def test_check_fails_on_a_tag_it_cannot_find(
 @pytest.mark.spec("DOCBW-07-010")
 @pytest.mark.parametrize(
     ("stderr", "expected"),
-    [("", True), ("release not found\n", False), ("HTTP 502\n", None)],
+    [
+        ("", _rel.ReleaseState(True, ("a.tar.gz",))),
+        ("release not found\n", None),
+        ("HTTP 502\n", "raises"),
+    ],
     ids=["exists", "not-found", "api-error"],
 )
-def test_release_exists_reads_only_not_found_as_no_release(
-    monkeypatch: pytest.MonkeyPatch, stderr: str, expected: bool | None
+def test_release_state_reads_only_not_found_as_no_release(
+    monkeypatch: pytest.MonkeyPatch, stderr: str, expected: object
 ) -> None:
     calls: list[bool] = []
 
@@ -443,14 +461,14 @@ def test_release_exists_reads_only_not_found_as_no_release(
         calls.append(retry)
         if stderr:
             raise subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
-        return "{}"
+        return '{"isDraft": true, "assets": [{"name": "a.tar.gz"}]}'
 
     monkeypatch.setattr(_rel, "gh", gh)
-    if expected is None:
+    if expected == "raises":
         with pytest.raises(subprocess.CalledProcessError):
-            _rel.release_exists("O/R", "v2026.11.0")
+            _rel.release_state("O/R", "v2026.11.0")
     else:
-        assert _rel.release_exists("O/R", "v2026.11.0") is expected
+        assert _rel.release_state("O/R", "v2026.11.0") == expected
     assert calls == [False]
 
 
@@ -516,6 +534,14 @@ def _checkout(path: Path) -> dict[str, Any]:
     return dict(step.get("with", {}))
 
 
+def _job_checkouts(job: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        dict(s.get("with", {}))
+        for s in job["steps"]
+        if str(s.get("uses", "")).startswith("actions/checkout@")
+    ]
+
+
 @pytest.mark.spec("DOCBW-07-001", "DOCBW-07-004", "DOCBW-07-005")
 def test_promote_workflow() -> None:
     wf = load_workflow(PROMOTE)
@@ -529,15 +555,27 @@ def test_promote_workflow() -> None:
         "group": "promote-release",
         "cancel-in-progress": False,
     }
-    assert {n: j.get("permissions") for n, j in _jobs(PROMOTE).items()} == {
-        "promote": {"contents": "write"}
+    jobs = _jobs(PROMOTE)
+    # Only the job that pushes the tag and creates the release can write.
+    assert {n: j.get("permissions") for n, j in jobs.items()} == {
+        "plan": {"contents": "read"},
+        "frozen-draft": {"contents": "read"},
+        "promote": {"contents": "write"},
     }
-    assert _checkout(PROMOTE) == {"fetch-depth": 0, "fetch-tags": True}
-    (step,) = [
-        s for s in steps(wf) if "release.py promote" in str(s.get("run"))
-    ]
-    assert step["env"]["REF"] == "${{ github.ref }}"
-    assert '--ref "$REF"' in step["run"]
+    # Both deciding jobs read main's full history and every tag.
+    for name in ("plan", "promote"):
+        assert _job_checkouts(jobs[name]) == [
+            {"fetch-depth": 0, "fetch-tags": True}
+        ]
+    for name, command in (
+        ("plan", "release.py plan"),
+        ("promote", "release.py promote"),
+    ):
+        (step,) = [
+            s for s in jobs[name]["steps"] if command in str(s.get("run"))
+        ]
+        assert step["env"]["REF"] == "${{ github.ref }}"
+        assert '--ref "$REF"' in step["run"]
 
 
 @pytest.mark.spec("DOCBW-07-007", "DOCBW-07-014")

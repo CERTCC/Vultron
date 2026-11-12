@@ -35,6 +35,7 @@ MS-17).
 CLI (``uv run drafts-register``)::
 
     drafts-register show [--ref REF]   # the register as JSON
+    drafts-register show --ref REF --absent-ok   # ``null`` when REF holds none
     drafts-register check-releases     # exit 1 if a released entry and its
                                        # tag's register disagree
 """
@@ -796,6 +797,14 @@ def main(argv: list[str] | None = None) -> None:
         "--ref",
         help="Read the register as this git ref holds it, not the checkout.",
     )
+    show.add_argument(
+        "--absent-ok",
+        action="store_true",
+        help=(
+            "Print null, not an error, when --ref holds no register: a ref "
+            "older than the register carries no draft."
+        ),
+    )
     commands.add_parser(
         "check-releases",
         help=(
@@ -812,6 +821,9 @@ def main(argv: list[str] | None = None) -> None:
                 if args.ref is None
                 else load_register_at(args.ref, root)
             )
+            if register is None and args.absent_ok:
+                print(json.dumps(None))
+                return
             if register is None:
                 print(
                     f"[ERROR] {args.ref} holds no {REGISTER_PATH}",

@@ -1534,8 +1534,11 @@ groups:
           superseded, and a commit tagged by hand each need a maintainer's
           decision, not a second tag or a draft for a tag nobody promoted.
         verification: >-
-          `test_a_released_commit_is_not_promoted_again` in
-          `test/ci/test_release.py`.
+          `test_a_released_commit_is_not_promoted_again`,
+          `test_a_release_that_carries_no_draft_is_not_promoted_again` and
+          `test_a_release_of_a_tag_not_made_yet_is_refused` in
+          `test/ci/test_release.py`, and the DOCBW-08-024 and DOCBW-08-026
+          tests in `test/ci/test_frozen_drafts.py`.
   - id: DOCBW-08
     title: Frozen Protocol Specification Drafts
     description: >-
@@ -1736,8 +1739,6 @@ groups:
           the release is created as a draft by one call that names both files,
           that the tag is pushed only after the DOCBW-08-021 check passes, and
           that the release is never published by the run.
-        lint_suppress:
-          - phantom_path_ref
         adr:
           - ADR-0188
         relationships:
@@ -1758,8 +1759,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
           whose register names no draft for the new tag, and check that the
           draft release has no asset.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-009
@@ -1784,8 +1783,6 @@ groups:
           whose register names a tag the run would not create, and one whose
           register names an existing earlier tag whose own register lacks the
           entry, and check that each run fails and creates no tag.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-009
@@ -1804,8 +1801,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
           whose register names the new tag for one draft and holds another,
           unreleased one, and check that the run fails and creates no tag.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-009
@@ -1826,8 +1821,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` build the archive from a
           fixture site and check that its page paths are the specification's
           page paths below its root, and that it holds no other page.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-06-004
@@ -1847,8 +1840,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` build the archive from a
           fixture site and check that each page's footer names the chosen
           publish tag and the release tag.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -1868,8 +1859,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` unpack an archive built from
           a fixture site into an empty folder and check that every relative
           `href`, `src` and `srcset` resolves inside it.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -1888,8 +1877,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` build the archive from a
           fixture site whose specification links a page outside it, and check
           that the link is absolute on the configured `site_url`.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -1908,8 +1895,6 @@ groups:
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` build the archive from a
           fixture site and check the banner on every page.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -1928,8 +1913,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` build an archive and its
           manifest from a fixture site and check the manifest with
           `sha256sum --check` against the unpacked archive.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -1947,8 +1930,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` read the promote workflow
           and check that the job that builds the archive has no write
           permission.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-07-005
@@ -1969,8 +1950,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` read the promote workflow
           and check that the attaching job checks out `main` only and receives
           the archive as a downloaded artifact.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-019
@@ -1993,8 +1972,6 @@ groups:
           with a relative reference that leaves it, and one that does not match
           its manifest, and check that each fails with no new tag and no
           release.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -2015,8 +1992,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` give the promote a release
           whose attached archive differs from the built one, and check that the
           run fails.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
@@ -2038,8 +2013,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` make the upload fail, make
           the check fail, and make a step after the check fail, and check that
           afterwards the tag exists and no release does.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-022
@@ -2059,8 +2032,6 @@ groups:
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` make the upload fail and the
           delete fail, and check that the run fails with that message.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-023
@@ -2079,8 +2050,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` run the promote twice on a
           fixture repository and check that the second run refuses with that
           message and leaves the release and its assets unchanged.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-07-016
@@ -2105,8 +2074,6 @@ groups:
           draft release that has only the archive, and with a mismatched pair,
           and check that the run deletes it and creates a new draft release
           with a matching pair, and creates no tag.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: supersedes
             spec_id: DOCBW-07-016
@@ -2134,8 +2101,6 @@ groups:
           Tests in `test/ci/test_frozen_drafts.py` start the promote against a
           fixture release that is published without the pair, and check the
           refusal and its message.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-07-016
