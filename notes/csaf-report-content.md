@@ -117,9 +117,10 @@ and archive it.
   an `ids` entry) and the document-level references as claims, and
   `CreateCaseFromProposalNode` builds and stores the objects, so the shared
   mapping mints no id on the Reporter's side (CSAF-03-008, CSAF-03-009). The
-  case lists them by id; its `Create` carries them inline, because that `Create`
-  is the act that states them and the owner's replica reads them from it
-  (CLP-07-013).
+  case lists them by id, and each is its own `Add(record, target=<case>)` entry
+  after the genesis entry (CLP-07-021, `notes/vulnerability-items.md`). The case's
+  `Create` also carries them inline, so the owner that seeds from it holds them
+  (AKM-02-004).
 - **A CSAF embargo end is a sender proposal.** With no `proposedEmbargo` on the
   Offer, the node seeds `sender_proposed_embargo` with an `EmbargoEvent` whose id
   derives from the proposal (`csaf_proposed_embargo_id`), so it competes with the

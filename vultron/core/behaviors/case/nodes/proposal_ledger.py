@@ -36,6 +36,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.creation_records import (
     CREATE_CASE_SEMANTIC_TYPE,
     _EntryNotCommitted,
+    creation_contents,
     creation_embargoes,
     genesis_record,
 )
@@ -76,6 +77,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       2. ``create_embargo_event`` for each embargo the creation wrote
          (CLP-07-013)                        actor=CaseActor
       3. ``add_report_to_case``              actor=CaseActor
+         then one ``add_vulnerability_item_to_case`` or
+         ``add_case_reference_to_case`` per record (CLP-07-021)
       4. per seated record, ``create_case_participant`` carrying it as
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
@@ -452,6 +455,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._commit_creation_embargoes(case, case_id)
             # 3. add_report_to_case  (actor = CaseActor)
             self._commit_add_reports(case, case_id)
+            # 3b. one Add per item and reference, in full (CLP-07-021)
+            for object_id, semantic_type, activity in creation_contents(
+                self.datalayer,
+                self._require_trigger_activity_port(),
+                case,
+                self.actor_id,
+            ):
+                self._commit_one(case_id, object_id, semantic_type, activity)
             # 4. per record: create_case_participant, then its later
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)

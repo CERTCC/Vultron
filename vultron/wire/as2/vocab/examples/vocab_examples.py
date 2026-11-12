@@ -69,7 +69,9 @@ from vultron.wire.as2.vocab.examples.case import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,
     accept_case_participant_role,
+    add_case_reference_to_case,
     add_report_to_case,
+    add_vulnerability_item_to_case,
     announce_case,
     close_case,
     create_case,
@@ -213,6 +215,8 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (defer_case, None),
     (reengage_case, None),
     (update_case, None),
+    (add_vulnerability_item_to_case, None),
+    (add_case_reference_to_case, None),
     (add_note_to_case, None),
     (remove_note_from_case, None),
     # case ownership transfer

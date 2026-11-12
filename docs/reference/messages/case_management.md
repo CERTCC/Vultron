@@ -319,6 +319,23 @@ Only `caseRoles` on the attached object differs.
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
 
+{% include-markdown "./_occasions/sections/add-vulnerability-item-to-case.md" %}
+
+- **Protocol role:** the CASE_MANAGER records each vulnerability item it brings into a case as its own entry, an `Add` carrying the item in full with the case as its `target` ([CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021)).
+  The case lists its items, so the one `Add` both brings the item and lists it.
+  A case created from a CSAF report takes one for each vulnerability the report names ([CSAF-03-008](../vultron-spec/requirements/messages.md#csaf-03-008)), after the case's genesis entry.
+  Replicas copy the item from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
+- **Triggering transition:** none — the case's content changes.
+
+{% include-markdown "./_occasions/sections/add-case-reference-to-case.md" %}
+
+- **Protocol role:** the CASE_MANAGER records each case reference it brings into a case the same way, an `Add` carrying the reference in full with the case as its `target` ([CLP-07-021](../vultron-spec/requirements/ledger-replication.md#clp-07-021)).
+  A case created from a CSAF report takes one for each of the report's document-level references ([CSAF-03-009](../vultron-spec/requirements/messages.md#csaf-03-009)).
+  A vulnerability's own references stay on its item.
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
+- **Triggering transition:** none — the case's content changes.
+
 {% include-markdown "./_occasions/sections/create-case-participant.md" %}
 
 - **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-020).

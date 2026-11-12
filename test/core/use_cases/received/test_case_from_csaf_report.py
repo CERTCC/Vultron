@@ -37,6 +37,7 @@ from test.core.use_cases.received._csaf_receipt import (
 )
 from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
+from test.support.ledger import ledger_entries
 from test.support.objects import make
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
@@ -620,6 +621,40 @@ def test_the_case_create_carries_the_items_and_references_inline() -> None:
     assert isinstance(carried, VulnerabilityCase)
     assert carried.vulnerability_items == _items(manager, case)
     assert carried.case_references == _references(manager, case)
+
+
+@pytest.mark.spec("CLP-07-021", "CSAF-03-008", "CSAF-03-009")
+def test_each_item_and_reference_is_an_add_entry_after_the_genesis_entry() -> (
+    None
+):
+    """Each record the creation wrote is one Add carrying it in full, with
+    the case as its target, so a replica lists it as the entry states."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    manager, case = _created(receipt)
+
+    entries = ledger_entries(manager.dl, case.id_)
+    kinds = [entry.semantic_type for entry in entries]
+    assert kinds[0] == "create_case"
+    added = [
+        entry
+        for entry in entries
+        if entry.semantic_type
+        in ("add_vulnerability_item_to_case", "add_case_reference_to_case")
+    ]
+    items, references = _items(manager, case), _references(manager, case)
+    assert len(items) == 2 and references
+    assert [entry.semantic_type for entry in added] == [
+        *(["add_vulnerability_item_to_case"] * len(items)),
+        *(["add_case_reference_to_case"] * len(references)),
+    ]
+    expected = [record.id_ for record in (*items, *references)]
+    for entry, object_id in zip(added, expected, strict=True):
+        snapshot = entry.payload_snapshot
+        assert snapshot["type"] == "Add"
+        assert snapshot["target"] == case.id_
+        assert isinstance(snapshot["object"], dict)
+        assert snapshot["object"]["id"] == object_id
+    assert "create_vulnerability_item" not in kinds
 
 
 @pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "AKM-02-004")

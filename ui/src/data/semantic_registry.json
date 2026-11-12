@@ -72,6 +72,16 @@
       "phrase": "{actor} named a new Case Owner"
     },
     {
+      "semanticType": "add_vulnerability_item_to_case",
+      "wire": "Add(VulnerabilityItem)[target=VulnerabilityCase]",
+      "phrase": "{actor} added a vulnerability item to the case"
+    },
+    {
+      "semanticType": "add_case_reference_to_case",
+      "wire": "Add(CaseReference)[target=VulnerabilityCase]",
+      "phrase": "{actor} added a reference to the case"
+    },
+    {
       "semanticType": "offer_actor_to_case",
       "wire": "Offer(Actor)[target=VulnerabilityCase]",
       "phrase": "{actor} suggested {object} for the case"

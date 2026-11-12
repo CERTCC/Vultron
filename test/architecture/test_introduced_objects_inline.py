@@ -54,11 +54,13 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2 import factories as factories_package
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
+    add_case_reference_to_case_activity,
     add_note_to_case_activity,
     add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
+    add_vulnerability_item_to_case_activity,
     announce_log_entry_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
@@ -140,6 +142,18 @@ INTRODUCES: dict[
     "add_note_to_case_activity": (
         lambda o: add_note_to_case_activity(o, target=_CASE, actor=_ACTOR),
         _example_object("add_note_to_case"),
+    ),
+    "add_vulnerability_item_to_case_activity": (
+        lambda o: add_vulnerability_item_to_case_activity(
+            o, target=_CASE, actor=_ACTOR
+        ),
+        _example_object("add_vulnerability_item_to_case"),
+    ),
+    "add_case_reference_to_case_activity": (
+        lambda o: add_case_reference_to_case_activity(
+            o, target=_CASE, actor=_ACTOR
+        ),
+        _example_object("add_case_reference_to_case"),
     ),
     "add_report_to_case_activity": (
         lambda o: add_report_to_case_activity(o, target=_CASE, actor=_ACTOR),

@@ -43,10 +43,12 @@ from vultron.core.models._helpers import parse_published
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -199,6 +201,26 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
         "record_case_owner_updated": lambda a: a.record_case_owner_updated(
             case=case, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
         ),
+        "record_vulnerability_item_added": lambda a: (
+            a.record_vulnerability_item_added(
+                item=make(
+                    VulnerabilityItem,
+                    id_=f"{CASE_ID}/items/1",
+                    cve="CVE-2026-0001",
+                ),
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+            )
+        ),
+        "record_case_reference_added": lambda a: a.record_case_reference_added(
+            reference=make(
+                CaseReference,
+                id_=f"{CASE_ID}/references/1",
+                url={"href": "https://example.org/a"},
+            ),
+            case_id=CASE_ID,
+            actor=CASE_ACTOR_ID,
+        ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
@@ -259,6 +281,16 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "Announce",
         "VulnerabilityCase",
         "announce_vulnerability_case",
+    ),
+    "record_vulnerability_item_added": (
+        "Add",
+        "VulnerabilityItem",
+        "add_vulnerability_item_to_case",
+    ),
+    "record_case_reference_added": (
+        "Add",
+        "CaseReference",
+        "add_case_reference_to_case",
     ),
 }
 
@@ -350,6 +382,8 @@ def test_a_rerun_hands_back_the_body_first_sealed(adapter, recipes, method):
         "record_embargo_event_created",
         "record_embargo_consent_created",
         "record_embargo_consent_updated",
+        "record_vulnerability_item_added",
+        "record_case_reference_added",
     ],
 )
 def test_the_object_revalidates_through_its_wire_class(
@@ -360,6 +394,20 @@ def test_the_object_revalidates_through_its_wire_class(
 
     obj = _snapshot(recipes[method], adapter)["object"]
     find_in_vocabulary(obj["type"]).model_validate(obj)
+
+
+@pytest.mark.spec("CLP-07-021")
+@pytest.mark.parametrize(
+    "method",
+    ["record_vulnerability_item_added", "record_case_reference_added"],
+)
+def test_a_case_list_member_is_added_with_the_case_as_target(
+    adapter, recipes, method
+):
+    """The one Add both brings the record and names the list it joins."""
+    snapshot = _snapshot(recipes[method], adapter)
+    assert snapshot["target"] == CASE_ID
+    assert isinstance(snapshot["object"], dict)
 
 
 @pytest.mark.spec("CP-01-007")

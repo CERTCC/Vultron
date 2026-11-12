@@ -69,6 +69,12 @@ a module here that imported ``case.nodes`` would close an import cycle
 (CS-05-003).  Nodes in this package depend on no domain node package.
 """
 
+from vultron.core.behaviors.sync.nodes.case_content_effect import (
+    ApplyCaseReferenceFromLedgerNode,
+    ApplyVulnerabilityItemFromLedgerNode,
+    IsAddCaseReferenceEventNode,
+    IsAddVulnerabilityItemEventNode,
+)
 from vultron.core.behaviors.sync.nodes.case_status_effect import (
     ApplyCaseStatusFromLedgerNode,
     IsAddCaseStatusEventNode,
@@ -207,6 +213,8 @@ __all__ = [
     "IsRemoveEmbargoEventNode",
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
+    "IsAddVulnerabilityItemEventNode",
+    "IsAddCaseReferenceEventNode",
     "IsRemoveNoteEventNode",
     "IsCreateCaseParticipantEventNode",
     "IsCreateEmbargoEventNode",
@@ -224,6 +232,8 @@ __all__ = [
     "IsEmbargoAbandonmentEventNode",
     # effects
     "ApplyNoteFromLedgerNode",
+    "ApplyVulnerabilityItemFromLedgerNode",
+    "ApplyCaseReferenceFromLedgerNode",
     "ApplyCaseParticipantRoleGrantFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
     "ApplyCreateCaseParticipantFromLedgerNode",

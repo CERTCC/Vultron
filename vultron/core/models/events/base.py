@@ -97,6 +97,9 @@ class MessageSemantics(StrEnum):
 
     ADD_CASE_STATUS_TO_CASE = auto()
 
+    ADD_VULNERABILITY_ITEM_TO_CASE = auto()
+    ADD_CASE_REFERENCE_TO_CASE = auto()
+
     ADD_PARTICIPANT_STATUS_TO_PARTICIPANT = auto()
 
     # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway

@@ -296,9 +296,9 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             for ref in raw_case.vulnerability_reports
         ]
         # Carry the items and references the creation filled inline too
-        # (CSAF-03-008, CSAF-03-009): this Create is their entry, since the
-        # case's creation is the act that states them (CLP-07-013), so a
-        # replica learns them from it.
+        # (CSAF-03-008, CSAF-03-009): the owner seeds from this Create, and
+        # no recipient holds them yet (AKM-02-004).  Each is also its own
+        # Add entry after the genesis entry (CLP-07-021).
         updates["vulnerability_items"] = inline_owned(
             self.datalayer,
             raw_case.id_,

@@ -26,10 +26,14 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_item import (
+    as_VulnerabilityItem,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -83,6 +87,44 @@ class _AddStatusToCaseActivity(as_Add):
     """
 
     object_: as_CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseRef = None
+
+
+# add a VulnerabilityItem or a CaseReference to a VulnerabilityCase
+class _AddVulnerabilityItemToCaseActivity(as_Add):
+    """The CASE_MANAGER added a vulnerability item to a VulnerabilityCase.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    item in full, labelled ``add_vulnerability_item_to_case`` (CLP-07-021):
+    the case lists its items, so the one ``Add`` both brings the item and
+    attaches it.  The registry recognizes it, but no received use case
+    handles it (ADR-0140): a participant takes the item from the ledger.
+
+    object_: as_VulnerabilityItem
+    target: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityItem = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseRef = None
+
+
+class _AddCaseReferenceToCaseActivity(as_Add):
+    """The CASE_MANAGER added a case reference to a VulnerabilityCase.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    reference in full, labelled ``add_case_reference_to_case``
+    (CLP-07-021).  The registry recognizes it, but no received use case
+    handles it (ADR-0140).
+
+    object_: as_CaseReference
+    target: as_VulnerabilityCase
+    """
+
+    object_: as_CaseReference = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
