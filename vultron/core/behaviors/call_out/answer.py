@@ -49,8 +49,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from types import MappingProxyType
-from typing import Any, Final, Self
+from types import MappingProxyType, NoneType, UnionType
+from typing import Any, Final, Self, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -88,23 +88,52 @@ def is_of_port_type(value: object, port_type: type) -> bool:
     return isinstance(value, port_type)
 
 
+def _admits_none(annotation: object) -> bool:
+    """Whether a field *annotation* is ``None`` or a union naming ``None``."""
+    if annotation is None or annotation is NoneType:
+        return True
+    if get_origin(annotation) in (Union, UnionType):
+        return NoneType in get_args(annotation)
+    return False
+
+
+def _stated_absent(port_type: type) -> dict[str, None]:
+    """``None`` for each required field of a model *port_type* that admits it.
+
+    A required field that admits ``None`` (a ``CoreObject``'s ``published``
+    and ``updated``) has no default because its author must state it
+    (ADR-0176).  A constant *yes* states it absent, as a received omission
+    reads (ADR-0103), and never reads a clock for it (AKM-02-006).  A
+    non-model type, and a required field that refuses ``None``, get nothing.
+    """
+    if not (isinstance(port_type, type) and issubclass(port_type, BaseModel)):
+        return {}
+    return {
+        name: None
+        for name, info in port_type.model_fields.items()
+        if info.is_required() and _admits_none(info.annotation)
+    }
+
+
 def yes_value(port_type: type) -> object:
     """The value a constant *yes* gives an output port of *port_type*.
 
     A ``bool`` port reads ``True``: a constant *yes* does not report its own
     decision as false.  Any other port reads the type's no-argument value
     (``""``, ``0``, ``[]``, a model's defaults), which is type-conformant
-    but carries no meaning (BT-18-003, BT-23-013).
+    but carries no meaning (BT-18-003, BT-23-013).  A model's required field
+    that admits ``None`` reads ``None``: it is stated absent, never filled
+    from a clock (:func:`_stated_absent`).
 
     Raises:
-        TypeError: *port_type* cannot be built without arguments, so no
-            constant backend can answer for the port; a capability that
-            declares one needs a backend that builds the value.
+        TypeError: *port_type* cannot be built that way, so no constant
+            backend can answer for the port; a capability that declares
+            one needs a backend that builds the value.
     """
     if port_type is bool:
         return True
     try:
-        return port_type()
+        return port_type(**_stated_absent(port_type))
     except (TypeError, ValueError) as exc:
         raise TypeError(
             f"a constant yes cannot build a {port_type.__name__} without "

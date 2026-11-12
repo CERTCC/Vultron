@@ -46,7 +46,9 @@ call-out backend, bounded by the budget (BT-18-015), and the reason the wait
 is a share of it rather than a timeout of its own.
 
 A fetched profile's ``inbox`` and ``outbox`` must meet the rule a profile
-URL meets, since a stored peer's inbox is where delivery posts.
+URL meets, since a stored peer's inbox is where delivery posts.  A time the
+profile body omits reads as ``None``, as received data does, so the stored
+record carries no time the peer never claimed (AKM-02-006, ADR-0103).
 """
 
 from __future__ import annotations
@@ -166,20 +168,6 @@ def _require_positive(wait: timedelta) -> None:
         )
 
 
-def _unclaimed_times_cleared(profile: CoreActor) -> CoreActor:
-    """*profile* with each time its body did not state set to ``None``.
-
-    The profile parse fills an absent ``published`` or ``updated`` from this
-    actor's clock, which is right for an object this process authors and
-    wrong for a peer's profile: the stored record would carry a time the
-    peer never claimed (AKM-02-006).
-    """
-    unclaimed = {"published", "updated"} - profile.model_fields_set
-    if not unclaimed:
-        return profile
-    return profile.model_copy(update=dict.fromkeys(unclaimed))
-
-
 class HttpActorResolutionAdapter:
     """:class:`ActorResolutionPort` that fetches the peer's profile live.
 
@@ -276,7 +264,7 @@ class HttpActorResolutionAdapter:
                 f"the fetch of {actor_id!r} gave no actor profile"
             )
         _check_endpoints(profile)
-        return _unclaimed_times_cleared(profile)
+        return profile
 
 
 __all__ = [

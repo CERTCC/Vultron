@@ -289,6 +289,41 @@ def test_yes_value_is_true_for_bool_and_the_empty_value_otherwise():
     assert yes_value(PublicationIntentDecision) == PublicationIntentDecision()
 
 
+@pytest.mark.spec("BT-23-013")
+def test_yes_value_states_a_required_nullable_field_absent():
+    """A required time is stated ``None``, never read from a clock."""
+    from datetime import datetime
+
+    from pydantic import BaseModel
+
+    from vultron.core.behaviors.call_out.answer import yes_value
+    from vultron.core.models.actor import CoreActor
+
+    class _Stated(BaseModel):
+        when: datetime | None
+        label: str = "x"
+
+    assert yes_value(_Stated) == _Stated(when=None)
+
+    actor = yes_value(CoreActor)
+    assert isinstance(actor, CoreActor)
+    assert actor.published is None
+    assert actor.updated is None
+
+
+def test_yes_value_refuses_a_required_field_that_refuses_none():
+    from pydantic import BaseModel
+
+    from vultron.core.behaviors.call_out.answer import yes_value
+
+    class _Mixed(BaseModel):
+        when: str | None
+        value: int
+
+    with pytest.raises(TypeError, match="cannot build a _Mixed"):
+        yes_value(_Mixed)
+
+
 def test_yes_value_refuses_a_type_it_cannot_build():
     from pydantic import BaseModel
 
