@@ -17,7 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -29,6 +29,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     with_case_context,
 )
@@ -57,12 +58,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def _project_case_to_stub(
     case: VulnerabilityCase,
     embargo_obj: Any,
+    at: datetime,
 ) -> as_VulnerabilityCaseStub:
     """Project a ``VulnerabilityCase`` to a ``as_VulnerabilityCaseStub``.
 
@@ -85,6 +85,7 @@ def _project_case_to_stub(
             is the same class, ARCH-25-003).
         embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``
             when the case holds its active embargo inline.
+        at: The authoring act's instant, the stub status's ``published``.
 
     Raises:
         VultronActivityConstructionError: When the case carries no
@@ -113,7 +114,7 @@ def _project_case_to_stub(
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
     wire_status = as_CaseStatus(
-        context=case_id, em=EmDimension(state=em_state)
+        context=case_id, em=EmDimension(state=em_state), published=at
     )
     return as_VulnerabilityCaseStub(
         case_id=case_id,
@@ -176,6 +177,8 @@ def rm_invite_to_case_activity(
     target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(Actor)[target=VulnerabilityCaseStub] — the stub Invite.
@@ -212,28 +215,36 @@ def rm_invite_to_case_activity(
             case carries no ``stub_summary`` (CM-17-010), or its active
             embargo cannot be embedded whole (CM-17-011).
     """
-    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
-        target = _project_case_to_stub(target, embargo_obj)
-    elif isinstance(target, str):
-        # A case named by URI alone still travels as a stub: the invitee does
-        # not hold the case, and the stub Invite is told apart by its target's
-        # ``type`` (CM-11-013, VAM-04-004).
-        target = as_VulnerabilityCaseStub(case_id=target)
     if roles is not None:
         kwargs["roles"] = roles
-    try:
-        return _RmInviteToCaseActivity(
-            object_=carried_actor(invitee),
-            target=target,
-            **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_invite_to_case_activity: invalid arguments"
-        ) from exc
+
+    def fields() -> dict[str, Any]:
+        stub = _stub_target(target, embargo_obj, at)
+        return {
+            "object_": carried_actor(invitee),
+            "target": stub,
+            **with_case_context(kwargs, stub),
+        }
+
+    return build_activity(
+        "rm_invite_to_case_activity", _RmInviteToCaseActivity, at, fields
+    )
+
+
+def _stub_target(target: Any, embargo_obj: Any, at: datetime) -> Any:
+    """The stub an Invite carries for *target*.
+
+    A case is projected to its enriched stub.  A case named by URI alone
+    still travels as a stub: the invitee does not hold the case, and the stub
+    Invite is told apart by its target's ``type`` (CM-11-013, VAM-04-004).
+    Run inside the factory's guarded scope, so a stub that fails validation
+    is a construction error.
+    """
+    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
+        return _project_case_to_stub(target, embargo_obj, at)
+    if isinstance(target, str):
+        return as_VulnerabilityCaseStub(case_id=target)
+    return target
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
@@ -270,6 +281,8 @@ def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
 
 def rm_accept_invite_to_case_activity(
     invite: as_Invite,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_RmInviteToCaseActivity) — join the case.
@@ -294,22 +307,18 @@ def rm_accept_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmAcceptInviteToCaseActivity(
-            object_=_as_case_invite(invite),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_accept_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_accept_invite_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_accept_invite_to_case_activity",
+        _RmAcceptInviteToCaseActivity,
+        at,
+        lambda: {"object_": _as_case_invite(invite), **kwargs},
+    )
 
 
 def rm_reject_invite_to_case_activity(
     invite: as_Invite,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RmInviteToCaseActivity) — a hard no to joining (RC).
@@ -335,15 +344,9 @@ def rm_reject_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmRejectInviteToCaseActivity(
-            object_=_as_case_invite(invite),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_reject_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_reject_invite_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_reject_invite_to_case_activity",
+        _RmRejectInviteToCaseActivity,
+        at,
+        lambda: {"object_": _as_case_invite(invite), **kwargs},
+    )

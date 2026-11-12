@@ -45,6 +45,7 @@ from test.core.use_cases.received.actor.test_ownership import (
 )
 from test.support.act_runner import run_tree
 from test.support.ledger import commit_case_manager_closure
+from test.support.objects import authored_at
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.wire.as2.factories import (
@@ -250,7 +251,7 @@ class TestTheActivityIsNotTheEvidence:
             offer,
             actor=_COORDINATOR_ID,
             to=[_CASE_ACTOR_ID],
-            published=now_utc() + timedelta(minutes=claimed_minutes),
+            at=now_utc() + timedelta(minutes=claimed_minutes),
         )
 
         result = _accept(dl, make_payload, offer, accept=accept)
@@ -387,7 +388,7 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
     # A reply sent by the CASE_MANAGER, which a replica is entitled to
     # receive (PCR-03-001), after the Offer's end_time.
     reply = accept_case_ownership_transfer_activity(
-        offer, actor=_CASE_ACTOR_ID, to=[_COORDINATOR_ID]
+        offer, actor=_CASE_ACTOR_ID, to=[_COORDINATOR_ID], at=authored_at()
     )
     tree = create_accept_ownership_transfer_tree(
         case_id=case_id,

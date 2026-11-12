@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -120,7 +120,9 @@ class TestVulnerabilityCaseRequiresOwner:
         stored = case.model_dump(mode="json")
         del stored["attributed_to"]
         with pytest.raises(ValidationError, match="attributedTo"):
-            VulnerabilityCase.model_validate(stored)
+            VulnerabilityCase.model_validate(
+                with_times(VulnerabilityCase, stored)
+            )
 
     def test_assigning_none_owner_raises(self, case: VulnerabilityCase):
         with pytest.raises(ValidationError):
@@ -447,7 +449,7 @@ class TestVulnerabilityCaseWireRoundTrip:
         activate(core_case, "urn:uuid:embargo-1")
         assert core_case.active_embargo == "urn:uuid:embargo-1"
         restored = VulnerabilityCase.model_validate(
-            core_case.model_dump(by_alias=True)
+            with_times(VulnerabilityCase, core_case.model_dump(by_alias=True))
         )
         assert restored.active_embargo_id == "urn:uuid:embargo-1"
         assert restored.em_state == EM.ACTIVE

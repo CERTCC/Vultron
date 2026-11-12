@@ -35,7 +35,7 @@ from test.core.use_cases.received._ledger_network import (
     LedgerNetwork,
 )
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import (
     AcceptingProofVerifier,
     resigned,
@@ -88,7 +88,11 @@ def _owner_note(net: LedgerNetwork, note_id: str) -> dict[str, Any]:
             make(as_Note, id_=note_id, content="signed", context=CASE_ID)
         )
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=note_id, case_id=CASE_ID, actor=OWNER, to=[MANAGER]
+        note_id=note_id,
+        case_id=CASE_ID,
+        actor=OWNER,
+        to=[MANAGER],
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(body))
 

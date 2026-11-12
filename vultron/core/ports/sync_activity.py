@@ -68,6 +68,7 @@ class SyncActivityPort(Protocol):
         *,
         in_reply_to: str,
         asked_at: datetime | None = None,
+        at: datetime,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
@@ -103,6 +104,7 @@ class SyncActivityPort(Protocol):
         to: list[str],
         *,
         in_reply_to: str,
+        at: datetime,
     ) -> None:
         """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
 
@@ -131,6 +133,8 @@ class SyncActivityPort(Protocol):
         ledger_position: LedgerPosition,
         actor_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> None:
         """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
 
@@ -174,6 +178,8 @@ class SyncActivityPort(Protocol):
         entry: CaseLedgerEntry,
         actor_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> bool:
         """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 

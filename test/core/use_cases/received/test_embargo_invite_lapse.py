@@ -40,7 +40,7 @@ from test.support.ledger import (
     fail_commits,
     is_consent_row_update,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.refusal_notice import (
     assert_refusal_notice,
@@ -505,7 +505,7 @@ def _receive_invite_at_invitee(
         context=case.id_,
         actor=_COORD,
         to=[_INVITEE],
-        published=published,
+        at=published,
         rsvp_deadline=published + timedelta(days=7),
     )
     event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
@@ -710,7 +710,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -753,7 +753,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, at=dl)
         assert event.receiving_actor_id is None
@@ -798,7 +798,7 @@ class TestInviteeIsTheAddressee:
             context=case.id_,
             actor=_COORD,
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -847,10 +847,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case.id_,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -897,7 +902,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_OTHER, _INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -947,7 +952,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
@@ -993,7 +998,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE, _OTHER],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -1046,7 +1051,7 @@ class TestInviteeIsTheAddressee:
             actor=_INVITEE,
             to=[_COORD],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(proposal, receiving_actor_id=_COORD, at=dl)
 
@@ -1091,7 +1096,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],  # non-canonical: trailing slash
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_OTHER, at=dl)
 
@@ -1189,10 +1194,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case.id_,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1265,10 +1275,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/revision",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case_id,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1346,10 +1361,15 @@ class TestInviteeIsTheAddressee:
             actor=_INVITEE,
             to=[_COORD],
             id_=f"{case_id}/proposals/revision",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=_COORD, to=[_INVITEE]
+            proposal=proposal,
+            context=case_id,
+            actor=_COORD,
+            to=[_INVITEE],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1418,10 +1438,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case_id,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1466,10 +1491,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case_id,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1511,10 +1541,15 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         reject = em_reject_embargo_activity(
-            proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
+            proposal=proposal,
+            context=case.id_,
+            actor=_INVITEE,
+            to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
@@ -1563,7 +1598,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_published_now(),
+            at=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
@@ -1611,6 +1646,7 @@ class TestInviteeIdProperty:
             context="https://example.org/cases/prop",
             actor=_COORD,
             to=to,
+            at=authored_at(),
         )
         return make_payload(invite)
 
@@ -1688,6 +1724,7 @@ def _make_accept_event(
         context=case.id_,
         actor=accepting_actor_id,
         to=[_COORD],
+        at=authored_at(),
     )
     return make_payload(accept, receiving_actor_id=_COORD, at=at)
 
@@ -1747,6 +1784,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
             target=case_id,
             actor=_COORD,
             to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(activation, receiving_actor_id=_COORD, at=dl)
 
@@ -2067,6 +2105,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2121,6 +2160,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         # The one expiry path, as the Accept's own decision and the
@@ -2294,6 +2334,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2382,6 +2423,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/stale",
+            at=authored_at(),
         )
         dl.create(stale_proposal)
 
@@ -2400,7 +2442,7 @@ class TestLateAcceptHandling:
                     "actor": kwargs["actor"],
                     "to": kwargs["to"],
                     "context": kwargs["case_id"],
-                    "published": kwargs["published"].isoformat(),
+                    "published": kwargs["at"].isoformat(),
                     "endTime": kwargs["rsvp_deadline"].isoformat(),
                     "object": {
                         "type": "EmbargoEvent",
@@ -2445,7 +2487,7 @@ class TestLateAcceptHandling:
 
         # The re-invite carries its own fresh deadline (ASK-03-004, CM-28-012).
         stamped = call_kwargs.kwargs.get("rsvp_deadline")
-        published = call_kwargs.kwargs.get("published")
+        published = call_kwargs.kwargs.get("at")
         assert isinstance(stamped, datetime)
         assert isinstance(published, datetime)
         assert stamped - published == timedelta(days=7)
@@ -2500,6 +2542,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p3",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2593,6 +2636,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2672,6 +2716,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2743,6 +2788,7 @@ class TestLateAcceptHandling:
             actor=_INVITEE,
             to=[_COORD],
             id_=f"{case_id}/proposals/p4",
+            at=authored_at(),
         )
         dl.create(proposal)
         case.pending_embargo_proposal_index[embargo_id] = proposal.id_
@@ -2812,6 +2858,7 @@ class TestLateAcceptHandling:
             actor=_INVITEE,
             to=[_COORD],
             id_=f"{case_id}/proposals/p5",
+            at=authored_at(),
         )
         dl.create(proposal)
         case.pending_embargo_proposal_index[embargo_id] = proposal.id_
@@ -2858,6 +2905,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p6",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2917,6 +2965,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p-sig-ac2",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -2989,6 +3038,7 @@ class TestLateAcceptHandling:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/stale-sig",
+            at=authored_at(),
         )
         dl.create(stale_proposal)
 
@@ -3050,6 +3100,7 @@ class TestExpiryIsTheManagersAlone:
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
         # The replica holds an addressed copy, so the door check (HP-01-005)
@@ -3060,6 +3111,7 @@ class TestExpiryIsTheManagersAlone:
             actor=_INVITEE,
             to=[_COORD],
             cc=[_OTHER],
+            at=authored_at(),
         )
         event = make_payload(accept, receiving_actor_id=_OTHER, at=dl)
 

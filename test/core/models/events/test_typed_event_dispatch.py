@@ -6,7 +6,7 @@ Covers AC4 of ISSUE-2489: new typed-dispatch tests for ≥3 representative seman
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import extract_stamped
 from vultron.wire.as2.factories import (
     accept_case_proposal_activity,
@@ -30,7 +30,9 @@ class TestTypedEventDispatch:
     def test_create_report_returns_create_report_received_event(self):
         from vultron.core.models.events.report import CreateReportReceivedEvent
 
-        activity = rm_create_report_activity(gen_report(), actor=_ACTOR_URI)
+        activity = rm_create_report_activity(
+            gen_report(), actor=_ACTOR_URI, at=authored_at()
+        )
         event = extract_stamped(activity)
 
         assert isinstance(event, CreateReportReceivedEvent)
@@ -54,6 +56,7 @@ class TestTypedEventDispatch:
             actor_id=_CASE_ACTOR_URI,
             proposal=proposal,
             to=[_ACTOR_URI],
+            at=authored_at(),
         )
         event = extract_stamped(activity)
 
@@ -76,6 +79,7 @@ class TestTypedEventDispatch:
             target=_CASE_URI,
             actor=_ACTOR_URI,
             to=[_CASE_ACTOR_URI],
+            at=authored_at(),
         )
         event = extract_stamped(activity)
 
@@ -88,7 +92,9 @@ class TestTypedEventDispatch:
         from vultron.core.models.events.base import MessageSemantics
         from vultron.core.models.events.report import CreateReportReceivedEvent
 
-        activity = rm_create_report_activity(gen_report(), actor=_ACTOR_URI)
+        activity = rm_create_report_activity(
+            gen_report(), actor=_ACTOR_URI, at=authored_at()
+        )
         event = extract_stamped(activity)
 
         assert isinstance(event, CreateReportReceivedEvent)

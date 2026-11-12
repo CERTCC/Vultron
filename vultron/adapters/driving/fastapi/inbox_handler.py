@@ -31,6 +31,7 @@ focused submodules:
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import datetime
 from typing import cast
 
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
@@ -313,8 +314,13 @@ def emit_processing_fault(
     failed_activity_id: str,
     sender_id: str,
     failure_class: str,
+    *,
+    at: datetime,
 ) -> str:
     """Queue ``Create(ProcessingFault)`` from *receiver_id* to *sender_id*.
+
+    *at* is the instant of the act that processed the failed activity, which
+    the fault is authored at (ADR-0176).
 
     The fault names *failed_activity_id* and *failure_class* and nothing
     else (ASK-07-006).  Its id is derived from the failed activity and the
@@ -332,4 +338,5 @@ def emit_processing_fault(
         failed_activity_id=failed_activity_id,
         failure_class=failure_class,
         to=[sender_id],
+        at=at,
     )

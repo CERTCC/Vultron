@@ -20,14 +20,12 @@ ADR-0141).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import logging
+from datetime import datetime
 from typing import Any
 
-from pydantic import ValidationError
-
 from vultron.wire.as2.errors import VultronParseError
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._inline import require_inline
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.fault import _RefusalNoticeActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -36,14 +34,14 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
-logger = logging.getLogger(__name__)
-
 
 def create_processing_fault_activity(
     actor: str,
     fault: as_ProcessingFault,
     to: list[str] | None = None,
     id_: str | None = None,
+    *,
+    at: datetime,
 ) -> as_Create:
     """Build a ``Create(ProcessingFault)`` NACK activity.
 
@@ -59,18 +57,26 @@ def create_processing_fault_activity(
 
     Raises:
         VultronActivityConstructionError: If *fault* is not an inline
-            ``as_ProcessingFault`` (AKM-02-004).
+            ``as_ProcessingFault`` (AKM-02-004), or Pydantic validation
+            fails.
     """
     fault = require_inline(
         fault, as_ProcessingFault, factory="create_processing_fault_activity"
     )
     id_kwargs: dict[str, Any] = {} if id_ is None else {"id_": id_}
-    return as_Create(actor=actor, object_=fault, to=to, **id_kwargs)
+    return build_activity(
+        "create_processing_fault_activity",
+        as_Create,
+        at,
+        lambda: {"actor": actor, "object_": fault, "to": to, **id_kwargs},
+    )
 
 
 def refusal_notice_activity(
     refused: dict[str, Any],
     reason: str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build the CASE_MANAGER's refusal notice: a ``Reject`` of *refused*.
@@ -98,17 +104,21 @@ def refusal_notice_activity(
         VultronActivityConstructionError: If *refused* is not an activity
             the vocabulary parses, or Pydantic validation fails.
     """
-    try:
+
+    def fields() -> dict[str, Any]:
         activity = parse_activity(refused)
-        return _RefusalNoticeActivity(
+        return {
             # Embedded as the asserter sent it, every key included (DL-06-004).
-            object_=activity.inlined_as_received(),
-            in_reply_to=activity.id_,
-            summary=reason,
+            "object_": activity.inlined_as_received(),
+            "in_reply_to": activity.id_,
+            "summary": reason,
             **kwargs,
-        )
-    except (ValidationError, VultronParseError) as exc:
-        logger.warning("refusal_notice_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "refusal_notice_activity: invalid arguments"
-        ) from exc
+        }
+
+    return build_activity(
+        "refusal_notice_activity",
+        _RefusalNoticeActivity,
+        at,
+        fields,
+        also=(VultronParseError,),
+    )

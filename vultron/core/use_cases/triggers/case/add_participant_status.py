@@ -125,6 +125,7 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
                 participant_id=participant_id,
                 actor=self._actor_id,
                 to=[case_manager_id],
+                at=self._at,
             )
             self._result_out["activity_id"] = activity_id
             return [activity_id]

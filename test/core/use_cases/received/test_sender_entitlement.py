@@ -66,7 +66,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -227,6 +227,7 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
         actor=_OWNER_ID,
         to=[_CASE_MANAGER_ID],
         id_=offer_id,
+        at=authored_at(),
     )
     recorded = run_in_act(
         ProposeCaseOwnershipTransferReceivedUseCase(
@@ -253,7 +254,7 @@ def _reject_ownership_offer(cm_store, make_payload, offer, sender):
     """*sender* declines *offer* at the CASE_MANAGER."""
     event = make_payload(
         reject_case_ownership_transfer_activity(
-            offer, actor=sender, to=[_CASE_MANAGER_ID]
+            offer, actor=sender, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -285,7 +286,7 @@ def test_ownership_accept_from_non_transferee_is_refused(
     outbox_before = cm_store.outbox_list()
     event = make_payload(
         accept_case_ownership_transfer_activity(
-            offer, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID]
+            offer, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -367,9 +368,12 @@ def test_accept_of_unrecorded_invite_is_refused(
         roles=[CVDRole.VENDOR],
         actor=_OWNER_ID,
         id_=f"{owned_case.id_}/invitations/forged",
+        at=authored_at(),
     )
     event = make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=_IMPOSTOR_ID),
+        rm_accept_invite_to_case_activity(
+            invite, actor=_IMPOSTOR_ID, at=authored_at()
+        ),
         at=cm_store,
     )
 
@@ -407,6 +411,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
             to=[invitee_id],
             actor=_CASE_MANAGER_ID,
             id_=invite_id,
+            at=authored_at(),
         )
     )
     forged = rm_invite_to_case_activity(
@@ -415,9 +420,12 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
         roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
         actor=_OWNER_ID,
         id_=invite_id,
+        at=authored_at(),
     )
     event = make_payload(
-        rm_accept_invite_to_case_activity(forged, actor=invitee_id),
+        rm_accept_invite_to_case_activity(
+            forged, actor=invitee_id, at=authored_at()
+        ),
         at=cm_store,
     )
 
@@ -450,6 +458,7 @@ def _record_stub_invite(cm_store, case, invitee_id=_INVITEE_ID, suffix="rec"):
         to=[invitee_id],
         actor=_CASE_MANAGER_ID,
         id_=f"{case.id_}/invitations/{suffix}",
+        at=authored_at(),
     )
     cm_store.create(invite)
     return invite
@@ -465,7 +474,10 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     cm_store.create(owned_case)
     invite = _record_stub_invite(cm_store, owned_case)
     event = make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=sender), at=cm_store
+        rm_accept_invite_to_case_activity(
+            invite, actor=sender, at=authored_at()
+        ),
+        at=cm_store,
     )
     entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
 
@@ -502,6 +514,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
         to=[_INVITEE_ID],
         actor=_CASE_MANAGER_ID,
         id_=f"{other_case_id}/invitations/rec",
+        at=authored_at(),
     )
     cm_store.create(other_invite)
     forged = rm_invite_to_case_activity(
@@ -511,9 +524,12 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
         to=[_INVITEE_ID],
         actor=_OWNER_ID,
         id_=other_invite.id_,
+        at=authored_at(),
     )
     event = make_payload(
-        rm_accept_invite_to_case_activity(forged, actor=_INVITEE_ID),
+        rm_accept_invite_to_case_activity(
+            forged, actor=_INVITEE_ID, at=authored_at()
+        ),
         at=cm_store,
     )
 
@@ -547,10 +563,13 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
         to=[_IMPOSTOR_ID],
         actor=_IMPOSTOR_ID,
         id_=f"{owned_case.id_}/invitations/self-issued",
+        at=authored_at(),
     )
     cm_store.create(invite)
     event = make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=_IMPOSTOR_ID),
+        rm_accept_invite_to_case_activity(
+            invite, actor=_IMPOSTOR_ID, at=authored_at()
+        ),
         at=cm_store,
     )
     entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
@@ -592,9 +611,12 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
             to=[_IMPOSTOR_ID],
             actor=_OWNER_ID,
             id_=f"{owned_case.id_}/invitations/forged",
+            at=authored_at(),
         )
     event = make_payload(
-        rm_reject_invite_to_case_activity(invite, actor=_IMPOSTOR_ID),
+        rm_reject_invite_to_case_activity(
+            invite, actor=_IMPOSTOR_ID, at=authored_at()
+        ),
         at=cm_store,
     )
 
@@ -629,6 +651,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
         target=_case_ref(RECOMMEND_CASE_ID),
         actor=_IMPOSTOR_ID,
         to=[RECOMMEND_CASE_MANAGER_ID],
+        at=authored_at(),
     )
     event = cast(
         AcceptOfferCaseParticipantReceivedEvent, received_event(accept, at=dl)
@@ -671,6 +694,7 @@ def test_recommendation_reject_from_non_owner_is_refused():
         target=_case_ref(RECOMMEND_CASE_ID),
         actor=_IMPOSTOR_ID,
         to=[RECOMMEND_CASE_MANAGER_ID],
+        at=authored_at(),
     )
     event = cast(
         RejectOfferCaseParticipantReceivedEvent, received_event(reject, at=dl)
@@ -960,7 +984,7 @@ def test_report_addition_by_non_owner_is_refused(
     report = gen_report()
     event = make_payload(
         add_report_to_case_activity(
-            report, target=owned_case.id_, actor=_IMPOSTOR_ID
+            report, target=owned_case.id_, actor=_IMPOSTOR_ID, at=authored_at()
         ),
         at=cm_store,
     )
@@ -1129,6 +1153,7 @@ def test_embargo_invite_from_a_stranger_is_refused(
         actor=_IMPOSTOR_ID,
         to=[_CASE_MANAGER_ID],
         id_=f"{owned_case.id_}/embargo_proposals/forged",
+        at=authored_at(),
     )
     event = make_payload(
         proposal, receiving_actor_id=_CASE_MANAGER_ID, at=cm_store
@@ -1183,6 +1208,7 @@ def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
         actor=_BYSTANDER_ID,
         to=[_INVITEE_ID],
         id_=f"{case.id_}/embargo_invites/peer",
+        at=authored_at(),
     )
     event = make_payload(invite, receiving_actor_id=_INVITEE_ID)
 
@@ -1215,6 +1241,7 @@ def test_embargo_accept_from_a_non_invitee_is_refused(
         attributed_to=_OWNER_ID,
         to=[_INVITEE_ID],
         id_=f"{owned_case.id_}/embargo_invites/invitee",
+        at=authored_at(),
     )
     cm_store.create(invite)
     event = make_payload(
@@ -1223,6 +1250,7 @@ def test_embargo_accept_from_a_non_invitee_is_refused(
             context=owned_case.id_,
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1261,6 +1289,7 @@ def test_embargo_accept_of_an_unrecorded_invite_is_refused(
         actor=_CASE_MANAGER_ID,
         to=[_BYSTANDER_ID],
         id_=f"{owned_case.id_}/embargo_invites/never-sent",
+        at=authored_at(),
     )
     event = make_payload(
         em_accept_embargo_activity(
@@ -1268,6 +1297,7 @@ def test_embargo_accept_of_an_unrecorded_invite_is_refused(
             context=owned_case.id_,
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1307,6 +1337,7 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
         attributed_to=_OWNER_ID,
         to=[_INVITEE_ID],
         id_=f"{owned_case.id_}/embargo_invites/invitee",
+        at=authored_at(),
     )
     cm_store.create(invite)
     event = make_payload(
@@ -1315,6 +1346,7 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
             context=owned_case.id_,
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1413,6 +1445,7 @@ def test_embargo_remove_from_a_non_owner_is_refused(
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1456,6 +1489,7 @@ def test_embargo_remove_from_the_owner_is_applied(
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1489,6 +1523,7 @@ def test_embargo_announce_from_a_non_manager_is_refused(
             context=owned_case.id_,
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1520,6 +1555,7 @@ def test_embargo_remove_from_the_owner_with_trailing_slash_is_applied(
             actor=f"{_OWNER_ID}/",
             to=[_CASE_MANAGER_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
@@ -1565,6 +1601,7 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
             context=case.id_,
             actor=_BYSTANDER_ID,
             to=[_INVITEE_ID],
+            at=authored_at(),
         ),
         receiving_actor_id=_INVITEE_ID,
     )
@@ -1622,6 +1659,7 @@ def test_report_addition_by_a_closed_owner_is_refused(
             target=owned_case.id_,
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         at=cm_store,
     )
@@ -1701,6 +1739,7 @@ def test_embargo_remove_from_a_closed_owner_is_refused(
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,

@@ -31,7 +31,7 @@ import pytest
 
 from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -132,6 +132,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
         suggested_roles=["vendor"],
+        at=authored_at(),
     )
     event = received_event(activity).model_copy(
         update={"receiving_actor_id": _MANAGER_ID}

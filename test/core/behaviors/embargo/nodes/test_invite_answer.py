@@ -30,7 +30,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -93,7 +93,12 @@ def _store(
     if with_case:
         dl.create(case)
     invite = em_propose_embargo_activity(
-        embargo, context=CASE_ID, actor=MANAGER, to=[INVITEE], id_=INVITE_ID
+        embargo,
+        context=CASE_ID,
+        actor=MANAGER,
+        to=[INVITEE],
+        id_=INVITE_ID,
+        at=authored_at(),
     )
     dl.create(invite)
     return dl

@@ -94,18 +94,6 @@ def exclude_if_none(value: Any) -> bool:
     return value is None
 
 
-def exclude_if_empty(value: Any) -> bool:
-    """Exclude a field if it is empty
-
-    Args:
-        value: The value to check
-
-    Returns:
-        True if the value is empty, False otherwise
-    """
-    return len(value) == 0
-
-
 generate_new_id = new_object_id
 """The wire layer's ``id_`` default factory: the shared core minter itself.
 

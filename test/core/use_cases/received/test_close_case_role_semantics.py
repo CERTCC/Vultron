@@ -48,7 +48,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import fail_commits, is_consent_row_update
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import (
     TEST_SENDER_POSITION,
     received_event,
@@ -1214,6 +1214,7 @@ def _add_note_event(
         ),
         actor=sender_id,
         to=[CASE_ACTOR_ID],
+        at=authored_at(),
     )
     event = received_event(activity, at=at).model_copy(
         update={"receiving_actor_id": CASE_ACTOR_ID}
@@ -1469,6 +1470,7 @@ class TestPostCloseWriteBoundary:
             context=make(
                 as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
             ),
+            at=authored_at(),
         )
         event = received_event(activity, at=dl).model_copy(
             update={"receiving_actor_id": CASE_ACTOR_ID}
@@ -1571,10 +1573,13 @@ def _make_announce_event(
     from typing import cast
 
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=sender_actor_id, to=[receiver_id]
+        entry=wire_entry,
+        actor=sender_actor_id,
+        to=[receiver_id],
+        at=authored_at(),
     )
     return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 

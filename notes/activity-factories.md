@@ -36,9 +36,18 @@ Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
   `vocab/activities/`, imported only by `factories/`. They give Pydantic runtime
   validation for free; `test/architecture/test_activity_factory_imports.py`
   enforces the boundary.
-- **Wrap validation failures**: catch `ValidationError`, raise
-  `VultronActivityConstructionError` with the original as `__cause__`
-  (`factories/errors.py`), so internal class names stay out of public errors.
+- **Build through `build_activity`** (`factories/_construct.py`), never a
+  per-factory `try/except ValidationError`: one place logs and raises
+  `VultronActivityConstructionError` with the cause chained, so internal class
+  names stay out of public errors (AF-04-001, AF-04-003, CS-22-001). Pass the
+  fields as a callable, so an argument that refuses on purpose (`_named_case`,
+  `as_answered`) is reported the same way; `test_construct.py` refuses a new
+  handler.
+- **The act's instant is a required `at`**: every factory, and every port
+  method that builds an activity, takes it, and `build_activity` alone writes it
+  as `published` and `updated`, so the signer's `authored_time` always has one
+  (ADR-0176). A rebuilt embed that must not carry a time drops it with
+  `model_copy` after the build (`_rebuilt_recommendation`).
 - **Factories build from primitives**, never from a dump of a domain object.
 - **Tests import from `vultron.wire.as2.factories`**, as all external code does.
   Examples: `test/wire/as2/factories/`.

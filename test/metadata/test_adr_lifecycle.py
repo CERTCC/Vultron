@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from test.support.objects import with_times
 from vultron.metadata.adr.lifecycle import (
     AdrEpoch,
     Dependents,
@@ -40,13 +41,16 @@ class _Spec:
 
 def _fm(status: str, updated: dt.date, **extra: object) -> AdrFrontmatter:
     return AdrFrontmatter.model_validate(
-        {
-            "status": status,
-            "created": updated,
-            "updated": updated,
-            "revision": 1,
-            **extra,
-        }
+        with_times(
+            AdrFrontmatter,
+            {
+                "status": status,
+                "created": updated,
+                "updated": updated,
+                "revision": 1,
+                **extra,
+            },
+        )
     )
 
 
@@ -158,18 +162,23 @@ def test_status_override_lets_disagreement_stand() -> None:
 
 def test_lifecycle_fields_are_required() -> None:
     with pytest.raises(ValueError):
-        AdrFrontmatter.model_validate({"status": "accepted"})
+        AdrFrontmatter.model_validate(
+            with_times(AdrFrontmatter, {"status": "accepted"})
+        )
 
 
 def test_updated_before_created_is_rejected() -> None:
     with pytest.raises(ValueError, match="before 'created'"):
         AdrFrontmatter.model_validate(
-            {
-                "status": "accepted",
-                "created": "2026-01-02",
-                "updated": "2026-01-01",
-                "revision": 1,
-            }
+            with_times(
+                AdrFrontmatter,
+                {
+                    "status": "accepted",
+                    "created": "2026-01-02",
+                    "updated": "2026-01-01",
+                    "revision": 1,
+                },
+            )
         )
 
 

@@ -74,6 +74,7 @@ class EmitAcceptCaseParticipantOfferNode(_EmitCaseParticipantOfferAnswerNode):
             cp_offer_id=self.cp_offer_id,
             actor=self.actor_id,
             to=[self.case_actor_id],
+            at=self._require_act_instant(),
         )
 
 
@@ -95,6 +96,7 @@ class EmitRejectCaseParticipantOfferNode(_EmitCaseParticipantOfferAnswerNode):
             cp_offer_id=self.cp_offer_id,
             actor=self.actor_id,
             to=[self.case_actor_id],
+            at=self._require_act_instant(),
         )
 
 

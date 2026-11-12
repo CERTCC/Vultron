@@ -144,6 +144,14 @@ class ShapeChecker {
           return `must hold at least ${shape.minItems} item(s)`
         }
         return null
+      case 'map':
+        if (!isRecord(value)) return `expected an object, got ${describe(value)}`
+        for (const [key, item] of Object.entries(value)) {
+          const keyProblem = this.valueProblem(key, shape.keys, path)
+          if (keyProblem !== null) this.problems.push(`${path}: key ${JSON.stringify(key)} ${keyProblem}`)
+          this.checkValue(item, shape.values, join(path, key))
+        }
+        return null
       case 'ref':
         this.checkObject(value, shape.type, path)
         return null

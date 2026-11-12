@@ -21,7 +21,7 @@ from datetime import timedelta
 
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication as CoreVultronApplication,
@@ -89,10 +89,13 @@ class TestVultronPersonBasics(unittest.TestCase):
         reference to fetch (EP-01-001, CP-01-010)."""
         with self.assertRaises(ValidationError) as ctx:
             as_VultronPerson.model_validate(
-                {
-                    "id": "https://example.org/users/alice",
-                    "embargoPolicy": "https://example.org/policies/alice-ep",
-                }
+                with_times(
+                    as_VultronPerson,
+                    {
+                        "id": "https://example.org/users/alice",
+                        "embargoPolicy": "https://example.org/policies/alice-ep",
+                    },
+                )
             )
         # The refusal names the legacy shape and the operator remedy.
         self.assertIn("must be carried inline", str(ctx.exception))
@@ -249,7 +252,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         )
 
         wire_actor = as_VultronPerson.model_validate(
-            core_actor.model_dump(mode="json")
+            with_times(as_VultronPerson, core_actor.model_dump(mode="json"))
         )
 
         self.assertEqual(core_actor.id_, wire_actor.id_)

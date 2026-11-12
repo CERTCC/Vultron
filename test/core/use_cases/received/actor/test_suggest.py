@@ -31,7 +31,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -134,6 +134,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         assert isinstance(event, OfferActorToCaseReceivedEvent), (
@@ -185,6 +186,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -252,6 +254,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=["coordinator", authority_role],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -320,6 +323,7 @@ class TestOfferActorToCaseReceivedUseCase:
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
             **reason_fields,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -372,6 +376,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -421,6 +426,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target="https://example.org/cases/no-actor-case",
             actor="https://example.org/actors/finder",
             id_="https://example.org/activities/offer-actor-002",
+            at=authored_at(),
         )
         # Deliberately no receiving_actor_id — exercise the fallback.
         event = make_payload(activity, at=dl)
@@ -499,6 +505,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         activity_id = activity.id_
@@ -553,6 +560,7 @@ class TestOfferActorToCaseReceivedUseCase:
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
+            at=authored_at(),
         )
 
         for _ in range(2):
@@ -619,6 +627,7 @@ class TestOfferActorToCaseAtNonCaseManager:
             # The copy is addressed to this participant too, so the door
             # admits it and the CASE_MANAGER role gate is what refuses.
             to=[self._MANAGER_ID, TEST_ACTOR_ID],
+            at=authored_at(),
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
 
@@ -738,6 +747,7 @@ class TestOwnerDirectInviteAtCaseManager:
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=roles,
+            at=authored_at(),
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -910,6 +920,7 @@ class TestOwnerDirectInviteAtCaseManager:
             actor=self._OWNER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -967,6 +978,7 @@ class TestSuggestionFromNonParticipant:
             target=_case_ref(self._CASE_ID),
             actor=sender_id,
             to=[TEST_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         return run_in_act(

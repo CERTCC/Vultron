@@ -32,9 +32,9 @@ import uvicorn
 from fastapi import FastAPI, Path as FastAPIPath
 
 from test.support.act_clock import ACT_AT
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.embargo_register import register
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -101,6 +101,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 CASE_ID = "http://example.com/cases/case-123"
 ACTOR_A = "http://example.com/actors/reporter"
 ACTOR_B = "http://example.com/actors/vendor"
+#: The author's time a served case states (ADR-0176).
+_AT = authored_at().isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -168,8 +170,10 @@ def test_wait_for_case_participants_succeeds_when_actors_present():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {
             ACTOR_A: "participant-a",
@@ -191,8 +195,10 @@ def test_wait_for_case_participants_subset_check():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {
             ACTOR_A: "p-a",
@@ -213,8 +219,10 @@ def test_wait_for_case_participants_raises_on_timeout():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {ACTOR_A: "p-a"},
     }
@@ -811,9 +819,11 @@ class TestCaseActorParticipantIdIn:
         client = MagicMock()
         client.dl_path.return_value = "/actors/x/datalayer/urn:uuid:case-cap"
         client.get.return_value = {
-            "attributedTo": CASE_OWNER_ID,
+            **INBOUND_CASE_OWNERSHIP,
             "id": "urn:uuid:case-cap",
             "type": "VulnerabilityCase",
+            "published": _AT,
+            "updated": _AT,
             "name": "Case",
             "actorParticipantIndex": {actor_id: "urn:uuid:p1"},
         }
@@ -904,6 +914,7 @@ def _archived_invite_entry(
         ),
         actor=_MANAGER,
         id_=_INVITE_ID,
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     record = archive_received(dl, invite)
@@ -994,6 +1005,7 @@ def _archived_full_case_invite_entry() -> tuple[str, dict]:
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=_MANAGER,
         id_="http://example.com/activities/full-invite-1",
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
     record = archive_received(dl, invite)
@@ -1076,6 +1088,7 @@ class TestFindCpOfferForCase:
             recommended=make(as_Service, id_=ACTOR_B),
             target=CASE_ID,
             actor=_MANAGER,
+            at=authored_at(),
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
         record = archive_received(dl, offer)
@@ -1158,6 +1171,7 @@ def _relayed_embargo_invite(
         actor=_MANAGER,
         to=[invitee_id],
         id_=_RELAYED_ID,
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     record = archive_received(dl, invite)

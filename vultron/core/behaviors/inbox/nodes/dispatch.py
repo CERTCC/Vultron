@@ -183,7 +183,9 @@ class DispatchNode(_InboxNodeWithPorts):
             )
             return
         dispatch.emit_processing_fault(
-            event, VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+            event,
+            VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+            at=read_act_instant(),
         )
         self.logger.info(
             "%s: queued ProcessingFault/InternalProcessingError to actor_id=%s"

@@ -33,7 +33,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -467,7 +467,10 @@ class TestEmbargoTriggerToField:
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo, context=self.case.id_, actor=self.finder.id_
+            embargo,
+            context=self.case.id_,
+            actor=self.finder.id_,
+            at=authored_at(),
         )
         self.dl.create(proposal)
         propose(self.case, embargo.id_)
@@ -546,7 +549,10 @@ class TestEmbargoTriggerToField:
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo, context=self.case.id_, actor=self.finder.id_
+            embargo,
+            context=self.case.id_,
+            actor=self.finder.id_,
+            at=authored_at(),
         )
         self.dl.create(proposal)
         propose(self.case, embargo.id_)
@@ -686,6 +692,7 @@ class TestReportTriggerToField:
             self.report,
             self.vendor.id_,
             actor=self.finder.id_,
+            at=authored_at(),
         )
         self.dl.create(self.offer)
         offer_record = VultronOfferRecord(

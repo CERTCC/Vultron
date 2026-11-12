@@ -27,7 +27,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -60,6 +60,7 @@ def _add_note_body(note_id: str, **extra: Any) -> dict[str, Any]:
         target=CASE_ID,
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     )
     # The extra keys change the signed body, so its author signs it again.
     return resigned(delivered_body(activity), **extra)
@@ -221,7 +222,9 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
     """
     net = LedgerNetwork(CASE_ID)
     body = delivered_body(
-        rm_engage_case_activity(net.case(MANAGER), actor=OWNER, to=[MANAGER])
+        rm_engage_case_activity(
+            net.case(MANAGER), actor=OWNER, to=[MANAGER], at=authored_at()
+        )
     )
     dl = net.stores[MANAGER]
 
@@ -253,7 +256,9 @@ def test_a_resend_whose_first_delivery_was_never_recorded_is_refused():
     """
     net = LedgerNetwork(CASE_ID)
     body = delivered_body(
-        rm_engage_case_activity(net.case(MANAGER), actor=OWNER, to=[MANAGER])
+        rm_engage_case_activity(
+            net.case(MANAGER), actor=OWNER, to=[MANAGER], at=authored_at()
+        )
     )
     dl = net.stores[MANAGER]
     before = [e.id_ for e in ledger_entries(dl, CASE_ID)]

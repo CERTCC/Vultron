@@ -159,13 +159,13 @@ class as_Base(BaseModel):
     def carry_absent_times_on_inbound(
         cls, data: Any, info: ValidationInfo
     ) -> Any:
-        """Read an absent clock-defaulted timestamp as ``None`` when inbound.
+        """Read an absent required timestamp as ``None`` when inbound.
 
-        The same classes author outbound activities and validate inbound ones,
-        so the ``default_factory=now_utc`` that correctly stamps an object *this
-        process* creates would, on inbound data, fabricate a time the sender
-        never claimed and present it downstream as the sender's claim
-        (ISSUE-3257, CLP-15-007).  The two directions are told apart by
+        The same classes author outbound activities and validate inbound ones.
+        An authored object states its time (ADR-0176); a received one may
+        omit it, and the omission is the sender claiming no time, never the
+        receiver's clock presented as the sender's claim (ISSUE-3257,
+        CLP-15-007).  The two directions are told apart by
         validation context rather than by a field default: ``parse_activity``
         passes ``INBOUND_CONTEXT_KEY``, and Pydantic propagates the context
         through every nested model in that call.

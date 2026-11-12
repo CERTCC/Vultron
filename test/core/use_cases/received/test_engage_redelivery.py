@@ -34,7 +34,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -62,7 +62,9 @@ CASE_ID = "https://example.org/cases/case-engage-redelivery"
 def _engage_body(net: LedgerNetwork, sender: str) -> dict[str, Any]:
     """The body *sender*'s outbox delivers for its ``Join`` of the case."""
     return delivered_body(
-        rm_engage_case_activity(net.case(MANAGER), actor=sender, to=[MANAGER]),
+        rm_engage_case_activity(
+            net.case(MANAGER), actor=sender, to=[MANAGER], at=authored_at()
+        ),
         at=net.stores[MANAGER],
     )
 
@@ -92,6 +94,7 @@ def _declare_accepted_body(net: LedgerNetwork, sender: str) -> dict[str, Any]:
             actor=sender,
             to=[MANAGER],
             context=CASE_ID,
+            at=authored_at(),
         ),
         at=net.stores[MANAGER],
     )

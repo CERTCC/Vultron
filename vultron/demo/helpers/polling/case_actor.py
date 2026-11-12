@@ -24,6 +24,7 @@ from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
     DataLayerClient,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -71,7 +72,7 @@ def find_case_actor_participant_id(
     try:
         case_data = client.get(client.dl_path(case_id))
         return case_actor_participant_id_in(
-            as_VulnerabilityCase.model_validate(case_data)
+            from_server(as_VulnerabilityCase, case_data)
         )
     except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass

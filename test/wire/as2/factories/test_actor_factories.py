@@ -25,7 +25,7 @@ Spec coverage:
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     accept_actor_recommendation_activity,
@@ -52,7 +52,10 @@ def sample_actor() -> as_Person:
 def sample_recommendation(sample_actor) -> as_Offer:
     """RecommendActorActivity — used for Accept/Reject tests."""
     return recommend_actor_activity(
-        recommended=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        recommended=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
 
 
@@ -65,21 +68,24 @@ def sample_recommendation(sample_actor) -> as_Offer:
 @pytest.mark.spec("VAM-04-001")
 def test_recommend_actor_returns_offer(sample_actor):
     result = recommend_actor_activity(
-        recommended=sample_actor, actor=_ACTOR_URI
+        recommended=sample_actor, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Offer)
 
 
 def test_recommend_actor_object_is_actor(sample_actor):
     result = recommend_actor_activity(
-        recommended=sample_actor, actor=_ACTOR_URI
+        recommended=sample_actor, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_actor
 
 
 def test_recommend_actor_target_is_set(sample_actor):
     result = recommend_actor_activity(
-        recommended=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        recommended=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == _CASE_URI
 
@@ -88,7 +94,8 @@ def test_recommend_actor_target_is_set(sample_actor):
 def test_recommend_actor_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         recommend_actor_activity(
-            recommended="not-an-actor"  # type: ignore[arg-type]
+            recommended="not-an-actor",
+            at=authored_at(),  # type: ignore[arg-type]
         )
     assert exc_info.value.__cause__ is not None
 
@@ -102,7 +109,7 @@ def test_recommend_actor_invalid_raises():
 @pytest.mark.spec("VAM-04-002")
 def test_accept_actor_recommendation_returns_accept(sample_recommendation):
     result = accept_actor_recommendation_activity(
-        offer=sample_recommendation, actor=_ACTOR_URI
+        offer=sample_recommendation, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Accept)
 
@@ -111,14 +118,17 @@ def test_accept_actor_recommendation_object_is_recommendation(
     sample_recommendation,
 ):
     result = accept_actor_recommendation_activity(
-        offer=sample_recommendation, actor=_ACTOR_URI
+        offer=sample_recommendation, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_recommendation
 
 
 def test_accept_actor_recommendation_target_is_set(sample_recommendation):
     result = accept_actor_recommendation_activity(
-        offer=sample_recommendation, target=_CASE_URI, actor=_ACTOR_URI
+        offer=sample_recommendation,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == _CASE_URI
 
@@ -128,7 +138,9 @@ def test_accept_actor_recommendation_plain_offer_raises(sample_actor):
     """A plain as_Offer (not from recommend_actor_activity) must fail."""
     plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        accept_actor_recommendation_activity(offer=plain_offer)
+        accept_actor_recommendation_activity(
+            offer=plain_offer, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -141,7 +153,7 @@ def test_accept_actor_recommendation_plain_offer_raises(sample_actor):
 @pytest.mark.spec("VAM-04-003")
 def test_reject_actor_recommendation_returns_reject(sample_recommendation):
     result = reject_actor_recommendation_activity(
-        offer=sample_recommendation, actor=_ACTOR_URI
+        offer=sample_recommendation, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Reject)
 
@@ -150,14 +162,17 @@ def test_reject_actor_recommendation_object_is_recommendation(
     sample_recommendation,
 ):
     result = reject_actor_recommendation_activity(
-        offer=sample_recommendation, actor=_ACTOR_URI
+        offer=sample_recommendation, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_recommendation
 
 
 def test_reject_actor_recommendation_target_is_set(sample_recommendation):
     result = reject_actor_recommendation_activity(
-        offer=sample_recommendation, target=_CASE_URI, actor=_ACTOR_URI
+        offer=sample_recommendation,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == _CASE_URI
 
@@ -166,7 +181,9 @@ def test_reject_actor_recommendation_target_is_set(sample_recommendation):
 def test_reject_actor_recommendation_plain_offer_raises(sample_actor):
     plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        reject_actor_recommendation_activity(offer=plain_offer)
+        reject_actor_recommendation_activity(
+            offer=plain_offer, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 

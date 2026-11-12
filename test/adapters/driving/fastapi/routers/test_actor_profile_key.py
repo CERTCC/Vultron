@@ -26,7 +26,7 @@ from test.adapters.driving.fastapi._redelivery import (
     get_from_store,
     served_store,
 )
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.signing import TEST_PROOF_CREATED, published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -84,7 +84,10 @@ def test_the_profile_context_defines_the_key_terms(tmp_path: Path):
     assert context.count(signing.MULTIKEY_CONTEXT) == 1
     assert VULTRON_CONTEXT_URI in context[:-1]
     # A list context still validates as the core actor a peer stores.
-    assert CoreActor.model_validate(profile).context_ == context
+    assert (
+        CoreActor.model_validate(with_times(CoreActor, profile)).context_
+        == context
+    )
 
 
 @pytest.mark.spec("SIG-05-001")

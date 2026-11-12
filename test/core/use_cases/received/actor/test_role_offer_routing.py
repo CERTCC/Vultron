@@ -34,7 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act, run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -123,6 +123,7 @@ def _offer(
         actor=sender,
         to=[to],
         id_=offer_id,
+        at=authored_at(),
     )
 
 
@@ -137,6 +138,7 @@ def _forward() -> Any:
         to=[_TARGET_ID],
         in_reply_to=_OFFER_ID,
         id_=_FORWARD_ID,
+        at=authored_at(),
     )
 
 
@@ -208,7 +210,13 @@ def _deliver_answer(
         else RejectCaseParticipantRoleReceivedUseCase
     )
     extra = {} if answer_id is None else {"id_": answer_id}
-    answer = build(offer=offer, actor=sender, to=[_CASE_MANAGER_ID], **extra)
+    answer = build(
+        offer=offer,
+        actor=sender,
+        to=[_CASE_MANAGER_ID],
+        **extra,
+        at=authored_at(),
+    )
     return run_in_act(
         use_case(
             dl,
@@ -549,6 +557,7 @@ def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
         to=[_BYSTANDER_ID],
         in_reply_to=_OFFER_ID,
         id_=_FORWARD_ID,
+        at=authored_at(),
     )
 
     result = _deliver_offer(dl, make_payload, offer)
@@ -1031,6 +1040,7 @@ def test_answer_naming_an_offer_no_forward_links_is_refused(make_payload):
         to=[_TARGET_ID],
         in_reply_to=_OFFER_ID,
         id_="https://example.org/activities/role-offer/made-up",
+        at=authored_at(),
     )
 
     result = _deliver_answer(
@@ -1053,7 +1063,7 @@ def test_a_participant_refuses_an_answer_sent_to_it(make_payload, accept):
         accept_case_participant_role_activity
         if accept
         else reject_case_participant_role_activity
-    )(offer=_forward(), actor=_TARGET_ID, to=[_OWNER_ID])
+    )(offer=_forward(), actor=_TARGET_ID, to=[_OWNER_ID], at=authored_at())
     use_case = (
         AcceptCaseParticipantRoleReceivedUseCase
         if accept
@@ -1084,7 +1094,12 @@ def test_answer_naming_no_case_is_refused(make_payload, accept):
         accept_case_participant_role_activity
         if accept
         else reject_case_participant_role_activity
-    )(offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID])
+    )(
+        offer=_offer(),
+        actor=_TARGET_ID,
+        to=[_CASE_MANAGER_ID],
+        at=authored_at(),
+    )
     request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     request = request.model_copy(
         update={
@@ -1273,7 +1288,10 @@ def _deliver_altered_answer(
     The update is applied to the received event and its activity alike.
     """
     answer = accept_case_participant_role_activity(
-        offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
+        offer=_offer(),
+        actor=_TARGET_ID,
+        to=[_CASE_MANAGER_ID],
+        at=authored_at(),
     )
     request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     request = request.model_copy(
@@ -1334,7 +1352,10 @@ def test_answer_carrying_an_offer_with_no_readable_role_is_refused(
     _deliver_offer(dl, make_payload, _offer())
     entries_before = _semantic_types(dl)
     answer = accept_case_participant_role_activity(
-        offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
+        offer=_offer(),
+        actor=_TARGET_ID,
+        to=[_CASE_MANAGER_ID],
+        at=authored_at(),
     )
     request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     carried = request.activity.object_

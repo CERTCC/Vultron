@@ -33,7 +33,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import RefusalNoticeReceivedEvent
@@ -70,6 +70,7 @@ def _notice(refused: dict[str, Any] | None = None, **kwargs: Any) -> as_Reject:
         actor=CASE_MANAGER,
         to=[VENDOR],
         **kwargs,
+        at=authored_at(),
     )
 
 
@@ -100,12 +101,14 @@ def test_the_notice_carries_the_refused_activity_inline():
 
 def test_a_refused_body_that_is_not_an_activity_is_a_construction_error():
     with pytest.raises(VultronActivityConstructionError):
-        refusal_notice_activity({"type": "Nonsense"}, "reason")
+        refusal_notice_activity(
+            {"type": "Nonsense"}, "reason", at=authored_at()
+        )
 
 
 def test_a_blank_reason_is_a_construction_error():
     with pytest.raises(VultronActivityConstructionError):
-        refusal_notice_activity(_refused(), "")
+        refusal_notice_activity(_refused(), "", at=authored_at())
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -149,9 +152,9 @@ def test_a_decline_of_a_leave_routes_to_the_refusal_notice():
     case = make(
         as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Closing case"
     )
-    leave = rm_close_case_activity(case=case, actor=VENDOR)
+    leave = rm_close_case_activity(case=case, actor=VENDOR, at=authored_at())
     decline = reject_close_case_activity(
-        leave=leave, actor=CASE_MANAGER, to=[VENDOR]
+        leave=leave, actor=CASE_MANAGER, to=[VENDOR], at=authored_at()
     )
 
     event = _event(decline)

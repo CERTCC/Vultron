@@ -11,6 +11,7 @@ import inspect
 
 import pytest
 
+from test.support.objects import with_times
 from vultron.metadata.adr import back_edges
 from vultron.metadata.adr.back_edges import (
     RECORD_ONLY_EXEMPTIONS,
@@ -37,13 +38,16 @@ def _fm(status: AdrStatus) -> AdrFrontmatter:
         else {}
     )
     return AdrFrontmatter.model_validate(
-        {
-            "status": status.value,
-            "created": "2020-01-01",
-            "updated": "2020-01-01",
-            "revision": 1,
-            **links,
-        }
+        with_times(
+            AdrFrontmatter,
+            {
+                "status": status.value,
+                "created": "2020-01-01",
+                "updated": "2020-01-01",
+                "revision": 1,
+                **links,
+            },
+        )
     )
 
 

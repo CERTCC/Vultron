@@ -21,7 +21,7 @@ rejects it, and the owner may withdraw it with ``Undo``.
 from typing import Any, cast
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.events.base import MessageSemantics
@@ -64,6 +64,7 @@ def _proposal(net: LedgerNetwork) -> Any:
         actor=OWNER,
         to=[MANAGER],
         id_=f"{net.case_id}/proposals/1",
+        at=authored_at(),
     )
 
 
@@ -103,6 +104,7 @@ def propose_ownership_transfer_while_one_is_open() -> Scenario:
         actor=OWNER,
         to=[MANAGER],
         id_=f"{net.case_id}/proposals/2",
+        at=authored_at(),
     )
     return deliver(net, second)
 
@@ -147,7 +149,7 @@ def accept_ownership_transfer() -> Scenario:
     return deliver(
         net,
         accept_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
 
@@ -159,13 +161,13 @@ def accept_ownership_transfer_after_reject() -> Scenario:
     send_applied(
         net,
         reject_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
     return deliver(
         net,
         accept_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
 
@@ -177,7 +179,7 @@ def reject_ownership_transfer() -> Scenario:
     return deliver(
         net,
         reject_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
 
@@ -189,13 +191,13 @@ def reject_ownership_transfer_after_accept() -> Scenario:
     send_applied(
         net,
         accept_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
     return deliver(
         net,
         reject_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
 
@@ -207,7 +209,7 @@ def undo_ownership_transfer() -> Scenario:
     return deliver(
         net,
         undo_case_ownership_transfer_activity(
-            proposal, actor=OWNER, to=[MANAGER]
+            proposal, actor=OWNER, to=[MANAGER], at=authored_at()
         ),
     )
 
@@ -219,12 +221,12 @@ def undo_ownership_transfer_after_reject() -> Scenario:
     send_applied(
         net,
         reject_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
     return deliver(
         net,
         undo_case_ownership_transfer_activity(
-            proposal, actor=OWNER, to=[MANAGER]
+            proposal, actor=OWNER, to=[MANAGER], at=authored_at()
         ),
     )

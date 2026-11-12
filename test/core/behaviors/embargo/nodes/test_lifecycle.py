@@ -29,7 +29,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from test.support.act_runner import run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -150,6 +150,7 @@ class TestTerminateEmbargoBT:
                     actor=CASE_MANAGER_ACTOR,
                     to=to,
                     reason=TerminationReason.EARLY,
+                    at=authored_at(),
                 ),
             )
 
@@ -278,6 +279,7 @@ class TestTerminateEmbargoBT:
                     actor=OTHER_PARTICIPANT_ACTOR,
                     to=to,
                     reason=TerminationReason.EARLY,
+                    at=authored_at(),
                 ),
             )
 
@@ -327,6 +329,7 @@ class TestTerminateEmbargoBT:
                     actor=ACTOR_ID,
                     to=to,
                     reason=TerminationReason.EARLY,
+                    at=authored_at(),
                 ),
             )
 

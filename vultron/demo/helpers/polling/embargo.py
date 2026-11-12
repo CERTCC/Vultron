@@ -28,6 +28,7 @@ from vultron.demo.helpers.verification.participants import (
 from vultron.demo.utils import (
     DataLayerClient,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -73,7 +74,7 @@ def wait_for_case_em_state(
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         return case.em_state == expected and (
             active_embargo_id is None
             or case.active_embargo_id == active_embargo_id
@@ -154,8 +155,8 @@ def wait_for_embargo_proposal_indexed(
     """
 
     def _check() -> bool:
-        case = as_VulnerabilityCase.model_validate(
-            client.get(client.dl_path(case_id))
+        case = from_server(
+            as_VulnerabilityCase, client.get(client.dl_path(case_id))
         )
         return case.pending_embargo_proposal_index.get(embargo_id) == invite_id
 

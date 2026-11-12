@@ -45,6 +45,7 @@ from test.support.ledger import (
     case_snapshot_position_violations,
     ledger_entries,
 )
+from test.support.objects import authored_at, with_times
 from test.support.received import received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -201,7 +202,9 @@ def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
         if carried is None:
             break
         key, cls = carried
-        record = cls.model_validate(entry.payload_snapshot[key])
+        record = cls.model_validate(
+            with_times(cls, entry.payload_snapshot[key])
+        )
         if isinstance(record, VulnerabilityCase):
             record = case_naming_its_records(record)
         records[record.id_] = record
@@ -273,10 +276,10 @@ def _replay(
     """Deliver each entry as the CASE_MANAGER's announcement; each applies."""
     for entry in entries:
         wire_entry = as_CaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
+            with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
         )
         announce = announce_log_entry_activity(
-            entry=wire_entry, actor=manager_id, to=[as_actor]
+            entry=wire_entry, actor=manager_id, to=[as_actor], at=authored_at()
         )
         # Built here, not read from an outbox, so signed here (SIG-01-001).
         body = signed_body(json.loads(dump_outbound_body(announce)))

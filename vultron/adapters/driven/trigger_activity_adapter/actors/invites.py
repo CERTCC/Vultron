@@ -72,8 +72,9 @@ class _InvitesMixin:
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
-        published: datetime | None = None,
         in_reply_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
 
@@ -93,8 +94,6 @@ class _InvitesMixin:
             extra["attributed_to"] = attributed_to
         if rsvp_deadline is not None:
             extra["end_time"] = rsvp_deadline
-        if published is not None:
-            extra["published"] = published
         if in_reply_to is not None:
             extra["in_reply_to"] = in_reply_to
 
@@ -117,6 +116,7 @@ class _InvitesMixin:
             roles=roles,
             embargo_obj=embargo_obj,
             **extra,
+            at=at,
         )
         # One transaction: the sender sequence the stamp allocates is used
         # only when the body carrying it is sealed (SYNC-21-003).
@@ -139,6 +139,8 @@ class _InvitesMixin:
         self,
         invite_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` activity.
 
@@ -157,7 +159,7 @@ class _InvitesMixin:
                 " actor field; cannot derive Accept recipient"
             )
         activity = rm_accept_invite_to_case_activity(
-            invite=invite, actor=actor, to=[invite_actor_id]
+            invite=invite, actor=actor, to=[invite_actor_id], at=at
         )
         return _create_and_seal(self._dl, activity, "accept_case_invite")
 
@@ -165,6 +167,8 @@ class _InvitesMixin:
         self,
         invite_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` activity.
 
@@ -181,7 +185,7 @@ class _InvitesMixin:
                 " actor field; cannot derive Reject recipient"
             )
         activity = rm_reject_invite_to_case_activity(
-            invite=invite, actor=actor, to=[invite_actor_id]
+            invite=invite, actor=actor, to=[invite_actor_id], at=at
         )
         return _create_and_seal(self._dl, activity, "reject_case_invite")
 
@@ -194,6 +198,8 @@ class _InvitesMixin:
         ledger_entry_hash: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the full-case
         ``Invite(Actor)[target=VulnerabilityCase]``.
@@ -206,6 +212,7 @@ class _InvitesMixin:
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
             ),
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "invite_actor_to_full_case"
@@ -218,6 +225,8 @@ class _InvitesMixin:
         invite_id: str,
         actor: str,
         position: LedgerPosition,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Persist the reply *builder* makes to the stored full-case Invite."""
         invite = _stored_case_invite(self._dl, invite_id)
@@ -232,6 +241,7 @@ class _InvitesMixin:
             ledger_tail=position,
             actor=actor,
             to=[invite_actor_id],
+            at=at,
         )
         return _create_and_seal(self._dl, activity, label)
 
@@ -241,6 +251,8 @@ class _InvitesMixin:
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Accept(full-case Invite)`` — RV."""
         return self._full_case_reply(
@@ -251,6 +263,7 @@ class _InvitesMixin:
             LedgerPosition(
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
             ),
+            at=at,
         )
 
     def tentative_reject_full_case_invite(
@@ -259,6 +272,8 @@ class _InvitesMixin:
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``TentativeReject(full-case Invite)`` — RI."""
         return self._full_case_reply(
@@ -269,6 +284,7 @@ class _InvitesMixin:
             LedgerPosition(
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
             ),
+            at=at,
         )
 
     def reject_full_case_invite(
@@ -277,6 +293,8 @@ class _InvitesMixin:
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Reject(full-case Invite)`` — RC."""
         return self._full_case_reply(
@@ -287,4 +305,5 @@ class _InvitesMixin:
             LedgerPosition(
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
             ),
+            at=at,
         )

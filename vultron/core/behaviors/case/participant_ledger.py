@@ -31,6 +31,7 @@ raises ``RuntimeError`` when the commit does not succeed, so the node fails
 rather than leaving a change no replica can learn of.
 """
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
@@ -53,10 +54,11 @@ def commit_case_participant_created(
     case_id: str,
     participant: CaseParticipant,
     trigger_activity: "TriggerActivityPort",
+    at: datetime,
 ) -> None:
     """Commit ``Create(CaseParticipant)`` for the record just created."""
     _, blob = trigger_activity.record_case_participant_created(
-        participant=participant, case_id=case_id, actor=actor_id
+        participant=participant, case_id=case_id, actor=actor_id, at=at
     )
     commit_emitted_activity(
         datalayer=datalayer,
@@ -76,10 +78,15 @@ def commit_participant_status_added(
     participant: CaseParticipant,
     status: ParticipantStatus,
     trigger_activity: "TriggerActivityPort",
+    at: datetime,
 ) -> None:
     """Commit ``Add(ParticipantStatus)`` for the status just appended."""
     _, blob = trigger_activity.record_participant_status_added(
-        status=status, participant=participant, case_id=case_id, actor=actor_id
+        status=status,
+        participant=participant,
+        case_id=case_id,
+        actor=actor_id,
+        at=at,
     )
     commit_emitted_activity(
         datalayer=datalayer,

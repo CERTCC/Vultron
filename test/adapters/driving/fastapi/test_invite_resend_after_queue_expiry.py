@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
+from test.support.objects import authored_at
 from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -245,6 +246,7 @@ def test_an_inert_joiners_post_seed_read_brings_its_dropped_invites_back(
         case_id=_CASE_ID,
         actor=JOINER,
         to=[MANAGER],
+        at=authored_at(),
     )
     accepted = _deliver(cm_dl, MANAGER, _sealed(joiner_dl, accept_id))
     assert accepted.status is InboxOutcomeStatus.PROCESSED, (

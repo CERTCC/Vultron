@@ -27,7 +27,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -113,7 +113,9 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     )
     case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
-    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
+    activity = create_case_activity(
+        case, actor=_VENDOR_ID, to=[_FINDER_ID], at=authored_at()
+    )
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
 
     run_in_act(CreateCaseReceivedUseCase(dl, event))
@@ -177,7 +179,9 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     )
     case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
-    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
+    activity = create_case_activity(
+        case, actor=_VENDOR_ID, to=[_FINDER_ID], at=authored_at()
+    )
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
     result = run_in_act(CreateCaseReceivedUseCase(dl, event))
 
@@ -275,7 +279,9 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
     )
     case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_
     case.actor_participant_index[_FINDER_ID] = finder.id_
-    activity = create_case_activity(case, actor=_IMPOSTOR_ID, to=[_FINDER_ID])
+    activity = create_case_activity(
+        case, actor=_IMPOSTOR_ID, to=[_FINDER_ID], at=authored_at()
+    )
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
 
     result = run_in_act(CreateCaseReceivedUseCase(dl, event))

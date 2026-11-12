@@ -29,7 +29,7 @@ import pytest
 from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -120,7 +120,11 @@ def _proposer_with_pending_proposal(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(30)
     )
     proposal = em_propose_embargo_activity(
-        embargo=embargo, context=case.id_, actor=_PROPOSER, to=[_MANAGER]
+        embargo=embargo,
+        context=case.id_,
+        actor=_PROPOSER,
+        to=[_MANAGER],
+        at=authored_at(),
     )
     dl.create(embargo)
     dl.create(proposal)
@@ -141,6 +145,7 @@ def _reject_event(
         context=case_id,
         actor=rejecting_actor_id,
         to=[_PROPOSER],
+        at=authored_at(),
     )
     return cast(
         RejectInviteToEmbargoOnCaseReceivedEvent,

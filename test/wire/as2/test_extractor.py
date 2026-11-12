@@ -9,7 +9,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import extract_stamped, stamped
 from vultron.core.models._helpers import URN_UUID_PREFIX, _as_id
 from vultron.core.models.dimensions import (
@@ -347,6 +347,7 @@ def test_extract_intent_note_pass_through_fields():
         note,
         actor="https://example.org/alice",
         target="https://example.org/cases/1",
+        at=authored_at(),
     )
     event = extract_stamped(activity)
 
@@ -988,6 +989,7 @@ def _ownership_offer(attributed_to: Any) -> Any:
         ),
         actor="https://example.org/actors/case-actor",
         attributed_to=attributed_to,
+        at=authored_at(),
     )
 
 
@@ -1013,7 +1015,12 @@ def test_activity_snapshot_carries_attributed_to():
     "raw, expected",
     [
         pytest.param(
-            {"id": "https://example.org/users/vendor", "type": "Person"},
+            {
+                "id": "https://example.org/users/vendor",
+                "type": "Person",
+                "published": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-01T00:00:00Z",
+            },
             "https://example.org/users/vendor",
             id="inline-object-resolves-to-its-id",
         ),
@@ -1053,7 +1060,15 @@ def test_activity_snapshot_carries_the_id_an_id_less_attributed_to_was_given():
     shared minter gives every object built without one.  The snapshot carries
     that id, never a repr of the mapping (CLP-07-011).
     """
-    event = extract_stamped(_ownership_offer({"type": "Person"}))
+    event = extract_stamped(
+        _ownership_offer(
+            {
+                "type": "Person",
+                "published": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-01T00:00:00Z",
+            }
+        )
+    )
 
     assert event.activity is not None
     attributed_to = event.activity.attributed_to
@@ -1096,7 +1111,10 @@ def _deadline_offer(end_time=None):
     if end_time is not None:
         kwargs["end_time"] = end_time
     return offer_case_ownership_transfer_activity(
-        case, target="https://example.org/coordinator", **kwargs
+        case,
+        target="https://example.org/coordinator",
+        **kwargs,
+        at=authored_at(),
     )
 
 
@@ -1160,7 +1178,7 @@ def test_extract_intent_normalises_slash_spelled_sender_id():
         context=case_id,
     )
     activity = add_note_to_case_activity(
-        note, target=case_id, actor=canonical + "/"
+        note, target=case_id, actor=canonical + "/", at=authored_at()
     )
     event = extract_stamped(activity)
 
@@ -1189,7 +1207,9 @@ def test_extract_intent_attributes_both_actor_spellings_to_one_actor():
             as_Note, content="Note body", attributed_to=actor, context=case_id
         )
         return extract_stamped(
-            add_note_to_case_activity(note, target=case_id, actor=actor)
+            add_note_to_case_activity(
+                note, target=case_id, actor=actor, at=authored_at()
+            )
         )
 
     plain = _event_from(canonical)

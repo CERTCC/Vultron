@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received, case_stub, hold_deferred
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -67,7 +67,11 @@ def loader(dl: SqliteDataLayer) -> TriggerActivityAdapter:
 
 def _invite(actor: str, invitee: str):
     return rm_invite_to_case_activity(
-        invitee, target=case_stub(_CASE), actor=actor, to=[invitee]
+        invitee,
+        target=case_stub(_CASE),
+        actor=actor,
+        to=[invitee],
+        at=authored_at(),
     )
 
 
@@ -127,6 +131,7 @@ def _deferred_add(dl: SqliteDataLayer):
         context=_CASE,
         actor=_PEER,
         to=[_ME],
+        at=authored_at(),
     )
     hold_deferred(dl, add)
     return add

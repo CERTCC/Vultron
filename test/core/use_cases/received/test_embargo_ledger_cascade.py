@@ -23,7 +23,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -138,6 +138,7 @@ class TestEmbargoLogEntryCascade:
             origin=case.id_,
             actor=author_id,
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -189,6 +190,7 @@ class TestEmbargoLogEntryCascade:
             origin=case.id_,
             actor=author_id,
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -237,6 +239,7 @@ class TestEmbargoLogEntryCascade:
             context=case_id,
             actor=author_id,
             id_=f"{case_id}/embargo_proposals/1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -288,6 +291,7 @@ class TestEmbargoLogEntryCascade:
             actor=coordinator_id,
             to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -300,6 +304,7 @@ class TestEmbargoLogEntryCascade:
             context=case.id_,
             actor=vendor_id,
             to=[coordinator_id],
+            at=authored_at(),
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
         # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
@@ -346,6 +351,7 @@ class TestEmbargoLogEntryCascade:
             actor=coordinator_id,
             to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
+            at=authored_at(),
         )
         dl.create(proposal)
         # The Reject names an open proposal of the case.
@@ -361,6 +367,7 @@ class TestEmbargoLogEntryCascade:
             context=case_id,
             actor=vendor_id,
             to=[coordinator_id],
+            at=authored_at(),
         )
         # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
         # commit is gated on that role, so it is the receiving actor.

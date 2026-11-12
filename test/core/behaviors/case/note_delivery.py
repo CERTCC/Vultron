@@ -18,7 +18,7 @@ Both suites need one inbound activity carrying an inline object, so they can
 check what intake archives and what, if anything, gets stored.
 """
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -45,6 +45,6 @@ def add_note_delivery(
         context=CASE_ID,
     )
     activity = add_note_to_case_activity(
-        note, actor=SENDER, target=CASE_ID, to=[to]
+        note, actor=SENDER, target=CASE_ID, to=[to], at=authored_at()
     )
     return note, activity, received_event(activity)

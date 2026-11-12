@@ -22,6 +22,7 @@ from vultron.adapters.utils import parse_id
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -63,7 +64,7 @@ def publish_embargo_policy(
             )
         },
     )
-    policy = EmbargoPolicy.model_validate(data)
+    policy = from_server(EmbargoPolicy, data)
     logger.info(
         "Actor %s published embargo policy: preferred %s",
         actor.id_,
@@ -94,8 +95,8 @@ def case_minted_at(
     """
     stored = client.get(client.dl_path(case.id_, actor_id=holder_id))
     # Parsed from the raw stored key, not via ``as_VulnerabilityCase``: the
-    # wire model's clock default would fill an absent ``published`` and hide
-    # exactly the gap this refuses.
+    # wire model would refuse an absent ``published`` with a schema error
+    # rather than name the gap this refuses.
     raw = stored.get("published")
     minted = parse_published(raw)
     if minted is None:

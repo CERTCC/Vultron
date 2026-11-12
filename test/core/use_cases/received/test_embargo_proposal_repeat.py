@@ -42,7 +42,7 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
 )
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
     EmbargoTermsNotHeldNode,
@@ -344,6 +344,7 @@ def test_a_participant_replica_is_not_asked_about_held_terms(make_payload):
         attributed_to=PROPOSER,
         to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/replica",
+        at=authored_at(),
     )
 
     verdict = _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)

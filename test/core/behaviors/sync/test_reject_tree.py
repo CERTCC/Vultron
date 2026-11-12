@@ -13,7 +13,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -168,7 +168,7 @@ def _make_event(
     """
     recipients = [OWNER_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         entry=wire_entry,
@@ -176,6 +176,7 @@ def _make_event(
         actor=PEER_ID,
         to=recipients,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -1047,7 +1048,7 @@ def test_reject_from_stranger_halts_before_any_write(
     datalayer.save(entry)
     stranger = "https://example.org/actors/stranger"
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     event = cast(
         RejectLogEntryReceivedEvent,
@@ -1057,6 +1058,7 @@ def test_reject_from_stranger_halts_before_any_write(
                 actor=stranger,
                 to=[OWNER_ACTOR_ID],
                 in_reply_to="https://example.org/activities/prompting-announce",
+                at=authored_at(),
             ),
             at=datalayer,
         ),

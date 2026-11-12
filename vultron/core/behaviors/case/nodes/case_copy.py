@@ -283,6 +283,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
                 to=to,
                 in_reply_to=self._request.activity_id,
+                at=self._require_act_instant(),
             )
             return
         self._sync_port.send_reject_log_entry(
@@ -291,6 +292,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             actor_id=self.actor_id,
             to=to,
             in_reply_to=self._request.activity_id,
+            at=self._require_act_instant(),
         )
 
 
@@ -384,6 +386,7 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
             ledger_position=position,
             actor_id=self.actor_id,
             to=[manager_id],
+            at=self._require_act_instant(),
         )
         self.logger.info(
             "%s: case '%s' seeded at log_index=%d; stated the position to"

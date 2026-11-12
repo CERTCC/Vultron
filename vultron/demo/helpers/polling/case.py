@@ -39,6 +39,7 @@ from vultron.demo.utils import (
     demo_check,
     served_field,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -142,7 +143,7 @@ def wait_for_case_participants(
         case_data = vendor_client.get(
             vendor_client.dl_path(case_id, actor_id=dl_actor_id)
         )
-        case = as_VulnerabilityCase(**case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         return expected_actor_ids.issubset(case.actor_participant_index.keys())
 
     _poll_until(
@@ -250,7 +251,7 @@ def wait_for_note_in_case(
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
-        case = as_VulnerabilityCase(**case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         note_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
             for n in case.notes
@@ -371,7 +372,7 @@ def wait_for_initialized_case(
             client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
         )
         for case_raw in cases_by_id.values():
-            case = as_VulnerabilityCase(**case_raw)
+            case = from_server(as_VulnerabilityCase, case_raw)
             if case.case_participants and case_references_report(
                 case, report_id
             ):

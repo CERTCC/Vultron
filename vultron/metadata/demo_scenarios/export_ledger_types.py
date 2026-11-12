@@ -80,11 +80,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 import annotated_types
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 from pydantic.fields import FieldInfo
 
+from vultron.core.models._helpers import reads_absent_as_none
 from vultron.core.models.base import CoreObject
 from vultron.core.models.base.core_object import UnmodelledObject
+from vultron.core.models.base.language_map import absent_as_empty
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -182,6 +184,11 @@ class _Projector:
         self, annotation: object, enum_name: str, probe: Probe
     ) -> tuple[dict[str, Any], bool]:
         """Return the shape of *annotation* and whether it admits ``None``."""
+        annotation, reads_null = _strip_absent_as_empty(annotation)
+        if reads_null:
+            # The model reads ``null`` as an empty value, so a line may carry
+            # one, though the model never writes it.
+            return self.field_shape(annotation, enum_name, probe)[0], True
         args = typing.get_args(annotation)
         if _is_union(annotation):
             rest = [arg for arg in args if arg is not type(None)]
@@ -218,6 +225,8 @@ class _Projector:
             return {"kind": "literal", "value": args[0]}
         if origin is dict and _is_json_object(args):
             return {"kind": "object"}
+        if origin is dict and len(args) == 2:
+            return self._map_shape(annotation, args, enum_name, probe)
         if origin in (list, Sequence) and len(args) == 1:
             item_probe: Probe = lambda value: probe([value])[0]  # noqa: E731
             return {
@@ -236,6 +245,32 @@ class _Projector:
                 )
             return shape
         return self._class_shape(annotation, enum_name, probe)
+
+    def _map_shape(
+        self,
+        annotation: object,
+        args: tuple[object, ...],
+        enum_name: str,
+        probe: Probe,
+    ) -> dict[str, Any]:
+        """A JSON object with typed values, such as an AS2 language map.
+
+        Its keys are strings, as every JSON object's are; a key annotation
+        that is not a string fails the export, since the shape could not say
+        what the model refuses.
+        """
+        keys = _scalar_shape(args[0])
+        if keys is None or keys["kind"] != "string":
+            raise TypeError(
+                f"No ledger shape for mapping {annotation!r} (enum name "
+                f"{enum_name!r}): its keys are not str or NonEmptyString."
+            )
+        value_probe: Probe = lambda value: probe({"k": value})["k"]  # noqa: E731
+        return {
+            "kind": "map",
+            "keys": keys,
+            "values": self.shape(args[1], enum_name, value_probe),
+        }
 
     def _class_shape(
         self, annotation: object, enum_name: str, probe: Probe
@@ -282,6 +317,30 @@ class _Projector:
                 f"{known.values} and {enum.values}"
             )
         return {"kind": "enum", "type": name}
+
+
+def _strip_absent_as_empty(annotation: object) -> tuple[object, bool]:
+    """Remove a ``null``-as-empty reader from *annotation*'s metadata.
+
+    Returns the annotation without it, and whether it was there
+    (:func:`~vultron.core.models.base.language_map.absent_as_empty`).
+    """
+    if typing.get_origin(annotation) is not typing.Annotated:
+        return annotation, False
+    base, *metadata = typing.get_args(annotation)
+    flat = _metadata(metadata)
+    kept = [
+        item
+        for item in flat
+        if not (
+            isinstance(item, BeforeValidator) and item.func is absent_as_empty
+        )
+    ]
+    if len(kept) == len(flat):
+        return annotation, False
+    if not kept:
+        return base, True
+    return typing.Annotated[(base, *kept)], True  # type: ignore[valid-type]
 
 
 def _metadata(items: Sequence[object]) -> list[object]:
@@ -425,11 +484,15 @@ def _is_required(
     """Whether a line must carry the field, by the model's role (LedgerType)."""
     if ledger_type.role == "written":
         return field.is_required() or not nullable
-    if field.is_required():
-        return True
-    # A received object of a class that reads its sender's time is refused
-    # without one (CLP-15-010), though the model defaults it for local use.
-    return key == "published" and ledger_type.model._inbound_requires_published
+    if reads_absent_as_none(field):
+        # An author time is required where an object is built (ADR-0176), but
+        # a received omission reads as ``None`` (ADR-0103): only a class that
+        # reads its sender's time refuses it (CLP-15-010).
+        return (
+            key == "published"
+            and ledger_type.model._inbound_requires_published
+        )
+    return field.is_required()
 
 
 def _enum_name(model: type[BaseModel], key: str) -> str:
@@ -495,6 +558,7 @@ export type FieldShape =
   | {{ readonly kind: 'literal'; readonly value: string }}
   | {{ readonly kind: 'enum'; readonly type: string; readonly values: readonly string[] }}
   | {{ readonly kind: 'array'; readonly items: FieldShape; readonly minItems?: number }}
+  | {{ readonly kind: 'map'; readonly keys: FieldShape; readonly values: FieldShape }}
   | {{ readonly kind: 'ref'; readonly type: LedgerTypeName }}
   | {{ readonly kind: 'union'; readonly of: readonly FieldShape[] }}
 
@@ -547,6 +611,8 @@ def _ts_type(shape: dict[str, Any]) -> str:
     if kind == "array":
         item = _ts_type(shape["items"])
         return f"Array<{item}>"
+    if kind == "map":
+        return f"Record<string, {_ts_type(shape['values'])}>"
     if kind == "union":
         return " | ".join(_ts_type(member) for member in shape["of"])
     raise ValueError(f"unknown shape kind {kind!r}")
@@ -569,6 +635,10 @@ def _ts_shape(shape: dict[str, Any], enums: dict[str, EnumType]) -> str:
             if key not in ("kind", "items")
         )
         return f"{{ kind: {_ts(kind)}, items: {items}{rest} }}"
+    if kind == "map":
+        keys = _ts_shape(shape["keys"], enums)
+        values = _ts_shape(shape["values"], enums)
+        return f"{{ kind: {_ts(kind)}, keys: {keys}, values: {values} }}"
     if kind == "union":
         members = ", ".join(_ts_shape(m, enums) for m in shape["of"])
         return f"{{ kind: {_ts(kind)}, of: [{members}] }}"

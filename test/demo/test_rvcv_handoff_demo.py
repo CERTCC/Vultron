@@ -75,7 +75,7 @@ from test.demo._helpers import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
@@ -1562,11 +1562,14 @@ def _otc_ownership_transferred(
                 # (ADR-0148).  It runs in-process: the Offer's own delivery
                 # is not this test's subject.
                 case_wire = as_VulnerabilityCase.model_validate(
-                    {
-                        "attributed_to": CASE_OWNER_ID,
-                        "id": case_id,
-                        "name": case.name or "OTC Test Case",
-                    }
+                    with_times(
+                        as_VulnerabilityCase,
+                        {
+                            "attributed_to": CASE_OWNER_ID,
+                            "id": case_id,
+                            "name": case.name or "OTC Test Case",
+                        },
+                    )
                 )
                 proposal = propose_case_ownership_transfer_activity(
                     case_wire,
@@ -1577,6 +1580,7 @@ def _otc_ownership_transferred(
                     ),
                     actor=vendor_id,
                     to=[coordinator_id],
+                    at=authored_at(),
                 )
                 offer = _otc_make_offer(cdl, proposal, coordinator_id)
 
@@ -1588,6 +1592,7 @@ def _otc_ownership_transferred(
                     offer=offer,
                     actor=reporter_id,
                     to=[coordinator_id],
+                    at=authored_at(),
                 )
                 _otc_post_inbox(coordinator_tc, _OTC_COORDINATOR_SLUG, accept)
 

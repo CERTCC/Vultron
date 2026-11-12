@@ -20,7 +20,7 @@ through VAM-04-014).  See ``notes/case-joining.md``.
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.factories import rm_invite_to_case_activity
@@ -63,6 +63,7 @@ def _stub_invite() -> as_Invite:
         target=_full_case(),
         actor=_MANAGER_ID,
         id_=f"{_CASE_ID}/invitations/stub-1",
+        at=authored_at(),
     )
 
 
@@ -86,7 +87,7 @@ _REPLY_CLASSES: dict[str, type[as_TransitiveActivity]] = {
 
 
 def _reply(kind: str, invite: as_Invite) -> as_TransitiveActivity:
-    return _REPLY_CLASSES[kind](actor=_INVITEE_ID, object_=invite)
+    return make(_REPLY_CLASSES[kind], actor=_INVITEE_ID, object_=invite)
 
 
 def _semantics_of(kind: str, invite: as_Invite) -> MessageSemantics:

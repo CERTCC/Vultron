@@ -26,7 +26,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CASE_PUBLISHED,
+    INBOUND_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import activate, terminate
 from test.support.objects import make
 from vultron.core.states.em import EM
@@ -595,8 +599,10 @@ class TestVerifyCaseClosed:
         index = {actor: f"{actor}/participant" for actor in rm_by_actor}
         client = MagicMock()
         client.get.return_value = {
+            **INBOUND_CASE_OWNERSHIP,
             "id": _CASE,
             "type": "VulnerabilityCase",
+            "published": CASE_PUBLISHED.isoformat(),
             "attributedTo": _OWNER,
             "actorParticipantIndex": index,
         }
@@ -609,6 +615,7 @@ class TestVerifyCaseClosed:
                 "joined": True,
                 "participantStatuses": [
                     {
+                        "id": f"{index[actor]}/status",
                         "type": "ParticipantStatus",
                         "attributedTo": actor,
                         "context": _CASE,

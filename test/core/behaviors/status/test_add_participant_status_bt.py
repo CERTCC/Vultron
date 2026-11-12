@@ -44,7 +44,7 @@ from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.note_wire import assert_case_manager_note_recorded
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -929,6 +929,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
@@ -983,6 +984,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
@@ -1040,6 +1042,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         cm_event = make_payload(cm_activity)
         cm_tree = add_participant_status_tree(
@@ -1096,6 +1099,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(cm_activity)
         # Default DETERMINISTIC bundle — RequireCaseOwnerApproval is wired
@@ -1155,6 +1159,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1206,6 +1211,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         tree = add_participant_status_tree(
             request=make_payload(activity),
@@ -1257,6 +1263,7 @@ class TestAddParticipantStatusTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1329,6 +1336,7 @@ class TestNoAutoCloseSequenceInTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1366,6 +1374,7 @@ class TestNoAutoCloseSequenceInTree:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1614,6 +1623,7 @@ class TestRejectionValidatorBeforeCommit:
                 id_=CASE_ID,
                 name="Fix1 Regression",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -1712,6 +1722,7 @@ class TestRejectionValidatorBeforeCommit:
                 id_=CASE_ID,
                 name="Fix1 Full Reject",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -1943,6 +1954,7 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1979,6 +1991,7 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -2020,6 +2033,7 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -2087,6 +2101,7 @@ def _pxa_report(
             id_=CASE_ID,
             name="Test",
         ),
+        at=authored_at(),
     )
 
 
@@ -2322,6 +2337,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
 
         result = _run_at_case_manager(populated_dl, make_payload(activity))
@@ -2928,6 +2944,7 @@ class TestReceiveVendorPathNotices:
                 id_=CASE_ID,
                 name="Test",
             ),
+            at=authored_at(),
         )
 
         result = _run_at_case_manager(dl, make_payload(activity))

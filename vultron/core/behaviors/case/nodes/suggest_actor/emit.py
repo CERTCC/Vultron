@@ -33,6 +33,7 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_owner_id,
     suggested_roles_key,
@@ -213,6 +214,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
+                ACT_INSTANT_KEY: f"/{ACT_INSTANT_KEY}",
                 "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
             },
             logger=port_wiring_logger(),
@@ -269,6 +271,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             id_=offer_case_participant_id(
                 self.actor_id, self.case_id, self.recommendation_id
             ),
+            at=self._require_act_instant(),
         )
 
     def _record_sent(self, activity_id: str, activity_blob: str) -> None:

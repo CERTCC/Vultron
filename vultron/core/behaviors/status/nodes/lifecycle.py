@@ -112,6 +112,7 @@ class EmitCloseCaseNode(_EmitSingleActivityBase):
                 case_id=self.case_id,
                 actor=self.actor_id or "",
                 to=[case_manager_id],
+                at=self._require_act_instant(),
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).
             self._emit_through_seam(activity_id, "")

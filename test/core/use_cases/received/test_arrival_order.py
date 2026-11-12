@@ -37,7 +37,7 @@ from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.relayed_invite import (
     COORD,
     INVITEE,
@@ -370,7 +370,11 @@ def test_a_redelivered_relayed_invite_is_answered_once(
         policy_days=30,
     )
     invite = em_propose_embargo_activity(
-        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+        embargo=embargo,
+        context=case.id_,
+        actor=COORD,
+        to=[INVITEE],
+        at=authored_at(),
     )
     if invite_first:
         first = _deliver(dl, invite, make_payload)
@@ -410,11 +414,19 @@ def test_an_invite_redelivered_after_a_changed_answer_sends_no_accept(
         policy_days=30,
     )
     invite = em_propose_embargo_activity(
-        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+        embargo=embargo,
+        context=case.id_,
+        actor=COORD,
+        to=[INVITEE],
+        at=authored_at(),
     )
     _deliver(dl, invite, make_payload)
     reject_id, _ = TriggerActivityAdapter(dl).reject_embargo(
-        proposal_id=invite.id_, case_id=case.id_, actor=INVITEE, to=[COORD]
+        proposal_id=invite.id_,
+        case_id=case.id_,
+        actor=INVITEE,
+        to=[COORD],
+        at=authored_at(),
     )
     dl.outbox_append(reject_id)
 
@@ -451,7 +463,11 @@ def test_an_invite_redelivered_after_its_pxa_refusal_is_refused_once(
     stored.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(stored)
     invite = em_propose_embargo_activity(
-        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+        embargo=embargo,
+        context=case.id_,
+        actor=COORD,
+        to=[INVITEE],
+        at=authored_at(),
     )
 
     first = _deliver(dl, invite, make_payload)
@@ -485,6 +501,7 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
             context=notices.CASE_ID,
             actor=notices.MANAGER,
             to=[replica.actor_id],
+            at=authored_at(),
         )
         remove = remove_embargo_from_case_activity(
             revision,
@@ -493,6 +510,7 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
             actor=notices.MANAGER,
             to=[replica.actor_id],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         for activity in (
             (announce, remove) if announce_first else (remove, announce)
@@ -606,7 +624,11 @@ def _note_then_leave(
             attributed_to=BYSTANDER,
         )
         add = add_note_to_case_activity(
-            note, target=net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+            note,
+            target=net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         )
         sent = [
             net.stamp(json.loads(dump_outbound_body(activity)))
@@ -634,7 +656,10 @@ def test_note_sent_before_leave_is_kept_in_either_order() -> None:
     networks = _note_then_leave(
         "note-leave",
         lambda net: rm_close_case_activity(
-            net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+            net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -667,7 +692,11 @@ def test_note_sent_before_embargo_leave_is_kept_in_either_order() -> None:
         embargo = net.stores[BYSTANDER].read(net.initial_embargo_id)
         assert isinstance(embargo, as_EmbargoEvent)
         return withdraw_from_embargo_activity(
-            embargo, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+            embargo,
+            context=net.case_id,
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         )
 
     networks = _note_then_leave("note-embargo-leave", withdrawal)

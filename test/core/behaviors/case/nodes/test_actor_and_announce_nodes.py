@@ -27,7 +27,7 @@ from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -702,7 +702,7 @@ def _announce_event_for(
     case: as_VulnerabilityCase,
 ) -> AnnounceVulnerabilityCaseReceivedEvent:
     activity = announce_vulnerability_case_activity(
-        case, actor=ACTOR_ID, context=case.id_
+        case, actor=ACTOR_ID, context=case.id_, at=authored_at()
     )
     event = extract_event(activity)
     assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE

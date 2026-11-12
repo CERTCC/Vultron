@@ -329,6 +329,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                     case_id=self.case_id,
                     actor=actor_id,
                     cause_id=cause_id,
+                    at=self._require_act_instant(),
                 ),
             )
         # The participant entries moved the case's position; the case entry
@@ -341,6 +342,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                 ),
                 actor=actor_id,
                 cause_id=cause_id,
+                at=self._require_act_instant(),
             ),
         )
 

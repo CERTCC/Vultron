@@ -18,6 +18,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import (
+    EXAMPLE_TIMESTAMP,
     _example_stamp,
     base_url,
     case,
@@ -43,7 +44,7 @@ def add_note_to_case() -> as_Add:
     _note = note()
 
     activity = add_note_to_case_activity(
-        _note, actor=_finder.id_, target=_case.id_
+        _note, actor=_finder.id_, target=_case.id_, at=EXAMPLE_TIMESTAMP
     )
 
     return activity
@@ -55,4 +56,5 @@ def remove_note_from_case() -> as_Remove:
         actor=finder().id_,
         object_=note(),
         target=case().id_,
+        **_example_stamp(),
     )

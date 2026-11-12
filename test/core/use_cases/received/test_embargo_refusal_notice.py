@@ -31,7 +31,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -369,6 +369,7 @@ def _owner_remove(
         reason=reason,
         cause=cause,
         id_=f"{OWNER}/removes/{tag}",
+        at=authored_at(),
     )
     body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
     return net.receive(MANAGER, body), body["id"]
@@ -435,6 +436,7 @@ def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
         actor=BYSTANDER,
         to=[MANAGER],
         id_=f"{BYSTANDER}/proposals/{tag}",
+        at=authored_at(),
     )
     # The proposer keeps what it sent, and the trigger records its ask
     # (EP-09-008, SYNC-11-002).

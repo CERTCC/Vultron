@@ -32,7 +32,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
@@ -66,20 +66,26 @@ _PLANTED_PARTICIPANT = f"{CASE_ID}/participants/planted"
 
 
 def _join(case: str) -> as_Activity:
-    return rm_engage_case_activity(case, actor=BYSTANDER, to=[MANAGER])
+    return rm_engage_case_activity(
+        case, actor=BYSTANDER, to=[MANAGER], at=authored_at()
+    )
 
 
 def _ignore(case: str) -> as_Activity:
-    return rm_defer_case_activity(case, actor=BYSTANDER, to=[MANAGER])
+    return rm_defer_case_activity(
+        case, actor=BYSTANDER, to=[MANAGER], at=authored_at()
+    )
 
 
 def _leave(case: str) -> as_Activity:
-    return rm_close_case_activity(case, actor=BYSTANDER, to=[MANAGER])
+    return rm_close_case_activity(
+        case, actor=BYSTANDER, to=[MANAGER], at=authored_at()
+    )
 
 
 def _propose(case: str) -> as_Activity:
     return propose_case_ownership_transfer_activity(
-        case, target=BYSTANDER, actor=OWNER, to=[MANAGER]
+        case, target=BYSTANDER, actor=OWNER, to=[MANAGER], at=authored_at()
     )
 
 

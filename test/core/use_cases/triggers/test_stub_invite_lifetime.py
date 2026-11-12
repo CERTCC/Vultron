@@ -53,7 +53,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -124,7 +124,8 @@ def _answer(
     assert isinstance(invite, as_Invite)
     return route_received(
         dl,
-        reply(
+        make(
+            reply,
             actor=invitee_id,
             to=[manager_id],
             object_=invite,
@@ -683,6 +684,7 @@ def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
             actor=owner.id_,
             to=[owner.id_],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=owner.id_,
         trigger_activity=TriggerActivityAdapter(dl),
@@ -723,6 +725,7 @@ def test_a_re_issued_stub_uses_the_managers_configured_rsvp_window(
             actor=owner.id_,
             to=[owner.id_],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=owner.id_,
         trigger_activity=TriggerActivityAdapter(dl),

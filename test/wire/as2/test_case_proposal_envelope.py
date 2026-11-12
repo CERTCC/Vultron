@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.errors import VultronActivityConstructionError
@@ -206,7 +206,7 @@ def test_the_factory_carries_the_senders_profile_inline():
     )
 
     activity = create_case_proposal_activity(
-        actor=profile, proposal=_proposal(), to=[_CASE_ACTOR]
+        actor=profile, proposal=_proposal(), to=[_CASE_ACTOR], at=authored_at()
     )
 
     assert activity.actor == profile
@@ -219,6 +219,7 @@ def test_the_factory_refuses_a_profile_that_is_not_the_proposers():
             actor=make(VultronOrganization, id_=_OTHER),
             proposal=_proposal(),
             to=[_CASE_ACTOR],
+            at=authored_at(),
         )
 
 

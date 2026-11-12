@@ -292,18 +292,17 @@ vendor-first half, whose Reporter tells a Vendor.
   to the branch point. Keeping a scenario's own checks where they were is also
   what leaves its verdict and its milestone order untouched (DEMOMA-17-002).
   An *act* placed the same way would move the bytes,
-  and the byte-identity check would catch it. **A read that reads the clock
-  is not read-only for this purpose** and would move the bytes too: under the
-  recording clock a read costs a 10 ms tick, so slipping one into a shared
-  stretch shifts every later timestamp and digest, and on a racing thread it
-  shifts them by a different amount on each run. `PendingAssertionStore`'s
-  lookups were the one such read reached from a shared stretch; they now take
-  the instant from the act whose check they are (#5591), which is the shape a
-  read that needs a time should take — a new clock read inside a read path is
-  a defect, not a measurement problem.
-  Other read paths still read it — the inbound extraction edge (#5652) — so
-  a stretch that reaches it is not byte-stable yet even though it is
-  deterministic today.
+  and the byte-identity check would catch it. **The recording clock steps
+  once per act, and only an act's edge reads it.** `deterministic_run`
+  installs it as the act clock through the port (`install_act_clock`) and
+  patches no `datetime`; an act's entry point (`open_act`, `stamp_arrival`)
+  and a demo client's step (`vultron.demo.wall_clock.now`) are its only
+  readers, so a read path cannot move a recording, and
+  `test_each_act_reads_the_recording_clock_once` fails on a read from
+  anywhere else (ADR-0176, #5760). A read path that needs a time takes the
+  instant of the act whose check it is, as `PendingAssertionStore`'s lookups
+  do (#5591); a new clock read inside a read path is a defect, not a
+  measurement problem.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -375,10 +374,10 @@ vendor-first half, whose Reporter tells a Vendor.
   more than one story must reset them — `reset_pending_assertion_stores()` is
   the one that bit, because a pending ask keyed on the redrawn case id
   suppressed the same ask in the next story (#5591).
-- **Byte identity is decided before the case opens.** Only a write reads the
+- **Byte identity is decided before the case opens.** Only an act reads the
   recording clock, so where a poll or a verification sits does not matter; how
-  many actor and peer records a story writes before `create_case` does. Each
-  one is about sixteen reads of the 10 ms stepping clock, so one extra
+  many acts a story runs before `create_case` does. Each actor or peer record
+  is written by an act, one 10 ms tick of the recording clock, so one extra
   container seeded in a shared opening moves every later timestamp and digest
   by a constant offset and the siblings cease to be byte-identical. **A shared
   opening therefore seeds only the containers every one of its siblings uses**;
@@ -387,13 +386,15 @@ vendor-first half, whose Reporter tells a Vendor.
   sibling uses a container, not which cast slot it sits in: the Coordinator of
   the `rvcv` pair joins as an unseated container although its slot is fixed.
 - **No read on a shared stretch may read the recording clock, and no store a
-  run writes may survive it.** These are the two conditions beyond a shared
-  authored opening, and both are stated here rather than restated elsewhere:
+  run writes may survive it.** The first holds by construction now that only
+  an act's edge reads that clock, and a test keeps it so (above). These are
+  the two conditions beyond a shared authored opening, and both are stated
+  here rather than restated elsewhere:
   `prefix.py`'s module docstring and DEMOCI-11-018's rationale cite this
   section (DF-10-001). The longest shared prefix in the tree is
   `{rcv-embargo, rcvv-embargo}`'s, which reaches ledger entry 36, past the
   embargo activation, and it is the stretch that will find a new violation of
-  either rule first: a clock read on a thread racing a trigger moves the two
+  either rule first: an act on a thread racing a trigger moves the two
   recordings apart by a varying amount, and a process-global store a run
   writes carries one scenario's rows into the next. A store a run writes is
   dropped in `vultron.demo.recordings.runner._scenario_nodes`, beside the

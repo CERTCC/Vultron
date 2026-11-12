@@ -529,6 +529,15 @@ class VultronIdSourceInstalledError(VultronWiringError):
     """
 
 
+class VultronActClockInstalledError(VultronWiringError):
+    """Raised when an act clock is installed while another install is active.
+
+    The scoped install of the act clock does not nest: two recorded runs in
+    one block would read one clock and move each other's times (ADR-0176).
+    A composition fault, never a protocol outcome.
+    """
+
+
 class VultronReadOnlyViewError(VultronError, AttributeError):
     """Raised on an attempt to change a read-only view of a received activity.
 
@@ -735,4 +744,14 @@ class LedgerReadError(VultronError):
     missing, unreadable or not UTF-8 text.  A malformed *row* is never this
     error: the reader degrades it to one unusable row and reads the rest
     (CEH-02-008).
+    """
+
+
+class CaseHistoryInputError(VultronError):
+    """Raised when the case event history command is handed input it cannot dump.
+
+    Raised by :func:`vultron.measure.history.case_history_report` when the
+    files hold no case ledger entry, or do not hold the case the caller named
+    (CEH-01-008).  The command exits non-zero on it, so a bad input never
+    reads as a case with no events.
     """

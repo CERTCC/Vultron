@@ -22,7 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -71,7 +71,7 @@ class _Fixture:
         )
         self.dl.create(self.report)
         self.offer = rm_submit_report_activity(
-            self.report, self.vendor.id_, actor=FINDER_ID
+            self.report, self.vendor.id_, actor=FINDER_ID, at=authored_at()
         )
         self.dl.create(self.offer)
         self.dl.create(

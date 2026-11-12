@@ -185,6 +185,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
             report_id=self.report_id,
             actor=actor_id,
             to=addressees,
+            at=self._require_act_instant(),
         )
 
 
@@ -283,6 +284,7 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
             offer_id=self.offer_id,
             actor=actor_id,
             to=addressees,
+            at=self._require_act_instant(),
         )
 
 
@@ -322,6 +324,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
             report_id=self.report_id,
             actor=actor_id,
             to=addressees,
+            at=self._require_act_instant(),
         )
 
 
@@ -389,6 +392,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             actor=actor_id,
             to=addressees,
             content=self.content,
+            at=self._require_act_instant(),
         )
 
 
@@ -430,6 +434,7 @@ class EmitSubmitReportActivity(_EmitSingleActivityBase):
             to=self.recipient_id,
             target=self.recipient_id,
             proposed_embargo_id=self.proposed_embargo_id,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

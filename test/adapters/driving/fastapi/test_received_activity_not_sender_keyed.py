@@ -27,7 +27,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -231,6 +231,7 @@ def test_a_received_stub_invite_whose_actor_names_the_receiver_is_not_one_sent(
         ),
         actor=_RECEIVER_URI,
         to=[_RECEIVER_URI],
+        at=authored_at(),
     )
 
     _deliver(receiver_dl, activity)

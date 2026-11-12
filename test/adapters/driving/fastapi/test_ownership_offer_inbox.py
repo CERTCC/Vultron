@@ -40,7 +40,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -129,6 +129,7 @@ def _ownership_offer_body(vendor_dl: SqliteDataLayer) -> dict[str, Any]:
         transferee_id=_COORDINATOR_ID,
         actor=_VENDOR_ID,
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
     body = read_sealed_body_dict(vendor_dl, offer_id)
     assert body is not None
@@ -202,6 +203,7 @@ def test_ownership_offer_after_a_recommendation_is_made_and_committed(
         target=_CASE_ID,
         actor=_VENDOR_ID,
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
     _deliver(
         case_actor_dl,

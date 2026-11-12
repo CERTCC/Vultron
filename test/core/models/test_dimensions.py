@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -209,7 +209,9 @@ class TestCaseStatusCarriesNoFlatShim:
     def test_flat_input_key_is_refused_by_extra_forbid(self, flat, value):
         """A flat key raises through ``extra="forbid"`` (SDO-03-008)."""
         with pytest.raises(ValidationError) as excinfo:
-            CaseStatus.model_validate({"context": "urn:case:1", flat: value})
+            CaseStatus.model_validate(
+                with_times(CaseStatus, {"context": "urn:case:1", flat: value})
+            )
         assert [e["type"] for e in excinfo.value.errors()] == [
             "extra_forbidden"
         ]
@@ -227,7 +229,7 @@ class TestCaseStatusCarriesNoFlatShim:
     def test_wire_and_field_spellings_are_accepted(self, key, value, read):
         """``emState``/``em`` and ``pxaState``/``pxa`` stay accepted (AC-2)."""
         status = CaseStatus.model_validate(
-            {"context": "urn:case:1", key: value}
+            with_times(CaseStatus, {"context": "urn:case:1", key: value})
         )
         assert read(status).name == value
 

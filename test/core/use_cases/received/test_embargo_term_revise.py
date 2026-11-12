@@ -22,7 +22,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -100,6 +100,7 @@ class TestEmbargoTermRevise:
             ),
             actor=_OWNER,
             to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
@@ -137,6 +138,7 @@ class TestEmbargoTermRevise:
             ),
             actor=_OWNER,
             to=[_COORD],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
@@ -197,6 +199,7 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
@@ -260,6 +263,7 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
@@ -329,6 +333,7 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 

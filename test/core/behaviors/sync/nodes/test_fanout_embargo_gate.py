@@ -32,6 +32,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import authored_at, with_times
 from test.support.received import peer_position, received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
@@ -321,11 +322,12 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
     (entry,) = seed_ledger(datalayer, 1)
     activity = reject_log_entry_activity(
         entry=WireCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -366,11 +368,12 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
     (entry,) = seed_ledger(datalayer, 1)
     activity = reject_log_entry_activity(
         entry=WireCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -589,12 +592,13 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
     datalayer.save(later)
     activity = reject_log_entry_activity(
         entry=WireCaseLedgerEntry.model_validate(
-            later.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, later.model_dump(mode="json"))
         ),
         ledger_position=peer_position(entries[0].entry_hash),
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)

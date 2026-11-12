@@ -21,7 +21,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -79,6 +79,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             context=case.id_,
             actor="https://example.org/users/vendor",
             to=["https://example.org/users/finder"],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -128,6 +129,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             context=case.id_,
             actor="https://example.org/users/vendor",
             to=["https://example.org/users/finder"],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -179,6 +181,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
                 context=case.id_,
                 actor="https://example.org/users/impostor",
                 to=["https://example.org/users/finder"],
+                at=authored_at(),
             ),
             at=dl,
         )
@@ -279,6 +282,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             actor=case_manager_id,
             to=[actor_id],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(
             activity, receiving_actor_id=case_manager_id, at=dl

@@ -16,6 +16,7 @@
 """Report-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from vultron.adapters.received_archive import read_held_as_received
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 def _reconstitute_offer(
-    offer_id: str, dl: "CaseOutboxPersistence"
+    offer_id: str, dl: "CaseOutboxPersistence", *, at: datetime
 ) -> Any | None:
     """Reconstitute a wire Offer from VultronOfferRecord + VulnerabilityReport.
 
@@ -83,6 +84,7 @@ def _reconstitute_offer(
             to=to,
             actor=offer_record.offer_actor_id,
             id_=offer_id,
+            at=at,
         )
     except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(
@@ -105,6 +107,8 @@ class _ReportsMixin:
         to: str,
         target: str,
         proposed_embargo_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityReport)`` activity.
 
@@ -127,6 +131,7 @@ class _ReportsMixin:
             actor=actor,
             target=target,
             proposed_embargo=proposed_embargo,
+            at=at,
         )
         # One transaction, as every stamp-and-seal path holds (SYNC-21-003).
         with self._dl.transaction():
@@ -166,7 +171,7 @@ class _ReportsMixin:
                 raise
             return _seal(self._dl, activity)
 
-    def _resolve_offer(self, offer_id: str) -> Any:
+    def _resolve_offer(self, offer_id: str, *, at: datetime) -> Any:
         """Read the Offer as this actor holds it; else rebuild it from its record.
 
         A received Offer is parsed from the body its intake recorded, never
@@ -180,7 +185,7 @@ class _ReportsMixin:
                 self._dl, offer_id, "Offer(VulnerabilityReport)"
             )
         except VultronNotFoundError:
-            return _reconstitute_offer(offer_id, self._dl)
+            return _reconstitute_offer(offer_id, self._dl, at=at)
 
     def validate_report(
         self,
@@ -188,10 +193,14 @@ class _ReportsMixin:
         report_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` validate-report activity."""
-        offer = self._resolve_offer(offer_id)
-        activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
+        offer = self._resolve_offer(offer_id, at=at)
+        activity = rm_validate_report_activity(
+            offer=offer, actor=actor, to=to, at=at
+        )
         return _create_and_seal(self._dl, activity, "validate_report")
 
     def close_report(
@@ -200,10 +209,14 @@ class _ReportsMixin:
         report_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity."""
-        offer = self._resolve_offer(offer_id)
-        activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
+        offer = self._resolve_offer(offer_id, at=at)
+        activity = rm_close_report_activity(
+            offer=offer, actor=actor, to=to, at=at
+        )
         return _create_and_seal(self._dl, activity, "close_report")
 
     def invalidate_report(
@@ -211,11 +224,13 @@ class _ReportsMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(Offer)`` activity."""
-        offer = self._resolve_offer(offer_id)
+        offer = self._resolve_offer(offer_id, at=at)
         activity = rm_invalidate_report_activity(
-            offer=offer, actor=actor, to=to
+            offer=offer, actor=actor, to=to, at=at
         )
         return _create_and_seal(self._dl, activity, "invalidate_report")
 
@@ -225,12 +240,14 @@ class _ReportsMixin:
         actor: str,
         to: list[str] | None = None,
         content: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
         activity.
         """
-        offer = self._resolve_offer(offer_id)
+        offer = self._resolve_offer(offer_id, at=at)
         activity = rm_read_report_activity(
-            offer, actor=actor, to=to, content=content
+            offer, actor=actor, to=to, content=content, at=at
         )
         return _create_and_seal(self._dl, activity, "ack_report")

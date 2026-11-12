@@ -27,7 +27,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic.alias_generators import to_camel
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_proposal_admission import (
@@ -177,7 +177,7 @@ def test_the_valid_data_validates(
 ) -> None:
     """The sample is valid, so only the former key can cause a refusal."""
     assert key not in cls.model_fields
-    cls.model_validate(data)
+    cls.model_validate(with_times(cls, data))
 
 
 @pytest.mark.spec("ARCH-12-003", "MV-11-004", "MV-11-012")
@@ -186,7 +186,7 @@ def test_a_former_field_name_is_refused_as_an_unknown_key(
     cls: type[BaseModel], data: dict[str, Any], key: str
 ) -> None:
     with pytest.raises(ValidationError) as excinfo:
-        cls.model_validate({**data, key: "stale"})
+        cls.model_validate(with_times(cls, {**data, key: "stale"}))
 
     errors = excinfo.value.errors()
     assert [(e["type"], e["loc"]) for e in errors] == [
@@ -206,10 +206,12 @@ _RenamedRecord = (
 def test_the_record_stores_the_uri_under_its_role_name(
     cls: _RenamedRecord,
 ) -> None:
-    record = cls.model_validate({**_PROPOSAL, "proposer_uri": OWNER_ID})
+    record = cls.model_validate(
+        with_times(cls, {**_PROPOSAL, "proposer_uri": OWNER_ID})
+    )
 
     assert record.proposer_uri == OWNER_ID
     dumped = record.model_dump()
     assert dumped["proposer_uri"] == OWNER_ID
     assert "vendor_uri" not in dumped
-    assert cls.model_validate(dumped) == record
+    assert cls.model_validate(with_times(cls, dumped)) == record

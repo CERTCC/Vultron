@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_received,
     hold_deferred,
@@ -55,7 +55,9 @@ def _wire_activity() -> Any:
         content="signed seed",
         attributed_to=SENDER,
     )
-    return rm_create_report_activity(report, actor=SENDER, to=[RECEIVER])
+    return rm_create_report_activity(
+        report, actor=SENDER, to=[RECEIVER], at=authored_at()
+    )
 
 
 def _core_activity() -> VultronActivity:

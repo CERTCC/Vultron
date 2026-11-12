@@ -46,7 +46,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -152,6 +152,7 @@ def _stub_invite_body(
         actor=actor,
         to=[_INVITEE_ID],
         id_=id_,
+        at=authored_at(),
     )
     body = read_sealed_body_dict(case_actor_dl, invite_id)
     assert body is not None
@@ -192,6 +193,7 @@ def _note_body(note_id: str, actor: str = _CASE_ACTOR_ID) -> dict[str, Any]:
         context=_CASE_ID,
         actor=actor,
         to=[_INVITEE_ID],
+        at=authored_at(),
     )
     return _wire_body(add)
 
@@ -236,7 +238,7 @@ def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
     case_manager_dl.save(case)
     return _wire_body(
         announce_vulnerability_case_activity(
-            case, actor=actor, to=[_INVITEE_ID]
+            case, actor=actor, to=[_INVITEE_ID], at=authored_at()
         )
     )
 
@@ -285,7 +287,7 @@ def test_accept_reads_the_invite_from_the_receiver_keyed_record(
     assert invitee_dl.read(invite_id) is None
 
     accept_id, _ = TriggerActivityAdapter(invitee_dl).accept_case_invite(
-        invite_id=invite_id, actor=_INVITEE_ID
+        invite_id=invite_id, actor=_INVITEE_ID, at=authored_at()
     )
 
     accept = read_sealed_body_dict(invitee_dl, accept_id)
@@ -385,6 +387,7 @@ def test_announce_after_queue_expiry_is_admitted_from_the_anchored_sender(
         case_actor_dl.read(_CASE_ID),
         actor=_CASE_ACTOR_ID,
         to=[_INVITEE_ID],
+        at=authored_at(),
     )
 
     outcome = _deliver(invitee_dl, _wire_body(announce))
@@ -436,6 +439,7 @@ def test_a_bootstrap_after_queue_expiry_drops_the_anchored_record(
         case_actor_dl.read(_CASE_ID),
         actor=_CASE_ACTOR_ID,
         to=[_INVITEE_ID],
+        at=authored_at(),
     )
 
     outcome = _deliver(invitee_dl, _wire_body(announce))

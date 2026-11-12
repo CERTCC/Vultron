@@ -170,6 +170,7 @@ class SyncActivityAdapter:
         *,
         in_reply_to: str,
         asked_at: datetime | None = None,
+        at: datetime,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
@@ -219,6 +220,7 @@ class SyncActivityAdapter:
                 actor=actor_id,
                 to=to,
                 id_=reject_id,
+                at=at,
             ),
         )
 
@@ -230,6 +232,7 @@ class SyncActivityAdapter:
         to: list[str],
         *,
         in_reply_to: str,
+        at: datetime,
     ) -> None:
         """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
 
@@ -262,6 +265,7 @@ class SyncActivityAdapter:
                 actor=actor_id,
                 to=to,
                 id_=reject_id,
+                at=at,
             ),
         )
 
@@ -271,6 +275,8 @@ class SyncActivityAdapter:
         ledger_position: LedgerPosition,
         actor_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> None:
         """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
 
@@ -283,7 +289,7 @@ class SyncActivityAdapter:
         Spec: SYNC-17-001, SYNC-17-008.
         """
         read = read_ledger_position_activity(
-            case_id, ledger_position, actor=actor_id, to=to
+            case_id, ledger_position, actor=actor_id, to=to, at=at
         )
         self._save_seal_and_queue(actor_id, read)
         logger.info(
@@ -408,6 +414,8 @@ class SyncActivityAdapter:
         entry: CaseLedgerEntry,
         actor_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> bool:
         """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 
@@ -434,6 +442,7 @@ class SyncActivityAdapter:
             entry=wire_entry,
             actor=actor_id,
             to=to,
+            at=at,
         )
         self._save_seal_and_queue(actor_id, announce)
         logger.debug(

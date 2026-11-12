@@ -85,6 +85,7 @@ from test.demo.conftest import (
     submit_report_through_reporter,
 )
 from test.support.act_runner import run_in_act
+from test.support.objects import authored_at
 from test.support.received import received_event, received_of_type
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -551,7 +552,7 @@ class TestCaseProposalRoundTrip:
 
         def _announce_from(sender: str):
             activity = announce_vulnerability_case_activity(
-                replica, actor=sender, to=[reporter_actor_id]
+                replica, actor=sender, to=[reporter_actor_id], at=authored_at()
             )
             event = cast(
                 AnnounceVulnerabilityCaseReceivedEvent,

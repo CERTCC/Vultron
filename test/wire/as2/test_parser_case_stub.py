@@ -31,6 +31,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
+from test.support.objects import with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
@@ -191,11 +192,14 @@ def test_a_sparse_case_is_a_case_not_a_stub():
 @pytest.mark.spec("CM-11-038")
 def test_a_sparse_case_validates_as_a_case():
     case = VulnerabilityCase.model_validate(
-        {
-            "attributed_to": CASE_OWNER_ID,
-            "type": "VulnerabilityCase",
-            "id": _CASE_ID,
-        }
+        with_times(
+            VulnerabilityCase,
+            {
+                "attributed_to": CASE_OWNER_ID,
+                "type": "VulnerabilityCase",
+                "id": _CASE_ID,
+            },
+        )
     )
     assert case.id_ == _CASE_ID
 
@@ -242,7 +246,12 @@ def test_the_stub_serialises_its_type_id_and_case():
     ],
 )
 def test_a_stub_validates_from_either_spelling(data):
-    assert as_VulnerabilityCaseStub.model_validate(data).id_ == _STUB_ID
+    assert (
+        as_VulnerabilityCaseStub.model_validate(
+            with_times(as_VulnerabilityCaseStub, data)
+        ).id_
+        == _STUB_ID
+    )
 
 
 @pytest.mark.spec("CM-11-037")
@@ -255,14 +264,18 @@ def test_a_stub_validates_from_either_spelling(data):
 def test_a_stub_whose_id_disagrees_with_its_case_is_refused(stub_id):
     with pytest.raises(ValidationError, match="CM-11-013"):
         as_VulnerabilityCaseStub.model_validate(
-            {"caseId": _CASE_ID, "id": stub_id}
+            with_times(
+                as_VulnerabilityCaseStub, {"caseId": _CASE_ID, "id": stub_id}
+            )
         )
 
 
 @pytest.mark.spec("CM-11-037")
 def test_a_stub_without_its_case_is_refused():
     with pytest.raises(ValidationError, match="caseId"):
-        as_VulnerabilityCaseStub.model_validate({"id": _STUB_ID})
+        as_VulnerabilityCaseStub.model_validate(
+            with_times(as_VulnerabilityCaseStub, {"id": _STUB_ID})
+        )
 
 
 def _invite(target: object) -> dict:

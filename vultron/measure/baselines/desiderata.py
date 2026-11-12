@@ -256,8 +256,15 @@ EXTENDED: tuple[Desideratum, ...] = (
 """The extended desiderata of ``process_model_desiderata.md``, in page order."""
 
 
-def _in_case_state_model(query: Query) -> OrderingQuery[CSEvent]:
-    """*query* restated over the six-event model's events."""
+def case_state_query(query: Query) -> OrderingQuery[CSEvent]:
+    """*query* restated over the six-event model's events.
+
+    The query must name only the six case-state events, as every
+    :data:`ORIGINAL` desideratum's does.
+
+    Raises:
+        KeyError: *query* names an event the six-event model does not have.
+    """
     return OrderingQuery(
         tuple(
             Ordering(_JOINT_TO_CS[o.before], _JOINT_TO_CS[o.after])
@@ -270,7 +277,7 @@ def _in_case_state_model(query: Query) -> OrderingQuery[CSEvent]:
 @cache
 def _frequency(model: ModelName, query: Query) -> Fraction:
     if model is ModelName.CASE_STATE:
-        return frequency(CASE_STATE_MODEL, _in_case_state_model(query))
+        return frequency(CASE_STATE_MODEL, case_state_query(query))
     if model is ModelName.ONE_VENDOR:
         return frequency(ONE_VENDOR_MODEL, query)
     return frequency(TWO_VENDOR_MODEL, query)

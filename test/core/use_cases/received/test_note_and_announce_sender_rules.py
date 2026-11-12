@@ -45,7 +45,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -224,6 +224,7 @@ class _World:
             ),
             actor=sender_id,
             to=[self.receiver_id],
+            at=authored_at(),
         )
         result = run_in_act(
             AddNoteToCaseReceivedUseCase(
@@ -457,6 +458,7 @@ class _Replica:
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,
+            at=authored_at(),
         )
         event = cast(
             AnnounceVulnerabilityCaseReceivedEvent,
@@ -534,6 +536,7 @@ def test_announce_tree_takes_no_clock_decision() -> None:
                 case,
                 actor="https://example.org/actors/case-actor",
                 context=case.id_,
+                at=authored_at(),
             )
         ),
     )

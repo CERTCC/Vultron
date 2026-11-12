@@ -24,7 +24,10 @@ from pydantic import (
 )
 
 from vultron.core.models._helpers import new_object_id
-from vultron.core.models.case_participant.participant import CaseParticipant
+from vultron.core.models.case_participant.participant import (
+    CaseParticipant,
+    first_status,
+)
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -47,11 +50,11 @@ def _seed_accepted_status(data: Any) -> Any:
         data["id"] = new_object_id()
     id_val = data.get("id") or data.get("id_")
     data["participant_statuses"] = [
-        ParticipantStatus(
-            context=data.get("context") or id_val,
-            attributed_to=data.get("attributed_to"),
+        first_status(
+            ReporterParticipant,
+            data,
+            id_val,
             rm=RmDimension(state=RM.ACCEPTED),
-            cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
         )
     ]
     return data

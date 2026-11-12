@@ -50,6 +50,7 @@ from vultron.measure.baselines.desiderata import (
     Implication,
     ModelName,
     baseline,
+    case_state_query,
     implications,
 )
 from vultron.measure.baselines.joint import (
@@ -97,6 +98,7 @@ __all__ = [
     "VendorPath",
     "WalkNeverEndsError",
     "baseline",
+    "case_state_query",
     "completion_probabilities",
     "frequency",
     "history_probability",

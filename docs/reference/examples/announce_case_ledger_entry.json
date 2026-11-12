@@ -14,7 +14,6 @@
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",
     "type": "CaseLedgerEntry",
     "published": "2024-01-01T12:00:00.000000+00:00",
-    "updated": "2026-06-01T19:12:00.000000+00:00",
     "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "logIndex": 0,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
@@ -35,6 +34,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5LgeckTBBzZGpwrX85zntAYXNgpHxy6QYtR5K2tXPZqmv2Dey3HSCtFr6J2Uy7tF5KXBMLV1553L1szq4oCQExJR"
+    "proofValue": "znBw57kpYRHJQzHEnXkvEDSroczVP7xMPBgPcnLMD9dVZvbwCUFRByFHptYg35xjVGqRK9ycHd1e9jJrf7Mf6D69"
   }
 }

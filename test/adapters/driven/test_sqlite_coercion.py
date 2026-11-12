@@ -22,7 +22,7 @@ Fixtures (dl) come from conftest.
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -60,6 +60,7 @@ class TestRehydrateFields:
             report,
             "https://alice.example.org",
             actor="https://alice.example.org",
+            at=authored_at(),
         )
         dl.save(report)
         dl.save(offer)
@@ -83,6 +84,7 @@ class TestRehydrateFields:
             report,
             "https://alice.example.org",
             actor="https://alice.example.org",
+            at=authored_at(),
         )
         # Save offer but NOT the report — reference is dangling
         dl.save(offer)
@@ -169,6 +171,7 @@ class TestCoerceToSemanticClass:
             report,
             "https://alice.example.org",
             actor="https://alice.example.org",
+            at=authored_at(),
         )
         dl.save(report)
         dl.save(offer)
@@ -194,6 +197,7 @@ class TestCoerceToSemanticClass:
             embargo,
             context=case.id_,
             actor="https://alice.example.org",
+            at=authored_at(),
         )
         dl.save(case)
         dl.save(embargo)
@@ -287,6 +291,7 @@ class TestCoerceToSemanticClass:
         announce = announce_log_entry_activity(
             entry,
             actor="https://example.org/actors/case-actor",
+            at=authored_at(),
         )
         dl.save(entry)
         dl.save(announce)
@@ -424,7 +429,9 @@ class TestCoerceByReferenceFields:
             )
         )
         read = read_ledger_entry_activity(
-            entry, actor="https://example.org/actors/reporter"
+            entry,
+            actor="https://example.org/actors/reporter",
+            at=authored_at(),
         )
         dl.save(entry)
         dl.save(read)
@@ -452,6 +459,7 @@ class TestCoerceByReferenceFields:
             case,
             LedgerPosition(log_index=0, entry_hash=_ZERO_HASH),
             actor="https://example.org/actors/case-actor",
+            at=authored_at(),
         )
         dl.save(case)
         dl.save(invite)
@@ -490,9 +498,13 @@ class TestCoerceByReferenceFields:
             case,
             position,
             actor="https://example.org/actors/case-actor",
+            at=authored_at(),
         )
         accept = rm_accept_full_case_invite_activity(
-            invite, position, actor="https://example.org/actors/vendor"
+            invite,
+            position,
+            actor="https://example.org/actors/vendor",
+            at=authored_at(),
         )
         dl.save(case)
         dl.save(invite)

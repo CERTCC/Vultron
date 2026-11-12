@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -133,6 +133,7 @@ def _full_case_invite():
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=MANAGER,
         id_="http://example.com/activities/full-invite-1",
+        at=authored_at(),
     )
 
 
@@ -142,6 +143,7 @@ def _ownership_offer():
         target=INVITEE,
         actor=MANAGER,
         id_="http://example.com/activities/forwarded-offer-1",
+        at=authored_at(),
     )
 
 
@@ -156,6 +158,7 @@ def _stub_invite():
         ),
         actor=MANAGER,
         id_="http://example.com/activities/stub-invite-1",
+        at=authored_at(),
     )
 
 
@@ -165,6 +168,7 @@ def _report_offer():
         to=INVITEE,
         actor=FINDER,
         id_="urn:uuid:2b6f6d5e-1c8a-4c39-9d43-6a7c4c1b0f11",
+        at=authored_at(),
     )
 
 

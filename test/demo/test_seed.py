@@ -25,6 +25,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
+from test.support.objects import with_times
 from vultron.demo.cli import main
 from vultron.demo.utils import DataLayerClient, seed_actor
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -56,7 +57,7 @@ def _mock_seed_actor(
     def _fn(client, name, actor_type="Organization", actor_id=None):
         resolved_id = actor_id or f"http://mock/actors/{name}"
         return as_Organization.model_validate(
-            {"id": resolved_id, "name": name}
+            with_times(as_Organization, {"id": resolved_id, "name": name})
         )
 
     return MagicMock(side_effect=_fn)
@@ -211,13 +212,19 @@ class TestSeedCommand:
                 {"name": name, "actor_type": actor_type, "actor_id": actor_id}
             )
             return as_Organization.model_validate(
-                {"id": actor_id or f"http://mock/{name}", "name": name}
+                with_times(
+                    as_Organization,
+                    {"id": actor_id or f"http://mock/{name}", "name": name},
+                )
             )
 
         mock_fn = MagicMock(side_effect=_capturing_seed)
         mock_seed_peer = MagicMock(
             return_value=as_Actor.model_validate(
-                {"id": "http://file-peer/actors/fp", "name": "FilePeer"}
+                with_times(
+                    as_Actor,
+                    {"id": "http://file-peer/actors/fp", "name": "FilePeer"},
+                )
             )
         )
         runner = CliRunner()
@@ -259,7 +266,10 @@ class TestSeedCommand:
         ):
             captured.append(name)
             return as_Organization.model_validate(
-                {"id": actor_id or "http://mock/actors/x", "name": name}
+                with_times(
+                    as_Organization,
+                    {"id": actor_id or "http://mock/actors/x", "name": name},
+                )
             )
 
         mock_fn = MagicMock(side_effect=_capturing_seed)
@@ -290,13 +300,21 @@ class TestSeedCommand:
         mock_fn = MagicMock(
             side_effect=lambda client, name, actor_type="Organization", actor_id=None: (
                 as_Organization.model_validate(
-                    {"id": actor_id or f"http://mock/{name}", "name": name}
+                    with_times(
+                        as_Organization,
+                        {
+                            "id": actor_id or f"http://mock/{name}",
+                            "name": name,
+                        },
+                    )
                 )
             )
         )
         mock_seed_peer = MagicMock(
             side_effect=lambda client, local_actor_id, peer_id, name, actor_type="Organization": (
-                as_Actor.model_validate({"id": peer_id, "name": name})
+                as_Actor.model_validate(
+                    with_times(as_Actor, {"id": peer_id, "name": name})
+                )
             )
         )
         runner = CliRunner()

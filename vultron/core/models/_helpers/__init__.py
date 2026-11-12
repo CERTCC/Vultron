@@ -23,21 +23,27 @@ Grouped by concern (CS-18-005):
 - ``ids`` — the object id minter, its id source and scoped install, and the
   mixed-reference id reader ``_as_id``
 - ``inbound`` — reading inbound and stored data: absent times, key spellings
+- ``dump`` — the empty-collection test a dump omits a field by
 """
 
 # ``_as_id`` is re-exported although its name is private: it is this package's
 # shared id reader, imported from ``vultron.core.models._helpers`` by modules in
 # every layer, including ones other open changes own (CS-18-003).
 from vultron.core.models._helpers.clock import (
+    AuthoredTimes,
+    EmbargoAuthoredTimes,
     SteppingClock,
+    authored_times,
     days_after,
     deadline_from,
+    embargo_authored_times,
     is_aware,
     now_utc,
     require_aware,
     require_future_aware,
     stamp_after,
 )
+from vultron.core.models._helpers.dump import is_empty
 from vultron.core.models._helpers.ids import (
     URN_UUID_PREFIX,
     IdSource,
@@ -54,12 +60,14 @@ from vultron.core.models._helpers.inbound import (
     blank_times_as_none,
     collapse_duplicate_spellings,
     project_wire_snapshot_to_core,
+    reads_absent_as_none,
     refuse_absent_id,
     strip_annotated,
 )
 from vultron.core.models._helpers.timestamps import (
     MissingClaimedTimeError,
     as_utc,
+    blank_as_none,
     format_timestamp,
     parse_published,
     refuse_absent_published,
@@ -67,6 +75,12 @@ from vultron.core.models._helpers.timestamps import (
 )
 
 __all__ = [
+    "reads_absent_as_none",
+    "blank_as_none",
+    "AuthoredTimes",
+    "EmbargoAuthoredTimes",
+    "authored_times",
+    "embargo_authored_times",
     "DuplicateKeySpellingError",
     "INBOUND_CONTEXT_KEY",
     "IdSource",
@@ -84,6 +98,7 @@ __all__ = [
     "format_timestamp",
     "install_id_source",
     "is_aware",
+    "is_empty",
     "new_object_id",
     "now_utc",
     "parse_published",

@@ -20,6 +20,7 @@
 VulnerabilityReport submission and report-management answers.
 """
 
+from datetime import datetime
 from typing import Protocol
 
 
@@ -33,6 +34,8 @@ class TriggerReportsPort(Protocol):
         to: str,
         target: str,
         proposed_embargo_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityReport)`` activity.
 
@@ -50,6 +53,8 @@ class TriggerReportsPort(Protocol):
         report_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity.
 
@@ -62,6 +67,8 @@ class TriggerReportsPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(Offer)`` activity.
 
@@ -75,6 +82,8 @@ class TriggerReportsPort(Protocol):
         report_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` validate-report activity.
 
@@ -89,6 +98,8 @@ class TriggerReportsPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         content: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
         activity.

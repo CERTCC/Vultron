@@ -265,6 +265,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             sync_port=sync_port,
             actor_id=self.actor_id,
             through_index=entry.log_index - 1,
+            at=at,
         ).held_back
 
     def update(self) -> Status:
@@ -322,6 +323,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                     entry,
                     actor_id=self.actor_id,
                     to=[recipient_id],
+                    at=self._require_act_instant(),
                 )
         except VultronUnverifiedLedgerEntryError as exc:
             # Checked before the first send, so no recipient got it.

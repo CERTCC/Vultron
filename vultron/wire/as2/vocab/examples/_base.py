@@ -81,8 +81,8 @@ class _ExampleStamp(TypedDict):
 def _example_stamp() -> _ExampleStamp:
     """``published`` and ``updated`` pinned to :data:`EXAMPLE_TIMESTAMP`.
 
-    Pass as ``**_example_stamp()`` to an object that would otherwise stamp the
-    clock through its ``published``/``updated`` default factories.
+    Pass as ``**_example_stamp()`` to every example object: the times are
+    required, and an example states this fixed one (ADR-0176).
     """
     return _ExampleStamp(
         published=EXAMPLE_TIMESTAMP, updated=EXAMPLE_TIMESTAMP
@@ -143,8 +143,10 @@ def _example_scope(scope: str) -> Iterator[None]:
     """Build one example's objects with derived ids and the fixed clock.
 
     Two sources made the generator write different bytes on every run: the
-    minted object ids, and the wall clock behind every ``published`` and
-    ``updated`` default factory.  Inside this block both are replaced, keyed
+    minted object ids, and the wall clock.  No model reads the clock for a
+    time any more (ADR-0176); every example states :data:`EXAMPLE_TIMESTAMP`,
+    and the clock is still frozen here for any other read.  Inside this block
+    both are replaced, keyed
     on *scope* — the name of the example being written — so that running the
     generator twice over an unchanged tree produces an unchanged tree, and a
     change to one example rewrites only that example's file (#5776).
@@ -237,7 +239,7 @@ _REPORT = as_VulnerabilityReport(
 
 # The one shared object a hand-pinned id and stamp are not enough for: the
 # ``as_VulnerabilityCase`` constructor builds an initial ``CaseStatus``
-# inline, whose own id and ``published`` it draws.  So this single
+# inline, whose own id it draws (its ``published`` is the case's).  So this single
 # construction runs inside a scope.  It is the only import-time use of
 # ``_example_scope``; see that function on why the id source it installs must
 # not be entered while another thread is minting ids.
@@ -318,14 +320,14 @@ def case(fresh_id: bool = False, **kwargs: Any) -> as_VulnerabilityCase:
             name=f"{_VENDOR.name} Case #{_FRESH_CASE_NUMBER}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
-            **kwargs,
+            **{**_example_stamp(), **kwargs},
         )
     if kwargs:
         return as_VulnerabilityCase(
             name=_CASE.name,
             id_=_CASE.id_,
             attributed_to=_CASE.attributed_to,
-            **kwargs,
+            **{**_example_stamp(), **kwargs},
         )
     return _CASE
 

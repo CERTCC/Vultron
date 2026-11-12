@@ -36,7 +36,7 @@ from test.support.act_runner import in_act, run_tree
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -101,6 +101,7 @@ def _proposed_case(
             actor=OTHER_PARTICIPANT_ACTOR,
             to=[CASE_MANAGER_ACTOR],
             id_=f"{case.id_}/embargo_proposals/{d}d",
+            at=authored_at(),
         )
         dl.create(embargo)
         # The participant's Invite, held as the CASE_MANAGER's intake
@@ -133,6 +134,7 @@ def _relay(dl: SqliteDataLayer, case_id: str, embargo_id: str) -> str:
         actor=CASE_MANAGER_ACTOR,
         to=[_RELAY_INVITEE],
         attributed_to=OTHER_PARTICIPANT_ACTOR,
+        at=authored_at(),
     )
     with in_act():
         commit_emitted_activity(
@@ -165,7 +167,10 @@ def _own_proposal_case(
     )
     dl.create(embargo)
     invite_id, _blob = TriggerActivityAdapter(dl).propose_embargo(
-        embargo_id=embargo.id_, case_id=case.id_, actor=CASE_MANAGER_ACTOR
+        embargo_id=embargo.id_,
+        case_id=case.id_,
+        actor=CASE_MANAGER_ACTOR,
+        at=authored_at(),
     )
     propose(case, embargo.id_)
     case.pending_embargo_proposal_index = {embargo.id_: invite_id}

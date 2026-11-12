@@ -17,13 +17,11 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
+from datetime import datetime
 from typing import cast
 
-from pydantic import ValidationError
-
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories.case._named import _named_case
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
@@ -40,11 +38,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def rm_engage_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Join:
     """Build a Join(VulnerabilityCase) — the RA message.
@@ -64,17 +62,18 @@ def rm_engage_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmEngageCaseActivity(object_=_named_case(case), **kwargs)
-    except ValidationError as exc:
-        logger.warning("rm_engage_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "rm_engage_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_engage_case_activity",
+        _RmEngageCaseActivity,
+        at,
+        lambda: {"object_": _named_case(case), **kwargs},
+    )
 
 
 def rm_defer_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Ignore:
     """Build an Ignore(VulnerabilityCase) — the RD message.
@@ -94,17 +93,18 @@ def rm_defer_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmDeferCaseActivity(object_=_named_case(case), **kwargs)
-    except ValidationError as exc:
-        logger.warning("rm_defer_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "rm_defer_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_defer_case_activity",
+        _RmDeferCaseActivity,
+        at,
+        lambda: {"object_": _named_case(case), **kwargs},
+    )
 
 
 def rm_close_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Leave:
     """Build a Leave(VulnerabilityCase) — the RC message.
@@ -123,17 +123,18 @@ def rm_close_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmCloseCaseActivity(object_=_named_case(case), **kwargs)
-    except ValidationError as exc:
-        logger.warning("rm_close_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "rm_close_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_close_case_activity",
+        _RmCloseCaseActivity,
+        at,
+        lambda: {"object_": _named_case(case), **kwargs},
+    )
 
 
 def reject_close_case_activity(
     leave: as_Leave,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RmCloseCaseActivity) — declines an owner close (CM-23-011).
@@ -154,15 +155,9 @@ def reject_close_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmRejectCloseCaseActivity(
-            object_=cast(_RmCloseCaseActivity, leave),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_close_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "reject_close_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "reject_close_case_activity",
+        _RmRejectCloseCaseActivity,
+        at,
+        lambda: {"object_": cast(_RmCloseCaseActivity, leave), **kwargs},
+    )

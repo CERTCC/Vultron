@@ -29,7 +29,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -168,6 +168,7 @@ class TestInviteToEmbargoRoutingGuard:
             actor=self.AUTHOR_ID,
             to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/nostamp",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -204,6 +205,7 @@ class TestInviteToEmbargoRoutingGuard:
             actor=self.AUTHOR_ID,
             to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -244,6 +246,7 @@ class TestInviteToEmbargoRoutingGuard:
             attributed_to=self.AUTHOR_ID,
             to=[self.INVITEE_ID],
             id_=f"{self.CASE_ID}/proposals/1",
+            at=authored_at(),
         )
         # The invitee holds its own replica of the case.
         replica = SqliteDataLayer(
@@ -315,6 +318,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             actor=self.CASE_ACTOR_ID,
             to=[self.COORD_ID],
             id_=f"{self.CASE_ID}/proposals/1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
@@ -326,6 +330,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             actor=self.COORD_ID,
             to=[self.CASE_ACTOR_ID],
             cc=["https://example.org/actors/other-vendor"],
+            at=authored_at(),
         )
 
         return dl, case_actor, case, accept
@@ -472,6 +477,7 @@ class TestRemoveEmbargoRoutingGuard:
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
 
         event = make_payload(
@@ -509,6 +515,7 @@ class TestRemoveEmbargoRoutingGuard:
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
 
         event = make_payload(
@@ -545,6 +552,7 @@ class TestRemoveEmbargoRoutingGuard:
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
 
         event = make_payload(remove_activity, receiving_actor_id=None, at=dl)

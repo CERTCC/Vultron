@@ -36,7 +36,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -88,7 +88,9 @@ def _read(entry: CaseLedgerEntry, sender: str) -> ReadLogEntryReceivedEvent:
     return cast(
         ReadLogEntryReceivedEvent,
         received_event(
-            read_ledger_entry_activity(entry, actor=sender, to=[MANAGER_ID])
+            read_ledger_entry_activity(
+                entry, actor=sender, to=[MANAGER_ID], at=authored_at()
+            )
         ),
     )
 
@@ -139,7 +141,7 @@ def test_factory_names_the_entry_by_reference() -> None:
     entry = _make_entry(0)
 
     activity = read_ledger_entry_activity(
-        entry, actor=SIGNATORY_ID, to=[MANAGER_ID]
+        entry, actor=SIGNATORY_ID, to=[MANAGER_ID], at=authored_at()
     )
 
     assert isinstance(activity, as_Read)
@@ -281,6 +283,7 @@ def test_replica_that_is_not_the_case_manager_refuses_a_read() -> None:
                 entries[0],
                 actor=NON_SIGNATORY_ID,
                 to=[MANAGER_ID, SIGNATORY_ID],
+                at=authored_at(),
             )
         ),
     )

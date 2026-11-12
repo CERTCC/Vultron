@@ -20,7 +20,6 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
 
 
@@ -44,7 +43,7 @@ class EmbargoEvent(CoreObject):
     # fallback duration in the system is the protocol default resolved at case
     # creation (EP-04-019, EP-04-023, #3404), so every construction site states
     # the end it means.  Both fields are read as UTC by ``CoreObject`` (#3784).
-    start_time: datetime | None = Field(default_factory=now_utc)
+    start_time: datetime | None  # pyright: ignore[reportGeneralTypeIssues]
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 

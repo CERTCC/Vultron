@@ -22,6 +22,7 @@ through the trigger-activity adapter reads it the same way.
 import json
 from typing import Any, cast
 
+from test.support.objects import authored_at
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -67,7 +68,7 @@ SEEDED_PROPOSAL_ID = "https://example.org/embargo_proposals/seeded"
 def seeded_activation(embargo: as_EmbargoEvent, **kwargs: Any) -> as_Add:
     """:func:`activate_embargo_activity` naming :data:`SEEDED_PROPOSAL_ID`."""
     return activate_embargo_activity(
-        embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs
+        embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs, at=authored_at()
     )
 
 
@@ -76,7 +77,7 @@ def seeded_proposal_rejection(
 ) -> as_Reject:
     """:func:`reject_embargo_proposal_activity` naming :data:`SEEDED_PROPOSAL_ID`."""
     return reject_embargo_proposal_activity(
-        embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs
+        embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs, at=authored_at()
     )
 
 
@@ -118,5 +119,6 @@ def owner_decision_body(
         case_id=case_id,
         actor=owner,
         to=[manager],
+        at=authored_at(),
     )
     return activity_id, cast(dict[str, Any], json.loads(sealed))

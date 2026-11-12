@@ -36,7 +36,7 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.activities as activities_pkg
 from test.architecture._vocab_example_corpus import activity_examples
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmRejectCloseCaseActivity,
@@ -110,10 +110,12 @@ _SAMPLES = _samples()
 
 def _names_what_it_answers(cls: type[Any], sample: Any) -> bool:
     """Whether *cls*, built from *sample* without ``inReplyTo``, still has one."""
-    body = sample.model_dump(by_alias=True, mode="json", exclude_none=True)
+    # Not ``exclude_none``: a nested object's ``None`` author time is stated,
+    # and a required time left out would be refused (ADR-0176).
+    body = sample.model_dump(by_alias=True, mode="json")
     body.pop("inReplyTo", None)
     try:
-        rebuilt = cls.model_validate(body)
+        rebuilt = cls.model_validate(with_times(cls, body))
     except ValidationError as exc:
         return any(error["loc"] == ("inReplyTo",) for error in exc.errors())
     return rebuilt.in_reply_to is not None

@@ -80,8 +80,9 @@ def recorded_clock_reads() -> Iterator[list[datetime]]:
     """Record every read of the wall clock behind ``now_utc``, in order.
 
     Yields the list the reads are appended to; it starts empty.  A test that
-    asserts it is still empty after a call shows the call moved no
-    recording clock (ADR-0176).
+    asserts it is still empty after a call shows the call read no wall clock
+    through ``now_utc``, the system act clock included; a read of an
+    installed act clock is not seen here (ADR-0176).
     """
     reads: list[datetime] = []
     real = helpers_clock.datetime
@@ -102,10 +103,12 @@ def clock_at(at: datetime) -> Iterator[None]:
     """Hold the clock at *at*, a microsecond per read, while an act at *at*
     runs.
 
-    The act's instant judges each claimed timestamp (CLP-14-007, CLP-14-008),
-    while what the act stamps still reads the clock until #5758, so a test
-    that pins an act away from the wall clock pins the clock with it: one
-    act's instant and its stamps agree, as in production (ADR-0176).
+    The act's instant judges each claimed timestamp (CLP-14-007, CLP-14-008)
+    and is the time every object and activity the act authors carries; no
+    model reads the clock (ADR-0176).  What still reads it is test-side: an
+    object a test builds through ``make`` and a time ``authored_at`` states.
+    A test that pins an act away from the wall clock pins those reads with
+    it, so the act's instant and the times its inputs claim agree.
     """
     with patch.object(
         helpers_clock,

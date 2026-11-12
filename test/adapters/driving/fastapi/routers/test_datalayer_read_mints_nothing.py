@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """A DataLayer GET serves the stored object; it mints no id and reads no clock.
 
-A demo recording (#3901) is a seeded run: :func:`deterministic_run` replaces
-the id source and the clock, so one scenario gives the same ids every time.
-A read that drew from either would shift every id minted after it, so adding
-or removing a poll would change a recording with no change in protocol
-behaviour (#5510).
+A demo recording (#3901) is a seeded run: :func:`deterministic_run` installs
+a seeded id source and a recording act clock, so one scenario gives the same
+ids and times every time.  A read that drew from either, or read the wall
+clock, would shift every id or time after it, so adding or removing a poll
+would change a recording with no change in protocol behaviour (#5510).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -30,8 +30,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from test.support.objects import make
+from test.support.act_clock import recorded_clock_reads
+from test.support.objects import make, with_times
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
     reset_datalayer,
@@ -41,7 +43,7 @@ from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
     _serve_stored,
 )
-from vultron.core.models._helpers import clock as helpers_clock, new_object_id
+from vultron.core.models._helpers import new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -153,13 +155,18 @@ def _draws_after(
     path: str,
     reads: int,
     params: _Params | None = None,
-) -> tuple[list[str], datetime]:
-    """The ids and the time a seeded run mints after *reads* GETs of *path*."""
-    with deterministic_run("datalayer-read"):
+) -> tuple[list[str], datetime, int]:
+    """The ids and the act-clock time a seeded run takes after *reads* GETs
+    of *path*, and how often the GETs read the wall clock."""
+    with deterministic_run("datalayer-read"), recorded_clock_reads() as wall:
         for _ in range(reads):
             response = client.get(path, params=params)
             assert response.status_code == 200, response.text
-        return [new_object_id() for _ in range(3)], helpers_clock.now_utc()
+        return (
+            [new_object_id() for _ in range(3)],
+            act_clock().now(),
+            len(wall),
+        )
 
 
 @pytest.mark.parametrize(("route", "object_type"), _READS)
@@ -301,7 +308,9 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
 
     def rebuild() -> tuple[CaseParticipant, str]:
         with deterministic_run("participant-rebuild"):
-            rebuilt = CaseParticipant.model_validate(dump)
+            rebuilt = CaseParticipant.model_validate(
+                with_times(CaseParticipant, dump)
+            )
             return rebuilt, new_object_id()
 
     def mint_only() -> str:

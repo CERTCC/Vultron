@@ -221,6 +221,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
                 actor_id=self.actor_id,
                 case_id=case_id,
                 peer_id=peer_id,
+                at=self._require_act_instant(),
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).
             # factory.announce_vulnerability_case returns str only;

@@ -38,7 +38,7 @@ from functools import partial
 from typing import cast
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.clock import SystemClock
+from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     queue_due_held_activities,
@@ -114,7 +114,7 @@ async def end_hosted_expired_holds(
         The number of holds ended across every hosted actor.
     """
     total = 0
-    clock = SystemClock()
+    clock = act_clock()
     for actor_id in actor_hosts.hosted_actor_ids():
         try:
             actor_dl = get_datalayer(actor_id)

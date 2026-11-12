@@ -25,7 +25,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
@@ -39,7 +39,7 @@ NAIVE_DT = datetime(2026, 1, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naiv
 @pytest.mark.parametrize("field", TIME_FIELDS)
 def test_core_object_naive_datetime_string_normalized_to_utc(field):
     """Mirror of the wire-branch string test, per time field."""
-    obj = CoreObject.model_validate({field: NAIVE_ISO})
+    obj = CoreObject.model_validate(with_times(CoreObject, {field: NAIVE_ISO}))
     value = getattr(obj, field)
     assert isinstance(value, datetime)
     assert value.tzinfo == UTC
@@ -51,7 +51,7 @@ def test_core_object_naive_datetime_string_normalized_to_utc(field):
 def test_core_object_naive_datetime_object_normalized_to_utc(field):
     """Mirror of the wire-branch datetime-object test, per time field."""
     assert NAIVE_DT.tzinfo is None
-    obj = CoreObject.model_validate({field: NAIVE_DT})
+    obj = CoreObject.model_validate(with_times(CoreObject, {field: NAIVE_DT}))
     value = getattr(obj, field)
     assert isinstance(value, datetime)
     assert value.tzinfo == UTC
@@ -64,7 +64,7 @@ def test_core_object_aware_datetime_keeps_its_offset(field):
     """An aware value is the sender's claim and is carried as received."""
     plus_five = timezone(timedelta(hours=5))
     aware = NAIVE_DT.replace(tzinfo=plus_five)
-    obj = CoreObject.model_validate({field: aware})
+    obj = CoreObject.model_validate(with_times(CoreObject, {field: aware}))
     value = getattr(obj, field)
     assert value == aware
     assert value.utcoffset() == timedelta(hours=5)
@@ -74,7 +74,7 @@ def test_core_object_aware_datetime_keeps_its_offset(field):
 @pytest.mark.parametrize("field", TIME_FIELDS)
 def test_core_object_explicit_none_stays_none(field):
     """Normalisation never fabricates a time: ``None`` stays ``None``."""
-    obj = CoreObject.model_validate({field: None})
+    obj = CoreObject.model_validate(with_times(CoreObject, {field: None}))
     assert getattr(obj, field) is None
 
 

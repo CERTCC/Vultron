@@ -25,8 +25,7 @@ ledger and keep it out of case behavior:
   writing DataLayer method, a write-mode ``open``, a ``Path`` or ``os`` write,
   or an import of a store, ``shutil``, ``sqlite3`` or ``tempfile`` fails the
   second test.  The one admitted write is a command's own output file,
-  listed by ``path::function`` in :data:`OUTPUT_FILE_WRITERS`; there is no
-  command yet, so the list is empty.
+  listed by ``path::function`` in :data:`OUTPUT_FILE_WRITERS`.
 
 Each detector is first run against inline sources holding every shape it must
 catch, so neither test passes by scanning nothing.
@@ -258,8 +257,10 @@ _OS_WRITES = frozenset(
 _WRITE_MODE_CHARS = frozenset("wax+")
 
 #: ``path::function`` of each command that writes its own output file — the one
-#: write CEH-01-002 admits.  Empty until the layer has a command.
-OUTPUT_FILE_WRITERS: frozenset[str] = frozenset()
+#: write CEH-01-002 admits.
+OUTPUT_FILE_WRITERS: frozenset[str] = frozenset(
+    {"vultron/measure/history/cli.py::_write_output"}
+)
 
 
 def _names_module(name: str, modules: frozenset[str]) -> bool:

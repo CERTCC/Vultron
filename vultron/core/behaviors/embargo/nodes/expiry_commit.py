@@ -134,6 +134,7 @@ class _CommitConsentRowDecisionNode(
             case_id=self._case_id,
             change=change,
             cause_id=f"{self._CAUSE}:{self._cause_object_id}",
+            at=self._require_act_instant(),
         )
         try:
             commit_and_apply_embargo_entries(dl, self._case_id, [planned])

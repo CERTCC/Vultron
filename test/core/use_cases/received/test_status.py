@@ -28,7 +28,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -124,6 +124,7 @@ class TestStatusUseCases:
             target=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -207,6 +208,7 @@ class TestStatusUseCases:
                         target=case,
                         actor=_CASE_MANAGER_ID,
                         to=[dl.actor_id],
+                        at=authored_at(),
                     ),
                     at=dl,
                 ),
@@ -264,6 +266,7 @@ class TestStatusUseCases:
             target=case,
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -327,7 +330,11 @@ class TestStatusUseCases:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor=sender_id, to=[receiver_id]
+            bad_status,
+            target=case,
+            actor=sender_id,
+            to=[receiver_id],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
         event = event.model_copy(update={"receiving_actor_id": receiver_id})
@@ -387,6 +394,7 @@ class TestStatusUseCases:
             target=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -463,6 +471,7 @@ class TestStatusUseCases:
             actor=sender_id,
             to=[receiver_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=receiver_id, at=dl)
 
@@ -544,6 +553,7 @@ class TestStatusUseCases:
             actor=sender_id,
             to=[receiver_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=receiver_id, at=dl)
 
@@ -604,6 +614,7 @@ class TestStatusUseCases:
             target=case,
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -669,6 +680,7 @@ class TestStatusUseCases:
             target=participant,
             actor="https://example.org/users/vendor",
             context=case_ps2,
+            at=authored_at(),
         )
         event = make_payload(
             activity,
@@ -741,11 +753,15 @@ class TestStatusUseCases:
         activity = add_status_to_participant_activity(
             make(as_ParticipantStatus, id_=status_id, context=case_b.id_),
             target=as_CaseParticipant.model_validate(
-                target.model_dump(by_alias=True, mode="json")
+                with_times(
+                    as_CaseParticipant,
+                    target.model_dump(by_alias=True, mode="json"),
+                )
             ),
             actor=sender,
             to=[dl.actor_id],
             context=case_b.id_,
+            at=authored_at(),
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(delivered_body(activity, at=dl))
@@ -821,6 +837,7 @@ class TestStatusUseCases:
                         actor=sender,
                         to=[dl.actor_id],
                         context=case.id_,
+                        at=authored_at(),
                     ),
                     receiving_actor_id=dl.actor_id,
                     at=dl,
@@ -877,11 +894,15 @@ class TestStatusUseCases:
                             context=case.id_,
                         ),
                         target=as_CaseParticipant.model_validate(
-                            target.model_dump(by_alias=True, mode="json")
+                            with_times(
+                                as_CaseParticipant,
+                                target.model_dump(by_alias=True, mode="json"),
+                            )
                         ),
                         actor=sender,
                         to=[dl.actor_id],
                         context=case.id_,
+                        at=authored_at(),
                     ),
                     receiving_actor_id=dl.actor_id,
                     at=dl,
@@ -951,6 +972,7 @@ class TestStatusUseCases:
             actor=vendor_id,
             to=[vendor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=None, at=dl)
 
@@ -1138,6 +1160,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -1192,6 +1215,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         with pytest.raises(VultronBTInternalError, match="sync_port"):
@@ -1263,6 +1287,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -1329,6 +1354,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         result = run_in_act(
@@ -1375,6 +1401,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -1436,6 +1463,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=case_actor_id,
             to=[non_case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(
             activity, receiving_actor_id=non_case_actor_id, at=dl
@@ -1499,6 +1527,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=reporter_actor_id,
             to=[case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         # Supply a trigger_activity mock so AutoCloseBranchNode can emit
@@ -1588,6 +1617,7 @@ class TestParticipantStatusLogEntryCascade:
             actor=actor_id,
             to=[_case_actor_id],
             context=case,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=None, at=dl)
         sync_port = SyncActivityAdapter(dl)
@@ -1706,11 +1736,15 @@ class TestParticipantStatusSubjectIsTheSender:
         activity = add_status_to_participant_activity(
             status,
             target=as_CaseParticipant.model_validate(
-                target.model_dump(by_alias=True, mode="json")
+                with_times(
+                    as_CaseParticipant,
+                    target.model_dump(by_alias=True, mode="json"),
+                )
             ),
             actor=sender,
             to=[cast(str, dl.actor_id)],
             context=_SUBJ_CASE_ID,
+            at=authored_at(),
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(delivered_body(activity, at=dl))

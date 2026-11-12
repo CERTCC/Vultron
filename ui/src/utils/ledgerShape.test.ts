@@ -120,6 +120,19 @@ describe('ledgerLineProblems', () => {
     expect(ledgerLineProblems({ ...entry(), duration: 'PT' })).toEqual(['duration: "PT" is not an ISO 8601 duration'])
   })
 
+  it('accepts a language map and refuses a blank tag or text in one', () => {
+    const contentMap = { en: 'A summary', fr: 'Un résumé' }
+    expect(ledgerLineProblems({ ...entry(), contentMap })).toEqual([])
+    expect(ledgerLineProblems({ ...entry(), nameMap: { ' ': 'x', de: '' } })).toEqual([
+      'nameMap: key " " must not be empty',
+      'nameMap.de: must not be empty',
+    ])
+    expect(ledgerLineProblems({ ...entry(), contentMap: null })).toEqual([])
+    expect(ledgerLineProblems({ ...entry(), summaryMap: 'en' })).toEqual([
+      'summaryMap: expected an object, got "en"',
+    ])
+  })
+
   it('refuses a logIndex below the model\'s minimum', () => {
     expect(ledgerLineProblems({ ...entry(), logIndex: -1 })).toEqual([])
     expect(ledgerLineProblems({ ...entry(), logIndex: -5 })).toEqual(['logIndex: number -5 is below the minimum -1'])

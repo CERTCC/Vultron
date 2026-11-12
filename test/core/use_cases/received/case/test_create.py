@@ -40,7 +40,7 @@ from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -147,7 +147,9 @@ def case_with_participant():
 @pytest.fixture()
 def create_activity(case_with_participant):
     case, _ = case_with_participant
-    return create_case_activity(case, actor=_CREATOR_ID, to=[_REPORTER_ID])
+    return create_case_activity(
+        case, actor=_CREATOR_ID, to=[_REPORTER_ID], at=authored_at()
+    )
 
 
 @pytest.fixture()
@@ -232,7 +234,7 @@ class TestBootstrapCreateRejectedBadSender:
     def imposter_activity(self, case_with_participant):
         case, _ = case_with_participant
         return create_case_activity(
-            case, actor=_IMPOSTER_ID, to=[_REPORTER_ID]
+            case, actor=_IMPOSTER_ID, to=[_REPORTER_ID], at=authored_at()
         )
 
     @pytest.fixture()
@@ -320,13 +322,13 @@ class TestAnnounceValidatedByTrustedCaseActorId:
     @pytest.fixture()
     def announce_from_trusted(self, case_obj):
         return announce_vulnerability_case_activity(
-            case_obj, actor=_CASE_ACTOR_ID, to=[_REPORTER_ID]
+            case_obj, actor=_CASE_ACTOR_ID, to=[_REPORTER_ID], at=authored_at()
         )
 
     @pytest.fixture()
     def announce_from_imposter(self, case_obj):
         return announce_vulnerability_case_activity(
-            case_obj, actor=_IMPOSTER_ID, to=[_REPORTER_ID]
+            case_obj, actor=_IMPOSTER_ID, to=[_REPORTER_ID], at=authored_at()
         )
 
     def test_trusted_actor_announce_accepted(
@@ -417,7 +419,9 @@ def _bootstrap_event(
         vulnerability_reports=[_REPORT_ID],
     )
     event = make_payload(
-        create_case_activity(case, actor=creator_id, to=[_REPORTER_ID])
+        create_case_activity(
+            case, actor=creator_id, to=[_REPORTER_ID], at=authored_at()
+        )
     )
     if not isinstance(event, CreateCaseReceivedEvent):
         raise TypeError(f"expected CreateCaseReceivedEvent, got {type(event)}")
@@ -502,6 +506,7 @@ class TestCreateRefusesAnUnheldEmbargo:
                 _case_naming_unheld_embargo(),
                 actor=_CREATOR_ID,
                 to=[_REPORTER_ID],
+                at=authored_at(),
             ),
             at=dl,
         )

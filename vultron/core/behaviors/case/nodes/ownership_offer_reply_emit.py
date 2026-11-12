@@ -107,7 +107,10 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_ownership_transfer(
-            actor=self.actor_id, offer_id=self.offer_id, to=to
+            actor=self.actor_id,
+            offer_id=self.offer_id,
+            to=to,
+            at=self._require_act_instant(),
         )
 
 
@@ -125,7 +128,10 @@ class EmitRejectCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.reject_case_ownership_transfer(
-            actor=self.actor_id, offer_id=self.offer_id, to=to
+            actor=self.actor_id,
+            offer_id=self.offer_id,
+            to=to,
+            at=self._require_act_instant(),
         )
 
 
@@ -154,7 +160,10 @@ class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
                 "CASE_MANAGER", f"(for case '{self.case_id}')"
             )
         return self.trigger_activity_factory.withdraw_case_ownership_transfer(
-            actor=self.actor_id, offer_id=self.offer_id, to=to
+            actor=self.actor_id,
+            offer_id=self.offer_id,
+            to=to,
+            at=self._require_act_instant(),
         )
 
 

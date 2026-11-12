@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -124,7 +124,9 @@ class TestSetNameIfEmpty:
     def test_name_derived_from_the_as2_spelling(self):
         """An AS2 input (``attributedTo``) derives the name the same way."""
         p = CaseParticipant.model_validate(
-            {"attributedTo": _ACTOR, "context": _CONTEXT}
+            with_times(
+                CaseParticipant, {"attributedTo": _ACTOR, "context": _CONTEXT}
+            )
         )
         assert p.name == _ACTOR
 
@@ -167,18 +169,24 @@ class TestInitParticipantStatusIfEmpty:
     def test_seed_reads_the_as2_spellings(self):
         """An AS2 input seeds the same status as its Python-named twin."""
         snake = CaseParticipant.model_validate(
-            {
-                "attributed_to": _ACTOR,
-                "context": _CONTEXT,
-                "case_roles": ["vendor"],
-            }
+            with_times(
+                CaseParticipant,
+                {
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "case_roles": ["vendor"],
+                },
+            )
         )
         camel = CaseParticipant.model_validate(
-            {
-                "attributedTo": _ACTOR,
-                "context": _CONTEXT,
-                "caseRoles": ["vendor"],
-            }
+            with_times(
+                CaseParticipant,
+                {
+                    "attributedTo": _ACTOR,
+                    "context": _CONTEXT,
+                    "caseRoles": ["vendor"],
+                },
+            )
         )
 
         seeded = camel.participant_statuses[0]
@@ -313,11 +321,14 @@ class TestRetiredFinderRole:
             ValidationError, match="'finder' is not a valid CVDRole"
         ) as excinfo:
             CaseParticipant.model_validate(
-                {
-                    "attributed_to": _ACTOR,
-                    "context": _CONTEXT,
-                    "case_roles": ["finder", "reporter"],
-                }
+                with_times(
+                    CaseParticipant,
+                    {
+                        "attributed_to": _ACTOR,
+                        "context": _CONTEXT,
+                        "case_roles": ["finder", "reporter"],
+                    },
+                )
             )
         assert [e["msg"] for e in excinfo.value.errors()] == [
             "Value error, 'finder' is not a valid CVDRole"
@@ -338,7 +349,10 @@ class TestRetiredFinderRole:
             ValidationError, match="'finder' is not a valid CVDRole"
         ) as excinfo:
             ParticipantStatus.model_validate(
-                {"context": _CONTEXT, "cvd_role": cvd_role}
+                with_times(
+                    ParticipantStatus,
+                    {"context": _CONTEXT, "cvd_role": cvd_role},
+                )
             )
         assert [e["msg"] for e in excinfo.value.errors()] == [
             "Value error, 'finder' is not a valid CVDRole"
@@ -486,7 +500,9 @@ class TestConsentFor:
 
     def test_rows_round_trip_serialization(self):
         p = _with_rows(**{_EMBARGO: S.AGREED, _OTHER: S.UNINVITED})
-        restored = CaseParticipant.model_validate(p.model_dump(by_alias=True))
+        restored = CaseParticipant.model_validate(
+            with_times(CaseParticipant, p.model_dump(by_alias=True))
+        )
         assert restored.consent_for(_EMBARGO) is S.AGREED
         assert restored.consent_for(_OTHER) is S.UNINVITED
 
@@ -498,7 +514,14 @@ class TestConsentFor:
         ):
             with pytest.raises(ValidationError):
                 CaseParticipant.model_validate(
-                    {"attributed_to": _ACTOR, "context": _CONTEXT, key: value}
+                    with_times(
+                        CaseParticipant,
+                        {
+                            "attributed_to": _ACTOR,
+                            "context": _CONTEXT,
+                            key: value,
+                        },
+                    )
                 )
 
     def test_status_no_longer_carries_consent(self):

@@ -26,7 +26,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION, received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -73,6 +73,7 @@ def _case_copy(net: LedgerNetwork, to: str = BYSTANDER) -> dict[str, Any]:
         actor=MANAGER,
         context_id=net.case_id,
         to=[to],
+        at=authored_at(),
     )
     body = read_sealed_body_dict(net.stores[MANAGER], activity_id)
     assert body is not None
@@ -229,6 +230,7 @@ def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
         actor=sender,
         to=[MANAGER],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 

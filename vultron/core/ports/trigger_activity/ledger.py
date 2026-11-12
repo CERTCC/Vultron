@@ -20,6 +20,7 @@
 The CASE_MANAGER's own case-file changes, recorded in the case ledger.
 """
 
+from datetime import datetime
 from typing import Protocol
 
 from vultron.core.models.case import VulnerabilityCase
@@ -63,6 +64,8 @@ class TriggerLedgerRecordsPort(Protocol):
         embargo: EmbargoEvent,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Create(EmbargoEvent)`` (``create_embargo_event``), the embargo in full.
 
@@ -79,6 +82,8 @@ class TriggerLedgerRecordsPort(Protocol):
         actor: str,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Add(VulnerabilityReport)[target=VulnerabilityCase]`` (``add_report_to_case``).
 
@@ -94,6 +99,8 @@ class TriggerLedgerRecordsPort(Protocol):
         participant: CaseParticipant,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Add(ParticipantStatus)[target=CaseParticipant]`` (``add_participant_status_to_participant``).
 
@@ -106,6 +113,8 @@ class TriggerLedgerRecordsPort(Protocol):
         status: CaseStatus,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Add(CaseStatus)[target=VulnerabilityCase]`` (``add_case_status_to_case``).
 
@@ -119,6 +128,8 @@ class TriggerLedgerRecordsPort(Protocol):
         participant: CaseParticipant,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
         ...
@@ -129,6 +140,8 @@ class TriggerLedgerRecordsPort(Protocol):
         case_id: str,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Update(CaseParticipant)`` (``update_case_participant``), the record as stored.
 
@@ -143,6 +156,8 @@ class TriggerLedgerRecordsPort(Protocol):
         case: VulnerabilityCase,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
 
@@ -159,6 +174,8 @@ class TriggerLedgerRecordsPort(Protocol):
         row: EmbargoConsent,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Create(EmbargoConsent)`` (``create_embargo_consent``), the new row in full.
 
@@ -173,6 +190,8 @@ class TriggerLedgerRecordsPort(Protocol):
         case_id: str,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Update(EmbargoConsent)`` (``update_embargo_consent``), the changed row in full.
 
@@ -188,6 +207,8 @@ class TriggerLedgerRecordsPort(Protocol):
         case_id: str,
         actor: str,
         object_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
 

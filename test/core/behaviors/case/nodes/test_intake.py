@@ -31,7 +31,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     TEST_SENDER_POSITION,
     extract_stamped,
@@ -395,6 +395,7 @@ def _hold_owing_a_replay(dl: SqliteDataLayer) -> None:
         actor=SENDER,
         to=[RECEIVER],
         id_=ACTIVITY_ID,
+        at=authored_at(),
     )
     hold_deferred(dl, add)
 
@@ -604,7 +605,7 @@ def test_a_sender_guard_refusal_records_nothing():
         attributed_to=stranger,
     )
     activity = add_status_to_participant_activity(
-        status, target=target, actor=stranger, context=case
+        status, target=target, actor=stranger, context=case, at=authored_at()
     )
     event = cast(
         AddParticipantStatusToParticipantReceivedEvent,
