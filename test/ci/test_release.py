@@ -477,7 +477,7 @@ def test_release_state_with_retry_retries_an_error_until_it_answers(
 ) -> None:
     """A lookup error other than "not found" is tried again when the caller
     asks, and the release a later attempt reads is returned."""
-    replies = [
+    replies: list[str | subprocess.CalledProcessError] = [
         subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502\n"),
         '{"isDraft": false, "assets": [{"name": "a.tar.gz"}]}',
     ]
@@ -485,7 +485,7 @@ def test_release_state_with_retry_retries_an_error_until_it_answers(
 
     def gh(*args: str, retry: bool = True) -> str:
         reply = replies.pop(0)
-        if isinstance(reply, Exception):
+        if isinstance(reply, subprocess.CalledProcessError):
             raise reply
         return reply
 
