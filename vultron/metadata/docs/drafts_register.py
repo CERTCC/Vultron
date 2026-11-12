@@ -541,7 +541,8 @@ def render_status_box(register: DraftsRegister) -> str:
         *_table(entry),
         "",
         "The date is the day the entry for this draft was added to the "
-        "[Revision Log](revision-log.md).",
+        "drafts register, which the [Revision Log](revision-log.md) is "
+        "generated from.",
         *tail,
     ]
     lines = [f'!!! note "{title}"', ""]
@@ -565,8 +566,8 @@ def revision_log_faults(
 ) -> list[MetadataLoadError]:
     """Faults in the Revision Log's include lines for the status tables.
 
-    The Revision Log includes each draft's table once, newest first, through
-    :func:`include_line`, and no table of a draft the register lacks; a
+    The Revision Log includes each draft's table once, newest first, under
+    its ``## Draft N`` heading, through :func:`include_line`, and no table of a draft the register lacks; a
     released draft whose table is not included would leave its frozen copy
     unlinked (DOCBW-08-008). The page's prose is hand-written, so a fault here
     is fixed by hand: nothing is written for it.
@@ -577,7 +578,11 @@ def revision_log_faults(
     wanted = {include_line(e.version): e.version for e in register.drafts}
     found: list[tuple[int, str]] = []
     faults: list[MetadataLoadError] = []
+    heading: str | None = None
     for number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("## "):
+            heading = line.removeprefix("## ").strip()
+            continue
         if "include-markdown" not in line or not _DRAFT_INCLUDE.search(line):
             continue
         version = wanted.get(line.strip())
@@ -601,6 +606,17 @@ def revision_log_faults(
                 )
             )
             continue
+        expected = f"Draft {version.removeprefix('draft-')}"
+        if heading != expected:
+            faults.append(
+                MetadataLoadError(
+                    f"{version}'s status table sits under "
+                    f"{'no heading' if heading is None else repr('## ' + heading)}"
+                    f", not '## {expected}' (DOCBW-08-004)",
+                    path=shown,
+                    line=number,
+                )
+            )
         found.append((number, version))
     included = {v for _n, v in found}
     for entry in register.drafts:

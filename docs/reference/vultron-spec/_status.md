@@ -10,7 +10,7 @@
     | Status | Current draft (work in progress), not yet released |
     | Date | 2026-11-06 |
 
-    The date is the day the entry for this draft was added to the [Revision Log](revision-log.md).
+    The date is the day the entry for this draft was added to the drafts register, which the [Revision Log](revision-log.md) is generated from.
     Until a release of the Vultron repository carries the draft, its text can still change.
     To cite this text, name the specification, the version and the date, for example: Vultron Protocol Specification, `draft-1`, 2026-11-06.
     Until a release carries the draft, also name the `publish-YYYY-MM-DD.N` tag in the page footer, which identifies the text you read ([Vultron Release Versioning](../versioning.md)).

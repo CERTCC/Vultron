@@ -451,7 +451,10 @@ def test_the_committed_fragments_match_the_committed_register():
 
 
 def _revision_log(root: Path, *versions: str, raw: str = "") -> None:
-    body = "".join(f"## {v}\n\n{dr.include_line(v)}\n\n" for v in versions)
+    body = "".join(
+        f"## Draft {v.removeprefix('draft-')}\n\n{dr.include_line(v)}\n\n"
+        for v in versions
+    )
     write_generated(root / dr.REVISION_LOG_PATH, f"# Log\n\n{body}{raw}")
 
 
@@ -649,3 +652,23 @@ def test_the_cli_passes_an_agreeing_register(repo, monkeypatch, capsys):
     monkeypatch.setattr(dr, "repo_root", lambda: repo)
     dr.main(["check-releases"])
     assert "matches" in capsys.readouterr().out
+
+
+@pytest.mark.spec("DOCBW-08-004")
+@pytest.mark.parametrize(
+    ("text", "words"),
+    [
+        (
+            "# Log\n\n## Draft 2\n\n" + dr.include_line("draft-1") + "\n",
+            "not '## Draft 1'",
+        ),
+        ("# Log\n\n" + dr.include_line("draft-1") + "\n", "no heading"),
+    ],
+    ids=["wrong-heading", "no-heading"],
+)
+def test_a_table_under_another_drafts_heading_is_named(tmp_path, text, words):
+    register = dr.parse_register(_register(_open(1)), SHOWN)
+    write_generated(tmp_path / dr.REVISION_LOG_PATH, text)
+    (fault,) = dr.revision_log_faults(tmp_path, register)
+    assert words in fault.detail
+    assert fault.line is not None

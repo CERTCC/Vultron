@@ -137,7 +137,7 @@ repos:
         pass_filenames: false
 
       - id: docs-site-sync
-        name: Docs-site landing pages, reading-path boxes, stakeholder fragment, coverage matrix, story graph and known gaps in sync
+        name: Docs-site landing pages, reading-path boxes, stakeholder fragment, coverage matrix, story graph, known gaps and spec draft status in sync
         entry: uv run docs-site --check
         language: system
         # Every input that can make an artifact stale (DF-11-005/008/011/023,
