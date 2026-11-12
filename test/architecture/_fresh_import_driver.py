@@ -68,6 +68,9 @@ left the test both the heaviest process in the container and near its own
 wall-clock ceiling (#5184).  A new child starts as soon as one ends, rather
 than in batches that wait for their slowest member: with batches, a slot sat
 idle whenever one member of a cycle imported slower than the rest (#5932).
+The recheck pass is one more driver with the package loaded, alive beside
+this one while its children run, so it is given one child fewer than this
+driver was.
 """
 
 import json
@@ -360,7 +363,11 @@ def main() -> int:
         for module in walk.order:
             walk.load(module)
         if deferred:
-            walk.failures.update(_recheck(graph, deferred, walk.at_once))
+            # The recheck pass is itself a driver that stays in memory beside
+            # this one, so it takes one child slot (see "How many children at
+            # once" above).
+            at_once = max(1, walk.at_once - 1)
+            walk.failures.update(_recheck(graph, deferred, at_once))
     print(json.dumps(walk.failures))
     return 0
 

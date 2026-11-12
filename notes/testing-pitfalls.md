@@ -405,8 +405,8 @@ worker, it does not stop the other workers spending the container at the same
 time. When the symptom is a wall-clock trip rather than a crash, look for a
 *serial* bottleneck inside the test before widening its ceiling — one
 brand-new interpreter at a time cost `test_every_module_imports_fresh.py` 88 of
-its 110 seconds, and batching that route under the same bound took the whole
-test to 47s.
+its 110 seconds (#5184). Its driver now runs both child routes in one rolling
+pool under the same bound, so a slow child never holds a free slot idle (#5932).
 
 ### A Signal Test's Ready Marker Means the Signal Now Kills
 

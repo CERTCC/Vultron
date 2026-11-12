@@ -273,8 +273,20 @@ def test_a_module_no_cycle_imports_waits_until_the_cycles_are_checked(
     a walk that loaded every module in order ran it first, found the cycle
     loaded, and paid a brand-new interpreter per member.  Loaded last, it
     leaves the cycle to forked children.
+
+    The route alone cannot tell the two orders apart: a deferred cycle is
+    forked on recheck too.  So each module logs its own import, and the
+    loader's line must come after every one of ``a``'s.
     """
-    _write_cycle_package(tmp_path, {"_loader.py": _LOADER})
+    log = tmp_path / "imports.log"
+    record = f"with open({str(log)!r}, 'a') as f:\n    f.write('{{}}\\n')\n"
+    _write_cycle_package(
+        tmp_path,
+        {
+            "_loader.py": record.format("loader") + _LOADER,
+            "a.py": record.format("a") + "from cyc.b import B\n\nA = 1\n",
+        },
+    )
     graph = {
         "cyc": [],
         "cyc._loader": ["cyc"],
@@ -286,6 +298,9 @@ def test_a_module_no_cycle_imports_waits_until_the_cycles_are_checked(
 
     assert set(failures) == {"cyc.b"}
     assert _FRESH_FRAME not in failures["cyc.b"]
+    imports = log.read_text().split()
+    assert imports.count("loader") == 1
+    assert imports[-1] == "loader", imports
 
 
 def test_a_cycle_another_cycles_dependency_loaded_is_forked_on_recheck(
