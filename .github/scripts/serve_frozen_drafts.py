@@ -148,7 +148,16 @@ def serve_one(
 ) -> tuple[str, list[str]]:
     """Serve *entry*; return its summary line and its faults."""
     target = site / SERVE_DIR / entry.version
-    state = release_state(repo, str(entry.release))
+    shown = f"{entry.version} (release {entry.release})"
+    try:
+        state = release_state(repo, str(entry.release), retry=True)
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or "").strip() or str(error)
+        return (
+            f"- `{entry.version}`: **failed**, release `{entry.release}` "
+            "could not be looked up.",
+            [f"{shown}: the release lookup failed: {detail}"],
+        )
     if state is None or state.is_draft:
         target.mkdir(parents=True)
         (target / "index.html").write_text(
@@ -163,7 +172,6 @@ def serve_one(
             "published yet; a placeholder page is served.",
             [],
         )
-    shown = f"{entry.version} (release {entry.release})"
     missing = [
         name for name in frozen_pair(entry.version) if name not in state.assets
     ]
@@ -192,45 +200,61 @@ def serve_one(
     )
 
 
-def serve(register: Register | None, site: Path, repo: str) -> list[str]:
+def serve(
+    register: Register, site: Path, repo: str
+) -> tuple[list[str], list[str]]:
     """Serve every released draft of *register* into *site*.
 
+    Every draft is tried, so one that fails does not hide another's state.
+
     Returns:
-        The run summary's lines, one per released draft.
+        ``(summary lines, faults)``: one line per released draft, and each
+        fault naming the draft that could not be served and its release.
+        The step fails when there is any fault.
 
     Raises:
-        FrozenDraftError: When the build wrote below ``site/spec/``, before
-            anything is served; or, after every draft was tried, naming each
-            draft that could not be served and its release.
+        FrozenDraftError: When the build wrote below ``site/spec/``; nothing
+            is then looked up or served.
     """
     if reserved := reserved_faults(site):
         raise FrozenDraftError(reserved)
-    released = () if register is None else register.released
     lines: list[str] = []
     faults: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
-        for entry in released:
+        for entry in register.released:
             line, found = serve_one(entry, site, repo, Path(tmp))
             lines.append(line)
             faults += found
-    if faults:
-        raise FrozenDraftError(faults)
-    return lines
+    return lines, faults
 
 
-def read_register(path: Path) -> Register | None:
-    """The register in the ``drafts-register show`` JSON at *path*."""
+def read_register(path: Path) -> Register:
+    """The register in the ``drafts-register show`` JSON at *path*.
+
+    Raises:
+        FrozenDraftError: When the JSON is not a register's shape.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
-    if data is None:
-        return None
-    if not isinstance(data, dict):
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("released"), list)
+        or not all(isinstance(entry, dict) for entry in data["released"])
+        or not isinstance(data.get("current"), dict | None)
+    ):
         raise FrozenDraftError([f"{path}: not a drafts register"])
     return Register.from_json(data)
 
 
-def _summary(lines: Sequence[str]) -> str:
-    body = "\n".join(lines) if lines else "No draft is released yet."
-    return f"### Frozen drafts\n\n{body}\n"
+def _summary(
+    lines: Sequence[str],
+    faults: Sequence[str] = (),
+    empty: str = "No draft is released yet.",
+) -> str:
+    """The run summary: one line per released draft, then every fault."""
+    body = "\n".join(lines) if lines else empty
+    title = "Frozen drafts: failed" if faults else "Frozen drafts"
+    tail = "".join(f"- {fault}\n" for fault in faults)
+    return f"### {title}\n\n{body}\n" + (f"\n{tail}" if tail else "")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -243,7 +267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         register = read_register(Path(args.register))
-        lines = serve(register, Path(args.site), args.repo)
+        lines, faults = serve(register, Path(args.site), args.repo)
     except (
         FrozenDraftError,
         subprocess.CalledProcessError,
@@ -259,14 +283,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         for fault in faults:
             print(f"::error::{fault}", file=sys.stderr)
         write_github_file(
-            "GITHUB_STEP_SUMMARY",
-            "### Frozen drafts: failed\n\n"
-            + "".join(f"- {fault}\n" for fault in faults),
+            "GITHUB_STEP_SUMMARY", _summary([], faults, "Nothing was served.")
         )
         return 1
-    print(_summary(lines))
-    write_github_file("GITHUB_STEP_SUMMARY", _summary(lines))
-    return 0
+    for fault in faults:
+        print(f"::error::{fault}", file=sys.stderr)
+    print(_summary(lines, faults))
+    write_github_file("GITHUB_STEP_SUMMARY", _summary(lines, faults))
+    return 1 if faults else 0
 
 
 if __name__ == "__main__":

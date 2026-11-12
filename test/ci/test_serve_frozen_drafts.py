@@ -127,7 +127,28 @@ def _publish_pair(
 
 
 def _serve_into(site: Path, register: Any) -> list[str]:
-    return list(_serve.serve(register, site, "O/R"))
+    """The summary lines of a serve that must succeed; its faults raise."""
+    lines, faults = _serve.serve(register, site, "O/R")
+    if faults:
+        raise _fd.FrozenDraftError(faults)
+    return list(lines)
+
+
+def _register_file(tmp_path: Path, data: object) -> Path:
+    path = tmp_path / "register.json"
+    path.write_text(json.dumps(data))
+    return path
+
+
+def _released_json(*released: tuple[str, str]) -> dict[str, object]:
+    return {
+        "register": dr.REGISTER_PATH,
+        "current": None,
+        "released": [
+            {"version": version, "date": "2026-11-06", "release": release}
+            for version, release in released
+        ],
+    }
 
 
 def _downloads(fake: _Releases) -> int:
@@ -354,7 +375,6 @@ def test_a_register_with_no_released_draft_serves_nothing(
 ) -> None:
     site = _built_site(tmp_path)
     assert _serve_into(site, _register()) == []
-    assert _serve_into(site, None) == []
     assert not (site / "spec").exists()
     assert releases.calls == []
 
@@ -422,13 +442,59 @@ def test_the_command_writes_the_run_summary_and_fails_loudly(
     assert "Frozen drafts: failed" in summary.read_text()
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        None,
+        [1, 2],
+        {"current": None},
+        {"current": None, "released": {"a": 1}},
+        {"current": None, "released": ["draft-1"]},
+        {"current": "draft-2", "released": []},
+    ],
+)
 def test_the_command_refuses_a_register_that_is_not_one(
-    tmp_path: Path, releases: _FlakyReleases
+    tmp_path: Path,
+    releases: _FlakyReleases,
+    monkeypatch: pytest.MonkeyPatch,
+    data: object,
 ) -> None:
-    register = tmp_path / "register.json"
-    register.write_text("[1, 2]")
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    register = _register_file(tmp_path, data)
     argv = ["--register", str(register), "--repo", "O/R"]
     assert _serve.main([*argv, "--site", str(_built_site(tmp_path))]) == 1
+    assert "not a drafts register" in summary.read_text()
+    assert releases.calls == []
+
+
+@pytest.mark.spec("DOCBW-08-032", "DOCBW-08-033")
+def test_a_failed_run_still_names_every_draft_in_the_summary(
+    tmp_path: Path,
+    releases: _FlakyReleases,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One draft fails and another is unpublished: the summary carries the
+    placeholder line, the failure line and the fault."""
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    releases.add(RELEASE, draft=False, assets={})
+    register = _register_file(
+        tmp_path, _released_json(("draft-1", RELEASE), ("draft-2", LATER))
+    )
+    site = _built_site(tmp_path)
+    argv = ["--register", str(register), "--repo", "O/R", "--site", str(site)]
+    assert _serve.main(argv) == 1
+    text = summary.read_text()
+    assert "### Frozen drafts: failed" in text
+    assert f"- `draft-1`: **failed**, release `{RELEASE}` lacks" in text
+    assert (
+        f"- `draft-2`: release `{LATER}` is not published yet; a placeholder "
+        "page is served." in text
+    )
+    assert (
+        f"- draft-1 (release {RELEASE}): the published release lacks" in text
+    )
 
 
 # --- main's register (DOCBW-08-027) ---------------------------------------------------
@@ -598,35 +664,30 @@ def test_a_download_that_keeps_failing_fails_naming_the_draft_and_release(
     assert not (site / "spec").exists()
 
 
-def test_a_release_lookup_that_fails_fails_the_command(
+def test_a_release_lookup_that_fails_is_retried_then_names_the_draft(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Only "release not found" reads as unpublished; any other error is a
-    failure, never a placeholder."""
+    """Only "release not found" reads as unpublished, and it is never
+    retried; any other lookup error is retried, then fails that draft, never
+    a placeholder, and the next draft is still tried."""
+    looked: list[str] = []
 
     def gh(*args: str, retry: bool = True) -> str:
-        raise subprocess.CalledProcessError(
-            1, ["gh", *args], stderr="HTTP 500\n"
-        )
+        looked.append(args[2])
+        stderr = "HTTP 500\n" if args[2] == RELEASE else "release not found\n"
+        raise subprocess.CalledProcessError(1, ["gh", *args], stderr=stderr)
 
     monkeypatch.setattr(_rel, "gh", gh)
-    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-    register = tmp_path / "register.json"
-    register.write_text(
-        json.dumps(
-            {
-                "current": None,
-                "released": [
-                    {
-                        "version": "draft-1",
-                        "date": "2026-11-06",
-                        "release": RELEASE,
-                    }
-                ],
-            }
-        )
-    )
+    monkeypatch.setattr(_rel.time, "sleep", lambda _seconds: None)
+    monkeypatch.setenv("GH_RETRY_ATTEMPTS", "3")
     site = _built_site(tmp_path)
-    argv = ["--register", str(register), "--repo", "O/R", "--site", str(site)]
-    assert _serve.main(argv) == 1
-    assert not (site / "spec").exists()
+    lines, faults = _serve.serve(
+        _register(("draft-1", RELEASE), ("draft-2", LATER)), site, "O/R"
+    )
+    assert looked == [RELEASE, RELEASE, RELEASE, LATER]
+    assert faults == [
+        f"draft-1 (release {RELEASE}): the release lookup failed: HTTP 500"
+    ]
+    assert lines[0].startswith(f"- `draft-1`: **failed**, release `{RELEASE}`")
+    assert not (site / "spec/draft-1").exists()
+    assert (site / "spec/draft-2/index.html").is_file()
