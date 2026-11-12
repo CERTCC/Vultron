@@ -52,8 +52,9 @@ step.  It fails if any name is:
    block, counts too.  The innermost guarded block that writes the name owns
    the record, AND
 3. Read after that block closes, before any guard on it — in the rest of an
-   enclosing block, a ``try``'s ``else`` or ``finally``, the next iteration
-   of an enclosing loop, or after all of them (#5904).
+   enclosing block, a ``try``'s ``else``, handlers or ``finally``, the test
+   and body of an enclosing loop on its next pass, or after all of them
+   (#5904).
 
 A **read** is the name passed to a call — directly, or inside a ``dict``,
 ``list``, ``tuple``, ``set``, star-unpack or f-string argument, because
@@ -70,16 +71,23 @@ deliberate, because ``if x is None: raise`` is the shape the authoring note
 asks for.  That holds at the statement level only: a guard or rebinding inside
 a branch that may not run — an ``if`` or loop body, a ``try`` arm other than
 ``finally``, a ``match`` case, a guarded block's body — decides nothing past
-the branch unless every arm of an exhaustive ``if``/``else`` or ``match``
-decides it, though a read inside it still counts (#5904).  The arm a guard
-proves holds the placeholder — the ``else`` of ``if x:``, the body of
-``if x is None:`` — is not defended by it.  A ``for`` target counts as a
-rebinding although the loop may run zero times: a deliberate leniency, since
-every demo loop over a sentinel name binds it as its target.  Nested function
-and class bodies are a separate scope and are not followed, nor is a
-``lambda`` or a comprehension that binds the name itself: there the name is a
-different variable, and a rebinding — ``:=`` included — ends the sentinel
-rather than reading it.
+the branch, though a read inside it still counts (#5904).  Two exceptions: a
+statement whose arms are exhaustive — an ``if``/``else``, a ``match`` ending
+in an irrefutable case, a ``try`` and its handlers — decides the name when
+every arm either decides it or leaves by ``raise``, ``return``, ``break`` or
+``continue``; and a loop decides it when every ``break`` follows a guard or
+rebinding and its ``else`` arm decides it too, which ``while True:`` never
+reaches.  The arm a guard proves holds the placeholder — the ``else`` of
+``if x:``, the body of ``if x is None:`` — is not defended by it, and a
+comparison proves only what the test it sits in acts on: ``assert x is None``
+and ``if x is None and flag:`` defend nothing, while in
+``x is not None and x.ready`` the later operand is defended.  A ``for`` target
+counts as a rebinding although the loop may run zero times: a deliberate
+leniency, since every demo loop over a sentinel name binds it as its target.
+Nested function and class bodies are a separate scope and are not followed,
+nor is a ``lambda`` or a comprehension that binds the name itself: there the
+name is a different variable, and a rebinding — ``:=`` included — ends the
+sentinel rather than reading it.
 
 Both checks key on the act — the pre-initialisation, the guarded ``with``, the
 read — and not on the name of the function that performs it, so neither loses
@@ -428,19 +436,16 @@ def _falsity_proves_real(test: ast.expr, name: str) -> bool:
     return _comparison_polarity(test, name) is False
 
 
-def _is_guard_test(test: ast.expr, name: str) -> bool:
-    """True when either outcome of *test* proves *name* is not a placeholder."""
-    return _truth_proves_real(test, name) or _falsity_proves_real(test, name)
-
-
 def _guards_name(node: ast.AST, name: str) -> bool:
     """True when *node* defends every read of *name* that follows it.
 
     ``if``, ``while`` and the conditional expression are decided by
-    :func:`_guarded_arms` instead, since one of their arms is not defended.
+    :func:`_guarded_arms` instead, since one of their arms is not defended,
+    and a boolean operator by :func:`_first_event_in_operands`.  A bare
+    comparison is not a guard on its own: what it proves depends on the
+    outcome the enclosing test acts on, so ``assert x is None`` and
+    ``if x is None and flag:`` defend nothing.
     """
-    if _comparison_polarity(node, name) is not None:
-        return True
     if isinstance(node, ast.Assert):
         return _truth_proves_real(node.test, name)
     if isinstance(node, ast.comprehension):
@@ -623,10 +628,43 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
         return "safe", _corpus.node_line(node)
     if _reads_name(node, name):
         return "read", _corpus.node_line(node)
+    return _first_event_in_parts(node, name)
+
+
+def _first_event_in_parts(node: ast.AST, name: str) -> tuple[str, int] | None:
+    """:func:`_first_event` for a node that is not itself an event: its
+    parts, in the order and on the paths they run."""
+    if isinstance(node, ast.BoolOp):
+        return _first_event_in_operands(node, name)
     split = _control_flow_split(node)
     if split is not None:
         return _first_event_across_branches(split, name)
     return _first_event_in(_in_evaluation_order(node), name)
+
+
+def _first_event_in_operands(
+    node: ast.BoolOp, name: str
+) -> tuple[str, int] | None:
+    """:func:`_first_event` for a boolean operator, which short-circuits.
+
+    Only the first operand always runs, so only its rebinding decides for
+    what follows the expression; a later operand's read still counts.  An
+    operand that proves *name* real on the way to the next one — true in an
+    ``and`` chain, false in an ``or`` chain — defends the operands after it,
+    but nothing past the expression, which may have stopped at either outcome.
+    """
+    proves_real = (
+        _truth_proves_real
+        if isinstance(node.op, ast.And)
+        else _falsity_proves_real
+    )
+    for index, value in enumerate(node.values):
+        event = _first_event(value, name)
+        if event is not None and (event[0] == "read" or index == 0):
+            return event
+        if event is not None or proves_real(value, name):
+            return None
+    return None
 
 
 def _first_event_across_branches(
@@ -637,21 +675,116 @@ def _first_event_across_branches(
 
     A branch may not run: its read counts, but its guard or rebinding cannot
     decide for what follows the statement — unless the branches are
-    exhaustive and every one of them decides it.
+    exhaustive and every one of them either decides it or leaves the
+    statement (:func:`_leaves`), or the statement is a loop every exit of
+    which decides it (:func:`_loop_decides`).
     """
     event = _first_event_in(split.head, name)
     if event is not None:
         return event
     decided: list[tuple[str, int]] = []
+    open_branches = 0
     for branch in split.branches:
         event = _first_event_in(branch, name)
         if event is not None and event[0] == "read":
             return event
         if event is not None:
             decided.append(event)
-    if split.exhaustive and len(decided) == len(split.branches):
+        elif not _leaves(branch):
+            open_branches += 1
+    if split.exhaustive and decided and not open_branches:
         return decided[0]
+    if split.loop is not None and _loop_decides(split.loop, name):
+        return "safe", _corpus.node_line(split.loop)
     return _first_event_in(split.tail, name)
+
+
+#: Statements after which nothing more of their statement list runs.
+_EXITS = (ast.Raise, ast.Return, ast.Break, ast.Continue)
+
+
+def _leaves(branch: Sequence[ast.AST]) -> bool:
+    """True when *branch* never runs on past the statement it belongs to.
+
+    It ends in ``raise``, ``return``, ``break`` or ``continue``, or in an
+    ``if``/``else`` both of whose arms do.  An ``except`` arm or a ``match``
+    case is judged by its body.
+    """
+    if not branch:
+        return False
+    last = branch[-1]
+    if isinstance(last, (ast.ExceptHandler, ast.match_case)):
+        return _leaves(last.body)
+    if isinstance(last, ast.If):
+        return _leaves(last.body) and _leaves(last.orelse)
+    return isinstance(last, _EXITS)
+
+
+def _is_endless(loop: ast.While | ast.For | ast.AsyncFor) -> bool:
+    """True for ``while True:``, which ends only through a ``break``."""
+    return (
+        isinstance(loop, ast.While)
+        and isinstance(loop.test, ast.Constant)
+        and bool(loop.test.value)
+    )
+
+
+def _loop_decides(loop: ast.While | ast.For | ast.AsyncFor, name: str) -> bool:
+    """True when every way out of *loop* guards or rebinds *name*.
+
+    A loop ends through a ``break``, after which its ``else`` arm is skipped,
+    or by running out, after which the ``else`` arm runs; ``while True:``
+    never runs out.  So each ``break`` must follow a guard or rebinding on its
+    path, and the ``else`` arm must decide the name or leave, unless the loop
+    is endless.
+    """
+    if not _is_endless(loop):
+        event = _first_event_in(loop.orelse, name)
+        decided = event is not None and event[0] == "safe"
+        if not (decided or _leaves(loop.orelse)):
+            return False
+    return _breaks_are_decided(loop.body, name, False)
+
+
+def _breaks_are_decided(
+    stmts: Sequence[ast.stmt], name: str, decided: bool
+) -> bool:
+    """True when each ``break`` in *stmts* that leaves the enclosing loop is
+    reached only after a guard or rebinding of *name*.
+
+    *decided* says whether one already ran on the way into *stmts*.  A
+    ``break`` inside a nested loop's body leaves that loop instead, so only
+    the nested loop's ``else`` arm is followed.
+    """
+    for stmt in stmts:
+        if isinstance(stmt, ast.Break):
+            return decided
+        for body, entering in _break_paths(stmt, name, decided):
+            if not _breaks_are_decided(body, name, entering):
+                return False
+        if not decided:
+            event = _first_event(stmt, name)
+            decided = event is not None and event[0] == "safe"
+    return True
+
+
+def _break_paths(
+    stmt: ast.stmt, name: str, decided: bool
+) -> list[tuple[list[ast.stmt], bool]]:
+    """Statement lists in *stmt* whose ``break`` leaves the enclosing loop,
+    each with whether *name* is decided on entering it.
+
+    An ``if`` whose test proves the name real on entering an arm decides it
+    there, as ``if offer: break`` does.
+    """
+    if isinstance(stmt, (ast.While, ast.For, ast.AsyncFor)):
+        return [(stmt.orelse, decided)]
+    if isinstance(stmt, ast.If):
+        return [
+            (stmt.body, decided or _truth_proves_real(stmt.test, name)),
+            (stmt.orelse, decided or _falsity_proves_real(stmt.test, name)),
+        ]
+    return [(nested.body, decided) for nested in _nested_blocks(stmt)]
 
 
 def _first_event_in(
@@ -672,13 +805,15 @@ class _Split(NamedTuple):
     always run — while each *branch* may not run at all.  *exhaustive* holds
     when one branch always runs to its end or nothing after the statement
     runs: an ``if`` with an ``else``, a ``match`` ending in an irrefutable
-    case, a ``try`` and its handlers.
+    case, a ``try`` and its handlers.  *loop* is the statement itself when it
+    is a loop, whose exits :func:`_loop_decides` judges instead.
     """
 
     head: Sequence[ast.AST]
     branches: Sequence[Sequence[ast.AST]]
     tail: Sequence[ast.AST] = ()
     exhaustive: bool = False
+    loop: ast.While | ast.For | ast.AsyncFor | None = None
 
 
 def _is_irrefutable(case: ast.match_case) -> bool:
@@ -708,9 +843,11 @@ def _control_flow_split(node: ast.AST) -> _Split | None:
             [node.test], [node.body, node.orelse], (), bool(node.orelse)
         )
     if isinstance(node, ast.While):
-        return _Split([node.test], [node.body, node.orelse])
+        return _Split([node.test], [node.body, node.orelse], loop=node)
     if isinstance(node, (ast.For, ast.AsyncFor)):
-        return _Split([node.iter, node.target], [node.body, node.orelse])
+        return _Split(
+            [node.iter, node.target], [node.body, node.orelse], loop=node
+        )
     if _is_guarded_block(node):
         return _Split(node.items, [node.body])
     if isinstance(node, (ast.Try, ast.TryStar)):
@@ -729,7 +866,7 @@ def _control_flow_split(node: ast.AST) -> _Split | None:
     return None
 
 
-def _first_unguarded_read(stmts: list[ast.stmt], name: str) -> int | None:
+def _first_unguarded_read(stmts: Sequence[ast.AST], name: str) -> int | None:
     """Line of the first unguarded read of *name* in *stmts*, else ``None``.
 
     The first guard, rebinding or read in evaluation order decides: a guard
@@ -750,15 +887,36 @@ class _NestedBlock(NamedTuple):
     """A statement list nested in a compound statement.
 
     *then* is what runs after *body* before the statement's own successors:
-    the ``else`` and ``finally`` arms of a ``try``, and the loop body again
-    for a loop, whose next iteration reads what this one left (#5904).
-    *rebinds* names the statement binds before *body* runs, such as a ``for``
-    target, so none of them holds a placeholder inside it.
+    the ``else`` and ``finally`` arms of a ``try`` — or, when it has
+    handlers, the ``try``'s other arms, since a later failure in the body
+    takes a handler's path — and for a loop its test and body again, whose
+    next pass reads what this one left (#5904).  *rebinds* names the
+    statement binds before *body* runs, such as a ``for`` target, so none of
+    them holds a placeholder inside it.
     """
 
     body: list[ast.stmt]
-    then: list[ast.stmt]
+    then: Sequence[ast.AST]
     rebinds: frozenset[str] = frozenset()
+
+
+def _after_try_body(stmt: ast.Try | ast.TryStar) -> list[ast.AST]:
+    """What runs after a statement in *stmt*'s body: the rest of the body
+    is the caller's, then the ``else`` arm or a handler, then ``finally``.
+
+    With handlers, the choice between ``else`` and a handler is kept as one
+    ``try`` with an empty body, so :func:`_control_flow_split` treats them as
+    the alternative paths they are.
+    """
+    if not stmt.handlers:
+        return [*stmt.orelse, *stmt.finalbody]
+    alternatives = type(stmt)(
+        body=[],
+        handlers=stmt.handlers,
+        orelse=stmt.orelse,
+        finalbody=stmt.finalbody,
+    )
+    return [ast.copy_location(alternatives, stmt)]
 
 
 def _nested_blocks(stmt: ast.stmt) -> Iterator[_NestedBlock]:
@@ -768,18 +926,18 @@ def _nested_blocks(stmt: ast.stmt) -> Iterator[_NestedBlock]:
     if isinstance(stmt, ast.If):
         yield _NestedBlock(stmt.body, [])
         yield _NestedBlock(stmt.orelse, [])
-    elif isinstance(stmt, (ast.While, ast.For, ast.AsyncFor)):
-        target = (
-            frozenset()
-            if isinstance(stmt, ast.While)
-            else frozenset(_store_names(stmt.target))
-        )
+    elif isinstance(stmt, ast.While):
+        again = [stmt.test, *stmt.body, *stmt.orelse]
+        yield _NestedBlock(stmt.body, again)
+        yield _NestedBlock(stmt.orelse, [])
+    elif isinstance(stmt, (ast.For, ast.AsyncFor)):
+        target = frozenset(_store_names(stmt.target))
         yield _NestedBlock(stmt.body, [*stmt.body, *stmt.orelse], target)
         yield _NestedBlock(stmt.orelse, [])
     elif isinstance(stmt, (ast.With, ast.AsyncWith)):
         yield _NestedBlock(stmt.body, [], frozenset(_rebound_names(stmt)))
     elif isinstance(stmt, (ast.Try, ast.TryStar)):
-        yield _NestedBlock(stmt.body, [*stmt.orelse, *stmt.finalbody])
+        yield _NestedBlock(stmt.body, _after_try_body(stmt))
         for handler in stmt.handlers:
             yield _NestedBlock(handler.body, stmt.finalbody)
         yield _NestedBlock(stmt.orelse, stmt.finalbody)
@@ -790,7 +948,9 @@ def _nested_blocks(stmt: ast.stmt) -> Iterator[_NestedBlock]:
 
 
 def _sites_for_block(
-    block: ast.With, sentinels: dict[str, int], following: list[ast.stmt]
+    block: ast.With,
+    sentinels: dict[str, int],
+    following: Sequence[ast.AST],
 ) -> list[SentinelSite]:
     """A site per tracked sentinel the guarded *block* itself assigns."""
     written = _assigned_by_block_itself(block.body) & set(sentinels)
@@ -813,7 +973,7 @@ def _sentinel_sites_in_stmts(stmts: list[ast.stmt]) -> list[SentinelSite]:
 def _scan_for_sentinels(
     stmts: list[ast.stmt],
     inherited: dict[str, int],
-    trailing: Sequence[ast.stmt],
+    trailing: Sequence[ast.AST],
 ) -> tuple[list[SentinelSite], dict[str, int]]:
     """Sites in *stmts*, and the sentinels still held once *stmts* end.
 
@@ -830,7 +990,7 @@ def _scan_for_sentinels(
     sentinels = dict(inherited)
 
     for index, stmt in enumerate(stmts):
-        following = [*stmts[index + 1 :], *trailing]
+        following: list[ast.AST] = [*stmts[index + 1 :], *trailing]
 
         preinit = _placeholder_preinit_names(stmt)
         if preinit:
@@ -2153,11 +2313,31 @@ def example(flag):
             "        if offer is None:\n            raise SystemExit",
             id="rebinding-and-guard",
         ),
+        pytest.param(
+            "if flag:\n        offer = a()\n    else:\n"
+            "        raise RuntimeError(flag)",
+            id="else-raises",
+        ),
+        pytest.param(
+            "try:\n        offer = a()\n    except ValueError:\n        raise",
+            id="handler-re-raises",
+        ),
+        pytest.param(
+            "try:\n        offer = a()\n    except ValueError:\n"
+            "        return None",
+            id="handler-returns",
+        ),
+        pytest.param(
+            "if flag:\n        offer = a()\n    elif other:\n"
+            "        raise RuntimeError(flag)\n    else:\n        return None",
+            id="every-other-arm-leaves",
+        ),
     ],
 )
 def test_every_arm_deciding_the_name_ends_the_sentinel(arms: str):
     """A statement whose every path rebinds or guards the name decides it,
-    as one statement-level rebinding would."""
+    as one statement-level rebinding would; an arm that raises or returns
+    reaches nothing after the statement, so it need not decide it."""
     src = f"""\
 def example(flag, other):
     offer = None
@@ -2186,6 +2366,15 @@ def example(flag, other):
             "match flag:\n        case 1:\n            offer = a()\n"
             "        case _ if other:\n            offer = b()",
             id="match-guarded-wildcard",
+        ),
+        pytest.param(
+            "if flag:\n        offer = a()\n    else:\n        log(flag)",
+            id="other-arm-runs-on",
+        ),
+        pytest.param(
+            "if flag:\n        raise RuntimeError(flag)\n"
+            "    else:\n        return None",
+            id="no-arm-decides",
         ),
     ],
 )
@@ -2230,6 +2419,37 @@ def example(flag, other):
             True,
             id="ternary-else",
         ),
+        pytest.param(
+            "if offer is None and flag:\n        log(offer)",
+            True,
+            id="comparison-inside-an-and-test",
+        ),
+        pytest.param(
+            "assert offer is None\n    log(offer)",
+            True,
+            id="assert-is-none",
+        ),
+        pytest.param(
+            "ready = offer is not None and flag\n    log(offer)",
+            True,
+            id="comparison-outside-a-test",
+        ),
+        pytest.param(
+            "ready = offer is not None and offer.ready",
+            False,
+            id="and-chain-defends-its-later-operand",
+        ),
+        pytest.param(
+            "ready = offer is None or offer.ready",
+            False,
+            id="or-chain-defends-its-later-operand",
+        ),
+        pytest.param(
+            "match flag:\n        case 1 if offer is None:\n"
+            "            log(offer)",
+            True,
+            id="case-guard-is-none",
+        ),
     ],
 )
 def test_the_arm_a_guard_proves_placeholder_is_undefended(
@@ -2260,6 +2480,112 @@ def example(kind):
             acknowledge(offer)
 """
     assert _sentinel_leaks(src) == []
+
+
+@pytest.mark.parametrize(
+    ("loop", "leaks"),
+    [
+        pytest.param(
+            "for item in items:\n        if item:\n            offer = item\n"
+            "            break\n    else:\n        offer = default()",
+            False,
+            id="for-else-every-break-after-a-rebinding",
+        ),
+        pytest.param(
+            "while True:\n        offer = poll()\n        if offer:\n"
+            "            break",
+            False,
+            id="endless-poll-loop",
+        ),
+        pytest.param(
+            "while True:\n        if offer:\n            break\n"
+            "        offer = poll()",
+            False,
+            id="break-under-a-guard",
+        ),
+        pytest.param(
+            "for item in items:\n        if item:\n            break\n"
+            "        offer = item\n    else:\n        offer = default()",
+            True,
+            id="break-before-the-rebinding",
+        ),
+        pytest.param(
+            "for item in items:\n        offer = item",
+            True,
+            id="loop-that-can-run-zero-times",
+        ),
+        pytest.param(
+            "while flag:\n        offer = poll()\n        if offer:\n"
+            "            break",
+            True,
+            id="loop-that-can-run-out",
+        ),
+    ],
+)
+def test_a_loop_decides_the_name_only_if_every_exit_does(
+    loop: str, leaks: bool
+):
+    """A loop is left through a ``break`` or by running out into its
+    ``else`` arm; ``while True:`` never runs out.  Only when every one of
+    those exits rebinds or guards the name does the loop decide it."""
+    src = f"""\
+def example(flag, items):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {loop}
+    acknowledge(offer)
+"""
+    assert bool(_sentinel_leaks(src)) is leaks, src
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        pytest.param(
+            "while not done(offer):\n"
+            '        with demo_step("Step 1: produce"):\n'
+            "            offer = submit_report()",
+            id="while-test-on-the-next-pass",
+        ),
+        pytest.param(
+            'try:\n        with demo_step("Step 1: produce"):\n'
+            "            offer = submit_report()\n        follow_up()\n"
+            "    except ValueError:\n        acknowledge(offer)",
+            id="handler-after-a-later-failure",
+        ),
+    ],
+)
+def test_read_the_producers_failure_reaches_later_in_the_statement(
+    shape: str,
+):
+    """A ``while`` test runs again after its body, and a failure later in a
+    ``try`` body hands the placeholder to a handler."""
+    src = f"""\
+def example():
+    offer = None
+    {shape}
+"""
+    assert [name for name, _ in _sentinel_leaks(src)] == ["offer"], src
+
+
+def test_else_and_a_handler_are_alternatives_after_a_try_body():
+    """After a producer in a ``try`` body, ``else`` and each handler are
+    alternative paths: a handler's rebinding does not defend ``else``."""
+    src = """\
+def example():
+    offer = None
+    try:
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+    except ValueError:
+        offer = fallback()
+    else:
+        offer = confirmed(offer.id_)
+    acknowledge(offer)
+"""
+    assert [read for _, read in _sentinel_leaks(src)] == [9]
 
 
 @pytest.mark.parametrize(
