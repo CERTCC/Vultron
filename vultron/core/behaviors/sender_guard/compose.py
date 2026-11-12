@@ -116,17 +116,6 @@ def _or_pass(
     return py_trees.behaviours.Success(name=f"{name}AnyActor")
 
 
-def _ledger_guard(rule: SenderRule) -> py_trees.behaviour.Behaviour | None:
-    """The guard *rule* requires for a ledger activity's case."""
-    if rule.at_case_manager != rule.at_participant:
-        raise VultronWiringError(
-            "compose_sender_guard: a ledger activity's case is read at run"
-            " time, so its rule must state the same kinds at the CASE_MANAGER"
-            " and at a participant (HP-01-024)"
-        )
-    return _any_of(rule.at_case_manager, _ledger_kind_node, "a case actor")
-
-
 def compose_sender_guard(
     rule: SenderRule,
     ctx: SenderContext,
@@ -161,8 +150,9 @@ def compose_sender_guard(
         rule: The use case's declared sender rule.
         ctx: The sender and the records its kinds are checked against, or a
             :class:`LedgerActivityContext` for an activity whose case the
-            ledger entry it carries names.  A ledger activity's rule has one
-            in-case side, read at run time on every path (HP-01-024).
+            ledger entry it carries names.  A ledger activity's sides are
+            picked by the path like any other's; their nodes read the case
+            from the entry at run time (HP-01-024, HP-01-036).
         path_stage: The tree's path door stage.  A tree with no stage can
             compose only a rule whose three sides name the same kinds, since
             nothing then says which path the receiver is on.
@@ -204,8 +194,8 @@ _RECEIVER: dict[ReceivedPath, str] = {
         "a participant other than the CASE_MANAGER"
     ),
     ReceivedPath.NO_CASE: (
-        "a receiver that holds no case for it (the activity names no case"
-        " this store holds)"
+        "a receiver with no case to act on for this activity (the tree names"
+        " no case this store holds)"
     ),
 }
 _IN_CASE = frozenset(
@@ -250,10 +240,13 @@ def _compose(
     path_stage: ReceivedPathNode | None = None,
 ) -> py_trees.behaviour.Behaviour | None:
     """The guard :func:`compose_sender_guard` returns, before it is marked."""
-    if isinstance(ctx, LedgerActivityContext):
-        return _ledger_guard(rule)
 
+    # A ledger activity's nodes read the sender and the case from the entry
+    # it carries; every other context's nodes are bound to the records it
+    # names.  Either way the path the stage resolved picks the side.
     def node_for(kind: SenderEntitlementKind) -> py_trees.behaviour.Behaviour:
+        if isinstance(ctx, LedgerActivityContext):
+            return _ledger_kind_node(kind)
         return _kind_node(kind, ctx)
 
     sides = _sides(rule, path_stage)

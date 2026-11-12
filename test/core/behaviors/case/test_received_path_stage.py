@@ -561,6 +561,29 @@ def test_a_run_time_resolved_case_may_declare_the_no_case_path_alone() -> None:
     assert any(isinstance(n, NoSenderAdmittedNode) for n in tree.door_guards)
 
 
+@pytest.mark.spec("HP-01-036")
+def test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender() -> (
+    None
+):
+    """The delivery passes the stage on the no-case path whatever case
+    ``case_resolution`` later finds, so an ``outside_case`` side that admits
+    a sender would judge an in-case receiver on that side."""
+    with pytest.raises(VultronWiringError, match="outside_case side"):
+        create_receive_activity_tree(
+            name="RunTimeCaseBT",
+            case_id=None,
+            precondition_guards=[],
+            paths={ReceivedPath.NO_CASE},
+            sender_rule=SenderRule.before_case(
+                SenderEntitlementKind.CASE_OWNER
+            ),
+            sender_context=SenderCheckContext(
+                sender_id=OWNER_ID, case_id=None
+            ),
+            case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+        )
+
+
 @pytest.mark.spec("HP-01-035")
 def test_declaring_paths_on_a_run_time_resolved_case_is_a_wiring_error() -> (
     None
@@ -624,11 +647,10 @@ def test_a_two_sided_rule_without_a_path_stage_is_a_wiring_error() -> None:
 
     A two-sided rule asks exactly the question the path stage answers, so a
     tree that declares one without declaring its paths would ask it twice.
-    The composer refuses it rather than reading the roster in the stage's
-    place.
+    The factory refuses it rather than have the guard read the roster in
+    the stage's place; the composer's own refusal is
+    ``test_sender_guard.py::test_a_rule_whose_sides_differ_needs_a_path_stage``.
     """
-    with pytest.raises(VultronWiringError, match="HP-01-036"):
-        compose_sender_guard(_RULE, _CONTEXT)
     with pytest.raises(VultronWiringError, match="HP-01-036"):
         create_receive_activity_tree(
             name="UndeclaredTwoSidedBT",

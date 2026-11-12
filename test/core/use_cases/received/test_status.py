@@ -852,7 +852,10 @@ class TestStatusUseCases:
         # With no case for the status the tree declares the no-case path
         # alone, and the sender guard's empty outside-case side refuses
         # every sender there, at a door (HP-01-036, HP-08-014).
-        assert "a receiver that holds no case for it" in result.reason
+        assert (
+            "a receiver with no case to act on for this activity"
+            in result.reason
+        )
         assert "REFUSED" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
@@ -918,7 +921,10 @@ class TestStatusUseCases:
         # With no case for the status the tree declares the no-case path
         # alone, and the sender guard's empty outside-case side refuses
         # every sender there, at a door (HP-01-036, HP-08-014).
-        assert "a receiver that holds no case for it" in result.reason
+        assert (
+            "a receiver with no case to act on for this activity"
+            in result.reason
+        )
         assert "REFUSED" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(target.id_))

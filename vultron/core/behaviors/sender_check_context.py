@@ -241,11 +241,10 @@ class LedgerActivityContext:
     A ledger activity's tree has no case at build time, so the guard's nodes
     read the sender and the case from the activity on the blackboard when the
     tree runs: ``CASE_MANAGER`` from the announced entry (SYNC-13-006), and
-    ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The guard is
-    composed for the activity's case on every path, never for the rule's
-    ``outside_case`` side, and the rule must state the same kinds at the
-    CASE_MANAGER and at a participant (HP-01-024): its one in-case side is
-    the whole guard, so no path picks a side for it.
+    ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The path the
+    stage resolved picks the rule's side, as for any context (HP-01-036), so
+    a tree that declares the no-case path judges the rule's
+    ``outside_case`` side there.
     """
 
 

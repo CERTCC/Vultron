@@ -403,9 +403,11 @@ nothing is written before the last one admits the message (ADR-0154).
    `path_stage_case_id()` in `case/receive_stages/doors.py`). The last step is
    load-bearing: a tree that commits nothing passes `case_id=None`, and
    without it every such delivery would read the no-case path. A tree whose
-   case only `case_resolution` resolves cannot declare paths at all — the
-   factory raises `VultronWiringError`, because `case_resolution` runs after
-   the path stage, which would then read the no-case path every time.
+   case only `case_resolution` resolves may declare the no-case path alone,
+   and only with a rule whose `outside_case` side admits no sender; any other
+   declaration raises `VultronWiringError`, because `case_resolution` runs
+   after the path stage, which then reads the no-case path every time
+   (`received_path_stage()`, HP-01-036).
 
    `has_role()` (`core/participants/role_predicate.py`) is the only sanctioned
    way to ask whether an actor holds a role in a case: it reads the roster

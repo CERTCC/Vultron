@@ -324,7 +324,7 @@ def test_case_rule_refuses_a_receiver_on_the_no_case_path() -> None:
     result = _store(MANAGER).run(guard)
     assert result.status == Status.FAILURE
     reason = BTBridge.get_failure_reason(guard)
-    assert "a receiver that holds no case for it" in reason
+    assert "a receiver with no case to act on for this activity" in reason
 
 
 def test_invitee_without_an_invite_id_is_a_wiring_error() -> None:
@@ -468,7 +468,7 @@ def test_paths_whose_sides_agree_share_one_arm() -> None:
     )
     assert result.status is Status.FAILURE
     reason = BTBridge.get_failure_reason(held_none)
-    assert "the CASE_MANAGER or a receiver that holds no case" in reason
+    assert "the CASE_MANAGER or a receiver with no case to act on" in reason
 
     replica = _store(REPLICA).run(
         guard_tree(guard(), CASE_ID), activity=activity
@@ -1386,10 +1386,31 @@ def test_ledger_context_refuses_a_kind_that_needs_the_case_at_build_time() -> (
         )
 
 
-@pytest.mark.spec("HP-01-008")
-def test_ledger_context_refuses_a_two_sided_rule() -> None:
-    with pytest.raises(VultronWiringError, match="same kinds"):
-        staged_sender_guard(TWO_SIDED, LedgerActivityContext())
+@pytest.mark.spec("HP-01-036", "SYNC-15-001")
+def test_a_ledger_rule_takes_its_side_from_the_path() -> None:
+    """A ledger activity's side is picked by the path like any other's: an
+    ``in_case`` rule on a tree declaring the no-case path judges its empty
+    ``outside_case`` side there, and ``on_every_path`` names one side for
+    every path, so it composes no arm (HP-01-036)."""
+    every_path = frozenset(ReceivedPath)
+    in_case = staged_sender_guard(
+        SenderRule.in_case(Kind.CASE_MANAGER),
+        LedgerActivityContext(),
+        every_path,
+    )
+    assert in_case is not None
+    assert [type(n) for n in in_case.iterate()].count(
+        NoSenderAdmittedNode
+    ) == 1
+    assert any(
+        isinstance(n, SenderIsCaseManagerNode) for n in in_case.iterate()
+    )
+    every = staged_sender_guard(
+        SenderRule.on_every_path(Kind.CASE_MANAGER),
+        LedgerActivityContext(),
+        every_path,
+    )
+    assert isinstance(every, SenderIsCaseManagerNode)
 
 
 def test_factory_rejects_a_ledger_context_on_a_tree_with_a_case() -> None:

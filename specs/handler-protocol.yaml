@@ -795,7 +795,9 @@ groups:
       `::test_the_declared_tree_asks_the_role_question_once` asserts the stage is the
       only door node that reads the role, and
       `::test_a_two_sided_rule_without_a_path_stage_is_a_wiring_error` asserts the
-      composer refuses a rule whose sides differ when no stage is given.
+      factory refuses a rule whose sides differ on a tree that declares no paths,
+      and `test/core/behaviors/test_sender_guard.py::test_a_rule_whose_sides_differ_needs_a_path_stage`
+      that the composer does when no stage is given.
       `test/core/behaviors/test_sender_guard.py::test_the_resolved_path_picks_the_side`
       runs the stage ahead of the guard and asserts the side judged for a context
       naming no case, a case the receiver does not hold, and a case it manages or

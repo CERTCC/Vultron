@@ -313,9 +313,11 @@ def add_participant_status_tree(
         # adopted status to a participant replica, which archives it and
         # takes the state from the ledger (RSH-08-003, PCR-03-001,
         # HP-01-038).
-        # With no record of the target participant the receiver names no
-        # case for the status, and the status names none either, so the
-        # stage reads the no-case path: the tree declares that path alone,
+        # With no record of the target participant the tree names no case,
+        # and the stage finds none in the activity either: it reads the
+        # object's ``case_id``, which a ParticipantStatus does not carry (its
+        # ``context`` is never read for the case, HP-08-008).  So the stage
+        # reads the no-case path, and the tree declares that path alone,
         # whose empty side refuses every sender (HP-01-036, HP-08-014).  This
         # moves no deferral HP-01-041 governs: the inbox delivered the Add
         # because it knows the case, and only the participant record is

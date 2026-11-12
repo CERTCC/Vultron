@@ -222,6 +222,7 @@ def received_path_stage(
     paths: Collection[ReceivedPath] | None,
     *,
     case_resolved_at_run_time: bool = False,
+    sender_rule: SenderRule | None = None,
 ) -> ReceivedPathNode | None:
     """The path door stage of a tree that declared its paths (ADR-0153).
 
@@ -250,8 +251,11 @@ def received_path_stage(
             names the case, so it reads the role only in a case the activity
             itself names, and an in-case declaration would refuse every other
             delivery at the stage.  Declaring the no-case path alone is
-            admitted: ``case_resolution`` then decides the delivery, and the
-            guard judges the rule's ``outside_case`` side (HP-01-036).
+            admitted only when *sender_rule*'s ``outside_case`` side admits
+            no sender: the delivery then passes the stage on the no-case
+            path and the guard refuses it (HP-01-036), so a case that
+            ``case_resolution`` finds later can never admit a sender on the
+            outside-case side while the receiver sits in that case.
     """
     if paths is None:
         return None
@@ -271,6 +275,18 @@ def received_path_stage(
             " whose case only that stage resolves has no case to read the"
             " receiver's role in; name the case at build time or declare the"
             " no-case path alone (ADR-0153, HP-01-025)"
+        )
+    if (
+        case_id is None
+        and case_resolved_at_run_time
+        and sender_rule is not None
+        and sender_rule.outside_case
+    ):
+        raise VultronWiringError(
+            f"{where}: a tree whose case only case_resolution resolves passes"
+            " the stage on the no-case path, so its rule's outside_case side"
+            " must admit no sender, or a case found later would be judged on"
+            " that side (HP-01-036, HP-01-025)"
         )
     return ReceivedPathNode(declared=declared, label=name)
 

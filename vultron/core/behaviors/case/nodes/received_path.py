@@ -292,8 +292,8 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
 
     The sender guard's side arms (``at_case_manager``, ``at_participant``,
     ``outside_case``) are selected with this, so the role question is asked
-    once, by the path stage (HP-01-036, HP-01-008).  It reads the answer the stage already
-    recorded and touches neither the store nor the blackboard.
+    once, by the path stage (HP-01-036, HP-01-008).  It reads the answer the
+    stage already recorded and touches neither the store nor the blackboard.
 
     Returns:
         SUCCESS when the stage resolved *path*; FAILURE for any other path,
@@ -340,7 +340,7 @@ def on_any_of_paths(
     if len(ordered) == 1:
         return CheckReceivedPathNode(stage, ordered[0])
     return py_trees.composites.Selector(
-        name="OnAnyBranchPath",
+        name="OnAnyOfPaths",
         memory=False,
         children=[CheckReceivedPathNode(stage, path) for path in ordered],
     )
