@@ -76,3 +76,133 @@
     align-items: center;
   }
 }
+
+/*
+ * Reading-path box (DF-11-015, DF-11-034). Rendered by `docs-site --write`
+ * into docs/start/_paths/, never written by an author (SG-45). The box is an
+ * admonition so its title and stage line keep their meaning without this
+ * stylesheet; these rules restyle it as a strip with a rule on top, a link
+ * back to the path's start page, and two tiles: the pages before this one and
+ * the pages after it. A tile is shaded with a faint tint of the brand red, so
+ * it reads as a button above the white page without becoming a solid block.
+ */
+.md-typeset .admonition.reading-path {
+  border: none;
+  border-top: .1rem solid var(--md-primary-fg-color);
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+  font-size: .72rem;
+}
+.md-typeset .reading-path > .admonition-title {
+  background: none;
+  margin: 0;
+  padding: .6em 0 .2em 1.6rem;
+  font-weight: 700;
+}
+.md-typeset .reading-path > .admonition-title::before {
+  left: 0;
+  background-color: var(--md-primary-fg-color);
+}
+.md-typeset .reading-path-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 1em;
+  color: var(--md-default-fg-color--light);
+}
+.md-typeset .reading-path-where > p {
+  margin: 0;
+}
+.md-typeset .reading-path-start a::before {
+  content: "↺ ";
+}
+.md-typeset .reading-path-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .8em;
+  margin: .6em 0 1em;
+}
+.md-typeset .reading-path-tile {
+  position: relative;
+  padding: .7em 1em;
+  border-radius: .5em;
+  background: color-mix(in srgb, var(--md-primary-fg-color) 5%, var(--md-default-bg-color));
+  border: 1px solid color-mix(in srgb, var(--md-primary-fg-color) 22%, var(--md-default-bg-color));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 .15em .5em rgba(0, 0, 0, .05);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .15s;
+}
+.md-typeset .reading-path-next {
+  grid-column: 2;
+  text-align: right;
+}
+.md-typeset .reading-path-empty {
+  background: none;
+  box-shadow: none;
+  border-style: dashed;
+  opacity: .4;
+}
+.md-typeset .reading-path-direction {
+  margin: 0 0 .2em;
+  font-size: .8em;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--md-primary-fg-color);
+}
+.md-typeset .reading-path-previous .reading-path-direction::before {
+  content: "← ";
+}
+.md-typeset .reading-path-next .reading-path-direction::after {
+  content: " →";
+}
+.md-typeset .reading-path-tile ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.md-typeset .reading-path-tile li {
+  margin: .15em 0;
+}
+.md-typeset .reading-path-tile li::before {
+  content: none;
+}
+/* A one-link tile is clickable as a whole: the link's box covers the tile. */
+.md-typeset .reading-path-tile:has(li:only-child) a {
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.md-typeset .reading-path-tile:has(li:only-child) a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.md-typeset .reading-path-tile:has(li:only-child):hover,
+.md-typeset .reading-path-tile:has(li:only-child):focus-within {
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, var(--md-default-bg-color));
+  border-color: color-mix(in srgb, var(--md-primary-fg-color) 50%, var(--md-default-bg-color));
+  box-shadow: 0 .2em .8em rgba(0, 0, 0, .12);
+  transform: translateY(-1px);
+}
+/* A tile of several pages: each link shades on its own. */
+.md-typeset .reading-path-tile:has(li + li) a {
+  display: block;
+  padding: .15em .4em;
+  border-radius: .3em;
+}
+.md-typeset .reading-path-tile:has(li + li) a:hover {
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, var(--md-default-bg-color));
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .reading-path-tiles {
+    grid-template-columns: 1fr;
+  }
+  .md-typeset .reading-path-next {
+    grid-column: 1;
+  }
+  .md-typeset .reading-path-empty {
+    display: none;
+  }
+}

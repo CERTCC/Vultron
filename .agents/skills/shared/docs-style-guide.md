@@ -407,9 +407,12 @@ plain-prose alternative.
 annotations, card grids, grids (the plain grid and the two-column grid), buttons,
 and the page-type badge. The theme provides all of them but two: the
 two-column grid's class lives in `docs/stylesheets/components.css`, and the
-badge is rendered by a template (SG-51). Do not add inline `style=` attributes,
-hand-built HTML layouts, or a component class outside those stylesheets. A new
-component needs a rule in this section before any page uses it. Two components
+badge is rendered by a template (SG-51). The reading-path box is outside the set
+an author chooses from: `docs-site --write` renders it into a fragment the author
+includes (DF-11-023), and its classes also live in `components.css`. Do not add
+inline `style=` attributes, hand-built HTML layouts, or a component class outside
+those stylesheets. A new component needs a rule in this section before any page
+uses it. Two components
 are rejected and are not to be added: a "who this page is for" strip, because
 naming the page's audience exposes its stakeholder type (DF-11-009), and an "in
 brief" summary box, because the orientation paragraph already does that job

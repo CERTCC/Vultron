@@ -12,7 +12,7 @@ from vultron.metadata.docs.page_schema import (
     THREAD_KEY,
 )
 from vultron.metadata.docs.threads.check import StartThread, _entry, position
-from vultron.metadata.docs.threads.listing import _link, _link_text
+from vultron.metadata.docs.threads.listing import _link
 
 #: ``docs/``-relative directory of the committed box fragments, one
 #: subdirectory per thread (DF-11-023). Listed in ``exclude_docs``: a fragment
@@ -21,13 +21,18 @@ from vultron.metadata.docs.threads.listing import _link, _link_text
 BOX_DIR = f"{START_DIR}/_paths"
 
 
-#: Shown in a box cell whose set is empty: the first page has no previous
-#: set, the last no next set, and a start page no previous set (DF-11-034).
-EMPTY_CELL = "---"
+#: The two tiles of a box, in order: the pages before this one and the pages
+#: after it. Each value is the tile's direction label (DF-11-034).
+BOX_TILES = {"previous": "Previous", "next": "Next"}
 
 
-#: The box's column headings, in order (DF-11-015).
-BOX_COLUMNS = ("Start", "Previous", "Current", "Next")
+#: Added to a tile's direction label when its set holds more than one page,
+#: so the reader knows the pages are alternatives, not a sequence.
+CHOOSE_SUFFIX = " — pick one"
+
+
+#: The text of the link back to the thread's start page (DF-11-034).
+START_LINK_TEXT = "Path overview"
 
 
 #: The class every rendered box carries, beside Material's admonition
@@ -102,19 +107,27 @@ def _box_marker(thread: StartThread) -> str:
     )
 
 
-def _text_cell(text: str) -> list[str]:
-    return ["", f"- {_link_text(text)}", ""]
+def _tile(side: str, links: list[str]) -> list[str]:
+    """One tile: a direction label over its list of links (DF-11-034).
 
-
-def _link_cell(links: list[str]) -> list[str]:
-    return ["", *(f"- {link}" for link in links), ""]
-
-
-def _cell(body: list[str] | None) -> str:
-    """One ``<td>``: Markdown-processed when it holds a list (``md_in_html``)."""
-    if body is None:
-        return f"<td>{EMPTY_CELL}</td>"
-    return "\n".join(['<td markdown="block">', *body, "</td>"])
+    An empty set gives an empty tile, kept so the next tile stays on the right.
+    The tile is a ``md_in_html`` block, so MkDocs rewrites and validates each
+    link, and the stylesheet makes a one-link tile clickable as a whole.
+    """
+    classes = f"{BOX_CLASS}-tile {BOX_CLASS}-{side}"
+    if not links:
+        return [
+            f'<div class="{classes} {BOX_CLASS}-empty" aria-hidden="true"></div>'
+        ]
+    label = BOX_TILES[side] + (CHOOSE_SUFFIX if len(links) > 1 else "")
+    return [
+        f'<div class="{classes}" markdown>',
+        f'<p class="{BOX_CLASS}-direction">{label}</p>',
+        "",
+        *(f"- {link}" for link in links),
+        "",
+        "</div>",
+    ]
 
 
 def render_box(
@@ -126,22 +139,20 @@ def render_box(
     for every reader: no ``stakeholder_type``, no level, no script, no query
     string (DF-11-009, DF-11-035). A member's box names its stage, as a page
     or, for a ``page.md#anchor`` member, a section (DF-11-022); a start page's
-    names none. The table is HTML whose cells ``md_in_html`` processes as
-    Markdown, so MkDocs rewrites and validates every link in it; links are
-    relative to the fragment, and ``include-markdown`` rewrites them for the
-    page that includes it.
+    names none. A member's box links back to the start page; a start page's
+    has no such link, being that page. Two tiles follow, the pages before and
+    the pages after (DF-11-034). The tiles are HTML blocks that ``md_in_html``
+    processes as Markdown, so MkDocs rewrites and validates every link in
+    them; links are relative to the fragment, and ``include-markdown``
+    rewrites them for the page that includes it.
 
     Raises:
         ValueError: If *target* is neither the start page nor a member.
     """
     fragment = box_fragment_path(thread, target)
-    start_href = posixpath.relpath(thread.path, posixpath.dirname(fragment))
-    start_link = f"[{_link_text(thread.title)}]({start_href})"
     if target == thread.path:
-        stage_line: list[str] = []
-        start = _text_cell(thread.title)
-        before: list[str] | None = None
-        current = _text_cell(thread.title)
+        where_line: list[str] = []
+        before: list[str] = []
         after_members = _entry(thread.stages[0]) if thread.stages else ()
     else:
         member = next((m for m in thread.members() if m.page == target), None)
@@ -151,21 +162,21 @@ def render_box(
                 f"{target} is not on the thread of docs/{thread.path}"
             )
         unit = "section" if "#" in member.page else "page"
-        stage_line = [f"This {unit} is part of *{where.stage.title}*.", ""]
-        start = _link_cell([start_link])
-        before = (
-            _link_cell([_link(m, fragment, titles) for m in where.before])
-            if where.before
-            else None
+        start_href = posixpath.relpath(
+            thread.path, posixpath.dirname(fragment)
         )
-        current = _text_cell(member.label or titles[member.path])
+        where_line = [
+            f'<div class="{BOX_CLASS}-where" markdown>',
+            f"This {unit} is part of *{where.stage.title}*.",
+            "",
+            f'<p class="{BOX_CLASS}-start" markdown>'
+            f"[{START_LINK_TEXT}]({start_href})</p>",
+            "</div>",
+            "",
+        ]
+        before = [_link(m, fragment, titles) for m in where.before]
         after_members = where.after
-    after = (
-        _link_cell([_link(m, fragment, titles) for m in after_members])
-        if after_members
-        else None
-    )
-    headings = "".join(f"<th>{name}</th>" for name in BOX_COLUMNS)
+    after = [_link(m, fragment, titles) for m in after_members]
     lines = [
         _box_marker(thread),
         "",
@@ -175,15 +186,11 @@ def render_box(
         '<p class="admonition-title">Reading path: '
         f"{html.escape(thread.title)}</p>",
         "",
-        *stage_line,
-        f'<table class="{BOX_CLASS}-table" markdown>',
-        f"<thead><tr>{headings}</tr></thead>",
-        "<tbody markdown>",
-        "<tr markdown>",
-        *(_cell(body) for body in (start, before, current, after)),
-        "</tr>",
-        "</tbody>",
-        "</table>",
+        *where_line,
+        f'<div class="{BOX_CLASS}-tiles" markdown>',
+        *_tile("previous", before),
+        *_tile("next", after),
+        "</div>",
         "",
         "</div>",
     ]

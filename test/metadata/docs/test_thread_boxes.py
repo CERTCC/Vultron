@@ -1,10 +1,10 @@
 """Tests for the reading-path box fragments (``uv run docs-site``).
 
 Requirements: DF-11-015 (one box per thread on every member page and start
-page: a start, previous, current and next table, the same for every reader),
+page: a start link and previous and next tiles, the same for every reader),
 DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
 committed fragment under ``docs/start/_paths/``, generated, check gated and
-excluded from the build), DF-11-034 (the table's cells), DF-11-035 (the same
+excluded from the build), DF-11-034 (the start link and the tiles), DF-11-035 (the same
 for every reader), DF-11-044 (placed by hand), DF-11-009 (titled by situation, never by
 ``stakeholder_type``).
 """
@@ -27,7 +27,8 @@ from vultron.metadata.docs.landing_pages import (
 )
 from vultron.metadata.docs.threads import (
     BOX_DIR,
-    EMPTY_CELL,
+    CHOOSE_SUFFIX,
+    START_LINK_TEXT,
     StartThread,
     box_fragment_path,
     include_line,
@@ -107,13 +108,32 @@ def _thread(root: Path, path: str) -> StartThread:
     return next(t for t in load_threads(root) if t.path == path)
 
 
-def _cells(box: str) -> dict[str, str]:
-    """``{column heading: cell HTML}`` of a rendered box."""
-    html = markdown.markdown(box, extensions=_EXTENSIONS)
-    headings = re.findall(r"<th>(.*?)</th>", html)
-    cells = re.findall(r"<td>(.*?)</td>", html, re.DOTALL)
-    assert len(headings) == len(cells) == 4
-    return dict(zip(headings, cells, strict=True))
+def _html(box: str) -> str:
+    html: str = markdown.markdown(box, extensions=_EXTENSIONS)
+    return html
+
+
+def _tiles(box: str) -> dict[str, str]:
+    """``{"Previous": tile HTML, "Next": tile HTML}`` of a rendered box."""
+    html = _html(box)
+    tiles = re.findall(
+        r'<div (?:aria-hidden="true" )?class="reading-path-tile '
+        r'reading-path-(previous|next)[^"]*">(.*?)</div>',
+        html,
+        re.DOTALL,
+    )
+    assert [side for side, _ in tiles] == ["previous", "next"]
+    return {side.capitalize(): body for side, body in tiles}
+
+
+def _start(box: str) -> str | None:
+    """The start link's paragraph of a rendered box, or ``None`` without one."""
+    found = re.search(r'<p class="reading-path-start">(.*?)</p>', _html(box))
+    return found.group(1) if found else None
+
+
+def _links(tile: str) -> list[str]:
+    return re.findall(r'<a href="([^"]*)"', tile)
 
 
 def _box(root: Path, thread: str, target: str) -> str:
@@ -121,7 +141,7 @@ def _box(root: Path, thread: str, target: str) -> str:
 
 
 @pytest.mark.spec("DF-11-015", "DF-11-034")
-class TestBoxTable:
+class TestBoxTiles:
     def test_one_box_per_thread_and_target(self, two_threads):
         fragments = set(_boxes(two_threads))
         assert fragments == {
@@ -135,56 +155,68 @@ class TestBoxTable:
             f"{BOX_DIR}/study/g--later.md",
         }
 
-    def test_columns_are_start_previous_current_next(self, two_threads):
+    def test_a_member_box_holds_a_start_link_then_two_tiles(self, two_threads):
         box = _box(two_threads, "start/practice.md", "topics/shared.md")
-        assert list(_cells(box)) == ["Start", "Previous", "Current", "Next"]
+        html = _html(box)
+        assert (
+            html.index("reading-path-start")
+            < html.index("reading-path-previous")
+            < html.index("reading-path-next")
+        )
+        assert _start(box) == (
+            f'<a href="../../practice.md">{START_LINK_TEXT}</a>'
+        )
+
+    def test_the_box_does_not_repeat_the_page_itself(self, two_threads):
+        box = _box(two_threads, "start/study.md", "topics/shared.md")
+        assert "Shared" not in box
 
     def test_a_chain_member_sees_its_neighbours(self, two_threads):
         box = _box(two_threads, "start/practice.md", "topics/shared.md")
-        cells = _cells(box)
-        assert (
-            '<a href="../../practice.md">You coordinate cases</a>'
-            in (cells["Start"])
-        )
-        assert '<a href="../../../a.md">A</a>' in cells["Previous"]
-        assert '<a href="../../../b.md">B</a>' in cells["Next"]
-        assert "This page is part of <em>Learn</em>." in markdown.markdown(
-            box, extensions=_EXTENSIONS
-        )
+        tiles = _tiles(box)
+        assert '<a href="../../../a.md">A</a>' in tiles["Previous"]
+        assert '<a href="../../../b.md">B</a>' in tiles["Next"]
+        assert "This page is part of <em>Learn</em>." in _html(box)
 
     def test_a_set_member_sees_the_neighbouring_stages(self, two_threads):
-        cells = _cells(_box(two_threads, "start/study.md", "topics/shared.md"))
-        assert "../../../d.md" in cells["Previous"]
-        assert "../../../c.md" not in cells["Previous"]
-        assert "../../../f.md" in cells["Next"]
-        assert "../../../g.md#later" in cells["Next"]
-        assert "e.md" not in cells["Previous"] + cells["Next"]
+        tiles = _tiles(_box(two_threads, "start/study.md", "topics/shared.md"))
+        assert _links(tiles["Previous"]) == ["../../../d.md"]
+        assert _links(tiles["Next"]) == [
+            "../../../f.md",
+            "../../../g.md#later",
+        ]
 
-    def test_the_current_cell_is_text_not_a_link(self, two_threads):
-        cells = _cells(_box(two_threads, "start/study.md", "topics/shared.md"))
-        assert cells["Current"].split() == ["<ul>", "<li>Shared</li>", "</ul>"]
+    def test_a_tile_says_previous_or_next(self, two_threads):
+        tiles = _tiles(
+            _box(two_threads, "start/practice.md", "topics/shared.md")
+        )
+        assert (
+            '<p class="reading-path-direction">Previous</p>'
+            in (tiles["Previous"])
+        )
+        assert '<p class="reading-path-direction">Next</p>' in tiles["Next"]
 
-    def test_an_empty_set_is_three_dashes(self, two_threads):
-        first = _cells(_box(two_threads, "start/practice.md", "a.md"))
-        last = _cells(_box(two_threads, "start/study.md", "g.md#later"))
-        assert first["Previous"].strip() == EMPTY_CELL
-        assert last["Next"].strip() == EMPTY_CELL
-        assert first["Next"].strip() != EMPTY_CELL
+    def test_a_tile_of_several_pages_says_to_pick_one(self, two_threads):
+        tiles = _tiles(_box(two_threads, "start/study.md", "topics/shared.md"))
+        assert f"Next{CHOOSE_SUFFIX}</p>" in tiles["Next"]
+        assert CHOOSE_SUFFIX not in tiles["Previous"]
+
+    def test_an_empty_set_is_an_empty_tile(self, two_threads):
+        first = _tiles(_box(two_threads, "start/practice.md", "a.md"))
+        last = _tiles(_box(two_threads, "start/study.md", "g.md#later"))
+        assert first["Previous"].strip() == ""
+        assert last["Next"].strip() == ""
+        assert _links(first["Next"]) == ["../../../topics/shared.md"]
+        assert 'reading-path-previous reading-path-empty"' in _box(
+            two_threads, "start/practice.md", "a.md"
+        )
 
     def test_a_start_page_box(self, two_threads):
         box = _box(two_threads, "start/study.md", "start/study.md")
-        cells = _cells(box)
-        assert cells["Start"].split() == [
-            "<ul>",
-            "<li>You",
-            "study",
-            "disclosure</li>",
-            "</ul>",
-        ]
-        assert cells["Current"] == cells["Start"]
-        assert cells["Previous"].strip() == EMPTY_CELL
-        assert '<a href="../../../c.md">C</a>' in cells["Next"]
-        assert "d.md" not in cells["Next"]
+        tiles = _tiles(box)
+        assert _start(box) is None
+        assert tiles["Previous"].strip() == ""
+        assert _links(tiles["Next"]) == ["../../../c.md"]
         assert "is part of" not in box
 
     def test_a_start_page_box_next_is_a_whole_first_set(self, tmp_path):
@@ -198,15 +230,15 @@ class TestBoxTable:
                 "b.md": page("B"),
             },
         )
-        cells = _cells(_box(root, "start/s.md", "start/s.md"))
-        assert "a.md" in cells["Next"] and "b.md" in cells["Next"]
+        tiles = _tiles(_box(root, "start/s.md", "start/s.md"))
+        assert _links(tiles["Next"]) == ["../../../a.md", "../../../b.md"]
 
     @pytest.mark.spec("DF-11-035")
     def test_titled_by_situation_and_the_same_for_every_reader(
         self, two_threads
     ):
         for path, box in _boxes(two_threads).items():
-            html = markdown.markdown(box, extensions=_EXTENSIONS)
+            html = _html(box)
             situation = (
                 "You coordinate cases"
                 if "/practice/" in path
@@ -244,7 +276,6 @@ class TestSectionWording:
     def test_a_section_member_names_the_section(self, two_threads):
         box = _box(two_threads, "start/study.md", "g.md#later")
         assert "This section is part of *Finish*." in box
-        assert "<li>The later part</li>" in _cells(box)["Current"]
         assert 'data-member="g.md#later"' in box
 
     def test_a_whole_page_member_keeps_the_page_wording(self, two_threads):

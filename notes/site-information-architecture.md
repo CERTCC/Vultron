@@ -496,9 +496,13 @@ at some points and not at others (ADR-0150).
   how `contribute.md` keeps its decision-record and developer-docs links.
 - **Member pages and start pages carry a box per thread.** It is titled by
   situation, never by `stakeholder_type`, names the page's stage (a start
-  page's names none), and holds a start | previous | current | next table whose
-  cells are lists, with `---` for an empty set and the current page unlinked; on
-  a start page, previous is `---` and current is the start page. The sets are
+  page's names none), links back to the start page ("Path overview"), and holds
+  a previous tile and a next tile, each a list of links. An empty set leaves its
+  tile empty, a tile of several pages says "pick one", and the page itself is
+  not repeated; on a start page there is no start link and previous is empty.
+  The tiles are shaded like buttons because a table read as data, not as
+  directions onward; their classes live in `docs/stylesheets/components.css`
+  and only the generator writes them (SG-45). The sets are
   the adjacent ones: the neighbor in a chain, or else the whole neighboring set
   stage (or the near end of a neighboring chain). It is the same for every
   reader, so no query parameter or referrer is needed (DF-11-035).

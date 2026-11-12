@@ -1329,45 +1329,48 @@ groups:
       Every page that is a member of a thread, and every start page, MUST show one box
       per thread it is on. Each box is titled by the reader's situation rather than by
       `stakeholder_type` (DF-11-009). It names the stage the page belongs to, and a
-      start page's box names none. It holds a table with the columns start, previous,
-      current and next.
+      start page's box names none. It holds a link back to the start page, then two
+      tiles: the pages before this one and the pages after it.
     rationale: >-
       A reader who followed a thread into a page needs directions onward. A page on
       several threads shows each, so it never needs to know which thread a reader is
       on, and it still stands alone (DF-11-007).
     verification: >-
       A test renders the boxes of a fixture tree with a page on two threads and a start
-      page, and confirms one box per thread with the expected stage name, the four
-      columns, a title taken from the start page's situation, and no
-      `stakeholder_type` or `level` value. That every member page and start page shows
-      its boxes is checked over the built site by DF-11-045. Covered by
-      `test/metadata/docs/test_thread_boxes.py::TestBoxTable`.
+      page, and confirms one box per thread with the expected stage name, the start
+      link, the previous and next tiles, a title taken from the start page's
+      situation, and no `stakeholder_type` or `level` value. That every member page
+      and start page shows its boxes is checked over the built site by DF-11-045.
+      Covered by `test/metadata/docs/test_thread_boxes.py::TestBoxTiles`.
   - id: DF-11-034
     priority: MUST
     kind: process
     adr:
       - ADR-0150
     statement: >-
-      Each cell of a thread box's table (DF-11-015) MUST be a list. Start holds the
-      thread's start page. Previous holds the set of thread pages immediately before the
-      page. Current holds the page itself as text, not a link. Next holds the set
-      immediately after it. An empty set is shown as `---`. On a start page, start and
-      current are the start page as text, previous is `---`, and next is the first
-      stage's entry pages. The set before a member page is the preceding member of its
-      chain, or else the previous stage's exit pages. The set after it is the next
-      member of its chain, or else the next stage's entry pages. A set stage's entry and
-      exit pages are all its members. A chain's entry page is its first member, and its
-      exit page is its last.
+      A thread box (DF-11-015) MUST hold a link back to the thread's start page,
+      labelled "Path overview", then a previous tile and a next tile, each a list of
+      links. Previous holds the set of thread pages immediately before the page. Next
+      holds the set immediately after it. A tile whose set holds more than one page
+      says so in its label. An empty set gives an empty tile. On a start page there is
+      no start link, previous is empty, and next is the first stage's entry pages. The
+      set before a member page is the preceding member of its chain, or else the
+      previous stage's exit pages. The set after it is the next member of its chain, or
+      else the next stage's entry pages. A set stage's entry and exit pages are all its
+      members. A chain's entry page is its first member, and its exit page is its last.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
       forced down one next page, so predecessors and successors are sets. The start
-      column gives a deep-linked reader the way back, and the same table on the start
-      page shows the first step.
+      link gives a deep-linked reader the way back, and the same tiles on the start
+      page show the first step. The box does not repeat the page's own title: the
+      reader is on that page, and the stage line already says where it sits. Tiles
+      shaped like buttons read as directions onward, where a table read as data.
     verification: >-
-      `test/metadata/docs/test_thread_boxes.py::TestBoxTable` renders a fixture tree
+      `test/metadata/docs/test_thread_boxes.py::TestBoxTiles` renders a fixture tree
       with a page in a chain and one in a set stage, a first and a last member, and a
-      start page. It confirms the expected start, previous, current and next lists,
-      `---` for an empty set, and an unlinked current cell.
+      start page. It confirms the expected start link and previous and next lists, an
+      empty tile for an empty set, the label of a tile with several pages, and no
+      start link on a start page.
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
@@ -1385,7 +1388,7 @@ groups:
       renders the same on a deep link.
     verification: >-
       In `test/metadata/docs/test_thread_boxes.py`,
-      `TestBoxTable::test_titled_by_situation_and_the_same_for_every_reader` confirms a
+      `TestBoxTiles::test_titled_by_situation_and_the_same_for_every_reader` confirms a
       rendered box has no script element and no link carrying a query string.
     relationships:
     - rel_type: extends

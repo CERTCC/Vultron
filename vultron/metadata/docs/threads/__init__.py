@@ -2,12 +2,12 @@
 
 Requirements: specs/diataxis-requirements.yaml DF-11-013 (a thread is staged
 data on its start page), DF-11-014 (the start page's listing is generated and
-check gated), DF-11-015 (each member page and start page shows a start,
-previous, current and next table per thread), DF-11-016 (the thread check),
-DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
-committed fragment), DF-11-044 (placed by hand), DF-11-034 (the table's cells),
-DF-11-009 (titled by situation, never by ``stakeholder_type``), DF-09-009 (an
-empty target set fails). Design rationale:
+check gated), DF-11-015 (each member page and start page shows a box per
+thread: a link back to the start page and previous and next tiles), DF-11-016
+(the thread check), DF-11-022 (a section member's box names the section),
+DF-11-023 (each box is a committed fragment), DF-11-044 (placed by hand),
+DF-11-034 (the link and the tiles), DF-11-009 (titled by situation, never by
+``stakeholder_type``), DF-09-009 (an empty target set fails). Design rationale:
 ``notes/site-information-architecture.md`` § "Threads: staged data, rendered at
 both ends" (ADR-0150).
 
@@ -41,8 +41,10 @@ reading-path box fragments).
 from vultron.metadata.docs.threads.boxes import (
     BOX_CLASS,
     BOX_DIR,
-    EMPTY_CELL,
+    BOX_TILES,
+    CHOOSE_SUFFIX,
     MEMBER_ATTR,
+    START_LINK_TEXT,
     THREAD_ATTR,
     box_fragment_path,
     box_targets,
@@ -70,7 +72,9 @@ from vultron.metadata.docs.threads.listing import (
 __all__ = [
     "BOX_CLASS",
     "BOX_DIR",
-    "EMPTY_CELL",
+    "BOX_TILES",
+    "CHOOSE_SUFFIX",
+    "START_LINK_TEXT",
     "LISTING_BEGIN",
     "LISTING_END",
     "MEMBER_ATTR",
