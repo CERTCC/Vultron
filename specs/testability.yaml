@@ -615,17 +615,17 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Each architecture ratchet test SHOULD meet a two-tier time budget on an unloaded
-      host: 0.5 seconds once any per-process cached derivation it reads is built. The
-      derivation itself, and a test that does a derivation's parse uncached, has 10
-      seconds.
+      Each architecture ratchet test SHOULD finish within 0.5 seconds on an unloaded
+      host, not counting a shared code analysis it reuses. Building that shared
+      analysis, or a test that builds one for itself, gets 10 seconds.
     rationale: >-
       The unit suite runs every architecture test, so a slow one slows each run. The
       shared corpus (TB-13-001) and the substring check (TB-13-002) keep an ordinary
-      test under 0.5 seconds. A derivation that parses a few hundred modules costs
-      seconds, paid once per process or by the one test that does it; the heaviest
-      measured about 5 seconds (#5896). Its module states the measured cost. The
-      per-test timeout (TB-14-001) does not enforce either tier.
+      test under 0.5 seconds. A shared code analysis (a cached derivation that parses
+      a few hundred modules) costs seconds, paid once per process or by the one test
+      that builds it; the heaviest measured about 5 seconds (#5896). Its module
+      states the measured cost. The per-test timeout (TB-14-001) does not enforce
+      either tier.
   - id: TB-13-006
     priority: MUST
     kind: project

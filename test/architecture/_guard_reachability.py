@@ -94,7 +94,6 @@ It Can Miss or Invent").  Five are narrowed:
   :func:`_call_sites` counts the same literals as unreadable sites for arm
   B.  Only those arguments count, not every string constant, so a guard named only in a
   docstring or comment still reads as unreached.
-
 * **"Refusing" means refusing the caller's input** (#5896).  A raise
   counts only where it refuses what the caller passed: ``raise
   NotImplementedError`` refuses a feature nothing provides yet, and a raise
@@ -103,7 +102,9 @@ It Can Miss or Invent").  Five are narrowed:
   A per-entry check of the optional payload does refuse it, and counts.  A
   delegated call counts only when the branch hands the gating parameter
   itself, as a bare name, into a parameter the callee tests before raising
-  (:func:`hands_on`, :func:`checked_slots`).  Before this, any raise in the
+  (:func:`hands_on`, :func:`checked_slots`), and the callee's test reads
+  the parameter itself, not a value a call derived from it
+  (``client.lookup() is None``; :func:`_tested_names`).  Before this, any raise in the
   branch and any call to a refuser's name counted, so an optional seeding
   step, a lookup whose value the branch returns, an idempotent re-read and
   a translated persistence error were all subjects, and removing the one
@@ -111,6 +112,11 @@ It Can Miss or Invent").  Five are narrowed:
   This reading **misses** rather than invents: a refuser handed a value
   *derived* from the parameter (``_check(read(p))``, ``_check(p.items)``)
   or handed it after a ``*args`` splat, whose position cannot be counted,
+  a delegation made per entry on the caller's side (``for item in items:
+  _check(item)``; the loop alias is read only in the callee), a delegated
+  call inside an ``except`` handler of the branch (the ``except`` stop cuts
+  calls as well as raises), a callee that tests the parameter only through
+  a call (``if read(p) is None``),
   a ``_fail()`` helper that raises unconditionally, a refuser that hands
   its own refusal on to another call rather than raising (one level of
   delegation is read, not a chain), a refuser whose test
@@ -655,7 +661,7 @@ def checked_slots(
         arms = _branches(node)
         if not any(body and _refuses_directly(body) for _t, _p, body in arms):
             continue
-        for name in _loaded_names(arms[0][0]):
+        for name in _tested_names(arms[0][0]):
             if name in declared:
                 checked.add(name)
             elif name in entries:
@@ -701,7 +707,7 @@ def _entry_aliases(
             if root is None:
                 continue
             for target in _stored_names(loop.target):
-                if target not in entries and target not in declared:
+                if target not in entries:
                     entries[target] = root
                     changed = True
     return entries
@@ -722,12 +728,40 @@ def _iterated_name(iterable: ast.expr) -> str | None:
     return None
 
 
-def _loaded_names(node: ast.AST) -> set[str]:
-    """Every bare name *node* reads."""
+#: Builtins whose call tests the argument it is handed, not a value derived
+#: from it, so ``isinstance(p, int)`` and ``len(p)`` still test ``p``.
+_PREDICATE_CALLS: frozenset[str] = frozenset(
+    {"isinstance", "issubclass", "len", "callable", "hasattr", "bool"}
+)
+
+
+def _tested_names(test: ast.AST) -> set[str]:
+    """Every bare name a branch *test* reads as itself, not through a call.
+
+    A name read only inside a call — a method call on it,
+    ``client.lookup() is None``, or an argument to anything but a
+    :data:`_PREDICATE_CALLS` builtin, ``read(p) is None`` — tests a value
+    the call derived, the callee-side twin of the derived value
+    :func:`hands_on` refuses to count on the caller's side.  An attribute
+    read, ``p.deadline is None``, still tests what the caller handed in.
+    """
+    if isinstance(test, ast.Name):
+        return {test.id} if isinstance(test.ctx, ast.Load) else set()
+    if isinstance(test, ast.Call):
+        if (
+            isinstance(test.func, ast.Name)
+            and test.func.id in _PREDICATE_CALLS
+        ):
+            return {
+                name
+                for argument in (*test.args, *(k.value for k in test.keywords))
+                for name in _tested_names(argument)
+            }
+        return set()
     return {
-        child.id
-        for child in ast.walk(node)
-        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
+        name
+        for child in ast.iter_child_nodes(test)
+        for name in _tested_names(child)
     }
 
 

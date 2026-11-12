@@ -1320,6 +1320,20 @@ def _check(items):
         raise NotImplementedError("empty item lists are not handled yet")""",
             id="callee-only-raises-not-implemented",
         ),
+        pytest.param(
+            """\
+def _check(items):
+    if items.lookup() is None:
+        raise ValueError("no CASE_MANAGER participant (CM-02-014)")""",
+            id="callee-tests-a-method-call-on-it",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    if read(items) is None:
+        raise ValueError("no stored row")""",
+            id="callee-tests-a-value-derived-by-a-call",
+        ),
     ],
 )
 def test_detector_does_not_read_a_callee_that_tests_something_else(
@@ -1328,9 +1342,10 @@ def test_detector_does_not_read_a_callee_that_tests_something_else(
     """A refuser whose test is not of the value handed in makes no gate.
 
     Rebinding or shadowing the parameter, looping over something computed
-    from it, or raising only ``NotImplementedError`` each leave the
-    caller's argument untested, the same readings arm B applies on the
-    caller's side.
+    from it, testing only what a call derived from it (the inline form of
+    the ``_seed_stub_summary`` shape), or raising only
+    ``NotImplementedError`` each leave the caller's argument untested, the
+    same readings arm B applies on the caller's side.
     """
     source = f"""
 {refuser}
@@ -1367,6 +1382,20 @@ def _check(rows):
         if value is None:
             raise ValueError("a missing value")""",
             id="mapping-entry-view",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    if not isinstance(rows, list) or len(rows) > 10:
+        raise ValueError("rows must be a short list")""",
+            id="predicate-builtins",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    if rows.deadline is None:
+        raise ValueError("rows need a deadline")""",
+            id="attribute-of-the-parameter",
         ),
     ],
 )
@@ -1458,6 +1487,26 @@ def test_detector_reads_a_raise_outside_the_except_handler_as_a_gate(
 def build(*, limit=None):
     if limit is not None:
 {branch}
+    return limit
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 build() [limit]"
+    }
+
+
+def test_detector_reads_a_gate_that_itself_sits_in_a_handler() -> None:
+    """The ``except`` stop applies inside a gated branch, not around it."""
+    source = """
+def build(*, limit=None):
+    try:
+        prepare()
+    except KeyError:
+        if limit is not None:
+            raise ValueError("a negative limit")
     return limit
 
 
