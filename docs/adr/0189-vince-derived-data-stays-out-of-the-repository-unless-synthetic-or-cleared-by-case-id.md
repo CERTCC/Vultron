@@ -6,7 +6,8 @@ status_override: >-
 date: 2026-11-12
 created: 2026-11-12
 updated: 2026-11-12
-revision: 1
+revision: 2
+amended: "2026-11-12"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -46,7 +47,7 @@ Chosen option: "Let test-instance data be read where the work happens, and let i
 
 The rules:
 
-1. **Storage.** In shadow mode, VINCE-derived records live only in the store `database.db_url` names, and that store resolves outside the repository checkout. Enforced by #5958.
+1. **Storage.** The shadow keeps no long-lived copy of VINCE-derived records. It builds a translation for the request that needs it and discards it afterwards; transient working files within a request are allowed. Its container mounts no persistent volume. Enforced by #5958. *(Amended 2026-11-12.)*
 2. **Readers, test stage.** Data from the test VINCE instance may be read in the dev container and in Coding Agent sessions.
 3. **Clearance.** Data read from a VINCE instance enters the repository, or anything published, only if it is synthetic or a maintainer has cleared its VINCE case id. A clearance names one case id; a Coding Agent may ask for one, and never grants one. A committed cleared-case list records each clearance with a link to the maintainer's comment. Enforced by #5961.
 4. **Synthetic.** A file is synthetic only if the committed fixture generator (#5961) or the sanitizer (#6348) wrote it, and it carries the synthetic marker. Sanitizer output keeps a case's shape and none of its content or ids, so it needs no clearance. Enforced by #5961 and #6348.
@@ -87,6 +88,18 @@ Each numbered rule names the Task whose tests enforce it.
 
 - Good, because work proceeds on real shapes, and the exits are guarded.
 - Bad, because a clearance list must be kept.
+
+## Amendment — 2026-11-12
+
+Rule 1 (Storage) was replaced.
+It read: "In shadow mode, VINCE-derived records live only in the store `database.db_url` names, and that store resolves outside the repository checkout. Enforced by #5958."
+It now reads: "The shadow keeps no long-lived copy of VINCE-derived records. It builds a translation for the request that needs it and discards it afterwards; transient working files within a request are allowed. Its container mounts no persistent volume. Enforced by #5958."
+
+The shadow is now a standalone tool that hosts no actor and has no store of its own ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)), so there is no `database.db_url` for the rule to point at.
+The rule's purpose holds and is stronger: no VINCE-derived record outlives the request, inside the repository or out of it.
+VSD-01-001 and VSD-01-002 are retired; SHD-01-003 (no copy kept after its request) and SHD-02-001 (no persistent volume) replace them.
+
+- Source: #6336
 
 ## More Information
 

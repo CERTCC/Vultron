@@ -94,6 +94,8 @@ Load additional files only when the task touches the relevant area. See the
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |
+| Shadow tool (read-only advisor, packaging) | `case-shadow.yaml` |
+| Outside-system case reader port | `case-reader.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `signing.yaml`, `encryption.yaml` |
@@ -130,9 +132,16 @@ related requirements across files.
   (ARCH-01 through ARCH-12; ARCH-01-004, ARCH-04-002 added to track sync
   port and broader wire-import violations in core/)
 - **`vince-shadow-data.yaml`** - Handling of data read from VINCE by the
-  VINCE shadow: store location, id-only logs, runtime-only credential, and
+  VINCE shadow: no long-lived copy, id-only logs, runtime-only credential, and
   per-case clearance or sanitization before anything enters the repository
   (VSD-01, VSD-02; ADR-0189)
+- **`case-shadow.yaml`** - The shadow: a standalone, read-only tool that
+  translates one outside-system case on request and shows Vultron's analysis;
+  no delivery or write path, no long-lived copy, loopback-only packaging
+  (SHD-01, SHD-02; ADR-0190, ADR-0192)
+- **`case-reader.yaml`** - The read-only `CaseReader` port through which an
+  outside system's case reaches the core as a translated case ledger, each
+  entry citing its source record (CRD-01; ADR-0191)
 - **`configuration.yaml`** - Unified YAML + Pydantic configuration management:
   `AppConfig` structure, `get_config()` / `reload_config()` API, env var
   naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with

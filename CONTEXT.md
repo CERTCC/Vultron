@@ -257,13 +257,24 @@ external. Design work belongs to Agentic Participants (#2450).
 
 ## Outside Systems
 
+**Outside system**:
+A tracker outside Vultron that holds cases of its own, such as VINCE, GHSA or Jira. Its
+cases reach the core through a `CaseReader`, which translates one into a case ledger
+(ADR-0191).
+*Avoid*: service domain, external tracker (as a coined name)
+
+**Shadow**:
+A standalone, read-only tool that reads one case from an outside system on request,
+translates it, and shows Vultron's analysis of it as a dashboard: where the case
+stands, which desiderata it meets or breaks, and which moves are open. It advises; it
+never acts in the case, writes to the outside system, sends to participants, or keeps
+the case after the request (ADR-0190). A Vultron CASE_MANAGER can stand behind the same
+reader, untranslated.
+*Avoid*: shadow mode as a server setting (the shadow hosts no actor), VINCE observer
+(Observer is a CVD role), VINCE mirror (a shadow analyses; a mirror only copies)
+
 **VINCE shadow**:
-Vultron running in shadow mode beside VINCE. It reads VINCE cases, keeps a local copy of
-each as CERT/CC's Case Manager, runs its own case logic on that copy, and prompts a human
-toward action at its call-out points. It never writes back to VINCE, and it sends nothing
-to the case's other participants. A Sentinel carries VINCE changes into Vultron.
-*Avoid*: VINCE observer (Observer is a CVD role), VINCE mirror (a shadow prompts; a mirror
-only copies)
+The shadow with VINCE as its outside system.
 
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as

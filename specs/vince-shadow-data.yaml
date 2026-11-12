@@ -14,37 +14,6 @@ groups:
 - id: VSD-01
   title: Runtime Handling
   specs:
-  - id: VSD-01-001
-    priority: MUST
-    kind: project
-    adr:
-    - ADR-0189
-    statement: >-
-      In shadow mode, the server MUST store VINCE-derived records only in the
-      store `database.db_url` names.
-    rationale: >-
-      One configured store is one place to protect, back up and delete. A second
-      store, or a fallback, is a place nobody planned for.
-    verification: >-
-      A shadow run test (#5958) with `database.db_url` set to a path outside the
-      checkout asserts the VINCE-derived records are written there and nowhere
-      else.
-  - id: VSD-01-002
-    priority: MUST
-    kind: project
-    adr:
-    - ADR-0189
-    statement: >-
-      In shadow mode, the server MUST refuse to start when `database.db_url` is
-      the default, in memory, or inside the repository checkout.
-    rationale: >-
-      The default path is relative, so a server started from the checkout writes
-      inside it, where an agent or a commit can pick up a case. Refusing to
-      start cannot write a case to the wrong place.
-    verification: >-
-      A startup test (#5958) sets the default, an in-memory store, and SQLite
-      paths inside the checkout (relative and through a symlink), and asserts
-      each refuses to start with an error naming the setting.
   - id: VSD-01-003
     priority: MUST_NOT
     kind: project

@@ -1,0 +1,98 @@
+id: CRD
+title: Outside-System Case Reader
+description: >-
+  The read-only port through which a case held by an outside system, such as
+  VINCE, reaches the core, and what its translation contains. A read-write port
+  for a later two-way gateway is a separate interface, not specified here.
+scope:
+- prototype
+- production
+tags:
+- federation
+groups:
+- id: CRD-01
+  title: Case Reader Port
+  specs:
+  - id: CRD-01-001
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      The core MUST declare a `CaseReader` port that returns an outside system's
+      case, given that system's case identifier.
+    rationale: >-
+      A port the core declares states what the core needs from any outside
+      system, so each new system adds an adapter rather than a new interface.
+    verification: >-
+      A test asserts `CaseReader` is declared under `vultron/core/ports/` and
+      that a fake adapter satisfying it returns a translated case.
+  - id: CRD-01-002
+    priority: MUST_NOT
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      The `CaseReader` port MUST NOT declare a method that writes to the outside
+      system.
+    rationale: >-
+      A reader that cannot write is safe whatever its adapter does. A write
+      method that refuses every call is still a write path in the interface.
+    verification: >-
+      A test asserts the port's declared methods are exactly its read methods.
+  - id: CRD-01-003
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      A `CaseReader` adapter MUST return the case as a core case ledger.
+    rationale: >-
+      A case is its ledger and the projection of that ledger. A snapshot alone
+      loses the order and timing the CVD desiderata are about.
+    verification: >-
+      A test asserts a fake adapter's result is a sequence of core ledger entries
+      that the core's projection accepts.
+  - id: CRD-01-004
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      Each translated ledger entry MUST cite the outside-system record it was
+      translated from.
+    rationale: >-
+      Every insight must trace back to the record it rests on, so an analyst can
+      check a surprising score against the outside system.
+    verification: >-
+      A test over a synthetic outside-system case asserts every translated entry
+      names a source record present in the input.
+  - id: CRD-01-005
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      A `CaseReader` adapter MUST return each outside-system fact it cannot
+      translate with its result.
+    rationale: >-
+      A fact that is dropped silently makes the analysis look complete when it is
+      not.
+    verification: >-
+      A test feeds an adapter a synthetic case holding a record it cannot map and
+      asserts the record is in the result's untranslated facts.
+  - id: CRD-01-006
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0191
+    statement: >-
+      A translated ledger entry MUST name as its actor the participant who
+      performed the act in the outside system.
+    rationale: >-
+      The projection and the measures then read a translated case exactly as a
+      native one. This holds only because a translation is never stored and
+      never enters a protocol path (ADR-0190).
+    verification: >-
+      A test over a synthetic case asserts that an entry translated from a
+      vendor's status change names that vendor as its actor.

@@ -283,7 +283,10 @@ General information about architectural decision records is available at <https:
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
 - [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
-- [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md)
+- [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md) *(revision 2)*
+- [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)
+- [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md)
+- [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md)
 
 ## Proposed ADRs
 
