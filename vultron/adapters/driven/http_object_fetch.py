@@ -35,7 +35,6 @@ at once, since the same request will never succeed (AKM-05-008, OX-13-005).
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import urllib.parse
 from dataclasses import dataclass
@@ -63,6 +62,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 from vultron.errors import VultronValidationError
 from vultron.primitives import same_actor_id
+from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.unknown_keys import (
     partition_unknown_keys,
@@ -240,9 +240,11 @@ class HttpObjectFetcher:
                 raise TerminalAttemptError(exc) from exc
             raise
         try:
-            body = json.loads(content)
+            # The strict reader refuses nesting by its own limit, so a deep
+            # body fails here on every Python version (#6353).
+            body = signing.load_json(content)
         except ValueError as exc:
-            # A 2xx whose body is not JSON: a retry gets the same.
+            # A 2xx whose body is not JSON it reads: a retry gets the same.
             raise TerminalAttemptError(
                 ValueError(f"answered with no JSON: {exc}")
             ) from exc

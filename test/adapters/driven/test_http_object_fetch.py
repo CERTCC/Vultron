@@ -43,6 +43,7 @@ from vultron.core.models.object_fetch import (
     ObjectReference,
 )
 from vultron.errors import VultronValidationError
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
@@ -191,6 +192,18 @@ class TestHttpObjectFetcher:
         assert result.body is None
         assert result.failure is not None
         assert "no JSON" in result.failure
+        get.assert_called_once()
+
+    @pytest.mark.spec("AKM-05-008")
+    def test_a_body_nested_too_deeply_fails_the_fetch_at_once(self):
+        depth = signing.MAX_JSON_DEPTH + 1
+        response = _response(200, content=b"[" * depth + b"]" * depth)
+
+        result, get = _fetch(HttpObjectFetcher(max_attempts=3), [response])
+
+        assert result.body is None
+        assert result.failure is not None
+        assert "nested too deeply" in result.failure
         get.assert_called_once()
 
     def test_a_body_over_the_byte_limit_ends_the_fetch_at_once(self):

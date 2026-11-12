@@ -109,6 +109,8 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   stack is nearly full, which depends on the host. The limit leaves the Python
   walks after it (`canonicalize`, the unknown-key walk) room under the
   recursion limit; a `RecursionError` catch stays as a second line (#6347).
+  The check runs before the parse, so it cannot tell JSON from not-JSON:
+  text nested past the limit is `VultronRefusedJsonError` (422) either way.
 - **A signed activity's `@context` is a list.** Signing appends
   `https://w3id.org/security/data-integrity/v2` to the activity's own
   `@context`, as FEP-8b32's examples do and other implementers expect, so the
@@ -178,7 +180,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   is not RFC 8259 JSON (`VultronJsonSyntaxError`: not JSON, not UTF-8, `NaN`,
   `Infinity`) is 400; well-formed JSON it refuses (`VultronRefusedJsonError`:
   not an object, a duplicate key, an integer beyond ±(2^53 - 1), a number too
-  large for a double, nesting deeper than `MAX_JSON_DEPTH`) is 422 `ValidationError`
+  large for a double) is 422 `ValidationError`
   (`inbox_body_http_exception`). Raise the subclass that says which; never
   tell them apart by message. So a body no outbox could sign is refused at
   ingress, not when the CASE_MANAGER seals its `Announce`.

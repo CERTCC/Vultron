@@ -226,7 +226,8 @@ groups:
       `test_post_well_formed_json_the_inbox_refuses_returns_422` in
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that valid JSON
       the inbox will not read as an activity (not an object, a duplicate key, a number
-      too large for a double) is answered 422.
+      too large for a double, nesting deeper than `signing.MAX_JSON_DEPTH`) is
+      answered 422.
     relationships:
     - rel_type: refines
       spec_id: HTTP-03-009

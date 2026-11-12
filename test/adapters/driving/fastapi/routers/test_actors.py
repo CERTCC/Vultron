@@ -51,6 +51,7 @@ from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -220,6 +221,14 @@ def test_post_undecodable_body_to_actor_inbox_returns_400(
         pytest.param(
             b'{"count": 1e400}', "too large for a double", id="overflow"
         ),
+        pytest.param(
+            b'{"object": '
+            + b"[" * signing.MAX_JSON_DEPTH
+            + b"]" * signing.MAX_JSON_DEPTH
+            + b"}",
+            "nested too deeply",
+            id="nested-too-deeply",
+        ),
     ],
 )
 def test_post_well_formed_json_the_inbox_refuses_returns_422(
@@ -230,6 +239,7 @@ def test_post_well_formed_json_the_inbox_refuses_returns_422(
     A value that is not an object cannot be an activity, and a duplicate key
     or an overflowing number is read differently by different parsers, so
     the receiver cannot be sure what the sender signed (I-JSON, RFC 7493).
+    Nesting past ``MAX_JSON_DEPTH`` is more than the receiver will process.
     """
     actor = created_actors[0]
     resp = client_actors.post(

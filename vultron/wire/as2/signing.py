@@ -51,6 +51,7 @@ import logging
 import re
 from collections.abc import Mapping
 from datetime import datetime
+from itertools import accumulate
 from typing import Any, NoReturn
 
 import base58
@@ -116,12 +117,16 @@ _BASE58_TEXT = re.compile(r"[1-9A-HJ-NP-Za-km-z]+")
 _TIMESTAMP_TEXT = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})"
 )
-#: One JSON string (an unterminated one runs to the end of the text) or one
-#: bracket.  A bracket inside a string is part of the string match, so only
-#: brackets that nest are found on their own.
-_STRING_OR_BRACKET = re.compile(r'"[^"\\]*(?:\\[\s\S][^"\\]*)*"?|[\[\]{}]')
-_OPENERS = frozenset("[{")
-_CLOSERS = frozenset("]}")
+#: A backslash escape and the character it escapes.  Valid JSON has these
+#: only inside strings, so dropping them leaves strings with no quote inside.
+_JSON_ESCAPE = re.compile(r"\\[\s\S]")
+#: One JSON string with its escapes dropped; an unterminated one runs to the
+#: end of the text.
+_JSON_STRING = re.compile(r'"[^"]*"?')
+#: A run of characters that are not brackets.
+_NOT_BRACKETS = re.compile(r"[^\[\]{}]+")
+#: How a bracket moves the nesting depth.
+_DEPTH_STEP = {"[": 1, "{": 1, "]": -1, "}": -1}
 #: Domain separation for seeds, versioned so a scheme change changes every key.
 _SEED_LABEL = b"vultron-prototype-seeded-key/v1\n"
 
@@ -274,9 +279,11 @@ def load_json(text: str | bytes) -> Any:
             included) or start with a byte-order mark, or it holds ``NaN``
             or ``Infinity``.
         VultronRefusedJsonError: the text is JSON of one of the refused
-            kinds: a duplicate key, a number too large for a double, an
-            integer with too many digits to read, or arrays and objects
-            nested deeper than :data:`MAX_JSON_DEPTH`.
+            kinds: a duplicate key, a number too large for a double, or an
+            integer with too many digits to read.  Or its arrays and objects
+            nest deeper than :data:`MAX_JSON_DEPTH`: that text is refused
+            before it is parsed, so this is raised for it whether or not it
+            is otherwise JSON.
     """
     try:
         # Bytes are read as UTF-8 only (RFC 8259 section 8.1): json.loads
@@ -312,25 +319,29 @@ def load_json(text: str | bytes) -> Any:
 def _refuse_deep_nesting(text: str) -> None:
     """Refuse *text* if its arrays and objects nest deeper than the limit.
 
-    A linear scan, so the check itself uses no stack.  It reads the nesting
-    only; whether the brackets match is left to ``json.loads``.
+    A linear scan, so the check itself uses no stack, and it runs before
+    ``json.loads`` so a deep text is never parsed.  Brackets inside strings
+    are not nesting.  Whether the brackets match is left to ``json.loads``,
+    so text nested past the limit is refused whether or not it is otherwise
+    JSON.  Text with no more openers than the limit is not scanned at all;
+    other text costs a few regex passes, linear in its length.  The inbox
+    body size limit that bounds that length is IE-03 (#4596).
 
     Raises:
         VultronRefusedJsonError: the nesting is deeper than
             :data:`MAX_JSON_DEPTH`.
     """
-    depth = 0
-    for match in _STRING_OR_BRACKET.finditer(text):
-        token = match.group()
-        if token in _OPENERS:
-            depth += 1
-            if depth > MAX_JSON_DEPTH:
-                raise VultronRefusedJsonError(
-                    "JSON is nested too deeply to parse: more than "
-                    f"{MAX_JSON_DEPTH} levels of arrays and objects"
-                )
-        elif token in _CLOSERS:
-            depth -= 1
+    if text.count("[") + text.count("{") <= MAX_JSON_DEPTH:
+        return
+    brackets = _NOT_BRACKETS.sub(
+        "", _JSON_STRING.sub("", _JSON_ESCAPE.sub("", text))
+    )
+    depths = accumulate(map(_DEPTH_STEP.__getitem__, brackets))
+    if max(depths, default=0) > MAX_JSON_DEPTH:
+        raise VultronRefusedJsonError(
+            "JSON is nested too deeply to parse: more than "
+            f"{MAX_JSON_DEPTH} levels of arrays and objects"
+        )
 
 
 def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

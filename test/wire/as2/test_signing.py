@@ -27,6 +27,7 @@ import hashlib
 import inspect
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
 import base58
@@ -776,6 +777,19 @@ def test_an_escaped_backslash_ends_before_the_closing_quote():
         signing.load_json('["\\\\", ' + _nested(LIMIT) + "]")
 
 
+def test_wide_json_with_many_brackets_is_not_deep():
+    """More openers than the limit, side by side, is shallow nesting."""
+    text = "[" + ", ".join(["[{}]"] * LIMIT) + "]"
+
+    assert _depth(signing.load_json(text)) == 3
+
+
+def test_text_nested_past_the_limit_is_refused_even_when_not_json():
+    """The check runs before the parse, so it does not wait for the syntax."""
+    with pytest.raises(VultronRefusedJsonError, match="nested too deeply"):
+        signing.load_json("[" * (LIMIT + 1))
+
+
 def test_unterminated_string_text_is_not_json():
     """A string that never closes hides no nesting and is not JSON."""
     with pytest.raises(VultronJsonSyntaxError, match="not JSON"):
@@ -790,7 +804,12 @@ def test_a_stack_that_runs_out_below_the_limit_is_still_a_refusal(
     def overflow(*args: Any, **kwargs: Any) -> Any:
         raise RecursionError("maximum recursion depth exceeded")
 
-    monkeypatch.setattr(signing.json, "loads", overflow)
+    # A namespace only signing sees, not the process-wide json module.
+    monkeypatch.setattr(
+        signing,
+        "json",
+        SimpleNamespace(loads=overflow, JSONDecodeError=json.JSONDecodeError),
+    )
 
     with pytest.raises(VultronRefusedJsonError, match="nested too deeply"):
         signing.load_json("[[]]")
