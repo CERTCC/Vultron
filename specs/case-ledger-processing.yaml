@@ -3676,9 +3676,10 @@ groups:
       the inbox (UCORG-05-010), and not from state an earlier stage left in memory
       (CLP-10-078). It records the outcome and never decides one (CLP-10-079).
     rationale: >-
-      Every stage reads only the record and the store, so a later stage cannot be fooled
-      by what an earlier one happened to leave in memory, and the stages stay separable
-      (ADR-0154). One stage rather than a write in each tree means a tree cannot forget
+      Every stage reads the record, the store and the one input its boundary hands
+      over (CLP-10-084), so a later stage cannot be fooled by what an earlier one
+      happened to leave in memory (ADR-0154).
+      One stage rather than a write in each tree means a tree cannot forget
       it or disagree with another about what a refusal keeps (CS-22-001). It runs after
       the tree because a node in the run embeds the body of the message being handled —
       the refusal notice does (CLP-05-001) — so the body must still be there while the
@@ -3804,9 +3805,10 @@ groups:
       The outcome stage MUST NOT decide the received record's final stage from in-memory
       state an earlier stage left behind.
     rationale: >-
-      Every stage reads the record and the store, so the stages stay separable and a
-      later one cannot be fooled by what an earlier one happened to leave in memory
-      (ADR-0154). The handler's result is the one channel from the handling tree
+      Every stage reads the record, the store and the one input its boundary hands
+      over (CLP-10-084), so a later one cannot be fooled by what an earlier one
+      happened to leave in memory (ADR-0154).
+      The handler's result is the one channel from the handling tree
       (UCORG-05-010); whether a delivery was seen before is a question for the record.
     verification: >-
       `test/core/behaviors/inbox/nodes/test_outcome_stage.py` drives every disposition
@@ -3875,8 +3877,8 @@ groups:
       carries the answer (CLP-10-080).
     verification: >-
       `test/architecture/test_received_stages_read_the_record.py` fails when a
-      handling-tree node holds a door node or reads a key that a door wrote, with
-      one read pinned under #6003, and is proved by planted reads.
+      handling-tree node holds a door node or reads a key that a door wrote, other
+      than the CLP-10-084 path read, and is proved by planted reads.
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-080
@@ -3905,6 +3907,57 @@ groups:
       spec_id: CLP-10-017
     - rel_type: refines
       spec_id: CLP-10-010
+    adr:
+    - ADR-0154
+  - id: CLP-10-083
+    priority: MUST
+    kind: project
+    statement: >-
+      A delivery whose run ended with no handler verdict MUST be run again from its
+      door guards, never resumed at a later stage.
+    rationale: >-
+      A run that starts over asks every door question again, so no stage depends on
+      an answer that only an earlier, lost run held in memory (ADR-0154). The record
+      tells the re-run what the first run already did (CLP-10-080), and every handling
+      tree tolerates the second run. Resuming at a later stage would need each door
+      answer kept on the record, a persistence change no use needs.
+    verification: >-
+      `test/adapters/driving/fastapi/test_interrupted_run_restart.py` asserts that a
+      restart runs a held record as a delivery of its body;
+      `test/core/use_cases/received/test_rerun_from_holding_sweep.py` runs every
+      routed semantic again from holding and asserts nothing is committed or queued
+      twice.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-074
+    - rel_type: uses_definition
+      spec_id: IE-06-014
+    adr:
+    - ADR-0154
+  - id: CLP-10-084
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A handling-tree node MUST NOT read in-memory state a door stage left behind,
+      other than the receiver's path that the HP-01-035 stage resolved.
+    rationale: >-
+      Each stage boundary hands over one named input: the delivery to the doors, the
+      resolved path to the handling tree and the handler's result to the outcome
+      stage (CLP-10-073). The path is read from the door, not asked again, because an
+      act such as an ownership transfer changes who the CASE_MANAGER is partway
+      through the run (HP-01-036). Every run starts at the doors (CLP-10-083), so the
+      path always comes from the same run and a restart loses nothing.
+    verification: >-
+      `test/architecture/test_received_stages_read_the_record.py` fails when a
+      handling-tree node holds a door node or reads a key that a door wrote, and
+      admits only the path branch's read of the path stage.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-082
+    - rel_type: uses_definition
+      spec_id: HP-01-035
+    - rel_type: uses_definition
+      spec_id: HP-01-036
     adr:
     - ADR-0154
 - id: CLP-11
