@@ -65,35 +65,69 @@ class _Block:
     code: str
 
 
-def _in_examples_package(module: str) -> bool:
-    return (
-        module == _EXAMPLES_PACKAGE
-        or module.startswith(f"{_EXAMPLES_PACKAGE}.")
-    ) and module not in _OTHER_RENDERERS
+def _in_examples_package(name: str) -> bool:
+    """Whether *name* is the examples package or a name inside it.
+
+    The tutorial module, and any name inside it, is not (:data:`_OTHER_RENDERERS`).
+    """
+    if any(
+        name == other or name.startswith(f"{other}.")
+        for other in _OTHER_RENDERERS
+    ):
+        return False
+    return name == _EXAMPLES_PACKAGE or name.startswith(
+        f"{_EXAMPLES_PACKAGE}."
+    )
+
+
+def _reaches_examples(name: str) -> bool:
+    """Whether importing *name* gives a block the examples package.
+
+    The package and anything in it does, and so does each package above it
+    (``vultron.wire.as2.vocab``), whose attributes reach every builder.
+    """
+    return _in_examples_package(name) or _EXAMPLES_PACKAGE.startswith(
+        f"{name}."
+    )
 
 
 def direct_builder_uses(code: str) -> list[str]:
     """What in *code* reaches a vocab example other than ``render_example``.
 
-    An import of any other name from the examples package is one: through it
-    a block can build an example outside the id scope.  So is a plain
-    ``import`` of a module in it, which reaches every builder as an attribute.
+    Any import that reaches the examples package is one (:func:`_reaches_examples`),
+    except ``render_example`` itself imported under its own name: through
+    anything else a block can build an example outside the id scope.  A
+    string naming the package is one too, since ``importlib`` or
+    ``__import__`` can load a builder from it.  A renamed ``render_example``
+    is one because :func:`rendered_names` could no longer see its calls.
     """
     found: list[str] = []
     for node in ast.walk(ast.parse(code)):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
-            if _in_examples_package(node.module):
-                found += [
-                    f"from {node.module} import {alias.name}"
-                    for alias in node.names
-                    if alias.name != _RENDERER
-                ]
+            for alias in node.names:
+                target = f"{node.module}.{alias.name}"
+                is_renderer = (
+                    _in_examples_package(node.module)
+                    and alias.name == _RENDERER
+                    and alias.asname in (None, _RENDERER)
+                )
+                if _reaches_examples(target) and not is_renderer:
+                    shown = f" as {alias.asname}" if alias.asname else ""
+                    found.append(
+                        f"from {node.module} import {alias.name}{shown}"
+                    )
         elif isinstance(node, ast.Import):
             found += [
                 f"import {alias.name}"
                 for alias in node.names
-                if _in_examples_package(alias.name)
+                if _reaches_examples(alias.name)
             ]
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and _in_examples_package(node.value.strip())
+        ):
+            found.append(f"a string naming {node.value.strip()!r}")
     return found
 
 
@@ -120,6 +154,44 @@ def rendered_names(code: str) -> list[str | None]:
     return names
 
 
+def _committed_markdown(
+    name: str, committed_dir: Path = _COMMITTED_DIR
+) -> str:
+    """The committed example *name* as ``json2md`` frames it."""
+    text = (committed_dir / f"{name}.json").read_bytes().decode("utf-8")
+    return f"```json\n{text}\n```"
+
+
+def rendering_problems(
+    uses: list[tuple[str, str | None]],
+    committed_dir: Path = _COMMITTED_DIR,
+) -> list[str]:
+    """What is wrong with *uses*, each a ``(where, rendered name)`` pair.
+
+    A name that is not a literal cannot be compared; a name the generator
+    does not write has no artifact; and a rendering that differs from the
+    committed file is the drift this gate exists for.
+    """
+    known = set(example_names())
+    problems = [
+        f"{where}: render_example's name is not a string literal"
+        for where, name in uses
+        if name is None
+    ]
+    problems += [
+        f"{where}: {name!r} is not an example the generator writes"
+        for where, name in uses
+        if name is not None and name not in known
+    ]
+    rendered = sorted({name for _, name in uses if name in known})
+    problems += [
+        f"{name}: the page's rendering differs from {name}.json"
+        for name in rendered
+        if render_example(name) != _committed_markdown(name, committed_dir)
+    ]
+    return problems
+
+
 @pytest.fixture(scope="module")
 def docs_blocks() -> list[_Block]:
     """Every exec block in every Markdown page under ``docs/``."""
@@ -130,12 +202,6 @@ def docs_blocks() -> list[_Block]:
             where = f"{path.relative_to(_REPO_ROOT)}:{block.line}"
             blocks.append(_Block(where=where, code=block.code))
     return blocks
-
-
-def _committed_markdown(name: str) -> str:
-    """The committed example *name* as ``json2md`` frames it."""
-    text = (_COMMITTED_DIR / f"{name}.json").read_bytes().decode("utf-8")
-    return f"```json\n{text}\n```"
 
 
 @pytest.mark.spec("DF-09-009")
@@ -164,8 +230,23 @@ def test_no_exec_block_calls_a_vocab_example_builder(docs_blocks):
         "from vultron.wire.as2.vocab.examples.case import create_case\n",
         "import vultron.wire.as2.vocab.examples.vocab_examples as v\n"
         "print(v.json2md(v.create_case()))",
+        "from vultron.wire.as2.vocab import examples\n",
+        "import vultron.wire.as2.vocab\n",
+        "import importlib\n"
+        "m = importlib.import_module("
+        "'vultron.wire.as2.vocab.examples.vocab_examples')\n",
+        "from vultron.wire.as2.vocab.examples.vocab_examples import "
+        "render_example as r\nprint(r('create_case'))",
     ],
-    ids=["builder-import", "builder-module", "module-import"],
+    ids=[
+        "builder-import",
+        "builder-module",
+        "module-import",
+        "parent-package-from",
+        "parent-package-import",
+        "importlib",
+        "renamed-renderer",
+    ],
 )
 def test_the_check_flags_a_direct_builder_call(code):
     assert direct_builder_uses(code)
@@ -179,8 +260,10 @@ def test_the_check_flags_a_direct_builder_call(code):
         "from vultron.wire.as2.vocab.examples.submit_report_tutorial "
         "import render_payload\nprint(render_payload())",
         "from vultron.metadata.docs import render_catalog\n",
+        "import vultron.metadata.docs\n",
+        "from vultron.wire.as2.vocab.base.base import as_Base\n",
     ],
-    ids=["renderer", "tutorial", "unrelated"],
+    ids=["renderer", "tutorial", "unrelated", "other-vultron", "sibling"],
 )
 def test_the_check_passes_a_block_that_renders_through_the_renderer(code):
     assert direct_builder_uses(code) == []
@@ -197,30 +280,44 @@ def test_every_rendered_example_is_the_committed_artifact(docs_blocks):
     assert uses, (
         "no render_example call found under docs/, so nothing was compared"
     )
-    not_literal = [where for where, name in uses if name is None]
-    assert not not_literal, (
-        "render_example must name its example with a string literal, so "
-        "this gate can compare it with the committed file:\n  "
-        + "\n  ".join(not_literal)
+    problems = rendering_problems(uses)
+    assert not problems, (
+        "These pages do not show the committed example. Name a committed "
+        "example with a string literal, or re-run uv run python "
+        "vultron/wire/as2/vocab/examples/vocab_examples.py and commit the "
+        "result:\n  " + "\n  ".join(problems)
     )
-    known = set(example_names())
-    unknown = sorted(
-        f"{where}: {name}" for where, name in uses if name not in known
+
+
+@pytest.mark.parametrize(
+    ("code", "names"),
+    [
+        ('render_example("case_status")', ["case_status"]),
+        ("render_example(name)", [None]),
+        ("render_example()", [None]),
+        ('print(json2md(case_status()))\nlen("x")', []),
+    ],
+    ids=["literal", "variable", "no-argument", "other-calls"],
+)
+def test_rendered_names_reads_each_call(code, names):
+    assert rendered_names(code) == names
+
+
+def test_the_gate_reports_each_kind_of_problem(tmp_path):
+    """Not-literal, unknown and drifted each fail, so a pass means something."""
+    (tmp_path / "case_status.json").write_text("{}", encoding="utf-8")
+    problems = rendering_problems(
+        [("a.md:1", None), ("b.md:2", "no_such"), ("c.md:3", "case_status")],
+        committed_dir=tmp_path,
     )
-    assert not unknown, (
-        "These pages render an example the generator does not write:\n  "
-        + "\n  ".join(unknown)
-    )
-    drifted = sorted(
-        name
-        for name in {name for _, name in uses if name is not None}
-        if render_example(name) != _committed_markdown(name)
-    )
-    assert not drifted, (
-        "These rendered examples differ from docs/reference/examples/. "
-        "Re-run uv run python vultron/wire/as2/vocab/examples/"
-        "vocab_examples.py and commit the result:\n  " + "\n  ".join(drifted)
-    )
+    assert len(problems) == 3
+    assert "a.md:1" in problems[0] and "not a string literal" in problems[0]
+    assert "b.md:2" in problems[1] and "'no_such'" in problems[1]
+    assert problems[2].startswith("case_status:")
+
+
+def test_the_gate_passes_a_committed_example():
+    assert rendering_problems([("a.md:1", "case_status")]) == []
 
 
 def test_every_example_renders_the_same_twice_and_as_committed():
@@ -258,8 +355,13 @@ def test_a_fresh_process_renders_every_example_the_same():
         capture_output=True,
         text=True,
         encoding="utf-8",
-        check=True,
-        timeout=300,
+        check=False,
+        # Under the unit tier's per-test ceiling, so a hang fails here with
+        # the child's own message rather than as a bare ceiling trip.
+        timeout=25,
+    )
+    assert result.returncode == 0, (
+        f"the fresh process failed ({result.returncode}):\n{result.stderr}"
     )
     fresh: dict[str, str] = json.loads(result.stdout)
     here = {name: render_example(name) for name in example_names()}

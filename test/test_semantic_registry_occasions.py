@@ -780,12 +780,9 @@ def test_occasion_example_dispatches_to_its_own_entry(
     field-value distinguisher is checked in the example.
     """
     entry, occasion = item
-    build = getattr(vocab_examples, occasion.example, None)
-    assert callable(build), (
-        f"{occasion.anchor}: vocab_examples has no function"
-        f" {occasion.example!r}"
-    )
-    activity = build()
+    # Built as the page renders it: by committed-example name, inside the
+    # example id scope (``render_example``, #5893).
+    activity = vocab_examples.build_example(occasion.example)
     assert isinstance(activity, as_Activity)
     assert find_matching_semantics(activity) is entry.semantics
     matching = [

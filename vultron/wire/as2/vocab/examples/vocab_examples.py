@@ -328,6 +328,15 @@ def example_filename(
     return filename or f"{builder.__name__}.json"
 
 
+def _all_filenames() -> list[str]:
+    """Every file the tables write, in write order, repeats included."""
+    names = [
+        example_filename(builder, filename) for builder, filename in EXAMPLES
+    ]
+    names += [filename for _, _, filename in INLINE_OBJECTS]
+    return names
+
+
 def check_tables() -> None:
     """Refuse a table that would write one file twice, before any write.
 
@@ -341,10 +350,7 @@ def check_tables() -> None:
     row of :data:`EXAMPLES`, so the inline object is read off that row's one
     built instance rather than from a second call.
     """
-    names = [
-        example_filename(builder, filename) for builder, filename in EXAMPLES
-    ]
-    names += [filename for _, _, filename in INLINE_OBJECTS]
+    names = _all_filenames()
     repeated = sorted({name for name in names if names.count(name) > 1})
     if repeated:
         raise ValueError(
@@ -430,11 +436,7 @@ def example_names() -> list[str]:
     ``docs/reference/examples/create_case.json``.  These are the names
     :func:`render_example` accepts.
     """
-    names = [
-        example_filename(builder, filename) for builder, filename in EXAMPLES
-    ]
-    names += [filename for _, _, filename in INLINE_OBJECTS]
-    return [name.removesuffix(".json") for name in names]
+    return [name.removesuffix(".json") for name in _all_filenames()]
 
 
 def build_example(name: str) -> BaseModel:
