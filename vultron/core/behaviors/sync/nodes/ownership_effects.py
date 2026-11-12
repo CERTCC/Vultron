@@ -27,13 +27,10 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
-    _LedgerEffectNode,
-)
+from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.wire_keys import wire_key
-from vultron.primitives import normalise_actor_id
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +76,10 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         carried = entry.payload_snapshot.get("object")
         # The entry carries the owner in its writer's spelling; the replica
         # stores the canonical one (OID-01-006, #5919).
-        carried_owner = (
-            _extract_id_from_field(carried.get(_ATTRIBUTED_TO))
+        new_owner_id = (
+            snapshot_actor_id(carried.get(_ATTRIBUTED_TO))
             if isinstance(carried, dict)
             else None
-        )
-        new_owner_id = (
-            normalise_actor_id(carried_owner) if carried_owner else None
         )
         if not new_owner_id:
             self.feedback_message = (

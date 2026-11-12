@@ -76,6 +76,27 @@ def test_a_case_refuses_a_slash_spelled_owner_at_construction() -> None:
 
 
 @pytest.mark.spec("OID-01-006")
+def test_a_received_participants_derived_name_and_status_are_canonical() -> (
+    None
+):
+    """The name and first status a received record derives from its actor
+    take the spelling the record's ``attributed_to`` holds, not the raw one:
+    the model before-validators that seed them run before the field's own
+    inbound normaliser (#5919)."""
+    data = _participant_dump(f"{VENDOR_ID}/")
+    for key in ("name", "participantStatuses"):
+        data.pop(key, None)
+
+    participant = _inbound(CaseParticipant, data)
+
+    assert participant.attributed_to == VENDOR_ID
+    assert participant.name == VENDOR_ID
+    assert [s.attributed_to for s in participant.participant_statuses] == [
+        VENDOR_ID
+    ]
+
+
+@pytest.mark.spec("OID-01-006")
 def test_a_received_participant_is_normalised_where_it_is_parsed() -> None:
     participant = _inbound(CaseParticipant, _participant_dump(f"{VENDOR_ID}/"))
 

@@ -134,7 +134,7 @@ class CreateCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             case = VulnerabilityCase(
                 name=f"Case for Report {self.report_id}",
                 vulnerability_reports=[report_id_ref],
-                attributed_to=self.actor_id,
+                attributed_to=normalise_actor_id(self.actor_id),
                 **authored_times(self._require_act_instant()),
             )
 

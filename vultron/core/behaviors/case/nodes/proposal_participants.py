@@ -46,6 +46,7 @@ from vultron.core.predicates.addressing import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.primitives import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         assert self.actor_id is not None
 
         participant = CaseParticipant(
-            attributed_to=self.actor_id,
+            attributed_to=normalise_actor_id(self.actor_id),
             context=case_id,
             name=f"CaseActor for {case_id}",
             case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],

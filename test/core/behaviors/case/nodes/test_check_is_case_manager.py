@@ -207,6 +207,8 @@ def test_an_own_activity_is_own_in_either_spelling(
         )
 
     assert result.status == Status.FAILURE
-    assert any(r.levelno >= logging.ERROR for r in caplog.records), [
-        (r.levelname, r.getMessage()) for r in caplog.records
-    ]
+    missing = f"case '{CASE_ID}' not found in DataLayer"
+    assert any(
+        r.levelno == logging.ERROR and missing in r.getMessage()
+        for r in caplog.records
+    ), [(r.levelname, r.getMessage()) for r in caplog.records]

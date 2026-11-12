@@ -1908,14 +1908,14 @@ def test_a_proposal_cannot_store_the_slash_spelling_unnormalised(
     )
     monkeypatch.setattr(report_author, "normalise_actor_id", lambda a: a)
 
-    status = _run_tree(
+    result = _run_tree_result(
         dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri
     )
 
-    assert status != Status.SUCCESS
-    for case in _cases(dl):
-        assert not any(k.endswith("/") for k in case.actor_participant_index)
-        assert not case.attributed_to.endswith("/")
+    assert result.status == Status.FAILURE
+    refusal = " ".join([result.feedback_message, *(result.errors or [])])
+    assert "trailing slash" in refusal, refusal
+    assert _cases(dl) == []
 
 
 def _case_rows(dl, case_id: str) -> list[str]:

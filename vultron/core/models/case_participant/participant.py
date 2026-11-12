@@ -50,9 +50,21 @@ from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.errors import (
     VultronValidationError,
 )
-from vultron.primitives import NormalisedActorId
+from vultron.primitives import NormalisedActorId, normalise_actor_id
 
 logger = logging.getLogger(__name__)
+
+
+def _canonical_actor(value: Any) -> Any:
+    """*value* in the spelling the participant's ``attributed_to`` will hold.
+
+    The model before-validators that derive ``name`` and the first status run
+    before the field's own inbound normaliser, so they read the raw input.
+    Normalising here is safe outside a parse too: an authored or stored
+    trailing-slash id is refused by the field itself, so the derived value
+    is only kept when it equals the field's (OID-01-006, #5919).
+    """
+    return normalise_actor_id(value) if isinstance(value, str) else value
 
 
 def first_status(
@@ -68,7 +80,9 @@ def first_status(
     published = blank_as_none(first_input(data, cls, "published"))
     return ParticipantStatus(
         context=first_input(data, cls, "context") or id_val,
-        attributed_to=first_input(data, cls, "attributed_to"),
+        attributed_to=_canonical_actor(
+            first_input(data, cls, "attributed_to")
+        ),
         published=published,
         updated=published,
         cvd_role=coerce_cvd_roles(first_input(data, cls, "case_roles") or []),
@@ -178,7 +192,7 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         attributed_to = first_input(data, cls, "attributed_to")
         if name is None and attributed_to is not None:
             data = dict(data)
-            data["name"] = attributed_to
+            data["name"] = _canonical_actor(attributed_to)
         return data
 
     @model_validator(mode="before")

@@ -131,9 +131,9 @@ def resolve_proposer_id(
             request.context_id,
         )
         return request.actor_id
-    # The one source of "is the sender the case's authority" (ARCH-24-008),
-    # tolerant of the roster spelling the manager with a trailing slash,
-    # which the sender id never carries (OID-01-006, OID-01-007).
+    # The one source of "is the sender the case's authority" (ARCH-24-008).
+    # The roster and the sender id are both canonical (OID-01-006,
+    # OID-01-007, #5919).
     if has_role(request.actor_id, case.id_, CVDRole.CASE_MANAGER, dl):
         return attributed_to
     logger.warning(
