@@ -206,3 +206,21 @@ groups:
     verification: >-
       A test (#6348) feeds the sanitizer a response with an unclassified field
       and asserts it is refused with an error naming that field.
+  - id: VSD-02-008
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      The sanitizer's output MUST NOT contain an id of its source case, whether
+      the id is a string or a number.
+    rationale: >-
+      A VINCE case, participant or post id identifies the real case as surely
+      as its text does, and VSD-02-006 covers only string values. ADR-0189 rule
+      4 says sanitized output keeps none of the source's ids, so each id is
+      replaced by a synthetic one, consistent across the case.
+    verification: >-
+      The sanitizer's leak test (#6348) collects every id of a test-instance
+      source case, string and numeric, and asserts none appears in the output or
+      in any log record of the run, while ids that pointed at one source object
+      still point at one synthetic object.
