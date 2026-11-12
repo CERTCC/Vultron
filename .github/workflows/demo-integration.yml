@@ -206,7 +206,9 @@ jobs:
       - name: Build other Dockerfile targets (spike)
         if: strategy.job-index == 0
         run: |
-          for t in dev test docs vultrabot_demo; do
+          # The dev stage bakes .git and requires origin/main in it.
+          git fetch --no-tags --depth=1 origin +main:refs/remotes/origin/main
+          for t in test docs vultrabot_demo dev; do
             docker buildx build --target "$t" -f docker/Dockerfile . || exit 1
           done
 
