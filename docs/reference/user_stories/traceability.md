@@ -1725,7 +1725,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CM — Case Management | [CM-11-036](../vultron-spec/requirements/case-management.md#cm-11-036) |
-| MV — Message Validation | [MV-10-005](../vultron-spec/requirements/messages.md#mv-10-005) |
+| MV — Message Validation | [MV-10-005](../vultron-spec/requirements/messages.md#mv-10-005), [MV-12-001](../vultron-spec/requirements/messages.md#mv-12-001), [MV-12-002](../vultron-spec/requirements/messages.md#mv-12-002), [MV-12-003](../vultron-spec/requirements/messages.md#mv-12-003), [MV-12-004](../vultron-spec/requirements/messages.md#mv-12-004), [MV-12-005](../vultron-spec/requirements/messages.md#mv-12-005) |
 | PCR — Participant Case Replica | [PCR-06-005](../vultron-spec/requirements/ledger-replication.md#pcr-06-005) |
 | SYNC — Case Event Log Synchronization | [SYNC-03-005](../vultron-spec/requirements/ledger-replication.md#sync-03-005), [SYNC-03-011](../vultron-spec/requirements/ledger-replication.md#sync-03-011), [SYNC-03-014](../vultron-spec/requirements/ledger-replication.md#sync-03-014), [SYNC-16-010](../vultron-spec/requirements/ledger-replication.md#sync-16-010), [SYNC-16-011](../vultron-spec/requirements/ledger-replication.md#sync-16-011), [SYNC-17-002](../vultron-spec/requirements/ledger-replication.md#sync-17-002), [SYNC-17-009](../vultron-spec/requirements/ledger-replication.md#sync-17-009), [SYNC-18-013](../vultron-spec/requirements/ledger-replication.md#sync-18-013), [SYNC-18-014](../vultron-spec/requirements/ledger-replication.md#sync-18-014) |
 

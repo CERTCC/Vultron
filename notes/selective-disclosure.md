@@ -4,18 +4,19 @@ status: draft
 kind: plan
 tracks:
   - "#3258"
-  - "#4568"
+  - "#6372"
 description: >
-  Design direction for referencing objects without inlining them and for
-  explicit redaction of withheld fields. Neither exists yet; the delivered
+  Design direction for referencing objects without inlining them, and the
+  preview-only redaction marker (ADR-0193). Neither is built yet; the delivered
   VulnerabilityCase stub is in notes/stub-objects.md.
 related_specs:
-  - specs/message-validation.yaml (AKM-03-001, MV-10-002)
+  - specs/message-validation.yaml (AKM-03-001, MV-10-002, MV-12)
   - specs/actor-knowledge-model.yaml (AKM-05-006, AKM-05-007)
 related_notes:
   - notes/stub-objects.md
   - notes/wire-core-boundary.md
   - notes/protocol-asks.md
+  - notes/as2-vocabulary-alignment.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -44,32 +45,33 @@ the full object or accept an opaque reference. This is a prototype limitation,
 not a production property, so dict-shaped partial objects must not become the
 workaround.
 
-## Redaction: `None` ≠ Redacted (#4568)
+## Redaction Builds a Preview (#4568, ADR-0193)
 
-A privacy-aware protocol distinguishes three states a JSON/Pydantic model
-usually conflates:
+A field can be absent (unknown or not applicable), `null` (no value), or
+**redacted**: it has a value the sender withholds from this recipient. Only a
+preview can say the last one. A preview is a limited view of an object for a
+recipient not yet entitled to it, never the object itself. The case stub is the
+first, and #6244 makes it the case's AS2 `preview`; wider previews (report,
+reserved vul record, draft advisory) are #6257.
 
-- **Absent**: the sender does not know the value, or it does not apply.
-- **`None`**: the field exists but has no value.
-- **Redacted**: the field has a value the sender is deliberately withholding from
-  this recipient.
+- **Built from the full object, one choice per field** (MV-12-004): show the
+  value, redact it, or leave it out. Leave it out by default, because a marker
+  discloses that a value exists, and that is often the sensitive fact ("an
+  exploit is known"). Redact only where the recipient needs to know the value
+  exists, such as an invitee weighing whether to join.
+- **Wire form** (MV-12-003): `{"type": "Redacted", "summary": "<reason>"}`,
+  `summary` optional, no other field, never the withheld value. `Redacted` is
+  declared as a Vultron extension term under the rule #5743 writes.
+- **Previews only** (MV-12-001, MV-12-002): a receiver refuses a marker in any
+  other position. A full object never holds one, so no domain field widens to
+  "value or marker" and a stored case never carries one. Withholding one field
+  of an otherwise full object is not supported: the shared, hash-chained ledger
+  would hide it from the whole case anyway.
+- **Not anonymity.** Hiding a participant's identity (#2562) gives the others a
+  working stand-in, an alias a Coordinator relays through, held in the shared
+  case for good. A redaction is a visible gap, usually lifted on admission, and
+  a redacted identity cannot be addressed.
 
-A candidate wire form is a micro-structure in place of the value:
-
-```json
-{
-  "id": "https://example.com/cases/abc123",
-  "type": "VulnerabilityCase",
-  "name": {"type": "Redacted", "reason": "Embargo pending"}
-}
-```
-
-It lets a recipient tell "the case has no name" from "the name is withheld" and
-show a meaningful placeholder. Any such structure must also exist in the core
-domain model, so a handler receiving a redacted field preserves the redaction
-intent rather than reading `None`. AS2's `summary` can carry a human-readable
-reason ("Case details restricted pending embargo acceptance.") on an otherwise
-minimal object.
-
-Redaction is also the mechanism a reduced delivery tier for Observers would need.
-CM-25-003 rules that tier out today, so it would be amended first.
+The receiver refusal holds today: every declared field of a full object refuses
+a marker as a malformed value. Accepting the marker in a preview waits on #6244
+and #5743, and is built by #6372.

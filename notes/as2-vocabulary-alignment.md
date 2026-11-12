@@ -63,6 +63,7 @@ related_notes:
   - notes/activitystreams-state-update.md
   - notes/vocabulary-registry.md
   - notes/call-out-configuration.md
+  - notes/selective-disclosure.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/semantic_registry
@@ -646,7 +647,8 @@ are Concerns #6259, #6260 and #6261.
   disclosure.
 - **`preview` beyond the stub** (#6257). A report previewed to a prospective
   recipient, a reserved vul record, a draft advisory, what non-signatories may see
-  of a gated object.
+  of a gated object. A preview may mark a withheld field `Redacted`, and
+  only a preview may (`notes/selective-disclosure.md`, ADR-0193).
 
 ## Sources
 
