@@ -408,24 +408,6 @@ class TestBTBridgeIntegration:
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("EMB-15-006")
-    def test_case_owner_reaches_accept_bt(self):
-        """CASE_OWNER actor: accept arm fires; accept_bt is ticked."""
-        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
-        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
-        _make_case_with_participants(scenario, owner_p)
-
-        accept_bt, accept_log = _tracking_stub("AcceptDelegate")
-        tree = create_embargo_response_decision_tree(
-            case_id=_INT_CASE_ID,
-            deciding_actor_id=_OWNER_ACTOR,
-            accept_bt=accept_bt,
-            reject_bt=_failing_stub("RejectDelegate"),
-        )
-        result = scenario.run(tree, actor_id=_OWNER_ACTOR)
-        scenario.assert_success(result)
-        assert accept_log["ticked"], "accept_bt must be ticked for CASE_OWNER"
-
-    @pytest.mark.spec("EMB-15-006")
     @pytest.mark.spec("EMB-15-013")
     @pytest.mark.parametrize("accepts", [True, False])
     def test_case_owner_answer_follows_evaluate_alone(self, accepts: bool):
@@ -486,29 +468,37 @@ class TestBTBridgeIntegration:
         assert reject_log["ticked"] is not accepts
 
     @pytest.mark.spec("EMB-15-004")
-    def test_unknown_actor_falls_through_to_reject(self):
-        """Actor not in case: EvaluateEmbargoProposal declines → reject."""
+    @pytest.mark.spec("EMB-15-013")
+    @pytest.mark.parametrize("accepts", [True, False])
+    def test_unknown_actor_answer_follows_evaluate_alone(self, accepts: bool):
+        """Actor not in the case: no role read gates the accept arm.
+
+        EvaluateEmbargoProposal's yes ticks the accept delegate even for an
+        actor with no participant record; its no falls through to reject.
+        """
         bundle = EmbargoCallOutBundle(
-            evaluate_embargo_proposal_factory=call_out_no,  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=(  # type: ignore[arg-type]
+                _stub if accepts else call_out_no
+            ),
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         # Seed case with no entry for _UNKNOWN_ACTOR
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         _make_case_with_participants(scenario, known_p)
 
+        accept_bt, accept_log = _tracking_stub("AcceptDelegate")
         reject_bt, reject_log = _tracking_stub("RejectDelegate")
         tree = create_embargo_response_decision_tree(
             case_id=_INT_CASE_ID,
             deciding_actor_id=_UNKNOWN_ACTOR,
-            accept_bt=_stub("AcceptDelegate"),
+            accept_bt=accept_bt,
             reject_bt=reject_bt,
             call_out=bundle,
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert reject_log["ticked"], (
-            "reject_bt must be ticked for unknown actor"
-        )
+        assert accept_log["ticked"] is accepts
+        assert reject_log["ticked"] is not accepts
 
     # ------------------------------------------------------------------
     # Flow A — accept/counter/reject delegation (EMB-15-001 / EMB-15-003 / EMB-15-004)

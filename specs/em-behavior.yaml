@@ -2460,11 +2460,11 @@ groups:
     protocol separates the shared EM lifecycle (EMB-01..EMB-09) from
     per-participant consent (CM-18, ADR-0048). This group specifies a single
     decision seam layered over both flows: it selects the response (accept /
-    defer-to-owner / reject / counter) while delegating the mechanical
-    transition to the existing received and trigger BTs. The mechanics already
-    exist (invite/accept/reject trees, propose/accept/reject trigger use cases);
-    what is missing is the decision layer that chooses among them, with a
-    default-accept policy and a plug-in seam for owner adjudication.
+    reject / counter) while delegating the mechanical transition to the
+    existing received and trigger BTs. The mechanics already exist
+    (invite/accept/reject trees, propose/accept/reject trigger use cases); the
+    decision layer chooses among them with a default-accept policy, decided by
+    the deciding actor's own policy and approved by no other actor.
   trigger:
     type: message_received
     value: EP | InviteToEmbargoOnCase
@@ -2558,10 +2558,12 @@ groups:
       Owner delegates embargo activation to the CASE_MANAGER belongs on the
       CASE_MANAGER's activation path (#6045), not in this seam.
     verification: >-
-      `test/core/behaviors/embargo/test_response_decision_tree.py::TestNoApprovalGate`
-      confirms the accept arm is `EvaluateEmbargoProposal` then the accept
-      delegate, and that a non-owner's answer follows `EvaluateEmbargoProposal`
-      alone.
+      In `test/core/behaviors/embargo/test_response_decision_tree.py`,
+      `TestAcceptArm::test_accept_arm_has_two_children` and
+      `TestAcceptArm::test_accept_arm_first_child_name` confirm the accept arm
+      is `EvaluateEmbargoProposal` then the accept delegate, and
+      `TestBTBridgeIntegration::test_non_owner_answer_follows_evaluate_alone`
+      confirms a non-owner's answer follows `EvaluateEmbargoProposal` alone.
     relationships:
     - rel_type: extends
       spec_id: EMB-15-001
