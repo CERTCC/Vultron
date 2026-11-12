@@ -24,10 +24,14 @@ genesis as its own ``create_embargo_event`` entry (CLP-07-013).
 """
 
 import logging
+from datetime import datetime
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.services.embargo_ordering import read_embargo_event
@@ -111,8 +115,72 @@ def creation_embargoes(
     return embargoes
 
 
+def creation_contents(
+    datalayer: CasePersistence,
+    port: TriggerActivityPort,
+    case: VulnerabilityCase,
+    actor: str,
+    at: datetime,
+) -> list[tuple[str, str, tuple[str, str]]]:
+    """The entry each item and reference the creation wrote takes.
+
+    One ``Add`` per record, carrying it in full with the case as its target,
+    items first, each list in its order (CLP-07-021, CSAF-03-008,
+    CSAF-03-009), as ``(object_id, semantic_type, activity)``, each built
+    at *at*, the act's instant (ADR-0176).
+
+    Raises:
+        _EntryNotCommitted: The case lists a record this store cannot read.
+    """
+    contents: list[tuple[str, str, tuple[str, str]]] = []
+    for item_ref in case.vulnerability_items:
+        item = _read_listed(datalayer, case, item_ref, VulnerabilityItem)
+        contents.append(
+            (
+                item.id_,
+                MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE.value,
+                port.record_vulnerability_item_added(
+                    item, case.id_, actor, at=at
+                ),
+            )
+        )
+    for reference_ref in case.case_references:
+        reference = _read_listed(datalayer, case, reference_ref, CaseReference)
+        contents.append(
+            (
+                reference.id_,
+                MessageSemantics.ADD_CASE_REFERENCE_TO_CASE.value,
+                port.record_case_reference_added(
+                    reference, case.id_, actor, at=at
+                ),
+            )
+        )
+    return contents
+
+
+def _read_listed[T: (VulnerabilityItem, CaseReference)](
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    ref: str | T,
+    cls: type[T],
+) -> T:
+    """The stored *cls* record *ref* names on *case*.
+
+    Raises:
+        _EntryNotCommitted: This store holds no *cls* under *ref*'s id.
+    """
+    ref_id = _as_id(ref) or ""
+    record = datalayer.read(ref_id)
+    if not isinstance(record, cls):
+        raise _EntryNotCommitted(
+            f"{cls.__name__} '{ref_id}' of case '{case.id_}' cannot be read"
+        )
+    return record
+
+
 __all__ = [
     "CREATE_CASE_SEMANTIC_TYPE",
+    "creation_contents",
     "creation_embargoes",
     "genesis_record",
 ]

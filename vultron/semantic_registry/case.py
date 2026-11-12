@@ -21,7 +21,9 @@ Case participant management is in ``case_participant``.
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import (
+    AddCaseReferenceToCaseReceivedEvent,
     AddReportToCaseReceivedEvent,
+    AddVulnerabilityItemToCaseReceivedEvent,
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
@@ -54,7 +56,9 @@ from vultron.semantic_registry._occasion import (
 )
 from vultron.wire.as2.extractor import (
     AcceptCaseProposalPattern,
+    AddCaseReferenceToCasePattern,
     AddReportToCaseActivityPattern,
+    AddVulnerabilityItemToCasePattern,
     CreateCaseActivityPattern,
     CreateCaseProposalPattern,
     DeferCasePattern,
@@ -64,7 +68,9 @@ from vultron.wire.as2.extractor import (
     UpdateCaseOwnerPattern,
 )
 from vultron.wire.as2.vocab.activities.case.content import (
+    _AddCaseReferenceToCaseActivity,
     _AddReportToCaseActivity,
+    _AddVulnerabilityItemToCaseActivity,
     _CreateCaseActivity,
     _UpdateCaseActivity,
 )
@@ -292,6 +298,72 @@ ENTRIES: list[SemanticEntry] = [
                     "moved."
                 ),
                 example="update_case",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    # The CASE_MANAGER's own records of a vulnerability item or case
+    # reference it brought into the case, each one Add that both carries the
+    # record in full and attaches it to the case's list (CLP-07-021).  A
+    # participant learns of them from the ledger, so no received use case
+    # handles them (ADR-0140 item 5).
+    SemanticEntry(
+        semantics=MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE,
+        pattern=AddVulnerabilityItemToCasePattern,
+        event_class=AddVulnerabilityItemToCaseReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} added a vulnerability item to the case",
+        wire_activity_class=_AddVulnerabilityItemToCaseActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the CASE_MANAGER brings a vulnerability item into a "
+                    "case, such as one a new case takes from its CSAF report"
+                ),
+                anchor="add-vulnerability-item-to-case",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Add vulnerability item to case",
+                description=(
+                    "Carries the item in full, with the case as its target. "
+                    "At a case's creation it follows the genesis entry."
+                ),
+                example="add_vulnerability_item_to_case",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ADD_CASE_REFERENCE_TO_CASE,
+        pattern=AddCaseReferenceToCasePattern,
+        event_class=AddCaseReferenceToCaseReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} added a reference to the case",
+        wire_activity_class=_AddCaseReferenceToCaseActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the CASE_MANAGER brings a case reference into a case, "
+                    "such as one a new case takes from its CSAF report"
+                ),
+                anchor="add-case-reference-to-case",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Add case reference to case",
+                description=(
+                    "Carries the reference in full, with the case as its "
+                    "target. At a case's creation it follows the genesis "
+                    "entry."
+                ),
+                example="add_case_reference_to_case",
                 notes=(
                     "Each participant learns of it from the case ledger, so "
                     "it is addressed to nobody."

@@ -47,7 +47,7 @@ def _claims() -> ReportClaims:
         references=[ClaimedReference(url="https://example.org/advisory")],
         vulnerabilities=[
             VulnerabilityClaims(
-                ids=["CVE-2026-0001"],
+                cve="CVE-2026-0001",
                 disclosure_date=datetime(2026, 12, 1, tzinfo=UTC),
                 first_known_exploitation_dates=[
                     datetime(2026, 9, 30, tzinfo=UTC),
@@ -84,7 +84,7 @@ def test_the_value_paths_name_each_stated_value() -> None:
     assert _claims().value_paths() == [
         "name",
         "references[0]",
-        "vulnerabilities[0].ids[0]",
+        "vulnerabilities[0].cve",
         "vulnerabilities[0].disclosure_date",
         "vulnerabilities[0].first_known_exploitation_dates[0]",
         "vulnerabilities[0].first_known_exploitation_dates[1]",

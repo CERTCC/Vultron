@@ -68,7 +68,9 @@ READ_FIELDS: tuple[ReadField, ...] = (
     ReadField("vulnerabilities[].title", ("CSAF-03-008",)),
     ReadField("vulnerabilities[].notes[].category", ("CSAF-03-008",)),
     ReadField("vulnerabilities[].notes[].text", ("CSAF-03-008",)),
-    ReadField("vulnerabilities[].references[]", ("CSAF-03-009",)),
+    ReadField("vulnerabilities[].notes[].title", ("CSAF-03-008",)),
+    ReadField("vulnerabilities[].notes[].audience", ("CSAF-03-008",)),
+    ReadField("vulnerabilities[].references[]", ("CSAF-03-008",)),
     ReadField(
         "vulnerabilities[].product_status.known_affected[]", ("CSAF-04-007",)
     ),

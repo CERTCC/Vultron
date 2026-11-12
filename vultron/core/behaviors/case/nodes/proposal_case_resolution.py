@@ -46,11 +46,17 @@ from vultron.core.models._helpers import (
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.report_case_inputs import ReportCaseInputs
+from vultron.core.services.report_case_inputs import (
+    ReportCaseInputs,
+    case_reference_from_claim,
+    vulnerability_item_from_claims,
+)
 from vultron.core.states.cs.dimensions import (
     AttackObservation,
     ExploitPublication,
@@ -238,15 +244,25 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None and self.actor_id is not None
 
+        inputs: ReportCaseInputs = self.get_input(REPORT_CASE_INPUTS_KEY)
+        # The new case, its items and its references are all stamped at the
+        # act's instant, so no clock is read below its edge (ADR-0176).
+        published = self._require_act_instant()
+        items = [
+            vulnerability_item_from_claims(vul, published=published)
+            for vul in inputs.item_vulnerabilities
+        ]
+        references = [
+            case_reference_from_claim(ref, published=published)
+            for ref in inputs.references
+        ]
         case = self._new_case(
-            self.get_input(REPORT_CASE_INPUTS_KEY),
-            # The new case is stamped at the act's instant (ADR-0176).
-            published=self._require_act_instant(),
+            inputs, published=published, items=items, references=references
         )
-        if self._report_id is not None:
-            case.vulnerability_reports.append(self._report_id)
 
         try:
+            for owned in (*items, *references):
+                self.datalayer.create(owned)
             self.datalayer.create(case)
         except ValueError as exc:
             self.feedback_message = f"Case creation failed: {exc}"
@@ -255,24 +271,38 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
 
         self._set_output("case_id", case.id_)
         logger.info(
-            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s'",
+            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s',"
+            " with %d vulnerability item(s) and %d case reference(s)"
+            " (CSAF-03-008, CSAF-03-009)",
             self.name,
             case.id_,
             self._owner_id,
+            len(items),
+            len(references),
         )
         return Status.SUCCESS
 
     def _new_case(
-        self, inputs: ReportCaseInputs, *, published: datetime
+        self,
+        inputs: ReportCaseInputs,
+        *,
+        published: datetime,
+        items: list[VulnerabilityItem],
+        references: list[CaseReference],
     ) -> VulnerabilityCase:
         """The new case, starting from its report's inputs.
 
         ``report_case_inputs`` (``ResolveReportCaseInputsNode``) gives the
         report's name and summary, else its CSAF document's (CSAF-03-006,
         CSAF-03-007), and the P/X/A the document states (CSAF-03-003 to
-        CSAF-03-005).  They are the case's first status, not a transition:
-        no status precedes it.  An exploit made public makes the public
-        aware (the pX to PX invariant), so X starts with P.
+        CSAF-03-005).  P, X and A are the case's first status, not a
+        transition: no status precedes it.  An exploit made public makes the
+        public aware (the pX to PX invariant), so X starts with P.
+
+        The case lists its report, and the document's vulnerability items
+        and case references (CSAF-03-008, CSAF-03-009), by id: each is an
+        object of its own, as its reports are (CM-05-021).  :meth:`update`
+        builds and stores them.
         """
         case_id = new_object_id()
         pxa = CS_pxa(
@@ -295,6 +325,11 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             attributed_to=self._owner_id,
             name=inputs.name,
             summary=inputs.summary,
+            vulnerability_reports=(
+                [self._report_id] if self._report_id is not None else []
+            ),
+            vulnerability_items=[item.id_ for item in items],
+            case_references=[ref.id_ for ref in references],
             case_statuses=[
                 CaseStatus(
                     context=case_id,

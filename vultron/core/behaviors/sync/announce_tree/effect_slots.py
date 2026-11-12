@@ -40,6 +40,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.sync.nodes import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
+    ApplyCaseReferenceFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
     ApplyCreateCaseParticipantFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
@@ -51,10 +52,13 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
+    ApplyVulnerabilityItemFromLedgerNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
+    IsAddCaseReferenceEventNode,
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
+    IsAddVulnerabilityItemEventNode,
     IsCreateCaseParticipantEventNode,
     IsCreateEmbargoEventNode,
     IsEmbargoAbandonmentEventNode,
@@ -259,6 +263,18 @@ def create_log_entry_event_effects() -> py_trees.composites.Sequence:
                 "Note",
                 IsAddNoteEventNode,
                 ApplyNoteFromLedgerNode,
+            ),
+            # A case's items and references, each one Add carrying the
+            # record in full (CLP-07-021).
+            _event_effect_slot(
+                "VulnerabilityItem",
+                IsAddVulnerabilityItemEventNode,
+                ApplyVulnerabilityItemFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "CaseReference",
+                IsAddCaseReferenceEventNode,
+                ApplyCaseReferenceFromLedgerNode,
             ),
             _event_effect_slot(
                 "RemoveNote",

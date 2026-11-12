@@ -429,24 +429,24 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
-      vulnerability item for each entry in `vulnerabilities[]`, with the entry's `cve`,
-      `ids`, `title`, `notes` and `references`.
+      vulnerability item for each entry in `vulnerabilities[]` that has a `cve` or an
+      `ids` entry, with the entry's `cve`, `ids`, `title`, `notes` and `references`.
     rationale: >-
       A vulnerability item takes the identity fields of a CSAF vulnerability entry
       (CM-05-018), so each entry becomes an item with no translation. The identifiers are
-      what later messages and projections refer to (CM-05-003, ADR-0187).
+      what later messages and projections refer to (CM-05-003, ADR-0187), so an entry
+      with no identifier names no vulnerability and makes no item.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document with two
-      vulnerabilities, and checks that the case gets a vulnerability item for each, with
-      its `cve`, `ids`, `title`, `notes` and `references`.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
+      attaches a document with two vulnerabilities, and checks that the case gets a
+      vulnerability item for each, with its `cve`, `ids`, `title`, `notes` and
+      `references`; `::test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item`
+      checks that an entry that names no vulnerability makes no item.
     adr:
     - ADR-0184
     - ADR-0187
     stories:
     - story_2026_099
-    tracking_issue: '#6093'
   - id: CSAF-03-009
     priority: SHOULD
     kind: protocol
@@ -460,17 +460,15 @@ groups:
       profile uses references for evidence of exploitation (CM-05-004, CM-05-005,
       ADR-0187).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_reference_becomes_a_case_reference`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document with
-      document-level references, and checks that the case gets a case reference whose
-      `url` Link's `href` and whose `name` are the URL and summary of each.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_each_csaf_reference_becomes_a_case_reference`
+      attaches a document with document-level references, and checks that the case gets
+      a case reference whose `url` Link's `href` and whose `name` are the URL and
+      summary of each, and none for a vulnerability's own reference.
     adr:
     - ADR-0184
     - ADR-0187
     stories:
     - story_2026_099
-    tracking_issue: '#6093'
 - id: CSAF-04
   title: Receiving and Sending CSAF in This Codebase
   specs:
@@ -716,7 +714,7 @@ groups:
       draft. An optional script that reads a local clone checks them when the pin
       moves.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_suite_never_reads_the_tc_test_documents`
+      `test/architecture/test_csaf_test_documents.py::test_the_suite_never_reads_the_tc_test_documents`
       checks that no other test module names a path under the test data
       directory of the CSAF Technical Committee's repository. The optional script
       is `uv run csaf-corpus --clone <dir>` (`vultron/metadata/csaf/corpus.py`),

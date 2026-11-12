@@ -39,6 +39,7 @@ only core models (ARCH-22-001).
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Iterator, Sequence
 from datetime import datetime
 from typing import TypeGuard
@@ -50,7 +51,9 @@ from vultron.core.models.report import ReportAttachment
 from vultron.core.models.report_claims import (
     MAX_CSAF_CONTENT_CHARS,
     ClaimedAcknowledgment,
+    ClaimedNote,
     ClaimedReference,
+    ClaimedVulnerabilityId,
     ClaimsReading,
     ReportClaims,
     SchemaError,
@@ -59,6 +62,10 @@ from vultron.core.models.report_claims import (
     SubmittedCsafDocument,
     VulnerabilityClaims,
     csaf_document_text,
+)
+from vultron.core.models.vulnerability_item import (
+    CVE_ID_PATTERN,
+    NoteCategory,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
@@ -78,6 +85,8 @@ _SSVC_EXPLOITATION_KEY = "E"
 _SUMMARY_NOTE_CATEGORIES = ("summary", "description")
 
 _AWARE_DATETIME: TypeAdapter[datetime] = TypeAdapter(AwareDatetime)
+_CVE_ID = re.compile(CVE_ID_PATTERN)
+_NOTE_CATEGORIES = frozenset(category.value for category in NoteCategory)
 
 
 def is_csaf_21(data: object) -> TypeGuard[dict[str, JsonValue]]:
@@ -285,6 +294,23 @@ class _FieldReader:
     def _skip(self, path: str, reason: str) -> None:
         self.skipped.append(SkippedClaim(path=path, reason=reason))
 
+    def _skip_missing(
+        self,
+        path: str,
+        item: dict[str, JsonValue],
+        required: tuple[str, ...],
+        what: str,
+    ) -> None:
+        """Skip *what* at *path* when it lacks a *required* key.
+
+        *what* names the entry with its article, such as ``"an id"``.  A
+        key that is present but unreadable was already skipped by
+        :meth:`_text`, so it is not named twice.
+        """
+        missing = [key for key in required if key not in item]
+        if missing:
+            self._skip(path, f"{what} without {' or '.join(missing)}")
+
     def _object(
         self, container: dict[str, JsonValue], key: str, path: str
     ) -> dict[str, JsonValue] | None:
@@ -463,10 +489,6 @@ class _FieldReader:
     def _vulnerability(
         self, vul: dict[str, JsonValue], path: str
     ) -> VulnerabilityClaims:
-        ids = [cve] if (cve := self._text(vul, "cve", path)) else []
-        for here, item in self._items(vul, "ids", path):
-            if (text := self._text(item, "text", here)) is not None:
-                ids.append(text)
         dates = [
             date
             for here, item in self._items(
@@ -476,13 +498,74 @@ class _FieldReader:
             is not None
         ]
         return VulnerabilityClaims(
-            ids=list(dict.fromkeys(ids)),
+            cve=self._cve(vul, path),
+            ids=self._ids(vul, path),
             title=self._text(vul, "title", path),
+            notes=self._notes(vul, path),
             disclosure_date=self._date(vul, "disclosure_date", path),
             exploitation=self._exploitation(vul, path),
             first_known_exploitation_dates=dates,
             references=self._references(vul, path),
         )
+
+    def _cve(self, vul: dict[str, JsonValue], path: str) -> str | None:
+        """The vulnerability's CVE ID, when it has CSAF's CVE ID format."""
+        cve = self._text(vul, "cve", path)
+        if cve is None:
+            return None
+        if _CVE_ID.fullmatch(cve) is None:
+            self._skip(f"{path}.cve", "not a CVE ID (CM-05-019)")
+            return None
+        return cve
+
+    def _ids(
+        self, vul: dict[str, JsonValue], path: str
+    ) -> list[ClaimedVulnerabilityId]:
+        """The vulnerability's tracking IDs, each once, in document order.
+
+        An entry needs both its ``system_name`` and its ``text``; one that
+        lacks either is skipped.  Neither value is parsed (CM-05-008).
+        """
+        ids: list[ClaimedVulnerabilityId] = []
+        for here, item in self._items(vul, "ids", path):
+            system_name = self._text(item, "system_name", here)
+            text = self._text(item, "text", here)
+            if system_name is None or text is None:
+                self._skip_missing(
+                    here, item, ("system_name", "text"), "an id"
+                )
+                continue
+            ids.append(
+                ClaimedVulnerabilityId(system_name=system_name, text=text)
+            )
+        return list(dict.fromkeys(ids))
+
+    def _notes(
+        self, vul: dict[str, JsonValue], path: str
+    ) -> list[ClaimedNote]:
+        """The vulnerability's notes, each of a category CSAF 2.1 allows."""
+        notes: list[ClaimedNote] = []
+        for here, item in self._items(vul, "notes", path):
+            category = self._text(item, "category", here)
+            text = self._text(item, "text", here)
+            if category is None or text is None:
+                self._skip_missing(here, item, ("category", "text"), "a note")
+                continue
+            if category not in _NOTE_CATEGORIES:
+                self._skip(
+                    f"{here}.category",
+                    f"not a CSAF note category: {category!r}",
+                )
+                continue
+            notes.append(
+                ClaimedNote(
+                    category=NoteCategory(category),
+                    text=text,
+                    title=self._text(item, "title", here),
+                    audience=self._text(item, "audience", here),
+                )
+            )
+        return notes
 
     def _exploitation(
         self, vul: dict[str, JsonValue], path: str

@@ -562,6 +562,26 @@ AddCaseStatusToCasePattern = ActivityPattern(
     object_=VOtype.CASE_STATUS,
     target_=VOtype.VULNERABILITY_CASE,
 )
+AddVulnerabilityItemToCasePattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER adds a vulnerability item to a vulnerability case: "
+        "an ADD carrying the item in full, its own record of an item it "
+        "brought into the case (CLP-07-021)."
+    ),
+    activity_=TAtype.ADD,
+    object_=VOtype.VULNERABILITY_ITEM,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AddCaseReferenceToCasePattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER adds a case reference to a vulnerability case: an "
+        "ADD carrying the reference in full, its own record of a reference it "
+        "brought into the case (CLP-07-021)."
+    ),
+    activity_=TAtype.ADD,
+    object_=VOtype.CASE_REFERENCE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
 AddParticipantStatusToParticipantPattern = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.PARTICIPANT_STATUS,

@@ -1167,14 +1167,20 @@ groups:
       Each change an act causes, beyond what the act's own activity states, MUST follow
       the act's entry as its own CASE_MANAGER-authored entry. The entries follow in the
       order the CASE_MANAGER writes them. Each one's `payloadSnapshot` carries the
-      object in full (CLP-07-006). It is a `Create` of a record the CASE_MANAGER brings
-      into existence, or an `Update` of a changed record.
+      object in full (CLP-07-006). A record the change adds to one of the case's
+      content lists (its reports, notes, statuses, vulnerability items or case
+      references) is recorded as an `Add` of the record with the case as its `target`.
+      Any other record the CASE_MANAGER brings into existence is recorded as a
+      `Create`, and a changed record as an `Update`.
     rationale: >-
       One act can cause several changes, such as a stub Invite and the participant
       record it creates for the invitee. If only the act is recorded, each replica must
       create the record itself, with its own ids and clock times, and replicas at one
       ledger position then differ. Full records are ledger content that the hash chain
-      must cover (CLP-07-006).
+      must cover (CLP-07-006). A record that belongs to a case list needs the case as
+      the entry's `target`: a `Create` has none, so a replica would have to decide
+      which list the record joins, which is lifecycle logic a replica must not run
+      (CM-23-044). The one `Add` both brings the record and lists it.
     verification: >-
       `test_the_default_embargo_follows_the_genesis_entry_in_full` in
       `test/core/use_cases/received/test_rebuild_from_ledger.py` asserts the
@@ -1182,6 +1188,10 @@ groups:
       `test_a_new_row_is_a_create_and_a_changed_row_an_update` in
       `test/core/behaviors/embargo/test_decided_entries.py` asserts a new record is a
       `Create` and a changed one an `Update`.
+      `test_each_item_and_reference_is_an_add_entry_after_the_genesis_entry` in
+      `test/core/use_cases/received/test_case_from_csaf_report.py` asserts each
+      vulnerability item and case reference a creation wrote is its own `Add` entry,
+      carrying the record in full with the case as its `target`.
     relationships:
     - rel_type: extends
       spec_id: CLP-07-013

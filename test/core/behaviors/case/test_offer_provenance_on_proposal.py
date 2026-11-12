@@ -28,7 +28,7 @@ The chain this pins, end to end:
    (CM-11-020).
 
 Step 2 was missing. Nothing complained at any link: the CaseActor's
-``_find_offer_id_for_report`` scanned its own (correct, empty) store,
+``offer_for_report_or`` scanned its own (correct, empty) store,
 ``build_add_report_to_case_snapshot`` omits ``offerId`` when not given one, so
 the ledger lost the report's Offer provenance without a sound (#2548, rcvcv).
 """

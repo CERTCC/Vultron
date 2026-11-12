@@ -36,10 +36,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.creation_records import (
     CREATE_CASE_SEMANTIC_TYPE,
     _EntryNotCommitted,
+    creation_contents,
     creation_embargoes,
     genesis_record,
 )
-from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.case.offer_provenance import offer_for_report_or
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -76,6 +77,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       2. ``create_embargo_event`` for each embargo the creation wrote
          (CLP-07-013)                        actor=CaseActor
       3. ``add_report_to_case``              actor=CaseActor
+         then one ``add_vulnerability_item_to_case`` or
+         ``add_case_reference_to_case`` per record (CLP-07-021)
       4. per seated record, ``create_case_participant`` carrying it as
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
@@ -249,31 +252,6 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 f" {result.feedback_message}"
             )
 
-    def _find_offer_id_for_report(
-        self, report_id: str
-    ) -> tuple[str | None, str | None]:
-        """Return ``(offer_id, offer_actor_id)`` for *report_id*.
-
-        Its own store first, then what the proposal carried (CP-01-019). The
-        store answers only when this CaseActor received the
-        ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
-        because the ``OfferRecord`` belongs to the sibling that did and there is
-        no read across that line (ADR-0073, PCR-01-003).
-
-        The fallback is not a nicety. The ledger entry is the only place the
-        report's Offer provenance (``offerId``, ``offerActorId``) survives for
-        the case's participants, who were never sent the Offer and read it from
-        here (CP-01-007). Without it the omission surfaces nowhere near here
-        (#2548).
-        """
-        assert self.datalayer is not None
-        offer_id, offer_actor_id = find_offer_for_report(
-            self.datalayer, report_id
-        )
-        if offer_id:
-            return offer_id, offer_actor_id
-        return self._offer_id, self._offer_actor_id
-
     def _commit_add_reports(
         self, case: VulnerabilityCase, case_id: str
     ) -> None:
@@ -297,8 +275,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                     report_id,
                 )
                 continue
-            offer_id, offer_actor_id = self._find_offer_id_for_report(
-                report_id
+            offer_id, offer_actor_id = offer_for_report_or(
+                self.datalayer,
+                report_id,
+                (self._offer_id, self._offer_actor_id),
             )
             activity = port.record_report_added_to_case(
                 report_id=report_id,
@@ -463,6 +443,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._commit_creation_embargoes(case, case_id)
             # 3. add_report_to_case  (actor = CaseActor)
             self._commit_add_reports(case, case_id)
+            # 3b. one Add per item and reference, in full (CLP-07-021)
+            for object_id, semantic_type, activity in creation_contents(
+                self.datalayer,
+                self._require_trigger_activity_port(),
+                case,
+                self.actor_id,
+                self._require_act_instant(),
+            ):
+                self._commit_one(case_id, object_id, semantic_type, activity)
             # 4. per record: create_case_participant, then its later
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)

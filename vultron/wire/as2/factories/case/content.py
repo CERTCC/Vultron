@@ -25,9 +25,11 @@ from vultron.wire.as2.factories._context import (
     with_case_context,
 )
 from vultron.wire.as2.vocab.activities.case.content import (
+    _AddCaseReferenceToCaseActivity,
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
     _AddStatusToCaseActivity,
+    _AddVulnerabilityItemToCaseActivity,
     _AnnounceVulnerabilityCaseActivity,
     _CreateCaseActivity,
     _UpdateCaseActivity,
@@ -39,10 +41,14 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_item import (
+    as_VulnerabilityItem,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -180,6 +186,75 @@ def add_note_to_case_activity(
         at,
         lambda: {
             "object_": note,
+            "target": case_target_ref(target),
+            **with_case_context(kwargs, target),
+        },
+    )
+
+
+def add_vulnerability_item_to_case_activity(
+    item: as_VulnerabilityItem,
+    target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
+    **kwargs,
+) -> as_Add:
+    """Build an Add(VulnerabilityItem)[target=VulnerabilityCase].
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    item in full (CLP-07-021): the case lists its items, so this one ``Add``
+    both brings the item to a replica and attaches it to the case.
+    ``context`` defaults to the case (CLP-07-007).
+
+    Args:
+        item: The item added to the case, carried inline.
+        target: The case (or its URI) the item is added to.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return build_activity(
+        "add_vulnerability_item_to_case_activity",
+        _AddVulnerabilityItemToCaseActivity,
+        at,
+        lambda: {
+            "object_": item,
+            "target": case_target_ref(target),
+            **with_case_context(kwargs, target),
+        },
+    )
+
+
+def add_case_reference_to_case_activity(
+    reference: as_CaseReference,
+    target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
+    **kwargs,
+) -> as_Add:
+    """Build an Add(CaseReference)[target=VulnerabilityCase].
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    reference in full (CLP-07-021), as
+    :func:`add_vulnerability_item_to_case_activity` carries an item.
+
+    Args:
+        reference: The reference added to the case, carried inline.
+        target: The case (or its URI) the reference is added to.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return build_activity(
+        "add_case_reference_to_case_activity",
+        _AddCaseReferenceToCaseActivity,
+        at,
+        lambda: {
+            "object_": reference,
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),
         },

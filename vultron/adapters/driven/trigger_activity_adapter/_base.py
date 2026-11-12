@@ -129,7 +129,7 @@ def _case_for_wire(
     hold the object, and this codebase dereferences only a few references
     (AKM-05-007), never a case's own (AKM-02-004, the same rule as CP-01-004).
     Sending an id alone therefore hands the recipient a case pointing at an
-    object it can never read. Three fields
+    object it can never read. These fields
     carry references the recipient needs:
 
     - ``active_embargo``: a CaseActor holding a case with only the id tore the
@@ -149,6 +149,10 @@ def _case_for_wire(
       recipient that lacks them cannot read (AKM-02-004).  The bootstrap's
       receiver offered its report, so carrying it there is this prototype's
       choice, not a protocol requirement (CBT-01-007 names only participants).
+    - ``vulnerability_items`` and ``case_references``: the case's items and
+      references (CM-05-021), which a recipient seeded from this copy cannot
+      read otherwise (AKM-02-004).  A replica holds them only inside its case,
+      so one it re-sends is carried as it is inline.
 
     The stored case is untouched — the carried objects live on a ``model_copy``.
     ``as_VulnerabilityCase`` admits the objects in every one of these slots, and
@@ -181,10 +185,13 @@ def _case_for_wire(
 
 #: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
 #: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
-#: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
-#: added because a recipient seeding a case may lack them (AKM-02-004).
+#: (the ones its retired delivery-time ``hydrate()`` expanded); the reports,
+#: vulnerability items and case references are added because a recipient
+#: seeding a case may lack them (AKM-02-004).
 _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
-    "vulnerability_reports"
+    "vulnerability_reports",
+    "vulnerability_items",
+    "case_references",
 }
 
 

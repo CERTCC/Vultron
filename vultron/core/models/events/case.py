@@ -92,6 +92,51 @@ class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
         return cast("VulnerabilityCase | None", self.target)
 
 
+class AddVulnerabilityItemToCaseReceivedEvent(LedgerPositionedEvent):
+    """The CASE_MANAGER added a vulnerability item to the case (CLP-07-021).
+
+    ``Add(VulnerabilityItem)[target=VulnerabilityCase]``: the CASE_MANAGER's
+    own record, carrying the item in full, of an item it brought into the
+    case, such as one its creation filled from a CSAF report (CSAF-03-008).
+    No received use case handles it: a participant takes the item from the
+    committed entry (ADR-0140 item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE] = (
+        MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE
+    )
+
+    @property
+    def item_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.target_id
+
+
+class AddCaseReferenceToCaseReceivedEvent(LedgerPositionedEvent):
+    """The CASE_MANAGER added a case reference to the case (CLP-07-021).
+
+    ``Add(CaseReference)[target=VulnerabilityCase]``: the CASE_MANAGER's own
+    record, carrying the reference in full, of a reference it brought into
+    the case, such as one its creation filled from a CSAF report
+    (CSAF-03-009).  No received use case handles it (ADR-0140 item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.ADD_CASE_REFERENCE_TO_CASE] = (
+        MessageSemantics.ADD_CASE_REFERENCE_TO_CASE
+    )
+
+    @property
+    def reference_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.target_id
+
+
 class CloseCaseReceivedEvent(LedgerPositionedEvent):
     """Actor left (closed) a VulnerabilityCase.
 

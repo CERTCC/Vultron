@@ -411,6 +411,58 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert isinstance(body["object"], dict), body["object"]
         return body
 
+    @pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "CLP-07-013", "VM-10-005")
+    def test_the_items_and_references_travel_inline(self):
+        """The Create carries each item and reference the case lists by id
+        in full, so the owner's replica can read them (CLP-07-013)."""
+        from vultron.core.models.case_reference import CaseReference
+        from vultron.core.models.vulnerability_item import VulnerabilityItem
+
+        dl = self._dl()
+        item = make(VulnerabilityItem, cve="CVE-2026-0001")
+        ref = make(CaseReference, url={"href": "https://example.org/a"})
+        dl.save(item)
+        dl.save(ref)
+        dl.save(
+            make(
+                VulnerabilityCase,
+                id_=_CASE_URI,
+                attributed_to=_VENDOR_URI,
+                vulnerability_items=[item.id_],
+                case_references=[ref.id_],
+            )
+        )
+        assert self._run_node(dl, seed=False) == py_trees.common.Status.SUCCESS
+        carried = _queued_create(dl)["object"]
+        [carried_item] = carried["vulnerabilityItems"]
+        [carried_ref] = carried["caseReferences"]
+        assert (carried_item["id"], carried_item["cve"]) == (
+            item.id_,
+            "CVE-2026-0001",
+        )
+        assert carried_ref["url"]["href"] == "https://example.org/a"
+        # Rendered inside the Create, under its one @context (VM-10-005).
+        assert "@context" not in carried_item
+        assert "@context" not in carried_ref
+
+    @pytest.mark.parametrize(
+        "field", ["vulnerability_items", "case_references"]
+    )
+    def test_an_unreadable_item_or_reference_queues_no_create(self, field):
+        """The CASE_MANAGER stored every item and reference with the case, so
+        one it cannot read is a fault, not an id to send (CLP-07-013)."""
+        dl = self._dl()
+        dl.save(
+            make(
+                VulnerabilityCase,
+                id_=_CASE_URI,
+                attributed_to=_VENDOR_URI,
+                **{field: ["https://example.org/objects/missing"]},
+            )
+        )
+        assert self._run_node(dl, seed=False) == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
     @pytest.mark.spec("VM-10-004")
     @pytest.mark.spec("VM-10-005")
     def test_the_carried_case_and_reports_restate_no_context(self):

@@ -158,23 +158,33 @@ class Receipt:
         return report
 
     def sent_bodies(self) -> list[dict[str, Any]]:
-        bodies = [
-            read_sealed_body_dict(self.dl, activity_id)
-            for activity_id in self.dl.outbox_list()
-        ]
-        assert all(body is not None for body in bodies)
-        return [body for body in bodies if body is not None]
+        return sent_bodies(self.dl)
 
     def proposal_body(self) -> dict[str, Any]:
         """The ``Create(CaseProposal)`` this receipt sent, as sealed."""
-        [body] = [
-            b
-            for b in self.sent_bodies()
-            if b["type"] == "Create"
-            and isinstance(b.get("object"), dict)
-            and b["object"].get("type") == "CaseProposal"
-        ]
-        return body
+        return sent_create_of(self.dl, "CaseProposal")
+
+
+def sent_bodies(dl: SqliteDataLayer) -> list[dict[str, Any]]:
+    """The sealed body of every activity *dl*'s outbox holds."""
+    bodies = [
+        read_sealed_body_dict(dl, activity_id)
+        for activity_id in dl.outbox_list()
+    ]
+    assert all(body is not None for body in bodies)
+    return [body for body in bodies if body is not None]
+
+
+def sent_create_of(dl: SqliteDataLayer, object_type: str) -> dict[str, Any]:
+    """The one ``Create`` of an *object_type* *dl*'s outbox holds, as sealed."""
+    [body] = [
+        b
+        for b in sent_bodies(dl)
+        if b["type"] == "Create"
+        and isinstance(b.get("object"), dict)
+        and b["object"].get("type") == object_type
+    ]
+    return body
 
 
 def schema_invalid() -> dict[str, JsonValue]:
@@ -236,3 +246,7 @@ class CaseManager:
             for r in self.dl.list_objects("ReportClaimsRecord")
             if isinstance(r, ReportClaimsRecord)
         ]
+
+    def case_create_body(self) -> dict[str, Any]:
+        """The ``Create(VulnerabilityCase)`` this CASE_MANAGER sent, as sealed."""
+        return sent_create_of(self.dl, "VulnerabilityCase")

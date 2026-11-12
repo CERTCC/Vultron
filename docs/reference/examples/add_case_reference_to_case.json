@@ -1,0 +1,41 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
+  "type": "Add",
+  "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/references/1/add",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Add Vendor advisory to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "object": {
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/references/1",
+    "type": "CaseReference",
+    "name": "Vendor advisory",
+    "url": {
+      "type": "Link",
+      "href": "https://example.org/advisories/widget-overflow",
+      "rel": []
+    },
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "zVLmV47QEKAGi8HsdPW1XKPrQaZwGLwzQjQpawByYhjeC1Wn2jFqcwojn6sb9PjPytDoJhfibr2hdHmi9Ssnbxjo"
+  }
+}

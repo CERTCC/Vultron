@@ -25,10 +25,12 @@ from typing import Protocol
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 
 
 class TriggerLedgerRecordsPort(Protocol):
@@ -90,6 +92,37 @@ class TriggerLedgerRecordsPort(Protocol):
         The stored report is carried inline.  ``offer_id`` and
         ``offer_actor_id``, when given, are the report's Offer provenance
         (CP-01-007), carried for participants who were never sent the Offer.
+        """
+        ...
+
+    def record_vulnerability_item_added(
+        self,
+        item: VulnerabilityItem,
+        case_id: str,
+        actor: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """``Add(VulnerabilityItem)[target=VulnerabilityCase]`` (``add_vulnerability_item_to_case``).
+
+        The item in full: the case lists its items, so the one ``Add`` both
+        brings the item and attaches it (CLP-07-021).  An item joins a case
+        once, so the id is derived from the case and the item.
+        """
+        ...
+
+    def record_case_reference_added(
+        self,
+        reference: CaseReference,
+        case_id: str,
+        actor: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """``Add(CaseReference)[target=VulnerabilityCase]`` (``add_case_reference_to_case``).
+
+        The reference in full, as :meth:`record_vulnerability_item_added`
+        carries an item (CLP-07-021).
         """
         ...
 

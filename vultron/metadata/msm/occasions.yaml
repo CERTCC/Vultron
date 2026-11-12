@@ -213,6 +213,34 @@ groups:
     notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
     seen_in: []
     example: update_case
+  - anchor: add-vulnerability-item-to-case
+    heading: Add vulnerability item to case
+    when: the CASE_MANAGER brings a vulnerability item into a case, such as one a new case
+      takes from its CSAF report
+    send: Add(VulnerabilityItem)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: internal to the CASE_MANAGER
+    semantics: add_vulnerability_item_to_case
+    status: none
+    description: Carries the item in full, with the case as its target. At a case's creation
+      it follows the genesis entry.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: add_vulnerability_item_to_case
+  - anchor: add-case-reference-to-case
+    heading: Add case reference to case
+    when: the CASE_MANAGER brings a case reference into a case, such as one a new case takes
+      from its CSAF report
+    send: Add(CaseReference)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: internal to the CASE_MANAGER
+    semantics: add_case_reference_to_case
+    status: none
+    description: Carries the reference in full, with the case as its target. At a case's creation
+      it follows the genesis entry.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: add_case_reference_to_case
   - anchor: offer-case-participant-role
     heading: Offer case participant role
     when: the Case Owner offers a CVD role on the case to another participant

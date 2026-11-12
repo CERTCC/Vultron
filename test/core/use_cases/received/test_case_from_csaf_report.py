@@ -13,7 +13,7 @@
 """A case created from an initial CSAF report starts from what the report says.
 
 Receive-path tests for CSAF-02-001 to CSAF-02-003 and CSAF-03-001 to
-CSAF-03-007.  The Vendor receives the Finder's ``Offer(VulnerabilityReport)``
+CSAF-03-009.  The Vendor receives the Finder's ``Offer(VulnerabilityReport)``
 and sends ``Create(CaseProposal)``; a separate CASE_MANAGER, in its own store,
 receives that sealed proposal and creates the case from the CSAF document on
 the Offer the proposal carries.
@@ -22,6 +22,7 @@ the Offer the proposal carries.
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -34,16 +35,33 @@ from test.core.use_cases.received._csaf_receipt import (
     csaf,
     document,
 )
+from test.support.act_clock import clock_at
+from test.support.act_runner import run_in_act
+from test.support.ledger import ledger_entries
 from test.support.objects import make
+from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimOutcome
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.vulnerability_item import (
+    NoteCategory,
+    VulnerabilityItem,
+)
 from vultron.core.states.cs.states import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received.case.create import (
+    CreateCaseReceivedUseCase,
+)
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
@@ -276,6 +294,7 @@ def test_a_document_of_another_category_changes_no_case_data() -> None:
     assert case.name is None
     assert case.current_status.pxa.state is CS_pxa.pxa
     assert case.em_state is EM.ACTIVE
+    assert (case.vulnerability_items, case.case_references) == ([], [])
     [record] = manager.records()
     assert set(record.outcomes.values()) == {ClaimOutcome.DISPLAY_ONLY}
 
@@ -300,6 +319,11 @@ def test_csaf_on_a_report_that_already_has_a_case_changes_no_case_data() -> (
     assert unchanged.name == "Widget overflow"
     assert unchanged.current_status.pxa.state is CS_pxa.pxa
     assert unchanged.em_state is case.em_state
+    assert unchanged.vulnerability_items == case.vulnerability_items == []
+    assert unchanged.case_references == case.case_references == []
+    # Nor stores an item or reference the case does not list.
+    assert list(manager.dl.list_objects("VulnerabilityItem")) == []
+    assert list(manager.dl.list_objects("CaseReference")) == []
     assert manager.records() == []
 
 
@@ -460,3 +484,227 @@ def test_a_csaf_embargo_end_does_not_reach_the_next_proposal() -> None:
         isinstance(embargo, EmbargoEvent)
         and embargo.end_time == _when(_SOONER)
     )
+
+
+_BULLETIN = "https://vendor.example.org/bulletins/17"
+_WRITE_UP = "https://reporter.example.org/widget"
+
+
+def _items(
+    manager: CaseManager, case: VulnerabilityCase
+) -> list[VulnerabilityItem]:
+    """The case's vulnerability items, each read from the store by its id."""
+    items = [manager.dl.read(str(ref)) for ref in case.vulnerability_items]
+    assert all(isinstance(item, VulnerabilityItem) for item in items), items
+    return [item for item in items if isinstance(item, VulnerabilityItem)]
+
+
+def _references(
+    manager: CaseManager, case: VulnerabilityCase
+) -> list[CaseReference]:
+    """The case's references, each read from the store by its id."""
+    refs = [manager.dl.read(str(ref)) for ref in case.case_references]
+    assert all(isinstance(ref, CaseReference) for ref in refs), refs
+    return [ref for ref in refs if isinstance(ref, CaseReference)]
+
+
+def _two_vulnerabilities() -> dict[str, Any]:
+    """A report document with a second vulnerability, named only by an id."""
+    data = _quiet_document()
+    data["vulnerabilities"].append(
+        {
+            "ids": [{"system_name": "VU#", "text": "VU#123456"}],
+            "title": "Widget crash",
+            "references": [{"url": "https://cert.example.org/vu/123456"}],
+        }
+    )
+    return data
+
+
+@pytest.mark.spec("CSAF-03-008", "CM-05-008", "CM-05-009")
+def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+
+    manager, case = _created(receipt)
+
+    first, second = _items(manager, case)
+    assert first.cve == "CVE-2026-0001"
+    assert [(i.system_name, i.text) for i in first.ids] == [
+        ("Example tracker", "EX-17")
+    ]
+    assert first.title == "Widget overflow"
+    [note] = first.notes
+    assert (note.category, note.text, note.title) == (
+        NoteCategory.DESCRIPTION,
+        "The widget overflows its buffer.",
+        "What goes wrong",
+    )
+    [first_ref] = first.references
+    assert isinstance(first_ref, CaseReference)
+    assert (first_ref.url.href, first_ref.name) == (
+        _BULLETIN,
+        "The vendor's bulletin",
+    )
+    # An identifier is copied as written, never read as a CVE (CM-05-008).
+    assert second.cve is None
+    assert [(i.system_name, i.text) for i in second.ids] == [
+        ("VU#", "VU#123456")
+    ]
+    assert second.title == "Widget crash"
+    # One act, one instant: no clock is read below its edge (ADR-0176).
+    assert {first.published, second.published, first_ref.published} == {
+        case.published
+    }
+    [record] = manager.records()
+    for path in (
+        "vulnerabilities[0].cve",
+        "vulnerabilities[0].ids[0]",
+        "vulnerabilities[0].title",
+        "vulnerabilities[0].notes[0]",
+        "vulnerabilities[0].references[0]",
+        "vulnerabilities[1].ids[0]",
+    ):
+        assert record.outcomes[path] is ClaimOutcome.APPLIED, path
+
+
+@pytest.mark.spec("CSAF-03-008")
+def test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item() -> None:
+    data = _quiet_document()
+    data["vulnerabilities"].append({"title": "An unnamed flaw"})
+    receipt = Receipt(csaf(data))
+
+    manager, case = _created(receipt)
+
+    [item] = _items(manager, case)
+    assert item.cve == "CVE-2026-0001"
+    [record] = manager.records()
+    assert (
+        record.outcomes["vulnerabilities[1].title"]
+        is ClaimOutcome.DISPLAY_ONLY
+    )
+
+
+@pytest.mark.spec("CSAF-03-009", "CM-05-004", "CM-05-005")
+def test_each_csaf_reference_becomes_a_case_reference() -> None:
+    data = _two_vulnerabilities()
+    data["document"]["references"].append(
+        {"url": "https://reporter.example.org/widget/poc", "category": "self"}
+    )
+    receipt = Receipt(csaf(data))
+
+    manager, case = _created(receipt)
+
+    refs = _references(manager, case)
+    assert [(r.url.href, r.name, r.url.rel) for r in refs] == [
+        (_WRITE_UP, "The reporter's write-up", []),
+        ("https://reporter.example.org/widget/poc", None, []),
+    ]
+    # A vulnerability's own references stay on its item, not on the case.
+    assert _BULLETIN not in {r.url.href for r in refs}
+    [record] = manager.records()
+    assert record.outcomes["references[0]"] is ClaimOutcome.APPLIED
+    assert record.outcomes["references[1]"] is ClaimOutcome.APPLIED
+
+
+@pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "CLP-07-013")
+def test_the_case_create_carries_the_items_and_references_inline() -> None:
+    """The case's creation is the act that states its items and references,
+    so its ``Create`` carries them in full, and the owner's replica reads
+    them from it rather than from ids it cannot resolve."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    manager, case = _created(receipt)
+
+    activity = parse_activity(manager.case_create_body())
+
+    assert isinstance(activity, as_Create)
+    carried = activity.object_
+    assert isinstance(carried, VulnerabilityCase)
+    assert carried.vulnerability_items == _items(manager, case)
+    assert carried.case_references == _references(manager, case)
+
+
+@pytest.mark.spec("CLP-07-021", "CSAF-03-008", "CSAF-03-009")
+def test_each_item_and_reference_is_an_add_entry_after_the_genesis_entry() -> (
+    None
+):
+    """Each record the creation wrote is one Add carrying it in full, with
+    the case as its target, so a replica lists it as the entry states."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    manager, case = _created(receipt)
+
+    entries = ledger_entries(manager.dl, case.id_)
+    kinds = [entry.semantic_type for entry in entries]
+    assert kinds[0] == "create_case"
+    added = [
+        entry
+        for entry in entries
+        if entry.semantic_type
+        in ("add_vulnerability_item_to_case", "add_case_reference_to_case")
+    ]
+    items, references = _items(manager, case), _references(manager, case)
+    assert len(items) == 2 and references
+    assert [entry.semantic_type for entry in added] == [
+        *(["add_vulnerability_item_to_case"] * len(items)),
+        *(["add_case_reference_to_case"] * len(references)),
+    ]
+    expected = [record.id_ for record in (*items, *references)]
+    for entry, object_id in zip(added, expected, strict=True):
+        snapshot = entry.payload_snapshot
+        assert snapshot["type"] == "Add"
+        assert snapshot["target"] == case.id_
+        assert isinstance(snapshot["object"], dict)
+        assert snapshot["object"]["id"] == object_id
+    assert "create_vulnerability_item" not in kinds
+
+
+@pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "AKM-02-004")
+def test_the_owner_replica_holds_the_items_and_references_it_was_sent() -> (
+    None
+):
+    """The owner seeds its replica from the Create, so its copy of the case
+    holds the items and references the CASE_MANAGER stored (AKM-02-004)."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    manager, case = _created(receipt)
+    event = received_event(
+        parse_activity(manager.case_create_body()),
+        receiving_actor_id=VENDOR,
+    )
+    assert isinstance(event, CreateCaseReceivedEvent)
+
+    with clock_at(RECEIVED_AT):
+        result = run_in_act(
+            CreateCaseReceivedUseCase(
+                receipt.dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(receipt.dl),
+            ),
+            at=RECEIVED_AT,
+        )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    replica = receipt.dl.read(case.id_)
+    assert isinstance(replica, VulnerabilityCase)
+    assert replica.vulnerability_items == _items(manager, case)
+    assert replica.case_references == _references(manager, case)
+
+
+@pytest.mark.spec("CSAF-03-009")
+def test_a_failed_reference_write_creates_no_case() -> None:
+    """The items and references are written in the creation act, so one
+    that cannot be written leaves no case and no item behind (ADR-0146)."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    receipt.handle()
+    manager = CaseManager()
+    create = manager.dl.create
+
+    def refuse_references(obj: Any) -> None:
+        if obj.type_ == "CaseReference":
+            raise ValueError("refused for the test")
+        create(obj)
+
+    with patch.object(manager.dl, "create", side_effect=refuse_references):
+        result = manager.receive(receipt.proposal_body())
+
+    assert result.disposition is not HandlerDisposition.APPLIED
+    assert manager.cases() == []
+    assert manager.dl.list_objects("VulnerabilityItem") == []

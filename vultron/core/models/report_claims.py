@@ -60,6 +60,7 @@ from vultron.core.models.base import (
     ValidatedAssignmentMixin,
     with_record_id,
 )
+from vultron.core.models.vulnerability_item import CveId, NoteCategory
 from vultron.errors import VultronValidationError
 
 
@@ -139,19 +140,48 @@ class ClaimedAcknowledgment(_ClaimsModel):
         return self
 
 
+class ClaimedVulnerabilityId(_ClaimsModel):
+    """One tracking ID the document states: a named system and its label.
+
+    ``text`` is copied as written and never parsed (CM-05-008).
+    """
+
+    system_name: NonEmptyString
+    text: NonEmptyString
+
+
+class ClaimedNote(_ClaimsModel):
+    """A note the document states about one vulnerability.
+
+    ``category`` is one of the note categories CSAF 2.1 allows; the reader
+    skips a note of any other (CSAF-04-003).
+    """
+
+    category: NoteCategory
+    text: NonEmptyString
+    title: NonEmptyString | None = None
+    audience: NonEmptyString | None = None
+
+
 class VulnerabilityClaims(_ClaimsModel):
     """What the document states about one vulnerability.
 
-    ``ids`` lists the vulnerability's identifiers, a CVE ID first when there
-    is one.  ``exploitation`` is the SSVC Exploitation value key as written
-    (``N``, ``P`` or ``A`` in SSVC v2): the wire edge copies it as a string,
-    and core maps it onto its own SSVC type, because wire code may not import
-    the scoring package (ARCH-22-001).  ``first_known_exploitation_dates``
-    lists the exploitation dates of the document's entries, in order.
+    ``cve``, ``ids``, ``title``, ``notes`` and ``references`` are the
+    vulnerability's identity fields, the ones a vulnerability item takes
+    (CM-05-018, CSAF-03-008): ``cve`` is its CVE ID, in the format CSAF
+    gives it (CM-05-019), and ``ids`` its other tracking IDs, each with the
+    system that names it.  ``exploitation`` is the SSVC Exploitation value
+    key as written (``N``, ``P`` or ``A`` in SSVC v2): the wire edge copies
+    it as a string, and core maps it onto its own SSVC type, because wire
+    code may not import the scoring package (ARCH-22-001).
+    ``first_known_exploitation_dates`` lists the exploitation dates of the
+    document's entries, in order.
     """
 
-    ids: list[NonEmptyString] = Field(default_factory=list)
+    cve: CveId | None = None
+    ids: list[ClaimedVulnerabilityId] = Field(default_factory=list)
     title: NonEmptyString | None = None
+    notes: list[ClaimedNote] = Field(default_factory=list)
     disclosure_date: AwareDatetime | None = None
     exploitation: NonEmptyString | None = None
     first_known_exploitation_dates: list[AwareDatetime] = Field(
@@ -530,7 +560,9 @@ __all__ = [
     "CaseSplitSignal",
     "ClaimOutcome",
     "ClaimedAcknowledgment",
+    "ClaimedNote",
     "ClaimedReference",
+    "ClaimedVulnerabilityId",
     "ClaimsReading",
     "MAX_CSAF_CONTENT_CHARS",
     "ReportClaims",

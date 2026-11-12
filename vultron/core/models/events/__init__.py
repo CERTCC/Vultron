@@ -43,7 +43,9 @@ from vultron.core.models.events.base import (
     VultronEvent,
 )
 from vultron.core.models.events.case import (
+    AddCaseReferenceToCaseReceivedEvent,
     AddReportToCaseReceivedEvent,
+    AddVulnerabilityItemToCaseReceivedEvent,
     CloseCaseReceivedEvent,
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
@@ -127,6 +129,8 @@ AnyReceivedEvent = (
     | DeferCaseReceivedEvent
     | AddReportToCaseReceivedEvent
     | UpdateCaseOwnerReceivedEvent
+    | AddVulnerabilityItemToCaseReceivedEvent
+    | AddCaseReferenceToCaseReceivedEvent
     | CloseCaseReceivedEvent
     |
     # actor
@@ -224,6 +228,8 @@ __all__ = [
     "DeferCaseReceivedEvent",
     "AddReportToCaseReceivedEvent",
     "UpdateCaseOwnerReceivedEvent",
+    "AddVulnerabilityItemToCaseReceivedEvent",
+    "AddCaseReferenceToCaseReceivedEvent",
     "CloseCaseReceivedEvent",
     # actor
     "OfferActorToCaseReceivedEvent",
