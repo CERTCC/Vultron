@@ -89,12 +89,31 @@ def _prefixes(dotted: str) -> list[str]:
     return [".".join(parts[: i + 1]) for i in range(len(parts))]
 
 
+def _discovers_submodules(tree: ast.Module) -> bool:
+    """Whether a package's code calls ``pkgutil.iter_modules`` anywhere.
+
+    The ``vocab`` packages import every submodule at import time this way, so
+    no static import names the edge.  The call may sit in a function the
+    package body calls, so the whole tree is searched; a package that only
+    calls it later costs a merged cycle, never coverage.
+    """
+    return any(
+        isinstance(node, ast.Attribute) and node.attr == "iter_modules"
+        for node in ast.walk(tree)
+    )
+
+
 def _import_graph() -> dict[str, list[str]]:
     """Map each ``vultron`` module to the ``vultron`` modules it imports.
 
     An over-approximation is safe — it only merges cycles the driver then
     checks more thoroughly.  A module's parent package counts as an edge,
-    because Python initializes ``a.b`` before it runs ``a.b.c``.
+    because Python initializes ``a.b`` before it runs ``a.b.c``.  A package
+    that discovers its submodules (:func:`_discovers_submodules`) has an edge
+    to each of them.  Without it, the walk loads a cycle under that package
+    before it reaches the cycle, and the driver checks every member of that
+    cycle in a brand-new interpreter, tens of times the cost of a fork
+    (#5932).
     """
     trees = {
         _module_name(path): tree for path, tree in _corpus.all_trees(_VULTRON)
@@ -122,6 +141,12 @@ def _import_graph() -> dict[str, list[str]]:
                     target = stmt.module or ""
                 edges.update(_prefixes(target))
                 edges.update(f"{target}.{alias.name}" for alias in stmt.names)
+        if is_package and _discovers_submodules(tree):
+            edges.update(
+                module
+                for module in modules
+                if module.rpartition(".")[0] == name
+            )
         graph[name] = sorted((edges & modules) - {name})
     return graph
 
@@ -137,6 +162,19 @@ def test_import_graph_finds_a_known_cycle():
     package = "vultron.core.behaviors.inbox"
     (cycle,) = [c for c in _components(_import_graph()) if package in c]
     assert f"{package}._process_payload" in cycle
+
+
+def test_import_graph_sees_a_package_that_discovers_its_submodules():
+    """A package that imports its submodules at runtime shares their cycle.
+
+    ``vultron.wire.as2.vocab.activities`` imports every submodule through
+    ``pkgutil.iter_modules``.  Without that edge the ``case`` cycle under it
+    is already loaded when the walk reaches it, and each of its members costs
+    a brand-new interpreter instead of a fork (#5932).
+    """
+    package = "vultron.wire.as2.vocab.activities"
+    (cycle,) = [c for c in _components(_import_graph()) if package in c]
+    assert f"{package}.case" in cycle
 
 
 def _run_driver(
@@ -196,20 +234,26 @@ def test_driver_reports_a_cycle_that_fails_only_from_one_entry(tmp_path):
     assert "partially initialized module 'cyc.b'" in failures["cyc.b"]
 
 
+#: A frame only a brand-new ``python -c`` interpreter's traceback carries.
+_FRESH_FRAME = 'File "<string>"'
+
+#: A module that loads the probe cycle through ``importlib``, which no static
+#: scan sees.
+_LOADER = "import importlib\n\nimportlib.import_module('cyc.a')\n"
+
+
 def test_driver_still_checks_a_cycle_an_unseen_edge_preloaded(tmp_path):
     """A runtime import the graph misses costs time, never coverage.
 
-    ``cyc.c`` loads the cycle through ``importlib``, which no static scan sees,
-    and it is walked first — so the cycle is already loaded when the driver
-    reaches it, and only a brand-new interpreter can still enter it at ``b``.
+    ``cyc.c`` loads the cycle through ``importlib``.  The graph says ``cyc.a``
+    imports ``cyc.c``, so the driver loads ``cyc.c`` before it enters the
+    cycle, and finds the cycle already loaded; only a brand-new interpreter
+    can still enter it at ``b``, and that route's traceback says so.
     """
-    _write_cycle_package(
-        tmp_path,
-        {"c.py": "import importlib\n\nimportlib.import_module('cyc.a')\n"},
-    )
+    _write_cycle_package(tmp_path, {"c.py": _LOADER})
     graph = {
         "cyc": [],
-        "cyc.a": ["cyc", "cyc.b"],
+        "cyc.a": ["cyc", "cyc.b", "cyc.c"],
         "cyc.b": ["cyc", "cyc.a"],
         "cyc.c": ["cyc"],
     }
@@ -217,6 +261,88 @@ def test_driver_still_checks_a_cycle_an_unseen_edge_preloaded(tmp_path):
     failures = _run_driver(graph, extra_path=tmp_path)
 
     assert set(failures) == {"cyc.b"}
+    assert _FRESH_FRAME in failures["cyc.b"]
+
+
+def test_a_module_no_cycle_imports_waits_until_the_cycles_are_checked(
+    tmp_path,
+):
+    """A module that loads a cycle at runtime cannot preload it (#5932).
+
+    ``cyc._loader`` sorts before the cycle and no cycle member imports it, so
+    a walk that loaded every module in order ran it first, found the cycle
+    loaded, and paid a brand-new interpreter per member.  Loaded last, it
+    leaves the cycle to forked children.
+
+    The route alone cannot tell the two orders apart: a deferred cycle is
+    forked on recheck too.  So each module logs its own import, and the
+    loader's line must come after every one of ``a``'s.
+    """
+    log = tmp_path / "imports.log"
+    record = f"with open({str(log)!r}, 'a') as f:\n    f.write('{{}}\\n')\n"
+    _write_cycle_package(
+        tmp_path,
+        {
+            "_loader.py": record.format("loader") + _LOADER,
+            "a.py": record.format("a") + "from cyc.b import B\n\nA = 1\n",
+        },
+    )
+    graph = {
+        "cyc": [],
+        "cyc._loader": ["cyc"],
+        "cyc.a": ["cyc", "cyc.b"],
+        "cyc.b": ["cyc", "cyc.a"],
+    }
+
+    failures = _run_driver(graph, extra_path=tmp_path)
+
+    assert set(failures) == {"cyc.b"}
+    assert _FRESH_FRAME not in failures["cyc.b"]
+    imports = log.read_text().split()
+    assert imports.count("loader") == 1
+    assert imports[-1] == "loader", imports
+
+
+def test_a_cycle_another_cycles_dependency_loaded_is_forked_on_recheck(
+    tmp_path,
+):
+    """The recheck pass forks a cycle the walk found loaded (#5932).
+
+    The ``_p``/``_q`` cycle sorts first and imports ``cyc.loader``, which
+    loads the ``a``/``b`` cycle at runtime, so the walk finds that cycle
+    already loaded.  It is not one of that cycle's own dependencies, so the
+    recheck pass, which loads only those, enters the cycle in forked children
+    rather than one brand-new interpreter per member.
+    """
+    _write_cycle_package(
+        tmp_path, {"_p.py": "", "_q.py": "", "loader.py": _LOADER}
+    )
+    graph = {
+        "cyc": [],
+        "cyc._p": ["cyc", "cyc._q", "cyc.loader"],
+        "cyc._q": ["cyc", "cyc._p"],
+        "cyc.loader": ["cyc"],
+        "cyc.a": ["cyc", "cyc.b"],
+        "cyc.b": ["cyc", "cyc.a"],
+    }
+
+    failures = _run_driver(graph, extra_path=tmp_path)
+
+    assert set(failures) == {"cyc.b"}
+    assert _FRESH_FRAME not in failures["cyc.b"]
+
+
+def test_a_recheck_pass_that_crashes_fails_each_cycle_it_held():
+    """A crashed recheck pass fails its cycles; it never passes them unchecked.
+
+    The graph names a module it has no entry for, so the recheck pass dies
+    building its components.
+    """
+    failures = _fresh_import_driver._recheck({"m": ["n"]}, [["m", "n"]], 1)
+
+    assert list(failures) == ["m"]
+    assert failures["m"].startswith("recheck pass failed:")
+    assert "KeyError" in failures["m"]
 
 
 def test_driver_imports_this_checkouts_vultron_whatever_pythonpath_names(
@@ -260,32 +386,40 @@ _PROBE_SECONDS = 0.2
 #: bound that is ignored shows up as a wider overlap rather than one batch.
 _PROBE_MEMBERS = ("m0", "m1", "m2", "m3", "m4", "m5")
 
+#: How long the one slow probe member is "being imported": long enough that
+#: the other slot imports several fast members meanwhile.
+_SLOW_PROBE_SECONDS = 1.5
 
-def _write_concurrency_probe(root: Path, log: Path) -> dict[str, list[str]]:
+
+def _write_concurrency_probe(
+    root: Path, log: Path, slow: str | None = None
+) -> dict[str, list[str]]:
     """A declared cycle whose members record when each was being imported.
 
     Returns the graph to hand the driver.  The edges are the driver's input
     data, so the modules need not import one another to be one strongly
     connected component — which keeps each member's body nothing but the
-    record-sleep-record the probe measures.
+    record-sleep-record the probe measures.  The *slow* member, if named,
+    sleeps :data:`_SLOW_PROBE_SECONDS` instead.
     """
     package = root / "probe"
     package.mkdir()
     (package / "__init__.py").write_text("")
-    body = (
-        "import os, time\n"
-        "\n"
-        "\n"
-        "def _mark(edge):\n"
-        "    with open(os.environ['PROBE_LOG'], 'a') as out:\n"
-        "        out.write(f'{time.monotonic_ns()} {edge}\\n')\n"
-        "\n"
-        "\n"
-        "_mark('enter')\n"
-        f"time.sleep({_PROBE_SECONDS})\n"
-        "_mark('leave')\n"
-    )
     for member in _PROBE_MEMBERS:
+        seconds = _SLOW_PROBE_SECONDS if member == slow else _PROBE_SECONDS
+        body = (
+            "import os, time\n"
+            "\n"
+            "\n"
+            "def _mark(edge):\n"
+            "    with open(os.environ['PROBE_LOG'], 'a') as out:\n"
+            "        out.write(f'{time.monotonic_ns()} {edge} {__name__}\\n')\n"
+            "\n"
+            "\n"
+            "_mark('enter')\n"
+            f"time.sleep({seconds})\n"
+            "_mark('leave')\n"
+        )
         (package / f"{member}.py").write_text(body)
     log.write_text("")
     ring = list(_PROBE_MEMBERS)
@@ -296,19 +430,40 @@ def _write_concurrency_probe(root: Path, log: Path) -> dict[str, list[str]]:
     return graph
 
 
-def _peak_overlap(log: Path) -> int:
-    """The most probe modules that were being imported at the same moment."""
-    events = sorted(
-        (int(stamp), edge)
-        for stamp, edge in (
+def _probe_events(log: Path) -> list[tuple[int, str, str]]:
+    """The probe log's ``(stamp, edge, module)`` records, oldest first."""
+    return sorted(
+        (int(stamp), edge, module)
+        for stamp, edge, module in (
             line.split() for line in log.read_text().splitlines() if line
         )
     )
+
+
+def _peak_overlap(log: Path) -> int:
+    """The most probe modules that were being imported at the same moment."""
     running = peak = 0
-    for _, edge in events:
+    for _, edge, _ in _probe_events(log):
         running += 1 if edge == "enter" else -1
         peak = max(peak, running)
     return peak
+
+
+def _overlapping(log: Path, module: str) -> set[str]:
+    """The other probe modules a child imported while *module*'s child did.
+
+    Only each module's first span counts: that is its child's.  The driver
+    imports the whole cycle itself afterwards, one module at a time.
+    """
+    spans: dict[str, list[int]] = {}
+    for stamp, _, name in _probe_events(log):
+        spans.setdefault(name, []).append(stamp)
+    start, end = spans[module][:2]
+    return {
+        name
+        for name, (enter, leave, *_) in spans.items()
+        if name != module and enter < end and leave > start
+    }
 
 
 @pytest.mark.parametrize("at_once", [1, 2])
@@ -332,12 +487,35 @@ def test_the_driver_forks_no_more_children_than_the_bound(
     assert _peak_overlap(log) == at_once
 
 
+def test_a_slow_child_does_not_hold_the_other_slots_idle(
+    tmp_path, monkeypatch
+):
+    """A slot that frees starts the next member at once (#5932).
+
+    Run in batches, the slow first member shared its time with one batch-mate
+    only, and the other slot sat idle until the slow one ended.  With the
+    slots kept full, several fast members import while the slow one does.
+    """
+    log = tmp_path / "probe.log"
+    graph = _write_concurrency_probe(tmp_path, log, slow="m0")
+    monkeypatch.setenv("PROBE_LOG", str(log))
+
+    assert _run_driver(graph, extra_path=tmp_path, at_once=2) == {}
+
+    assert _peak_overlap(log) == 2
+    assert len(_overlapping(log, "probe.m0")) >= 2
+
+
 # Integration tier: one fork per member of every import cycle in vultron/
-# costs tens of seconds (about 30s measured on a loaded 12-core machine), too
-# much for the unit suite's ~1 minute budget; the CI full suite (`-m ""`) runs
-# it.  The ceiling is explicit because the cost is dominated by child process
-# start-up, which a loaded or small CI runner stretches well past the measured
-# figure; the fan-out itself is bounded by `child_process_budget` (#5184).
+# costs minutes on a small host, too much for the unit suite's ~1 minute
+# budget; the CI full suite (`-m ""`) runs it.  Measured in a 6-CPU slot on a
+# shared 16-core host (#5932): 125s alone, and 148s beside the rest of
+# `test/architecture/` and `test/metadata/` under `-n auto`.  Before #5932 it
+# took 245s alone, over half of that in brand-new interpreters for cycles the
+# walk had already loaded, and it hit this ceiling under load every time.  The
+# ceiling is explicit because the cost is child import time, which a loaded
+# or small CI runner stretches; the fan-out is bounded by
+# `child_process_budget` (#5184).
 @pytest.mark.integration
 @pytest.mark.timeout(240)
 def test_every_vultron_module_imports_in_a_fresh_interpreter():

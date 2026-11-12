@@ -48,7 +48,6 @@ A `—` in the Issue column means no tracking issue exists; `pr-execute` skips t
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
-| `test/metadata/test_run_heavy.py::test_ctrl_c_stops_a_command_in_a_process_group_of_its_own` — the wrapper outlives the SIGINT past the 30 s timeout | #6223 | 2026-11-10 |
 
 `test_vultrabot` shows `SUBFAILED` but pytest still exits 0, so it never blocks
 a merge; see [testing-pitfalls.md](testing-pitfalls.md).
