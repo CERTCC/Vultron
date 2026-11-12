@@ -165,6 +165,10 @@ git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 # See ADR-0094 and notes/lint-tooling.md.
 line-length = 79                 # the retired [tool.black] value
 target-version = "py314"         # IMPLTS-01-009
+# A script that runs on whatever `python3` the host has, not the project's
+# interpreter, keeps the syntax of the oldest version it claims: the py314
+# formatter would write PEP 758 `except A, B:`, a SyntaxError before 3.14.
+per-file-target-version = { ".agents/skills/acquire-codebase-knowledge/scripts/scan.py" = "py38" }
 # Pre-commit passes staged filenames; without this ruff would lint a file named
 # on the command line even when the config excludes it, and the hook and the CI
 # job would disagree about scope.
