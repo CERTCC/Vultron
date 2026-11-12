@@ -27,7 +27,7 @@ A sequence that is not an accepted prefix is refused with its reason
 (:class:`NotAHistoryPrefixError`), never scored.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable
 
 from vultron.core.states.cs_invariants import CSEvent, replay_cs_history
 from vultron.errors import (
@@ -51,7 +51,7 @@ class NotAHistoryPrefixError(ValueError):
         reason: Why the prefix check refused it.
     """
 
-    def __init__(self, events: Sequence[object], reason: str) -> None:
+    def __init__(self, events: Iterable[object], reason: str) -> None:
         self.events = tuple(events)
         self.reason = reason
         super().__init__(
@@ -61,7 +61,7 @@ class NotAHistoryPrefixError(ValueError):
 
 
 def _accepted_prefix(
-    prefix: Sequence[CSEvent | str],
+    prefix: Iterable[CSEvent | str],
 ) -> tuple[CSEvent, ...]:
     """*prefix* as case-state events, once the prefix check accepts it.
 
@@ -79,7 +79,7 @@ def _accepted_prefix(
     return tuple(CSEvent(event) for event in given)
 
 
-def score_prefix(prefix: Sequence[CSEvent | str]) -> SequenceScore:
+def score_prefix(prefix: Iterable[CSEvent | str]) -> SequenceScore:
     """Score *prefix* through every valid completion of it.
 
     A complete history is its own only completion, so its expected, best and

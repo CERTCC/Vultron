@@ -107,8 +107,12 @@ class SequenceScore(BaseModel):
 
     @model_validator(mode="after")
     def _completions_partition_the_prefix(self) -> SequenceScore:
-        """Refuse a completion that does not extend the prefix, a repeat, or
-        weights that do not sum to 1 (EH-07-001: every problem is named)."""
+        """Refuse completions that do not partition the walk from the prefix.
+
+        A completion that does not extend the prefix, a repeat, weights that
+        do not sum to 1, and a disagreement with the walk are each named
+        (EH-07-001).
+        """
         problems: list[str] = []
         size = len(self.prefix)
         prefix = "".join(self.prefix)

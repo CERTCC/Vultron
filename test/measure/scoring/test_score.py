@@ -387,3 +387,21 @@ def test_the_scorer_imports_no_legacy_case_state_module(module):
         or name.startswith("vultron.core.case_states.")
         for name in imported
     )
+
+
+@pytest.mark.parametrize(
+    ("prefix", "count", "worst", "expected", "best"),
+    [
+        ("VF", 18, 3.43, 5.30, 7.37),
+        ("VFD", 5, 6.04, 6.76, 7.37),
+    ],
+)
+def test_the_docs_worked_example_holds(
+    prefix: str, count: int, worst: float, expected: float, best: float
+):
+    """Pins the figures in reasoning_over_histories.md's worked example."""
+    result = score_prefix(prefix)
+    assert len(result.completions) == count
+    assert round(float(result.worst), 2) == worst
+    assert round(float(result.expected), 2) == expected
+    assert round(float(result.best), 2) == best

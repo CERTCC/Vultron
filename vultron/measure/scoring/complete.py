@@ -23,6 +23,7 @@ and without the legacy validation module that new code does not import
 
 from collections.abc import Sequence
 from fractions import Fraction
+from functools import cache
 
 from vultron.core.states.cs_invariants import CSEvent, ensure_valid_cs_history
 from vultron.measure.baselines import (
@@ -65,4 +66,18 @@ def history_score(history: Sequence[CSEvent | str]) -> Fraction:
         VultronValidationError, VultronInvalidStateTransitionError: *history*
             is not one of the 70 valid complete histories.
     """
-    return sum((1 - baseline(d) for d in met_desiderata(history)), Fraction(0))
+    ensure_valid_cs_history(history)
+    return _score_of(tuple(CSEvent(e) for e in history))
+
+
+@cache
+def _score_of(history: tuple[CSEvent, ...]) -> Fraction:
+    """The score of a validated complete *history*, computed once per history.
+
+    A :class:`~vultron.measure.scoring.model.SequenceScore` reads each
+    completion's score for its expected, best and worst scores; the cache
+    keeps the 70 histories from being re-scored on every read.
+    """
+    return sum(
+        (1 - baseline(d) for d in ORIGINAL if _meets(d, history)), Fraction(0)
+    )
