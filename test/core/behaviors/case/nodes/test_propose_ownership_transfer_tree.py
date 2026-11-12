@@ -121,12 +121,14 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
     A real event: intake reads it first (CLP-10-017), and the commit
     boundary refuses an activity with no ``published`` (CLP-07-011).
     """
-    inner = {
-        "id": "https://example.org/activities/inner-make",
-        "type": "Offer",
-        "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
-        "target": {"id": TRANSFEREE_ID, "type": "Service"},
-    }
+    inner = make(
+        VultronActivity,
+        id_="https://example.org/activities/inner-make",
+        type_="Offer",
+        actor=VENDOR_ID,
+        object_=CASE_ID,
+        target=TRANSFEREE_ID,
+    )
     activity = make(
         VultronActivity,
         id_=PROPOSAL_ID,

@@ -3930,9 +3930,15 @@ class TestEP04SenderProposalAtCaseCreation:
         # The Create carries the case whole, rendered before the relay: it
         # must not carry the Invite's index entry, or the invitee's
         # idempotency guard reads the Invite as already answered and skips it.
-        created = _created_case_activity(dl).object_
-        assert isinstance(created, VulnerabilityCase)
-        assert revision_id not in created.pending_embargo_proposal_index
+        # The body the invitee is sent is the sealed one (OX-07-001); the
+        # stored activity names the case by id, which reads back as it is now.
+        body = read_sealed_body_dict(dl, str(_created_case_activity(dl).id_))
+        assert body is not None, "the queued Create must have a sealed body"
+        created = body["object"]
+        assert created["type"] == "VulnerabilityCase"
+        assert revision_id not in created.get(
+            "pendingEmbargoProposalIndex", {}
+        )
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
