@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 import pytest
 
 from test.support.blank_strings import BLANKS
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
@@ -32,7 +32,9 @@ def test_blank_timestamp_is_read_as_absent(field: str, blank: str):
     Absence here means ``None``, **not** the field default — see
     ``test_blank_timestamp_is_not_the_same_as_an_omitted_key``.
     """
-    obj = as_Object.model_validate({"type": "Object", **{field: blank}})
+    obj = as_Object.model_validate(
+        with_times(as_Object, {"type": "Object", **{field: blank}})
+    )
 
     assert getattr(obj, field) is None
 
@@ -46,7 +48,9 @@ def test_unparseable_timestamp_is_still_rejected(field: str):
     absorb ``"not-a-date"`` would report a corrupt timestamp as a missing one.
     """
     with pytest.raises(ValueError):
-        as_Object.model_validate({"type": "Object", **{field: "not-a-date"}})
+        as_Object.model_validate(
+            with_times(as_Object, {"type": "Object", **{field: "not-a-date"}})
+        )
 
 
 @pytest.mark.spec("CS-08-001")
@@ -54,7 +58,10 @@ def test_unparseable_timestamp_is_still_rejected(field: str):
 def test_supplied_timestamp_survives_verbatim(field: str):
     """Non-vacuity: the blank handling must not disturb a real value."""
     obj = as_Object.model_validate(
-        {"type": "Object", **{field: "2026-03-04T05:06:07+00:00"}}
+        with_times(
+            as_Object,
+            {"type": "Object", **{field: "2026-03-04T05:06:07+00:00"}},
+        )
     )
 
     assert getattr(obj, field) == datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
@@ -72,9 +79,13 @@ def test_blank_timestamp_is_not_the_same_as_an_omitted_key():
     and presents it as the sender's claim.  ``start_time`` and ``end_time``
     default to ``None``, so for those two the spellings do coincide.
     """
-    omitted = as_Object.model_validate({"type": "Object"})
+    omitted = as_Object.model_validate(
+        with_times(as_Object, {"type": "Object"})
+    )
     blank = as_Object.model_validate(
-        {"type": "Object", "published": "", "updated": ""}
+        with_times(
+            as_Object, {"type": "Object", "published": "", "updated": ""}
+        )
     )
 
     # Defaulted fields: omission fabricates, blank does not.

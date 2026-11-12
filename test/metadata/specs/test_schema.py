@@ -8,6 +8,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from test.support.objects import with_times
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -248,7 +249,9 @@ def test_lifecycle_key_refused_once_with_retirement_pointer(extra):
 def test_lifecycle_key_rejected_on_direct_model_construction(model):
     """Outside a group, ``extra="forbid"`` still refuses the key (SR-02-022)."""
     with pytest.raises(ValidationError):
-        model.model_validate({**_SPEC_ITEM, "deprecated": True})
+        model.model_validate(
+            with_times(model, {**_SPEC_ITEM, "deprecated": True})
+        )
 
 
 @pytest.mark.parametrize("specs", [["AB-01-001"], "AB-01-001"])

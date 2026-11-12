@@ -46,7 +46,7 @@ from test.support.embargo_register import (
     reject,
     write_consent_rows,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -126,10 +126,10 @@ def _build_case_with_two_open_proposals(
     )
 
     later_proposal = em_propose_embargo_activity(
-        later, context=case.id_, actor=owner_id
+        later, context=case.id_, actor=owner_id, at=authored_at()
     )
     earlier_proposal = em_propose_embargo_activity(
-        earlier, context=case.id_, actor=owner_id
+        earlier, context=case.id_, actor=owner_id, at=authored_at()
     )
 
     owner_participant = make(
@@ -276,7 +276,7 @@ def _build_case_with_one_open_proposal(
         end_time=start + timedelta(days=30),
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id
+        embargo, context=case.id_, actor=owner_id, at=authored_at()
     )
 
     owner_participant = make(
@@ -388,7 +388,7 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
             end_time=start + timedelta(days=days),
         )
         proposal = em_propose_embargo_activity(
-            embargo, context=case.id_, actor=owner.id_
+            embargo, context=case.id_, actor=owner.id_, at=authored_at()
         )
         propose(case, embargo.id_)
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.clock import SystemClock
+from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -55,7 +55,7 @@ def _state_positions(
     """Queue *actor_id*'s statements; append how many to *sent*."""
     sent.append(
         state_ledger_positions_trigger(
-            actor_dl, actor_id, SyncActivityAdapter(actor_dl), SystemClock()
+            actor_dl, actor_id, SyncActivityAdapter(actor_dl), act_clock()
         )
     )
 

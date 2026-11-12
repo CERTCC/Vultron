@@ -27,6 +27,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger import commit_case_manager_closure
+from test.support.objects import authored_at
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -59,6 +60,7 @@ def _invite(embargo: Any) -> Any:
         id_=f"{_CASE}/activities/invite",
         actor=_SENDER,
         to=[_MANAGER],
+        at=authored_at(),
     )
 
 
@@ -68,7 +70,11 @@ def _request(
     """The late activity, from _SENDER to the CASE_MANAGER."""
     if use_case is AcceptInviteToEmbargoOnCaseReceivedUseCase:
         activity = em_accept_embargo_activity(
-            _invite(embargo), context=_CASE, actor=_SENDER, to=[_MANAGER]
+            _invite(embargo),
+            context=_CASE,
+            actor=_SENDER,
+            to=[_MANAGER],
+            at=authored_at(),
         )
     else:
         activity = _invite(embargo)

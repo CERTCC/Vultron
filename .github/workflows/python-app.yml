@@ -38,6 +38,9 @@ on:
       # this workflow still tests them (DEMOCI-02-004, #3610).
       - uv.lock
       - pyrightconfig.json
+      # The mypy job's config, which also declares the requires-python floor
+      # that test/ci/test_python_version_floor.py checks (IMPLTS-01-009).
+      - .mypy.ini
       # test/ci reads every workflow and the pre-commit config, so the pull
       # request that drops a gate's CI step, or adds a hook no workflow runs,
       # fails (DOCBW-03-015). The glob includes this file.
@@ -66,6 +69,10 @@ on:
       # The hand-authored synthetic ledgers, which
       # test/demo_unit/test_recordings.py validates like the recordings.
       - ui/src/synthetic-ledgers/**
+      # test/ci/test_python_version_floor.py checks that the Docker base image
+      # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
+      # bumps only the base image must run it (#6052).
+      - docker/Dockerfile
   pull_request:
     branches: [ "main" ]
     paths:
@@ -86,6 +93,8 @@ on:
       - third_party/**
       - uv.lock
       - pyrightconfig.json
+      # mypy's config; see the push filter.
+      - .mypy.ini
       # test/ci reads every workflow and the pre-commit config, so the pull
       # request that drops a gate's CI step, or adds a hook no workflow runs,
       # fails (DOCBW-03-015). The glob includes this file.
@@ -110,6 +119,10 @@ on:
       - ui/src/data/**
       - ui/src/recordings/**
       - ui/src/synthetic-ledgers/**
+      # test/ci/test_python_version_floor.py checks that the Docker base image
+      # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
+      # bumps only the base image must run it (#6052).
+      - docker/Dockerfile
   workflow_dispatch:
 
 permissions:

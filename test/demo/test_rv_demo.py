@@ -73,7 +73,7 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
@@ -1526,7 +1526,9 @@ def _create_case_from_offer(
     seed_replicas_for_case_participants(dl, str(case_id))
 
     case_data = client.get(client.dl_path(case_id))
-    return as_VulnerabilityCase.model_validate(case_data)
+    return as_VulnerabilityCase.model_validate(
+        with_times(as_VulnerabilityCase, case_data)
+    )
 
 
 class TestSeedContainers:
@@ -2223,7 +2225,9 @@ class TestWaitForAllParticipantsRmClosed:
         assert store_id is not None, "the CaseActor is co-hosted in this test"
         manager_client = store_client.model_copy(update={"actor_id": store_id})
         case_data = manager_client.get(manager_client.dl_path(case.id_))
-        refreshed_case = as_VulnerabilityCase.model_validate(case_data)
+        refreshed_case = as_VulnerabilityCase.model_validate(
+            with_times(as_VulnerabilityCase, case_data)
+        )
 
         assert (
             _all_fetchable_participants_rm_closed(
@@ -2249,7 +2253,9 @@ class TestWaitForAllParticipantsRmClosed:
             _setup_case_with_3_participants(base)
         )
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
-        fetched_case = as_VulnerabilityCase.model_validate(case_data)
+        fetched_case = as_VulnerabilityCase.model_validate(
+            with_times(as_VulnerabilityCase, case_data)
+        )
 
         url_based_actor_ids = [
             actor_id

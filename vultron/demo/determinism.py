@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Seeded ids and a stepping clock, so a scenario run repeats byte for byte.
+"""Seeded ids and a recording clock, so a scenario run repeats byte for byte.
 
 A scenario recording (#3901) is checked for staleness by comparing a fresh run
 with the committed file, so every id, timestamp and hash in it must come out the
@@ -26,14 +26,17 @@ replaces both:
   in the ``uuid`` module (OID-01-012, ADR-0185).  So py_trees, which draws
   ``uuid.uuid4()`` for every behaviour and blackboard client it builds, keeps
   its random ids, and adding a tree node moves no object id in a recording.
-- **The clock.**  Every timestamp comes from
-  :func:`vultron.core.models._helpers.clock.now_utc`, which reads the ``datetime``
-  name on its module at call time so that it can be replaced.  Replacing that
-  name, not ``now_utc`` itself, also reaches the ``default_factory=now_utc``
-  references that model fields captured at class creation.
+- **The clock.**  Every time an act records is its instant, read once from
+  the act clock at the act's edge (ADR-0176), and every time a demo client
+  authors is read from the same clock (:mod:`vultron.demo.wall_clock`).  The
+  run supplies a recording clock through the port, with
+  :func:`~vultron.adapters.driven.clock.install_act_clock`, and patches no
+  module's ``datetime``.  The clock steps once per read, and only an act's
+  edge reads it, so it steps once per act: a read that commits nothing moves
+  no recording.
 
 The seeded ids are still version-4 UUIDs, and the clock still moves forward
-on every read, so nothing that checks their shape or order sees a difference.
+on every act, so nothing that checks their shape or order sees a difference.
 """
 
 import random
@@ -42,15 +45,12 @@ import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import py_trees
 
-from vultron.core.models._helpers import (
-    SteppingClock,
-    clock as helpers_clock,
-    install_id_source,
-)
+from vultron.adapters.driven.clock import install_act_clock
+from vultron.core.models._helpers import SteppingClock, install_id_source
+from vultron.core.ports.clock import ClockPort
 
 # Imported for its import-time work, before any run installs an id source.
 # The docs examples build their shared objects at first import inside their
@@ -72,11 +72,11 @@ RECORDING_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 #: byte-identical up to the branch point where they part (DEMOCI-11-018).
 TREE_RECORDING_SEED = "vultron-scenario-tree"
 
-#: How far the recording clock moves on each read.  Small enough that about
-#: one hundred reads fit in a second of recorded time.  A step of one second
+#: How far the recording clock moves on each act.  Small enough that about
+#: one hundred acts fit in a second of recorded time.  A step of one second
 #: would age a held record past a timeout such as the 300-second
-#: pre-bootstrap queue window after only 300 unrelated reads, which a real run
-#: of the same length never does.
+#: pre-bootstrap queue window after only 300 acts, which a real run of the
+#: same length never does.
 RECORDING_CLOCK_STEP = timedelta(milliseconds=10)
 
 
@@ -114,34 +114,37 @@ class SeededUuid4:
         return uuid.UUID(int=bits, version=4)
 
 
+def recording_clock() -> SteppingClock:
+    """A fresh recording clock: :data:`RECORDING_EPOCH`, one step per act."""
+    return SteppingClock(RECORDING_EPOCH, step=RECORDING_CLOCK_STEP)
+
+
 @contextmanager
 def deterministic_run(
-    seed: str,
-    start: datetime = RECORDING_EPOCH,
-    step: timedelta = RECORDING_CLOCK_STEP,
+    seed: str, clock: ClockPort | None = None
 ) -> Generator[None]:
-    """Install a seeded id source and a stepping clock for the block.
+    """Install a seeded id source and a recording act clock for the block.
 
     The docs examples are already imported when the block starts (see the
     import at the top of this module), so no first import of them runs
     inside it.
 
-    The id source is installed through
-    :func:`~vultron.core.models._helpers.install_id_source`, so it restores
-    the previous source on exit, also when the block raises, and a
+    Both are installed through their scoped installs
+    (:func:`~vultron.core.models._helpers.install_id_source`,
+    :func:`~vultron.adapters.driven.clock.install_act_clock`), so each
+    restores what it replaced on exit, also when the block raises, and a
     ``deterministic_run`` nested in another one (or in any other install)
-    raises :class:`~vultron.errors.VultronIdSourceInstalledError` rather than
-    sharing one stream of ids between two runs.
+    raises a :class:`~vultron.errors.VultronWiringError` rather than sharing
+    one stream of ids or one clock between two runs.
 
     Args:
         seed: Seeds the id source.  The same seed gives the same ids.
-        start: The instant the clock starts from.
-        step: How far the clock moves on each read.
+        clock: The act clock for the block; a fresh :func:`recording_clock`
+            when omitted.
     """
-    clock = SteppingClock(start, step=step)
     with (
         install_id_source(SeededUuid4(seed)),
-        patch.object(helpers_clock, "datetime", clock),
+        install_act_clock(recording_clock() if clock is None else clock),
     ):
         yield
 
@@ -153,5 +156,6 @@ __all__ = [
     "SteppingClock",
     "TREE_RECORDING_SEED",
     "deterministic_run",
+    "recording_clock",
     "reset_blackboard",
 ]

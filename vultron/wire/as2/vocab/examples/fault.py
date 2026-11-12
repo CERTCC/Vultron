@@ -23,7 +23,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Reject,
 )
-from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, vendor
+from vultron.wire.as2.vocab.examples._base import (
+    _CASE_ACTOR,
+    EXAMPLE_TIMESTAMP,
+    _example_stamp,
+    vendor,
+)
 from vultron.wire.as2.vocab.examples.status import (
     add_fix_readiness_to_participant,
 )
@@ -43,11 +48,13 @@ def create_processing_fault() -> as_Create:
     fault = as_ProcessingFault(
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
         in_reply_to=f"{_CASE_ACTOR.id_}/announce/9",
+        **_example_stamp(),
     )
     return create_processing_fault_activity(
         actor=vendor().id_,
         fault=fault,
         to=[_CASE_ACTOR.id_],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -72,4 +79,5 @@ def refusal_notice() -> as_Reject:
         actor=_CASE_ACTOR.id_,
         to=[refused.actor],
         context="https://vultron.example/cases/1",
+        at=EXAMPLE_TIMESTAMP,
     )

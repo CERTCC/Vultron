@@ -147,6 +147,7 @@ class CommitEmbargoDecisionNode(
             actor_id=cast(str, self.actor_id),
             cause_id=activity_id,
             act_commit=send_and_commit,
+            at=self._require_act_instant(),
         )
 
 
@@ -258,6 +259,7 @@ class CommitOwnConsentDecisionNode(
             actor_id=cast(str, self.actor_id),
             cause_id=f"own-consent:{self._embargo_id}",
             on_row_commit=committed.append,
+            at=self._require_act_instant(),
         )
         if self._captured is not None and committed:
             self._captured["activity"] = committed[0]

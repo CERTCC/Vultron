@@ -111,7 +111,7 @@ the splitter's choice:
   acts. Putting an actor into a second case is `Add`.
 
 PR #6262 (issue #5132) proposes ADR-0187 and the CM-34 requirements, which rename
-`VulnerabilityRecord` to `VulnerabilityItem`; this note uses the proposed name
+`VulnerabilityItem` to `VulnerabilityItem`; this note uses the proposed name
 throughout.
 
 **AS2 basis.** VOC Move: "the actor has moved object from origin to target". VOC
@@ -486,14 +486,16 @@ resource, not a resource with its own id and lifecycle.
 [RFC5988] 'link relation' definitions"; not functional. RFC 8288: extension relation
 types are URIs. CORE §4.2: Link properties are hints about the referenced resource.
 
-**Today.** `vultron/core/models/case_reference.py` (`url`, `name`, `tags` validated
-against `CASE_REFERENCE_TAG_VOCABULARY`). PR #6262 proposes ADR-0187 and CM-34-003,
-which give a case a reference list and the offer lifecycle.
+**Today.** Built. `vultron/core/models/case_reference.py` holds `CaseReference`
+(`url`, `name`) and the `CaseReferenceLink` in its `url` (`href`, `name`,
+`mediaType`, `rel`); `CVE_REFERENCE_TAG_RELS` maps each CVE tag to its relation
+type, and only `related` is IANA-registered, so it stays a bare name. The wire
+`as_Link.rel` takes one value or a list, because `rel` is not functional.
 
-**Touches.** CM-05-004, CM-05-010, CM-34-003 and ADR-0187 (proposed in PR #6262),
-CSAF-03-009, and a future
-FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may supply the
-`rel` vocabulary.
+**Touches.** CM-05-004, CM-05-005, CM-05-010, CM-05-012, CM-34-003, CSAF-03-009, and
+a future FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may
+supply more `rel` values. A new value joins `CVE_REFERENCE_TAG_RELS` (or the
+vocabulary beside it) and the `docs/ns/` relation table together.
 
 ---
 

@@ -22,7 +22,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose, terminate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -131,13 +131,13 @@ class TestIncomingReport:
         vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         # No participants yet: satisfies IncomingReport constraint
-        ir = IncomingReport.model_validate(vc)
+        ir = IncomingReport.model_validate(with_times(IncomingReport, vc))
         assert isinstance(ir, IncomingReport)
 
     def test_model_validate_raises_on_missing_report(self):
         vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
         with pytest.raises(ValidationError):
-            IncomingReport.model_validate(vc)
+            IncomingReport.model_validate(with_times(IncomingReport, vc))
 
     def test_model_validate_raises_when_participants_present(self):
         vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
@@ -146,7 +146,7 @@ class TestIncomingReport:
             vc, "case_participants", _minimal_case_participants()
         )
         with pytest.raises(ValidationError):
-            IncomingReport.model_validate(vc)
+            IncomingReport.model_validate(with_times(IncomingReport, vc))
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +162,14 @@ class TestCase:
 
     def test_type_literal_unchanged(self):
         """Case shares type_='VulnerabilityCase' (LST-05-003)."""
-        c = Case.model_validate(_minimal_case())
+        c = Case.model_validate(with_times(Case, _minimal_case()))
         assert c.type_ == "VulnerabilityCase"
 
     def test_not_registered_separately_in_core_vocabulary(self):
         assert "Case" not in CORE_VOCABULARY
 
     def test_valid_with_minimum_participants(self):
-        c = Case.model_validate(_minimal_case())
+        c = Case.model_validate(with_times(Case, _minimal_case()))
         assert len(c.case_participants) >= 2
         assert c.vulnerability_reports
         assert c.case_statuses
@@ -180,7 +180,7 @@ class TestCase:
             vc, "case_participants", _minimal_case_participants()
         )
         with pytest.raises(ValidationError, match="report"):
-            Case.model_validate(vc)
+            Case.model_validate(with_times(Case, vc))
 
     def test_raises_when_fewer_than_two_participants(self):
         vc = make(VulnerabilityCase, attributed_to=_ACTOR)
@@ -188,7 +188,7 @@ class TestCase:
         one: list[str | CaseParticipant] = ["urn:uuid:p1"]
         object.__setattr__(vc, "case_participants", one)
         with pytest.raises(ValidationError, match="reporter and receiver"):
-            Case.model_validate(vc)
+            Case.model_validate(with_times(Case, vc))
 
     def test_raises_when_no_participants(self):
         vc = make(VulnerabilityCase, attributed_to=_ACTOR)
@@ -196,7 +196,7 @@ class TestCase:
         none: list[str | CaseParticipant] = []
         object.__setattr__(vc, "case_participants", none)
         with pytest.raises(ValidationError):
-            Case.model_validate(vc)
+            Case.model_validate(with_times(Case, vc))
 
     def test_raises_when_no_case_statuses(self):
         vc = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
@@ -207,7 +207,7 @@ class TestCase:
         # Drop the status the owner seeded at construction.
         object.__setattr__(vc, "case_statuses", [])
         with pytest.raises(ValidationError, match="materialized CaseStatus"):
-            Case.model_validate(vc)
+            Case.model_validate(with_times(Case, vc))
 
     def test_raises_when_case_statuses_contains_only_string_ids(self):
         """String-only case_statuses must not pass the Case invariant (LST-02-002)."""
@@ -218,19 +218,19 @@ class TestCase:
         )
         vc.case_statuses = ["urn:uuid:status-string-id"]
         with pytest.raises(ValidationError, match="materialized CaseStatus"):
-            Case.model_validate(vc)
+            Case.model_validate(with_times(Case, vc))
 
     def test_model_validate_promotes_vulnerability_case(self):
         """model_validate promotes a qualifying VulnerabilityCase (LST-05-001)."""
         vc = _minimal_case()
-        c = Case.model_validate(vc)
+        c = Case.model_validate(with_times(Case, vc))
         assert isinstance(c, Case)
 
     def test_pre_embargo_case_is_valid_case(self):
         """A Case without an active embargo is still a valid Case."""
         vc = _minimal_case()
         assert vc.active_embargo is None
-        c = Case.model_validate(vc)
+        c = Case.model_validate(with_times(Case, vc))
         assert c.active_embargo is None
 
 
@@ -250,21 +250,25 @@ class TestEmbargoedCase:
 
     def test_type_literal_unchanged(self):
         """EmbargoedCase shares type_='VulnerabilityCase' (LST-05-003)."""
-        ec = EmbargoedCase.model_validate(_embargoed_case_data())
+        ec = EmbargoedCase.model_validate(
+            with_times(EmbargoedCase, _embargoed_case_data())
+        )
         assert ec.type_ == "VulnerabilityCase"
 
     def test_not_registered_separately_in_core_vocabulary(self):
         assert "EmbargoedCase" not in CORE_VOCABULARY
 
     def test_valid_with_active_embargo_and_active_em_state(self):
-        ec = EmbargoedCase.model_validate(_embargoed_case_data())
+        ec = EmbargoedCase.model_validate(
+            with_times(EmbargoedCase, _embargoed_case_data())
+        )
         assert ec.active_embargo == _EMBARGO_ID
         assert ec.current_status.em.state == EM.ACTIVE
 
     def test_valid_with_revise_em_state(self):
         vc = _embargoed_case_data()
         propose(vc, _REVISION_ID)
-        ec = EmbargoedCase.model_validate(vc)
+        ec = EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
         assert ec.em_state == EM.REVISE
         assert ec.current_status.em.state == EM.REVISE
 
@@ -272,13 +276,13 @@ class TestEmbargoedCase:
         vc = _minimal_case()
         assert vc.active_embargo is None
         with pytest.raises(ValidationError, match="active_embargo"):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_raises_when_em_state_is_no_embargo(self):
         vc = _minimal_case()
         assert vc.em_state == EM.NONE
         with pytest.raises(ValidationError, match="active_embargo"):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_raises_when_em_state_is_proposed(self):
         """An open proposal alone is not an embargo in force."""
@@ -286,35 +290,38 @@ class TestEmbargoedCase:
         propose(vc, _EMBARGO_ID)
         assert vc.em_state == EM.PROPOSED
         with pytest.raises(ValidationError, match="active_embargo"):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_raises_when_em_state_is_exited(self):
         vc = _embargoed_case_data()
         terminate(vc)
         assert vc.em_state == EM.EXITED
         with pytest.raises(ValidationError, match="active_embargo"):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_a_status_em_copy_does_not_make_a_case_embargoed(self):
         """EM is the register's; a status claiming ACTIVE is overruled."""
         vc = _minimal_case()
         claimed = VulnerabilityCase.model_validate(
-            {
-                **vc.model_dump(by_alias=True),
-                "caseStatuses": [
-                    make(
-                        CaseStatus,
-                        context=vc.id_,
-                        attributed_to=_ACTOR,
-                        em=EmDimension(state=EM.ACTIVE),
-                    ).model_dump(by_alias=True)
-                ],
-            }
+            with_times(
+                VulnerabilityCase,
+                {
+                    **vc.model_dump(by_alias=True),
+                    "caseStatuses": [
+                        make(
+                            CaseStatus,
+                            context=vc.id_,
+                            attributed_to=_ACTOR,
+                            em=EmDimension(state=EM.ACTIVE),
+                        ).model_dump(by_alias=True)
+                    ],
+                },
+            )
         )
         assert claimed.em_state == EM.NONE
         assert claimed.current_status.em.state == EM.NONE
         with pytest.raises(ValidationError, match="active_embargo"):
-            EmbargoedCase.model_validate(claimed)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, claimed))
 
     def test_inherits_case_invariants(self):
         """EmbargoedCase is a Case: it also enforces Case invariants."""
@@ -322,19 +329,19 @@ class TestEmbargoedCase:
         activate(vc, _EMBARGO_ID)
         # No reports: should fail the Case check first
         with pytest.raises(ValidationError):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_model_validate_promotes_qualified_vulnerability_case(self):
         """model_validate promotes a qualifying VulnerabilityCase (LST-05-001)."""
         vc = _embargoed_case_data()
-        ec = EmbargoedCase.model_validate(vc)
+        ec = EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
         assert isinstance(ec, EmbargoedCase)
 
     def test_pre_embargo_case_fails_embargoed_validate(self):
         """A pre-embargo Case fails EmbargoedCase.model_validate (LST-05-003)."""
         vc = _minimal_case()
         with pytest.raises(ValidationError):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
 
 # ---------------------------------------------------------------------------
@@ -347,37 +354,45 @@ class TestDataLayerRoundTrip:
 
     def test_embargoed_case_round_trips_via_model_dump(self):
         """Dump EmbargoedCase → reload as VulnerabilityCase → re-validate (LST-05-003)."""
-        ec = EmbargoedCase.model_validate(_embargoed_case_data())
+        ec = EmbargoedCase.model_validate(
+            with_times(EmbargoedCase, _embargoed_case_data())
+        )
         dumped = ec.model_dump(by_alias=True)
 
         # Rehydration always yields the base type
-        vc = VulnerabilityCase.model_validate(dumped)
+        vc = VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, dumped)
+        )
         assert isinstance(vc, VulnerabilityCase)
         assert vc.type_ == "VulnerabilityCase"
         assert vc.active_embargo == _EMBARGO_ID
 
         # Re-narrowing succeeds
-        ec2 = EmbargoedCase.model_validate(vc)
+        ec2 = EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
         assert isinstance(ec2, EmbargoedCase)
 
     def test_case_round_trips_via_model_dump(self):
         """Dump Case → reload as VulnerabilityCase → re-validate (LST-05-003)."""
-        c = Case.model_validate(_minimal_case())
+        c = Case.model_validate(with_times(Case, _minimal_case()))
         dumped = c.model_dump(by_alias=True)
 
-        vc = VulnerabilityCase.model_validate(dumped)
+        vc = VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, dumped)
+        )
         assert isinstance(vc, VulnerabilityCase)
 
-        c2 = Case.model_validate(vc)
+        c2 = Case.model_validate(with_times(Case, vc))
         assert isinstance(c2, Case)
 
     def test_pre_embargo_case_fails_embargoed_revalidation(self):
         """A persisted pre-embargo Case fails EmbargoedCase re-validation (AC-4)."""
-        c = Case.model_validate(_minimal_case())
+        c = Case.model_validate(with_times(Case, _minimal_case()))
         dumped = c.model_dump(by_alias=True)
-        vc = VulnerabilityCase.model_validate(dumped)
+        vc = VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, dumped)
+        )
         with pytest.raises(ValidationError):
-            EmbargoedCase.model_validate(vc)
+            EmbargoedCase.model_validate(with_times(EmbargoedCase, vc))
 
     def test_promotion_works_on_a_real_datalayer_read(self):
         """``dl.read()`` output narrows via ``model_validate`` (LST-05-001).
@@ -406,7 +421,9 @@ class TestDataLayerRoundTrip:
         )
         assert all(isinstance(s, CaseStatus) for s in stored.case_statuses)
 
-        promoted = EmbargoedCase.model_validate(stored)
+        promoted = EmbargoedCase.model_validate(
+            with_times(EmbargoedCase, stored)
+        )
         assert isinstance(promoted, EmbargoedCase)
         assert promoted.active_embargo == _EMBARGO_ID
 

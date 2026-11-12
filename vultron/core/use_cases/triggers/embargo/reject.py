@@ -95,6 +95,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,
+                    at=self._at,
                 )
             else:
                 # A participant's deliberate answer uses a fresh id so a
@@ -106,6 +107,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                     actor=self._actor_id,
                     to=to,
                     derived_id=False,
+                    at=self._at,
                 )
             self._captured["activity"] = json.loads(reject_blob)
             return reject_id, reject_blob

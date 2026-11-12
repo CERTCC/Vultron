@@ -275,3 +275,33 @@ class Ledger:
         )
         read = case_ledgers_from_files([ledger_file])
         return case_event_history(read.cases[CASE])
+
+
+def seat_vendor(
+    ledger: Ledger, actor: str, vf: str, *, deployer: bool = False
+) -> int:
+    """Seat *actor* as a Vendor (and a Deployer when *deployer*) at *vf*."""
+    roles = ("VENDOR", "DEPLOYER") if deployer else ("VENDOR",)
+    return ledger.seat(
+        participant(
+            actor,
+            [
+                status(
+                    f"{actor}-r",
+                    actor,
+                    "RECEIVED",
+                    vf=vf,
+                    d="d" if deployer else None,
+                    roles=roles,
+                )
+            ],
+            roles=roles,
+        )
+    )
+
+
+def publish(ledger: Ledger, pxa: str) -> int:
+    """The CASE_MANAGER adopts public state *pxa*."""
+    return ledger.add(
+        "add_case_status_to_case", "Add", CM, case_status(f"cs-{pxa}", pxa)
+    )

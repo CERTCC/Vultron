@@ -20,7 +20,7 @@ correct branches of the TeardownIfActive Selector.
 """
 
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import py_trees
 import pytest
@@ -172,6 +172,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_,
             actor=CASE_MANAGER_ACTOR,
             to=[ACTOR_ID],
+            at=ANY,
         )
         outbox = dl.outbox_list()
         assert "https://example.org/activities/ann1" in outbox
@@ -378,6 +379,7 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
             case_id=manager_case.id_,
             actor=CASE_MANAGER_ACTOR,
             to=[OTHER_PARTICIPANT_ACTOR],
+            at=ANY,
         )
         assert "https://example.org/activities/ann1" in (
             manager_dl.outbox_list()

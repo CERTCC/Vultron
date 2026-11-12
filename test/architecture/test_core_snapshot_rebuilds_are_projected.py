@@ -44,6 +44,11 @@ _PROJECTION = "project_wire_snapshot_to_core"
 # permanent: ARCH-20-012 (each entry validates a value that is not a snapshot)
 _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
+        "vultron/core/models/profile.py",
+        "_build",
+    ): "validates a profile from the attributes of a model already in hand;"
+    " no snapshot is read",
+    (
         "vultron/core/models/report_claims.py",
         "_derive_id_and_outcomes",
     ): "validates the record's own claims reading to derive its id; no"
@@ -84,8 +89,19 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "vultron/core/use_cases/triggers/note.py",
         "_build_result",
     ): "spreads the fields of the activity this trigger captured",
+    (
+        "vultron/core/models/case_participant/participant.py",
+        "first_status",
+    ): "spreads the seeded status's dimensions its caller names (RM.ACCEPTED)",
+    (
+        "vultron/core/use_cases/triggers/report.py",
+        "_authored",
+    ): "revalidates this attachment's own dump with the act's times added",
 }
 
+
+#: The helpers whose spread states an object's author's times (ADR-0176).
+_AUTHORED_TIMES = frozenset({"authored_times", "embargo_authored_times"})
 
 _VALIDATORS = frozenset(
     {
@@ -108,8 +124,28 @@ def _validated_value(node: ast.Call) -> ast.expr | None:
             None,
         )
     if name[:1].isupper():
-        return next((k.value for k in node.keywords if k.arg is None), None)
+        return next(
+            (
+                k.value
+                for k in node.keywords
+                if k.arg is None and not _is_authored_times(k.value)
+            ),
+            None,
+        )
     return None
+
+
+def _is_authored_times(value: ast.expr) -> bool:
+    """True for ``authored_times(at)`` or ``embargo_authored_times(at)``: the
+    act's instant, never a snapshot.
+
+    A constructor spreads it to state its author's times (ADR-0176), which
+    carries no field of another object, so it is no rebuild.
+    """
+    return (
+        isinstance(value, ast.Call)
+        and _corpus.callee_name(value.func) in _AUTHORED_TIMES
+    )
 
 
 def _is_projected(value: ast.expr) -> bool:

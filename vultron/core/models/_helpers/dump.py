@@ -1,12 +1,6 @@
 #!/usr/bin/env python
-"""
-Wire-layer alias for VulnerabilityRecord.
 
-Per ARCH-25-003 (ADR-0099): the core class is the canonical form.
-The as_-prefixed names are retained for backward compatibility.
-"""
-
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -19,16 +13,17 @@ The as_-prefixed names are retained for backward compatibility.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+"""How a dump treats an empty collection field."""
 
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+from collections.abc import Sized
 
-# Backward-compatibility alias (ARCH-25-003, ADR-0099)
-as_VulnerabilityRecord = VulnerabilityRecord
 
-# Register core class in WIRE_TYPE_MAP so the parser admits it inline
-WIRE_TYPE_MAP["VulnerabilityRecord"] = VulnerabilityRecord
+def is_empty(value: Sized) -> bool:
+    """True when *value* holds nothing: the ``exclude_if`` of a collection
+    field a dump leaves out when empty, because an empty collection there is
+    a key the sender never sent (``CoreActor.assertion_method``, the AS2
+    language maps)."""
+    return len(value) == 0
 
-as_VulnerabilityRecordRef: TypeAlias = ActivityStreamRef[VulnerabilityRecord]
+
+__all__ = ["is_empty"]

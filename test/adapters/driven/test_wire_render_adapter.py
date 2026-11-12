@@ -30,7 +30,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
 from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
@@ -42,7 +42,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
@@ -77,7 +77,7 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
     assert wire_cls is not None, (
         f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
     )
-    wire_cls.model_validate(result)
+    wire_cls.model_validate(with_times(wire_cls, result))
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ def test_render_case_participant(adapter):
 
 
 def test_render_case_reference(adapter):
-    obj = make(CaseReference, url="https://example.org/ref")
+    obj = make(CaseReference, url={"href": "https://example.org/ref"})
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseReference")
 
@@ -120,10 +120,10 @@ def test_render_embargo_policy(adapter):
     _assert_wire_dict(result, "EmbargoPolicy")
 
 
-def test_render_vulnerability_record(adapter):
-    obj = make(VulnerabilityRecord, name="CVE-2024-0001")
+def test_render_vulnerability_item(adapter):
+    obj = make(VulnerabilityItem, cve="CVE-2024-0001")
     result = adapter.render(obj)
-    _assert_wire_dict(result, "VulnerabilityRecord")
+    _assert_wire_dict(result, "VulnerabilityItem")
 
 
 def test_render_case_status(adapter):

@@ -26,7 +26,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -157,7 +157,9 @@ class TestCoreEmbargoEventTimesAreUtc:
         """
         embargo = make(EmbargoEvent, context=_CONTEXT, end_time=_FUTURE_DT)
         invite = em_propose_embargo_activity(
-            embargo, actor="https://example.org/actors/vendor"
+            embargo,
+            actor="https://example.org/actors/vendor",
+            at=authored_at(),
         )
         body = json.loads(invite.model_dump_json(by_alias=True))
         body["object"]["endTime"] = "2099-12-31T12:30:00"

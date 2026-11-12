@@ -38,21 +38,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.deploy_monitoring import (
     DeploymentMonitoringBundle,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.capabilities.report_management.deploy_fix import (
+    DeployMitigationCapability,
+    MitigationAvailableCapability,
+    MitigationDeployedCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_fail_as,
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysFail(name)
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -68,7 +66,7 @@ class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     """
 
     mitigation_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(MitigationDeployedCapability)  # type: ignore[assignment]
     )
     """MitigationDeployed (Retriever): p=0.25 → AlwaysFail.
 
@@ -80,7 +78,7 @@ class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     """
 
     mitigation_available_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(MitigationAvailableCapability)  # type: ignore[assignment]
     )
     """MitigationAvailable (Retriever): p=0.70 → AlwaysSucceed.
 
@@ -91,7 +89,7 @@ class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     """
 
     deploy_mitigation_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(DeployMitigationCapability)  # type: ignore[assignment]
     )
     """DeployMitigation (Evaluator): p=0.75 → AlwaysSucceed."""
 

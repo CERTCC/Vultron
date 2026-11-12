@@ -24,7 +24,7 @@ import pytest
 from fastapi import status
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.factories import (
@@ -53,6 +53,7 @@ def _received_offer(to: str):
         to=to,
         actor=FINDER,
         id_=OFFER_ID,
+        at=authored_at(),
     )
 
 
@@ -157,6 +158,7 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
         ),
         actor=FINDER,
         id_=OFFER_ID,
+        at=authored_at(),
     )
     if ingress_row:
         datalayer.create(object_to_record(invite))
@@ -199,6 +201,7 @@ def test_an_offer_the_actor_sent_is_served_by_id(
         to="https://vendor.example/actors/vendor",
         actor=dl_actor_id,
         id_=OFFER_ID,
+        at=authored_at(),
     )
     datalayer.create(sent)
 

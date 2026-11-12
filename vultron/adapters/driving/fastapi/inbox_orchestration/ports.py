@@ -79,7 +79,7 @@ class FastAPIDispatchAdapter:
         )
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: datetime
     ) -> None:
         """Queue the receiving actor's fault to *event*'s sender (ASK-07-010)."""
         emit_processing_fault(
@@ -88,6 +88,7 @@ class FastAPIDispatchAdapter:
             event.activity_id,
             event.actor_id,
             failure_class,
+            at=at,
         )
 
 

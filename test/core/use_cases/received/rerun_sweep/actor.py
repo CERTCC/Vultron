@@ -23,6 +23,7 @@ existing handler tests, whose guards they reuse.
 from typing import Any, cast
 
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import authored_at
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -98,6 +99,7 @@ def _recommendation(net: LedgerNetwork) -> Any:
         actor=_RECOMMENDER,
         to=[MANAGER],
         content=f"{_RECOMMENDER} vouches for them",
+        at=authored_at(),
     )
 
 
@@ -155,6 +157,7 @@ def offer_actor_to_case_removed() -> Scenario:
         target=removal.read_case(),
         actor=REMOVAL_OTHER,
         to=[REMOVAL_MANAGER],
+        at=authored_at(),
     )
     return Scenario(
         dl=dl,
@@ -184,7 +187,11 @@ def accept_offer_case_participant() -> Scenario:
     return deliver(
         net,
         accept_case_participant_offer_activity(
-            offer, target=net.case_id, actor=OWNER, to=[MANAGER]
+            offer,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -196,7 +203,11 @@ def reject_offer_case_participant() -> Scenario:
     return deliver(
         net,
         reject_case_participant_offer_activity(
-            offer, target=net.case_id, actor=OWNER, to=[MANAGER]
+            offer,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -216,6 +227,7 @@ def _unrecorded_offer_answer(accept: bool) -> Scenario:
         target=offer_tests._case_ref(offer_tests.CASE_ID),
         actor=offer_tests.CASE_OWNER_ID,
         to=[offer_tests.CASE_ACTOR_ID],
+        at=authored_at(),
     )
     return Scenario(dl=dl, event=received_event(answer, at=dl))
 
@@ -279,6 +291,7 @@ def _role_answer(dl: SqliteDataLayer, offer: Any, *, accept: bool) -> Any:
             offer=offer,
             actor=role_tests._TARGET_ID,
             to=[role_tests._CASE_MANAGER_ID],
+            at=authored_at(),
         ),
     )
 

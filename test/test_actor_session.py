@@ -22,7 +22,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.demo.actor_session import (
     ActorSession,
     WireActivityResult,
@@ -39,6 +39,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _BASE = "http://vendor:7999/api/v2"
 _ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 _CASE_ID = "http://case-actor:7999/api/v2/VulnerabilityCases/abc"
+#: The author's time a trigger's answered activity carries (ADR-0176).
+_AT = authored_at().isoformat()
 
 
 def _session(base_url: str = _BASE, actor_id: str = _ACTOR_ID) -> ActorSession:
@@ -149,6 +151,8 @@ def test_invite_actor_to_case_returns_typed_activity_result():
             "id": "http://case-actor:7999/api/v2/Invites/1",
             "actor": _ACTOR_ID,
             "object": "http://v2:7999/api/v2/actors/v2",
+            "published": _AT,
+            "updated": _AT,
         },
         "emitting_actor_id": _ACTOR_ID,
     }
@@ -213,6 +217,8 @@ _PROPOSAL = {
         "id": "http://vendor:7999/api/v2/Invites/9",
         "actor": _ACTOR_ID,
         "object": _EMBARGO_ID,
+        "published": _AT,
+        "updated": _AT,
     }
 }
 

@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_delivered,
     delivered_body,
@@ -55,6 +55,7 @@ def _add(note_id: str = "https://example.org/notes/n-1"):
         context=_CASE,
         actor=_PEER,
         to=[_ME],
+        at=authored_at(),
     )
 
 

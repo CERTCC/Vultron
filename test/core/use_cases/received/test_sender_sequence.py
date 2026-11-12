@@ -35,7 +35,7 @@ from test.support.ledger_rebuild import (
     replay_inbox,
     run_use_case,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
@@ -109,7 +109,11 @@ def _note_body_in(
             make(as_Note, id_=note_id, content="numbered", context=case_id)
         )
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=note_id, case_id=case_id, actor=actor, to=[to]
+        note_id=note_id,
+        case_id=case_id,
+        actor=actor,
+        to=[to],
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(body))
 
@@ -211,7 +215,11 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     net.receive(MANAGER, first)
     net.deliver(MANAGER, to=OWNER, type_="Announce")
     SyncActivityAdapter(dl).send_read_ledger_entry(
-        net.case_id, ledger_tail_position(net.case_id, dl), OWNER, [MANAGER]
+        net.case_id,
+        ledger_tail_position(net.case_id, dl),
+        OWNER,
+        [MANAGER],
+        at=authored_at(),
     )
     [read] = net.queued(OWNER, to=MANAGER, type_="Read")
     read_body = read_sealed_body_dict(dl, read.id_)
@@ -223,6 +231,7 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
         OWNER,
         [MANAGER],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     [reject] = net.queued(OWNER, to=MANAGER, type_="Reject")
     reject_body = read_sealed_body_dict(dl, reject.id_)
@@ -383,7 +392,10 @@ def test_a_note_numbered_before_leave_is_kept_in_either_order() -> None:
         dl = net.stores[BYSTANDER]
         note = _numbered(_note_body(net, "before-leave", actor=BYSTANDER), 1)
         _leave_id, leave_text = TriggerActivityAdapter(dl).close_case(
-            case_id=net.case_id, actor=BYSTANDER, to=[MANAGER]
+            case_id=net.case_id,
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         )
         leave = _numbered(json.loads(leave_text), 2)
         for body in (note, leave) if send_order else (leave, note):
@@ -594,7 +606,7 @@ def test_a_closed_senders_late_number_draws_no_notice() -> None:
     dl = net.stores[BYSTANDER]
     note = _numbered(_note_body(net, "after-leave", actor=BYSTANDER), 1)
     _leave_id, leave_text = TriggerActivityAdapter(dl).close_case(
-        case_id=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        case_id=net.case_id, actor=BYSTANDER, to=[MANAGER], at=authored_at()
     )
     net.receive(MANAGER, _numbered(json.loads(leave_text), 1))
 

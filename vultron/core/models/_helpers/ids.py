@@ -29,16 +29,15 @@ layer may import only ``vultron.core.models`` and ``vultron.core.states``
 (ARCH-22-001).
 """
 
-import threading
 import uuid
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from typing import (
     Any,
     Protocol,
 )
 
+from vultron.core.models._helpers.scoped_install import ScopedInstall
 from vultron.errors import VultronIdSourceInstalledError
 
 URN_UUID_PREFIX = "urn:uuid:"
@@ -66,26 +65,21 @@ def system_id_source() -> uuid.UUID:
     return uuid.uuid4()
 
 
-@dataclass
-class _IdSourceSlot:
-    """The process-wide slot holding the source :func:`new_object_id` draws from.
-
-    Holds :func:`system_id_source` except inside :func:`install_id_source`.
-    The lock serializes installs, not draws: a draw reads ``source`` once.
-    A dataclass, so it has no hand-written ``__init__`` for a scan that follows
-    core-model methods by name to reach into the system source.
-    """
-
-    source: IdSource = system_id_source
-    installed: bool = False
-    lock: threading.Lock = field(default_factory=threading.Lock)
+def _refuse_nested_id_source() -> VultronIdSourceInstalledError:
+    return VultronIdSourceInstalledError(
+        "an id source is already installed; a reproducible run's "
+        "install does not nest inside another"
+    )
 
 
-_SLOT = _IdSourceSlot()
+#: The process-wide slot holding the source :func:`new_object_id` draws from:
+#: :func:`system_id_source` except inside :func:`install_id_source`.
+_SLOT: ScopedInstall[IdSource] = ScopedInstall(
+    system_id_source, _refuse_nested_id_source
+)
 
 
-@contextmanager
-def install_id_source(source: IdSource) -> Iterator[IdSource]:
+def install_id_source(source: IdSource) -> AbstractContextManager[IdSource]:
     """Make *source* the minter's id source for the block, then restore it.
 
     For a run that needs repeatable ids (a scenario recording, the docs
@@ -101,21 +95,7 @@ def install_id_source(source: IdSource) -> Iterator[IdSource]:
             reproducible runs in one block would take each other's ids, and
             nobody would see it.
     """
-    with _SLOT.lock:
-        if _SLOT.installed:
-            raise VultronIdSourceInstalledError(
-                "an id source is already installed; a reproducible run's "
-                "install does not nest inside another"
-            )
-        _SLOT.installed = True
-        previous = _SLOT.source
-        _SLOT.source = source
-    try:
-        yield source
-    finally:
-        with _SLOT.lock:
-            _SLOT.source = previous
-            _SLOT.installed = False
+    return _SLOT.install(source)
 
 
 def new_object_id(prefix: str | None = None) -> str:
@@ -134,7 +114,7 @@ def new_object_id(prefix: str | None = None) -> str:
     An id *derived* from what an activity answers is not minted; it comes from
     :func:`vultron.core.models.activity_ids.derived_activity_id`.
     """
-    minted = str(_SLOT.source())
+    minted = str(_SLOT.value())
     if prefix is None:
         return f"{URN_UUID_PREFIX}{minted}"
     return f"{prefix}/{minted}"

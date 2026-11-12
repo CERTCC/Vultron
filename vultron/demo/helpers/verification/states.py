@@ -39,6 +39,7 @@ from vultron.demo.utils import (
     DataLayerClient,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -59,8 +60,9 @@ def _assert_vendor_participant_state(
         AssertionError: If the participant has no statuses or the latest
             RM state is not ``RM.ACCEPTED``.
     """
-    participant = as_CaseParticipant(
-        **vendor_client.get(vendor_client.dl_path(dl_key(participant_id)))
+    participant = from_server(
+        as_CaseParticipant,
+        vendor_client.get(vendor_client.dl_path(dl_key(participant_id))),
     )
     latest = participant.participant_status
     if latest is None:
@@ -389,7 +391,7 @@ def _all_fetchable_participants_rm_closed(
         # No projection step: as_CaseParticipant *is* CaseParticipant
         # (ARCH-25-003, ADR-0099), so validating the fetched payload already yields the
         # core object ``all_participants_rm_closed`` expects.
-        participant = as_CaseParticipant(**p_data)
+        participant = from_server(as_CaseParticipant, p_data)
         if not participant.joined:
             # Inert (never-joined) participants are excluded from the active-closure
             # check.  A rejected invitee's RM.CLOSED state is confirmed at the

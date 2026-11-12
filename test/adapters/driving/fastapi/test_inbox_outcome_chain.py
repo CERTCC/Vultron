@@ -37,7 +37,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -92,7 +92,7 @@ def body() -> dict[str, Any]:
         content="chain report",
     )
     activity = rm_create_report_activity(
-        report, actor=_SENDER_ID, to=[_RECEIVER_ID]
+        report, actor=_SENDER_ID, to=[_RECEIVER_ID], at=authored_at()
     )
     return delivered_body(activity)
 
@@ -190,6 +190,7 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
         reason=TerminationReason.EARLY,
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
     body = _wire_body(remove)
     assert "origin" not in body
@@ -421,7 +422,11 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
         name="untrusted",
     )
     announce = announce_vulnerability_case_activity(
-        case, actor=_SENDER_ID, to=[_RECEIVER_ID], context=case.id_
+        case,
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        context=case.id_,
+        at=authored_at(),
     )
     announce_body = delivered_body(announce)
     dispatcher = DirectActivityDispatcher(
@@ -746,7 +751,10 @@ def test_untrusted_announce_case_is_refused_and_unstored(dl):
     )
 
     announce = announce_vulnerability_case_activity(
-        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
+        _self_managed_case(),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
     outcome = _process(dl, _wire_body(announce), _real_dispatcher())
@@ -788,7 +796,11 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
         attributed_to=_SENDER_ID,
     )
     add = add_note_to_case_activity(
-        note, target=case, actor=_SENDER_ID, to=[_RECEIVER_ID]
+        note,
+        target=case,
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
     from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
@@ -831,9 +843,13 @@ def test_untrusted_create_then_announce_both_refused_unstored(dl):
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
         context=_IMPOSTER_CASE_ID,
+        at=authored_at(),
     )
     announce = announce_vulnerability_case_activity(
-        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
+        _self_managed_case(),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
     for activity, citation in (
@@ -910,7 +926,10 @@ def _announce_from_case_manager() -> dict[str, Any]:
 
     return _wire_body(
         announce_vulnerability_case_activity(
-            _managed_case(), actor=_CASE_MANAGER_ID, to=[_RECEIVER_ID]
+            _managed_case(),
+            actor=_CASE_MANAGER_ID,
+            to=[_RECEIVER_ID],
+            at=authored_at(),
         )
     )
 
@@ -956,6 +975,7 @@ def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
         actor=_VENDOR_ID,
         to=[_RECEIVER_ID],
         context=_LEGIT_CASE_ID,
+        at=authored_at(),
     )
 
     created = _process(dl, _wire_body(create), _real_dispatcher())
@@ -985,6 +1005,7 @@ def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
         _case_with(_LEGIT_CASE_ID, "hijacked", [imposter]),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
     refused = _process(dl, _wire_body(hijack), _real_dispatcher())
@@ -1036,6 +1057,7 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
         actor=_CASE_MANAGER_ID,
         to=[_RECEIVER_ID],
         id_=f"{_LEGIT_CASE_ID}/invitations/late-joiner",
+        at=authored_at(),
     )
 
     invited = _process(dl, _wire_body(invite), _real_dispatcher())

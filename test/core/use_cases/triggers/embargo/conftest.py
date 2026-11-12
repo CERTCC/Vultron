@@ -11,7 +11,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -52,7 +52,7 @@ def _build_active_embargo_case(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id
+        embargo, context=case.id_, actor=owner_id, at=authored_at()
     )
 
     owner_participant = make(
@@ -184,7 +184,7 @@ def _build_active_embargo_case_with_case_manager(
 
 def _actor_and_own_store(
     name: str,
-) -> Generator[tuple[as_Service, SqliteDataLayer], None, None]:
+) -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """Yield an actor and *its own* store.
 
     Which actor owns the store is not decoration: a trigger's BT executes as the
@@ -206,17 +206,13 @@ def _actor_and_own_store(
 
 
 @pytest.fixture
-def finder_actor_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
-]:
+def finder_actor_and_dl() -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """The finder and its own store — for triggers requested *by the finder*."""
     yield from _actor_and_own_store("Finder Co")
 
 
 @pytest.fixture
-def owner_actor_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
-]:
+def owner_actor_and_dl() -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """The case owner and its own store — for triggers requested *by the owner*.
 
     Embargo teardown is one: the authority is the case's CASE_MANAGER, which
@@ -319,7 +315,7 @@ def _case_with_open_proposal(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id
+        embargo, context=case.id_, actor=owner_id, at=authored_at()
     )
     dl.create(embargo)
     dl.create(proposal)
@@ -347,7 +343,7 @@ def _open_revision(
         as_EmbargoEvent, context=case_id, end_time=days_from_now(90)
     )
     proposal = em_propose_embargo_activity(
-        revision, context=case_id, actor=owner_id
+        revision, context=case_id, actor=owner_id, at=authored_at()
     )
     propose(case, revision.id_)
     case.pending_embargo_proposal_index[revision.id_] = proposal.id_
@@ -385,7 +381,7 @@ def _case_owned_by_non_manager(
         as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
     )
     proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=manager_id
+        embargo, context=case.id_, actor=manager_id, at=authored_at()
     )
     owner_participant = make(
         VendorParticipant,

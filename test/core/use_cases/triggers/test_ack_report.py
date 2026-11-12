@@ -22,7 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -71,7 +71,7 @@ class _Fixture:
         )
         self.dl.create(self.report)
         self.offer = rm_submit_report_activity(
-            self.report, self.vendor.id_, actor=FINDER_ID
+            self.report, self.vendor.id_, actor=FINDER_ID, at=authored_at()
         )
         self.dl.create(self.offer)
         self.dl.create(
@@ -158,7 +158,9 @@ def test_ack_still_goes_to_the_reporter_alone_once_a_case_exists(
     read = env.dl.read(queued.pop())
     assert isinstance(read, as_Read)
     assert read.to == [FINDER_ID]
-    assert CASE_ACTOR_ID not in (read.cc or [])
+    cc = read.cc or []
+    assert isinstance(cc, list)
+    assert CASE_ACTOR_ID not in cc
 
 
 @pytest.mark.spec("TRIG-03-003")

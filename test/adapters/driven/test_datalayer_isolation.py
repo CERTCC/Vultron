@@ -23,7 +23,7 @@ from test.support.case_owner import (
     CASE_OWNER_ID,
     STORED_CASE_OWNERSHIP,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     get_all_actor_datalayers,
@@ -36,7 +36,8 @@ from vultron.core.ports.datalayer import StorableRecord
 
 def _record(id_: str, type_: str = "Note") -> StorableRecord:
     """Helper to build a minimal StorableRecord for testing."""
-    data: dict[str, object] = {"id_": id_}
+    at = authored_at().isoformat()
+    data: dict[str, object] = {"id_": id_, "published": at, "updated": at}
     if type_ == "VulnerabilityCase":
         # Every case has an owner, so a genesis hash and a ledger position.
         data.update(STORED_CASE_OWNERSHIP)

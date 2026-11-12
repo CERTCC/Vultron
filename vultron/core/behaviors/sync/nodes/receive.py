@@ -413,6 +413,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             actor_id=actor_id,
             to=[sender_id],
             in_reply_to=announce_id,
+            at=self._require_act_instant(),
         )
 
 

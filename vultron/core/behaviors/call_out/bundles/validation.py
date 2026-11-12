@@ -29,15 +29,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.capabilities.report_management.validate import (
+    EvaluateReportCredibilityCapability,
+    EvaluateReportValidityCapability,
+    GatherValidationInfoCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -49,13 +50,13 @@ class ValidationCallOutBundle(CallOutBundle):
     """
 
     credibility_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EvaluateReportCredibilityCapability)  # type: ignore[assignment]
     )
     validity_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EvaluateReportValidityCapability)  # type: ignore[assignment]
     )
     gather_info_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(GatherValidationInfoCapability)  # type: ignore[assignment]
     )
     """GatherValidationInfo (Retriever): p=0.90 → AlwaysSucceed.
 

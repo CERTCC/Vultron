@@ -27,7 +27,7 @@ from fastapi.testclient import TestClient
 import vultron.adapters.driving.fastapi.outbox_handler.drain as _outbox_drain
 from test.conftest import seed_case_actor_replica
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received, case_stub
 from test.support.transferee import transferee_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -201,6 +201,7 @@ def invite(other_actor_and_dl, actor, case_obj):
         other,
         target=case_stub(case_obj.id_),
         actor=actor.id_,
+        at=authored_at(),
     )
     archive_received(other_dl, invite_activity)
     return invite_activity

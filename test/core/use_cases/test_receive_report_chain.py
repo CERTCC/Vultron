@@ -22,7 +22,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -85,7 +85,9 @@ def _make_offer(
     actor_id: str,
 ):
     """Create and persist an Offer + VultronOfferRecord in the DataLayer."""
-    offer = rm_submit_report_activity(report, recipient_id, actor=actor_id)
+    offer = rm_submit_report_activity(
+        report, recipient_id, actor=actor_id, at=authored_at()
+    )
     dl.create(offer)
     offer_record = VultronOfferRecord(
         offer_id=offer.id_,

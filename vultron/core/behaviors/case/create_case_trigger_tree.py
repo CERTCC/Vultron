@@ -40,6 +40,7 @@ from vultron.core.behaviors.sync.nodes.port_guard import (
     RequireSyncPortNode,
     RequireWireRenderPortNode,
 )
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -79,6 +80,7 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
             name=self._case_name,
             content=self._case_content,
             attributed_to=self.actor_id,
+            **authored_times(self._require_act_instant()),
         )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
@@ -129,6 +131,7 @@ class _RegisterCreatorParticipantNode(
             attributed_to=self.actor_id,
             context=case_id,
             case_roles=[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
+            **authored_times(self._require_act_instant()),
         )
         case = _create_and_attach_participant(
             self.datalayer, participant, case_id, self.actor_id, self.logger

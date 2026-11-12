@@ -40,8 +40,9 @@ class TriggerInvitesPort(Protocol):
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
-        published: datetime | None = None,
         in_reply_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
 
@@ -58,8 +59,9 @@ class TriggerInvitesPort(Protocol):
         the case from the DataLayer by ``case_id`` (CM-17-002).
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
         the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
-        CM-28-012, ASK-03-004); ``published`` is the instant it was measured
-        from.  ``in_reply_to`` names the stub Invite this one replaces, in the
+        CM-28-012, ASK-03-004), measured from *at*, the act's instant and the
+        Invite's ``published``.  ``in_reply_to`` names the stub Invite this
+        one replaces, in the
         standard AS2 ``inReplyTo`` property, after an embargo change or a
         re-invite (CM-11-015, CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
@@ -75,6 +77,8 @@ class TriggerInvitesPort(Protocol):
         ledger_entry_hash: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
@@ -92,6 +96,8 @@ class TriggerInvitesPort(Protocol):
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Accept(full-case Invite)`` — RV (VAM-04-012).
 
@@ -107,6 +113,8 @@ class TriggerInvitesPort(Protocol):
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``TentativeReject(full-case Invite)`` — RI (VAM-04-013).
 
@@ -120,6 +128,8 @@ class TriggerInvitesPort(Protocol):
         actor: str,
         ledger_log_index: int,
         ledger_entry_hash: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Reject(full-case Invite)`` — RC (VAM-04-014).
 
@@ -131,6 +141,8 @@ class TriggerInvitesPort(Protocol):
         self,
         invite_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` activity.
 
@@ -142,6 +154,8 @@ class TriggerInvitesPort(Protocol):
         self,
         invite_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` activity.
 

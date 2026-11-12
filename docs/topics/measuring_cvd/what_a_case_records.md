@@ -332,6 +332,18 @@ For embargo times, the measure connects the embargo register and the consent row
     Each event also names the semantic type and log index of the entry that recorded it, the commit stamp, and the claimed time in a separate field.
     Each event carries the labels of the data gaps on this page that affect its time, and a deadline when the ledger records one that bounds the time.
     The history lists every entry that named a state behind the state already reached, and it records no event for that state.
+    `vultron-case-history` (`vultron/measure/history/cli.py`) writes the event history of a case from the ledger files it is given, as JSON for a program or as a Markdown table for a person.
+    The table names each actor and object by a display name, never by a bare identifier.
+    It words each event with the phrase that the semantic registry gives its semantic type.
+    The command fails with an error when a file is missing, when the files it is given hold no ledger entry, or when they do not hold the case it is asked for.
+    From the history, the measure layer builds one case-state sequence for each participant that has a vendor-awareness event (`vultron/measure/sequences/`).
+    Each sequence holds that vendor's fix-path and deployment events and the case's public-state events, in log order, and must replay as a valid start of a case history.
+    The model counts the public as aware once an exploit is published, and the vendor as aware once the public is.
+    So when the ledger records one of these events late, after another event, the sequence moves it up to where the model puts it and marks it.
+    When the ledger never records public awareness after a published exploit, the sequence adds an implied public-awareness event at the exploit's log index and times, and marks it.
+    The case's event history stays as the ledger records it.
+    The layer reports every other participant with the reason it has no sequence, and it computes no score.
+    A separate measure scores each vendor's sequence through the complete histories it can still become (`vultron/measure/scoring/`), as [Reasoning over Possible Histories](reasoning_over_histories.md#scoring-a-case-that-is-still-in-progress) describes.
 
 ## Further reading
 

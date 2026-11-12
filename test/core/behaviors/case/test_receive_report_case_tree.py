@@ -39,7 +39,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import with_evidence
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
@@ -764,7 +764,10 @@ class TestConcurrentExecution:
         )
         datalayer.create(report)
         offer = rm_submit_report_activity(
-            report=report, actor=reporter_actor_id, to=actor_id
+            report=report,
+            actor=reporter_actor_id,
+            to=actor_id,
+            at=authored_at(),
         )
         datalayer.create(offer)
         return report, offer

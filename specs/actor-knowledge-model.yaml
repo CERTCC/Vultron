@@ -519,7 +519,8 @@ groups:
       {actor}/cases/{case}/objects` with an `object_id` query parameter, to an
       active participant of the case (CM-10-004) that has not closed on it
       (CM-23-004). A case object is the case itself, an embargo in its register, a
-      participant, status, report or note it lists, or an object whose `context`
+      participant, status, report, vulnerability item, case reference or note it lists, or
+      an object whose `context`
       is the case. The `{case}` segment is the case's id, or its surrogate key
       when the id carries slashes. The surrogate key is the last segment of the
       id, and one that matches more than one case names none. The requester is the

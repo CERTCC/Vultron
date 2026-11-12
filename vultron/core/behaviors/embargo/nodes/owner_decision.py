@@ -226,6 +226,7 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
             case_id=self._case_id,
             actor=actor_id,
             to=[case_manager_id],
+            at=self._require_act_instant(),
         )
 
 

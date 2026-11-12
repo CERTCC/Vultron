@@ -306,8 +306,8 @@ def get_actor_outbox(
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
     activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
-    # ``published``/``updated`` are passed as ``None`` rather than left to
-    # ``as_Object``'s ``default_factory=now_utc``: this collection is a view
+    # ``published``/``updated`` are passed as ``None``, the times being
+    # required (ADR-0176): this collection is a view
     # the read synthesises, not a stored object, so a read that stamped it
     # would read the clock and invent a time for a thing that has none
     # (#5510).  ``AS2JSONResponse`` excludes ``None``, so neither key is

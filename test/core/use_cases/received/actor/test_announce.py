@@ -33,7 +33,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -109,7 +109,10 @@ def case():
 def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
     """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
     return as_VulnerabilityCase.model_validate(
-        {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID}
+        with_times(
+            as_VulnerabilityCase,
+            {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID},
+        )
     )
 
 
@@ -154,6 +157,7 @@ def announce_activity(case, case_actor):
         actor=case_actor.id_,
         to=[_RECEIVER_ID],
         context=case.id_,
+        at=authored_at(),
     )
 
 
@@ -224,6 +228,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=case_actor.id_,
                 to=[_RECEIVER_ID],
                 context=case.id_,
+                at=authored_at(),
             ),
             at=dl,
         )
@@ -262,6 +267,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
+                at=authored_at(),
             ),
             at=dl,
         )
@@ -329,6 +335,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
+                at=authored_at(),
             ),
             at=dl,
         )
@@ -372,7 +379,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             name="Placeholder",
         )
         announce = announce_vulnerability_case_activity(
-            good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
+            good_case, actor=_OWNER_ID, to=[_RECEIVER_ID], at=authored_at()
         )
         event = make_payload(announce, at=dl)
 
@@ -407,6 +414,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             actor=_IMPOSTER_ID,
             to=[_RECEIVER_ID],
             context=case.id_,
+            at=authored_at(),
         )
         event = make_payload(announce, at=dl)
 
@@ -578,7 +586,11 @@ class TestAnnounceFirstContactTrustGap:
         )
         # Build an announce from a *different* actor (the imposter)
         imposter_announce = announce_vulnerability_case_activity(
-            case, actor=_IMPOSTER_ID, to=[_RECEIVER_ID], context=case.id_
+            case,
+            actor=_IMPOSTER_ID,
+            to=[_RECEIVER_ID],
+            context=case.id_,
+            at=authored_at(),
         )
         event = make_payload(imposter_announce, at=dl)
 
@@ -656,6 +668,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
             actor=_CASE_ACTOR_ID,
             to=[_RECEIVER_ID],
             context=_CASE_ID,
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
         return event, run_in_act(
@@ -800,6 +813,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             actor=_CASE_ACTOR_ID,
             to=[_RECEIVER_ID],
             context=_CASE_ID,
+            at=authored_at(),
         )
         return make_payload(activity)
 
@@ -853,7 +867,11 @@ class TestAnnounceStoresEmbeddedParticipants:
             case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref
         )
         activity = announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
+            case,
+            actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
+            context=_CASE_ID,
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
 
@@ -889,6 +907,7 @@ class TestAnnounceStoresEmbeddedParticipants:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
+                at=authored_at(),
             ),
             at=dl,
         )
@@ -970,7 +989,11 @@ class TestFirstSeedStatesLedgerPosition:
         **ports: Any,
     ):
         activity = announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
+            case,
+            actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
+            context=_CASE_ID,
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
         return AnnounceVulnerabilityCaseReceivedUseCase(dl, event, **ports)
@@ -1054,13 +1077,16 @@ class TestFirstSeedStatesLedgerPosition:
         _anchor_expected_authority(dl)
         case = _joined_case()
         unlisted = as_VulnerabilityCase.model_validate(
-            {
-                **case.model_dump(exclude_none=True),
-                "case_participants": case.case_participants[:1],
-                "actor_participant_index": {
-                    _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    **case.model_dump(exclude_none=True),
+                    "case_participants": case.case_participants[:1],
+                    "actor_participant_index": {
+                        _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+                    },
                 },
-            }
+            )
         )
 
         result = self._seed(dl, make_payload, unlisted)

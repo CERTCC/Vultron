@@ -33,7 +33,7 @@ from pydantic import ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
@@ -178,7 +178,10 @@ class TestVultronCaseIdContract:
         """The refusal names the id, not a status seeded from it (CS-08-001)."""
         with pytest.raises(ValidationError) as excinfo:
             VulnerabilityCase.model_validate(
-                {"attributed_to": CASE_OWNER_ID, key: blank}
+                with_times(
+                    VulnerabilityCase,
+                    {"attributed_to": CASE_OWNER_ID, key: blank},
+                )
             )
         locs = {error["loc"][0] for error in excinfo.value.errors()}
         assert key in locs

@@ -39,7 +39,7 @@ from test.support.ledger_rebuild import (
     replay_inbox,
     run_use_case,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     in_step_sender_sequence,
     received_event,
@@ -538,6 +538,7 @@ class LedgerNetwork:
             ),
             actor=member,
             to=[MANAGER],
+            at=authored_at(),
         )
 
     def sealed_bodies(
@@ -615,6 +616,7 @@ class LedgerNetwork:
             change=change,
             cause_id=cause_id,
             sync_port=SyncActivityAdapter(dl),
+            at=authored_at(),
         )
 
     def diverged_announcement(

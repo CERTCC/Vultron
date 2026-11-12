@@ -42,11 +42,18 @@ Vultron supports one protocol version, so no list of retired names is kept
 
 import logging
 import types
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cache
 from types import MappingProxyType
-from typing import Any, TypeAliasType, Union, get_args, get_origin
+from typing import (
+    Any,
+    Literal,
+    TypeAliasType,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import AliasChoices, AliasPath, BaseModel
 
@@ -227,7 +234,7 @@ def _model_candidates(
             return all(visit(arg) for arg in get_args(ann))
         if origin in (dict, Mapping) or ann is dict:
             return False
-        if origin in (list, set, frozenset, tuple):
+        if origin in (list, set, frozenset, tuple, Sequence):
             return all(visit(arg) for arg in get_args(ann) if arg is not ...)
         return True
 
@@ -303,8 +310,47 @@ def _partition_value(
     if not isinstance(value, dict):
         return value
     resolved = resolve_inline_class(value)
-    classes = (resolved,) if resolved is not None else candidates
+    declared = _declared_for_type(value, candidates, resolved)
+    fallback = (resolved,) if resolved is not None else candidates
+    classes = declared or fallback
     return _partition_object(value, classes, path, walk)
+
+
+def _type_literal_values(cls: type[BaseModel]) -> tuple[object, ...]:
+    """The values a class's ``type_`` ``Literal`` admits, or ``()``."""
+    field = cls.model_fields.get("type_")
+    if field is None:
+        return ()
+    annotation = strip_annotated(field.annotation)
+    if get_origin(annotation) is not Literal:
+        return ()
+    return get_args(annotation)
+
+
+def _declared_for_type(
+    value: dict[str, Any],
+    candidates: tuple[type[BaseModel], ...],
+    resolved: type[BaseModel] | None,
+) -> tuple[type[BaseModel], ...]:
+    """The slot's declared classes that name *value*'s ``type``, when the wire
+    class its ``type`` resolves to is another class.
+
+    A slot may declare its own model for a shared AS2 type: a case
+    reference's ``url`` is a ``CaseReferenceLink``, while ``type: Link``
+    resolves to the wire ``as_Link``.  The class that validates the slot then
+    decides its keys, so a Link property the reference does not hold is set
+    aside and reported here, not read by a class that never keeps it.  A
+    resolved subclass of a declared class keeps its own, wider, fields.
+    """
+    obj_type = value.get("type")
+    if resolved is None or not isinstance(obj_type, str):
+        return ()
+    matches = tuple(
+        cls for cls in candidates if obj_type in _type_literal_values(cls)
+    )
+    if any(issubclass(resolved, cls) for cls in matches):
+        return ()
+    return matches
 
 
 def _partition_object(

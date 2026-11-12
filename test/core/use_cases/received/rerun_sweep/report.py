@@ -19,7 +19,7 @@ from typing import Any, cast
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import FAR_FUTURE
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
@@ -87,7 +87,9 @@ def create_report() -> Scenario:
     report = _report("create")
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR)
     event = received_event(
-        rm_create_report_activity(report, actor=_REPORTER, to=[_VENDOR]),
+        rm_create_report_activity(
+            report, actor=_REPORTER, to=[_VENDOR], at=authored_at()
+        ),
         receiving_actor_id=_VENDOR,
     )
 
@@ -107,7 +109,7 @@ def submit_report() -> Scenario:
     dl.save(make(VultronService, id_=_VENDOR))
     event = received_event(
         rm_submit_report_activity(
-            _report("submit"), to=_VENDOR, actor=_REPORTER
+            _report("submit"), to=_VENDOR, actor=_REPORTER, at=authored_at()
         ),
         receiving_actor_id=_VENDOR,
     )
@@ -130,7 +132,7 @@ def _offer_recorded_store() -> tuple[SqliteDataLayer, as_Offer]:
     from vultron.core.models.offer_record import VultronOfferRecord
 
     offer = rm_submit_report_activity(
-        _report("offered"), to=_VENDOR, actor=_REPORTER
+        _report("offered"), to=_VENDOR, actor=_REPORTER, at=authored_at()
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPORTER)
     dl.create(
@@ -149,7 +151,9 @@ def ack_report() -> Scenario:
     """The vendor's RK of the reporter's Offer: intake records it, no more."""
     dl, offer = _offer_recorded_store()
     event = received_event(
-        rm_read_report_activity(offer, actor=_VENDOR, to=[_REPORTER]),
+        rm_read_report_activity(
+            offer, actor=_VENDOR, to=[_REPORTER], at=authored_at()
+        ),
         receiving_actor_id=_REPORTER,
     )
     return Scenario(
@@ -166,7 +170,9 @@ def close_report() -> Scenario:
     """
     dl, offer = _offer_recorded_store()
     event = received_event(
-        rm_close_report_activity(offer, actor=_VENDOR, to=[_REPORTER]),
+        rm_close_report_activity(
+            offer, actor=_VENDOR, to=[_REPORTER], at=authored_at()
+        ),
         receiving_actor_id=_REPORTER,
     )
     return Scenario(
@@ -196,7 +202,8 @@ def _verdict(build, rm: RM = RM.RECEIVED) -> Scenario:
     dl = _store(MANAGER_ID, rm)
     _with_embargo(dl)
     event = received_event(
-        build(_offer(), actor=FINDER_ID, to=[MANAGER_ID]), at=dl
+        build(_offer(), actor=FINDER_ID, to=[MANAGER_ID], at=authored_at()),
+        at=dl,
     ).model_copy(update={"receiving_actor_id": MANAGER_ID})
     return Scenario(dl=dl, event=event)
 

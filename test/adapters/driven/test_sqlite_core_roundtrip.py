@@ -31,7 +31,7 @@ from pydantic import Field
 from sqlmodel import Session
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
@@ -56,7 +56,7 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import (
@@ -86,8 +86,8 @@ def _make_instance(core_cls):
             inbox="https://example.org/inbox",
             preferred_duration=timedelta(days=90),
         )
-    if core_cls is VulnerabilityRecord:
-        return make(core_cls, name="CVE-2024-XXXX")
+    if core_cls is VulnerabilityItem:
+        return make(core_cls, cve="CVE-2024-0001")
     if core_cls is VulnerabilityCase:
         return make(core_cls, attributed_to=CASE_OWNER_ID)
     return make(core_cls)
@@ -123,7 +123,7 @@ def dl():
         ParticipantStatus,
         EmbargoEvent,
         EmbargoPolicy,
-        VulnerabilityRecord,
+        VulnerabilityItem,
     ],
 )
 def test_read_returns_core_type(dl, core_cls):
@@ -528,7 +528,9 @@ def test_mixed_spelling_row_now_validates_directly():
     into an empty participant would be the #2232 defect wearing a passing test.
     """
     case_id = "urn:uuid:case-2232-premise"
-    case = VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+    case = VulnerabilityCase.model_validate(
+        with_times(VulnerabilityCase, _mixed_spelling_case_row(case_id))
+    )
 
     assert len(case.case_participants) == 1
     participant = case.case_participants[0]
@@ -660,6 +662,8 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
             "preview": None,
             "media_type": None,
             "to": None,
+            "published": None,
+            "updated": None,
             "outbox": {"items": ["https://test.example/activities/1"]},
         },
     )

@@ -114,7 +114,7 @@ class ReplayAttempt:
         #: The failure is a ``VultronProtocolViolationError``: never retried.
         self.permanent = False
         #: The fault ``DispatchNode`` asked for: the event and failure class.
-        self.fault: tuple[VultronEvent, str] | None = None
+        self.fault: tuple[VultronEvent, str, datetime] | None = None
 
     def begin(self) -> None:
         """Forget the previous attempt."""
@@ -254,10 +254,11 @@ class ReplayDispatchAdapter:
             raise
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: datetime
     ) -> None:
-        """Hold the fault until the drain knows the item is not retried."""
-        self._attempt.fault = (event, failure_class)
+        """Hold the fault, and the act's instant it is authored at, until the
+        drain knows the item is not retried."""
+        self._attempt.fault = (event, failure_class, at)
 
     def send_held_fault(self) -> None:
         """Queue the fault held for the current attempt, if any (ASK-07-011).
@@ -272,10 +273,10 @@ class ReplayDispatchAdapter:
         held = self._attempt.fault
         if held is None:
             return
-        event, failure_class = held
+        event, failure_class, at = held
         try:
             with self._store.transaction():
-                self._inner.emit_processing_fault(event, failure_class)
+                self._inner.emit_processing_fault(event, failure_class, at=at)
         except Exception:
             # The drain boundary: a failed fault must not stop the drain.
             logger.exception(

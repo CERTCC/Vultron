@@ -41,6 +41,14 @@ defect that found it, each with the file the suite reads through it:
   export, and ``test/demo_unit/test_recordings.py`` validates
   ``ui/src/recordings/`` and ``ui/src/synthetic-ledgers/``, but a pull request
   that edited only them ran neither (#4728).
+- ``docker/Dockerfile``. ``test_python_version_floor.py`` checks that the base
+  image runs the ``requires-python`` floor or later (IMPLTS-01-010), and no
+  other entry matches the Dockerfile, so a base-image bump alone ran no test
+  (#6052).
+- ``.mypy.ini``. It configures the mypy job and declares the floor that
+  ``test_python_version_floor.py`` compares with ``requires-python``
+  (IMPLTS-01-009), but no entry matched it, so a change to it alone ran
+  neither (#6052).
 
 Markdown guarded by a pytest ratchet is the same gap, tracked by #5708.
 """
@@ -122,4 +130,28 @@ def test_python_app_workflow_runs_on_a_demo_ui_artifact_change(
         f"The {event} paths must include {pattern!r}, or the committed file can "
         "change without the Python tests that read it running:\n"
         + "\n".join(f"  {p}" for p in paths)
+    )
+
+
+@pytest.mark.spec("IMPLTS-01-010")
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_dockerfile_change(event: str) -> None:
+    """A base-image bump reaches the test that compares it with the floor."""
+    paths = _triggers()[event]["paths"]
+    assert "docker/Dockerfile" in paths, (
+        f"The {event} paths must include 'docker/Dockerfile', or the base "
+        "image can change without test_python_version_floor.py running:\n"
+        + "\n".join(f"  {p}" for p in paths)
+    )
+
+
+@pytest.mark.spec("IMPLTS-01-009")
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+def test_python_app_workflow_runs_on_a_mypy_config_change(event: str) -> None:
+    """A mypy config change reaches the mypy job and the floor test."""
+    paths = _triggers()[event]["paths"]
+    assert ".mypy.ini" in paths, (
+        f"The {event} paths must include '.mypy.ini', or mypy's config can "
+        "change without the mypy job or test_python_version_floor.py "
+        "running:\n" + "\n".join(f"  {p}" for p in paths)
     )

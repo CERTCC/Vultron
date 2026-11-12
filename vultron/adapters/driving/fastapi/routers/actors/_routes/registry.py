@@ -30,6 +30,7 @@ from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import (
+    get_act_clock,
     get_actor_dl,
     node_base_url,
     node_db_url_template,
@@ -45,13 +46,15 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
-from vultron.core.models._helpers import new_object_id
+from vultron.core.behaviors.bridge.act_instant import stamp_arrival
+from vultron.core.models._helpers import authored_times, new_object_id
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
     hosted_endpoints,
 )
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger("uvicorn.error")
@@ -162,7 +165,11 @@ def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
     ),
     operation_id="actors_create",
 )
-def create_actor(request: ActorCreateRequest, http_request: Request):
+def create_actor(
+    request: ActorCreateRequest,
+    http_request: Request,
+    clock: ClockPort = Depends(get_act_clock),
+):
     """Create (or return existing) hosted actor record in that actor's own store.
 
     An actor is a process with API endpoints, and its id **is** the URL that
@@ -237,8 +244,12 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
+    # Authored when the request arrives: one clock read (ADR-0176).
     actor = actor_cls(
-        id_=actor_id, name=request.name, **hosted_endpoints(actor_id)
+        id_=actor_id,
+        name=request.name,
+        **hosted_endpoints(actor_id),
+        **authored_times(stamp_arrival(clock)),
     )
     datalayer.create(object_to_record(cast(PersistableModel, actor)))
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)

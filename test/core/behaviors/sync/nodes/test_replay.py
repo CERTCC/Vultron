@@ -17,7 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
 )
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
@@ -58,7 +58,7 @@ def _make_reject_event(
     prev_hash = _ZERO_HASH if entry_log_index == 0 else "deadbeef" * 8
     entry = _make_entry(entry_log_index, prev_hash)
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         entry=wire_entry,
@@ -66,6 +66,7 @@ def _make_reject_event(
         actor=PARTICIPANT_ACTOR_ID,
         to=[OWNER_ACTOR_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     return cast(RejectLogEntryReceivedEvent, extract_stamped(activity))
 
@@ -563,12 +564,16 @@ def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
     third = _make_entry(2, second.entry_hash)
     adapter = _adapter(datalayer)
     adapter.send_announce_log_entry(
-        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+        entry=second,
+        actor_id=case_actor.id_,
+        to=[PARTICIPANT_ACTOR_ID],
+        at=authored_at(),
     )
     adapter.send_announce_log_entry(
         entry=third,
         actor_id=case_actor.id_,
         to=["https://example.org/actors/other"],
+        at=authored_at(),
     )
     before = _queued_announces(datalayer)
 
@@ -595,7 +600,10 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     second = _make_entry(1, first.entry_hash)
     adapter = _adapter(datalayer)
     adapter.send_announce_log_entry(
-        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+        entry=second,
+        actor_id=case_actor.id_,
+        to=[PARTICIPANT_ACTOR_ID],
+        at=authored_at(),
     )
     before = _queued_announces(datalayer)
 

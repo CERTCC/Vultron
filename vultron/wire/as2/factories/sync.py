@@ -24,14 +24,16 @@ Spec: ``specs/sync-ledger-replication.yaml`` SYNC-09-002,
 SYNC-03-001, SYNC-03-002, SYNC-17-001, SYNC-18-001.
 """
 
-import logging
-
-from pydantic import ValidationError
+from datetime import datetime
 
 from vultron.core.models.case_ledger_entry import ledger_entry_id
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
+)
+from vultron.wire.as2.factories._construct import (
+    build_activity,
+    guarded_build,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
@@ -46,11 +48,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
-logger = logging.getLogger(__name__)
-
 
 def announce_log_entry_activity(
     entry: as_CaseLedgerEntry,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(CaseLedgerEntry) — fan-out replication to participants.
@@ -69,20 +71,19 @@ def announce_log_entry_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AnnounceLogEntryActivity(object_=entry, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "announce_log_entry_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "announce_log_entry_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "announce_log_entry_activity",
+        _AnnounceLogEntryActivity,
+        at,
+        lambda: {"object_": entry, **kwargs},
+    )
 
 
 def reject_log_entry_activity(
     entry: as_CaseLedgerEntry,
     in_reply_to: str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
@@ -111,21 +112,20 @@ def reject_log_entry_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     kwargs.setdefault("context", getattr(entry, "case_id", None))
-    try:
-        return _RejectLogEntryActivity(
-            object_=entry, in_reply_to=in_reply_to, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning("reject_log_entry_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "reject_log_entry_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "reject_log_entry_activity",
+        _RejectLogEntryActivity,
+        at,
+        lambda: {"object_": entry, "in_reply_to": in_reply_to, **kwargs},
+    )
 
 
 def genesis_replay_reject_activity(
     case_id: str,
     ledger_position: LedgerPosition,
     in_reply_to: str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-027).
@@ -144,25 +144,24 @@ def genesis_replay_reject_activity(
             including a *ledger_position* that names an entry: a sender
             that holds one names it instead (``as_Reject``).
     """
-    try:
-        return _RejectLogEntryActivity(
-            target=case_id,
-            context=case_id,
-            ledger_position=ledger_position,
-            in_reply_to=in_reply_to,
+    return build_activity(
+        "genesis_replay_reject_activity",
+        _RejectLogEntryActivity,
+        at,
+        lambda: {
+            "target": case_id,
+            "context": case_id,
+            "ledger_position": ledger_position,
+            "in_reply_to": in_reply_to,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "genesis_replay_reject_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "genesis_replay_reject_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def read_ledger_entry_activity(
     entry: as_CaseLedgerEntry,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Read:
     """Build a Read(CaseLedgerEntry) — a participant's ledger position statement.
@@ -184,23 +183,22 @@ def read_ledger_entry_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        position = LedgerPosition(
+    position = guarded_build(
+        "read_ledger_entry_activity",
+        lambda: LedgerPosition(
             log_index=entry.log_index, entry_hash=entry.entry_hash
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "read_ledger_entry_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "read_ledger_entry_activity: invalid arguments"
-        ) from exc
-    return read_ledger_position_activity(entry.case_id, position, **kwargs)
+        ),
+    )
+    return read_ledger_position_activity(
+        entry.case_id, position, **kwargs, at=at
+    )
 
 
 def read_ledger_position_activity(
     case_id: str,
     ledger_position: LedgerPosition,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Read:
     """Build a Read(CaseLedgerEntry) stating *ledger_position* in *case_id*.
@@ -233,17 +231,14 @@ def read_ledger_position_activity(
             "read_ledger_position_activity: the empty ledger's position names"
             " no entry to state (SYNC-17-001)"
         )
-    try:
-        return _ReadLogEntryActivity(
-            object_=ledger_entry_id(case_id, ledger_position.log_index),
-            context=case_id,
-            ledger_position=ledger_position,
+    return build_activity(
+        "read_ledger_position_activity",
+        _ReadLogEntryActivity,
+        at,
+        lambda: {
+            "object_": ledger_entry_id(case_id, ledger_position.log_index),
+            "context": case_id,
+            "ledger_position": ledger_position,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "read_ledger_position_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "read_ledger_position_activity: invalid arguments"
-        ) from exc
+        },
+    )

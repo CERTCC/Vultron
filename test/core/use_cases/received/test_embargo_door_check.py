@@ -27,6 +27,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import authored_at
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
@@ -77,6 +78,7 @@ def _invite(embargo: Any) -> Any:
         context=_CASE,
         id_=f"{_CASE}/activities/invite",
         **_ADDRESSING,
+        at=authored_at(),
     )
 
 
@@ -88,6 +90,7 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
         target=_CASE,
         context=_CASE,
         **_ADDRESSING,
+        at=authored_at(),
     ),
     RejectEmbargoProposalOnCaseReceivedUseCase: (
         lambda e: reject_embargo_proposal_activity(
@@ -96,6 +99,7 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
             target=_CASE,
             context=_CASE,
             **_ADDRESSING,
+            at=authored_at(),
         )
     ),
     RemoveEmbargoEventFromCaseReceivedUseCase: (
@@ -105,26 +109,29 @@ _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
             context=_CASE,
             reason=TerminationReason.EARLY,
             **_ADDRESSING,
+            at=authored_at(),
         )
     ),
     WithdrawFromEmbargoOnCaseReceivedUseCase: (
         lambda e: withdraw_from_embargo_activity(
-            e, context=_CASE, **_ADDRESSING
+            e, context=_CASE, **_ADDRESSING, at=authored_at()
         )
     ),
     InviteToEmbargoOnCaseReceivedUseCase: _invite,
     AcceptInviteToEmbargoOnCaseReceivedUseCase: (
         lambda e: em_accept_embargo_activity(
-            _invite(e), context=_CASE, **_ADDRESSING
+            _invite(e), context=_CASE, **_ADDRESSING, at=authored_at()
         )
     ),
     RejectInviteToEmbargoOnCaseReceivedUseCase: (
         lambda e: em_reject_embargo_activity(
-            _invite(e), context=_CASE, **_ADDRESSING
+            _invite(e), context=_CASE, **_ADDRESSING, at=authored_at()
         )
     ),
     AnnounceEmbargoEventToCaseReceivedUseCase: (
-        lambda e: announce_embargo_activity(e, context=_CASE, **_ADDRESSING)
+        lambda e: announce_embargo_activity(
+            e, context=_CASE, **_ADDRESSING, at=authored_at()
+        )
     ),
 }
 

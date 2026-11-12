@@ -38,7 +38,7 @@ import uuid
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _validate_inline_object,
@@ -85,10 +85,14 @@ def _build_validate_report_accept():
     # typed and inline — never persisted as a standalone record under offer_id
     # in the invite / reconstitution path).
     offer = rm_submit_report_activity(
-        report=report, to=RECEIVER_ID, actor=REPORTER_ID, id_=offer_id
+        report=report,
+        to=RECEIVER_ID,
+        actor=REPORTER_ID,
+        id_=offer_id,
+        at=authored_at(),
     )
     accept = rm_validate_report_activity(
-        offer=offer, actor=RECEIVER_ID, to=[REPORTER_ID]
+        offer=offer, actor=RECEIVER_ID, to=[REPORTER_ID], at=authored_at()
     )
     return accept, offer_id
 

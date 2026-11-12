@@ -21,6 +21,7 @@ export type FieldShape =
   | { readonly kind: 'literal'; readonly value: string }
   | { readonly kind: 'enum'; readonly type: string; readonly values: readonly string[] }
   | { readonly kind: 'array'; readonly items: FieldShape; readonly minItems?: number }
+  | { readonly kind: 'map'; readonly keys: FieldShape; readonly values: FieldShape }
   | { readonly kind: 'ref'; readonly type: LedgerTypeName }
   | { readonly kind: 'union'; readonly of: readonly FieldShape[] }
 
@@ -71,12 +72,12 @@ export interface CaseLedgerEntry {
   name?: string | null
   preview?: string | null
   mediaType?: string | null
-  replies?: unknown | null
+  replies?: Record<string, unknown> | string | null
   url?: string | null
-  generator?: unknown | null
-  context?: unknown | null
-  tag?: unknown | null
-  inReplyTo?: unknown | null
+  generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  context?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
@@ -84,16 +85,19 @@ export interface CaseLedgerEntry {
   updated?: string | null
   content?: string | null
   summary?: string | null
-  icon?: unknown | null
-  image?: unknown | null
-  attachment?: unknown | null
-  location?: unknown | null
-  to?: unknown | null
-  cc?: unknown | null
-  bto?: unknown | null
-  bcc?: unknown | null
-  audience?: unknown | null
+  icon?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  image?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  attachment?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  location?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  to?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  cc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bto?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   caseId: string
   logIndex: number
@@ -112,12 +116,12 @@ export interface ParticipantStatus {
   name?: string | null
   preview?: string | null
   mediaType?: string | null
-  replies?: unknown | null
+  replies?: Record<string, unknown> | string | null
   url?: string | null
-  generator?: unknown | null
+  generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   context: string
-  tag?: unknown | null
-  inReplyTo?: unknown | null
+  tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
@@ -125,16 +129,19 @@ export interface ParticipantStatus {
   updated?: string | null
   content?: string | null
   summary?: string | null
-  icon?: unknown | null
-  image?: unknown | null
-  attachment?: unknown | null
-  location?: unknown | null
-  to?: unknown | null
-  cc?: unknown | null
-  bto?: unknown | null
-  bcc?: unknown | null
-  audience?: unknown | null
+  icon?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  image?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  attachment?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  location?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  to?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  cc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bto?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   rmState?: RmState
   vfState?: VfState | null
@@ -151,12 +158,12 @@ export interface CaseStatus {
   name?: string | null
   preview?: string | null
   mediaType?: string | null
-  replies?: unknown | null
+  replies?: Record<string, unknown> | string | null
   url?: string | null
-  generator?: unknown | null
+  generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   context: string
-  tag?: unknown | null
-  inReplyTo?: unknown | null
+  tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
@@ -164,16 +171,19 @@ export interface CaseStatus {
   updated?: string | null
   content?: string | null
   summary?: string | null
-  icon?: unknown | null
-  image?: unknown | null
-  attachment?: unknown | null
-  location?: unknown | null
-  to?: unknown | null
-  cc?: unknown | null
-  bto?: unknown | null
-  bcc?: unknown | null
-  audience?: unknown | null
+  icon?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  image?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  attachment?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  location?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  to?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  cc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bto?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   emState?: EmState
   pxaState?: PxaState
@@ -185,12 +195,12 @@ export interface CaseParticipant {
   name?: string | null
   preview?: string | null
   mediaType?: string | null
-  replies?: unknown | null
+  replies?: Record<string, unknown> | string | null
   url?: string | null
-  generator?: unknown | null
-  context?: unknown | null
-  tag?: unknown | null
-  inReplyTo?: unknown | null
+  generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  context?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
@@ -198,16 +208,19 @@ export interface CaseParticipant {
   updated?: string | null
   content?: string | null
   summary?: string | null
-  icon?: unknown | null
-  image?: unknown | null
-  attachment?: unknown | null
-  location?: unknown | null
-  to?: unknown | null
-  cc?: unknown | null
-  bto?: unknown | null
-  bcc?: unknown | null
-  audience?: unknown | null
+  icon?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  image?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  attachment?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  location?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  to?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  cc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bto?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   caseRoles?: Array<CaseRoles>
   participantStatuses?: Array<ParticipantStatus>
@@ -223,12 +236,12 @@ export interface EmbargoConsent {
   name?: string | null
   preview?: string | null
   mediaType?: string | null
-  replies?: unknown | null
+  replies?: Record<string, unknown> | string | null
   url?: string | null
-  generator?: unknown | null
-  context?: unknown | null
-  tag?: unknown | null
-  inReplyTo?: unknown | null
+  generator?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  context?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  tag?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  inReplyTo?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   duration?: string | null
   startTime?: string | null
   endTime?: string | null
@@ -236,16 +249,19 @@ export interface EmbargoConsent {
   updated?: string | null
   content?: string | null
   summary?: string | null
-  icon?: unknown | null
-  image?: unknown | null
-  attachment?: unknown | null
-  location?: unknown | null
-  to?: unknown | null
-  cc?: unknown | null
-  bto?: unknown | null
-  bcc?: unknown | null
-  audience?: unknown | null
+  icon?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  image?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  attachment?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  location?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  to?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  cc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bto?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  bcc?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
+  audience?: Record<string, unknown> | string | Array<Record<string, unknown> | string> | null
   attributedTo?: string | null
+  contentMap?: Record<string, string> | null
+  nameMap?: Record<string, string> | null
+  summaryMap?: Record<string, string> | null
   "@context"?: string | Array<string> | null
   embargoId: string
   state: EmbargoConsentState
@@ -261,12 +277,12 @@ export const LEDGER_SHAPES = {
       { key: "name", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "preview", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "mediaType", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "replies", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "generator", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "context", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "tag", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
@@ -274,16 +290,19 @@ export const LEDGER_SHAPES = {
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "icon", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "image", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "attachment", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "location", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "to", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "cc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bto", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "icon", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "image", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "attachment", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "location", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "to", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "cc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "caseId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "logIndex", required: true, nullable: false, shape: { kind: "integer", minimum: -1 } },
@@ -304,12 +323,12 @@ export const LEDGER_SHAPES = {
       { key: "name", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "preview", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "mediaType", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "replies", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "generator", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "context", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
-      { key: "tag", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
@@ -317,16 +336,19 @@ export const LEDGER_SHAPES = {
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "icon", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "image", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "attachment", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "location", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "to", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "cc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bto", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "icon", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "image", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "attachment", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "location", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "to", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "cc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "rmState", required: false, nullable: false, shape: { kind: "enum", type: "RmState", values: RM_STATE_VALUES } },
       { key: "vfState", required: false, nullable: true, shape: { kind: "enum", type: "VfState", values: VF_STATE_VALUES } },
@@ -345,12 +367,12 @@ export const LEDGER_SHAPES = {
       { key: "name", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "preview", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "mediaType", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "replies", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "generator", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "context", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
-      { key: "tag", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
@@ -358,16 +380,19 @@ export const LEDGER_SHAPES = {
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "icon", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "image", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "attachment", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "location", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "to", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "cc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bto", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "icon", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "image", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "attachment", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "location", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "to", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "cc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "emState", required: false, nullable: false, shape: { kind: "enum", type: "EmState", values: EM_STATE_VALUES } },
       { key: "pxaState", required: false, nullable: false, shape: { kind: "enum", type: "PxaState", values: PXA_STATE_VALUES } },
@@ -381,12 +406,12 @@ export const LEDGER_SHAPES = {
       { key: "name", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "preview", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "mediaType", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "replies", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "generator", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "context", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "tag", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
@@ -394,16 +419,19 @@ export const LEDGER_SHAPES = {
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "icon", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "image", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "attachment", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "location", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "to", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "cc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bto", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "icon", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "image", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "attachment", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "location", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "to", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "cc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "caseRoles", required: false, nullable: false, shape: { kind: "array", items: { kind: "enum", type: "CaseRoles", values: CASE_ROLES_VALUES } } },
       { key: "participantStatuses", required: false, nullable: false, shape: { kind: "array", items: { kind: "ref", type: "ParticipantStatus" } } },
@@ -421,12 +449,12 @@ export const LEDGER_SHAPES = {
       { key: "name", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "preview", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "mediaType", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "replies", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "replies", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } },
       { key: "url", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "generator", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "context", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "tag", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "generator", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "tag", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "inReplyTo", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "duration", required: false, nullable: true, shape: { kind: "duration" } },
       { key: "startTime", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "endTime", required: false, nullable: true, shape: { kind: "datetime" } },
@@ -434,16 +462,19 @@ export const LEDGER_SHAPES = {
       { key: "updated", required: false, nullable: true, shape: { kind: "datetime" } },
       { key: "content", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
       { key: "summary", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "icon", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "image", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "attachment", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "location", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "to", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "cc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bto", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
-      { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
+      { key: "icon", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "image", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "attachment", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "location", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "to", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "cc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
+      { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
+      { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "embargoId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "state", required: true, nullable: false, shape: { kind: "enum", type: "EmbargoConsentState", values: EMBARGO_CONSENT_STATE_VALUES } },

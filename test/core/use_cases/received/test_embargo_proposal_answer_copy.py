@@ -32,7 +32,7 @@ import pytest
 from test.support.act_runner import FixedClock, run_in_act, run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -223,6 +223,7 @@ def _participant_proposes(net: LedgerNetwork, suffix: str, days: int) -> str:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/{suffix}",
+        at=authored_at(),
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(proposal)))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
@@ -244,7 +245,11 @@ def _participant_answers(
     adapter = TriggerActivityAdapter(net.stores[actor])
     build = adapter.accept_embargo if accept else adapter.reject_embargo
     _, sealed = build(
-        proposal_id=invite.id_, case_id=net.case_id, actor=actor, to=[MANAGER]
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=actor,
+        to=[MANAGER],
+        at=authored_at(),
     )
     verdict = net.receive(MANAGER, json.loads(sealed))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
@@ -858,13 +863,18 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
         actor=MANAGER,
         to=[BYSTANDER],
         id_=f"{net.case_id}/invites/stranger",
+        at=authored_at(),
     )
     # The CASE_MANAGER sent it, so the sender guard finds its invitee.
     net.stores[MANAGER].create(invite)
     accept = json.loads(
         dump_outbound_body(
             em_accept_embargo_activity(
-                invite, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+                invite,
+                context=net.case_id,
+                actor=BYSTANDER,
+                to=[MANAGER],
+                at=authored_at(),
             )
         )
     )
@@ -899,7 +909,11 @@ def _bystander_leaves(net: LedgerNetwork) -> Any:
         as_EmbargoEvent, net.stores[BYSTANDER].read(net.initial_embargo_id)
     )
     leave = withdraw_from_embargo_activity(
-        embargo, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        embargo,
+        context=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+        at=authored_at(),
     )
     return net.receive(MANAGER, json.loads(dump_outbound_body(leave)))
 

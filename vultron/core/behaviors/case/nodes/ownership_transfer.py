@@ -125,6 +125,7 @@ class EmitProposeCaseOwnershipTransferNode(_EmitSingleActivityBase):
             content=self.content,
             to=case_actor_id,
             end_time=self.end_time,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -226,6 +227,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
             id_=ownership_offer_id(
                 self.actor_id, self.case_id, self.proposal_id, self.owner_id
             ),
+            at=self._require_act_instant(),
         )
 
     def _record_sent(self, activity_id: str, activity_blob: str) -> None:

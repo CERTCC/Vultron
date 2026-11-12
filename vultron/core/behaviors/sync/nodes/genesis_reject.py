@@ -120,5 +120,6 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 to=[sender_id],
                 in_reply_to=announce_id,
                 asked_at=asked_at,
+                at=self._require_act_instant(),
             )
             record_genesis_reject(self.datalayer, entry.case_id, asked_at)

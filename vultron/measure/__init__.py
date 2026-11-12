@@ -12,10 +12,16 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
   field-spelling helpers, the display-name resolver, and the complete-copy
   selection that every measure reads through (CEH-02).
 * :mod:`vultron.measure.history` — the case event history derived from one
-  case's ledger (CEH-03, CEH-04).
+  case's ledger (CEH-03, CEH-04), and the ``vultron-case-history`` command.
+* :mod:`vultron.measure.sequences` — one case-state sequence per vendor,
+  projected from the event history and validated as a history prefix
+  (CEH-05).
 * :mod:`vultron.measure.baselines` — the exact chance baselines of the
   desiderata, from the indifference walk over the smallest model holding each
   (ADR-0182).  It reads only the state tables, never a ledger.
+* :mod:`vultron.measure.scoring` — the desiderata score of a vendor's
+  sequence, complete or not, through its valid completions, and a case's
+  per-vendor scores with their median and spread (ADR-0182).
 
 A later layer that reads a ledger is a sibling subpackage that reads it
 through :mod:`vultron.measure.ledger`.

@@ -24,7 +24,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
@@ -102,7 +102,7 @@ def _make_announce_event(
     case_obj: as_VulnerabilityCase,
 ) -> AnnounceVulnerabilityCaseReceivedEvent:
     activity = announce_vulnerability_case_activity(
-        case_obj, actor=CASE_OWNER_ACTOR_ID, context=CASE_ID
+        case_obj, actor=CASE_OWNER_ACTOR_ID, context=CASE_ID, at=authored_at()
     )
     event = extract_event(activity)
     assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE

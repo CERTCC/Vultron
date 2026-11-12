@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -100,6 +100,7 @@ def test_the_case_manager_encrypts_each_message_to_its_recipient(dl):
         case_id=_CASE_ID,
         actor=_MANAGER,
         to=[_PARTICIPANT],
+        at=authored_at(),
     )
     stored = dl.read(activity_id)
     if stored is None or _CLEARTEXT not in stored.model_dump_json():

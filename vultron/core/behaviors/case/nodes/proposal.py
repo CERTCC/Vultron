@@ -115,6 +115,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
                     # CP-01-013, ADR-0133: this actor's own roles, which the
                     # CASE_MANAGER cannot read from its own configuration.
                     proposer_case_roles=get_config().actor.default_case_roles,
+                    at=self._require_act_instant(),
                 )
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).

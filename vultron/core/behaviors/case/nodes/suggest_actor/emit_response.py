@@ -98,6 +98,7 @@ class _AnswerRecommenderNode(_EmitSingleActivityBase):
             recommendation_id=subject.recommendation_id,
             recommended_id=subject.recommended_id,
             case_id=self.case_id,
+            at=self._require_act_instant(),
             actor=self.actor_id,
             id_=self._answer_id(),
         )

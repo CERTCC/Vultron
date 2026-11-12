@@ -21,7 +21,7 @@ Fixtures (dl) come from conftest.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.factories import rm_submit_report_activity
 
@@ -46,6 +46,7 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     dl.create(report)
@@ -75,6 +76,7 @@ def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     dl.create(report)
@@ -105,6 +107,7 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     dl.create(report)
@@ -132,6 +135,7 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     dl.create(report)
@@ -161,6 +165,7 @@ def test_rehydration_does_not_mutate_stored_record(dl):
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     dl.create(report)

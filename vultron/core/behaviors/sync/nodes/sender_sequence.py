@@ -144,7 +144,7 @@ def _recipient_ids(to: object) -> list[str]:
     """*to* as a list of ids: AS2 allows one recipient or a list of them."""
     if to is None:
         return []
-    values = to if isinstance(to, list) else [to]
+    values = to if isinstance(to, (list, tuple)) else [to]
     return [rid for rid in (_as_id(value) for value in values) if rid]
 
 
@@ -429,6 +429,7 @@ class EmitSequenceRefusalNoticeNode(_EmitSingleActivityBase):
             asserter=self._classify.sender_id,
             reason=self._classify.refusal_reason(),
             expected_sender_sequence=order.next_expected,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

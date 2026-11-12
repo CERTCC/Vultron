@@ -60,11 +60,11 @@ def build_stub_invite(
     case_id: str,
     invitee_id: str,
     roles: list[str] | None,
-    published: datetime,
     attributed_to: str | None = None,
     in_reply_to: str | None = None,
     actor_config: ActorConfig | None = None,
     activity_id: str | None = None,
+    at: datetime,
 ) -> tuple[str, str]:
     """Build a stub Invite carrying a reply deadline.
 
@@ -72,8 +72,8 @@ def build_stub_invite(
     CASE_MANAGER stamps the deadline (CM-11-014, CM-28-012) and the stub
     carries the terms of the embargo active now (CM-17-002).  The caller
     queues it and then commits it with :func:`commit_stub_invite` (CM-17-006,
-    ADR-0119).  *published* is the sending act's instant (ADR-0176): the
-    Invite's ``published``, which its deadline is measured from.
+    ADR-0119).  *at* is the sending act's instant (ADR-0176): the Invite's
+    ``published``, which its deadline is measured from.
     *activity_id*, when given, is the Invite's id; absent, the factory mints
     one.  An Invite built under an id the store already holds
     is the earlier attempt's Invite: the factory hands back the body sealed
@@ -97,7 +97,7 @@ def build_stub_invite(
         current_stub_embargo_end(datalayer, case)
         if case is not None
         else None,
-        published,
+        at,
         actor_config,
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
@@ -119,8 +119,8 @@ def build_stub_invite(
         roles=roles,
         target=case,
         rsvp_deadline=stamp.rsvp_deadline,
-        published=stamp.published,
         in_reply_to=in_reply_to,
+        at=at,
     )
     return activity_id, activity_blob
 
@@ -223,11 +223,11 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
             case_id=self.case_id,
             invitee_id=self._invitee(),
             roles=roles,
-            published=self._require_act_instant(),
             attributed_to=self.attributed_to,
             in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,
             activity_id=self._invite_id(),
+            at=self._require_act_instant(),
         )
 
     def _record_sent(self, activity_id: str, activity_blob: str) -> None:

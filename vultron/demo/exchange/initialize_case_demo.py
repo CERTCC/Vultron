@@ -47,6 +47,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.core.states.rm import RM
+from vultron.demo import wall_clock
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     check_report_answer_recorded,
@@ -181,7 +182,10 @@ def demo_initialize_case(
 
             with demo_step("Step 5: Vendor links report to case"):
                 add_report_activity = add_report_to_case_activity(
-                    report, actor=vendor.id_, target=case.id_
+                    report,
+                    actor=vendor.id_,
+                    target=case.id_,
+                    at=wall_clock.now(),
                 )
                 post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
                 with demo_check("Report linked to case"):

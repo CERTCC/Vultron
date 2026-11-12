@@ -33,7 +33,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -275,6 +275,7 @@ def _run_tree(
             id_=CASE_ID,
             name="Issue 2235 Case",
         ),
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
     bridge = BTBridge(
@@ -768,7 +769,14 @@ class TestAcceptanceRules:
         replica copying it would read ``START`` (RSH-09-001)."""
         current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
         asserted = ParticipantStatus.model_validate(
-            {"id": ASSERTED_STATUS_ID, "context": CASE_ID, "vfState": "VF"}
+            with_times(
+                ParticipantStatus,
+                {
+                    "id": ASSERTED_STATUS_ID,
+                    "context": CASE_ID,
+                    "vfState": "VF",
+                },
+            )
         )
         assert asserted.rm.state is RM.START
         # The ready fix is refused too: it entails an accepted report, and
@@ -1043,10 +1051,10 @@ def _announce_event(
     entry: CaseLedgerEntry,
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=CASE_MANAGER_ID
+        entry=wire_entry, actor=CASE_MANAGER_ID, at=authored_at()
     )
     return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 

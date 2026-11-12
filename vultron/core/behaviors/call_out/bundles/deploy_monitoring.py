@@ -33,15 +33,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
+from vultron.core.behaviors.call_out.capabilities.report_management.deploy_fix import (
+    MonitorDeploymentCapability,
+    MonitoringRequirementCapability,
+    NoNewDeploymentInfoCapability,
+    PrioritizeDeploymentCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -54,16 +56,16 @@ class DeploymentMonitoringBundle(CallOutBundle):
     """
 
     prioritize_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(PrioritizeDeploymentCapability)  # type: ignore[assignment]
     )
     monitoring_requirement_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(MonitoringRequirementCapability)  # type: ignore[assignment]
     )
     monitor_deployment_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(MonitorDeploymentCapability)  # type: ignore[assignment]
     )
     no_new_deployment_info_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(NoNewDeploymentInfoCapability)  # type: ignore[assignment]
     )
     """NoNewDeploymentInfo (Retriever): p=0.75 → AlwaysSucceed.
 

@@ -129,7 +129,12 @@ def record_reseed(
 
 
 def announce_case_to_peer(
-    factory: TriggerActivityPort, *, actor_id: str, case_id: str, peer_id: str
+    factory: TriggerActivityPort,
+    *,
+    actor_id: str,
+    case_id: str,
+    peer_id: str,
+    at: datetime,
 ) -> str:
     """Build and store *actor_id*'s ``Announce(VulnerabilityCase)`` of
     *case_id* to *peer_id* alone; return its id.
@@ -139,7 +144,11 @@ def announce_case_to_peer(
     (SYNC-16-005).  Queueing it is the caller's.
     """
     return factory.announce_vulnerability_case(
-        case_id=case_id, actor=actor_id, context_id=case_id, to=[peer_id]
+        case_id=case_id,
+        actor=actor_id,
+        context_id=case_id,
+        to=[peer_id],
+        at=at,
     )
 
 
@@ -260,6 +269,7 @@ class ReseedPeerNode(_EmitSingleActivityBase):
                     actor_id=self.actor_id,
                     case_id=self.case_id,
                     peer_id=self.peer_id,
+                    at=self._require_act_instant(),
                 )
                 self._emit_through_seam(activity_id, "")
                 record_reseed(

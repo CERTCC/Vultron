@@ -38,7 +38,7 @@ from test.core.use_cases.received._ledger_network import (
     LedgerNetwork,
 )
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -103,7 +103,11 @@ def _owner_note(net: LedgerNetwork, note_id: str) -> dict[str, Any]:
     dl = net.stores[OWNER]
     dl.create(make(as_Note, id_=note_id, content="signed", context=CASE_ID))
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=note_id, case_id=CASE_ID, actor=OWNER, to=[MANAGER]
+        note_id=note_id,
+        case_id=CASE_ID,
+        actor=OWNER,
+        to=[MANAGER],
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(body))
 

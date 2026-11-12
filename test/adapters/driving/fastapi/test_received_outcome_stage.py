@@ -44,7 +44,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body, intake_received
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -102,6 +102,7 @@ def _report_activity(tag: str = "1"):
         ),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
 

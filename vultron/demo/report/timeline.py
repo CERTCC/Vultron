@@ -15,32 +15,28 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models.events.base import MessageSemantics
-from vultron.demo.report.naming import (
-    _ACTOR_LIKE_TYPES,
-    _WRAPPER_TYPES,
-    friendly_object_label,
-)
 from vultron.errors import LedgerReadError
 from vultron.measure.ledger import (
+    ACTOR_LIKE_TYPES,
     Dimension,
     actor_uri,
     candidate_dicts,
     coerce_int,
     collect_actor_names,
     dimension_state,
+    entry_references,
     first_present,
     friendly_actor_name,
+    friendly_object_label,
     payload_of,
     read_ledger_file,
+    render_event_phrase,
 )
-from vultron.semantic_registry import lookup_entry
 
 #: Glob for the per-actor case-ledger replica files.
 _LEDGER_GLOB = "**/*-case-ledger.jsonl"
@@ -120,58 +116,7 @@ class CaseTimelineEvent(BaseModel):
         """
         payload = payload_of(raw)
 
-        raw_object = payload.get("object") or payload.get("object_")
-        # Unwrap AS wrapper activities (Accept, Reject, Offer, Invite) until we
-        # reach the innermost non-wrapper object (handles Accept(Offer(X))
-        # and Accept(Invite(X)[target=Y]) chains).  Track the innermost
-        # wrapper's own ``target`` field so callers of nested wrappers (e.g.
-        # accept_invite_actor_to_case) still surface the destination.
-        _inner_target = None
-        while (
-            isinstance(raw_object, dict)
-            and (raw_object.get("type") or raw_object.get("type_"))
-            in _WRAPPER_TYPES
-        ):
-            _inner_target = raw_object.get("target") or _inner_target
-            inner = raw_object.get("object") or raw_object.get("object_")
-            if not isinstance(inner, (dict, str)):
-                break
-            raw_object = inner
-
-        target_ref: str | None = None
-        target_type: str | None = None
-        if isinstance(raw_object, dict):
-            target_ref = raw_object.get("id") or raw_object.get("id_")
-            target_type = raw_object.get("type") or raw_object.get("type_")
-            # CaseParticipant is a proxy; use attributedTo for name resolution.
-            if target_type == "CaseParticipant":
-                target_ref = (
-                    raw_object.get("attributedTo")
-                    or raw_object.get("attributed_to")
-                    or target_ref
-                )
-        elif isinstance(raw_object, str):
-            target_ref = raw_object
-
-        # ActivityStreams ``target`` field — top-level payload wins; fall back
-        # to the innermost wrapper's target captured during unwrapping.
-        raw_dest = payload.get("target") or _inner_target
-        activity_target_ref: str | None = None
-        activity_target_type: str | None = None
-        if isinstance(raw_dest, dict):
-            activity_target_ref = raw_dest.get("id") or raw_dest.get("id_")
-            activity_target_type = raw_dest.get("type") or raw_dest.get(
-                "type_"
-            )
-            if activity_target_type == "CaseParticipant":
-                activity_target_ref = (
-                    raw_dest.get("attributedTo")
-                    or raw_dest.get("attributed_to")
-                    or activity_target_ref
-                )
-        elif isinstance(raw_dest, str):
-            activity_target_ref = raw_dest
-
+        refs = entry_references(payload)
         candidates = candidate_dicts(payload)
         received = first_present(raw, "received_at", "receivedAt")
 
@@ -188,14 +133,10 @@ class CaseTimelineEvent(BaseModel):
                 first_present(raw, "semantic_type", "semanticType", default="")
             ),
             actor_uri=actor_uri(payload.get("actor")),
-            target_ref=str(target_ref) if target_ref else None,
-            target_type=str(target_type) if target_type else None,
-            activity_target_ref=(
-                str(activity_target_ref) if activity_target_ref else None
-            ),
-            activity_target_type=(
-                str(activity_target_type) if activity_target_type else None
-            ),
+            target_ref=refs.object_ref,
+            target_type=refs.object_type,
+            activity_target_ref=refs.target_ref,
+            activity_target_type=refs.target_type,
             received_at=str(received) if received else None,
             rm_state=dimension_state(candidates, Dimension.RM),
             em_state=dimension_state(candidates, Dimension.EM),
@@ -230,7 +171,7 @@ class CaseTimelineEvent(BaseModel):
         # None-type fallback path in friendly_object_label).
         if self.target_display_name:
             obj_label = self.target_display_name
-        elif self.target_type in _ACTOR_LIKE_TYPES:
+        elif self.target_type in ACTOR_LIKE_TYPES:
             obj_label = friendly_actor_name(self.target_ref)
         else:
             obj_label = friendly_object_label(
@@ -239,7 +180,7 @@ class CaseTimelineEvent(BaseModel):
 
         if self.activity_target_display_name:
             dest_label = self.activity_target_display_name
-        elif self.activity_target_type in _ACTOR_LIKE_TYPES:
+        elif self.activity_target_type in ACTOR_LIKE_TYPES:
             dest_label = friendly_actor_name(self.activity_target_ref)
         else:
             dest_label = friendly_object_label(
@@ -269,26 +210,10 @@ class CaseTimelineEvent(BaseModel):
         fills named slots with values derived from the event record's resolved
         label properties.  Unknown slot names fall back to ``"—"``.
         """
-        try:
-            semantics = MessageSemantics(self.semantic_type)
-        except ValueError:
-            humanized = (
-                self.semantic_type.replace("_", " ").strip()
-                or "performed an action"
-            )
-            phrase = humanized
-        else:
-            entry = lookup_entry(semantics)
-            slots: dict[str, str] = defaultdict(lambda: "—")
-            slots["actor"] = self.actor_label
-            if self.target_label:
-                slots["object"] = self.target_label
-                slots["target"] = self.target_label
-            phrase = entry.phrase.format_map(slots)
-
-        if not self.actor_uri and phrase.startswith("— "):
-            phrase = phrase[2:]
-        return phrase[:1].upper() + phrase[1:] if phrase else phrase
+        actor = self.actor_label if self.actor_uri else None
+        return render_event_phrase(
+            self.semantic_type, actor, self.target_label
+        )
 
 
 # ---------------------------------------------------------------------------

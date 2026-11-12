@@ -25,6 +25,7 @@ wrong key drops the dimension it was meant to carry instead of failing.
 
 import pytest
 
+from test.support.objects import with_times
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
@@ -144,7 +145,9 @@ class TestEveryReportedSpellingActuallyValidates:
     )
     def test_each_input_key_is_accepted(self, model, field_name, sample):
         for key in input_keys(model, field_name):
-            obj = model.model_validate({"context": "urn:case:1", key: sample})
+            obj = model.model_validate(
+                with_times(model, {"context": "urn:case:1", key: sample})
+            )
             assert getattr(obj, field_name).state.name == sample, (
                 f"{model.__name__} did not accept {key!r},"
                 " which input_keys reports as a valid spelling"
@@ -159,6 +162,8 @@ class TestEveryReportedSpellingActuallyValidates:
         ],
     )
     def test_the_wire_key_is_what_the_model_emits(self, model, field_name):
-        obj = model.model_validate({"context": "urn:case:1"})
+        obj = model.model_validate(
+            with_times(model, {"context": "urn:case:1"})
+        )
         dumped = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
         assert wire_key(field_name, model) in dumped

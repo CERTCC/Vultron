@@ -32,7 +32,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CASE_PUBLISHED,
+    INBOUND_CASE_OWNERSHIP,
+    INBOUND_CASE_STATUS_PUBLISHED,
+)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -63,9 +68,10 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor-1"
 def _receiver_case_payload() -> dict:
     """Minimal receiver-side case satisfying the pre-replica assertions."""
     return {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
+        "published": CASE_PUBLISHED.isoformat(),
         "actorParticipantIndex": {
             _RECEIVER_ID: "urn:uuid:p-receiver",
             _REPORTER_ID: "urn:uuid:p-reporter",
@@ -76,6 +82,7 @@ def _receiver_case_payload() -> dict:
                 "id": "urn:uuid:cs-1",
                 "type": "CaseStatus",
                 "context": _CASE_ID,
+                "published": INBOUND_CASE_STATUS_PUBLISHED,
                 "em": {"state": "ACTIVE"},
                 "pxa": {"state": "pxa"},
             }
@@ -87,9 +94,9 @@ def _receiver_case_payload() -> dict:
 
 
 def _reporter_case_payload() -> dict:
-    payload = _receiver_case_payload()
-    payload["caseStatuses"] = []
-    return payload
+    """The reporter's replica: a served case carries its status history
+    (CM-29-004), so it is the receiver's case as replicated."""
+    return _receiver_case_payload()
 
 
 def _receiver_client() -> MagicMock:
@@ -423,9 +430,10 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
     if register_status == "TERMINATED":
         entry["termination"] = {"reason": "EARLY"}
     return {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "id": _PXA_CASE_ID,
         "type": "VulnerabilityCase",
+        "published": CASE_PUBLISHED.isoformat(),
         "actorParticipantIndex": {},
         "embargoRegister": [entry],
         "caseStatuses": [
@@ -433,6 +441,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
                 "id": "urn:uuid:cs-pxa-1",
                 "type": "CaseStatus",
                 "context": _PXA_CASE_ID,
+                "published": INBOUND_CASE_STATUS_PUBLISHED,
                 "em": {"state": em_state},
                 "pxa": {"state": "PXA"},
             }
@@ -697,18 +706,20 @@ _IC_CASE_ID = "urn:uuid:test-case-ic-0001"
 _IC_PARTICIPANT_ID = "urn:uuid:test-participant-ic-0001"
 
 _IC_INITIALIZED_CASE = {
-    "attributedTo": CASE_OWNER_ID,
+    **INBOUND_CASE_OWNERSHIP,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "published": CASE_PUBLISHED.isoformat(),
     "vulnerabilityReports": [_IC_REPORT_ID],
     "caseParticipants": [
         {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
     ],
 }
 _IC_EMPTY_CASE = {
-    "attributedTo": CASE_OWNER_ID,
+    **INBOUND_CASE_OWNERSHIP,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "published": CASE_PUBLISHED.isoformat(),
     "vulnerabilityReports": [_IC_REPORT_ID],
     "caseParticipants": [],
 }
@@ -853,7 +864,7 @@ class TestWaitForInitializedCase:
     def test_timeout_message_reveals_construction_error(self):
         """Bug #2769: timeout message names the actual exception, not just a generic timeout.
 
-        When as_VulnerabilityCase(**case_raw) raises on every tick, the
+        When reading the served case raises on every tick, the
         AssertionError on timeout must include the exception type and message
         so callers can diagnose schema breakage rather than chasing a slow poll.
         """
@@ -864,7 +875,7 @@ class TestWaitForInitializedCase:
                 return_value=_IC_CASE_ACTOR_ID,
             ),
             patch(
-                "vultron.demo.helpers.polling.case.as_VulnerabilityCase",
+                "vultron.demo.helpers.polling.case.from_server",
                 side_effect=TypeError("simulated schema breakage"),
             ),
             pytest.raises(AssertionError) as exc_info,

@@ -20,7 +20,6 @@ from typing import ClassVar, Literal
 
 from pydantic import AliasChoices, Field, model_validator
 
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.states.em import EM
@@ -64,7 +63,7 @@ class CaseStatus(CoreObject):
     # CM-29-005).  The narrowed type alone would refuse a received omission
     # as a bare type fault; the flag makes the inbound read name the rule
     # (CLP-15-010).
-    published: datetime = Field(default_factory=now_utc)
+    published: datetime
     # Absent by default, not CoreObject's clock read: a second read would
     # differ from ``published`` and claim a change that never happened
     # (CM-29-006).

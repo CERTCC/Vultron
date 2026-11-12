@@ -34,7 +34,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.failed_teardown import fail_pxa_teardown
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -102,7 +102,11 @@ def _declare_rm(net: LedgerNetwork, member: str, rm: RM):
     return _to_manager(
         net,
         add_status_to_participant_activity(
-            status, target=participant, actor=member, to=[MANAGER]
+            status,
+            target=participant,
+            actor=member,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -156,7 +160,10 @@ def test_rm_gap_note_reaches_the_declaring_participants_replica():
     verdict = _to_manager(
         net,
         rm_engage_case_activity(
-            net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+            net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -232,6 +239,7 @@ def test_reinforcing_suggestion_note_reaches_the_case_owners_replica():
                 actor=recommender,
                 to=[MANAGER],
                 content=f"{recommender} vouches for them",
+                at=authored_at(),
             ),
         )
         assert verdict.disposition is HandlerDisposition.APPLIED, (

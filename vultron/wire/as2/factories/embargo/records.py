@@ -17,11 +17,9 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
+from datetime import datetime
 
-from pydantic import ValidationError
-
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.vocab.activities.embargo import (
     _CreateEmbargoConsentActivity,
     _CreateEmbargoEventActivity,
@@ -38,11 +36,11 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def create_embargo_event_activity(
     embargo: as_EmbargoEvent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(EmbargoEvent): the case's creation wrote an embargo.
@@ -59,19 +57,18 @@ def create_embargo_event_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _CreateEmbargoEventActivity(object_=embargo, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "create_embargo_event_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "create_embargo_event_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "create_embargo_event_activity",
+        _CreateEmbargoEventActivity,
+        at,
+        lambda: {"object_": embargo, **kwargs},
+    )
 
 
 def create_embargo_consent_activity(
     row: as_EmbargoConsent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(EmbargoConsent): the CASE_MANAGER created a row.
@@ -87,19 +84,18 @@ def create_embargo_consent_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _CreateEmbargoConsentActivity(object_=row, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "create_embargo_consent_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "create_embargo_consent_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "create_embargo_consent_activity",
+        _CreateEmbargoConsentActivity,
+        at,
+        lambda: {"object_": row, **kwargs},
+    )
 
 
 def update_embargo_consent_activity(
     row: as_EmbargoConsent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Update:
     """Build an Update(EmbargoConsent): the CASE_MANAGER changed a row.
@@ -116,12 +112,9 @@ def update_embargo_consent_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _UpdateEmbargoConsentActivity(object_=row, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "update_embargo_consent_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "update_embargo_consent_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "update_embargo_consent_activity",
+        _UpdateEmbargoConsentActivity,
+        at,
+        lambda: {"object_": row, **kwargs},
+    )

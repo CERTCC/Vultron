@@ -28,15 +28,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, NoOpActuator
+from vultron.core.behaviors.call_out.capabilities.report_management.close_report import (
+    OtherCloseCriteriaMetCapability,
+    PreCloseActionCapability,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    always_fail_as,
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysFail(name)
 
 
 @dataclass(frozen=True)
@@ -52,10 +53,10 @@ class CloseReportCallOutBundle(CallOutBundle):
     """
 
     other_close_criteria_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(OtherCloseCriteriaMetCapability)  # type: ignore[assignment]
     )
     pre_close_action_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(PreCloseActionCapability)  # type: ignore[assignment]
     )
 
 

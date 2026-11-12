@@ -54,7 +54,11 @@ def _body(**fields: Any) -> dict[str, Any]:
         "id": "https://example.org/activities/embedded-1",
         "published": "2026-01-01T00:00:00+00:00",
         "actor": AUTHOR,
-        "object": {"type": "Note", "content": "n"},
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/n",
+            "content": "n",
+        },
         **fields,
     }
 

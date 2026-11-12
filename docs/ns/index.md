@@ -34,7 +34,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityCaseStub` | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
-| `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |
+| `VulnerabilityItem` | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
 | `VulnerabilityReport` | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.
@@ -52,6 +52,51 @@ The stub form of a case is its own type: it is transmitted as `"type": "Vulnerab
 
 This table must list exactly the properties `context.jsonld` declares.
 A property's term is its name in the wire message.
+
+## Link relation types
+
+A `CaseReference` holds an AS2 `Link` in its `url`, and the Link's `rel` values say what kind of resource it points at.
+Each value is a [CVE JSON schema](https://github.com/CVEProject/cve-schema) reference tag, written as an [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288) link relation type.
+A tag that IANA registers as a relation type keeps its bare name: `related` is the only one.
+Every other tag is a URI under `https://certcc.github.io/Vultron/ns/rel/`, for example `https://certcc.github.io/Vultron/ns/rel/patch`.
+
+| `rel` value | CVE reference tag |
+|-------------|-------------------|
+| `https://certcc.github.io/Vultron/ns/rel/broken-link` | `broken-link` |
+| `https://certcc.github.io/Vultron/ns/rel/customer-entitlement` | `customer-entitlement` |
+| `https://certcc.github.io/Vultron/ns/rel/exploit` | `exploit` |
+| `https://certcc.github.io/Vultron/ns/rel/government-resource` | `government-resource` |
+| `https://certcc.github.io/Vultron/ns/rel/issue-tracking` | `issue-tracking` |
+| `https://certcc.github.io/Vultron/ns/rel/mailing-list` | `mailing-list` |
+| `https://certcc.github.io/Vultron/ns/rel/media-coverage` | `media-coverage` |
+| `https://certcc.github.io/Vultron/ns/rel/mitigation` | `mitigation` |
+| `https://certcc.github.io/Vultron/ns/rel/not-applicable` | `not-applicable` |
+| `https://certcc.github.io/Vultron/ns/rel/patch` | `patch` |
+| `https://certcc.github.io/Vultron/ns/rel/permissions-required` | `permissions-required` |
+| `https://certcc.github.io/Vultron/ns/rel/product` | `product` |
+| `related` | `related` |
+| `https://certcc.github.io/Vultron/ns/rel/release-notes` | `release-notes` |
+| `https://certcc.github.io/Vultron/ns/rel/signature` | `signature` |
+| `https://certcc.github.io/Vultron/ns/rel/technical-description` | `technical-description` |
+| `https://certcc.github.io/Vultron/ns/rel/third-party-advisory` | `third-party-advisory` |
+| `https://certcc.github.io/Vultron/ns/rel/vdb-entry` | `vdb-entry` |
+| `https://certcc.github.io/Vultron/ns/rel/vendor-advisory` | `vendor-advisory` |
+
+This table must list exactly the `rel` values a case reference accepts.
+
+```json
+{
+  "type": "CaseReference",
+  "id": "https://example.org/references/1",
+  "name": "Vendor advisory",
+  "url": {
+    "type": "Link",
+    "href": "https://vendor.example/advisories/2026-001",
+    "mediaType": "text/html",
+    "rel": ["https://certcc.github.io/Vultron/ns/rel/vendor-advisory"]
+  }
+}
+```
 
 ## Usage in wire messages
 

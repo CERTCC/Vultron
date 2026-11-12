@@ -33,6 +33,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
+from test.support.objects import with_times
 from vultron.adapters.driving.fastapi.outbox_handler import (
     drain as outbox_drain,
 )
@@ -126,7 +127,9 @@ class TestCommittedRecordings:
         assert lines, f"{path} is empty"
         for number, line in enumerate(lines, start=1):
             try:
-                CaseLedgerEntry.model_validate(json.loads(line))
+                CaseLedgerEntry.model_validate(
+                    with_times(CaseLedgerEntry, json.loads(line))
+                )
             except ValueError as exc:
                 pytest.fail(f"{path}:{number}: {exc}")
 

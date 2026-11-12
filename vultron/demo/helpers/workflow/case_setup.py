@@ -16,6 +16,8 @@
 import logging
 from typing import Literal
 
+from vultron.core.models._helpers import authored_times
+from vultron.demo import wall_clock
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.invite_chain import (
     DEMO_STUB_SUMMARY,
@@ -89,6 +91,9 @@ def create_case_via_trigger(
             "name": name,
             "content": content,
             **({"stub_summary": stub_summary} if stub_summary else {}),
+            # The demo client's own instant: the stub names a case the
+            # trigger made, and states a time like any object (ADR-0176).
+            **authored_times(wall_clock.now()),
         }
     )
 
@@ -283,7 +288,7 @@ def submit_validate_and_create_case(
     )
 
     add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
+        report, actor=vendor.id_, target=case.id_, at=wall_clock.now()
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
     verify_reporter_trusts_introduction(client, reporter, vendor, report)

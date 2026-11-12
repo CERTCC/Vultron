@@ -102,7 +102,7 @@ class _Dispatch:
         return HandlerResult.applied()
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: object = None
     ) -> None:
         raise AssertionError("no fault expected")
 

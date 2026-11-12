@@ -268,6 +268,7 @@ class CommitParticipantStatusEntriesNode(
                 participant=participant,
                 case_id=self._case_id,
                 actor=self.actor_id,
+                at=self._require_act_instant(),
             )
         )
         result = BTBridge(

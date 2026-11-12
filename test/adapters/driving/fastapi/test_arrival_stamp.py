@@ -35,7 +35,7 @@ from fastapi.testclient import TestClient
 from test.support.act_clock import CountingClock, tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -98,14 +98,14 @@ _WINDOW_SECONDS = 300
 
 
 @pytest.fixture(autouse=True)
-def _clear_actor_locks() -> Generator[None, None, None]:
+def _clear_actor_locks() -> Generator[None]:
     io._actor_inbox_locks.clear()
     yield
     io._actor_inbox_locks.clear()
 
 
 @pytest.fixture
-def dl() -> Generator[SqliteDataLayer, None, None]:
+def dl() -> Generator[SqliteDataLayer]:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     try:
         yield store
@@ -120,6 +120,7 @@ def _report_activity() -> as_Activity:
         ),
         actor="https://example.org/actors/finder",
         to=[_RECEIVER],
+        at=authored_at(),
     )
 
 
@@ -130,6 +131,7 @@ def _note_activity(content: str) -> as_Activity:
         context=_CASE,
         actor=_SENDER,
         to=[_RECEIVER],
+        at=authored_at(),
     )
 
 

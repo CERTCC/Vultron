@@ -202,6 +202,7 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
                 trigger_activity=self._require_trigger_activity_port(),
                 actor_id=self.actor_id,
                 cause_id=self._cause_id,
+                at=self._require_act_instant(),
             )
         except VultronEntryRefusedError as exc:
             self._result_out["error"] = exc

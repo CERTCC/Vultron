@@ -22,6 +22,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import authored_at
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -73,6 +74,7 @@ def _proposal(revision, case_id: str, proposer: str):
         actor=proposer,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
 
 
@@ -198,7 +200,11 @@ def test_a_proposers_reject_of_its_own_proposal_is_refused_uncommitted(
     entries_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
 
     reject = em_reject_embargo_activity(
-        proposal, context=case_id, actor=PROPOSER, to=[MANAGER]
+        proposal,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        at=authored_at(),
     )
     dl.create(reject)
     result = run_in_act(

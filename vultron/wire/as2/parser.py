@@ -43,10 +43,11 @@ logger = logging.getLogger(__name__)
 
 
 #: Marks every ``model_validate`` call in this module as reading inbound data,
-#: which is what tells ``as_Base`` to read an absent clock-defaulted timestamp as
-#: ``None`` rather than stamping the receiver's clock (ISSUE-3257, CLP-15-007).
-#: Parsing is the only place this belongs: a caller *authoring* an object wants
-#: the default, and passing this context for one would silently drop its time.
+#: which is what tells ``as_Base`` to read an absent required timestamp as
+#: ``None``, the sender claiming no time (ISSUE-3257, CLP-15-007).  It belongs
+#: only where a peer's body is read (here, and the fetch edge): a caller
+#: *authoring* an object states the act's instant (ADR-0176), and passing this
+#: context for one would hide its omission.
 _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
 
 #: The wire name of an activity's sender sequence (SYNC-21-001).
@@ -275,12 +276,12 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
 
     # Ordered after type resolution — "is this a type we recognise" is a
     # routing question and answering it first keeps the existing error
-    # precedence — but before ``model_validate``, because ``as_Base`` declares
-    # ``published`` with ``default_factory=now_utc``.  Once validation runs, an
-    # absent timestamp is indistinguishable from a sender-supplied one, and the
-    # value is the *receiver's* clock.  Downstream that fabricated value is read
-    # as the sender's claim, which is what made CLP-14-007 and CLP-14-008
-    # compare the receiver's clock against itself (ISSUE-3149).  Absence is a
+    # precedence — but before ``model_validate``, because inbound validation
+    # reads an absent ``published`` as ``None`` at every depth.  When the
+    # field had a clock default, an absent timestamp became the *receiver's*
+    # clock, read downstream as the sender's claim, which is what made
+    # CLP-14-007 and CLP-14-008 compare the receiver's clock against itself
+    # (ISSUE-3149).  Absence is a
     # message-validity failure, not something to correct downstream
     # (ADR-0032: validate at the edge).
     #

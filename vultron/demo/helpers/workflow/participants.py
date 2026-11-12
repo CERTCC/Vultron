@@ -30,6 +30,7 @@ from vultron.demo.utils import (
     log_case_state,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -88,7 +89,7 @@ def find_case_manager_actor_id(
     """
     try:
         case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
-        case_obj = as_VulnerabilityCase(**case_data)
+        case_obj = from_server(as_VulnerabilityCase, case_data)
     except Exception:  # noqa: BLE001  # ruff-baseline #3326
         return None
 
@@ -98,7 +99,7 @@ def find_case_manager_actor_id(
             continue
         try:
             p_data = client.get(client.dl_path(pid, actor_id=vendor_id))
-            p = as_CaseParticipant(**p_data)
+            p = from_server(as_CaseParticipant, p_data)
             if CVDRole.CASE_MANAGER in p.case_roles:
                 attr = p.attributed_to
                 return (

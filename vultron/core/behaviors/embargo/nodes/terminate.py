@@ -201,6 +201,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             reason=self._reason,
             cause=self._resolved_cause,
             to=[case_manager_id],
+            at=self._require_act_instant(),
         )
 
     def _on_queued(self, activity_id: str) -> None:

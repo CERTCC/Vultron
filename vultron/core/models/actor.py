@@ -17,10 +17,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, TypedDict
+from typing import Any, Literal, Self, TypeAlias, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from vultron.core.models._helpers import is_empty
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
@@ -52,9 +53,12 @@ def endpoint_uri(endpoint: Any) -> str | None:
     return str(raw).strip() or None
 
 
-def _no_keys(keys: list[Multikey]) -> bool:
-    """Leave ``assertionMethod`` out of a dump that would carry no key."""
-    return not keys
+#: An ActivityPub actor's ``endpoints``: the IRI of an endpoints object, or the
+#: object inline, whose every property (``sharedInbox``, ``proxyUrl``, ...) is
+#: an IRI.  Blank in either place names nothing (CS-08-001, #3894).
+ActorEndpoints: TypeAlias = (
+    NonEmptyString | dict[NonEmptyString, NonEmptyString]
+)
 
 
 class CoreActor(CoreObject):
@@ -98,7 +102,7 @@ class CoreActor(CoreObject):
         return endpoint_uri(v)
 
     preferred_username: NonEmptyString | None = None
-    endpoints: Any | None = None
+    endpoints: ActorEndpoints | None = None
     embargo_policy: EmbargoPolicy | None = Field(
         default=None,
         description=(
@@ -109,7 +113,7 @@ class CoreActor(CoreObject):
 
     assertion_method: list[Multikey] = Field(
         default_factory=list,
-        exclude_if=_no_keys,
+        exclude_if=is_empty,
         description=(
             "The public keys that verify this actor's proofs, each a"
             " Multikey whose controller is this actor (ENC-01-002). The"

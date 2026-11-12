@@ -35,7 +35,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
 from vultron.enums.roles import CVDRole
@@ -169,9 +169,13 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
         "participant_statuses": [status.id_],
     }
     with pytest.raises(ValidationError):
-        as_CaseParticipant.model_validate(data)
+        as_CaseParticipant.model_validate(with_times(as_CaseParticipant, data))
 
-    participant = materialise(as_CaseParticipant, data, dl_local.as_port())
+    participant = materialise(
+        as_CaseParticipant,
+        with_times(as_CaseParticipant, data),
+        dl_local.as_port(),
+    )
     assert isinstance(
         participant.participant_statuses[0], as_ParticipantStatus
     )
@@ -261,11 +265,14 @@ def test_materialised_activity_carries_its_own_actor(
     """
     case = materialise(
         as_VulnerabilityCase,
-        {
-            "id": CASE_ID,
-            "attributedTo": CASE_OWNER,
-            "case_activity": [recorded_activity.id_],
-        },
+        with_times(
+            as_VulnerabilityCase,
+            {
+                "id": CASE_ID,
+                "attributedTo": CASE_OWNER,
+                "case_activity": [recorded_activity.id_],
+            },
+        ),
         dl.as_port(),
     )
     activity_ref = case.case_activity[0]
@@ -394,11 +401,14 @@ def test_collection_endpoint_slots_are_not_materialised() -> None:
     dl = FakeDataLayer()
     actor = materialise(
         as_VultronOrganization,
-        {
-            "id": "https://remote.example/actors/org",
-            "name": "Remote Org",
-            "inbox": "https://remote.example/actors/org/inbox",
-        },
+        with_times(
+            as_VultronOrganization,
+            {
+                "id": "https://remote.example/actors/org",
+                "name": "Remote Org",
+                "inbox": "https://remote.example/actors/org/inbox",
+            },
+        ),
         dl.as_port(),
     )
     assert dl.reads == []
@@ -442,13 +452,16 @@ def test_nested_object_list_slot_is_covered_too() -> None:
     dl = FakeDataLayer({status.id_: status})
     participant = materialise(
         as_CaseParticipant,
-        {
-            "id": "https://example.org/participants/p-2",
-            "attributedTo": OTHER_PARTICIPANT,
-            "context": CASE_ID,
-            "case_roles": [CVDRole.REPORTER.value],
-            "participant_statuses": [status.id_],
-        },
+        with_times(
+            as_CaseParticipant,
+            {
+                "id": "https://example.org/participants/p-2",
+                "attributedTo": OTHER_PARTICIPANT,
+                "context": CASE_ID,
+                "case_roles": [CVDRole.REPORTER.value],
+                "participant_statuses": [status.id_],
+            },
+        ),
         dl.as_port(),
     )
     assert participant.participant_statuses[0].id_ == status.id_
@@ -576,7 +589,9 @@ def test_slot_supplied_under_its_as2_alias_is_materialised(
     assert out["participantStatuses"] == [status]
     assert "participant_statuses" not in out
     # And the result is what the class will actually accept.
-    participant = as_CaseParticipant.model_validate(out)
+    participant = as_CaseParticipant.model_validate(
+        with_times(as_CaseParticipant, out)
+    )
     assert participant.participant_statuses[0].id_ == status.id_
 
 

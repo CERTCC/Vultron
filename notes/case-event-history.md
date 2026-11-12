@@ -221,10 +221,31 @@ Only a **trailing** event may be missing (CEH-05-005). Many cases never see a pu
 exploit, and an open case has not closed, so a sequence that stops early is normal. A
 *gap* is not: the ephemeral rules forbid it.
 
+### Take each transient state's one way out
+
+Replay the recorded order, and wherever it reaches a transient state whose next
+recorded event is not the one that state forces, place the forced event next: move it
+up when the ledger records it later, and imply it when the ledger records it nowhere
+(CEH-05-009). Mark each with its `Placement` (`MOVED`, `IMPLIED`). A moved event
+keeps its log index and clocks; an implied one carries those of the event that
+reached the transient state. The event history stays as recorded. Reason: `pX` and
+`vP` are transient (CSB-17-003). A published exploit makes the public aware at once,
+and an aware public makes the vendor aware at once, so an event in between is
+independent and the record merely trails. Recorded `P, X, V` is `P, V, X`; `X, V, P`
+is `X, P, V`; `V, X, A` is `V, X, P, A` (decided by the project owner on PR #6283).
+
+Derive the forced event from `required_next_cs_events`; never restate it in a table.
+Reason: one state model, and a test pins that each transient state has exactly one
+way out. With both, every order one vendor's and the case's events can be recorded in
+projects; only an entry a CASE_MANAGER would refuse, such as a fix deployed before it
+is ready, is still reported not a valid prefix (CEH-05-004, CEH-05-007). The code is
+`vultron/measure/sequences/` (`case_state_sequences`, `SequenceEvent.placement`).
+
 ### The prefix check is this layer's, not the CASE_MANAGER's
 
-A sequence that fails the prefix check means the derivation is wrong — but not because
-the CASE_MANAGER already refused the transition. It validates a participant's
+A sequence that fails the prefix check means the derivation is wrong or the recorded
+order holds an entry the CASE_MANAGER would refuse — never that it already refused
+the transition. It validates a participant's
 dimensions and the case's public state *separately*, and skips any rule that reads a
 dimension the participant does not have (`composite_state_violations`, and
 `_compound_violations` returns no violation whenever the participant's `vf` is absent).
@@ -238,9 +259,10 @@ It computes no score (CEH-05-008). The existing desiderata scorer is
 `CVDmodel.score_hist` in `vultron/core/case_states/hypercube/_scoring.py` — note the
 name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
-shorter. Every sequence the committed recordings yield is incomplete, so there is no
-score to compute for a typical case. How an incomplete sequence earns a score is
-decided by ADR-0182 and built by #6068; the measures stay out of this layer.
+shorter. Every sequence the committed recordings yield is incomplete, so that scorer
+has nothing to score for a typical case. The measures stay out of this layer: an
+incomplete sequence is scored by `vultron/measure/scoring/` (`score_sequence`), which
+reads the sequence and never the other way round (ADR-0182).
 
 ### Measures built on these sequences take chance per vendor
 
@@ -251,7 +273,11 @@ case grows with the participant count, and its baselines change with that count,
 no table would serve every case. Do not build a whole-case walk, and do not key a
 baseline on the number of participants. An incomplete sequence is scored through its
 completions under the same walk (expected, best and worst), and a case reports
-per-vendor scores with their unweighted median and spread.
+per-vendor scores with their unweighted median and spread (`score_case`).
+
+Take the spread as the range (highest minus lowest), never a variance. Reason: the
+vendors share P, X and A, so their scores are not a sample, and the spread reads as
+evenness across vendors, not across users (ADR-0182).
 
 Score through `vultron.measure.baselines`, never a second walk: its
 `completion_probabilities(prefix)` weights each six-event completion from where the
@@ -259,6 +285,11 @@ case stands, and `frequency` serves any joint-model query. Reason: one walk keep
 the completions and the baselines under the same chance model (ADR-0182). Its joint
 models obey only enforced rules — a SHOULD never constrains them, because the
 desiderata measure exactly those preferences.
+
+Score a complete history with `vultron.measure.scoring.history_score`, never
+`CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original
+desiderata, with exact baselines and no import of `vultron/core/case_states/`. A test
+holds the two equal over the 70 histories.
 
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
@@ -342,8 +373,10 @@ which states only the boundary that nothing in the protocol path imports the lay
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
   subpackage that reads through the one below it: the event history is
   `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
-  a sibling of `ledger/`, never part of it. The chance baselines
-  (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
+  a sibling of `ledger/`, never part of it. The per-vendor case-state sequences are
+  `vultron/measure/sequences/` (`case_state_sequences`), reading only the history.
+  The chance baselines (`vultron/measure/baselines/`) read only
+  `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
   display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`
@@ -356,6 +389,9 @@ which states only the boundary that nothing in the protocol path imports the lay
 - The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moved down
   with it. Left in the demo layer, it would make the two packages import each other.
   Its URI fallback is `vultron.core.display.friendly_name`, not a second copy.
+  The object labels and the registry phrase render (`phrases.py`) moved with it, so
+  `vultron-case-history` (`vultron/measure/history/cli.py`) words an event as the
+  report does.
 - `discover_replicas` stays in `vultron/demo/report/timeline.py` with its glob.
 - Two architecture tests in `test/architecture/test_measure_layer_boundaries.py`
   hold the layer's boundaries: no protocol-path import (CEH-01-001) and no write

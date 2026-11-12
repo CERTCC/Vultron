@@ -375,6 +375,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
                 actor=actor_id,
                 to=None,
                 derived_id=True,
+                at=self._require_act_instant(),
             )
             cancel = partial(
                 commit,
@@ -389,6 +390,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
                 case_id=self._case_id_value,
                 actor=actor_id,
                 to=None,
+                at=self._require_act_instant(),
             )
             cancel = partial(
                 commit,
@@ -414,6 +416,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
                 case_id=self._case_id_value,
                 actor=actor_id,
                 to=None,
+                at=self._require_act_instant(),
             )
             planned.append(
                 PlannedEmbargoEntry(

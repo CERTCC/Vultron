@@ -30,6 +30,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.objects import authored_at
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import refusal_notice_activity
 from vultron.wire.as2.parser import parse_activity
@@ -96,6 +97,7 @@ def test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted(
         "a precondition did not hold",
         actor="https://example.org/actors/case-manager",
         to=["https://example.org/actors/vendor"],
+        at=authored_at(),
     )
     body = json.loads(notice.to_json())
     assert (

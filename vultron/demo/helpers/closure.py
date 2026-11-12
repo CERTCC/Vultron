@@ -70,6 +70,7 @@ from vultron.demo.utils import (
     demo_step,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -225,8 +226,8 @@ def _wait_for_owner_replica_em(
     *manager* is bound to the CASE_MANAGER's own store
     (:func:`_case_manager_reader`).
     """
-    canonical = as_VulnerabilityCase.model_validate(
-        manager.get(manager.dl_path(case_id))
+    canonical = from_server(
+        as_VulnerabilityCase, manager.get(manager.dl_path(case_id))
     )
     wait_for_case_em_state(
         owner.client,

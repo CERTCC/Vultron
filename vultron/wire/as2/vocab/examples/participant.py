@@ -44,6 +44,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
+    EXAMPLE_TIMESTAMP,
     _example_stamp,
     case,
     case_actor,
@@ -86,6 +87,7 @@ def _participant_for(
             context=_case.id_,
             case_roles=case_roles,
             participant_statuses=participant_statuses,
+            **_example_stamp(),
         )
     return as_CaseParticipant(
         id_=participant_id,
@@ -93,6 +95,7 @@ def _participant_for(
         attributed_to=actor.id_,
         context=_case.id_,
         case_roles=case_roles,
+        **_example_stamp(),
     )
 
 
@@ -106,6 +109,7 @@ def vendor_participant() -> as_CaseParticipant:
         attributed_to=_vendor.id_,
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
+        **_example_stamp(),
     )
     return _participant_for(_vendor, [CVDRole.VENDOR], [_pstatus])
 
@@ -124,6 +128,7 @@ def add_vendor_participant_to_case() -> as_Add:
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding ourselves as a participant to this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -137,6 +142,7 @@ def add_finder_participant_to_case() -> as_Add:
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding the finder as a participant to this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -151,6 +157,7 @@ def add_coordinator_participant_to_case() -> as_Add:
         actor=_vendor.id_,
         target=_case.id_,
         content="We're reinstating the coordinator in this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -171,7 +178,7 @@ def rm_invite_to_case() -> as_Invite:
         target=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
-        **_example_stamp(),
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -186,6 +193,7 @@ def accept_invite_to_case() -> as_Accept:
         actor=_coordinator.id_,
         to=_vendor.id_,
         content=f"We're accepting your invitation to participate in {_case.name}.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -200,6 +208,7 @@ def reject_invite_to_case() -> as_Reject:
         actor=_coordinator.id_,
         to=_vendor.id_,
         content=f"Thanks for the invitation, but we're declining to participate in {_case.name}.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -213,6 +222,7 @@ def _coordinator_participant() -> as_CaseParticipant:
         attributed_to=_coordinator.id_,
         context=_case.id_,
         case_roles=[CVDRole.COORDINATOR],
+        **_example_stamp(),
     )
 
 
@@ -231,6 +241,7 @@ def create_participant() -> as_Create:
         target=_case.id_,
         actor=case_actor().id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -249,6 +260,7 @@ def update_participant() -> as_Update:
         participant,
         actor=case_actor().id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -295,6 +307,7 @@ def remove_participant_from_case():
         # an origin-only Remove matches no pattern and never dispatches (#3438).
         target=_case.id_,
         summary="Vendor is removing the coordinator from the case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -316,6 +329,7 @@ def invite_to_full_case() -> as_Invite:
         id_=f"{_case.id_}/full-case-invitation/1",
         actor=_CASE_ACTOR.id_,
         to=_coordinator.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -326,6 +340,7 @@ def accept_full_case_invite() -> as_Accept:
         _LEDGER_TAIL,
         actor=_COORDINATOR.id_,
         to=_CASE_ACTOR.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -336,6 +351,7 @@ def tentative_reject_full_case_invite() -> as_Reject:
         _LEDGER_TAIL,
         actor=_COORDINATOR.id_,
         to=_CASE_ACTOR.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -346,4 +362,5 @@ def reject_full_case_invite() -> as_Reject:
         _LEDGER_TAIL,
         actor=_COORDINATOR.id_,
         to=_CASE_ACTOR.id_,
+        at=EXAMPLE_TIMESTAMP,
     )

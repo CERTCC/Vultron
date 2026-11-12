@@ -23,7 +23,7 @@ The two Invites are also delivered to the joiner's own store.
 from typing import Any, cast
 
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -73,6 +73,7 @@ def _invited(name: str) -> tuple[LedgerNetwork, as_Invite]:
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",
+        at=authored_at(),
     )
     dl.create(invite)
     case = cast(VulnerabilityCase, dl.read(net.case_id))
@@ -97,7 +98,9 @@ def _joined(name: str) -> tuple[LedgerNetwork, as_Invite]:
     net, stub = _invited(name)
     send_applied(
         net,
-        rm_accept_invite_to_case_activity(stub, actor=JOINER, to=[MANAGER]),
+        rm_accept_invite_to_case_activity(
+            stub, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
     )
     dl = net.stores[MANAGER]
     invites = [
@@ -149,11 +152,14 @@ def accept_invite_actor_to_case_with_no_record() -> Scenario:
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",
+        at=authored_at(),
     )
     net.stores[MANAGER].create(stub)
     return deliver(
         net,
-        rm_accept_invite_to_case_activity(stub, actor=JOINER, to=[MANAGER]),
+        rm_accept_invite_to_case_activity(
+            stub, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
     )
 
 
@@ -163,7 +169,9 @@ def accept_invite_actor_to_case() -> Scenario:
     net, stub = _invited("accept")
     return deliver(
         net,
-        rm_accept_invite_to_case_activity(stub, actor=JOINER, to=[MANAGER]),
+        rm_accept_invite_to_case_activity(
+            stub, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
     )
 
 
@@ -173,7 +181,9 @@ def reject_invite_actor_to_case() -> Scenario:
     net, stub = _invited("reject")
     return deliver(
         net,
-        rm_reject_invite_to_case_activity(stub, actor=JOINER, to=[MANAGER]),
+        rm_reject_invite_to_case_activity(
+            stub, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
     )
 
 
@@ -223,7 +233,10 @@ def _full_reply(kind: str, name: str, *, behind: bool = False) -> Scenario:
             log_index=first.log_index, entry_hash=first.entry_hash
         )
     return deliver(
-        net, _REPLIES[kind](full, position, actor=JOINER, to=[MANAGER])
+        net,
+        _REPLIES[kind](
+            full, position, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
     )
 
 

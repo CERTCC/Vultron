@@ -31,7 +31,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -103,6 +103,7 @@ def _deliver_offer_actor(
         ),
         actor=sender_id,
         to=[REPLICA_ID],
+        at=authored_at(),
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
     return run_in_act(
@@ -138,6 +139,7 @@ def _deliver_participant_status(
             name="ReplicaSenderRule",
         ),
         to=[REPLICA_ID],
+        at=authored_at(),
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
     return run_in_act(

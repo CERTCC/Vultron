@@ -28,11 +28,22 @@ the recording the CLI writes.
 """
 
 import json
+import sys
+import threading
+from collections import Counter
+from datetime import datetime
+from functools import partial
 
 import pytest
 
+from test.support.act_clock import recorded_clock_reads
+from test.support.objects import with_times
+from vultron.core.behaviors.bridge import act_instant
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.demo import wall_clock
+from vultron.demo.determinism import deterministic_run, recording_clock
 from vultron.demo.helpers.cast import ALL_SLOTS
+from vultron.demo.recordings import runner
 from vultron.demo.recordings.runner import record_scenario
 from vultron.demo.recordings.traces import normalize_run
 from vultron.demo.scenario.registry import discover_scenarios
@@ -52,7 +63,9 @@ def test_the_recorder_records_a_scenario():
 
     recording = run.recording
     entries = [
-        CaseLedgerEntry.model_validate(json.loads(line))
+        CaseLedgerEntry.model_validate(
+            with_times(CaseLedgerEntry, json.loads(line))
+        )
         for line in recording.entries
     ]
     assert entries, "the recording is empty"
@@ -101,3 +114,71 @@ def test_two_runs_of_one_unchanged_tree_compare_equal():
     assert before.checks, "the first run normalized to no check tree"
     assert before.ledger == after.ledger
     assert before.checks == after.checks
+
+
+#: Where an act reads its one instant (ADR-0176): a trigger or sweep opening
+#: its act, the inbox stamping a message's arrival, and a demo client's step.
+_ACT_EDGES = frozenset(
+    {
+        (act_instant.__name__, act_instant.open_act.__name__),
+        (act_instant.__name__, act_instant.stamp_arrival.__name__),
+        (wall_clock.__name__, wall_clock.now.__name__),
+    }
+)
+
+
+class _AttributedRecordingClock:
+    """The recording clock, noting the function that made each read.
+
+    Each edge function reads the act clock exactly once per act it opens, so
+    a read attributed to an edge is that act's one read, and a read from any
+    other function is a second read inside some act.
+    """
+
+    def __init__(self) -> None:
+        self._clock = recording_clock()
+        self._lock = threading.Lock()
+        self.readers: Counter[tuple[str, str]] = Counter()
+
+    def now(self) -> datetime:
+        caller = sys._getframe(1)
+        with self._lock:
+            self.readers[
+                (caller.f_globals["__name__"], caller.f_code.co_name)
+            ] += 1
+        return self._clock.now()
+
+
+@pytest.mark.timeout(600)
+@pytest.mark.spec("CS-13-002")
+def test_each_act_reads_the_recording_clock_once(monkeypatch):
+    """Under a counting clock, every read in a recorded run is an act's one read.
+
+    The recording clock steps once per read, so a read anywhere else (a
+    check, a lookup, a second read inside an act) would move every later
+    timestamp and digest of the recording (ADR-0176, #5591).
+    """
+    clock = _AttributedRecordingClock()
+    monkeypatch.setattr(
+        runner, "deterministic_run", partial(deterministic_run, clock=clock)
+    )
+    spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
+
+    with recorded_clock_reads() as wall:
+        record_scenario(spec)
+
+    # A composition root that built its own system clock instead of taking
+    # the installed one (act_clock) would read the wall clock behind now_utc,
+    # which the recording clock never sees.
+    assert wall == [], f"the run read the wall clock {len(wall)} time(s)"
+    readers = set(clock.readers)
+    assert readers <= _ACT_EDGES, (
+        "the recording clock was read below an act's edge:"
+        f" {sorted(readers - _ACT_EDGES)}"
+    )
+    # Guards against a pass because the run read the recording clock at all
+    # only from one kind of edge, or not at all.
+    assert {
+        (act_instant.__name__, "open_act"),
+        (act_instant.__name__, "stamp_arrival"),
+    } <= readers, f"the run opened no trigger or inbox act: {clock.readers}"

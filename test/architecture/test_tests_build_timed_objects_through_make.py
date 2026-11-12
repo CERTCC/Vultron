@@ -26,8 +26,8 @@ one, or an attribute of a module (``vocab.as_Note(...)``).  A class held in a
 variable (``cls(...)``) is beyond a static read; such a test calls
 ``make(cls, ...)`` by the same rule.
 
-:data:`DIRECT_BUILD_EXEMPTIONS` is a pinned exemption set (ARCH-18-001): the
-files that test a model's own time default, which must call it bare.
+:data:`DIRECT_BUILD_EXEMPTIONS` is a pinned exemption set (ARCH-18-001),
+empty since every author time is required (#5758).
 
 Spec: CS-13-002 (time enters at the act's edge), ARCH-18-001.
 """
@@ -46,20 +46,15 @@ from pydantic import BaseModel
 import vultron
 from test.architecture import _corpus
 from test.support.objects import AUTHOR_TIMES, stamped_times
-from vultron.core.models._helpers.clock import now_utc
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _FACTORY = "test/support/objects.py"
 
-# Pinned exemption set: files that test what a model does with a time its
-# caller leaves out, so they build it without ``make`` on purpose.
-# permanent: ADR-0176 (the default under test goes when the time is required,
-# #5758)
-DIRECT_BUILD_EXEMPTIONS: frozenset[str] = frozenset(
-    {
-        "test/core/models/test_case_status.py",
-    }
-)
+# Pinned exemption set: files that build a timed model without ``make`` on
+# purpose.  Empty since #5758 made every author time required: no test has a
+# model's own time default left to test.
+# permanent: ADR-0176 (a file listed here must say why it builds bare)
+DIRECT_BUILD_EXEMPTIONS: frozenset[str] = frozenset()
 
 
 @cache
@@ -188,17 +183,17 @@ def test_tests_build_timed_objects_through_make() -> None:
 
 
 @pytest.mark.spec("CS-13-002")
-def test_every_clock_defaulted_author_time_is_one_make_stamps() -> None:
-    """An author's time defaulted through another callable than ``now_utc``
-    would escape both ``make`` and this ratchet, which key on it."""
+def test_every_author_time_is_required_or_absent_by_default() -> None:
+    """An author's time is required, which ``make`` and this ratchet key on,
+    or absent until stated (a case status's ``updated``); a default factory
+    on one would be a clock read no act stated (ADR-0176)."""
     other = sorted(
         {
             f"{model.__module__}.{model.__qualname__}.{field}"
             for _, model in _models()
             for field in AUTHOR_TIMES
             if field in model.model_fields
-            and model.model_fields[field].default_factory
-            not in (None, now_utc)
+            and model.model_fields[field].default_factory is not None
         }
     )
 

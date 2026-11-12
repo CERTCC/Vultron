@@ -32,7 +32,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.adapters.driven.clock import SystemClock
@@ -93,6 +93,7 @@ def _recommendation_with_reference() -> dict[str, Any]:
         actor=_VENDOR_ID,
         to=[_CASE_ACTOR_ID],
         suggested_roles=["vendor"],
+        at=authored_at(),
     )
     # The reference replaces the full profile the factory inlines, so the
     # altered body is signed again (SIG-01-001).

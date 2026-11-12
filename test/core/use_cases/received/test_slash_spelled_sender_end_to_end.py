@@ -25,7 +25,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -157,6 +157,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         target=case.id_,
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],
+        at=authored_at(),
     )
     result = run_in_act(
         RejectEmbargoProposalOnCaseReceivedUseCase(
@@ -182,6 +183,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         context=case.id_,
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],
+        at=authored_at(),
     )
     result = run_in_act(
         WithdrawFromEmbargoOnCaseReceivedUseCase(

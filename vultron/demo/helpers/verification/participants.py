@@ -20,6 +20,7 @@ from vultron.demo.utils import (
     DataLayerClient,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -56,14 +57,14 @@ def _fetch_participant(
     """
     try:
         case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
         p_data = client.get(
             client.dl_path(dl_key(participant_id), actor_id=dl_actor_id)
         )
-        return as_CaseParticipant(**p_data)
+        return from_server(as_CaseParticipant, p_data)
     except (httpx.HTTPStatusError, AssertionError):
         return None
 

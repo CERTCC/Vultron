@@ -43,6 +43,7 @@ from vultron.core.behaviors.narrative_log import (
     log_rm_transition,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -305,6 +306,7 @@ class CreateParticipantStatusNode(
                 attributed_to=self._actor_id,
                 em=EmDimension(state=case.em_state),
                 pxa=PxaDimension(state=effective.pxa),
+                published=self._require_act_instant(),
             )
 
         status_roles = self._build_participant_roles(context.participant)
@@ -341,6 +343,7 @@ class CreateParticipantStatusNode(
                 and self._rm_rule is RMRule.TRANSITION
                 else None
             ),
+            **authored_times(self._require_act_instant()),
         )
 
     def update(self) -> Status:

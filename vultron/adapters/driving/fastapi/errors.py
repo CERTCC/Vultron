@@ -18,7 +18,7 @@ from vultron.wire.as2.errors import (
 
 
 @contextmanager
-def domain_error_translation() -> Generator[None, None, None]:
+def domain_error_translation() -> Generator[None]:
     """Context manager that translates domain exceptions to HTTPExceptions."""
     try:
         yield

@@ -45,7 +45,11 @@ are **core concerns**, kept out of the simulation layer so that
   enumerates them (BT-18-012, BT-18-021).
 - :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` /
   :class:`~vultron.core.behaviors.call_out.nodes.AlwaysFail` — deterministic,
-  production-usable constant backends (BT-23-002).
+  production-usable constant backends (BT-23-002);
+  :func:`~vultron.core.behaviors.call_out.nodes.always_succeed_as` /
+  :func:`~vultron.core.behaviors.call_out.nodes.always_fail_as` bind one to a
+  capability declaration, so its *yes* writes the declared outputs
+  (BT-23-013).
 - ``bundles`` — per-domain bundle dataclasses and their ``<DOMAIN>_DETERMINISTIC``
   singletons (BT-23-003), the happy-path defaults every tree builder uses when
   no explicit ``call_out`` bundle is supplied.
@@ -98,6 +102,8 @@ from vultron.core.behaviors.call_out.nodes import (
     AlwaysSucceed,
     NoOpActuator,
     RequireCaseOwnerApprovalNode,
+    always_fail_as,
+    always_succeed_as,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -128,6 +134,8 @@ __all__ = [
     "AlwaysSucceed",
     "AlwaysFail",
     "RequireCaseOwnerApprovalNode",
+    "always_fail_as",
+    "always_succeed_as",
     "CallOutContractError",
     "SynchronousCallOut",
     "TimeBoundedCallOut",

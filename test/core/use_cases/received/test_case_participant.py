@@ -21,7 +21,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -203,7 +203,8 @@ class TestCaseParticipantUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         event = make_payload(
-            getattr(transitive, activity_name)(
+            make(
+                getattr(transitive, activity_name),
                 actor="https://example.org/users/owner",
                 object_=make(
                     as_CaseParticipant,
@@ -273,7 +274,11 @@ def _owner_removes(participant: CaseParticipant, case_id: str):
     )
 
     return remove_participant_from_case_activity(
-        participant, target=case_id, actor=_OWNER, to=[_MANAGER]
+        participant,
+        target=case_id,
+        actor=_OWNER,
+        to=[_MANAGER],
+        at=authored_at(),
     )
 
 
@@ -281,7 +286,11 @@ def _owner_adds(participant: CaseParticipant, case_id: str):
     from vultron.wire.as2.factories import add_participant_to_case_activity
 
     return add_participant_to_case_activity(
-        participant, target=case_id, actor=_OWNER, to=[_MANAGER]
+        participant,
+        target=case_id,
+        actor=_OWNER,
+        to=[_MANAGER],
+        at=authored_at(),
     )
 
 

@@ -60,7 +60,7 @@ from test.support.act_runner import in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import terminate
 from test.support.ledger import with_genesis
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -158,6 +158,7 @@ def _owner_reinstates(
         actor=by,
         to=[MANAGER],
         id_=_ADD_ACTIVITY_ID,
+        at=authored_at(),
     )
 
 
@@ -324,7 +325,7 @@ def test_add_naming_another_actor_than_the_record_is_refused(
 
     result = case.route(
         add_participant_to_case_activity(
-            forged, target=CASE_ID, actor=OWNER, to=[MANAGER]
+            forged, target=CASE_ID, actor=OWNER, to=[MANAGER], at=authored_at()
         )
     )
 
@@ -552,7 +553,7 @@ def test_replica_refuses_an_add_not_from_the_case_manager(
     result = route_received(
         replica,
         add_participant_to_case_activity(
-            record, target=CASE_ID, actor=OWNER, to=[VENDOR]
+            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
         ),
         receiving_actor_id=VENDOR,
         sync_port=SyncActivityAdapter(replica),
@@ -627,7 +628,11 @@ def test_reinstated_non_signatory_is_backfilled_once_it_consents(
 
     result = case.route(
         em_accept_embargo_activity(
-            invite, context=CASE_ID, actor=OTHER, to=[MANAGER]
+            invite,
+            context=CASE_ID,
+            actor=OTHER,
+            to=[MANAGER],
+            at=authored_at(),
         )
     )
 
@@ -722,6 +727,7 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
         to=[VENDOR],
         roles=[CVDRole.VENDOR],
         id_=f"{CASE_ID}/invitations/vendor",
+        at=authored_at(),
     )
     case.dl.create(stub_invite)
     case.remove(VENDOR)
@@ -731,7 +737,7 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
 
     result = case.route(
         rm_accept_invite_to_case_activity(
-            stub_invite, actor=VENDOR, to=[MANAGER]
+            stub_invite, actor=VENDOR, to=[MANAGER], at=authored_at()
         )
     )
 
@@ -767,6 +773,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         to=[NEWBIE],
         roles=[CVDRole.VENDOR],
         id_=f"{CASE_ID}/invitations/newbie",
+        at=authored_at(),
     )
     case.dl.create(stub_invite)
     manager_case = case.read_case()
@@ -786,7 +793,10 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
             activity_blob=TriggerActivityAdapter(
                 case.dl
             ).record_case_participant_created(
-                participant=stored, case_id=CASE_ID, actor=MANAGER
+                participant=stored,
+                case_id=CASE_ID,
+                actor=MANAGER,
+                at=authored_at(),
             )[1],
             semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
             sync_port=SyncActivityAdapter(case.dl),
@@ -794,7 +804,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
 
     result = case.route(
         rm_accept_invite_to_case_activity(
-            stub_invite, actor=NEWBIE, to=[MANAGER]
+            stub_invite, actor=NEWBIE, to=[MANAGER], at=authored_at()
         )
     )
 
@@ -1066,6 +1076,7 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
         roles=[CVDRole.VENDOR],
         id_="https://example.org/activities/offer-participant-vendor",
         origin=recommendation_id,
+        at=authored_at(),
     )
     assert isinstance(offer.object_, as_CaseParticipant)
     case.dl.save(offer.object_)
@@ -1081,6 +1092,7 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
             ),
             actor=OWNER,
             to=[MANAGER],
+            at=authored_at(),
         )
     )
 

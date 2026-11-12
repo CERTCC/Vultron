@@ -53,6 +53,7 @@ from vultron.demo.helpers.workflow import (
     run_direct_path_rm_triage,
 )
 from vultron.demo.utils import demo_check, demo_gate
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -142,8 +143,9 @@ def reporter_tells_coordinator(state: StoryState) -> None:
         # Re-read the case as the Coordinator now stores it: the triage and
         # the participant seating have moved on since the trigger returned it.
         state.restate_case(
-            as_VulnerabilityCase.model_validate(
-                owner_client.get(owner_client.dl_path(case.id_))
+            from_server(
+                as_VulnerabilityCase,
+                owner_client.get(owner_client.dl_path(case.id_)),
             )
         )
         state.keep(ENGAGED_CASE, str(case.id_))

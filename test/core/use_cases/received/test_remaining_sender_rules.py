@@ -40,7 +40,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -226,6 +226,7 @@ class _World:
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,
+            at=authored_at(),
         )
         return run_in_act(
             AddCaseStatusToCaseReceivedUseCase(
@@ -250,6 +251,7 @@ class _World:
             ),
             actor=self.finder.id_,
             to=[self.receiver_id],
+            at=authored_at(),
         )
         return run_in_act(
             AddParticipantStatusToParticipantReceivedUseCase(
@@ -268,6 +270,7 @@ class _World:
             # Addressed to the manager and, at a replica, to the replica too.
             to=list(dict.fromkeys([self.manager.id_, self.receiver_id])),
             id_=f"{self.case_id}/leaves/{suffix}",
+            at=authored_at(),
         )
         return run_in_act(
             CloseCaseReceivedUseCase(
@@ -289,6 +292,7 @@ class _World:
             actor=sender_id,
             to=[invitee],
             id_=f"{self.case_id}/invitations/1",
+            at=authored_at(),
         )
         return run_in_act(
             InviteActorToCaseReceivedUseCase(

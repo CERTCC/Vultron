@@ -21,6 +21,7 @@ id behind, or the outbox would hold an id with nothing to deliver.
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import authored_at
 from vultron.adapters.driven import sync_activity_adapter
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -61,7 +62,7 @@ def test_a_body_that_cannot_be_signed_leaves_nothing_behind(monkeypatch):
 
     with pytest.raises(VultronUnsignableJsonError):
         SyncActivityAdapter(dl).send_announce_log_entry(
-            _entry(), OWNER, [PEER]
+            _entry(), OWNER, [PEER], at=authored_at()
         )
 
     assert dl.outbox_list() == []
@@ -72,7 +73,7 @@ def test_a_signed_announce_is_stored_sealed_and_queued():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
 
     assert SyncActivityAdapter(dl).send_announce_log_entry(
-        _entry(), OWNER, [PEER]
+        _entry(), OWNER, [PEER], at=authored_at()
     )
 
     [queued] = dl.outbox_list()

@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.actor import VultronOrganization, VultronPerson
 from vultron.core.models.multikey import Multikey
 
@@ -46,7 +46,9 @@ def _profile(assertion_method: Any) -> dict[str, Any]:
 
 @pytest.mark.spec("ENC-01-002")
 def test_a_profile_reads_its_keys_from_the_wire_spelling():
-    actor = VultronOrganization.model_validate(_profile([_entry()]))
+    actor = VultronOrganization.model_validate(
+        with_times(VultronOrganization, _profile([_entry()]))
+    )
 
     [key] = actor.assertion_method
     assert key == Multikey(
@@ -61,7 +63,9 @@ def test_a_profile_reads_its_keys_from_the_wire_spelling():
 
 
 def test_a_single_key_object_reads_as_a_one_key_list():
-    actor = VultronOrganization.model_validate(_profile(_entry()))
+    actor = VultronOrganization.model_validate(
+        with_times(VultronOrganization, _profile(_entry()))
+    )
 
     assert [key.id_ for key in actor.assertion_method] == [f"{ACTOR}#main-key"]
 
@@ -70,7 +74,10 @@ def test_a_single_key_instance_reads_as_a_one_key_list():
     key = Multikey.model_validate(_entry())
 
     actor = VultronOrganization.model_validate(
-        {"id": ACTOR, "name": "VendorCo", "assertionMethod": key}
+        with_times(
+            VultronOrganization,
+            {"id": ACTOR, "name": "VendorCo", "assertionMethod": key},
+        )
     )
 
     assert actor.assertion_method == [key]
@@ -126,13 +133,20 @@ def test_a_key_refuses_an_unknown_field():
 def test_a_profile_listing_another_actors_key_is_refused():
     with pytest.raises(ValidationError, match="controlled by"):
         VultronOrganization.model_validate(
-            _profile([_entry(key_id=f"{OTHER}#main-key", controller=OTHER)])
+            with_times(
+                VultronOrganization,
+                _profile(
+                    [_entry(key_id=f"{OTHER}#main-key", controller=OTHER)]
+                ),
+            )
         )
 
 
 def test_a_profile_listing_one_key_twice_is_refused():
     with pytest.raises(ValidationError, match="more than once"):
-        VultronOrganization.model_validate(_profile([_entry(), _entry()]))
+        VultronOrganization.model_validate(
+            with_times(VultronOrganization, _profile([_entry(), _entry()]))
+        )
 
 
 def test_every_violation_is_reported():
@@ -141,7 +155,9 @@ def test_every_violation_is_reported():
 
     with pytest.raises(ValidationError) as caught:
         VultronOrganization.model_validate(
-            _profile([foreign, _entry(), _entry()])
+            with_times(
+                VultronOrganization, _profile([foreign, _entry(), _entry()])
+            )
         )
 
     message = str(caught.value)

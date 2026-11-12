@@ -15,7 +15,7 @@
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -54,6 +54,7 @@ def _note():
         make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
+        at=authored_at(),
     )
 
 
@@ -93,6 +94,7 @@ def test_a_participant_status_names_its_case_on_the_status() -> None:
         make(as_ParticipantStatus, id_=f"{participant_id}/s1", context=_CASE),
         target=participant_id,
         actor=_ACTOR,
+        at=authored_at(),
     )
 
     assert _CASE in list(ledger_position_case_ids(add))
@@ -106,9 +108,10 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
         make(as_Organization, id_="https://example.org/users/invitee"),
         target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
         actor=_ACTOR,
+        at=authored_at(),
     )
     reply = rm_accept_invite_to_case_activity(
-        invite, actor="https://example.org/users/invitee"
+        invite, actor="https://example.org/users/invitee", at=authored_at()
     )
 
     assert _CASE in list(ledger_position_case_ids(invite))
@@ -133,18 +136,22 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
                 published=ACT_AT,
             ),
             actor=_ACTOR,
+            at=authored_at(),
         ),
         lambda: announce_vulnerability_case_activity(
             make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
+            at=authored_at(),
         ),
         lambda: create_case_activity(
             make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
+            at=authored_at(),
         ),
         lambda: update_case_activity(
             make(as_VulnerabilityCase, id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
+            at=authored_at(),
         ),
     ],
     ids=["announce-entry", "announce-case", "create-case", "update-case"],
@@ -161,7 +168,7 @@ def test_an_activity_whose_object_states_its_position_names_no_case(
 @pytest.mark.spec("SYNC-18-001")
 def test_an_act_on_a_named_case_names_it_to_be_stamped() -> None:
     """A Join names its case by typed reference (ADR-0165) and is stamped."""
-    join = rm_engage_case_activity(_CASE, actor=_ACTOR)
+    join = rm_engage_case_activity(_CASE, actor=_ACTOR, at=authored_at())
 
     assert not object_states_its_own_position(join)
     assert list(ledger_position_case_ids(join)) == [_CASE]
@@ -176,6 +183,7 @@ def test_a_processing_fault_names_no_case() -> None:
             failure_class="https://example.org/faults/x",
             in_reply_to=f"{_CASE}/activities/9",
         ),
+        at=authored_at(),
     )
 
     assert not object_states_its_own_position(fault)

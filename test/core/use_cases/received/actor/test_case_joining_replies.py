@@ -50,7 +50,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.ledger_records import with_ledger_records
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -244,6 +244,7 @@ def joining_case() -> Any:
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/stub-1",
+        at=authored_at(),
     )
     dl.create(stub_invite)
     for index, semantic_type in enumerate(
@@ -288,6 +289,7 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -311,6 +313,7 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
     assert first.disposition is HandlerDisposition.APPLIED
@@ -323,6 +326,7 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
             id_="https://example.org/activities/reject-stub-again",
+            at=authored_at(),
         )
     )
 
@@ -350,6 +354,7 @@ def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
     assert first.disposition is HandlerDisposition.APPLIED
@@ -362,6 +367,7 @@ def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -393,6 +399,7 @@ def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -421,6 +428,7 @@ def test_stub_invite_accept_seeds_case_then_replays_ledger(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -490,6 +498,7 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -517,6 +526,7 @@ def test_full_case_invite_reply_without_position_is_refused_at_the_edge(
         full_invite,
         _position(tail.log_index, tail.entry_hash),
         actor=joining_case.invitee_id,
+        at=authored_at(),
     )
     body = {
         key: value
@@ -583,6 +593,7 @@ def _full_case_invite_at(
         id_=f"{joining.case.id_}/invitations/full-floor-{log_index}",
         actor=joining.case_actor_id,
         to=[joining.invitee_id],
+        at=authored_at(),
     )
     joining.dl.create(invite)
     return invite
@@ -602,6 +613,7 @@ def _full_case_reply_at(
         _position(position.log_index, position.entry_hash),
         actor=joining.invitee_id,
         to=[joining.case_actor_id],
+        at=authored_at(),
     )
 
 
@@ -721,6 +733,7 @@ def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
         joining_case.stub_invite,
         actor=joining_case.invitee_id,
         to=[joining_case.case_actor_id],
+        at=authored_at(),
     )
     stub = joining_case.stub_invite.target
     assert accept.target is None
@@ -767,6 +780,7 @@ def test_joined_participant_is_not_accepted_until_it_sends_join(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
     assert RM.ACCEPTED not in _rm_history(joining_case)
@@ -777,6 +791,7 @@ def test_joined_participant_is_not_accepted_until_it_sends_join(
             joining_case.case,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -807,6 +822,7 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
     _advance_invitee_to(joining_case, RM.VALID)
@@ -816,6 +832,7 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
             joining_case.case,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -836,6 +853,7 @@ def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
             joining_case.case,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 

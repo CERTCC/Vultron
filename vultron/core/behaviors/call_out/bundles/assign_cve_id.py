@@ -49,26 +49,29 @@ import py_trees
 
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.assignment import (
+    AssignIdCapability,
+    IdAssignedCapability,
+    RequestIdCapability,
+)
 from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.eligibility import (
     CVE_ELIGIBILITY_RATIONALE_KEY,
     CVE_ELIGIBILITY_VERDICT_KEY,
     EvaluateCveEligibilityCapability,
+    InScopeCapability,
+    IsMostAppropriateCNACapability,
+    ProductInCNAScopeCapability,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import (
+    always_fail_as,
+    always_succeed_as,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 #: CNA Operational Rules edition the reference ``EvaluateCveEligibility``
 #: backends apply (BTND-05-008, ADR-0071).  Adopting a newer edition means
 #: updating this value, the spec, and the implementing factory together.
 CNA_RULES_REFERENCE_EDITION: Final[str] = "4.1.0"
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysFail(name)
 
 
 class DeterministicEvaluateCveEligibility(EvaluateCveEligibilityCapability):
@@ -120,12 +123,12 @@ class AssignCveIdCallOutBundle(CallOutBundle):
 
     # -- Early-exit Retriever ------------------------------------------------
     id_assigned_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(IdAssignedCapability)  # type: ignore[assignment]
     )
     """IdAssigned: p=0.25 → AlwaysFail (deterministic: ID not yet assigned).
 
     Store-held answer (BT-18-039): **cannot**.  The case file has no field
-    for an assigned identifier, and a ``VulnerabilityRecord`` in the actor's
+    for an assigned identifier, and a ``VulnerabilityItem`` in the actor's
     store names no case, so no read-first guard precedes this Retriever.  The
     ``ids`` a ``ReportClaimsRecord`` lists are what a sender's attached
     document claims, not an assignment, so they do not answer it either.
@@ -133,18 +136,18 @@ class AssignCveIdCallOutBundle(CallOutBundle):
 
     # -- InScope Evaluator ---------------------------------------------------
     in_scope_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(InScopeCapability)  # type: ignore[assignment]
     )
     """InScope: p=0.75 → AlwaysSucceed."""
 
     # -- Authority-gate Evaluators -------------------------------------------
     product_in_cna_scope_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(ProductInCNAScopeCapability)  # type: ignore[assignment]
     )
     """ProductInCNAScope: p=0.75 → AlwaysSucceed."""
 
     is_most_appropriate_cna_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(IsMostAppropriateCNACapability)  # type: ignore[assignment]
     )
     """IsMostAppropriateCNA: p=0.75 → AlwaysSucceed."""
 
@@ -162,12 +165,12 @@ class AssignCveIdCallOutBundle(CallOutBundle):
 
     # -- Composer and Retriever action nodes ---------------------------------
     assign_id_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(AssignIdCapability)  # type: ignore[assignment]
     )
     """AssignId: p=1.00 → AlwaysSucceed."""
 
     request_id_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(RequestIdCapability)  # type: ignore[assignment]
     )
     """RequestId (Retriever): p=0.75 → AlwaysSucceed.
 

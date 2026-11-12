@@ -36,12 +36,13 @@ a new outbound activity cannot be added without being audited here.
 import inspect
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_delivered
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -154,6 +155,7 @@ class _World:
             content="c",
             context_id=self.case_id,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
         self.note_id = note_id
 
@@ -221,6 +223,7 @@ class _World:
             actor=_PEER,
             to=_ACTOR,
             target=_ACTOR,
+            at=authored_at(),
         )
         self.deliver(_PEER, offer_id, holder)
         return offer_id
@@ -228,7 +231,11 @@ class _World:
     def invite_id(self) -> str:
         """An Invite as the invitee holds it: archived by intake (CLP-10-017)."""
         invite_id, _ = self.adapter.invite_actor_to_case(
-            invitee_id=_PEER, case_id=self.case_id, actor=_ACTOR, to=[_PEER]
+            invitee_id=_PEER,
+            case_id=self.case_id,
+            actor=_ACTOR,
+            to=[_PEER],
+            at=authored_at(),
         )
         self.deliver(_ACTOR, invite_id, _PEER)
         return invite_id
@@ -242,6 +249,7 @@ class _World:
             to=[_PEER],
             ledger_log_index=3,
             ledger_entry_hash="ab" * 32,
+            at=authored_at(),
         )
         self.deliver(_ACTOR, invite_id, _PEER)
         return invite_id
@@ -253,6 +261,7 @@ class _World:
             case_id=self.case_id,
             actor=_PEER,
             to=[_ACTOR],
+            at=authored_at(),
         )
         self.deliver(_PEER, rec_id, _ACTOR)
         return rec_id
@@ -265,6 +274,7 @@ class _World:
             actor=_ACTOR,
             origin=self.recommendation_id(),
             to=[_ACTOR],
+            at=authored_at(),
         )
         # The CASE_MANAGER answers the Offer it received, as the body that
         # was delivered (DL-06-006, ADR-0149).
@@ -278,6 +288,7 @@ class _World:
             case_id=self.case_id,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
         if holder != _ACTOR:
             self.deliver(_ACTOR, proposal_id, holder)
@@ -289,6 +300,7 @@ class _World:
             report_id=str(self.report.id_),
             case_actor_id=_CASE_ACTOR,
             to=[_CASE_ACTOR],
+            at=authored_at(),
         )
         proposal = json.loads(blob)["object"]
         assert isinstance(proposal, dict)
@@ -297,7 +309,11 @@ class _World:
     def ownership_offer_id(self) -> str:
         """The CASE_MANAGER's Offer as the transferee holds it (archived)."""
         offer_id, blob = self.adapter.offer_case_ownership_transfer(
-            case_id=self.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
+            case_id=self.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_PEER],
+            at=authored_at(),
         )
         # The transferee answers the Offer it received, as delivered
         # (DL-06-006, ADR-0148).
@@ -310,6 +326,7 @@ class _World:
             transferee_id=_PEER,
             actor=_ACTOR,
             to=[_CASE_ACTOR],
+            at=authored_at(),
         )
         return proposal_id
 
@@ -346,52 +363,62 @@ Recipe = Callable[[_World], Any]
 RECIPES: dict[str, Recipe] = {
     # notes
     "add_note_to_case": lambda w: w.adapter.add_note_to_case(
-        note_id=w.note_id, case_id=w.case_id, actor=_ACTOR, to=[_PEER]
+        note_id=w.note_id,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_PEER],
+        at=authored_at(),
     ),
     # reports
     "submit_report": lambda w: w.adapter_as(_PEER).submit_report(
-        report_id=str(w.report.id_), actor=_PEER, to=_ACTOR, target=_ACTOR
+        report_id=str(w.report.id_),
+        actor=_PEER,
+        to=_ACTOR,
+        target=_ACTOR,
+        at=authored_at(),
     ),
     "validate_report": lambda w: w.adapter.validate_report(
         offer_id=w.offer_id(),
         report_id=str(w.report.id_),
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "close_report": lambda w: w.adapter.close_report(
         offer_id=w.offer_id(),
         report_id=str(w.report.id_),
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "invalidate_report": lambda w: w.adapter.invalidate_report(
-        offer_id=w.offer_id(), actor=_ACTOR, to=[_PEER]
+        offer_id=w.offer_id(), actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     "ack_report": lambda w: w.adapter.ack_report(
-        offer_id=w.offer_id(), actor=_ACTOR, to=[_PEER]
+        offer_id=w.offer_id(), actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     # cases
     "create_case": lambda w: w.adapter.create_case(
-        case_id=w.case_id, actor=_ACTOR, to=[_PEER]
+        case_id=w.case_id, actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     "engage_case": lambda w: w.adapter.engage_case(
-        case_id=w.case_id, actor=_ACTOR, to=[_PEER]
+        case_id=w.case_id, actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     "defer_case": lambda w: w.adapter.defer_case(
-        case_id=w.case_id, actor=_ACTOR, to=[_PEER]
+        case_id=w.case_id, actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     "close_case": lambda w: w.adapter.close_case(
-        case_id=w.case_id, actor=_ACTOR, to=[_PEER]
+        case_id=w.case_id, actor=_ACTOR, to=[_PEER], at=authored_at()
     ),
     "reject_close_case": lambda w: w.adapter.reject_close_case(
-        case_id=w.case_id, actor=_ACTOR, close_sender=_PEER
+        case_id=w.case_id, actor=_ACTOR, close_sender=_PEER, at=authored_at()
     ),
     # The genesis entry is the creation's own Create, read back (ADR-0157).
     "record_case_created": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_case_created(
         create_activity_id=w.adapter_as(_CASE_ACTOR).create_case(
-            case_id=w.case_id, actor=_CASE_ACTOR, to=[_PEER]
+            case_id=w.case_id, actor=_CASE_ACTOR, to=[_PEER], at=authored_at()
         )[0]
     ),
     "record_report_added_to_case": lambda w: w.adapter_as(
@@ -402,6 +429,7 @@ RECIPES: dict[str, Recipe] = {
         actor=_CASE_ACTOR,
         offer_id=w.offer_id(holder=_CASE_ACTOR),
         offer_actor_id=_PEER,
+        at=authored_at(),
     ),
     "record_participant_status_added": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -410,16 +438,23 @@ RECIPES: dict[str, Recipe] = {
         participant=w.participant,
         case_id=w.case_id,
         actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_case_status_added": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_case_status_added(
-        status=w.case.current_status, case_id=w.case_id, actor=_CASE_ACTOR
+        status=w.case.current_status,
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_case_participant_created": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_case_participant_created(
-        participant=w.participant, case_id=w.case_id, actor=_CASE_ACTOR
+        participant=w.participant,
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_case_participant_updated": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -428,11 +463,15 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         cause_id=_CAUSE_ID,
+        at=authored_at(),
     ),
     "record_embargo_event_created": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_embargo_event_created(
-        embargo=w.embargo, case_id=w.case_id, actor=_CASE_ACTOR
+        embargo=w.embargo,
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_embargo_consent_created": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -440,6 +479,7 @@ RECIPES: dict[str, Recipe] = {
         row=w.consent_row(EmbargoConsentState.UNINVITED),
         case_id=w.case_id,
         actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_embargo_consent_updated": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -448,11 +488,12 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         cause_id=_CAUSE_ID,
+        at=authored_at(),
     ),
     "record_case_owner_updated": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).record_case_owner_updated(
-        case=w.case, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
+        case=w.case, actor=_CASE_ACTOR, cause_id=_CAUSE_ID, at=authored_at()
     ),
     "record_case_announced": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -460,13 +501,22 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         object_id=w.case_id,
+        at=authored_at(),
     ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(
-        actor=_ACTOR, object_id=w.note_id, case_id=w.case_id, to=[_PEER]
+        actor=_ACTOR,
+        object_id=w.note_id,
+        case_id=w.case_id,
+        to=[_PEER],
+        at=authored_at(),
     ),
     "announce_vulnerability_case": lambda w: (
         w.adapter.announce_vulnerability_case(
-            case_id=w.case_id, actor=_ACTOR, context_id=w.case_id, to=[_PEER]
+            case_id=w.case_id,
+            actor=_ACTOR,
+            context_id=w.case_id,
+            to=[_PEER],
+            at=authored_at(),
         )
     ),
     "create_case_proposal": lambda w: w.adapter_as(_PEER).create_case_proposal(
@@ -474,11 +524,15 @@ RECIPES: dict[str, Recipe] = {
         report_id=str(w.report.id_),
         case_actor_id=_CASE_ACTOR,
         to=[_CASE_ACTOR],
+        at=authored_at(),
     ),
     "reject_case_proposal": lambda w: w.adapter_as(
         _CASE_ACTOR
     ).reject_case_proposal(
-        actor=_CASE_ACTOR, proposal=w.case_proposal(), to=[_PEER]
+        actor=_CASE_ACTOR,
+        proposal=w.case_proposal(),
+        to=[_PEER],
+        at=authored_at(),
     ),
     "accept_case_proposal": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -487,6 +541,7 @@ RECIPES: dict[str, Recipe] = {
         proposal=w.case_proposal(),
         to=[_PEER],
         result=w.case_id,
+        at=authored_at(),
     ),
     "emit_prepared_create_case": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -497,24 +552,28 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "accept_embargo": lambda w: w.adapter_as(_PEER).accept_embargo(
         proposal_id=w.proposal_id(holder=_PEER),
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "reject_embargo": lambda w: w.adapter_as(_PEER).reject_embargo(
         proposal_id=w.proposal_id(holder=_PEER),
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "undo_embargo_invite": lambda w: w.adapter.undo_embargo_invite(
         invite_id=w.proposal_id(),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "activate_embargo": lambda w: w.adapter.activate_embargo(
         embargo_id=str(w.embargo.id_),
@@ -522,6 +581,7 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "reject_embargo_proposal": lambda w: w.adapter.reject_embargo_proposal(
         embargo_id=str(w.embargo.id_),
@@ -529,12 +589,14 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "announce_embargo": lambda w: w.adapter.announce_embargo(
         embargo_id=str(w.embargo.id_),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "terminate_embargo": lambda w: w.adapter.terminate_embargo(
         embargo_id=str(w.embargo.id_),
@@ -542,12 +604,14 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         to=[_PEER],
         reason=TerminationReason.EARLY,
+        at=authored_at(),
     ),
     "withdraw_from_embargo": lambda w: w.adapter.withdraw_from_embargo(
         embargo_id=str(w.embargo.id_),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     # actors
     "invite_actor_to_case": lambda w: w.adapter.invite_actor_to_case(
@@ -556,12 +620,13 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         to=[_PEER],
         roles=["vendor"],
+        at=authored_at(),
     ),
     "accept_case_invite": lambda w: w.adapter_as(_PEER).accept_case_invite(
-        invite_id=w.invite_id(), actor=_PEER
+        invite_id=w.invite_id(), actor=_PEER, at=authored_at()
     ),
     "reject_case_invite": lambda w: w.adapter_as(_PEER).reject_case_invite(
-        invite_id=w.invite_id(), actor=_PEER
+        invite_id=w.invite_id(), actor=_PEER, at=authored_at()
     ),
     "invite_actor_to_full_case": lambda w: w.adapter.invite_actor_to_full_case(
         invitee_id=_PEER,
@@ -570,6 +635,7 @@ RECIPES: dict[str, Recipe] = {
         to=[_PEER],
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
+        at=authored_at(),
     ),
     "accept_full_case_invite": lambda w: w.adapter_as(
         _PEER
@@ -578,6 +644,7 @@ RECIPES: dict[str, Recipe] = {
         actor=_PEER,
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
+        at=authored_at(),
     ),
     "tentative_reject_full_case_invite": lambda w: w.adapter_as(
         _PEER
@@ -586,6 +653,7 @@ RECIPES: dict[str, Recipe] = {
         actor=_PEER,
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
+        at=authored_at(),
     ),
     "reject_full_case_invite": lambda w: w.adapter_as(
         _PEER
@@ -594,11 +662,16 @@ RECIPES: dict[str, Recipe] = {
         actor=_PEER,
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
+        at=authored_at(),
     ),
     "suggest_actor_to_case": lambda w: w.adapter_as(
         _PEER
     ).suggest_actor_to_case(
-        recommended_id=_PEER, case_id=w.case_id, actor=_PEER, to=[_ACTOR]
+        recommended_id=_PEER,
+        case_id=w.case_id,
+        actor=_PEER,
+        to=[_ACTOR],
+        at=authored_at(),
     ),
     "offer_actor_to_case": lambda w: w.adapter.offer_actor_to_case(
         recommender_id=_PEER,
@@ -607,15 +680,22 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         origin=w.recommendation_id(),
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "accept_case_participant_offer": lambda w: (
         w.adapter.accept_case_participant_offer(
-            cp_offer_id=w.cp_offer_id(), actor=_ACTOR, to=[_CASE_ACTOR]
+            cp_offer_id=w.cp_offer_id(),
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+            at=authored_at(),
         )
     ),
     "reject_case_participant_offer": lambda w: (
         w.adapter.reject_case_participant_offer(
-            cp_offer_id=w.cp_offer_id(), actor=_ACTOR, to=[_CASE_ACTOR]
+            cp_offer_id=w.cp_offer_id(),
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+            at=authored_at(),
         )
     ),
     "emit_accept_actor_recommendation": lambda w: (
@@ -626,6 +706,7 @@ RECIPES: dict[str, Recipe] = {
             case_id=w.case_id,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
     ),
     "emit_reject_actor_recommendation": lambda w: (
@@ -636,6 +717,7 @@ RECIPES: dict[str, Recipe] = {
             case_id=w.case_id,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
     ),
     "add_participant_to_case": lambda w: w.adapter.add_participant_to_case(
@@ -643,6 +725,7 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     ),
     "remove_participant_from_case": lambda w: (
         w.adapter.remove_participant_from_case(
@@ -651,6 +734,7 @@ RECIPES: dict[str, Recipe] = {
             actor=_ACTOR,
             attributed_to=_PEER,
             to=[_PEER],
+            at=authored_at(),
         )
     ),
     "add_participant_status_to_participant": lambda w: w.adapter_as(
@@ -660,6 +744,7 @@ RECIPES: dict[str, Recipe] = {
         participant_id=str(w.participant.id_),
         actor=_PEER,
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "offer_case_participant_role": lambda w: (
         w.adapter.offer_case_participant_role(
@@ -668,6 +753,7 @@ RECIPES: dict[str, Recipe] = {
             target_actor_id=_CASE_ACTOR,
             actor=_ACTOR,
             to=[_CASE_ACTOR],
+            at=authored_at(),
         )
     ),
     "accept_case_participant_role": lambda w: w.adapter_as(
@@ -680,6 +766,7 @@ RECIPES: dict[str, Recipe] = {
         vendor_id=_ACTOR,
         actor=_CASE_ACTOR,
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "reject_case_participant_role": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -691,6 +778,7 @@ RECIPES: dict[str, Recipe] = {
         vendor_id=_ACTOR,
         actor=_CASE_ACTOR,
         to=[_ACTOR],
+        at=authored_at(),
     ),
     "propose_case_ownership_transfer": lambda w: (
         w.adapter.propose_case_ownership_transfer(
@@ -698,26 +786,40 @@ RECIPES: dict[str, Recipe] = {
             transferee_id=_PEER,
             actor=_ACTOR,
             to=[_CASE_ACTOR],
+            at=authored_at(),
         )
     ),
     "offer_case_ownership_transfer": lambda w: (
         w.adapter.offer_case_ownership_transfer(
-            case_id=w.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
+            case_id=w.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_PEER],
+            at=authored_at(),
         )
     ),
     "accept_case_ownership_transfer": lambda w: w.adapter_as(
         _PEER
     ).accept_case_ownership_transfer(
-        offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
+        offer_id=w.ownership_offer_id(),
+        actor=_PEER,
+        to=[_ACTOR],
+        at=authored_at(),
     ),
     "reject_case_ownership_transfer": lambda w: w.adapter_as(
         _PEER
     ).reject_case_ownership_transfer(
-        offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
+        offer_id=w.ownership_offer_id(),
+        actor=_PEER,
+        to=[_ACTOR],
+        at=authored_at(),
     ),
     "withdraw_case_ownership_transfer": lambda w: (
         w.adapter.withdraw_case_ownership_transfer(
-            offer_id=w.ownership_proposal_id(), actor=_ACTOR, to=[_CASE_ACTOR]
+            offer_id=w.ownership_proposal_id(),
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+            at=authored_at(),
         )
     ),
     # faults
@@ -726,6 +828,7 @@ RECIPES: dict[str, Recipe] = {
         failed_activity_id="https://example.org/activities/failed-1",
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
         to=[_PEER],
+        at=authored_at(),
     ),
     "refusal_notice": lambda w: w.adapter.refusal_notice(
         case_id="https://example.org/cases/refused-1",
@@ -735,6 +838,7 @@ RECIPES: dict[str, Recipe] = {
         ),
         asserter=_PEER,
         reason="a precondition did not hold",
+        at=authored_at(),
     ),
 }
 
@@ -892,6 +996,7 @@ def test_suggested_roles_survive_into_the_sealed_body(world):
         actor=_PEER,
         to=[_ACTOR],
         roles=["deployer"],
+        at=authored_at(),
     )
     assert json.loads(blob)["suggestedRoles"] == ["deployer"]
 
@@ -1015,6 +1120,7 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
             case_id=world.case_id,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
         recommendation: dict[str, Any] = json.loads(blob)["object"]
         return recommendation
@@ -1030,3 +1136,23 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     assert "published" not in first
     assert "updated" not in first
     assert first == second
+
+
+@pytest.mark.spec("AKM-02-006")
+def test_a_rebuilt_close_leave_carries_no_time(world):
+    """The rejecter's rebuild of the owner's close ``Leave`` carries no time.
+
+    The owner stated the Leave's ``published``, which this actor does not
+    hold (AKM-02-006), so the Reject's own instant is not stamped on the
+    embedded Leave.
+    """
+    at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+    _, blob = world.adapter.reject_close_case(
+        case_id=world.case_id, actor=_ACTOR, close_sender=_PEER, at=at
+    )
+    body = json.loads(blob)
+    leave = body["object"]
+
+    assert datetime.fromisoformat(body["published"]) == at
+    assert "published" not in leave
+    assert "updated" not in leave

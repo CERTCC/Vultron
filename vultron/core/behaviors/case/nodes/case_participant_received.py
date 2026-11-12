@@ -469,4 +469,5 @@ class EmitParticipantRemovalNoticeNode(EmitParticipantMoveNoticeNode):
             actor=actor,
             attributed_to=attributed_to,
             to=to,
+            at=self._require_act_instant(),
         )

@@ -123,6 +123,7 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
             id_=role_offer_forward_id(
                 self.actor_id, self.case_id, self.offer_id
             ),
+            at=self._require_act_instant(),
         )
 
     def update(self) -> Status:
@@ -257,6 +258,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             id_=derived_activity_id(
                 self._SEMANTIC_TYPE, self.actor_id, self.case_id, self.offer_id
             ),
+            at=self._require_act_instant(),
         )
 
     def _validate_context(self) -> Status | None:

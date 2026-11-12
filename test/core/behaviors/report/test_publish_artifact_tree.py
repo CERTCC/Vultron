@@ -446,3 +446,27 @@ def test_review_decision_key_is_declared():
         ReviewAdvisoryDraft.contract.outputs[REVIEW_DECISION_KEY]
         is AdvisoryReviewDecision
     )
+
+
+# ---------------------------------------------------------------------------
+# BT-23-013: the DETERMINISTIC defaults write what the tree reads
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("BT-23-013")
+def test_full_tick_with_deterministic_defaults_writes_draft_and_review():
+    """No stand-in writes a key: the defaults give the draft and the review.
+
+    The review default answers *yes* with an ``AdvisoryReviewDecision`` that
+    asks for no revision, so the revision arm is skipped on the gate's read
+    of a written record, not on a missing one.
+    """
+    py_trees.blackboard.Blackboard.storage.clear()
+    status = _tick_tree(create_publish_artifact_tree(case_id=CASE_ID))
+    storage = py_trees.blackboard.Blackboard.storage
+    assert status == Status.SUCCESS
+    assert isinstance(storage[f"/{DRAFT_ARTIFACT_KEY}"], str)
+    decision = storage[f"/{REVIEW_DECISION_KEY}"]
+    assert isinstance(decision, AdvisoryReviewDecision)
+    assert decision.needs_revision is False
+    py_trees.blackboard.Blackboard.storage.clear()

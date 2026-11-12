@@ -17,7 +17,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -54,6 +54,7 @@ def _note():
         make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
+        at=authored_at(),
     )
 
 
@@ -123,6 +124,7 @@ def test_a_processing_fault_from_a_case_holder_carries_no_position(
         failure_class="https://example.org/faults/x",
         to=["https://example.org/users/manager"],
         case_id=_CASE,
+        at=authored_at(),
     )
 
     body = read_sealed_body_dict(dl, fault_id)
@@ -140,7 +142,10 @@ def test_the_stored_activity_and_its_sealed_body_carry_one_position(
     )
 
     activity_id, _ = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=f"{_CASE}/notes/3", case_id=_CASE, actor=_ACTOR
+        note_id=f"{_CASE}/notes/3",
+        case_id=_CASE,
+        actor=_ACTOR,
+        at=authored_at(),
     )
 
     body = read_sealed_body_dict(dl, activity_id)
@@ -163,6 +168,7 @@ def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
             actor_id=_ACTOR,
             to=["https://example.org/users/manager"],
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
 
     assert list(dl.outbox_list()) == []
@@ -179,6 +185,7 @@ def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     (reject_id,) = dl.outbox_list()
@@ -208,6 +215,7 @@ def test_a_genesis_replay_repeat_under_another_announce_names_the_first(
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
         in_reply_to=first_announce,
+        at=authored_at(),
     )
     (reject_id,) = dl.outbox_list()
     assert dl.outbox_pop() == reject_id  # the drain took it
@@ -217,6 +225,7 @@ def test_a_genesis_replay_repeat_under_another_announce_names_the_first(
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
         in_reply_to="https://example.org/activities/later-copy-announce",
+        at=authored_at(),
     )
 
     assert list(dl.outbox_list()) == [reject_id]

@@ -287,7 +287,7 @@ def reload_config() -> AppConfig:
 
 
 @contextmanager
-def config_override(**env_updates: str) -> Generator[AppConfig, None, None]:
+def config_override(**env_updates: str) -> Generator[AppConfig]:
     """Atomically patch env vars, reload the config cache, and restore on exit.
 
     Sets each key in *env_updates* as an environment variable, reloads the
