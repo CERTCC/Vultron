@@ -22,6 +22,7 @@ catch both.
 Spec: TB-13-001 (``specs/testability.yaml``).
 """
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -59,3 +60,27 @@ def test_a_readable_file_is_cached(tmp_path: Path) -> None:
     cache: dict[Path, str] = {}
     _corpus._read_into(cache, good)
     assert cache == {good: "value = 'é'\n"}
+
+
+def test_every_corpus_read_goes_through_the_shared_helper() -> None:
+    """``_corpus`` reads file text only inside ``_read_into``.
+
+    The tests above pin the helper; this pins that the import-time loops use
+    it, so a loop that went back to its own ``try``/``except OSError`` would
+    fail here rather than at the next non-UTF-8 file.
+    """
+    tree = ast.parse(Path(_corpus.__file__).read_text(encoding="utf-8"))
+    helper = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_read_into"
+    )
+    inside = {id(node) for node in ast.walk(helper)}
+    stray = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and _corpus.callee_name(node.func) == "read_text"
+        and id(node) not in inside
+    ]
+    assert stray == [], f"read_text outside _read_into at lines {stray}"

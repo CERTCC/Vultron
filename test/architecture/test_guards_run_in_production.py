@@ -372,6 +372,17 @@ def _check(*, limit=None):
         pytest.param("check = _check", id="alias"),
         pytest.param('CHECKS = {"limit": _check}', id="dispatch-table"),
         pytest.param('check = getattr(RULES, "_check")', id="getattr"),
+        pytest.param(
+            'check = inspect.getattr_static(RULES, "_check")',
+            id="getattr-static",
+        ),
+        pytest.param(
+            'check = operator.attrgetter("rules._check")', id="attrgetter"
+        ),
+        pytest.param(
+            'check = operator.methodcaller("_check", limit=5)',
+            id="methodcaller",
+        ),
         pytest.param("register(callback=RULES._check)", id="bound-callback"),
     ],
 )
@@ -408,6 +419,35 @@ def run():
     # _check(limit=5)
     return _check()
 '''
+    )
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:5 _check() [limit]"
+    }
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        pytest.param('getattr(RULES, prefix + "check")', id="run-time-name"),
+        pytest.param("getattr(RULES)", id="one-argument"),
+        pytest.param("getattr(RULES, 5)", id="non-string-constant"),
+        pytest.param('vars(RULES)["_check"]', id="mapping-lookup"),
+    ],
+)
+def test_detector_does_not_read_a_lookup_without_a_literal_name(
+    lookup: str,
+) -> None:
+    """A lookup that spells no readable attribute name supplies nothing.
+
+    The disclosed loose reading, pinned for arm B: only an attribute-by-name
+    call's string literal counts, so none of these opens the gate.
+    """
+    source = (
+        _UNOPENED_GATE
+        + f"""
+def run(prefix):
+    return {lookup}
+"""
     )
     assert _reach.findings_in_source(source).unsupplied == {
         "inline.py:5 _check() [limit]"
@@ -591,20 +631,42 @@ def validate(value):
     assert "_never_imported_here" not in referenced
 
 
-def test_detector_counts_a_getattr_name_as_a_reference() -> None:
-    """A guard reached only through ``getattr(obj, "_guard")`` is reached.
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        pytest.param(
+            'getattr(self, "_refuse_unless_open")(state)', id="getattr"
+        ),
+        pytest.param(
+            'inspect.getattr_static(self, "_refuse_unless_open")(self, state)',
+            id="getattr-static",
+        ),
+        pytest.param(
+            'operator.attrgetter("node._refuse_unless_open")(self)(state)',
+            id="attrgetter",
+        ),
+        pytest.param(
+            'operator.methodcaller("_refuse_unless_open", state)(self)',
+            id="methodcaller",
+        ),
+    ],
+)
+def test_detector_counts_an_attribute_name_literal_as_a_reference(
+    lookup: str,
+) -> None:
+    """A guard reached only by an attribute-by-name call is reached.
 
-    The call leaves no name load, so only reading the ``getattr`` literal
-    sees it; the prose test above holds that no other string counts.
+    The call leaves no name load, so only reading its literal sees it; the
+    prose test above holds that no other string counts.
     """
-    source = """
+    source = f"""
 class Node:
     def _refuse_unless_open(self, state):
         if state != "open":
             raise ValueError("closed")
 
     def update(self, state):
-        return getattr(self, "_refuse_unless_open")(state)
+        return {lookup}
 """
     assert _reach.findings_in_source(source).unreached == frozenset()
 
