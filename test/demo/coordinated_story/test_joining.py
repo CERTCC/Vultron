@@ -52,44 +52,52 @@ from vultron.demo.utils.check_tree import (
     CheckOutcome,
     recording_checks,
 )
-from vultron.demo.utils.failures import demo_failures
+from vultron.demo.utils.failures import assert_demo_success, demo_failures
 from vultron.enums.roles import CVDRole
-from vultron.errors import DemoStoryError
+from vultron.errors import DemoFailureError, DemoStoryError
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 
 @contextlib.contextmanager
-def _join_stubs() -> Iterator[SimpleNamespace]:
+def _join_patches(
+    roster_error: Exception | None = None,
+) -> Iterator[SimpleNamespace]:
     """Stub every collaborator of ``invitee_joins_the_case``.
 
     Yields the invite chain, the roster wait and the RM triage, so a test can
-    say which of the three ran and what each was handed.  The demo context
-    managers stay real: every wait their blocks make is one of these stubs,
-    and a stub that raised would be recorded and suppressed rather than
-    failing the test, so the block's exit asserts that nothing was recorded
-    (``vultron/demo/AGENTS.md`` § "Gate Each Step on Its Cause" rule 8).
+    say which of the three ran and what each was handed.  *roster_error*, when
+    given, is what the roster wait raises.  The demo context managers stay
+    real: every wait their blocks make is one of these stubs.
     """
     with (
         patch.object(coordinated_joining, "wait_for_case_on_container"),
         patch.object(coordinated_joining, "run_case_invite_chain") as chain,
         patch.object(
-            coordinated_joining, "wait_for_case_participants"
+            coordinated_joining,
+            "wait_for_case_participants",
+            side_effect=roster_error,
         ) as roster,
         patch.object(
             coordinated_joining, "run_invite_path_rm_triage"
         ) as triage,
     ):
         yield SimpleNamespace(chain=chain, roster=roster, triage=triage)
-    _assert_no_demo_failures()
 
 
-def _assert_no_demo_failures() -> None:
-    """Fail on anything a real demo context manager recorded and suppressed."""
-    assert not demo_failures(), (
-        f"a demo block recorded a failure: {demo_failures()!r}"
-    )
+@contextlib.contextmanager
+def _join_stubs() -> Iterator[SimpleNamespace]:
+    """:func:`_join_patches` for a join every stub of which succeeds.
+
+    A stub that raised inside a real block would be recorded and suppressed
+    rather than failing the test, so the block's exit raises on anything
+    recorded (``vultron/demo/AGENTS.md`` § "Gate Each Step on Its Cause"
+    rule 8).
+    """
+    with _join_patches() as stubs:
+        yield stubs
+    assert_demo_success()
 
 
 @contextlib.contextmanager
@@ -202,13 +210,7 @@ class TestInviteeJoinsTheCase:
         """
         state = story_state(*CAST, JOINER, case=mock_case())
 
-        with (
-            patch.object(coordinated_joining, "wait_for_case_on_container"),
-            patch.object(
-                coordinated_joining, "run_case_invite_chain"
-            ) as chain,
-            patch.object(coordinated_joining, "wait_for_case_participants"),
-        ):
+        with _join_stubs() as stubs:
             invitee_joins_the_case(
                 state,
                 JOINER,
@@ -218,7 +220,7 @@ class TestInviteeJoinsTheCase:
                 triages=False,
                 joined=JOINED,
             )
-            chain.call_args.kwargs["then"]()
+            stubs.chain.call_args.kwargs["then"]()
 
         assert state.kept(JOINED) == str(state.case.id_)
 
@@ -233,17 +235,7 @@ class TestInviteeJoinsTheCase:
         """
         state = story_state(*CAST, JOINER, case=mock_case())
 
-        with (
-            patch.object(coordinated_joining, "wait_for_case_on_container"),
-            patch.object(
-                coordinated_joining, "run_case_invite_chain"
-            ) as chain,
-            patch.object(
-                coordinated_joining,
-                "wait_for_case_participants",
-                side_effect=AssertionError("roster never filled"),
-            ),
-        ):
+        with _join_patches(AssertionError("roster never filled")) as stubs:
             invitee_joins_the_case(
                 state,
                 JOINER,
@@ -253,7 +245,7 @@ class TestInviteeJoinsTheCase:
                 triages=False,
                 joined=JOINED,
             )
-            chain.call_args.kwargs["then"]()
+            stubs.chain.call_args.kwargs["then"]()
 
         with pytest.raises(
             DemoStoryError, match="no case the test joiner joined yet"
@@ -273,18 +265,7 @@ class TestInviteeJoinsTheCase:
         label = f"{COORDINATOR_LABEL} case has Joiner before Joiner RM triage"
 
         with (
-            patch.object(coordinated_joining, "wait_for_case_on_container"),
-            patch.object(
-                coordinated_joining, "run_case_invite_chain"
-            ) as chain,
-            patch.object(
-                coordinated_joining,
-                "wait_for_case_participants",
-                side_effect=AssertionError("roster never filled"),
-            ),
-            patch.object(
-                coordinated_joining, "run_invite_path_rm_triage"
-            ) as triage,
+            _join_patches(AssertionError("roster never filled")) as stubs,
             recording_checks() as recorder,
         ):
             invitee_joins_the_case(
@@ -316,9 +297,31 @@ class TestInviteeJoinsTheCase:
         assert demo_failures() == (
             f"GATE FAILED: {label} — roster never filled",
         )
-        chain.assert_called_once()
+        stubs.chain.assert_called_once()
         # The triage depends on the roster, so the gate skipped it.
-        triage.assert_not_called()
+        stubs.triage.assert_not_called()
+
+    def test_the_join_stubs_fail_on_a_failure_a_real_block_suppressed(self):
+        """The guard that keeps the real context managers from failing open.
+
+        A stub that raised inside a real block is recorded and suppressed, so
+        without the check at :func:`_join_stubs`' exit a test whose stub broke
+        would pass on assertions about calls made before the break.
+        """
+        state = story_state(*CAST, JOINER, case=mock_case())
+
+        with (
+            pytest.raises(DemoFailureError, match="1 demo failure"),
+            _join_stubs() as stubs,
+        ):
+            stubs.roster.side_effect = AssertionError("roster never filled")
+            invitee_joins_the_case(
+                state,
+                JOINER,
+                "Joiner",
+                role=CVDRole.VENDOR,
+                seated=(REPORTER, COORDINATOR, VENDOR, JOINER),
+            )
 
     @pytest.mark.spec("DEMOCI-01-011")
     def test_a_prop_asked_for_on_the_triaging_path_is_refused(self):
@@ -567,7 +570,7 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
         ):
             vendor_accepts_and_joins(state)
 
-        _assert_no_demo_failures()
+        assert_demo_success()
 
         assert "reporter_wait" in call_order, (
             "wait_for_case_on_container(reporter_client) was never called"
@@ -620,7 +623,7 @@ class TestVendorAcceptsAndJoins:
         ):
             vendor_accepts_and_joins(state)
 
-        _assert_no_demo_failures()
+        assert_demo_success()
 
         reply.assert_called_once()
         assert (

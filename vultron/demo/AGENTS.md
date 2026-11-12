@@ -106,7 +106,8 @@ sub-issues were this one defect in different scenarios.
    effect can be *lost* rather than delayed, in which case the protocol must
    buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
 8. **Test gates against the real context manager**, and read a run's checks by
-   `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127).
+   `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127);
+   for one kind's labels use `test.demo._helpers.recorded_labels(kind)` (#6155).
    Stubbing one out with `contextlib.nullcontext` makes the assertion propagate and
    the test pass while proving nothing — how the missing `engage-case` gate escaped.
 9. **Two milestones in a row assert two different things**, each label describing
