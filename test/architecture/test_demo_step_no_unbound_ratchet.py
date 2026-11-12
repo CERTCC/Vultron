@@ -48,8 +48,12 @@ step.  It fails if any name is:
 2. Assigned anywhere inside a later ``demo_step``, ``demo_check`` or
    ``demo_gate`` body — nested assignments included, since a block that
    raises early never reaches them either, and a producing block one level
-   in, inside an ``if``, ``for``, ``try`` or ``match``, counts too, AND
-3. Read after that block closes, before any guard on it.
+   in, inside an ``if``, ``for``, ``try``, ``match`` or another guarded
+   block, counts too.  The innermost guarded block that writes the name owns
+   the record, AND
+3. Read after that block closes, before any guard on it — in the rest of an
+   enclosing block, a ``try``'s ``else`` or ``finally``, the next iteration
+   of an enclosing loop, or after all of them (#5904).
 
 A **read** is the name passed to a call — directly, or inside a ``dict``,
 ``list``, ``tuple``, ``set``, star-unpack or f-string argument, because
@@ -63,7 +67,10 @@ A **guard** is a comparison of the name against a placeholder (``is None``,
 placeholder.  The first guard, rebinding or read in evaluation order decides,
 so a guard beside the later reads defends them as an enclosing one would —
 deliberate, because ``if x is None: raise`` is the shape the authoring note
-asks for.  Nested function and class bodies are a separate scope and are not
+asks for.  That holds at the statement level only: a guard or rebinding inside
+a branch that may not run — an ``if`` or loop body, a ``try`` arm other than
+``finally``, a ``match`` case, a guarded block's body — decides nothing past
+the branch, though a read inside it still counts (#5904).  Nested function and class bodies are a separate scope and are not
 followed, nor is a ``lambda`` or a comprehension that binds the name itself:
 there the name is a different variable, and a rebinding — ``:=`` included —
 ends the sentinel rather than reading it.
@@ -82,7 +89,7 @@ import ast
 import functools
 import pathlib
 from collections.abc import Iterator, Sequence
-from typing import NamedTuple
+from typing import NamedTuple, TypeGuard
 
 import pytest
 
@@ -142,10 +149,10 @@ def _assigned_shallow(stmts: list) -> set:
         elif (
             isinstance(stmt, ast.AugAssign)
             or (isinstance(stmt, ast.AnnAssign) and stmt.value is not None)
-            or isinstance(stmt, ast.For)
+            or isinstance(stmt, (ast.For, ast.AsyncFor))
         ):
             names.update(_store_names(stmt.target))
-        elif isinstance(stmt, ast.With):
+        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
             for item in stmt.items:
                 if item.optional_vars:
                     names.update(_store_names(item.optional_vars))
@@ -313,17 +320,28 @@ def _rebound_names(node: ast.AST) -> set[str]:
     return names
 
 
-def _assigned_within(stmts: list[ast.stmt]) -> set[str]:
-    """Names assigned anywhere in *stmts*, not crossing a nested scope.
+def _is_guarded_block(node: ast.AST) -> TypeGuard[ast.With]:
+    """True for a ``with`` over ``demo_step``, ``demo_check`` or ``demo_gate``."""
+    return isinstance(node, ast.With) and _cm_name(node) in _GUARDED_CMS
+
+
+def _assigned_by_block_itself(stmts: list[ast.stmt]) -> set[str]:
+    """Names *stmts* assign anywhere outside a nested guarded block.
 
     Wider than :func:`_assigned_shallow`, which the unbound check needs: a
-    sentinel written inside a nested ``demo_check`` is just as unwritten when
-    the enclosing block raises before reaching it.
+    sentinel written inside a nested ``if`` or ``for`` is just as unwritten
+    when the enclosing block raises before reaching it.  A nested guarded
+    block's body is left out — that block is the innermost producer of what
+    it writes and owns the record, with a read window that starts inside this
+    block (#5904) — but its ``as`` binding is this block's own write.
     """
     names: set[str] = set()
 
     def _collect(node: ast.AST) -> None:
         if isinstance(node, _SCOPE_TYPES):
+            return
+        if _is_guarded_block(node):
+            names.update(_rebound_names(node))
             return
         if isinstance(node, ast.stmt):
             names.update(_assigned_shallow([node]))
@@ -537,10 +555,77 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
         return "safe", _corpus.node_line(node)
     if _reads_name(node, name):
         return "read", _corpus.node_line(node)
-    for child in _in_evaluation_order(node):
-        event = _first_event(child, name)
+    split = _control_flow_split(node)
+    if split is not None:
+        return _first_event_across_branches(*split, name=name)
+    return _first_event_in(_in_evaluation_order(node), name)
+
+
+def _first_event_across_branches(
+    head: Sequence[ast.AST],
+    branches: Sequence[Sequence[ast.AST]],
+    tail: Sequence[ast.AST],
+    *,
+    name: str,
+) -> tuple[str, int] | None:
+    """:func:`_first_event` for a statement split by
+    :func:`_control_flow_split`.
+
+    A branch may not run: its read counts, but its guard or rebinding cannot
+    decide for what follows the statement.
+    """
+    event = _first_event_in(head, name)
+    if event is not None:
+        return event
+    for branch in branches:
+        event = _first_event_in(branch, name)
+        if event is not None and event[0] == "read":
+            return event
+    return _first_event_in(tail, name)
+
+
+def _first_event_in(
+    nodes: Sequence[ast.AST], name: str
+) -> tuple[str, int] | None:
+    """The first deciding event of :func:`_first_event` across *nodes*."""
+    for node in nodes:
+        event = _first_event(node, name)
         if event is not None:
             return event
+    return None
+
+
+#: ``(head, branches, tail)`` of :func:`_control_flow_split`.
+_Split = tuple[
+    Sequence[ast.AST], Sequence[Sequence[ast.AST]], Sequence[ast.AST]
+]
+
+
+def _control_flow_split(node: ast.AST) -> _Split | None:
+    """Split a compound statement into what always runs and what may not.
+
+    ``(head, branches, tail)``: *head* is evaluated before any branch and
+    *tail* after every one — both always run — while each *branch* may not
+    run at all.  ``None`` for a node whose children all run, such as an
+    unguarded ``with``, whose body's exception propagates past every later
+    read anyway.  A guarded block's body is a branch: the block swallows the
+    failure that skips the rest of it (#5904).
+    """
+    if isinstance(node, (ast.If, ast.While)):
+        return [node.test], [node.body, node.orelse], []
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return [node.iter, node.target], [node.body, node.orelse], []
+    if _is_guarded_block(node):
+        return node.items, [node.body], []
+    if isinstance(node, (ast.Try, ast.TryStar)):
+        handlers = [h.body for h in node.handlers]
+        return [], [node.body, *handlers, node.orelse], node.finalbody
+    if isinstance(node, ast.Match):
+        cases = [
+            [case.pattern, *([case.guard] if case.guard else []), *case.body]
+            for case in node.cases
+        ]
+        return [node.subject], cases, []
     return None
 
 
@@ -551,42 +636,64 @@ def _first_unguarded_read(stmts: list[ast.stmt], name: str) -> int | None:
     does not itself enclose a later read still defends it.  That leniency is
     deliberate — it keeps the check free of false positives on the
     early-return shape ``if x is None: return`` — and
-    :func:`test_a_guard_defends_reads_it_does_not_enclose` pins it.
+    :func:`test_a_guard_defends_reads_it_does_not_enclose` pins it.  It holds
+    only at the statement level of *stmts*: a guard or rebinding inside a
+    branch that may not run decides nothing past that branch (#5904).
     """
-    for stmt in stmts:
-        event = _first_event(stmt, name)
-        if event is None:
-            continue
-        kind, line = event
-        return line if kind == "read" else None
-    return None
+    event = _first_event_in(stmts, name)
+    if event is None or event[0] != "read":
+        return None
+    return event[1]
 
 
-def _nested_blocks(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
+class _NestedBlock(NamedTuple):
+    """A statement list nested in a compound statement.
+
+    *then* is what runs after *body* before the statement's own successors:
+    the ``else`` and ``finally`` arms of a ``try``, and the loop body again
+    for a loop, whose next iteration reads what this one left (#5904).
+    *rebinds* names the statement binds before *body* runs, such as a ``for``
+    target, so none of them holds a placeholder inside it.
+    """
+
+    body: list[ast.stmt]
+    then: list[ast.stmt]
+    rebinds: frozenset[str] = frozenset()
+
+
+def _nested_blocks(stmt: ast.stmt) -> Iterator[_NestedBlock]:
     """Statement lists nested directly in *stmt*, within the same scope."""
     if isinstance(stmt, _SCOPE_TYPES):
         return
-    if isinstance(stmt, (ast.If, ast.While, ast.For, ast.AsyncFor)):
-        yield stmt.body
-        yield stmt.orelse
+    if isinstance(stmt, ast.If):
+        yield _NestedBlock(stmt.body, [])
+        yield _NestedBlock(stmt.orelse, [])
+    elif isinstance(stmt, (ast.While, ast.For, ast.AsyncFor)):
+        target = (
+            frozenset()
+            if isinstance(stmt, ast.While)
+            else frozenset(_store_names(stmt.target))
+        )
+        yield _NestedBlock(stmt.body, [*stmt.body, *stmt.orelse], target)
+        yield _NestedBlock(stmt.orelse, [])
     elif isinstance(stmt, (ast.With, ast.AsyncWith)):
-        yield stmt.body
+        yield _NestedBlock(stmt.body, [], frozenset(_rebound_names(stmt)))
     elif isinstance(stmt, (ast.Try, ast.TryStar)):
-        yield stmt.body
-        yield stmt.orelse
-        yield stmt.finalbody
+        yield _NestedBlock(stmt.body, [*stmt.orelse, *stmt.finalbody])
         for handler in stmt.handlers:
-            yield handler.body
+            yield _NestedBlock(handler.body, stmt.finalbody)
+        yield _NestedBlock(stmt.orelse, stmt.finalbody)
+        yield _NestedBlock(stmt.finalbody, [])
     elif isinstance(stmt, ast.Match):
         for case in stmt.cases:
-            yield case.body
+            yield _NestedBlock(case.body, [])
 
 
 def _sites_for_block(
     block: ast.With, sentinels: dict[str, int], following: list[ast.stmt]
 ) -> list[SentinelSite]:
-    """A site per tracked sentinel the guarded *block* assigns."""
-    written = _assigned_within(block.body) & set(sentinels)
+    """A site per tracked sentinel the guarded *block* itself assigns."""
+    written = _assigned_by_block_itself(block.body) & set(sentinels)
     return [
         SentinelSite(
             sentinels[name],
@@ -598,22 +705,29 @@ def _sites_for_block(
     ]
 
 
-def _sentinel_sites_in_stmts(
+def _sentinel_sites_in_stmts(stmts: list[ast.stmt]) -> list[SentinelSite]:
+    """Every placeholder sentinel a guarded block in *stmts* assigns."""
+    return _scan_for_sentinels(stmts, {}, ())[0]
+
+
+def _scan_for_sentinels(
     stmts: list[ast.stmt],
-    inherited: dict[str, int] | None = None,
-    trailing: Sequence[ast.stmt] = (),
-) -> list[SentinelSite]:
-    """Every placeholder sentinel a guarded block in *stmts* assigns.
+    inherited: dict[str, int],
+    trailing: Sequence[ast.stmt],
+) -> tuple[list[SentinelSite], dict[str, int]]:
+    """Sites in *stmts*, and the sentinels still held once *stmts* end.
 
     Walks the statement list left to right, tracking which names currently
     hold a placeholder pre-initialisation, and records a site for each one a
     guarded block then assigns.  *inherited* carries the names an enclosing
-    block pre-initialised and *trailing* the statements that follow it, so a
-    producing block nested in an ``if``, ``for`` or ``try`` is seen, and a
-    read after the enclosing statement counts (#3038).
+    statement left holding a placeholder and *trailing* the statements that
+    run after *stmts*, so a producing block nested in an ``if``, ``for``,
+    ``try`` or another guarded block is seen, and a read after the enclosing
+    statement counts (#3038).  A pre-initialisation inside a nested statement
+    list still holds after it, so it is carried out to this level (#5904).
     """
     sites: list[SentinelSite] = []
-    sentinels: dict[str, int] = dict(inherited or {})
+    sentinels = dict(inherited)
 
     for index, stmt in enumerate(stmts):
         following = [*stmts[index + 1 :], *trailing]
@@ -623,20 +737,34 @@ def _sentinel_sites_in_stmts(
             sentinels.update(dict.fromkeys(preinit, stmt.lineno))
             continue
 
-        if isinstance(stmt, ast.With) and _cm_name(stmt) in _GUARDED_CMS:
+        if _is_guarded_block(stmt):
+            # ``__enter__`` binds the ``as`` target before the body runs.
+            for name in _rebound_names(stmt):
+                sentinels.pop(name, None)
             sites += _sites_for_block(stmt, sentinels, following)
-            # A sentinel declared inside the block is its own subject; the
-            # outer ones are already recorded above, so they do not descend.
-            sites += _sentinel_sites_in_stmts(stmt.body, None, following)
-            continue
 
-        for block in _nested_blocks(stmt):
-            sites += _sentinel_sites_in_stmts(block, sentinels, following)
+        carried: dict[str, int] = {}
+        for nested in _nested_blocks(stmt):
+            entering = {
+                name: line
+                for name, line in sentinels.items()
+                if name not in nested.rebinds
+            }
+            nested_sites, leaving = _scan_for_sentinels(
+                nested.body, entering, [*nested.then, *following]
+            )
+            sites += nested_sites
+            carried.update(
+                (name, line)
+                for name, line in leaving.items()
+                if entering.get(name) != line
+            )
 
         for name in _rebound_names(stmt):
             sentinels.pop(name, None)
+        sentinels.update(carried)
 
-    return sites
+    return sites, sentinels
 
 
 def _sentinel_sites_in_tree(
@@ -1576,6 +1704,326 @@ def example():
         SentinelSite(2, "offer", 3, None),
         SentinelSite(2, "offer", 6, None),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Read-window and control-flow gaps (#5904)
+# ---------------------------------------------------------------------------
+
+
+def test_read_inside_the_producer_after_a_nested_block_is_a_leak():
+    """The nested-block fix's own shape must stay covered (#5904 gap 1).
+
+    The inner ``demo_check`` swallows its failure, so the rest of the outer
+    block runs with the placeholder.
+    """
+    src = """\
+def example():
+    offer = None
+    with demo_step("outer"):
+        with demo_check("inner"):
+            offer = submit_report()
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 6)]
+
+
+def test_read_inside_and_after_the_producer_reports_the_first_one():
+    """With a read both inside the outer block and after it, the earlier
+    line is the one reported, once (#5904 gap 1)."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("outer"):
+        with demo_check("inner"):
+            offer = submit_report()
+        acknowledge(offer)
+
+    publish(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 6)]
+
+
+def test_inner_block_owns_the_record_for_a_name_only_it_writes():
+    """One record per producing block: the outer block writes nothing itself
+    for that name, so it adds none (#5904 gap 1)."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("outer"):
+        with demo_check("inner"):
+            offer = submit_report()
+"""
+    assert _sentinel_sites(src) == [SentinelSite(2, "offer", 4, None)]
+
+
+def test_outer_block_writing_the_name_itself_keeps_its_record():
+    """A rebinding in the outer body can raise too, so the outer block is a
+    producer of its own beside the inner one."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("outer"):
+        with demo_check("inner"):
+            offer = submit_report()
+        offer = fallback_offer()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_sites(src) == [
+        SentinelSite(2, "offer", 3, 8),
+        SentinelSite(2, "offer", 4, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        pytest.param(
+            "if flag:\n        offer = fallback()", id="if-rebinding"
+        ),
+        pytest.param(
+            "if flag:\n        if offer is None:\n            raise SystemExit",
+            id="if-nested-guard",
+        ),
+        pytest.param(
+            "for _ in pending:\n        offer = fallback()", id="for-body"
+        ),
+        pytest.param(
+            "while flag:\n        offer = fallback()", id="while-body"
+        ),
+        pytest.param(
+            "try:\n        offer = fallback()\n    except ValueError:\n"
+            "        pass",
+            id="try-body",
+        ),
+        pytest.param(
+            "match flag:\n        case 1:\n            offer = fallback()",
+            id="match-case",
+        ),
+        pytest.param(
+            'with demo_step("retry"):\n        offer = fallback()',
+            id="guarded-block-body",
+        ),
+    ],
+)
+def test_a_guard_or_rebinding_in_a_branch_does_not_end_the_scan(branch: str):
+    """A branch that may not run cannot decide for the reads after it
+    (#5904 gap 2)."""
+    src = f"""\
+def example(flag, pending):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {branch}
+    acknowledge(offer)
+"""
+    read = src.splitlines().index("    acknowledge(offer)") + 1
+    first = [site for site in _sentinel_sites(src) if site.block == 3]
+    assert first == [SentinelSite(2, "offer", 3, read)], src
+
+
+def test_a_read_inside_a_branch_is_still_a_leak():
+    """The branch may run, so its read counts even though its guard does not
+    reach past it."""
+    src = """\
+def example(flag):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    if flag:
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 7)]
+
+
+def test_a_rebinding_in_finally_ends_the_sentinel():
+    """``finally`` always runs, so its rebinding decides like a statement's."""
+    src = """\
+def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    try:
+        pass
+    finally:
+        offer = fallback()
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+@pytest.mark.parametrize("arm", ["try", "except", "else"])
+def test_read_in_a_sibling_finally_is_a_leak(arm: str):
+    """``finally`` runs after every other arm (#5904 gap 3)."""
+    producer = (
+        '        with demo_step("Step 1: produce"):\n'
+        "            offer = submit_report()\n"
+    )
+    arms = {
+        "try": "    try:\n"
+        + producer
+        + "    except ValueError:\n        pass\n",
+        "except": "    try:\n        pass\n    except ValueError:\n"
+        + producer,
+        "else": (
+            "    try:\n        pass\n    except ValueError:\n        pass\n"
+            "    else:\n" + producer
+        ),
+    }
+    src = (
+        "def example():\n    offer = None\n"
+        + arms[arm]
+        + "    finally:\n        acknowledge(offer)\n"
+    )
+    line = src.splitlines().index("        acknowledge(offer)") + 1
+    assert _sentinel_leaks(src) == [("offer", line)], src
+
+
+def test_read_in_try_else_after_a_producer_in_try_is_a_leak():
+    """The block swallows its failure, so the ``try`` completes and ``else``
+    runs with the placeholder."""
+    src = """\
+def example():
+    offer = None
+    try:
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+    except ValueError:
+        pass
+    else:
+        acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 9)]
+
+
+@pytest.mark.parametrize("loop", ["for item in items:", "while items:"])
+def test_read_earlier_in_a_loop_body_than_the_producer_is_a_leak(loop: str):
+    """The next iteration reads what this one's block left (#5904 gap 4)."""
+    src = f"""\
+def example(items):
+    offer = None
+    {loop}
+        acknowledge(offer)
+        with demo_step("Step 1: produce"):
+            offer = submit_report()
+"""
+    assert _sentinel_leaks(src) == [("offer", 4)]
+
+
+def test_loop_target_is_not_a_sentinel_inside_the_loop_body():
+    """The ``for`` rebinds its target before every iteration, so a block in
+    the body writing it holds no placeholder."""
+    src = """\
+def example(items):
+    offer = None
+    for offer in items:
+        acknowledge(offer)
+        with demo_step("Step 1: refresh"):
+            offer = refresh(offer)
+"""
+    assert _sentinel_sites(src) == []
+
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        pytest.param(
+            "async for offer in stream():\n            pass", id="async-for"
+        ),
+        pytest.param(
+            "async with open_offer() as offer:\n            pass",
+            id="async-with",
+        ),
+    ],
+)
+def test_async_for_and_async_with_are_producers(producer: str):
+    """``async for`` and ``async with`` bind like their sync forms
+    (#5904 gap 5)."""
+    src = f"""\
+async def example():
+    offer = None
+    with demo_step("Step 1: produce"):
+        {producer}
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 7)]
+
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        pytest.param(
+            "async for result in stream():\n            pass", id="async-for"
+        ),
+        pytest.param(
+            "async with open_result() as result:\n            pass",
+            id="async-with",
+        ),
+    ],
+)
+def test_unbound_check_sees_async_producers(tmp_path, producer: str):
+    """The unbound check shares :func:`_assigned_shallow`, so the async forms
+    are producers there too (#5904 gap 5)."""
+    src = f"""\
+async def example():
+    with demo_step("Step"):
+        {producer}
+    use(result)
+"""
+    path = tmp_path / "demo_async.py"
+    path.write_text(src)
+    assert [v for _, _, v in _violations_in_file(path)] == ["result"]
+
+
+def test_as_binding_of_a_guarded_block_ends_the_sentinel():
+    """``__enter__`` binds the name before the body runs (#5904 gap 6)."""
+    src = """\
+def example():
+    step = None
+    with demo_step("Step 1: open") as step:
+        pass
+
+    with demo_step("Step 2: produce"):
+        step = submit_report()
+
+    acknowledge(step)
+"""
+    assert _sentinel_sites(src) == []
+
+
+def test_preinit_in_a_nested_statement_list_is_tracked_outside_it():
+    """A placeholder written inside an ``if`` still holds after it
+    (#5904 gap 7)."""
+    src = """\
+def example(flag):
+    if flag:
+        offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [("offer", 7)]
+
+
+def test_rebinding_later_in_the_branch_drops_its_preinit():
+    """The branch's own last binding is what leaves it."""
+    src = """\
+def example(flag):
+    if flag:
+        offer = None
+        offer = fallback()
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    acknowledge(offer)
+"""
+    assert _sentinel_sites(src) == []
 
 
 @pytest.mark.spec("EDF-06-005")
