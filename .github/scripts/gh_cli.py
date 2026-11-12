@@ -65,17 +65,24 @@ def gh(*args: str, retry: bool = True) -> str:
     not safe to repeat: a retried ``issue create`` whose first attempt landed
     would file a second report.
     """
-    attempts = int(os.environ.get("GH_RETRY_ATTEMPTS", "4")) if retry else 1
-    delay = float(os.environ.get("GH_RETRY_DELAY", "5"))
-    for attempt in range(1, attempts + 1):
+    delays = retry_delays() if retry else []
+    for delay in delays:
         try:
             return run("gh", *args)
         except subprocess.CalledProcessError:
-            if attempt >= attempts:
-                raise
             time.sleep(delay)
-            delay *= 2
-    raise AssertionError("unreachable")  # pragma: no cover
+    return run("gh", *args)
+
+
+def retry_delays() -> list[float]:
+    """The pauses between attempts of a retried call, one per retry.
+
+    ``retry.sh``'s bounds: ``GH_RETRY_ATTEMPTS`` attempts (default 4), the
+    first pause ``GH_RETRY_DELAY`` seconds (default 5), doubled each time.
+    """
+    attempts = int(os.environ.get("GH_RETRY_ATTEMPTS", "4"))
+    delay = float(os.environ.get("GH_RETRY_DELAY", "5"))
+    return [delay * 2**n for n in range(max(attempts, 1) - 1)]
 
 
 def paginated(

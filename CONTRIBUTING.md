@@ -63,7 +63,12 @@ To cut a Vultron release:
    refused.
 3. The run tags that commit with the next three-component CalVer tag,
    `vYYYY.M.P`, for the current UTC month (ADR-0006), and opens a **draft**
-   GitHub Release. The run summary links to the draft.
+   GitHub Release. The run summary links to the draft. The run never publishes it.
+   When the drafts register (`docs/reference/vultron-spec/drafts.yaml`) at that
+   commit names the new tag as a draft's release, the draft release already
+   carries that draft's frozen pages, `vultron-spec-draft-N.tar.gz`, and their
+   SHA-256 manifest, `vultron-spec-draft-N.sha256` (ADR-0188). Mark the draft
+   released in the register, with the tag this run will make, before you run it.
 4. Edit the draft in the GitHub release editor:
    - Keep the title, which is the version tag (e.g., `v2026.11.0`).
    - The notes start with the statement that all interfaces are experimental,
@@ -72,7 +77,14 @@ To cut a Vultron release:
      added and removed since the previous release.
    - **Leave the Pre-release box unchecked** so the repository has a Latest
      release.
+   - Do not remove or replace the two frozen-draft files: once the release is
+     published it is immutable, and no asset can be added to it.
 5. Click **Publish release**.
+
+A promote that fails deletes the draft release it created and keeps the tag, so
+run it again. A re-run that finds a complete draft release refuses and leaves it
+waiting for you to publish. Never publish a draft release that a run reported as
+incomplete.
 
 Do not tag a release by hand or from the **Draft a new release** dialog: the
 dialog's default target is the tip of `main`, which is usually not what the site
