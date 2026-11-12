@@ -83,7 +83,8 @@ subject: implementation
 
 The RCVCV scenario exercises the **actor-suggestion flow** (ADR-0026).
 A Reporter reports to Coordinator 1 (C1), who creates the case and directly invites Vendor 1 (V1) and Coordinator 2 (C2).
-After C2 joins, C2 *suggests* Vendor 2 (V2), the party its participant suggester names, to the case; C1, as the Case Owner, approves the recommendation and the Case Actor sends V2 a formal invitation.
+After C2 joins, C2 *suggests* Vendor 2 (V2), the party its participant suggester names, to the case.
+C1, as the Case Owner, approves the recommendation, and the Case Actor sends V2 a formal invitation.
 
 This five-actor scenario validates the indirect participant onboarding path
 where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
