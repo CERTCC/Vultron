@@ -10,7 +10,8 @@ description: >-
   workflow; DOCBW-03 states the build and gate obligations every site-building
   workflow carries; DOCBW-06 states what is specific to publication; DOCBW-07
   states the release promotion, release tag check and staleness alarm that read
-  the publication's tags.
+  the publication's tags; DOCBW-08 states how each released draft of the
+  Protocol Specification is frozen at promote and served by every build.
   The workflows are distinct from `python-app.yml` (Python unit tests and
   linting) and `.github/workflows/demo-integration.yml` (demo container
   integration tests, specified in `specs/demo-ci.yaml`).
@@ -1526,7 +1527,8 @@ groups:
         kind: project
         statement: >-
           When the chosen publish's commit carries a `v*` tag in any case other
-          than DOCBW-07-010, the promote workflow MUST refuse the run.
+          than DOCBW-07-010 and DOCBW-08-025, the promote workflow MUST refuse
+          the run.
         rationale: >-
           A commit already released, a commit whose release a later one
           superseded, and a commit tagged by hand each need a maintainer's
@@ -1534,3 +1536,876 @@ groups:
         verification: >-
           `test_a_released_commit_is_not_promoted_again` in
           `test/ci/test_release.py`.
+  - id: DOCBW-08
+    title: Frozen Protocol Specification Drafts
+    description: >-
+      Obligations that keep each released draft of the Protocol Specification
+      readable, unchanged, at `spec/draft-N/` beside the current draft
+      (ADR-0188): the drafts register that states each draft once, the archive
+      that the promote workflow `.github/workflows/promote_release.yml`
+      attaches to a release that carries a draft, and the step by which the
+      publication workflow and the review workflow serve the released drafts
+      from those archives. Immutable releases are enabled on the repository,
+      so a published release's assets never change, and an asset can be
+      attached only while the release is a draft. The promote builds and checks
+      the archive before any draft release exists, and creates the draft
+      release with its assets attached, so every draft release a maintainer
+      can publish already carries them. A release is published when
+      GitHub reports a release for its tag that is not a draft. A release
+      carries a matching DOCBW-08-009 pair when both files are attached to it
+      and every file of the attached archive, and no other file, has the
+      digest that the attached manifest lists.
+    specs:
+      - id: DOCBW-08-001
+        priority: MUST
+        kind: project
+        statement: >-
+          Each draft of the Protocol Specification MUST have exactly one entry
+          in the drafts register `docs/reference/vultron-spec/drafts.yaml`.
+          The entry gives the draft's version `draft-N`, its status
+          (unreleased or released) and its date, the day the entry was added to
+          the register, in the `YYYY-MM-DD` format. A released entry also gives
+          the `v*` tag of the release that carries the draft.
+        rationale: >-
+          The promote workflow, the deploy and the pages must agree on which
+          drafts are released and by which release. Facts that are written in
+          one place cannot disagree.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` load the committed
+          register and check that every entry has the fields its status
+          requires, and load fixture registers with a field missing and check
+          that each is refused.
+        lint_suppress:
+          - phantom_path_ref
+        adr:
+          - ADR-0188
+      - id: DOCBW-08-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The drafts register loader MUST refuse a malformed register and name
+          the failing entry by `path:line:col`. These are malformed: a
+          duplicate version, a version that is not `draft-N`, a gap in the
+          draft numbers, a released entry with no tag, an unreleased entry
+          with a tag, more than one unreleased entry, an unreleased entry that
+          is not the highest-numbered, and two released entries that name the
+          same tag.
+        rationale: >-
+          A wrong entry would make the promote attach the wrong draft or the
+          deploy serve none. A refusal that names the line lets the author fix
+          it at once.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` load one fixture register
+          for each malformed case and check the refusal and its location.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-003
+        priority: MUST
+        kind: project
+        statement: >-
+          A step of `.github/workflows/docs-build-check.yml` MUST fail when the
+          drafts register at the checked-out commit and the register at a `v*`
+          tag disagree on a draft released by that tag: the tag's register
+          names such a draft and the checked-out register lacks that entry or
+          holds a different one, or the checked-out register names an existing
+          tag as a draft's release and that tag's register lacks the same
+          entry.
+        rationale: >-
+          The entry is marked released before the promote, so the release tag
+          carries the entry that names it. After that release, the draft names
+          one text, and a changed or removed entry would make the site serve or
+          describe a different one. The shared build fetches every tag, so the
+          step can read the register at each one.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` build a fixture repository
+          with a release tag whose register names a released draft, and check
+          that the check fails on a removed entry, on a changed entry, and on a
+          new entry that names that existing tag, and passes on an unchanged
+          register; they also read the review workflow and check that it runs
+          the step.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-004
+        priority: MUST
+        kind: project
+        statement: >-
+          The status box of the Protocol Specification and the status tables
+          of its revision log MUST be committed fragments generated from the
+          drafts register.
+        rationale: >-
+          Today the status of a draft is written by hand in two places. A
+          generated status cannot disagree with the register that the release
+          automation reads, and a committed fragment shows each change in the
+          pull request that makes it.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the fragments
+          from a fixture register and compare them with the register's
+          entries.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-005
+        priority: MUST
+        kind: project
+        statement: >-
+          A pre-commit hook MUST fail when a committed DOCBW-08-004 fragment
+          differs from a fresh generation from the drafts register.
+        rationale: >-
+          Without the check, a register edit that is not regenerated leaves the
+          pages saying one thing while the automation reads another.
+          DOCBW-03-013 then runs the hook in the review workflow too.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` change a fixture register
+          without regenerating and check that the check fails, and read
+          `.pre-commit-config.yaml` to check that the hook's `files:` match the
+          register and the fragments.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+      - id: DOCBW-08-006
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register holds an unreleased entry, the generated
+          status box MUST label the Protocol Specification "Current draft (work
+          in progress)".
+        rationale: >-
+          A reader must be able to tell the moving current text from a frozen
+          draft, which the banner of a frozen page names.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the status box
+          from a fixture register with an unreleased entry and check the label.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+      - id: DOCBW-08-007
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register holds no unreleased entry, the generated
+          status box MUST name the newest released draft and its release tag,
+          and carry no current-draft label.
+        rationale: >-
+          The promoted commit holds the register with the draft just marked
+          released and no newer draft opened, so its pages are the text the
+          release carries. The archive is built from those pages, so they must
+          read as that released draft, not as a draft still in progress.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the status box
+          from a fixture register whose entries are all released and check
+          the draft, the tag and the absence of the label.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+      - id: DOCBW-08-008
+        priority: MUST
+        kind: project
+        statement: >-
+          The generated revision log status tables MUST link the frozen copy
+          at `spec/draft-N/` of every released draft.
+        rationale: >-
+          A reader who finds a draft in the revision log needs its permanent
+          address. A generated link cannot miss a released draft.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the status tables
+          from a fixture register with two released drafts and check both
+          links.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+      - id: DOCBW-08-009
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register at the chosen publish's commit names the
+          run's release as the release of `draft-N`, the promote workflow MUST
+          create that draft release with the archive
+          `vultron-spec-draft-N.tar.gz` and its manifest
+          `vultron-spec-draft-N.sha256` attached, in the step that creates it.
+        rationale: >-
+          A published release is immutable, and the maintainer publishes the
+          draft by hand after reviewing its notes. A draft release that existed
+          without its assets could be published in that state, and could then
+          never get them. The promote is the one step that knows both the
+          release and its commit, so the frozen copy needs no manual step.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
+          whose register names the new tag as a draft's release, and check that
+          the release is created as a draft by one call that names both files,
+          that the tag is pushed only after the DOCBW-08-021 check passes, and
+          that the release is never published by the run.
+        lint_suppress:
+          - phantom_path_ref
+        adr:
+          - ADR-0188
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-010
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A promote run whose release the drafts register names for no draft
+          MUST NOT attach an archive or a manifest.
+        rationale: >-
+          A monthly release that carries no new draft would otherwise claim a
+          frozen copy of a text that it does not release.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
+          whose register names no draft for the new tag, and check that the
+          draft release has no asset.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-011
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST refuse the run, and create no tag, when the
+          drafts register at the chosen publish's commit names as a draft's
+          release a tag that is not the run's release and whose own register
+          does not hold the same entry. Such a tag either does not exist or
+          is an earlier release that never carried the draft.
+        rationale: >-
+          The register is edited before the promote and predicts the tag name.
+          When the prediction is wrong, for example because the promote moved
+          to the next month, or names an earlier release, the release would
+          carry pages that name a different release, and no frozen copy would
+          ever be made; once that other release is published, every deploy
+          fails (DOCBW-08-033).
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
+          whose register names a tag the run would not create, and one whose
+          register names an existing earlier tag whose own register lacks the
+          entry, and check that each run fails and creates no tag.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-012
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST refuse the run, and create no tag, when the
+          drafts register at the chosen publish's commit names the run's
+          release for a draft and also holds an unreleased entry.
+        rationale: >-
+          An unreleased entry means a newer draft is open at that commit, so
+          its pages are not the text of the draft the release would carry, and
+          the frozen copy would freeze the wrong text.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
+          whose register names the new tag for one draft and holds another,
+          unreleased one, and check that the run fails and creates no tag.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-013
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-08-009 archive MUST hold the pages that the shared site
+          build (DOCBW-06-004) renders from `docs/reference/vultron-spec/` at
+          the release's commit, with every file those pages load. Its root is
+          the specification's root: the page built at
+          `reference/vultron-spec/index.html` is `index.html` in the archive.
+        rationale: >-
+          The frozen copy must be the text the release carries, rendered by
+          the toolchain of that release, and served at `spec/draft-N/` with the
+          same page paths as the live specification has below its own root.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` build the archive from a
+          fixture site and check that its page paths are the specification's
+          page paths below its root, and that it holds no other page.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-004
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-014
+        priority: MUST
+        kind: project
+        statement: >-
+          The site build of the DOCBW-08-009 archive MUST pass the chosen
+          publish tag and its date, and the run's release tag, as the build
+          inputs of DOCBW-06-031.
+        rationale: >-
+          Every page's footer prints those inputs. A frozen page whose footer
+          named no release, or another publish, would contradict its banner.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` build the archive from a
+          fixture site and check that each page's footer names the chosen
+          publish tag and the release tag.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-031
+      - id: DOCBW-08-015
+        priority: MUST
+        kind: project
+        statement: >-
+          Every relative reference in a page of the DOCBW-08-009 archive MUST
+          resolve to a file inside the archive.
+        rationale: >-
+          A reference that resolves into the live site would let a later change
+          of the live site alter the frozen page, and would break the archive
+          when it is read offline.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` unpack an archive built from
+          a fixture site into an empty folder and check that every relative
+          `href`, `src` and `srcset` resolves inside it.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-016
+        priority: MUST
+        kind: project
+        statement: >-
+          Every link in a page of the DOCBW-08-009 archive to a page outside
+          the Protocol Specification MUST be an absolute URL below the site's
+          `site_url`.
+        rationale: >-
+          The frozen copy freezes the specification, not the rest of the site.
+          A relative link out of the specification would resolve to nothing in
+          the archive, or to an unrelated page below `spec/`.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` build the archive from a
+          fixture site whose specification links a page outside it, and check
+          that the link is absolute on the configured `site_url`.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-017
+        priority: MUST
+        kind: project
+        statement: >-
+          Every page of the DOCBW-08-009 archive MUST carry a banner. The
+          banner names the draft version, the release tag, the full commit SHA
+          and the UTC build date. It also says that the page's links outside
+          the specification go to the live site, which changes.
+        rationale: >-
+          A reader who opens a frozen page must see which text it is and how to
+          cite it, and must not take a linked page of the live site for part of
+          the frozen text.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` build the archive from a
+          fixture site and check the banner on every page.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-018
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-08-009 manifest MUST list every file of the archive, and no
+          other file, with its SHA-256 digest, in the line format that
+          `sha256sum --check` reads.
+        rationale: >-
+          The deploy checks each unpacked file against the manifest. A standard
+          format also lets a reviewer check a downloaded archive with no
+          project tool.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` build an archive and its
+          manifest from a fixture site and check the manifest with
+          `sha256sum --check` against the unpacked archive.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-019
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The job of the promote workflow that builds the DOCBW-08-009 archive
+          MUST NOT hold a token that can write to the repository.
+        rationale: >-
+          The build runs project code from the promoted commit. Only the job
+          that pushes the release tag and attaches the assets needs write
+          access, as the publication workflow already separates build and tag.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` read the promote workflow
+          and check that the job that builds the archive has no write
+          permission.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-005
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-020
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The job of the promote workflow that attaches the DOCBW-08-009 assets
+          MUST NOT run code from the promoted commit. It takes the archive and
+          the manifest as an artifact of the DOCBW-08-019 job.
+        rationale: >-
+          The job holds write access. Code from the promoted commit is not the
+          reviewed copy on `main` that the run started from, so running it with
+          write access would undo the split of DOCBW-08-019.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` read the promote workflow
+          and check that the attaching job checks out `main` only and receives
+          the archive as a downloaded artifact.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-019
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-021
+        priority: MUST
+        kind: project
+        statement: >-
+          Before it pushes the release tag or creates the release, the promote
+          workflow MUST unpack the built DOCBW-08-009 archive into an empty
+          folder and fail the run when that tree breaks DOCBW-08-015 or does not
+          match the manifest.
+        rationale: >-
+          Tests cover the archive builder on fixtures, not the real archive. A
+          defect found before anything exists leaves nothing behind, and a
+          defect found after publication can never be fixed.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` give the promote an archive
+          with a relative reference that leaves it, and one that does not match
+          its manifest, and check that each fails with no new tag and no
+          release.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-015
+      - id: DOCBW-08-022
+        priority: MUST
+        kind: project
+        statement: >-
+          After it creates the DOCBW-08-009 draft release, the promote workflow
+          MUST check that the attached assets are byte-identical to the built
+          ones.
+        rationale: >-
+          The maintainer publishes a draft release once its run is green, and a
+          published asset can never be replaced, so a truncated upload must
+          fail the run while the release is still a draft.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` give the promote a release
+          whose attached archive differs from the built one, and check that the
+          run fails.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-023
+        priority: MUST
+        kind: project
+        statement: >-
+          When the upload of a DOCBW-08-009 asset, the DOCBW-08-022 check, or
+          any later step of the run fails, the promote workflow MUST delete the
+          draft release it created before the run ends.
+        rationale: >-
+          A draft release left without its matching assets could be published
+          by hand and then never repaired, and the maintainer publishes only
+          the draft release of a green run, so a red run leaves none. A draft
+          release is not yet immutable, so deleting it is safe, and the tag
+          stays: DOCBW-07-009
+          forbids deleting it, and a re-run then resumes it under DOCBW-07-010.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` make the upload fail, make
+          the check fail, and make a step after the check fail, and check that
+          afterwards the tag exists and no release does.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-022
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-037
+        priority: MUST
+        kind: project
+        statement: >-
+          When the DOCBW-08-023 delete fails, the promote workflow MUST fail the
+          run with a message that names the draft release and says that it is
+          incomplete and must not be published.
+        rationale: >-
+          A draft release the run could not delete may lack its matching pair.
+          The maintainer must learn not to publish it; the next run deletes it
+          under DOCBW-08-025.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` make the upload fail and the
+          delete fail, and check that the run fails with that message.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-023
+      - id: DOCBW-08-024
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register names the run's release as a draft's release
+          and that release is a draft with a matching DOCBW-08-009 pair, the
+          refusal of DOCBW-07-016 MUST say that the draft release is complete
+          and waiting for the maintainer to publish it.
+        rationale: >-
+          A re-run after a green run has nothing to do. The message tells the
+          maintainer to publish rather than to look for a failure.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` run the promote twice on a
+          fixture repository and check that the second run refuses with that
+          message and leaves the release and its assets unchanged.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-016
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-025
+        priority: MUST
+        kind: project
+        statement: >-
+          When the chosen publish's commit carries the latest `v*` tag, made by
+          the promote workflow, whose release is a draft that the drafts
+          register names as a draft's release and that lacks a matching
+          DOCBW-08-009 pair, the promote workflow MUST delete that draft
+          release and continue as DOCBW-07-010 states.
+        rationale: >-
+          A run stopped from outside, for example by a cancelled runner, can
+          leave a draft release before DOCBW-08-023 deletes it. The re-run
+          removes it, so the draft release a maintainer sees again carries its
+          assets, and no path ever completes the assets of an existing draft.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` start the promote with a
+          draft release that has only the archive, and with a mismatched pair,
+          and check that the run deletes it and creates a new draft release
+          with a matching pair, and creates no tag.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: supersedes
+            spec_id: DOCBW-07-016
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+        see_also:
+          - spec_id: DOCBW-07-010
+            reason: 'the resume of a tag with no release that the run continues as'
+      - id: DOCBW-08-026
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register names the run's release as a draft's release
+          and that release is published without a matching DOCBW-08-009 pair,
+          the refusal of DOCBW-07-016 MUST say that the published release
+          cannot take the archive.
+        rationale: >-
+          The ordering of DOCBW-08-021 to DOCBW-08-025 prevents this case, but a
+          maintainer can still publish a draft release that a stopped run had
+          not yet deleted. An immutable release refuses a new asset, so the
+          maintainer must learn that a re-run cannot help.
+          The rule is limited to the run's own release, so an older release
+          never blocks the promote of a newer one.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` start the promote against a
+          fixture release that is published without the pair, and check the
+          refusal and its message.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-016
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-027
+        priority: MUST
+        kind: project
+        statement: >-
+          The publication workflow MUST read the drafts register as `main`
+          holds it when the run starts, whatever commit the run deploys.
+        rationale: >-
+          A rollback deploys an older commit, whose register may not name a
+          draft that was released later. Reading the register from `main` keeps
+          every frozen draft served across any rollback the gate accepts
+          (DOCBW-08-038).
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` roll a fixture repository
+          back to a commit from before a draft's release, and check that the
+          draft is still served.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-038
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A rollback MUST NOT pass the CI gate when its target commit lacks the
+          DOCBW-08-028 step.
+        rationale: >-
+          The build runs the target commit's own steps and checks, so a target
+          older than the step would serve no frozen draft, and its publication
+          checks, which lack the DOCBW-08-036 exemption, would judge the
+          frozen pages. Refused at the gate, the rollback writes its reason to
+          the run summary (DOCBW-06-011), as DOCBW-06-030 does for a missing
+          local action. Every rollback the gate accepts serves every frozen
+          draft (DOCBW-08-027).
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` give the gate a rollback
+          target from before the DOCBW-08-028 step and check that it is refused
+          with its reason in the run summary, and one after it and check that
+          it passes.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-030
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-028
+        priority: MUST
+        kind: project
+        statement: >-
+          For each released draft whose release is published, the publication
+          workflow MUST unpack the release's DOCBW-08-009 archive into
+          `site/spec/draft-N/` in the job that builds the site, after the
+          shared build and before the publication gates of DOCBW-06-002.
+        rationale: >-
+          A Pages deploy replaces the whole site, so every deploy must place
+          every frozen draft again. Unpacking before the gates lets the link
+          check cover the frozen pages, and the build job holds no token that
+          can write or deploy (DOCBW-06-027).
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives into
+          a fixture `site/` and check each draft's pages under
+          `spec/draft-N/`, and read the publication workflow to check the job
+          and the step order.
+        lint_suppress:
+          - phantom_path_ref
+        adr:
+          - ADR-0188
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-002
+      - id: DOCBW-08-029
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-08-028 step MUST refuse an archive, before it writes any
+          file, when a member has an absolute path, a `..` component, or a type
+          other than a regular file or a folder.
+        rationale: >-
+          The manifest is checked after the unpack, so a crafted member could
+          otherwise write outside `site/spec/draft-N/`, or plant a link, before
+          any check sees it.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives with
+          an absolute member, a `..` member and a symbolic link, and check that
+          each is refused and that nothing was written.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-030
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-08-028 step MUST fail unless the unpacked tree holds
+          exactly the files that the manifest lists, each with the listed
+          SHA-256 digest.
+        rationale: >-
+          The frozen copy is the bytes the promote built. A missing, extra or
+          changed file means the site would serve a text that no release
+          carries.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives with
+          a missing file, an extra file and a changed file, and check that each
+          fails.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-031
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A workflow that builds the site MUST NOT render any page from a
+          commit other than the one it checked out. A frozen draft's pages
+          come only from its DOCBW-08-009 archive.
+        rationale: >-
+          A rebuild of an old draft runs today's environment on an old tag, so
+          its output can drift. A frozen draft comes only from its archive.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` read each workflow that
+          builds the site and check that it runs one shared build per job, that
+          no checkout step names a `v*` tag, and that no run step checks out or
+          adds a worktree of another ref.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-032
+        priority: MUST
+        kind: project
+        statement: >-
+          For each released draft whose release is not published, the
+          DOCBW-08-028 step MUST write a placeholder page at
+          `site/spec/draft-N/index.html` that names the release, and name the
+          draft in the run summary.
+        rationale: >-
+          The register marks a draft released before its tag exists, and its
+          release stays a draft until the maintainer publishes it. The pages
+          link the frozen copy from then on. The placeholder keeps that link
+          from being dead in every build in between, so the publish the promote
+          needs is not blocked, and the summary shows why the frozen copy is
+          not served yet. A token with read access cannot see a draft release,
+          so a draft counts as not published.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve registers whose
+          release tag does not exist, has no release, and has a draft release,
+          and check the placeholder and the summary line in each case.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-033
+        priority: MUST
+        kind: project
+        statement: >-
+          When a published release that the drafts register names as a draft's
+          release lacks a DOCBW-08-009 file, or its archive fails DOCBW-08-030,
+          the DOCBW-08-028 step MUST fail, naming the draft and the release.
+        rationale: >-
+          A deploy that went on without the draft would drop a frozen draft
+          from the site with no failing check. The step runs before the Pages
+          upload, and in the review workflow too (DOCBW-08-035), so a pull
+          request sees the failure the deploy would. The failure notice of
+          DOCBW-06-003 then reports a failed deploy.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve a register whose
+          published release lacks the archive, and one whose archive fails its
+          manifest, and check that each fails and names the draft and the
+          release; they also read the publication workflow and check that the
+          serving step runs in the build job, before the Pages upload.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-030
+      - id: DOCBW-08-034
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-08-028 step MUST fail when the shared site build produced
+          any file below `site/spec/`.
+        rationale: >-
+          `spec/` is reserved for frozen drafts. A page built there would be
+          overwritten by an archive, or would sit at an address that a later
+          draft claims.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` serve archives into a
+          fixture `site/` that already holds a file below `spec/`, and check
+          that the step fails.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-035
+        priority: MUST
+        kind: project
+        statement: >-
+          The review workflow `.github/workflows/docs-build-check.yml` MUST run
+          the DOCBW-08-028 step before its publication checks, reading the
+          drafts register at the commit it checked out.
+        rationale: >-
+          The live pages link every frozen draft. The pull-request check must
+          see the same tree as the deploy, or its link check fails on those
+          links, or misses a broken one. A pull request that edits the
+          register is checked with its own edit.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` read the review workflow and
+          check that the serving step runs after the shared build and before
+          the publication checks, and that it is given the checked-out tree's
+          register, not one read from another ref.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+      - id: DOCBW-08-036
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The DOCBW-03-008 continuity step, the DOCBW-03-012 step and the
+          DF-11-045 reading-path box check MUST NOT judge files below
+          `site/spec/`, and no URL below `spec/` is added to the DOCBW-03-008
+          record of served URLs.
+        rationale: >-
+          A frozen page never changes, so a rule added after its release would
+          fail it on every later build. The register and DOCBW-08-033 keep
+          each frozen draft served, and the link check still covers its pages.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` place a frozen page that
+          breaks a reading-path rule and is absent from the record below a
+          fixture `site/spec/`, and check that those checks pass.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: supersedes
+            spec_id: DOCBW-03-008
+          - rel_type: supersedes
+            spec_id: DOCBW-03-012
+          - rel_type: supersedes
+            spec_id: DF-11-045
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-028
