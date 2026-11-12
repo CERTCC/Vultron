@@ -66,14 +66,29 @@ a.rpp-pill:hover, .rpp-menu.rpp-pill:hover {
 .rpp-b-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: .8em; }
 .rpp-tile {
   display: flex; flex-direction: column; gap: .2em; padding: .8em 1em;
-  border-radius: .5em; border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: .5em;
+  /* subtle shading: a faint tint of the brand red, so the tile reads as a
+     button above the white page without becoming a solid red block */
+  background: color-mix(in srgb, var(--md-primary-fg-color) 5%, var(--md-default-bg-color));
+  border: 1px solid color-mix(in srgb, var(--md-primary-fg-color) 22%, var(--md-default-bg-color));
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 .15em .5em rgba(0,0,0,.05);
   color: var(--md-default-fg-color);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .15s;
 }
-a.rpp-tile:hover { border-color: var(--md-accent-fg-color); box-shadow: 0 .2em .8em rgba(0,0,0,.08); }
+a.rpp-tile:hover, a.rpp-tile:focus-visible {
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, var(--md-default-bg-color));
+  border-color: color-mix(in srgb, var(--md-primary-fg-color) 50%, var(--md-default-bg-color));
+  box-shadow: 0 .2em .8em rgba(0,0,0,.12);
+  transform: translateY(-1px);
+}
+.rpp-tile.is-multi .rpp-tile-item { display: block; padding: .15em .4em; border-radius: .3em; }
+.rpp-tile.is-multi .rpp-tile-item:hover {
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, var(--md-default-bg-color));
+}
 .rpp-tile-next { text-align: right; }
-.rpp-tile.is-empty { border-style: dashed; opacity: .4; }
-.rpp-tile-dir { font-size: .8em; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--md-default-fg-color--light); }
+.rpp-tile.is-empty { background: none; box-shadow: none; border-style: dashed; opacity: .4; }
+.rpp-tile-dir { font-size: .8em; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+  color: var(--md-primary-fg-color); }
 .rpp-tile-label { font-size: 1.15em; font-weight: 600; color: var(--md-typeset-a-color); }
 .rpp-tile ul { margin: .2em 0 0 !important; padding: 0 !important; list-style: none; }
 .rpp-tile ul li { margin: .15em 0 !important; }

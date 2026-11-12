@@ -24,7 +24,7 @@
       return fromUrl;
     }
     const stored = localStorage.getItem(STORE);
-    return stored && VARIANTS[stored] ? stored : "A";
+    return stored && VARIANTS[stored] ? stored : "B";
   }
 
   // ---- parse a generated box -------------------------------------------
