@@ -38,6 +38,7 @@ from pathlib import Path
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.metadata.markdown_tables import exec_blocks
 from vultron.wire.as2.vocab.examples.vocab_examples import (
     example_names,
@@ -102,7 +103,7 @@ def direct_builder_uses(code: str) -> list[str]:
     is one because :func:`rendered_names` could no longer see its calls.
     """
     found: list[str] = []
-    for node in ast.walk(ast.parse(code)):
+    for node in ast.walk(_corpus.parse_inline(code)):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             for alias in node.names:
                 target = f"{node.module}.{alias.name}"
@@ -138,7 +139,7 @@ def rendered_names(code: str) -> list[str | None]:
     this gate cannot compare with a committed file.
     """
     names: list[str | None] = []
-    for node in ast.walk(ast.parse(code)):
+    for node in ast.walk(_corpus.parse_inline(code)):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -194,10 +195,12 @@ def rendering_problems(
 
 @pytest.fixture(scope="module")
 def docs_blocks() -> list[_Block]:
-    """Every exec block in every Markdown page under ``docs/``."""
+    """Every exec block in every Markdown page under ``docs/``.
+
+    Read through the shared docs cache, as every docs ratchet is (TB-13-003).
+    """
     blocks: list[_Block] = []
-    for path in sorted(_DOCS.rglob("*.md")):
-        text = path.read_text(encoding="utf-8")
+    for path, text in _corpus.all_docs():
         for block in exec_blocks(text):
             where = f"{path.relative_to(_REPO_ROOT)}:{block.line}"
             blocks.append(_Block(where=where, code=block.code))
