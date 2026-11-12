@@ -281,9 +281,31 @@ def test_ctrl_c_stops_a_command_in_a_process_group_of_its_own(
 ):
     # GNU timeout leaves the wrapper's group, so a terminal's Ctrl-C (SIGINT
     # to the wrapper's group) reaches it only through the wrapper.
+    #
+    # The ready marker means "SIGINT now kills the command" (#6223): the
+    # command restores SIGINT's default action, so the kernel ends it, and
+    # only then writes the marker. Two commands that marked ready earlier
+    # lost the signal under load. ``bash -c "touch …; sleep 60"`` hung about
+    # one run in ten: bash catches a SIGINT that lands after ``touch`` made
+    # the marker, sees ``touch`` exit normally, drops the signal (bash exits
+    # on SIGINT only when its child died of it), and execs ``sleep 60``. A
+    # Python command on its own handler hung about one run in two hundred: a
+    # SIGINT caught just before ``time.sleep`` starts runs its handler only
+    # once the sleep ends.
     started = lock_dir.parent / "started"
+    ready_then_sleep = (
+        "import pathlib, signal, sys, time; "
+        "signal.signal(signal.SIGINT, signal.SIG_DFL); "
+        "pathlib.Path(sys.argv[1]).touch(); time.sleep(60)"
+    )
     holder = _start(
-        env, "timeout", "60", BASH, "-c", f"touch {started}; sleep 60"
+        env,
+        "timeout",
+        "60",
+        sys.executable,
+        "-c",
+        ready_then_sleep,
+        str(started),
     )
     _await(started)
     began = time.monotonic()
