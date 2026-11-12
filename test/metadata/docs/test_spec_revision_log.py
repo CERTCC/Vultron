@@ -25,7 +25,7 @@ FULL_PAGE = SPEC_DIR / "full.md"
 
 
 def test_entry_dates_do_not_decrease() -> None:
-    """A draft's date is the day its entry was added, so a later draft's is no earlier."""
+    """A draft's date is the day its entry was added: a later one is no earlier."""
     dates = [entry.date for entry in load_register(repo_root()).drafts]
     assert dates == sorted(dates)
 

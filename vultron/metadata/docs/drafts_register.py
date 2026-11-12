@@ -566,11 +566,11 @@ def revision_log_faults(
 ) -> list[MetadataLoadError]:
     """Faults in the Revision Log's include lines for the status tables.
 
-    The Revision Log includes each draft's table once, newest first, under
-    its ``## Draft N`` heading, through :func:`include_line`, and no table of a draft the register lacks; a
-    released draft whose table is not included would leave its frozen copy
-    unlinked (DOCBW-08-008). The page's prose is hand-written, so a fault here
-    is fixed by hand: nothing is written for it.
+    The Revision Log includes each draft's table once, newest first, under its
+    ``## Draft N`` heading, through :func:`include_line`, and no table of a
+    draft the register lacks; a released draft whose table is not included
+    would leave its frozen copy unlinked (DOCBW-08-008). The page's prose is
+    hand-written, so a fault here is fixed by hand: nothing is written for it.
     """
     path = root / REVISION_LOG_PATH
     shown = display_path(path, root)

@@ -48,8 +48,8 @@ Three things are checked but never written: a section index that declares
 ``contents: routing`` must link every member of its section (DF-11-029's
 routing-page exemption), the home page and every start page must link the
 lookup page (DF-11-042), and the Revision Log must include each draft's status
-table once, newest first (DOCBW-08-008). A missing link is a fault the author fixes by hand
-in the page's framing, so both modes report it and neither "repairs" it.
+table once, newest first (DOCBW-08-008). A missing link is a fault the author
+fixes by hand in the page's framing, so both modes report it and neither "repairs" it.
 
 ``--check`` is wired into pre-commit as ``docs-site-sync`` and runs in
 ``docs-build-check.yml`` on a pull request that changes ``docs/``
@@ -282,8 +282,9 @@ def write_artifacts(root: Path | None = None) -> list[str]:
 
     A box fragment no thread implies, or a status table of a draft the
     register no longer holds, is deleted, and its path is returned too. One
-    pass is enough, because no artifact written here is an input to another. A spliced page is rewritten only between its markers, never in
-    its frontmatter, so it cannot change what the coverage matrix counts; the
+    pass is enough, because no artifact written here is an input to another.
+    A spliced page is rewritten only between its markers, never in its
+    frontmatter, so it cannot change what the coverage matrix counts; the
     two whole-file story artifacts do carry frontmatter, but the matrix skips
     ``traceability.md`` as working record (``WORKING_RECORD_PATTERNS``) and
     ``table.md`` declares none, being an include fragment. A whole-file

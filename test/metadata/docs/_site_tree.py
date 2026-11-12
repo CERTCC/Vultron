@@ -1,10 +1,10 @@
 """The one builder of a throwaway ``docs-site`` checkout (#5693).
 
-``uv run docs-site`` refuses a tree that lacks any input one of its
-generated artifacts reads: the lookup page and its hosts (DF-11-021), a
-story page (TRACE-03-003), a ``protocol`` or ``foundation`` requirement
-for the known-gaps fragment (DF-12-019), and the drafts register with the
-Revision Log that includes its status tables (DOCBW-08-004). :func:`site_tree` seeds each group,
+``uv run docs-site`` refuses a tree that lacks any input one of its generated
+artifacts reads: the lookup page and its hosts (DF-11-021), a story page
+(TRACE-03-003), a ``protocol`` or ``foundation`` requirement for the known-gaps
+fragment (DF-12-019), and the drafts register with the Revision Log that
+includes its status tables (DOCBW-08-004). :func:`site_tree` seeds each group,
 so a test built for one artifact gets a tree the others accept, and a new
 artifact's seed is added here once, not in every module that builds a tree.
 
