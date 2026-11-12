@@ -48,6 +48,13 @@ most of its imprecision lets a violation through rather than inventing one:
   own recursive call reads as reached.
 * **A splat supplies everything.** A ``*args`` or ``**kwargs`` call is a call
   the derivation cannot read, so it is given the benefit of the doubt.
+* **An indirect reference supplies everything.** A gate whose name escapes
+  other than as a callee — bound through ``functools.partial(_check,
+  limit=5)``, an alias assignment, a dispatch table, a ``getattr(obj,
+  "_check")`` — is called somewhere the derivation cannot follow, so
+  :func:`_call_sites` gives it the same benefit of the doubt as a splat.
+  Reading those as supplying nothing would fail reachable code; arm A already
+  accepts a bare reference as reaching a guard.
 * **A framework-invoked definition is out of both arms.** A decorator outside
   :data:`TRANSPARENT_DECORATORS` means something other than a call site runs
   the definition, so neither "no caller" nor "no caller supplied it" would be
@@ -61,7 +68,7 @@ most of its imprecision lets a violation through rather than inventing one:
 Some readings go the other way and **invent** a violation, which is the
 direction that fails correct code and gets a ratchet switched off
 (``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
-It Can Miss or Invent").  Three are narrowed:
+It Can Miss or Invent").  Four are narrowed:
 
 * A parameter the body **rebinds** before testing it is no longer a gate on
   what the caller passed, so :func:`reassigned_names` drops it.
@@ -72,6 +79,11 @@ It Can Miss or Invent").  Three are narrowed:
   spells it, so :func:`_walk_module` collects ``import`` aliases as well as
   loads.  Without that, a guard reached only through
   ``from x import _guard as guard`` reads as unreached.
+* A guard reached only by **name string** — ``getattr(self, "_guard")()`` —
+  leaves no name load, so :func:`_walk_module` also collects the literal
+  attribute name a ``getattr`` call spells (:func:`getattr_target`).  Only
+  that argument counts, not every string constant, so a guard named only in
+  a docstring or comment still reads as unreached.
 
 The rest cannot be narrowed without resolving bindings or intent, so they are
 stated here instead.  Each would surface as a *failure*, so the first reader
@@ -93,20 +105,13 @@ of a red arm needs to know they exist:
   corpus.** A gated branch that calls some *other* binding of a name that a
   spec-citing raiser elsewhere happens to share reads as refusing, which
   invents a gate and, if no caller supplies the parameter, a violation.
-* **A gate opened through an indirect reference is not read.**
-  :func:`_call_sites` wants a literal call of the gate's own name, so
-  ``functools.partial(_check, limit=5)``, an alias assignment, or a dispatch
-  table supplies nothing as far as arm B can see — the opposite of the
-  benefit of the doubt a splat gets, and of arm A, which accepts a bare
-  reference.
-* **A guard reached only by a string** — ``getattr(self, "_guard")()`` — has
-  no name load to find, so it reads as unreached.  Collecting every string
-  constant instead would make a guard named in prose read as reached, which
-  the detector tests' prose case deliberately refuses.
+* **A string built at run time is not read.** ``getattr(self, prefix +
+  "guard")`` names no literal, so a guard reached only that way still reads
+  as unreached.  No instance exists in the package today.
 
 Only the first has an instance in the package today, and it is green; the
-other three have none — measured, not assumed, since both arms' baselines
-are empty.  All four are tracked for narrowing in #5896; read them before
+other two have none — measured, not assumed, since both arms' baselines are
+empty.  The first two are tracked for narrowing in #5896; read them before
 reading a red arm as a real dead guard.
 
 Where arm B's call-site scope is production only, that is not imprecision: a
@@ -199,12 +204,31 @@ class CallSite:
     path: str
     lineno: int
     keywords: frozenset[str]
-    #: A ``*args`` or ``**kwargs`` splat: the call may carry anything, so it
-    #: counts as supplying every parameter.  Failing a call the derivation
-    #: cannot read would make the ratchet untrustworthy, and an untrusted
-    #: ratchet gets switched off.
+    #: A ``*args`` or ``**kwargs`` splat, or an indirect reference (see
+    #: :meth:`unreadable`): the call may carry anything, so it counts as
+    #: supplying every parameter.  Failing a call the derivation cannot read
+    #: would make the ratchet untrustworthy, and an untrusted ratchet gets
+    #: switched off.
     splatted: bool
     positional_count: int
+
+    @classmethod
+    def unreadable(cls, path: str, lineno: int) -> "CallSite":
+        """A reference through which the name is called somewhere unseen.
+
+        ``functools.partial(_check, limit=5)``, ``check = _check``,
+        ``{"a": _check}`` and ``getattr(obj, "_check")`` each hand the gate
+        to code that calls it later with arguments the derivation cannot
+        read — exactly a splat's situation, so it gets a splat's benefit of
+        the doubt.
+        """
+        return cls(
+            path=path,
+            lineno=lineno,
+            keywords=frozenset(),
+            splatted=True,
+            positional_count=0,
+        )
 
     def supplies(self, parameter: str, index: int | None) -> bool:
         """Whether this call passes *parameter*."""
@@ -267,6 +291,22 @@ def raises_in(fn: ast.AST) -> Iterator[ast.Raise]:
 def is_private(name: str) -> bool:
     """Whether *name* is single-underscore private and not a dunder."""
     return name.startswith("_") and not name.startswith("__")
+
+
+def getattr_target(call: ast.Call) -> str | None:
+    """The attribute name a ``getattr(obj, "name"[, default])`` call spells.
+
+    ``None`` for any other call, and for a ``getattr`` whose name is not a
+    string literal.  This is the one string constant both arms read as a
+    reference: it is how code reaches an attribute by name, where a string
+    anywhere else — a docstring, a log message — only talks about it.
+    """
+    if _corpus.callee_name(call.func) != "getattr" or len(call.args) < 2:
+        return None
+    name = call.args[1]
+    if isinstance(name, ast.Constant) and isinstance(name.value, str):
+        return name.value
+    return None
 
 
 #: Decorators that leave a definition callable by its own name at a call
@@ -546,7 +586,8 @@ class _FileScan:
     #: every name an ``import`` binds.  Importing a guard is a reference to
     #: it even where the module then spells only the alias, so without the
     #: import names a guard reached through ``from x import _g as g`` would
-    #: read as unreached.
+    #: read as unreached.  The literal name a ``getattr`` call spells is a
+    #: reference for the same reason (:func:`getattr_target`).
     referenced: frozenset[str]
 
 
@@ -570,6 +611,10 @@ def _walk_module(path: str, source: str, tree: ast.AST) -> _FileScan:
             referenced.add(node.name.rpartition(".")[2])
             if node.asname is not None:
                 referenced.add(node.asname)
+        elif isinstance(node, ast.Call):
+            target = getattr_target(node)
+            if target is not None:
+                referenced.add(target)
         elif isinstance(node, ast.ClassDef):
             methods.update(
                 id(member)
@@ -685,6 +730,11 @@ def _call_sites(
 ) -> Mapping[str, tuple[CallSite, ...]]:
     """Every call of a name in *wanted* across *trees*, and what it passes.
 
+    A name that escapes other than as a callee — loaded as a value, or
+    spelled as a ``getattr`` literal — is recorded as a
+    :meth:`CallSite.unreadable` site, since it is called somewhere this pass
+    cannot follow.
+
     Takes bare ``(path, tree)`` pairs rather than a ``_FileScan``: this pass
     needs no definitions, methods or references, and building a full scan for
     each of the ~100 files naming a gated name was a second of duplicate
@@ -692,9 +742,23 @@ def _call_sites(
     """
     sites: dict[str, list[CallSite]] = {}
     for path, tree in trees:
+        # ``ast.walk`` yields a parent before its children, so a callee
+        # expression is marked here before the walk reaches it.
+        callees: set[int] = set()
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
+                escaped = _escaped_name(node, callees)
+                if escaped in wanted:
+                    sites.setdefault(escaped, []).append(
+                        CallSite.unreadable(path, _corpus.node_line(node))
+                    )
                 continue
+            callees.add(id(node.func))
+            target = getattr_target(node)
+            if target in wanted:
+                sites.setdefault(target, []).append(
+                    CallSite.unreadable(path, _corpus.node_line(node))
+                )
             callee = _corpus.callee_name(node.func)
             if callee not in wanted:
                 continue
@@ -718,6 +782,22 @@ def _call_sites(
                 )
             )
     return {name: tuple(found) for name, found in sorted(sites.items())}
+
+
+def _escaped_name(node: ast.AST, callees: set[int]) -> str | None:
+    """The name *node* loads as a value rather than as a call's callee.
+
+    ``_check`` in ``partial(_check)``, ``check = _check`` or ``{"a":
+    _check}``, and ``self._check`` passed as a callback, each give the name;
+    the ``func`` of a call — an id in *callees* — and a store give ``None``.
+    """
+    if id(node) in callees:
+        return None
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+        return node.id
+    if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+        return node.attr
+    return None
 
 
 def _sites_for(

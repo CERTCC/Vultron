@@ -39,6 +39,11 @@ module import time. A module-level corpus is therefore exempt from the per-test
 timeout; a session-scoped fixture is not, and a cold parse of the whole tree in
 one would recreate the margin problem the corpus exists to fix.
 
+Every import-time read, Python or prose, catches `UnicodeDecodeError` as well as
+`OSError` (the former is not an `OSError`): an escaped error fails collection of
+every ratchet module instead of skipping one file. `_corpus._read_into` is the
+one read all three caches share.
+
 ## Meta-Ratchets
 
 `test/architecture/test_ratchet_hygiene.py` holds the checks that police the
@@ -79,9 +84,6 @@ TB-13 entry governs these tiers yet; they are convention.
 - **No directory is excluded.** If an exclusion is ever genuinely needed, match on
   the path *relative to* the scan root: testing `Path.parts` of the absolute path
   empties the whole cache for a clone under a directory with the excluded name.
-- **Guard reads against `OSError` and `UnicodeDecodeError`** (the latter is not an
-  `OSError`). The loop runs at import time, so an escaped error fails collection
-  of every ratchet module instead of skipping one file.
 - **Prefilter markdown ratchets** on a substring the same way as Python ones.
 
 ## Ratchets That Start From a Live Object

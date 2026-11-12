@@ -34,21 +34,33 @@ _SCAN_ROOTS = [REPO_ROOT / "vultron", REPO_ROOT / "test"]
 
 _DOCS_ROOT = REPO_ROOT / "docs"
 
+
 # ---------------------------------------------------------------------------
 # Module-level source cache — populated at import time.
 # Import-time I/O is not subject to the pytest-timeout 5 s per-test budget
 # (verified experimentally; see notes/architecture-ratchet-corpus.md).
+#
+# ``UnicodeDecodeError`` is not an ``OSError``, and every cache below fills at
+# import time, so letting one escape would error out every ratchet module at
+# collection rather than skipping a single file.  All three caches therefore
+# read through :func:`_read_into`, which skips an unreadable file of either
+# kind.
 # ---------------------------------------------------------------------------
+def _read_into(cache: dict[Path, str], path: Path) -> None:
+    """Cache *path*'s UTF-8 text, or skip it if it cannot be read as such."""
+    try:
+        cache[path] = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        pass
+
+
 _source_cache: dict[Path, str] = {}
 
 for _root in _SCAN_ROOTS:
     for _py_file in sorted(_root.rglob("*.py")):
         if "__pycache__" in _py_file.parts:
             continue
-        try:
-            _source_cache[_py_file] = _py_file.read_text(encoding="utf-8")
-        except OSError:
-            pass
+        _read_into(_source_cache, _py_file)
 
 # ---------------------------------------------------------------------------
 # Module-level markdown cache for ``docs/`` — also populated at import time,
@@ -59,18 +71,11 @@ for _root in _SCAN_ROOTS:
 # non-authored content under ``docs/`` — the gitignored ``.codebase-scan.txt``
 # artifacts — while ``docs/reference/codebase/`` holds eight tracked, authored
 # reference pages that docs ratchets must be able to see.
-#
-# ``UnicodeDecodeError`` is not an ``OSError``, and this loop runs at import
-# time, so letting one escape would error out every ratchet module at
-# collection rather than skipping a single file.
 # ---------------------------------------------------------------------------
 _docs_cache: dict[Path, str] = {}
 
 for _md_file in sorted(_DOCS_ROOT.rglob("*.md")):
-    try:
-        _docs_cache[_md_file] = _md_file.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        pass
+    _read_into(_docs_cache, _md_file)
 
 # ---------------------------------------------------------------------------
 # Module-level prose cache — the authored, non-Python text outside ``docs/``
@@ -97,10 +102,7 @@ for _root in _PROSE_ROOTS:
             or not _prose_file.is_file()
         ):
             continue
-        try:
-            _prose_cache[_prose_file] = _prose_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            pass
+        _read_into(_prose_cache, _prose_file)
 
 #: The cached paths in ``Path`` order with their strings, computed once: sorting ``Path`` objects
 #: and calling ``Path.relative_to`` per file on every query cost ~0.1 s per
