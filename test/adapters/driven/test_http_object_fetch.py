@@ -44,6 +44,7 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _HOST = "https://example.org/api/v2/actors/case-actor"
 _CASE = "https://example.org/cases/c-1"
@@ -340,6 +341,7 @@ class TestAFetchedObjectsUnknownKeys:
 
         parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
 
+        assert isinstance(parsed, as_Object)
         assert parsed.published is None
         assert parsed.updated is None
 
