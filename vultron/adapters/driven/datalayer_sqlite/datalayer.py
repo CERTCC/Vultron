@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, Self
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
 
+from sqlalchemy.engine import Connection
 from sqlmodel import Session, SQLModel
 
 from vultron.adapters.driven.clock import SystemBookkeepingClock
@@ -47,7 +48,11 @@ from vultron.core.ports.datalayer import StorableRecord
 
 from . import crud, hydration, queries, queues
 from .engine import dispose_actor_engines, get_actor_engine, session_guard
-from .schema import VultronObjectRecord, require_outbox_pending_index
+from .schema import (
+    StoredRow,
+    VultronObjectRecord,
+    require_outbox_pending_index,
+)
 from .transaction import open_transaction, transaction as _transaction
 
 #: The bookkeeping clock every store stamps its own records with (ADR-0176).
@@ -127,6 +132,29 @@ class SqliteDataLayer:
         with session_guard(self._engine):
             with Session(self._engine) as session:
                 yield session
+
+    @contextmanager
+    def _connection(self) -> Iterator[Connection]:
+        """Yield a connection for one read, with no ``Session`` around it.
+
+        A read through a ``Session`` paid for the session, its identity map
+        and a pool checkout on every call, most of a read's cost (#4969).
+        This yields the connection a read runs a Core statement on instead,
+        under the same lock :meth:`_session` takes.
+
+        Inside :meth:`transaction`, on the thread that opened it, this is the
+        transaction's own connection, so a read sees the block's writes: every
+        CRUD write commits (releases) its savepoint before it returns, so none
+        is left pending in a ``Session``.  Use it only to read; a write here
+        would bypass the savepoint a write through :meth:`_session` gets.
+        """
+        state = open_transaction(self._engine)
+        if state is not None:
+            yield state.connection
+            return
+        with session_guard(self._engine):
+            with self._engine.connect() as connection:
+                yield connection
 
     def transaction(self) -> AbstractContextManager[None]:
         """Commit every write inside the block together, or none of them.
@@ -237,7 +265,7 @@ class SqliteDataLayer:
         """Convert a domain object to a storage row."""
         return hydration.to_row(obj)
 
-    def _from_row(self, row: VultronObjectRecord) -> PersistableModel | None:
+    def _from_row(self, row: StoredRow) -> PersistableModel | None:
         """Convert a storage row back to a fully-typed domain object."""
         return hydration.from_row(self, row)
 
