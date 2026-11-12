@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 from vultron.core.behaviors.call_out.capabilities.embargo.evaluation import (
-    CaseOwnerApprovesEmbargoResponseCapability,
     CurrentEmbargoAcceptableCapability,
     EvaluateEmbargoProposalCapability,
     OnEmbargoAcceptCapability,
@@ -95,34 +94,6 @@ class OnEmbargoReject(OnEmbargoRejectCapability, AlwaysSucceed):
 
     Automation potential: **High** — notification dispatch and logging
     actions are fully automatable via APIs.
-    """
-
-
-# ---------------------------------------------------------------------------
-# Inbound embargo-response decision nodes (EMB-15)
-# ---------------------------------------------------------------------------
-
-
-class CaseOwnerApprovesEmbargoResponse(
-    CaseOwnerApprovesEmbargoResponseCapability, AlwaysSucceed
-):
-    """Adjudication call-out: non-owner actor requests CASE_OWNER approval.
-
-    Simulates :class:`CaseOwnerApprovesEmbargoResponseCapability`,
-    whose ports are its blackboard contract (BT-18-021).
-
-    Semantic function:
-        Condition — a non-CASE_OWNER actor (e.g. a CaseActor processing an
-        inbound overture on the owner's behalf) requests authorization from the
-        case owner before accepting or countering.  Defaults to approval in
-        simulation (owner approval assumed).
-
-    Input category: Human approval / adjudication.
-
-    Success probability: 1.00 (``AlwaysSucceed``).
-
-    Automation potential: **Low** — final authority rests with the case owner
-    (a human or a configured policy agent).
     """
 
 

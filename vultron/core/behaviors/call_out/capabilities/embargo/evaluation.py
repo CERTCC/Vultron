@@ -65,16 +65,6 @@ class OnEmbargoRejectCapability(ActuatorCapability):
     """
 
 
-class CaseOwnerApprovesEmbargoResponseCapability(EvaluatorCapability):
-    """Adjudication call-out: non-owner actor requests CASE_OWNER approval.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads actor/case context from construction time)
-      Output keys: (none — pass/fail gate only)
-      Refusal keys: call_out_refusal_reason: str  (no only)
-    """
-
-
 class CurrentEmbargoAcceptableCapability(EvaluatorCapability):
     """Decide whether the current active embargo terms remain acceptable.
 
@@ -92,7 +82,6 @@ class CurrentEmbargoAcceptableCapability(EvaluatorCapability):
 
 
 __all__ = [
-    "CaseOwnerApprovesEmbargoResponseCapability",
     "CurrentEmbargoAcceptableCapability",
     "EvaluateEmbargoProposalCapability",
     "OnEmbargoAcceptCapability",

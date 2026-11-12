@@ -122,12 +122,6 @@ rather than the `FAILURE` tick.
 Do not "harden" these when auditing for `AlwaysSucceed` on an
 authorization-flavored gate:
 
-- **`CaseOwnerApprovesEmbargoResponse`**
-  (`case_owner_approves_embargo_response_factory`,
-  `embargo/response_decision_tree.py`) — received-side, but accept-by-default is
-  required by EMB-15-001, and entering an embargo is the protective direction.
-  A blocking default would violate EMB-15-001 and route non-owners to the
-  reject arm, reducing embargo protection.
 - **`EmbargoExitPolicyGuard`** (`embargo_exit_policy_guard_factory`,
   `embargo/terminate_active_embargo_tree.py`) — authorizes exit, but it is a
   trigger-side seam for the actor's own voluntary exit, behind a fail-closed

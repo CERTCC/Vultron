@@ -38,13 +38,15 @@ Two overture flows are supported via caller-supplied delegate trees:
   pass ``counter_bt=None`` (the default).  ``invite_to_embargo_on_case_tree``
   is the caller.
 
-Tree structure (EMB-15, ADR-0046)::
+The deciding actor's answer is its own: no arm asks another actor to
+approve it (EMB-15-013, BT-18-014).  A non-owner invitee's answer records
+only its own consent row (CM-18, ADR-0122), so the Case Owner has nothing to
+approve, and ``EvaluateEmbargoProposal`` alone decides it.
+
+Tree structure (EMB-15)::
 
     ResponseDecisionSelector (Selector)
     ├─ AcceptArm (Sequence)
-    │  ├─ AuthorizeSelector (Selector)
-    │  │  ├─ CheckIsCaseOwner          # EMB-15-002: gospel bypass
-    │  │  └─ CaseOwnerApprovesEmbargoResponse  # call-out; default SUCCESS
     │  ├─ EvaluateEmbargoProposal      # call-out; default SUCCESS (EMB-15-001)
     │  └─ <accept_bt>                  # caller-supplied accept delegate
     ├─ CounterArm (Sequence) — Flow A only, omitted when counter_bt is None
@@ -52,9 +54,8 @@ Tree structure (EMB-15, ADR-0046)::
     │  └─ <counter_bt>                 # caller-supplied propose delegate
     └─ <reject_bt>                     # EMB-15-004: always present as fallback
 
-Spec: ``specs/em-behavior.yaml`` EMB-15 through EMB-15-004.
-Per: ``docs/adr/0025-call-out-point-abstraction-layer.md`` (call-out injection),
-     ``docs/adr/0046-received-status-authorization.md`` (status adoption gate).
+Spec: ``specs/em-behavior.yaml`` EMB-15.
+Per: ``docs/adr/0025-call-out-point-abstraction-layer.md`` (call-out injection).
 """
 
 import logging
@@ -67,9 +68,6 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
-from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +87,9 @@ def create_embargo_response_decision_tree(
     respond to an inbound embargo overture (Flow A: EP; Flow B:
     InviteToEmbargoOnCase) and delegates to the caller-supplied mechanical BTs.
 
-    **Authorization (EMB-15-002)**: a ``AuthorizeSelector`` (Fallback) puts
-    a CASE_OWNER role read (``ActorHoldsRoleInCaseNode``) first — when the
-    **deciding** actor (the local actor processing the inbound overture and
-    choosing how to respond) holds ``CVDRole.CASE_OWNER``, the response is
-    gospel and no approval call-out is invoked.  Non-owners route through
-    ``CaseOwnerApprovesEmbargoResponse`` (default SUCCESS).
+    **No approval gate (EMB-15-013)**: the deciding actor's answer is its
+    own, so the accept arm asks no other actor to approve it — whether or
+    not that actor holds ``CVDRole.CASE_OWNER``.
 
     **Default-accept (EMB-15-001)**: ``EvaluateEmbargoProposal`` defaults to
     SUCCESS under :data:`EMBARGO_DETERMINISTIC`, so the accept arm is taken
@@ -117,12 +112,10 @@ def create_embargo_response_decision_tree(
         ``reject_bt`` (or skip the tree entirely) when that condition holds.
 
     Args:
-        case_id: ID of the VulnerabilityCase.  Used to resolve CASE_OWNER
-            status for the gospel-bypass guard.
+        case_id: ID of the VulnerabilityCase; logged as the tree's context.
         deciding_actor_id: Actor ID of the LOCAL actor that is processing the
-            inbound overture and making the accept/counter/reject decision.
-            Read by the CASE_OWNER role check — gospel bypass fires when THIS
-            actor holds ``CVDRole.CASE_OWNER``, not when the remote proposer does.
+            inbound overture and making the accept/counter/reject decision;
+            logged as the tree's context.
         accept_bt: Pre-built BT to execute when the accept arm is taken.
             For Flow A: ``accept_embargo_trigger_bt(...)``.
             For Flow B: ``SendEmbargoInviteAnswerNode(..., accept=True)``.
@@ -138,31 +131,11 @@ def create_embargo_response_decision_tree(
     Returns:
         Root node of the ``ResponseDecisionSelector`` Selector.
     """
-    # EMB-15-002: CASE_OWNER gospel bypass → non-owner adjudication call-out
-    authorize_selector = py_trees.composites.Selector(
-        name="AuthorizeSelector",
-        memory=False,
-        children=[
-            with_case_id(
-                ActorHoldsRoleInCaseNode(
-                    actor_id=deciding_actor_id,
-                    role=CVDRole.CASE_OWNER,
-                    name="CheckIsCaseOwner",
-                ),
-                case_id,
-            ),
-            call_out.case_owner_approves_embargo_response_factory(
-                "CaseOwnerApprovesEmbargoResponse"
-            ),
-        ],
-    )
-
     # EMB-15-001: default-accept arm
     accept_arm = py_trees.composites.Sequence(
         name="AcceptArm",
         memory=False,
         children=[
-            authorize_selector,
             call_out.evaluate_embargo_proposal_factory(
                 "EvaluateEmbargoProposal"
             ),

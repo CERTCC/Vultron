@@ -321,11 +321,10 @@ When an Evaluator says *yes*, the node after it records the termination's cause:
 When no Vendor's fix is ready, the `FIX_READY` branch fails, and the tree tries the next reason.
 The termination message and the ended embargo's register entry record that cause.
 
-**Authorizing the response.** Deciding how the *case* responds to an overture is not every Participant's call.
-The response seam puts a Case Owner check first.
-When the deciding actor holds `CVDRole.CASE_OWNER`, its stated response is authoritative, and the seam seeks no approval (EMB-15-002, EMB-15-006).
-A non-owner routes through `CaseOwnerApprovesEmbargoResponse` (Evaluator, EMB-15-007).
-This non-owner is typically the CASE_MANAGER, which handles the overture for the owner.
+**Whose answer it is.** A Participant's answer to an embargo Invite is its own consent, so the response seam asks no other actor to approve it (EMB-15-013).
+`EvaluateEmbargoProposal` alone decides whether the accept arm runs, from the deciding actor's own policy.
+When the deciding actor holds `CVDRole.CASE_OWNER`, its stated response is authoritative too (EMB-15-006).
+The CASE_MANAGER does not run this seam for its own consent.
 
 **Reacting to the outcome.** `OnEmbargoAccept`, `OnEmbargoReject`, and `OnEmbargoExit` are Actuators.
 They are notification and integration hooks that fire after the transition and confirm a side effect.
@@ -441,7 +440,7 @@ Assignment through an existing instance always raises.
 | [EMB-03-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
 | [EMB-13-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
-| [EMB-15-002](../../../reference/specs/project.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the Case Owner |
+| [EMB-15-013](../../../reference/specs/project.md#emb-15-013) | The response seam MUST NOT make the deciding actor's answer wait on another actor's approval |
 | [EMB-16-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal; the CASE_MANAGER's abandonment is ER |
 | [EMB-16-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-002) | A participant that is not the CASE_MANAGER MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |

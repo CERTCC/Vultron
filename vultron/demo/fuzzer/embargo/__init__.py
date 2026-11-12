@@ -31,7 +31,6 @@ References
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.demo.fuzzer.embargo.evaluation import (
-    CaseOwnerApprovesEmbargoResponse,
     CurrentEmbargoAcceptable,
     EvaluateEmbargoProposal,
     OnEmbargoAccept,
@@ -57,7 +56,6 @@ from vultron.demo.fuzzer.embargo.termination import (
 
 __all__ = [
     "AvoidEmbargoCounterProposal",
-    "CaseOwnerApprovesEmbargoResponse",
     "CurrentEmbargoAcceptable",
     "EmbargoExitOverride",
     "EmbargoExitPolicyGuard",
