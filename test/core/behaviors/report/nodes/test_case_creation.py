@@ -25,8 +25,12 @@ from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
 )
-from vultron.core.models.activity import VultronOffer
+from vultron.core.models.activity import (
+    VultronCreateCaseActivity,
+    VultronOffer,
+)
 from vultron.core.models.actor import VultronService
+from vultron.core.models.note import VultronNote
 from vultron.core.models.report import VulnerabilityReport
 
 
@@ -137,6 +141,45 @@ def test_create_case_activity(
     assert isinstance(activity_data.get("object_"), str), (
         "CreateCaseActivity object_ should be stored as the case ID string"
     )
+
+
+@pytest.mark.spec("DL-05-010")
+def test_create_case_activity_names_a_non_case_by_its_id(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+    offer: VultronOffer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The activity embeds what it read only when it is a case (DL-05-010).
+
+    The read is narrowed by ``isinstance``; anything else stored under the
+    case id is named by that id, as an absent case is.
+    """
+    case_id = "https://example.org/cases/not-a-case"
+    bt_scenario.dl.save(make(VultronNote, id_=case_id, content="not a case"))
+    # The stored row collapses an embedded object to its id either way, so
+    # the activity is read as the node hands it to the store.
+    created: list[object] = []
+    create = bt_scenario.dl.create
+
+    def _capture(obj: VultronCreateCaseActivity) -> None:
+        created.append(obj)
+        create(obj)
+
+    monkeypatch.setattr(bt_scenario.dl, "create", _capture)
+
+    result = bt_scenario.run(
+        CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+        case_id=case_id,
+    )
+    bt_scenario.assert_success(result)
+
+    activities = [
+        a for a in created if isinstance(a, VultronCreateCaseActivity)
+    ]
+    assert [a.object_ for a in activities] == [case_id]
 
 
 def test_create_case_activity_missing_case_id(

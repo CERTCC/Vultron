@@ -114,11 +114,13 @@ def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
         actor=TRANSFEREE_ID,
         to=[CASE_ACTOR_ID],
         context=CASE_ID,
-        object_={
-            "id": OFFER_ID,
-            "type": "Offer",
-            "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
-        },
+        object_=make(
+            VultronActivity,
+            id_=OFFER_ID,
+            type_="Offer",
+            actor=CASE_ACTOR_ID,
+            object_=CASE_ID,
+        ),
     )
     return with_evidence(
         AcceptCaseOwnershipTransferReceivedEvent(

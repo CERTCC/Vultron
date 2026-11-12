@@ -22,7 +22,11 @@ import typing as _typing
 
 from pydantic import BaseModel
 
-from vultron.core.models.registry import find_in_core_type_map
+from vultron.core.models.registry import (
+    declared_type_value,
+    find_in_core_type_map,
+    type_value_of,
+)
 
 VOCABULARY: dict[str, type[BaseModel]] = {}
 
@@ -50,15 +54,8 @@ def declared_wire_type(cls: type) -> str | None:
     """
     declared = cls.__dict__.get("type_", _UNDECLARED)
     if declared is _UNDECLARED:
-        field = getattr(cls, "model_fields", {}).get("type_")
-        declared = (
-            getattr(field, "default", None) if field is not None else None
-        )
-    # A ``Field(...)`` assignment carries the default on the FieldInfo; a plain
-    # ``type_: Literal["Foo"] = "Foo"`` assignment is the value itself.
-    default = getattr(declared, "default", declared)
-    value = getattr(default, "value", default)
-    return value if isinstance(value, str) and value else None
+        return declared_type_value(cls)
+    return type_value_of(declared)
 
 
 def declares_registrable_type(cls: type) -> bool:

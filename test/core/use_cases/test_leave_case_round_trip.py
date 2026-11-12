@@ -190,14 +190,13 @@ def _make_close_case_event(
     case_id: str,
     receiving_actor_id: str,
 ) -> CloseCaseReceivedEvent:
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id)
     activity = make(
         VultronActivity,
         id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
-        object_=make(
-            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
-        ),
+        object_=case,
         to=[receiving_actor_id],
     )
     return with_evidence(
@@ -206,7 +205,7 @@ def _make_close_case_event(
             semantic_type=MessageSemantics.CLOSE_CASE,
             activity_id=activity.id_,
             actor_id=sender_actor_id,
-            object_=activity.object_,
+            object_=case,
             activity=activity,
             receiving_actor_id=receiving_actor_id,
         )
