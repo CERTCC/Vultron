@@ -108,8 +108,10 @@ def _stated_absent(port_type: type) -> dict[str, None]:
     """
     if not (isinstance(port_type, type) and issubclass(port_type, BaseModel)):
         return {}
+    # Keyed by alias: a model with an alias generator and no
+    # ``populate_by_name`` accepts only the alias.
     return {
-        name: None
+        info.alias or name: None
         for name, info in port_type.model_fields.items()
         if info.is_required() and _admits_none(info.annotation)
     }
@@ -136,8 +138,9 @@ def yes_value(port_type: type) -> object:
         return port_type(**_stated_absent(port_type))
     except (TypeError, ValueError) as exc:
         raise TypeError(
-            f"a constant yes cannot build a {port_type.__name__} without "
-            f"arguments ({exc}); a capability declaring such a port needs "
+            f"a constant yes cannot build a {port_type.__name__} from its "
+            f"defaults and stated-absent fields ({exc}); a capability "
+            "declaring such a port needs "
             "a backend that builds its value (BT-23-013)"
         ) from exc
 

@@ -121,7 +121,8 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   `inbox`/`outbox` from the id; the node states them for the actor it hosts at
   creation (`hosted_endpoints`, `vultron/core/models/actor.py`), so its published
   profile carries both (ISSUE-3616). A peer record built with no endpoints
-  passes `published=None, updated=None` too, or the base class stamps the clock.
+  states `published=None, updated=None` too: the base class requires both and
+  reads no clock for them (ADR-0176).
 - **Actor resolution is the `ResolveActorDetails` Retriever (AKM-05-002).** With no
   local record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor/_peers.py`)
   puts the peer's URI on `peer_actor_id` and asks the injected

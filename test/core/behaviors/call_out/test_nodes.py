@@ -293,17 +293,26 @@ def test_yes_value_is_true_for_bool_and_the_empty_value_otherwise():
 def test_yes_value_states_a_required_nullable_field_absent():
     """A required time is stated ``None``, never read from a clock."""
     from datetime import datetime
+    from typing import Optional
 
-    from pydantic import BaseModel
+    from pydantic import BaseModel, ConfigDict
+    from pydantic.alias_generators import to_camel
 
     from vultron.core.behaviors.call_out.answer import yes_value
     from vultron.core.models.actor import CoreActor
 
     class _Stated(BaseModel):
+        model_config = ConfigDict(alias_generator=to_camel)
+
         when: datetime | None
+        since_then: Optional[datetime]  # noqa: UP045 (the typing.Union form)
+        nothing: None
         label: str = "x"
 
-    assert yes_value(_Stated) == _Stated(when=None)
+    stated = yes_value(_Stated)
+    assert isinstance(stated, _Stated)
+    assert (stated.when, stated.since_then, stated.nothing) == (None,) * 3
+    assert stated.label == "x"
 
     actor = yes_value(CoreActor)
     assert isinstance(actor, CoreActor)
@@ -311,6 +320,7 @@ def test_yes_value_states_a_required_nullable_field_absent():
     assert actor.updated is None
 
 
+@pytest.mark.spec("BT-23-013")
 def test_yes_value_refuses_a_required_field_that_refuses_none():
     from pydantic import BaseModel
 
