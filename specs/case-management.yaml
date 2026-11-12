@@ -2018,7 +2018,9 @@ groups:
       The participant already holds the case from the Announce, so the Invite
       only asks the question and carries no copy of the case. Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
-      means it arrives once the participant can answer it.
+      means it usually arrives once the participant can answer it. The protocol
+      does not rely on that order (ADR-0161): CM-11-033 covers an Invite that
+      arrives first.
     verification: >-
       `test_stub_accept_sends_announce_then_replay_then_full_case_invite` in
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirms the
@@ -2058,22 +2060,19 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST refuse a full-case Invite whose sender is not the
-      CASE_MANAGER on its replica or, with no replica, its stub-Invite trust
-      anchor (PCR-03-004).
+      CASE_MANAGER on its replica of the case.
     rationale: >-
-      Only the case's CASE_MANAGER may ask a participant to judge the case. Before the
-      Announce arrives, the invitee has no replica, so the CASE_MANAGER it recorded
-      from the stub Invite is the one it trusts (PCR-03-004).
+      Only the case's CASE_MANAGER may ask a participant to judge the case. The
+      receiver judges the Invite only when it holds the replica (CM-11-033), so the
+      replica's CASE_MANAGER is the only record the sender check needs. The
+      stub-Invite trust anchor decides an earlier question: whether the Announce may
+      create that replica (PCR-03-004).
     verification: >-
-      `test_a_full_case_invite_from_the_case_manager_is_accepted`,
-      `test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing` and
-      `test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager` in
+      `test_a_full_case_invite_from_the_case_manager_is_accepted` and
+      `test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing` in
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirm a
-      full-case Invite from the CASE_MANAGER is accepted and one from any other
-      actor is refused.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: PCR-03-004
+      full-case Invite from the replica's CASE_MANAGER is accepted and one from any
+      other actor is refused.
     adr:
     - ADR-0121
     stories:
@@ -2082,21 +2081,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver that holds neither a replica of the case nor a trust anchor for
-      it MUST refuse a full-case Invite.
+      A receiver MUST NOT judge a full-case Invite for a case it holds no replica
+      of.
     rationale: >-
-      With neither record, the receiver cannot tell the case's CASE_MANAGER from any
-      other sender. It fails closed, so no sender can ask it to judge a case it never
-      joined.
+      The protocol does not rely on delivery order (ADR-0161), so the Invite can
+      arrive before the Announce (CM-11-010). It is case-scoped: the inbox's defer
+      check holds it until the Announce creates the replica, then replays it
+      (HP-01-041). With no trust anchor, no Announce can create the replica
+      (PCR-03-004), so the held Invite expires unprocessed (CBT-03-003) and the
+      receiver fails closed.
     verification: >-
-      `test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused` in
-      `test/core/use_cases/received/actor/test_full_case_invite.py` confirms the
-      refusal.
+      `test_a_full_case_invite_with_no_replica_waits_at_the_inbox` in
+      `test/core/behaviors/case/test_received_path_stage.py` confirms that the
+      full-case Invite is not deferral-exempt and that the inbox's defer check
+      holds it at a store with no replica, so its received tree never judges it.
     relationships:
     - rel_type: extends
       spec_id: CM-11-032
+    - rel_type: depends_on
+      spec_id: HP-01-041
     adr:
     - ADR-0121
+    - ADR-0161
     stories:
     - story_2022_006
   - id: CM-11-011
