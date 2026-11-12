@@ -1,0 +1,23 @@
+# The drafts register of the Vultron Protocol Specification (DOCBW-08-001).
+#
+# This file is the one source of each draft's version, status, date and
+# release (ADR-0188). The status box (_status.md) and the status tables of the
+# Revision Log (_drafts/draft-N.md) are generated from it: after an edit here,
+# run `uv run docs-site --write` and commit the result (DOCBW-08-004/005).
+#
+# Each entry has:
+#   version  draft-N; the drafts are numbered from draft-1 with no gap.
+#   status   unreleased or released. At most one entry is unreleased, and it
+#            is the highest-numbered: the current draft (work in progress).
+#   date     the day the entry was added to this register, as YYYY-MM-DD.
+#   release  released entries only: the v* tag of the release that carries
+#            the draft. No two entries name the same tag.
+#
+# Mark a draft released, with its release tag, before the promote that makes
+# that tag, so the tag carries the register that names it. A released entry
+# never changes afterwards: CI compares it with the entry at its release tag
+# (DOCBW-08-003). Open the next draft as a new unreleased entry.
+drafts:
+  - version: draft-1
+    status: unreleased
+    date: 2026-11-06

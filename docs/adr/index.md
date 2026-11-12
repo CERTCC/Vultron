@@ -282,6 +282,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0184 A CSAF Document Travels as a Report Attachment and Speaks for the Sender Only at the First Report](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) *(provisional)*
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
+- [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -292,7 +293,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 2)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
-- [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md)
 
 ## Rejected ADRs
 

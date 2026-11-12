@@ -314,6 +314,11 @@ hooks:
 exclude_docs: |
   reference/messages/_occasions/
   start/_paths/
+  # The drafts register is a source file, not a page, and each draft's status
+  # table reaches a reader only through the Revision Log's include line: its
+  # frozen-copy link is relative to the Revision Log (DOCBW-08-004/008).
+  reference/vultron-spec/drafts.yaml
+  reference/vultron-spec/_drafts/
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored

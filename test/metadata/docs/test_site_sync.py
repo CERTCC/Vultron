@@ -15,7 +15,7 @@ import pytest
 import yaml
 
 from vultron.metadata.base import repo_root
-from vultron.metadata.docs import page_schema, site_sync
+from vultron.metadata.docs import drafts_register as dr, page_schema, site_sync
 from vultron.metadata.docs.coverage_matrix import (
     MATRIX_PATH,
     ROWS,
@@ -52,6 +52,7 @@ from vultron.metadata.docs.story_coverage import (
 )
 from vultron.metadata.docs.story_pages import STORY_DIR
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
+from vultron.metadata.generated_files import write_generated
 
 from ._lookup_tree import LOOKUP_NAV
 from ._site_tree import site_tree
@@ -100,15 +101,18 @@ def _repo(
     *,
     lookup: bool = True,
     stories: bool = True,
+    drafts: bool = True,
 ) -> Path:
     """A :func:`site_tree` checkout taking ``docs/``-prefixed *files*. Pass
-    ``lookup=False, stories=False`` for a tree that must resolve no pages at
-    all."""
+    ``lookup=False, stories=False, drafts=False`` for a tree that must resolve
+    no pages at all."""
     docs = {}
     for rel, text in files.items():
         assert rel.startswith("docs/"), rel
         docs[rel.removeprefix("docs/")] = text
-    return site_tree(tmp_path, docs, nav, lookup=lookup, stories=stories)
+    return site_tree(
+        tmp_path, docs, nav, lookup=lookup, stories=stories, drafts=drafts
+    )
 
 
 def _guides_repo(tmp_path: Path, **pages: str) -> Path:
@@ -347,7 +351,7 @@ class TestEmptyTargetSet:
 
     def test_matrix_over_an_empty_tree_fails(self, tmp_path):
         (tmp_path / "docs").mkdir()
-        _repo(tmp_path, {}, [], lookup=False, stories=False)
+        _repo(tmp_path, {}, [], lookup=False, stories=False, drafts=False)
         with pytest.raises(MetadataLoadError, match="DF-09-009"):
             measure_coverage(tmp_path)
 
@@ -1027,3 +1031,84 @@ class TestSiteSync:
             page.required
         )
         assert len(page.required) >= 13
+
+
+# ---------------------------------------------------------------------------
+# Drafts register fragments through docs-site (DOCBW-08-004/005/008)
+# ---------------------------------------------------------------------------
+
+_OPEN_1 = (
+    "  - version: draft-1\n    status: unreleased\n    date: 2026-11-06\n"
+)
+_DRAFT_1_RELEASED = (
+    "drafts:\n  - version: draft-1\n    status: released\n"
+    "    date: 2026-11-06\n    release: v2026.11.0\n"
+)
+_TWO_OPEN = "drafts:\n" + _OPEN_1 + _OPEN_1
+_RELEASED_NO_TAG = "drafts:\n  - version: draft-1\n    status: released\n    date: 2026-11-06\n"
+
+
+def _docs_site_tree(tmp_path: Path) -> Path:
+    root = _guides_repo(tmp_path, a=_page("A"))
+    site_sync.write_artifacts(root)
+    assert site_sync.stale_artifacts(root) == []
+    return root
+
+
+@pytest.mark.spec("DOCBW-08-005")
+def test_docs_site_check_reports_fragments_stale_after_a_register_edit(
+    tmp_path,
+):
+    root = _docs_site_tree(tmp_path)
+    write_generated(root / dr.REGISTER_PATH, _DRAFT_1_RELEASED)
+    assert sorted(site_sync.stale_artifacts(root)) == sorted(
+        [dr.STATUS_BOX_PATH, dr.fragment_path("draft-1")]
+    )
+    site_sync.write_artifacts(root)
+    assert (
+        "Released in `v2026.11.0`" in (root / dr.STATUS_BOX_PATH).read_text()
+    )
+    assert site_sync.stale_artifacts(root) == []
+
+
+@pytest.mark.spec("DOCBW-08-005")
+def test_docs_site_reports_and_deletes_a_table_the_register_lacks(tmp_path):
+    root = _docs_site_tree(tmp_path)
+    write_generated(root / dr.fragment_path("draft-9"), "old\n")
+    assert site_sync.stale_artifacts(root) == [dr.fragment_path("draft-9")]
+    assert site_sync.write_artifacts(root) == [dr.fragment_path("draft-9")]
+    assert not (root / dr.fragment_path("draft-9")).exists()
+
+
+@pytest.mark.spec("DOCBW-08-002")
+@pytest.mark.parametrize(
+    ("register", "line"),
+    [
+        (_TWO_OPEN, 5),
+        (_RELEASED_NO_TAG, 2),
+    ],
+    ids=["conflict", "schema-fault"],
+)
+def test_docs_site_refuses_a_malformed_register_at_its_entry(
+    tmp_path, register, line
+):
+    root = _docs_site_tree(tmp_path)
+    write_generated(root / dr.REGISTER_PATH, register)
+    with pytest.raises(MetadataLoadErrors) as caught:
+        site_sync.stale_artifacts(root)
+    locations = [f.location for f in caught.value.failures]
+    assert any(
+        loc is not None and loc.startswith(f"{dr.REGISTER_PATH}:{line}:")
+        for loc in locations
+    ), locations
+
+
+@pytest.mark.spec("DOCBW-08-008")
+def test_docs_site_refuses_a_revision_log_missing_a_drafts_table(tmp_path):
+    root = _docs_site_tree(tmp_path)
+    write_generated(root / dr.REVISION_LOG_PATH, "# Revision Log\n")
+    with pytest.raises(MetadataLoadErrors) as caught:
+        site_sync.stale_artifacts(root)
+    assert any(
+        "draft-1 has no section" in f.detail for f in caught.value.failures
+    )

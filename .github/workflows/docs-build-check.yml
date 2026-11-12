@@ -116,3 +116,11 @@ jobs:
       - name: JSON-LD context in sync with the wire vocabulary (VM-10-001)
         if: ${{ !cancelled() }}
         run: PYTHONPATH='' uv run wire-context --check
+
+      # A released draft's entry never changes once its release tag exists:
+      # the register here and the register at every v* tag must agree on
+      # each draft a tag releases (DOCBW-08-003, ADR-0188). It reads the tags
+      # the shared build fetched (build-site checks out every tag).
+      - name: Released drafts match their entries at their release tags (DOCBW-08-003)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run drafts-register check-releases
