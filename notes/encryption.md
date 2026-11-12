@@ -103,6 +103,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   it makes proofs no other `eddsa-jcs-2022` verifier accepts. Refuse duplicate
   JSON keys and integers above 2^53 rather than sign or verify them, since
   parsers disagree on both.
+- **Bound JSON nesting by the code's own limit, never by the stack.**
+  `load_json` refuses arrays and objects nested deeper than `MAX_JSON_DEPTH`
+  before it parses, since from Python 3.14 `json.loads` stops only when the C
+  stack is nearly full, which depends on the host. The limit leaves the Python
+  walks after it (`canonicalize`, the unknown-key walk) room under the
+  recursion limit; a `RecursionError` catch stays as a second line (#6347).
 - **A signed activity's `@context` is a list.** Signing appends
   `https://w3id.org/security/data-integrity/v2` to the activity's own
   `@context`, as FEP-8b32's examples do and other implementers expect, so the
@@ -172,7 +178,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   is not RFC 8259 JSON (`VultronJsonSyntaxError`: not JSON, not UTF-8, `NaN`,
   `Infinity`) is 400; well-formed JSON it refuses (`VultronRefusedJsonError`:
   not an object, a duplicate key, an integer beyond ±(2^53 - 1), a number too
-  large for a double) is 422 `ValidationError`
+  large for a double, nesting deeper than `MAX_JSON_DEPTH`) is 422 `ValidationError`
   (`inbox_body_http_exception`). Raise the subclass that says which; never
   tell them apart by message. So a body no outbox could sign is refused at
   ingress, not when the CASE_MANAGER seals its `Announce`.

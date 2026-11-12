@@ -39,8 +39,9 @@ the object's ``repr`` and ``str`` show only the public key, so logging one
 does not disclose it (ENC-01-007).
 
 JSON that parsers disagree on is refused rather than signed or verified:
-:func:`load_json` refuses duplicate object keys and non-finite numbers, and
-canonicalization refuses integers outside the I-JSON range ±(2^53 - 1).
+:func:`load_json` refuses duplicate object keys, non-finite numbers and
+nesting deeper than :data:`MAX_JSON_DEPTH`, and canonicalization refuses
+integers outside the I-JSON range ±(2^53 - 1).
 """
 
 import copy
@@ -84,6 +85,19 @@ CRYPTOSUITE = "eddsa-jcs-2022"
 PROOF_PURPOSE = "assertionMethod"
 #: The fragment that names an actor's signing key in its profile.
 KEY_FRAGMENT = "main-key"
+#: The deepest nesting of arrays and objects :func:`load_json` reads: ``[]``
+#: is depth 1, a scalar depth 0.  The limit is the code's own, so the
+#: refusal is the same on every Python version and stack size: up to 3.13,
+#: ``json.loads`` stopped at the C recursion limit, and on 3.14 it stops only
+#: when the C stack is nearly full, which depends on the host (#6347).
+#: ``load_json`` reads untrusted input at the edge (ADR-0032), so it refuses
+#: here what a later stage could not process: :func:`canonicalize` and the
+#: inbox's unknown-key walk recurse in Python, with the caller's frames
+#: already on the stack, under the default recursion limit of 1000.  256
+#: leaves them that headroom.  Real payloads nest far less: a fully
+#: populated case snapshot carried in an activity stays under a quarter of
+#: it (``test_a_full_case_in_an_activity_nests_far_below_the_limit``).
+MAX_JSON_DEPTH = 256
 
 #: Multicodec prefixes: ``ed25519-pub`` (0xed) and ``ed25519-priv`` (0x1300),
 #: each as an unsigned varint.
@@ -102,6 +116,12 @@ _BASE58_TEXT = re.compile(r"[1-9A-HJ-NP-Za-km-z]+")
 _TIMESTAMP_TEXT = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})"
 )
+#: One JSON string (an unterminated one runs to the end of the text) or one
+#: bracket.  A bracket inside a string is part of the string match, so only
+#: brackets that nest are found on their own.
+_STRING_OR_BRACKET = re.compile(r'"[^"\\]*(?:\\[\s\S][^"\\]*)*"?|[\[\]{}]')
+_OPENERS = frozenset("[{")
+_CLOSERS = frozenset("]}")
 #: Domain separation for seeds, versioned so a scheme change changes every key.
 _SEED_LABEL = b"vultron-prototype-seeded-key/v1\n"
 
@@ -255,8 +275,8 @@ def load_json(text: str | bytes) -> Any:
             or ``Infinity``.
         VultronRefusedJsonError: the text is JSON of one of the refused
             kinds: a duplicate key, a number too large for a double, an
-            integer with too many digits to read, or nesting too deep to
-            parse.
+            integer with too many digits to read, or arrays and objects
+            nested deeper than :data:`MAX_JSON_DEPTH`.
     """
     try:
         # Bytes are read as UTF-8 only (RFC 8259 section 8.1): json.loads
@@ -265,6 +285,7 @@ def load_json(text: str | bytes) -> Any:
         # refuses.
         if isinstance(text, bytes):
             text = text.decode("utf-8")
+        _refuse_deep_nesting(text)
         return json.loads(
             text,
             object_pairs_hook=_refuse_duplicate_keys,
@@ -274,6 +295,8 @@ def load_json(text: str | bytes) -> Any:
     except VultronUnsignableJsonError:
         raise
     except RecursionError as error:
+        # The depth check refuses first; this catches a stack that runs out
+        # within MAX_JSON_DEPTH, for example in a thread with a small stack.
         raise VultronRefusedJsonError(
             "JSON is nested too deeply to parse"
         ) from error
@@ -284,6 +307,30 @@ def load_json(text: str | bytes) -> Any:
         raise VultronRefusedJsonError(
             f"JSON number cannot be read: {error}"
         ) from error
+
+
+def _refuse_deep_nesting(text: str) -> None:
+    """Refuse *text* if its arrays and objects nest deeper than the limit.
+
+    A linear scan, so the check itself uses no stack.  It reads the nesting
+    only; whether the brackets match is left to ``json.loads``.
+
+    Raises:
+        VultronRefusedJsonError: the nesting is deeper than
+            :data:`MAX_JSON_DEPTH`.
+    """
+    depth = 0
+    for match in _STRING_OR_BRACKET.finditer(text):
+        token = match.group()
+        if token in _OPENERS:
+            depth += 1
+            if depth > MAX_JSON_DEPTH:
+                raise VultronRefusedJsonError(
+                    "JSON is nested too deeply to parse: more than "
+                    f"{MAX_JSON_DEPTH} levels of arrays and objects"
+                )
+        elif token in _CLOSERS:
+            depth -= 1
 
 
 def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -674,6 +721,7 @@ __all__ = [
     "CRYPTOSUITE",
     "DATA_INTEGRITY_CONTEXT",
     "KEY_FRAGMENT",
+    "MAX_JSON_DEPTH",
     "MULTIKEY_CONTEXT",
     "PROOF_PURPOSE",
     "PROOF_TYPE",

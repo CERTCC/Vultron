@@ -32,6 +32,9 @@ from typing import Any
 import base58
 import pytest
 
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
     VultronJsonSyntaxError,
@@ -39,6 +42,14 @@ from vultron.wire.as2.errors import (
     VultronProofInvalidError,
     VultronRefusedJsonError,
     VultronUnsignableJsonError,
+)
+from vultron.wire.as2.factories.sync import announce_log_entry_activity
+from vultron.wire.as2.vocab.examples import (
+    _base as examples,
+    case as case_examples,
+    embargo as embargo_examples,
+    participant as participant_examples,
+    status as status_examples,
 )
 
 #: W3C Example 29 and FEP-8b32 share one key pair.
@@ -685,6 +696,164 @@ def test_a_value_nested_too_deeply_cannot_be_canonicalized():
 
     with pytest.raises(VultronUnsignableJsonError, match="nested too deeply"):
         signing.canonicalize(value)
+
+
+LIMIT = signing.MAX_JSON_DEPTH
+
+
+def _nested(depth: int, opener: str = "[", closer: str = "]") -> str:
+    return opener * depth + closer * depth
+
+
+def _objects(depth: int) -> str:
+    return '{"a":' * (depth - 1) + "{}" + "}" * (depth - 1)
+
+
+def _mixed(depth: int) -> str:
+    """Arrays holding objects, alternately, *depth* levels deep (even)."""
+    pairs = depth // 2
+    return '[{"a":' * (pairs - 1) + "[{}]" + "}]" * (pairs - 1)
+
+
+def _depth(value: Any) -> int:
+    """The nesting depth of *value*: ``[]`` is 1, a scalar 0."""
+    if isinstance(value, dict):
+        return 1 + max(map(_depth, value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max(map(_depth, value), default=0)
+    return 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [_nested(LIMIT), _objects(LIMIT), _mixed(LIMIT)],
+    ids=["arrays", "objects", "mixed"],
+)
+def test_load_json_reads_nesting_at_the_limit(text: str):
+    assert _depth(signing.load_json(text)) == LIMIT
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        _nested(LIMIT + 1),
+        _objects(LIMIT + 1),
+        "[" + _mixed(LIMIT) + "]",
+        '["text", ' + _nested(LIMIT) + "]",
+    ],
+    ids=["arrays", "objects", "mixed", "after-a-string"],
+)
+def test_load_json_refuses_nesting_past_the_limit(text: str):
+    """The limit is the code's own, whatever the Python version or stack."""
+    with pytest.raises(
+        VultronRefusedJsonError, match=f"more than {LIMIT} levels"
+    ):
+        signing.load_json(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '["' + "[{" * LIMIT + '"]',
+        '{"' + "{[" * LIMIT + '": "' + "]}" * LIMIT + '"}',
+        '["\\"' + "[" * LIMIT + '"]',
+        '["\\\\", "' + "{" * LIMIT + '"]',
+    ],
+    ids=[
+        "in-a-value",
+        "in-a-key",
+        "after-an-escaped-quote",
+        "after-an-escape",
+    ],
+)
+def test_brackets_in_a_string_are_not_nesting(text: str):
+    assert _depth(signing.load_json(text)) == 1
+
+
+def test_an_escaped_backslash_ends_before_the_closing_quote():
+    """``"\\\\"`` is a whole string, so the brackets after it nest."""
+    with pytest.raises(VultronRefusedJsonError, match="nested too deeply"):
+        signing.load_json('["\\\\", ' + _nested(LIMIT) + "]")
+
+
+def test_unterminated_string_text_is_not_json():
+    """A string that never closes hides no nesting and is not JSON."""
+    with pytest.raises(VultronJsonSyntaxError, match="not JSON"):
+        signing.load_json('["' + "[" * (LIMIT + 1))
+
+
+def test_a_stack_that_runs_out_below_the_limit_is_still_a_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The ``RecursionError`` catch stays as the second line of defence."""
+
+    def overflow(*args: Any, **kwargs: Any) -> Any:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(signing.json, "loads", overflow)
+
+    with pytest.raises(VultronRefusedJsonError, match="nested too deeply"):
+        signing.load_json("[[]]")
+
+
+def _full_case_announcement() -> str:
+    """``Announce(CaseLedgerEntry(Create(VulnerabilityCase)))`` as JSON text.
+
+    The deepest body the demos deliver is a ledger entry announced to a
+    participant, whose snapshot is an activity carrying the whole case.  This
+    one's case holds a report, a case status, an active embargo, and three
+    participants with roles, statuses and embargo consent rows.
+    """
+    embargo = embargo_examples.embargo_event()
+    participants = [
+        participant_examples.vendor_participant(),
+        participant_examples.finder_participant(),
+        participant_examples.coordinator_participant(),
+    ]
+    for participant in participants:
+        participant.write_uninvited_rows([embargo.id_])
+    case = examples.case(
+        vulnerability_reports=[examples.gen_report()],
+        case_participants=participants,
+        actor_participant_index={p.attributed_to: p.id_ for p in participants},
+        case_statuses=[status_examples.case_status()],
+        embargo_register=[
+            EmbargoRegisterEntry(
+                embargo=embargo, status=EmbargoRegisterStatus.ACTIVE
+            )
+        ],
+    )
+    create = case_examples.create_case().model_copy(update={"object_": case})
+    snapshot = json.loads(
+        create.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    record = HashChainLedgerRecord(
+        case_id=case.id_,
+        log_index=0,
+        object_id=snapshot["id"],
+        semantic_type="create_case",
+        payload_snapshot=snapshot,
+        prev_log_hash=case.genesis_hash,
+        received_at=examples.EXAMPLE_TIMESTAMP,
+    )
+    announcement = announce_log_entry_activity(
+        record.to_ledger_entry(),
+        actor=examples.case_actor().id_,
+        at=examples.EXAMPLE_TIMESTAMP,
+    )
+    return announcement.model_dump_json(by_alias=True, exclude_none=True)
+
+
+def test_a_full_case_in_an_activity_nests_far_below_the_limit():
+    """Real bodies keep wide headroom under the limit.
+
+    A model change that nests a body much deeper fails here first, before
+    a real body nears the limit and is refused.
+    """
+    body = signing.load_json(_full_case_announcement())
+
+    assert body["object"]["payloadSnapshot"]["object"]["caseParticipants"]
+    assert _depth(body) < LIMIT // 4
 
 
 def test_base58_with_whitespace_is_refused():
