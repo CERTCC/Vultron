@@ -29,6 +29,7 @@ in each row is derived from the scenario name by convention rather than stored
 | RCVCV | `test/ci/invariants/test_rcvcv_invariants.py` | ✓ |
 | RCVV embargo | `test/ci/invariants/test_rcvv_embargo_invariants.py` | ✓ |
 | rv | `test/ci/invariants/test_rv_invariants.py` | ✓ |
+| rv-csaf | `test/ci/invariants/test_rv_csaf_invariants.py` |  |
 | RVCV-extension | `test/ci/invariants/test_rvcv_extension_invariants.py` |  |
 | RVCV-handoff | `test/ci/invariants/test_rvcv_handoff_invariants.py` | ✓ |
 | RVV | `test/ci/invariants/test_rvv_invariants.py` |  |
@@ -251,9 +252,11 @@ pass/fail to CI.
 
 6. Run `uv run demo-scenarios --write` to regenerate every committed artifact
    listed above, and commit them. The `demo-scenarios-sync` pre-commit hook fails
-   if you forget. `test_all_ci_scenarios_have_a_harness_module` still fails
-   until DEMOMA-16 and the `notes/` scenario tables are updated, because those
-   are hand-written prose that is checked rather than generated (#3451).
+   if you forget. The per-scenario checks in
+   `test/ci/invariants/test_universal_semantic_types.py` still fail until the
+   scenario has a row in each `notes/` scenario table and its DEMOMA-16
+   requirement exists, because those are hand-written prose that is checked
+   rather than generated (#3451).
 
 ---
 

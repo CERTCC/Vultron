@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import logging
 
+from pydantic import JsonValue
+
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
     await_reporter_case_replica,
@@ -99,6 +101,31 @@ def the_reporter_tells_the_vendor(state: StoryState) -> None:
     and the fragment that runs next stops the story rather than acting on a
     case the owner cannot vouch for (DEMOCI-01-011).
     """
+    reporter_tells_the_vendor(state)
+
+
+def reporter_tells_the_vendor(
+    state: StoryState,
+    *,
+    csaf_document: dict[str, JsonValue] | None = None,
+    report_content: str | None = None,
+) -> None:
+    """Run the opening's acts, attaching *csaf_document* to the report if given.
+
+    The body of :func:`the_reporter_tells_the_vendor`, which every
+    vendor-first scenario tells, and of the ``rv-csaf`` scenario's opening,
+    which differs only in what the Reporter submits: a CSAF 2.1 vulnerability
+    report and no report name, so the trigger names the report from the
+    document (CSAF-04-010).  One copy of the triage, the roster gate and the
+    replica wait serves both (DEMOMA-17-001).
+
+    Args:
+        state: The running story's state.
+        csaf_document: The CSAF vulnerability report the Reporter attaches,
+            as a JSON object; ``None`` submits the family's plain report.
+        report_content: The report's ``content``, which a CSAF document does
+            not fill; ``None`` submits the family's report content.
+    """
     reporter = state.actor(REPORTER).actor
     vendor = state.actor(VENDOR).actor
     owner_client = state.client(VENDOR)
@@ -107,6 +134,8 @@ def the_reporter_tells_the_vendor(state: StoryState) -> None:
         reporter=reporter,
         receiver=vendor,
         reporter_client=state.client(REPORTER),
+        csaf_document=csaf_document,
+        report_content=report_content,
     )
     case = run_direct_path_rm_triage(
         receiver_client=owner_client,
@@ -208,6 +237,7 @@ __all__ = [
     "THE_VENDORS_CASE",
     "THE_VENDOR_ANSWERS_THE_REPORTER",
     "VENDORS_ANSWER",
+    "reporter_tells_the_vendor",
     "the_reporter_asks_about_the_workaround",
     "the_reporter_tells_the_vendor",
 ]

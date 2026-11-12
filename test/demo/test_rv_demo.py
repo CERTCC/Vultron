@@ -699,7 +699,9 @@ class TestTheVendorReportsTheFixReady:
         """The trigger and its gate are the family's; the casting is rv's."""
         state = _two_party_state()
 
-        with patch.object(demo, "vendor_notifies_fix_ready") as notify:
+        with patch.object(
+            vendor_continuations, "vendor_notifies_fix_ready"
+        ) as notify:
             demo.the_vendor_reports_the_fix_ready(state)
 
         notify.assert_called_once()
@@ -734,12 +736,12 @@ class TestTheVendorReportsTheFixReady:
                 side_effect=lambda _session: order.append("notify"),
             ),
             patch.object(
-                demo,
+                vendor_continuations,
                 "wait_for_participant_vf_state",
                 side_effect=lambda **kw: order.append("reporter_vf"),
             ) as reporter_vf,
             patch.object(
-                demo,
+                vendor_continuations,
                 "the_fix_ready_milestones",
                 side_effect=lambda *a, **kw: order.append("milestones"),
             ) as milestones,
@@ -780,11 +782,13 @@ class TestTheVendorReportsTheFixReady:
             ),
             patch.object(ActorSession, "notify_fix_ready"),
             patch.object(
-                demo,
+                vendor_continuations,
                 "wait_for_participant_vf_state",
                 side_effect=AssertionError("Timed out waiting for vfd_state"),
             ),
-            patch.object(demo, "the_fix_ready_milestones") as later,
+            patch.object(
+                vendor_continuations, "the_fix_ready_milestones"
+            ) as later,
         ):
             demo.the_vendor_reports_the_fix_ready(state)
 
@@ -817,19 +821,19 @@ class TestBothPublish:
 
         with (
             patch.object(
-                demo,
+                vendor_continuations,
                 "reports_published",
                 side_effect=lambda _s, name: order.append(f"published:{name}"),
             ),
             patch.object(
-                demo,
+                vendor_continuations,
                 "the_embargo_ends_for",
                 side_effect=lambda _s, **kw: order.append(
                     f"em_exited:{kw['watcher']}"
                 ),
             ) as embargo,
             patch.object(
-                demo,
+                vendor_continuations,
                 "the_disclosure_reached_every_replica",
                 side_effect=lambda _s, **kw: order.append("m6"),
             ) as disclosed,
@@ -892,7 +896,7 @@ class TestBothClose:
         """A Leave after the case is fully closed records nothing (CM-23-013)."""
         state = _two_party_state()
 
-        with patch.object(demo, "close_the_case") as closure:
+        with patch.object(vendor_continuations, "close_the_case") as closure:
             demo.both_close(state)
 
         closure.assert_called_once()

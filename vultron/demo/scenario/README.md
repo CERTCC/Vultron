@@ -46,6 +46,7 @@ declare. Then run `uv run demo-scenarios --write`.
 | `rcvcv` | `rcvcv_demo/` | Reporter + C1 + V1 + C2 + V2 | Actor-suggestion flow (ADR-0026) |
 | `rcvv-embargo` | `rcvv_embargo_demo.py` | Reporter + Coordinator + Vendor1 + Vendor2 | Embargo revision cycle, late second vendor, and accidental collapse |
 | `rv` | `rv_demo.py` | Reporter + Vendor | Baseline two-actor CVD |
+| `rv-csaf` | `rv_csaf_demo.py` | Reporter + Vendor | Case from a CSAF report |
 | `rvcv-extension` | `rvcv_extension_demo.py` | Reporter + Vendor1 + Coordinator + Vendor2 | Coordinator-suggested second vendor |
 | `rvcv-handoff` | `rvcv_handoff_demo.py` | Reporter + Vendor1 → Coordinator + Vendor2 | Case-ownership transfer to coordinator |
 | `rvv` | `rvv_demo.py` | Reporter + Vendor1 + Vendor2 | Direct invitation of a second vendor |

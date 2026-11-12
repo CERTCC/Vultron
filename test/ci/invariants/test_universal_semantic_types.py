@@ -27,6 +27,7 @@ harness CI never runs.  Do not add a second list of harness files here.
 
 from __future__ import annotations
 
+import functools
 import importlib
 import json
 import re
@@ -125,25 +126,130 @@ def test_harness_lists_universal_semantic_types_once(
         )
 
 
-def test_all_ci_scenarios_have_a_harness_module() -> None:
-    """Every CI-matrix entry names a harness file that exists.
+#: The notes whose ``Scenario`` tables list every CI-matrix scenario by name.
+_SCENARIO_TABLE_NOTES = (
+    _REPO_ROOT / "notes" / "demo-ci-invariants.md",
+    _REPO_ROOT / "notes" / "demo-ci-scenario-coverage.md",
+)
 
-    The count is pinned because the scenarios are enumerated by name in
-    DEMOMA-16-002…-011 and in the tables in ``notes/demo-ci-invariants.md`` and
-    ``notes/demo-ci-scenario-coverage.md``.  Adding a scenario means updating
-    those too, so it should not pass here silently.
+
+def _scenario_tables(note: Path) -> list[set[str]]:
+    """The scenario names in each table of *note* whose first header is ``Scenario``.
+
+    A name is the row's first cell, lower-cased with spaces as hyphens, so the
+    invariants note's ``RCV embargo`` reads as the matrix's ``rcv-embargo``.
     """
-    entries = json.loads(_CI_SCENARIOS_JSON.read_text())
-    assert len(entries) == 11, (
-        f"expected 11 CI scenarios, got {len(entries)} — if a scenario was "
-        "added or removed, update DEMOMA-16 and the notes/ scenario tables"
-    )
-    missing = [
-        entry["test_file"]
-        for entry in entries
-        if not (_REPO_ROOT / entry["test_file"]).is_file()
+    tables: list[list[str]] = []
+    current: list[str] = []
+    for line in [*note.read_text().splitlines(), ""]:
+        if line.startswith("|"):
+            current.append(line)
+        elif current:
+            tables.append(current)
+            current = []
+    return [
+        {
+            row.split("|")[1].strip().lower().replace(" ", "-")
+            for row in table[2:]
+        }
+        for table in tables
+        if table[0].split("|")[1].strip() == "Scenario"
     ]
-    assert not missing, f"CI matrix names nonexistent harness files: {missing}"
+
+
+def _scenario_table_ids() -> list[ParameterSet]:
+    """One param per (note, ``Scenario`` table) pair, so a failure names its table."""
+    return [
+        pytest.param(note, index, id=f"{note.name}-table-{index}")
+        for note in _SCENARIO_TABLE_NOTES
+        for index in range(len(_scenario_tables(note)))
+    ]
+
+
+@pytest.mark.parametrize(("demo", "module_name"), _harness_modules())
+def test_each_ci_scenario_has_its_harness_and_notes_rows(
+    demo: str, module_name: str
+) -> None:
+    """A CI-matrix scenario names a harness that exists and has its notes rows.
+
+    The scenarios are enumerated by name in DEMOMA-16 and in the ``Scenario``
+    tables of ``notes/demo-ci-invariants.md`` and
+    ``notes/demo-ci-scenario-coverage.md``, so adding one means a row in each.
+    Checked per scenario rather than as a pinned total, so two PRs that each
+    add a scenario do not race on one number (``notes/testing-pitfalls.md``,
+    #3984).
+    """
+    entry = next(
+        e
+        for e in json.loads(_CI_SCENARIOS_JSON.read_text())
+        if e["demo"] == demo
+    )
+    assert (_REPO_ROOT / entry["test_file"]).is_file(), (
+        f"CI matrix entry {demo!r} names a nonexistent harness file"
+        f" {entry['test_file']} (module {module_name})"
+    )
+    for note in _SCENARIO_TABLE_NOTES:
+        tables = _scenario_tables(note)
+        assert tables, f"{note.name} has no table headed 'Scenario'"
+        for index, names in enumerate(tables):
+            assert demo in names, (
+                f"{note.name} Scenario table {index} has no row for {demo!r};"
+                " a new CI scenario needs a row in each scenario table"
+            )
+
+
+@pytest.mark.parametrize(("note", "index"), _scenario_table_ids())
+def test_each_notes_scenario_row_is_a_ci_scenario(
+    note: Path, index: int
+) -> None:
+    """Every row of a notes ``Scenario`` table names a CI-matrix scenario.
+
+    The other direction of the check above: a scenario removed from the matrix
+    must lose its rows, so the tables never describe a scenario CI no longer
+    runs.
+    """
+    demos = {e["demo"] for e in json.loads(_CI_SCENARIOS_JSON.read_text())}
+    stale = sorted(_scenario_tables(note)[index] - demos)
+    assert not stale, (
+        f"{note.name} Scenario table {index} lists {stale}, which are not in"
+        " .github/demo-scenarios.json"
+    )
+
+
+@functools.cache
+def _spec_ids() -> frozenset[str]:
+    """Every requirement ID in the spec registry, read once for all params."""
+    return frozenset(load_registry(_SPECS_DIR).all_specs)
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.parametrize(("demo", "module_name"), _harness_modules())
+def test_each_ci_scenario_names_its_demoma_16_requirement(
+    demo: str, module_name: str
+) -> None:
+    """A CI scenario's invariants-note row cites a DEMOMA-16 requirement that exists.
+
+    DEMOMA-16 holds one expected-semantic-types requirement per scenario, and
+    the ``Spec`` column of ``notes/demo-ci-invariants.md`` names it, so a new
+    scenario fails here until its requirement is written.
+    """
+    note = _SCENARIO_TABLE_NOTES[0]
+    specs = [
+        row.split("|")[2].strip()
+        for row in note.read_text().splitlines()
+        if row.startswith("|")
+        and row.split("|")[1].strip().lower().replace(" ", "-") == demo
+    ]
+    assert len(specs) == 1, (
+        f"{note.name} should have one row for {demo!r} ({module_name}),"
+        f" found {len(specs)}"
+    )
+    assert re.fullmatch(r"DEMOMA-16-\d{3}", specs[0]), (
+        f"{note.name} row for {demo!r} cites {specs[0]!r}, not a DEMOMA-16 ID"
+    )
+    assert specs[0] in _spec_ids(), (
+        f"{note.name} row for {demo!r} cites {specs[0]}, which is not in specs/"
+    )
 
 
 @pytest.mark.spec_corpus

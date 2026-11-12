@@ -58,8 +58,8 @@ because this family seats its Reporter under the same name:
 * :mod:`~.opening` — the shared opening's fragments and its two nested
   prefixes.
 * :mod:`~.continuations` — what more than one scenario tells after the
-  opening: the milestones, the fix ready, the joiners' notes and the
-  disclosure.
+  opening: the milestones, the fix ready, the joiners' notes, the
+  disclosure, and the two-party ending ``rv`` and ``rv-csaf`` share.
 
 A test that patches a name a fragment looks up patches it on the submodule
 that resolves it, never on this package: the package holds only the re-exports,
@@ -84,6 +84,8 @@ from vultron.demo.helpers.vendor_story.cast import (
     vendor_seats,
 )
 from vultron.demo.helpers.vendor_story.continuations import (
+    both_close,
+    both_publish,
     both_vendors_report_the_fix_ready,
     required_participants_are_present,
     the_disclosure_reached_every_replica,
@@ -91,6 +93,7 @@ from vultron.demo.helpers.vendor_story.continuations import (
     the_fix_ready_milestones,
     the_fix_ready_reached_the_reporter,
     the_joiners_add_their_notes,
+    the_vendor_reports_the_fix_ready,
     the_vendors_stopped_at_vfd,
 )
 from vultron.demo.helpers.vendor_story.opening import (
@@ -99,6 +102,7 @@ from vultron.demo.helpers.vendor_story.opening import (
     THE_VENDOR_ANSWERS_THE_REPORTER,
     THE_VENDORS_CASE,
     VENDORS_ANSWER,
+    reporter_tells_the_vendor,
     the_reporter_asks_about_the_workaround,
     the_reporter_tells_the_vendor,
 )
@@ -120,6 +124,8 @@ __all__ = [
     "VENDOR_LABEL",
     "VENDOR_PART",
     "VENDOR_TRIAGE_TIMEOUT",
+    "both_close",
+    "both_publish",
     "both_vendors_report_the_fix_ready",
     "dump_vendor_ledgers",
     "open_vendor_cast",
@@ -128,7 +134,9 @@ __all__ = [
     "the_embargo_ends_for",
     "the_fix_ready_milestones",
     "the_fix_ready_reached_the_reporter",
+    "reporter_tells_the_vendor",
     "the_joiners_add_their_notes",
+    "the_vendor_reports_the_fix_ready",
     "the_vendors_stopped_at_vfd",
     "the_reporter_asks_about_the_workaround",
     "the_reporter_tells_the_vendor",

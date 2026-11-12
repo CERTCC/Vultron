@@ -14,6 +14,11 @@
           "id": "coordinator",
           "label": "Report it to a Coordinator",
           "trigger": "submit-report"
+        },
+        {
+          "id": "vendor-csaf",
+          "label": "Send the Vendor a CSAF vulnerability report",
+          "trigger": "submit-report"
         }
       ]
     },
@@ -210,6 +215,9 @@
             }
           }
         }
+      },
+      "vendor-csaf": {
+        "scenario": "rv-csaf"
       }
     }
   },
@@ -415,6 +423,20 @@
       "recordings": {
         "case-actor": {
           "urn:uuid:7699e8c6-b723-4ec7-98ae-00c35f558ecf": "recordings/rv/case-actor.jsonl"
+        }
+      }
+    },
+    "rv-csaf": {
+      "label": "rv-csaf",
+      "path": [
+        {
+          "branch_point": "reporter-whom-to-tell",
+          "choice": "vendor-csaf"
+        }
+      ],
+      "recordings": {
+        "case-actor": {
+          "urn:uuid:55f34683-df93-43ab-9236-807705083339": "recordings/rv-csaf/case-actor.jsonl"
         }
       }
     },

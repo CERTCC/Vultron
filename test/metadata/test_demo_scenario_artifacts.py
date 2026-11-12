@@ -294,8 +294,8 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     Without this, ``in_pr_set`` is the one registry field nothing outside the
     registry can contradict.  Flipping one ``True`` to ``False`` regenerates
     every artifact self-consistently, so ``--check`` stays green;
-    ``test_all_ci_scenarios_have_a_harness_module`` only pins the *count*, which
-    does not change; and the scenario silently stops running on ``pull_request``
+    the per-scenario notes-row checks in ``test_universal_semantic_types.py``
+    still find every row; and the scenario silently stops running on ``pull_request``
     events.  Before ADR-0098 the flag lived in a short committed JSON where a
     reviewer saw the change in the diff; it now lives in a decorator over a
     thousand lines into a demo script, so the check has to be structural.

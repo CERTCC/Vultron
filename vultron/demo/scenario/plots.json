@@ -548,15 +548,47 @@
       },
       {
         "kind": "fragment",
-        "name": "vultron.demo.scenario.rv_demo.the_vendor_reports_the_fix_ready"
+        "name": "vultron.demo.helpers.vendor_story.continuations.the_vendor_reports_the_fix_ready"
       },
       {
         "kind": "fragment",
-        "name": "vultron.demo.scenario.rv_demo.both_publish"
+        "name": "vultron.demo.helpers.vendor_story.continuations.both_publish"
       },
       {
         "kind": "fragment",
-        "name": "vultron.demo.scenario.rv_demo.both_close"
+        "name": "vultron.demo.helpers.vendor_story.continuations.both_close"
+      }
+    ],
+    "rv-csaf": [
+      {
+        "kind": "choice",
+        "branch_point": "reporter-whom-to-tell",
+        "choice": "vendor-csaf",
+        "by": "reporter"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.scenario.rv_csaf_demo.the_reporter_sends_a_csaf_report"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.scenario.rv_csaf_demo.the_case_starts_from_the_csaf_report"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.helpers.vendor_story.opening.the_reporter_asks_about_the_workaround"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.helpers.vendor_story.continuations.the_vendor_reports_the_fix_ready"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.helpers.vendor_story.continuations.both_publish"
+      },
+      {
+        "kind": "fragment",
+        "name": "vultron.demo.helpers.vendor_story.continuations.both_close"
       }
     ],
     "rvcv-extension": [

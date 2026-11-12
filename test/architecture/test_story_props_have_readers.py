@@ -1143,7 +1143,7 @@ def test_every_prop_is_kept_by_a_step() -> None:
     The other half of the same rule, and the louder one: ``kept()`` raises, so
     this fails the scenario at run time.  It is checked here because a prop a
     refactor orphaned fails only the scenarios that reach its reader, which on
-    a tree of eleven scenarios is a subset of the demo gate.
+    the scenario tree is a subset of the demo gate.
     """
     assert not _SITES.without_a_keeper(), (
         "these story props are read but kept by nobody, so every fragment "

@@ -16,7 +16,7 @@
 #               services use a bind mount) to save significant startup time.
 #               Run without --no-build at least once, or after changing
 #               pyproject.toml, uv.lock, or docker/Dockerfile.
-#   SCENARIO    One of: rv (default), rvv, rcv, rcv-reject, rvcv-extension, rvcv-handoff, rccv-handoff, rccv-extension, rcvcv, rcv-embargo, rcvv-embargo
+#   SCENARIO    One of: rv (default), rv-csaf, rvv, rcv, rcv-reject, rvcv-extension, rvcv-handoff, rccv-handoff, rccv-extension, rcvcv, rcv-embargo, rcvv-embargo
 #
 # Environment variables:
 #   DEMO                   Alternative way to specify the scenario (overridden by
@@ -82,7 +82,7 @@ while [[ $# -gt 0 ]]; do
 done
 DEMO="${SCENARIO_ARG:-${DEMO:-rv}}"
 
-VALID_SCENARIOS="rv rvv rcv rcv-reject rvcv-extension rvcv-handoff rccv-handoff rccv-extension rcvcv rcv-embargo rcvv-embargo"
+VALID_SCENARIOS="rv rv-csaf rvv rcv rcv-reject rvcv-extension rvcv-handoff rccv-handoff rccv-extension rcvcv rcv-embargo rcvv-embargo"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

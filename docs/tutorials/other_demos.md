@@ -347,6 +347,27 @@ sequenceDiagram
 
 See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md#submit-a-report) for the Offer that carries the terms, and [Default Embargoes](../topics/process_models/em/defaults.md) for why the shorter terms win.
 
+### rv-csaf
+
+The `rv-csaf` scenario shows a case that starts from a Common Security Advisory Framework (CSAF) 2.1 vulnerability report.
+It is a multi-container scenario, so it does not run in this container.
+Run it from the repository root on the host, as [Running the Multi-Actor Container Demos](container_demos.md) describes:
+
+```bash
+DEMO=rv-csaf docker compose -f docker/docker-compose-multi-actor.yml \
+    up --abort-on-container-exit --exit-code-from demo-runner
+```
+
+The Vendor publishes a 30-day default embargo.
+The Reporter then calls `submit-report` with a CSAF document attached, and states no report name, summary or embargo end.
+The trigger checks the document against the CSAF 2.1 schema and fills the report from it.
+The Vendor validates the report and engages the case.
+The case takes its name from the document's title, its summary from the document's summary note, and its embargo end from the document's disclosure date.
+The disclosure date is 10 days away, so it wins against the Vendor's 30-day default, and the default stays pending as a revision.
+After that, the case runs to closure as in the `rv` scenario.
+
+See [The `rv-csaf` Scenario](../topics/scenarios/rv-csaf.md) for the full narrative.
+
 ### manage-embargo
 
 {% include-markdown "../howto/activitypub/activities/_demo_manage_embargo.md" %}

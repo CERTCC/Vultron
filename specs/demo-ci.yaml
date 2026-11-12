@@ -1102,8 +1102,8 @@ groups:
           The `demo-integration.yml` workflow MUST run the full scenario suite on a
           `push: branches: ["main"]` trigger, whatever subset runs for PR validation.
           The full suite is `rv`, `rvv`, `rvcv-extension`, `rvcv-handoff`,
-          `rccv-extension`, `rccv-handoff`, `rcvcv`, `rcv`, `rcv-reject`, `rcv-embargo`
-          and `rcvv-embargo`.
+          `rccv-extension`, `rccv-handoff`, `rcvcv`, `rcv`, `rcv-reject`, `rcv-embargo`,
+          `rcvv-embargo` and `rv-csaf`.
         rationale: >-
           The post-merge run is the safety net for cross-PR regressions. It covers all
           scenarios, so every scenario variant keeps giving a case-log invariant signal

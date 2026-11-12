@@ -1,0 +1,52 @@
+# Log Replay golden: rv-csaf (ui/src/recordings/rv-csaf/case-actor.jsonl)
+# Written by ui/src/utils/replayGolden.test.ts. After an intended change,
+# regenerate with `npm test -- -u` in ui/ and review the diff.
+
+## Lanes, top to bottom: label, roles, actor id
+Reporter      REPORTER              http://actor0:7999/api/v2/actors/actor0
+Vendor        VENDOR                http://actor1:7999/api/v2/actors/actor1
+Case Manager  CASE_MANAGER          http://case-actor:7999/api/v2/actors/case-actor
+
+## States: each lane's distinct states in step order, then the case
+Reporter      RM ACCEPTED → CLOSED
+Vendor        RM RECEIVED → VALID → ACCEPTED → CLOSED; VFD vfd → Vfd → VFd
+Case Manager  RM N/A, VFD N/A
+Case          EM REVISE → EXITED; PXA pxa → Pxa
+
+## Events: step, decision lane, label [flags], then details and the lanes it reaches
+01  Case Manager  Case Manager created the case
+      Create(VulnerabilityCase) · EM: REVISE · PXA: pxa
+      → Reporter, Vendor
+02  Reporter      Reporter submitted the report
+      Offer(VulnerabilityReport) · Report: "Authentication bypass in the Example Router web console"
+      → Vendor, Case Manager
+03  Vendor        Vendor validated the report
+      Accept(Offer(VulnerabilityReport)) · RM: RECEIVED → VALID
+      → Reporter, Case Manager
+04  Vendor        Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Case Manager
+05  Reporter      Reporter added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Question from Reporter" · Is there a workaround available while the patch is being developed?
+      → Vendor, Case Manager
+06  Vendor        Vendor added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Vendor Response" · Yes, disabling the affected module is an effective interim workaround.
+      → Reporter, Case Manager
+07  Vendor        Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)
+      → Reporter, Case Manager
+08  Vendor        Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: Vfd → VFd (fix_is_ready)
+      → Reporter, Case Manager
+09  Vendor        Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · PXA: pxa → Pxa (public_becomes_aware)
+      → Reporter, Case Manager
+10  Case Manager  Case Manager removed an embargo from the case
+      Remove(EmbargoEvent) · EM: REVISE → EXITED (terminate)
+      → Reporter, Vendor
+11  Reporter      Reporter closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Vendor, Case Manager
+12  Vendor        Vendor closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Case Manager
