@@ -21,6 +21,9 @@ shape its wire declaration does, and the activity reads its own dump back
 with every embedded object as the class that wrote it.
 """
 
+import json
+import subprocess
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -143,6 +146,22 @@ def test_closed_reads_back_its_flag_or_iri(value: object) -> None:
     assert VultronActivity.model_validate(dumped).closed == value
 
 
+@pytest.mark.parametrize(
+    "value",
+    ["1", "0", "yes", "no", "on", "1700000000", "2026"],
+)
+def test_closed_coerces_no_string_to_a_flag_or_a_time(value: str) -> None:
+    """A string that is no RFC 3339 time stays a string, as on the wire."""
+    assert _activity(closed=value).closed == value
+
+
+@pytest.mark.parametrize("value", [1, 0, 1.5])
+def test_closed_refuses_a_number(value: object) -> None:
+    """No AS2 shape of ``closed`` is a number, so none is coerced to one."""
+    with pytest.raises(ValidationError):
+        _activity(closed=value)
+
+
 def test_closed_reads_back_a_time_as_a_time_in_the_fixed_form() -> None:
     """A stored time is a string, which must not read back as an IRI."""
     closed = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
@@ -232,6 +251,33 @@ def test_a_stored_activity_reads_back_with_its_slots() -> None:
     finally:
         dl.clear_all()
         dl.close()
+
+
+_FRESH_PROCESS_READ = """
+import json, sys
+from vultron.core.models.activity import VultronActivity
+activity = VultronActivity.model_validate(json.loads(sys.argv[1]))
+print(type(activity.object_).__name__)
+"""
+
+
+def test_a_fresh_process_reads_an_embedded_dump_as_its_class() -> None:
+    """The answer does not depend on which model modules were imported.
+
+    The child imports only the activity module, never the note module, and
+    must still read the embedded note back as a ``VultronNote``.
+    """
+    dumped = _activity(object_=_note()).model_dump(mode="json", by_alias=True)
+
+    completed = subprocess.run(
+        [sys.executable, "-c", _FRESH_PROCESS_READ, json.dumps(dumped)],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+
+    assert completed.stdout.strip() == "VultronNote"
 
 
 def test_the_type_lookup_leaves_core_activities_out() -> None:

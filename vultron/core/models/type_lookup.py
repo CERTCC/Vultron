@@ -19,6 +19,10 @@ dump back, whether a stored row (DL-05-006) or an object embedded in an
 activity's slot (#6305), needs the one class that presents that value.
 """
 
+import importlib
+import pkgutil
+from functools import cache
+
 from pydantic import BaseModel
 
 from vultron.core.models.registry import (
@@ -26,6 +30,22 @@ from vultron.core.models.registry import (
     declared_type_value,
     find_in_core_vocabulary,
 )
+
+
+@cache
+def _register_every_core_model() -> None:
+    """Import every module under ``vultron.core.models`` once.
+
+    A core class registers when its module is imported, so without this the
+    answer would depend on what the process happened to import: a dumped
+    ``Create(Note)`` read in a process that never imported the note module
+    would read its note back as a bare ``CoreObject``, with no error.
+    """
+    models_pkg = importlib.import_module("vultron.core.models")
+    for module in pkgutil.walk_packages(
+        models_pkg.__path__, models_pkg.__name__ + "."
+    ):
+        importlib.import_module(module.name)
 
 
 class _TypeValueIndexCache:
@@ -96,6 +116,7 @@ def core_class_for_type(type_: str) -> type[BaseModel]:
     Raises:
         KeyError: If no core class reads back dumps of *type_*.
     """
+    _register_every_core_model()
     try:
         return find_in_core_vocabulary(type_)
     except KeyError:

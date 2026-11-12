@@ -17,13 +17,15 @@
 
 # pyright: reportGeneralTypeIssues=false
 
+import re
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import (
     Field,
     SerializerFunctionWrapHandler,
+    Strict,
     ValidationInfo,
     field_serializer,
     field_validator,
@@ -40,6 +42,15 @@ from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.sender_sequence import SenderSequence
 from vultron.core.models.type_lookup import core_class_for_type
+
+#: The ``closed`` time and flag branches, strict so that no string or number
+#: is coerced to a time or a flag.
+_StrictTime = Annotated[datetime, Strict()]
+_StrictFlag = Annotated[bool, Strict()]
+#: An RFC 3339 date-time, the form a dumped ``closed`` time takes.
+_RFC3339 = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?"
+)
 
 
 class VultronActivity(CoreObject):
@@ -114,14 +125,13 @@ class VultronActivity(CoreObject):
     # must be a field here (ARCH-25-008).
     # ``anyOf``/``oneOf`` are non-functional (one option or many), as on
     # ``as_Question``.  ``closed`` is an object, a link, a time or a boolean
-    # (AS2 §4.1).  Its union is tried in order, time first, because a stored
-    # row holds the time as a string, and the smart mode would read that back
-    # as an IRI.
+    # (AS2 §4.1).  The time and flag branches are strict, so a string such
+    # as ``"1"`` or ``"yes"`` is never coerced to one; only an RFC 3339 time
+    # string, the form a stored row holds a time in, is read as a time
+    # (``_read_closed_time``).
     any_of: CoreObjectOrIriValues = None
     one_of: CoreObjectOrIriValues = None
-    closed: datetime | bool | CoreObjectOrIri | None = Field(
-        default=None, union_mode="left_to_right"
-    )
+    closed: _StrictTime | _StrictFlag | CoreObjectOrIri | None = None
     # Addressing carries actor references; a blank one names nobody
     # (CS-08-001).  Only ``to`` is modelled: Vultron addresses every direct
     # message with it (OX-08-001), and ``cc``/``bto``/``bcc`` have no handler
@@ -153,17 +163,38 @@ class VultronActivity(CoreObject):
         mode="before",
     )
     @classmethod
-    def _read_embedded_dumps(cls, value: object, info: ValidationInfo) -> Any:
+    def _read_embedded_dumps(
+        cls, value: object, info: ValidationInfo
+    ) -> object:
         """Read an embedded object's dump back as the class that wrote it.
 
         A dumped activity holds its embedded objects as mappings, and the
         slot's ``CoreObject`` branch forbids every field a subclass adds, so
         the activity would refuse its own dump (ARCH-23-005).  Each mapping
         is built as the class its ``type`` names first.
+
+        An object core does not model (a Link, a case reference) is held as
+        the wire layer built it, and its dump names no core class, so an
+        activity holding one does not read its own dump back in core: only
+        the stored-row reader, which can name wire classes, rebuilds it.
         """
         if isinstance(value, list):
             return [_read_embedded_dump(item, info) for item in value]
         return _read_embedded_dump(value, info)
+
+    @field_validator("closed", mode="before")
+    @classmethod
+    def _read_closed_time(cls, value: object) -> object:
+        """Read an RFC 3339 time string as the time it states.
+
+        A stored row and a JSON dump hold ``closed`` as a string; the strict
+        time branch takes only a ``datetime``, so the string is parsed here.
+        Only a string with a ``T`` between date and time is a time, which no
+        IRI and no flag spelling is.
+        """
+        if isinstance(value, str) and _RFC3339.fullmatch(value):
+            return datetime.fromisoformat(value)
+        return value
 
     @field_validator("closed")
     @classmethod
