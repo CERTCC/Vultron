@@ -602,7 +602,11 @@ def _imported_modules(module) -> set[str]:
 )
 def test_the_layer_imports_no_scoring_entry_point(module):
     imported = _imported_modules(module)
-    for scoring in ("vultron.core.case_states", "vultron.measure.baselines"):
+    for scoring in (
+        "vultron.core.case_states",
+        "vultron.measure.baselines",
+        "vultron.measure.scoring",
+    ):
         assert not any(
             name == scoring or name.startswith(f"{scoring}.")
             for name in imported
@@ -611,10 +615,12 @@ def test_the_layer_imports_no_scoring_entry_point(module):
 
 
 #: The scoring entry points: the legacy desiderata scorer
-#: (``CVDmodel.score_hist``) and the chance baselines #6068 scores through.
+#: (``CVDmodel.score_hist``), the chance baselines, and the scorer that reads
+#: the sequences (``vultron.measure.scoring``).
 _SCORING_PACKAGES = (
     "vultron.core.case_states.hypercube",
     "vultron.measure.baselines",
+    "vultron.measure.scoring",
 )
 
 
