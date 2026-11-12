@@ -47,9 +47,12 @@ from vultron.core.models.type_lookup import core_class_for_type
 #: is coerced to a time or a flag.
 _StrictTime = Annotated[datetime, Strict()]
 _StrictFlag = Annotated[bool, Strict()]
-#: An RFC 3339 date-time, the form a dumped ``closed`` time takes.
+#: An RFC 3339 date-time, the form a dumped ``closed`` time takes, in
+#: either letter case (RFC 3339 §5.6).  The offset may be missing: a time
+#: without one is read as UTC, as every core time is (CS-13-001).
 _RFC3339 = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?"
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?"
+    r"([Zz]|[+-][0-9]{2}:[0-9]{2})?"
 )
 
 
@@ -189,11 +192,13 @@ class VultronActivity(CoreObject):
 
         A stored row and a JSON dump hold ``closed`` as a string; the strict
         time branch takes only a ``datetime``, so the string is parsed here.
-        Only a string with a ``T`` between date and time is a time, which no
-        IRI and no flag spelling is.
+        Only a string with a ``T`` (or ``t``) between date and time is a
+        time, which no IRI and no flag spelling is.  A string of that shape
+        that names no real time (month 13, second 60) is refused, not kept
+        as an IRI.  A time with no offset is read as UTC.
         """
         if isinstance(value, str) and _RFC3339.fullmatch(value):
-            return datetime.fromisoformat(value)
+            return datetime.fromisoformat(value.upper())
         return value
 
     @field_validator("closed")

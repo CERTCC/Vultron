@@ -162,6 +162,47 @@ def test_closed_refuses_a_number(value: object) -> None:
         _activity(closed=value)
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-01-02T03:04:05Z", datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)),
+        ("2026-01-02t03:04:05z", datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)),
+        (
+            "2026-01-02T05:04:05+02:00",
+            datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+        ),
+        ("2026-01-02T03:04:05", datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)),
+        (
+            "2026-01-02T03:04:05.250Z",
+            datetime(2026, 1, 2, 3, 4, 5, 250000, tzinfo=UTC),
+        ),
+    ],
+    ids=["z", "lowercase", "offset", "no-offset", "fraction"],
+)
+def test_closed_reads_an_rfc3339_string_as_a_utc_time(
+    value: str, expected: datetime
+) -> None:
+    """Every RFC 3339 spelling is a time, and a missing offset is UTC."""
+    closed = _activity(closed=value).closed
+
+    assert isinstance(closed, datetime)
+    assert closed == expected
+    assert closed.utcoffset() is not None
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["2026-13-45T03:04:05Z", "2026-01-02T03:04:60Z", "2026-02-30T00:00:00Z"],
+    ids=["month-13", "second-60", "feb-30"],
+)
+def test_closed_refuses_a_time_shaped_string_that_is_no_time(
+    value: str,
+) -> None:
+    """A string shaped as a time but naming none is refused, not an IRI."""
+    with pytest.raises(ValidationError):
+        _activity(closed=value)
+
+
 def test_closed_reads_back_a_time_as_a_time_in_the_fixed_form() -> None:
     """A stored time is a string, which must not read back as an IRI."""
     closed = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
