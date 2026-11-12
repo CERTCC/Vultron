@@ -212,13 +212,18 @@ def test_an_archive_that_fails_twice_fails_naming_the_draft_and_release(
     _publish_pair(releases, archive, manifest)
     releases.tampered = 99
     site = _built_site(tmp_path)
-    with pytest.raises(_fd.FrozenDraftError) as caught:
-        _serve_into(site, _register(("draft-1", RELEASE)))
+    lines, faults = _serve.serve(_register(("draft-1", RELEASE)), site, "O/R")
     assert _downloads(releases) == _serve.DOWNLOAD_ATTEMPTS == 2
+    assert lines == [
+        f"- `draft-1`: **failed**, the archive of release `{RELEASE}` does "
+        "not match its manifest."
+    ]
+    assert faults
     assert all(
-        f.startswith(f"draft-1 (release {RELEASE}): ")
-        for f in caught.value.faults
+        f.startswith(f"draft-1 (release {RELEASE}): attempt ") for f in faults
     )
+    # Both attempts' faults are kept.
+    assert {f.split(": ")[1] for f in faults} == {"attempt 1", "attempt 2"}
     assert not (site / "spec").exists()
 
 
@@ -468,6 +473,55 @@ def test_the_command_refuses_a_register_that_is_not_one(
     assert releases.calls == []
 
 
+@pytest.mark.parametrize(
+    ("released", "fault"),
+    [
+        (
+            [{"version": "draft-1", "date": "2026-11-06", "release": None}],
+            "released entry 0: no release tag",
+        ),
+        (
+            [{"version": "draft-1", "date": "2026-11-06"}],
+            "released entry 0: no release tag",
+        ),
+        (
+            [{"version": "../x", "date": "2026-11-06", "release": RELEASE}],
+            "released entry 0: not a draft-N version",
+        ),
+        (
+            [
+                {
+                    "version": "draft-1",
+                    "date": "2026-11-06",
+                    "release": RELEASE,
+                },
+                {"version": "draft-1", "date": "2026-11-06", "release": LATER},
+            ],
+            "draft-1 is released twice",
+        ),
+    ],
+    ids=["null-release", "no-release", "unsafe-version", "repeated-version"],
+)
+def test_the_command_refuses_a_released_entry_it_cannot_serve(
+    tmp_path: Path,
+    releases: _FlakyReleases,
+    monkeypatch: pytest.MonkeyPatch,
+    released: list[dict[str, object]],
+    fault: str,
+) -> None:
+    """A released entry's version names its folder below spec/, and its
+    release is the tag looked up, so each must be usable before any lookup."""
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    register = _register_file(
+        tmp_path, {"current": None, "released": released}
+    )
+    argv = ["--register", str(register), "--repo", "O/R"]
+    assert _serve.main([*argv, "--site", str(_built_site(tmp_path))]) == 1
+    assert fault in summary.read_text()
+    assert releases.calls == []
+
+
 @pytest.mark.spec("DOCBW-08-032", "DOCBW-08-033")
 def test_a_failed_run_still_names_every_draft_in_the_summary(
     tmp_path: Path,
@@ -655,13 +709,120 @@ def test_a_download_that_keeps_failing_fails_naming_the_draft_and_release(
 
     monkeypatch.setattr(releases, "_download", broken)
     site = _built_site(tmp_path)
-    with pytest.raises(_fd.FrozenDraftError) as caught:
-        _serve_into(site, _register(("draft-1", RELEASE)))
-    (fault,) = caught.value.faults
-    assert fault.startswith(
-        f"draft-1 (release {RELEASE}): the download failed"
-    )
+    lines, faults = _serve.serve(_register(("draft-1", RELEASE)), site, "O/R")
+    assert lines == [
+        f"- `draft-1`: **failed**, the archive of release `{RELEASE}` could "
+        "not be downloaded."
+    ]
+    assert faults == [
+        f"draft-1 (release {RELEASE}): attempt {n}: the download failed: 502"
+        for n in (1, 2)
+    ]
     assert not (site / "spec").exists()
+
+
+@pytest.mark.spec("DOCBW-08-033")
+def test_a_mismatch_then_a_failed_download_keeps_both_faults(
+    tmp_path: Path,
+    releases: _FlakyReleases,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The last attempt names how it failed; every attempt's fault is kept,
+    and the second download is announced."""
+    archive, manifest = _build(tmp_path)
+    _publish_pair(releases, archive, manifest)
+    releases.tampered = 1
+    first = releases._download
+    calls: list[int] = []
+
+    def flaky(tag: str, args: tuple[str, ...], retry: bool) -> str:
+        calls.append(1)
+        if len(calls) > 1:
+            raise subprocess.CalledProcessError(1, ["gh"], stderr="502\n")
+        return first(tag, args, retry)
+
+    monkeypatch.setattr(releases, "_download", flaky)
+    site = _built_site(tmp_path)
+    lines, faults = _serve.serve(_register(("draft-1", RELEASE)), site, "O/R")
+    assert "could not be downloaded" in lines[0]
+    assert any(
+        f.startswith(f"draft-1 (release {RELEASE}): attempt 1: ")
+        and "download failed" not in f
+        for f in faults
+    )
+    assert faults[-1] == (
+        f"draft-1 (release {RELEASE}): attempt 2: the download failed: 502"
+    )
+    assert "failed its checks; downloading it again" in capsys.readouterr().out
+
+
+@pytest.mark.spec("DOCBW-08-033")
+def test_a_failed_first_download_is_announced_and_retried(
+    tmp_path: Path,
+    releases: _FlakyReleases,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    archive, manifest = _build(tmp_path)
+    _publish_pair(releases, archive, manifest)
+    first = releases._download
+    calls: list[int] = []
+
+    def flaky(tag: str, args: tuple[str, ...], retry: bool) -> str:
+        calls.append(1)
+        if len(calls) == 1:
+            raise subprocess.CalledProcessError(1, ["gh"], stderr="502\n")
+        return first(tag, args, retry)
+
+    monkeypatch.setattr(releases, "_download", flaky)
+    site = _built_site(tmp_path)
+    assert _serve_into(site, _register(("draft-1", RELEASE))) == [
+        f"- `draft-1`: served from release `{RELEASE}`."
+    ]
+    assert "could not be downloaded; downloading it again" in (
+        capsys.readouterr().out
+    )
+
+
+@pytest.mark.spec("DOCBW-08-032", "DOCBW-08-033")
+@pytest.mark.parametrize(
+    "reply",
+    ["not json", json.dumps({"assets": []})],
+    ids=["unreadable", "no-isDraft"],
+)
+def test_an_unexpected_lookup_reply_fails_that_draft_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reply: str,
+) -> None:
+    """An error the lookup does not expect fails its own draft; the next
+    draft is still tried, and the summary keeps every line."""
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+
+    def gh(*args: str, retry: bool = True) -> str:
+        if args[2] == RELEASE:
+            return reply
+        raise subprocess.CalledProcessError(
+            1, ["gh"], stderr="release not found\n"
+        )
+
+    monkeypatch.setattr(_rel, "gh", gh)
+    register = _register_file(
+        tmp_path, _released_json(("draft-1", RELEASE), ("draft-2", LATER))
+    )
+    site = _built_site(tmp_path)
+    argv = ["--register", str(register), "--repo", "O/R", "--site", str(site)]
+    assert _serve.main(argv) == 1
+    text = summary.read_text()
+    assert (
+        f"- `draft-1`: **failed**, release `{RELEASE}` could not be served."
+        in text
+    )
+    assert f"- `draft-2`: release `{LATER}` is not published yet" in text
+    assert "Nothing was served." not in text
+    assert (site / "spec/draft-2/index.html").is_file()
 
 
 def test_a_release_lookup_that_fails_is_retried_then_names_the_draft(

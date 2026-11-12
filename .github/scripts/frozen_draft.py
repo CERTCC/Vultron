@@ -81,7 +81,8 @@ FOOTER_CLASS = "build-footer"
 # What a URL path keeps unescaped: RFC 3986's sub-delims, ":" and "@".
 _PATH_SAFE = "/!$&'()*+,;=:@~"
 _SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
-_DRAFT = re.compile(r"^draft-[1-9][0-9]*$")
+#: A draft version, ``draft-N``; also the name of its folder below ``spec/``.
+DRAFT_VERSION = re.compile(r"^draft-[1-9][0-9]*$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64}) [ *](.+)$")
 # One attribute of a start tag as written: name, and a value if it has one.
@@ -331,7 +332,7 @@ class FrozenDraft:
 
     def problems(self) -> list[str]:
         faults = []
-        if not _DRAFT.match(self.version):
+        if not DRAFT_VERSION.match(self.version):
             faults.append(f"{self.version!r} is not a draft-N version")
         if not _SHA.match(self.commit):
             faults.append(f"{self.commit!r} is not a full commit SHA")

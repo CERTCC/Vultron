@@ -16,8 +16,9 @@ For each released draft of the register:
   exactly what the manifest lists. The tree then moves to
   ``site/spec/draft-N/``. A release is immutable once published, so a tree
   that does not match is a corrupt download or a defect here, never a
-  changed asset: the download is tried once more before the step fails, and
-  the release is never touched.
+  changed asset: the pair is downloaded once more before the step fails, and
+  the release is never touched. Each download also gets ``gh``'s own bounded
+  retry of a transient error (``retry.sh``).
 - whose release is not published (no tag yet, no release, or a release still
   a draft), a placeholder page that names the release is written at
   ``site/spec/draft-N/index.html``, so the pages that link the draft never
@@ -48,7 +49,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from frozen_draft import FrozenDraftError, unpack_matching
+from frozen_draft import DRAFT_VERSION, FrozenDraftError, unpack_matching
 from gh_cli import write_github_file  # see gh_cli
 from release import (
     DraftEntry,
@@ -105,42 +106,72 @@ def placeholder_html(entry: DraftEntry, repo: str) -> str:
     )
 
 
+class FetchFailed(FrozenDraftError):
+    """A published release's pair could not be served.
+
+    *downloaded* says how the last attempt failed: ``True`` when the pair
+    was downloaded and its tree failed the checks, ``False`` when the
+    download itself failed. The faults list every attempt's, in order.
+    """
+
+    def __init__(self, faults: Sequence[str], *, downloaded: bool) -> None:
+        super().__init__(faults)
+        self.downloaded = downloaded
+
+
 def fetch_tree(repo: str, entry: DraftEntry, work: Path) -> Path:
     """Download *entry*'s pair and unpack the archive below *work*.
 
-    The pair is downloaded again once when the tree fails its checks.
+    The pair is downloaded again once when the first attempt fails, whether
+    the download failed or the tree failed its checks. Each download also
+    gets ``gh``'s own bounded retry of a transient error (``retry.sh``).
 
     Returns:
         The unpacked tree, which matches its manifest.
 
     Raises:
-        FrozenDraftError: The faults of the last attempt.
+        FetchFailed: The faults of every attempt.
     """
     archive, manifest = frozen_pair(entry.version)
     faults: list[str] = []
+    downloaded = False
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
         folder = work / entry.version / f"attempt-{attempt}"
         assets = folder / "assets"
         tree = folder / "tree"
+        found: list[str]
         try:
             download_assets(
                 repo, str(entry.release), (archive, manifest), assets
             )
         except subprocess.CalledProcessError as error:
-            faults = [f"the download failed: {error}"]
-            continue
-        try:
-            faults = unpack_matching(assets / archive, assets / manifest, tree)
-        except FrozenDraftError as error:
-            faults = error.faults
-        if not faults:
-            return tree
+            detail = (error.stderr or "").strip() or str(error)
+            found = [f"the download failed: {detail}"]
+            downloaded = False
+        else:
+            downloaded = True
+            try:
+                found = unpack_matching(
+                    assets / archive, assets / manifest, tree
+                )
+            except FrozenDraftError as error:
+                found = error.faults
+            except OSError as error:
+                found = [f"the downloaded pair could not be read: {error}"]
+            if not found:
+                return tree
+        faults += [f"attempt {attempt}: {fault}" for fault in found]
         if attempt < DOWNLOAD_ATTEMPTS:
+            reason = (
+                "failed its checks"
+                if downloaded
+                else "could not be downloaded"
+            )
             print(
                 f"::warning::{entry.version}: the archive of {entry.release} "
-                "failed its checks; downloading it again."
+                f"{reason}; downloading it again."
             )
-    raise FrozenDraftError(faults)
+    raise FetchFailed(faults, downloaded=downloaded)
 
 
 def serve_one(
@@ -158,6 +189,9 @@ def serve_one(
             "could not be looked up.",
             [f"{shown}: the release lookup failed: {detail}"],
         )
+    # A contents:read token cannot see a draft release, so in CI gh reports
+    # one as "not found" and it arrives here as None; is_draft is True only
+    # for a token with push access. Either way the release is unpublished.
     if state is None or state.is_draft:
         target.mkdir(parents=True)
         (target / "index.html").write_text(
@@ -186,10 +220,15 @@ def serve_one(
         )
     try:
         tree = fetch_tree(repo, entry, work)
-    except FrozenDraftError as error:
+    except FetchFailed as error:
+        how = (
+            "does not match its manifest"
+            if error.downloaded
+            else "could not be downloaded"
+        )
         return (
             f"- `{entry.version}`: **failed**, the archive of release "
-            f"`{entry.release}` does not match its manifest.",
+            f"`{entry.release}` {how}.",
             [f"{shown}: {fault}" for fault in error.faults],
         )
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -222,7 +261,19 @@ def serve(
     faults: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         for entry in register.released:
-            line, found = serve_one(entry, site, repo, Path(tmp))
+            try:
+                line, found = serve_one(entry, site, repo, Path(tmp))
+            except (OSError, ValueError, KeyError) as error:
+                # An unexpected reply or a failed write fails this draft
+                # only, so the next draft is still tried (EH-07-001).
+                line = (
+                    f"- `{entry.version}`: **failed**, release "
+                    f"`{entry.release}` could not be served."
+                )
+                found = [
+                    f"{entry.version} (release {entry.release}): "
+                    f"{type(error).__name__}: {error}"
+                ]
             lines.append(line)
             faults += found
     return lines, faults
@@ -242,6 +293,25 @@ def read_register(path: Path) -> Register:
         or not isinstance(data.get("current"), dict | None)
     ):
         raise FrozenDraftError([f"{path}: not a drafts register"])
+    faults: list[str] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(data["released"]):
+        version = entry.get("version")
+        release = entry.get("release")
+        # The version names a folder below site/spec/, so it must be a
+        # draft-N and appear once; a released entry always names its release.
+        if not isinstance(version, str) or not DRAFT_VERSION.match(version):
+            faults.append(
+                f"{path}: released entry {index}: not a draft-N version"
+            )
+        elif version in seen:
+            faults.append(f"{path}: {version} is released twice")
+        else:
+            seen.add(version)
+        if not isinstance(release, str) or not release.strip():
+            faults.append(f"{path}: released entry {index}: no release tag")
+    if faults:
+        raise FrozenDraftError(faults)
     return Register.from_json(data)
 
 

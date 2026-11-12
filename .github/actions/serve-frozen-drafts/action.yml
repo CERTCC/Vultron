@@ -24,8 +24,9 @@ runs:
   steps:
     # The script only reads releases: both callers give the job a read-only
     # token. A published release's assets never change, so a mismatch is
-    # taken for a corrupt download and retried once, then fails the step,
-    # and so the run (CISEC-05).
+    # taken for a corrupt download and the pair is downloaded once more,
+    # then fails the step, and so the run (CISEC-05). Each gh call also gets
+    # retry.sh's bounded retry of a transient error.
     - name: Serve the frozen drafts into site/spec/
       shell: bash
       env:
