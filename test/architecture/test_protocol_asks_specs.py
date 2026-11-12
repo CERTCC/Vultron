@@ -45,6 +45,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.objects import authored_at, make
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.models._helpers import own_annotations
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
 )
@@ -103,7 +104,7 @@ def _field_names(model: type) -> frozenset[str]:
     dc_fields = getattr(model, "__dataclass_fields__", None)
     if dc_fields is not None:
         return frozenset(dc_fields)
-    return frozenset(getattr(model, "__annotations__", {}))
+    return frozenset(own_annotations(model))
 
 
 # ---------------------------------------------------------------------------

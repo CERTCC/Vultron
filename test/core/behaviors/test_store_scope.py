@@ -61,7 +61,7 @@ class _Store:
         self.actor_id = actor_id
         self.cloned_for: list[str] = []
 
-    def clone_for_actor(self, actor_id: str) -> "_Store":
+    def clone_for_actor(self, actor_id: str) -> _Store:
         self.cloned_for.append(actor_id)
         clone = _Store(actor_id)
         return clone
@@ -270,7 +270,7 @@ class _Port:
     def __init__(self, dl: Any) -> None:
         self._dl = dl
 
-    def for_store(self, dl: Any) -> "_Port":
+    def for_store(self, dl: Any) -> _Port:
         if dl is self._dl:
             return self
         return type(self)(dl)

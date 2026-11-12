@@ -122,7 +122,7 @@ def _mock_read_helper(
 
 def _mock_read_case_helper(
     storage: dict, case_id: str, raise_on_missing: bool = False
-) -> "VulnerabilityCase | None":
+) -> VulnerabilityCase | None:
     """Pattern-based mock for DataLayer.read_case(), returning only VulnerabilityCase."""
     obj = storage.get(case_id)
     if isinstance(obj, VulnerabilityCase):

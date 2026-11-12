@@ -18,6 +18,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
@@ -105,7 +106,7 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     if roles is not None and attributed is not None and context_id:
         return CaseParticipant(
             id_=participant_id,
-            attributed_to=str(attributed),
+            attributed_to=normalise_actor_id(str(attributed)),
             context=context_id,
             name=getattr(ref, "name", None),
             case_roles=list(roles),
@@ -131,12 +132,23 @@ def _carried_refs(raw: object, core_cls: type[_RefT]) -> list[str | _RefT]:
     return carried
 
 
+def _actor_id(value: object) -> str | None:
+    """The id of an actor reference, in its canonical spelling (OID-01-006).
+
+    The extractor is where a peer's actor id becomes one core acts on, so it
+    is normalised here: the record built from it, and the roster key built
+    from the record, then share one spelling (#5919).
+    """
+    actor_id = _get_id(value)
+    return normalise_actor_id(actor_id) if actor_id else None
+
+
 def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
         # Every case has an owner (ARCH-10-001); the parse edge already
         # refuses one without (ADR-0032), so reaching here without is a fault.
-        owner_id = _get_id(getattr(obj, "attributed_to", None))
+        owner_id = _actor_id(getattr(obj, "attributed_to", None))
         if owner_id is None:
             raise VultronParseValidationError(
                 f"VulnerabilityCase {object_id!r} names no owner: its"
@@ -225,7 +237,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
 
 
 def _build_embargo_event_object(
-    obj: "as_Event | EmbargoEvent", context: object, target: object
+    obj: as_Event | EmbargoEvent, context: object, target: object
 ) -> dict[str, Any]:
     end_time = getattr(obj, "end_time", None)
     object_id = _get_id(obj)
@@ -292,7 +304,7 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
 
 def _build_participant_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
-    attributed_to = _get_id(getattr(obj, "attributed_to", None))
+    attributed_to = _actor_id(getattr(obj, "attributed_to", None))
     participant_context = _get_id(getattr(obj, "context", None))
     if object_id and attributed_to and participant_context:
         return {

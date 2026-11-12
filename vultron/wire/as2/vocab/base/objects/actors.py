@@ -114,7 +114,7 @@ def _address_collection(uri: str) -> as_OrderedCollection:
     return as_OrderedCollection(id_=uri, published=None, updated=None)
 
 
-def actor_reference(actor_id: str) -> "as_Actor":
+def actor_reference(actor_id: str) -> as_Actor:
     """Return the actor reference for an actor known only by *actor_id*.
 
     An inline object with exactly the actor's ``id`` and a ``type``

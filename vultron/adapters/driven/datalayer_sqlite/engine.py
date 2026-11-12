@@ -382,7 +382,7 @@ def reset_store_claimants() -> None:
     _STORE_CLAIMANTS.clear()
 
 
-_SESSION_LOCKS: "weakref.WeakKeyDictionary[Engine, threading.RLock]" = (
+_SESSION_LOCKS: weakref.WeakKeyDictionary[Engine, threading.RLock] = (
     weakref.WeakKeyDictionary()
 )
 _SESSION_LOCKS_GUARD = threading.Lock()

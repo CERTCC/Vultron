@@ -121,7 +121,7 @@ def unavailable_embargo_refusal(
     embargo_id: str,
     accepting_actor_id: str,
     answers: str | None,
-    actor_config: "ActorConfig | None" = None,
+    actor_config: ActorConfig | None = None,
 ) -> Diversion:
     """Refuse an Accept of an embargo held but no longer available (MSM-07-012).
 

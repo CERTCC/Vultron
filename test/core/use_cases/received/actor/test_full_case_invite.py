@@ -28,22 +28,18 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     joining_case,
     route_received,
 )
-from test.support.act_clock import ACT_AT
 from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.actor import (
     InviteActorToFullCaseReceivedEvent,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.states.rm import RM
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
@@ -573,96 +569,3 @@ def test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing(
     )
     assert invitee_with_replica.read(joining_case.case.id_) == case_before
     assert invitee_with_replica.outbox_list() == []
-
-
-@pytest.fixture
-def invitee_without_replica(joining_case):  # noqa: F811
-    """An invitee store that has the stub Invite's trust anchor but no case yet."""
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:", actor_id=joining_case.invitee_id
-    )
-    dl.save(
-        VultronPendingCaseInbox(
-            case_id=joining_case.case.id_,
-            case_actor_id=joining_case.case_actor_id,
-            invite_anchored=True,
-            queued_at=ACT_AT,
-        )
-    )
-    return dl
-
-
-@pytest.mark.spec("PCR-03-004")
-@pytest.mark.spec("HP-01-006")
-def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
-    joining_case,  # noqa: F811
-    invitee_without_replica,
-) -> None:
-    """With no replica yet, the CASE_MANAGER recorded from the stub Invite decides."""
-    accepted = _receive_as_invitee(
-        invitee_without_replica,
-        joining_case,
-        _full_case_invite_from(joining_case, joining_case.case_actor_id, "a"),
-    )
-    refused = _receive_as_invitee(
-        invitee_without_replica,
-        joining_case,
-        _full_case_invite_from(joining_case, _IMPOSTOR_ID, "b"),
-    )
-
-    assert accepted.disposition is not HandlerDisposition.REFUSED
-    assert refused.disposition is HandlerDisposition.REFUSED
-
-
-@pytest.mark.spec("PCR-03-004")
-def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
-    joining_case,  # noqa: F811
-) -> None:
-    """The pre-bootstrap queue's sender is not an anchor (#4931)."""
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:", actor_id=joining_case.invitee_id
-    )
-    dl.save(
-        VultronPendingCaseInbox(
-            case_id=joining_case.case.id_,
-            case_actor_id=_IMPOSTOR_ID,
-            queued_at=ACT_AT,
-        )
-    )
-    # The queue's record only opens the expiry window; the one activity
-    # waiting names the case on its own record (ADR-0154).
-    queued_id = "https://example.org/activities/queued"
-    assert hold_for_replay(
-        dl,
-        queued_id,
-        f'{{"id": "{queued_id}", "type": "Announce"}}',
-        awaiting_case_id=joining_case.case.id_,
-        received_at=now_utc(),
-    )
-
-    result = _receive_as_invitee(
-        dl,
-        joining_case,
-        _full_case_invite_from(joining_case, _IMPOSTOR_ID, "q"),
-    )
-
-    assert result.disposition is HandlerDisposition.REFUSED
-
-
-@pytest.mark.spec("PCR-03-004")
-@pytest.mark.spec("HP-01-006")
-def test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused(
-    joining_case,  # noqa: F811
-) -> None:
-    """No CASE_MANAGER known to match the sender: fail closed, never admit."""
-    bare = SqliteDataLayer(
-        "sqlite:///:memory:", actor_id=joining_case.invitee_id
-    )
-
-    result = _receive_as_invitee(
-        bare,
-        joining_case,
-        _full_case_invite_from(joining_case, joining_case.case_actor_id, "c"),
-    )
-
-    assert result.disposition is HandlerDisposition.REFUSED

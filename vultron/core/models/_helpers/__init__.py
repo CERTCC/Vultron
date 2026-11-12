@@ -24,11 +24,14 @@ Grouped by concern (CS-18-005):
   mixed-reference id reader ``_as_id``
 - ``inbound`` — reading inbound and stored data: absent times, key spellings
 - ``dump`` — the empty-collection test a dump omits a field by
+- ``class_annotations`` — a class's own annotations, read without evaluating
+  forward references
 """
 
 # ``_as_id`` is re-exported although its name is private: it is this package's
 # shared id reader, imported from ``vultron.core.models._helpers`` by modules in
 # every layer, including ones other open changes own (CS-18-003).
+from vultron.core.models._helpers.class_annotations import own_annotations
 from vultron.core.models._helpers.clock import (
     AuthoredTimes,
     EmbargoAuthoredTimes,
@@ -59,6 +62,7 @@ from vultron.core.models._helpers.inbound import (
     absent_times_as_none,
     blank_times_as_none,
     collapse_duplicate_spellings,
+    normalise_inbound_actor_id,
     project_wire_snapshot_to_core,
     reads_absent_as_none,
     refuse_absent_id,
@@ -99,11 +103,13 @@ __all__ = [
     "install_id_source",
     "is_aware",
     "is_empty",
+    "own_annotations",
     "new_object_id",
     "now_utc",
     "parse_published",
     "project_wire_snapshot_to_core",
     "refuse_absent_id",
+    "normalise_inbound_actor_id",
     "refuse_absent_published",
     "require_aware",
     "require_future_aware",

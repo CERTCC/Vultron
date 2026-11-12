@@ -1460,7 +1460,7 @@ def test_find_proposer_case_matches_the_owner_however_it_is_spelled(
     own = make(
         VulnerabilityCase,
         id_=_CASE_ID,
-        attributed_to=_VENDOR_URI + "/",
+        attributed_to=_VENDOR_URI,
         vulnerability_reports=[_REPORT_URI],
     )
     other = make(
@@ -1471,7 +1471,10 @@ def test_find_proposer_case_matches_the_owner_however_it_is_spelled(
     )
     store = _lookup_store(*((own,) if fast_path else (other, own)))
 
+    # The stored owner is canonical (#5919); the proposer may arrive in
+    # either spelling.
     assert find_proposer_case(store, _REPORT_URI, _VENDOR_URI) is own
+    assert find_proposer_case(store, _REPORT_URI, _VENDOR_URI + "/") is own
 
 
 @pytest.mark.spec("CP-05-010")
@@ -1882,7 +1885,7 @@ def test_a_proposer_who_reported_with_a_trailing_slash_is_one_participant(dl):
     assert _participants_of(dl, str(case.id_), _VENDOR_URI + "/") == []
 
 
-@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("OID-01-006", "ARCH-10-001")
 @pytest.mark.parametrize(
     ("proposer_uri", "reporter_uri"),
     [
@@ -1890,39 +1893,29 @@ def test_a_proposer_who_reported_with_a_trailing_slash_is_one_participant(dl):
         pytest.param(_VENDOR_URI, _REPORTER_URI + "/", id="reporter-slash"),
     ],
 )
-def test_a_store_written_before_normalisation_is_answered_on_redelivery(
+def test_a_proposal_cannot_store_the_slash_spelling_unnormalised(
     dl, monkeypatch: pytest.MonkeyPatch, proposer_uri: str, reporter_uri: str
 ):
-    """A case stored before #4772 keeps the sender's trailing-slash spelling.
+    """A writer that skipped normalisation is refused, not stored (#5919).
 
-    A same-spelling redelivery is answered with the stored ``Accept`` alone:
-    the participant and ledger lookups match the stored spelling with
-    ``same_actor_id``, so no second participant or ledger entry is written.
+    The case and participant records type their actor ids
+    ``NormalisedActorId``, so the shape a store held before #4772 — the
+    sender's trailing-slash spelling — can no longer be written.  No such
+    store is converted: one written before the change is reset (AC-3).
     """
-    with monkeypatch.context() as legacy:
-        legacy.setattr(
-            case_proposal_factory, "normalise_actor_id", lambda a: a
-        )
-        legacy.setattr(report_author, "normalise_actor_id", lambda a: a)
-        assert (
-            _run_tree(dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri)
-            == Status.SUCCESS
-        )
-    (case,) = _cases(dl)
-    assert proposer_uri in case.actor_participant_index
-    assert reporter_uri in case.actor_participant_index
-    _drain_outbox(dl)
-    state, ledger = _case_state(dl), _ledger_count(dl)
+    monkeypatch.setattr(
+        case_proposal_factory, "normalise_actor_id", lambda a: a
+    )
+    monkeypatch.setattr(report_author, "normalise_actor_id", lambda a: a)
 
-    status = _run_tree(
+    result = _run_tree_result(
         dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri
     )
 
-    assert status == Status.SUCCESS
-    assert _types_in_outbox(dl) == ["Accept"]
-    assert [c.id_ for c in _cases(dl)] == [case.id_]
-    assert _case_state(dl) == state
-    assert _ledger_count(dl) == ledger
+    assert result.status == Status.FAILURE
+    refusal = " ".join([result.feedback_message, *(result.errors or [])])
+    assert "trailing slash" in refusal, refusal
+    assert _cases(dl) == []
 
 
 def _case_rows(dl, case_id: str) -> list[str]:

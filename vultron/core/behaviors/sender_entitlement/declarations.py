@@ -289,14 +289,14 @@ class SenderRule:
                 )
 
     @classmethod
-    def in_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+    def in_case(cls, *kinds: SenderEntitlementKind) -> SenderRule:
         """The same kinds entitle a sender at the CASE_MANAGER and at a participant."""
         return cls(
             at_case_manager=any_of(*kinds), at_participant=any_of(*kinds)
         )
 
     @classmethod
-    def to_case_manager(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+    def to_case_manager(cls, *kinds: SenderEntitlementKind) -> SenderRule:
         """The kinds entitle a sender at the CASE_MANAGER, and a participant
         takes the change from the CASE_MANAGER alone (PCR-03-001)."""
         return cls(
@@ -305,7 +305,7 @@ class SenderRule:
         )
 
     @classmethod
-    def before_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+    def before_case(cls, *kinds: SenderEntitlementKind) -> SenderRule:
         """The kinds entitle the sender of an activity sent before any case exists."""
         return cls(outside_case=any_of(*kinds))
 

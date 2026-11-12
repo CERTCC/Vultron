@@ -112,7 +112,7 @@ REPLICAS = (OWNER, BYSTANDER)
 
 #: Every network built in the current test, for the rebuild check
 #: (``conftest._every_network_rebuilds_from_its_ledger``).
-NETWORKS: list["LedgerNetwork"] = []
+NETWORKS: list[LedgerNetwork] = []
 
 
 def _as_json(body: dict[str, Any]) -> str:

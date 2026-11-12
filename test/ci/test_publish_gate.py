@@ -495,6 +495,34 @@ def test_a_rollback_target_must_carry_the_build_actions(
     assert not outputs["out"].exists()
 
 
+@pytest.mark.spec("DOCBW-08-038")
+def test_a_rollback_target_must_carry_the_frozen_draft_serving_step(
+    repo: Path, outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A commit that has the other build actions but predates the step that
+    serves the frozen drafts is refused with its reason in the run summary;
+    one that has the step passes the gate."""
+    serving = ".github/actions/serve-frozen-drafts/action.yml"
+    assert serving in _gate.BUILD_ACTIONS
+    _git(repo, "rm", "-q", serving)
+    _git(repo, "commit", "-q", "-m", "before the serving step")
+    _git(repo, "tag", "v2026.10.0")
+    old = _head(repo)
+    _git(repo, "checkout", "-q", "HEAD~1", "--", serving)
+    tip = _commit(repo, "the serving step")
+    _git(repo, "tag", "v2026.11.0")
+    _git(repo, "push", "-q", "origin", "HEAD")
+    assert _gate.missing_build_actions(old) == [serving]
+    _no_github(monkeypatch)
+    assert _gate_main(sha=tip, rollback_to="v2026.10.0") == 1
+    summary = outputs["summary"].read_text()
+    assert "refused" in summary and serving in summary
+    assert not outputs["out"].exists()
+    assert _gate_main(sha=tip, rollback_to="v2026.11.0") == 0
+    out = outputs["out"].read_text()
+    assert "publish=true\n" in out and f"commit={tip}\n" in out
+
+
 @pytest.mark.spec("DOCBW-06-020", "DOCBW-06-013")
 def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
     """Main's tip X was published, then the site rolled back to W.
@@ -1078,7 +1106,7 @@ def test_deploy_runs_only_on_the_gate_verdict() -> None:
     gate_run = " ".join(str(s.get("run", "")) for s in _job_steps("gate"))
     assert "publish_gate.py gate" in gate_run
     build = _job("build")
-    assert build["needs"] == "gate"
+    assert set(build["needs"]) == {"gate", "drafts"}
     assert build["if"] == "needs.gate.outputs.publish == 'true'"
     (shared,) = [
         s
@@ -1087,7 +1115,7 @@ def test_deploy_runs_only_on_the_gate_verdict() -> None:
     ]
     assert shared["with"] == {"ref": "${{ needs.gate.outputs.commit }}"}
     # The other checkouts take the run's own commit, main's tip.
-    for name in ("gate", "build", "tag"):
+    for name in ("gate", "drafts", "build", "tag"):
         for step in _job_steps(name):
             if step.get("uses") != shared["uses"]:
                 assert "ref" not in step.get("with", {}), (name, step)
@@ -1259,6 +1287,7 @@ def test_each_job_holds_only_its_permissions() -> None:
     assert wf["permissions"] == {"contents": "read"}
     expected = {
         "gate": {"contents": "read", "issues": "read", "actions": "read"},
+        "drafts": {"contents": "read"},
         "build": {"contents": "read", "pages": "read"},
         "deploy": {"pages": "write", "id-token": "write"},
         "tag": {"contents": "write"},
@@ -1357,7 +1386,7 @@ def test_a_rollback_or_skip_does_not_close_a_failure() -> None:
         s for s in steps if s.get("with", {}).get("mode") == "notify"
     )
     assert notify["with"]["workflow-label"] == "ci:workflow-deploy-site"
-    assert _needs("notify") == {"gate", "build", "deploy", "tag"}
+    assert _needs("notify") == {"gate", "drafts", "build", "deploy", "tag"}
 
 
 @pytest.mark.spec("DOCBW-06-025")

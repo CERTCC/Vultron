@@ -132,7 +132,7 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
         return v
 
     @model_validator(mode="after")
-    def at_least_one_dimension(self) -> "AddOnBehalfStatusRequest":
+    def at_least_one_dimension(self) -> AddOnBehalfStatusRequest:
         if self.vf_state is None and self.d_state is None:
             raise ValueError(
                 "at least one of vf_state or d_state must be provided"

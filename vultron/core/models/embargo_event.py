@@ -47,7 +47,7 @@ class EmbargoEvent(CoreObject):
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 
-    def with_subject(self, subject_id: str) -> "EmbargoEvent":
+    def with_subject(self, subject_id: str) -> EmbargoEvent:
         """Return this embargo re-scoped to *subject_id*, identity kept.
 
         The rewrite EP-04-017 prescribes at case creation: the Reporter's
@@ -73,7 +73,7 @@ class EmbargoEvent(CoreObject):
         return " ".join(parts)
 
     @model_validator(mode="after")
-    def _set_name(self) -> "EmbargoEvent":
+    def _set_name(self) -> EmbargoEvent:
         """Label the embargo by its case and window when it carries no name.
 
         The derivation the deleted ``as_EmbargoEvent.set_name`` performed,

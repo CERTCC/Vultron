@@ -63,10 +63,10 @@ def computed_field_spellings(cls: type[BaseModel]) -> dict[str, str]:
 
 
 def check_computed_field_inputs(
-    cls: type["CoreObject"],
+    cls: type[CoreObject],
     data: Any,
-    handler: ModelWrapValidatorHandler["CoreObject"],
-) -> "CoreObject":
+    handler: ModelWrapValidatorHandler[CoreObject],
+) -> CoreObject:
     """Strip or refuse the computed-field values supplied in *data*.
 
     The body of ``CoreObject._check_computed_field_inputs``, which documents

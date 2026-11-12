@@ -91,7 +91,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         embargo_id: str,
         invitee_id: str,
         name: str | None = None,
-        actor_config: "ActorConfig | None" = None,
+        actor_config: ActorConfig | None = None,
         *,
         answers: str | None = None,
     ) -> None:
@@ -206,7 +206,7 @@ class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):
         case_id: str,
         invitee_id: str,
         name: str | None = None,
-        actor_config: "ActorConfig | None" = None,
+        actor_config: ActorConfig | None = None,
         *,
         answers: str | None = None,
     ) -> None:
@@ -297,7 +297,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
         case_id: str,
         participant_id: str,
         name: str | None = None,
-        actor_config: "ActorConfig | None" = None,
+        actor_config: ActorConfig | None = None,
         *,
         answers: str | None = None,
     ) -> None:

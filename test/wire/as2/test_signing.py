@@ -33,6 +33,7 @@ from typing import Any
 import base58
 import pytest
 
+from test.support.signatures import signature_of
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -365,7 +366,7 @@ def test_a_datetime_created_is_written_in_the_one_timestamp_form():
 @pytest.mark.spec("CS-13-002")
 def test_a_proof_takes_its_created_time_and_never_reads_a_clock():
     """``created`` is required: signing has no clock fallback (ADR-0176)."""
-    created = inspect.signature(signing.sign).parameters["created"]
+    created = signature_of(signing.sign).parameters["created"]
 
     assert created.kind is inspect.Parameter.KEYWORD_ONLY
     assert created.default is inspect.Parameter.empty

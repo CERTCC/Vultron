@@ -99,7 +99,7 @@ class SkipIfIdempotentNode(BehaviourWithPorts):
     def update(self) -> Status:
         try:
             participant = self.get_input("append_status_participant")
-        except (KeyError, NoDataAvailable, NotImplementedError):
+        except KeyError, NoDataAvailable, NotImplementedError:
             return Status.FAILURE
 
         if participant is None:
@@ -150,7 +150,7 @@ class CheckStatusNotAlreadyAppendedNode(DataLayerConditionWithPorts):
         self._participant = None
         try:
             self._participant = self.get_input("append_status_participant")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._participant = None
 
     def update(self) -> Status:

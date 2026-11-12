@@ -85,6 +85,6 @@ class SubmitReportTriggerRequest(
     csaf_document: SubmittedCsafDocument | None = None
 
     @model_validator(mode="after")
-    def _named_or_csaf(self) -> "SubmitReportTriggerRequest":
+    def _named_or_csaf(self) -> SubmitReportTriggerRequest:
         require_report_name_or_csaf(self.report_name, self.csaf_document)
         return self

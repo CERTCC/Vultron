@@ -102,13 +102,13 @@ class DereferenceCheckNode(_InboxNodeWithPorts):
             port: ObjectDereferencePort | None = self.get_input(
                 KEY_DEREFERENCE
             )
-        except (NotImplementedError, NoDataAvailable, KeyError):
+        except NotImplementedError, NoDataAvailable, KeyError:
             port = None
         if port is None:
             return Status.SUCCESS
         try:
             context_id: str | None = self.get_input(KEY_CONTEXT_ID)
-        except (NotImplementedError, NoDataAvailable):
+        except NotImplementedError, NoDataAvailable:
             context_id = None
 
         outstanding: list[ObjectReference] = []

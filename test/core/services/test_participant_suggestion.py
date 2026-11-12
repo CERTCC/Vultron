@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -241,16 +242,13 @@ def test_the_port_declares_the_scanned_method() -> None:
 
 @pytest.mark.spec("BT-24-002")
 def test_the_port_takes_the_suggestion_context_not_the_case() -> None:
-    import inspect
     import typing
 
     hints = typing.get_type_hints(
         ParticipantSuggestionPort.suggest_participants
     )
     params = list(
-        inspect.signature(
-            ParticipantSuggestionPort.suggest_participants
-        ).parameters
+        signature_of(ParticipantSuggestionPort.suggest_participants).parameters
     )
     assert params == ["self", "context"]
     assert hints["context"] is SuggestionContext

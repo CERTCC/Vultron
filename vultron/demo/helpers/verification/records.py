@@ -98,7 +98,7 @@ def verify_activity_in_inbox(
         received = (
             read_received_activity(client, activity_id, actor_id) is not None
         )
-    except (httpx.HTTPStatusError, AssertionError):
+    except httpx.HTTPStatusError, AssertionError:
         # Only a transport/HTTP "not there" answer means "not received".  A bare
         # ``except Exception`` here would report a programming error — an unbound
         # client, a bad key — as a protocol failure, which is how the

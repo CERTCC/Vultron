@@ -257,8 +257,9 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   otherwise re-runs native initialization (#4772). The event's sender id is
   already normalised by the extractor, and the event refuses one with a trailing
   slash (OID-01-009), but the activity snapshot keeps the sender's spelling. A
-  store written in the slash spelling before #4772 is unsupported: keep the
-  tree's existing tolerant checks, but add none for it.
+  store written in the slash spelling before #4772 is refused on load: case and
+  participant `attributed_to` are `NormalisedActorId` (#5919), so add no
+  tolerant check for it.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

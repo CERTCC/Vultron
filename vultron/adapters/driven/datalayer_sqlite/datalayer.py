@@ -204,7 +204,7 @@ class SqliteDataLayer:
         """
         dispose_actor_engines(self._db_url, self._actor_id)
 
-    def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
+    def clone_for_actor(self, actor_id: str) -> SqliteDataLayer:
         """Return a DataLayer for *actor_id*, backed by that actor's own store.
 
         Under ADR-0073 this opens a **different** store rather than applying a
@@ -294,7 +294,7 @@ class SqliteDataLayer:
     # DataLayer Protocol implementation - delegate to submodules
     # ------------------------------------------------------------------
 
-    def create(self, record: "StorableRecord | PersistableModel") -> None:
+    def create(self, record: StorableRecord | PersistableModel) -> None:
         """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists."""
         crud.create(self, record)
 
@@ -306,7 +306,7 @@ class SqliteDataLayer:
 
     def read_case(
         self, case_id: str, raise_on_missing: bool = False
-    ) -> "VulnerabilityCase | None":
+    ) -> VulnerabilityCase | None:
         """Read a VulnerabilityCase by ID; returns None when not found."""
         result = self.read(case_id, raise_on_missing=raise_on_missing)
         if result is not None and not isinstance(result, _VC):
@@ -410,16 +410,14 @@ class SqliteDataLayer:
         """Find an actor by the last path segment of its URI."""
         return queries.find_actor_by_short_id(self, short_id)
 
-    def find_case_by_short_id(
-        self, short_id: str
-    ) -> "VulnerabilityCase | None":
+    def find_case_by_short_id(self, short_id: str) -> VulnerabilityCase | None:
         """Find a case by its URL-safe surrogate key."""
         result = queries.find_case_by_short_id(self, short_id)
         return result if isinstance(result, _VC) else None
 
     def find_case_by_report_id(
         self, report_id: str
-    ) -> "VulnerabilityCase | None":
+    ) -> VulnerabilityCase | None:
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
         result = queries.find_case_by_report_id(self, report_id)
         return result if isinstance(result, _VC) else None

@@ -62,6 +62,7 @@ from vultron.core.behaviors.call_out import (
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.capability import Capability
 from vultron.core.behaviors.call_out.guard import SynchronousCallOut
+from vultron.core.models._helpers import own_annotations
 
 FieldKey = tuple[str, str]
 
@@ -128,7 +129,7 @@ def _key(bundle: CallOutBundle, field: str) -> FieldKey:
     owner = next(
         cls
         for cls in reversed(type(bundle).__mro__)
-        if field in vars(cls).get("__annotations__", {})
+        if field in own_annotations(cls)
     )
     return owner.__qualname__, field
 

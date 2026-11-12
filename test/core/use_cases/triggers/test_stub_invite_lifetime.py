@@ -114,7 +114,7 @@ def _deadline(invite: dict[str, Any]) -> datetime:
 
 def _answer(
     dl: Any,
-    reply: type[as_Accept] | type[as_Reject],
+    reply: type[as_Accept | as_Reject],
     *,
     manager_id: str,
     invitee_id: str,

@@ -32,6 +32,7 @@ from vultron.core.behaviors.call_out.capabilities import (
 )
 from vultron.core.behaviors.call_out.capability import RetrieverCapability
 from vultron.core.behaviors.call_out.guard import unwrap_call_out
+from vultron.core.models._helpers import own_annotations
 
 _MARKER = "Store-held answer (BT-18-039):"
 
@@ -47,7 +48,7 @@ def _retriever_classes() -> list[type]:
 def _field_docstring(bundle_cls: type, field_name: str) -> str:
     """The attribute docstring under *field_name* in *bundle_cls* or a base."""
     for cls in bundle_cls.__mro__:
-        if field_name not in vars(cls).get("__annotations__", {}):
+        if field_name not in own_annotations(cls):
             continue
         tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
         body = tree.body[0].body  # type: ignore[attr-defined]

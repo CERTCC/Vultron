@@ -39,7 +39,7 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
 logger = logging.getLogger(__name__)
 
 
-def _queue_list(dl: "SqliteDataLayer", queue: str) -> list[str]:
+def _queue_list(dl: SqliteDataLayer, queue: str) -> list[str]:
     """Return every activity ID in *queue*, in insertion order."""
     with dl._session() as session:
         stmt = (
@@ -51,7 +51,7 @@ def _queue_list(dl: "SqliteDataLayer", queue: str) -> list[str]:
     return [row.activity_id for row in rows]
 
 
-def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
+def _queue_pop(dl: SqliteDataLayer, queue: str) -> str | None:
     """Remove and return the oldest activity ID in *queue*."""
     with dl._session() as session:
         stmt = (
@@ -69,7 +69,7 @@ def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
     return activity_id
 
 
-def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
+def _queue_append(dl: SqliteDataLayer, queue: str, activity_id: str) -> None:
     """Append *activity_id* to *queue*."""
     with dl._session() as session:
         session.add(QueueEntry(queue=queue, activity_id=activity_id))
@@ -77,7 +77,7 @@ def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
 
 
 def _outbox_append_unless_pending(
-    dl: "SqliteDataLayer", activity_id: str
+    dl: SqliteDataLayer, activity_id: str
 ) -> bool:
     """Append *activity_id* to the outbox unless it is already pending there.
 
@@ -108,7 +108,7 @@ def _outbox_append_unless_pending(
 
 
 def inbox_append(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> None:
     """Append an activity ID to this actor's inbox queue.
@@ -120,7 +120,7 @@ def inbox_append(
     _queue_append(dl, "inbox", activity_id)
 
 
-def inbox_list(dl: "SqliteDataLayer") -> list[str]:
+def inbox_list(dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in this actor's inbox, in insertion order.
 
     Args:
@@ -132,7 +132,7 @@ def inbox_list(dl: "SqliteDataLayer") -> list[str]:
     return _queue_list(dl, "inbox")
 
 
-def inbox_pop(dl: "SqliteDataLayer") -> str | None:
+def inbox_pop(dl: SqliteDataLayer) -> str | None:
     """Remove and return the oldest activity ID from the inbox.
 
     Args:
@@ -145,7 +145,7 @@ def inbox_pop(dl: "SqliteDataLayer") -> str | None:
 
 
 def outbox_append(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> bool:
     """Append an activity ID to this actor's outbox queue unless it is pending.
@@ -189,7 +189,7 @@ def outbox_append(
     return True
 
 
-def outbox_list(dl: "SqliteDataLayer") -> list[str]:
+def outbox_list(dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in this actor's outbox, in insertion order.
 
     Args:
@@ -201,7 +201,7 @@ def outbox_list(dl: "SqliteDataLayer") -> list[str]:
     return _queue_list(dl, "outbox")
 
 
-def outbox_pop(dl: "SqliteDataLayer") -> str | None:
+def outbox_pop(dl: SqliteDataLayer) -> str | None:
     """Remove and return the oldest activity ID from the outbox.
 
     Args:

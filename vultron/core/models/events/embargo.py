@@ -42,7 +42,7 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
@@ -50,7 +50,7 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)
 
 
@@ -93,7 +93,7 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
@@ -101,7 +101,7 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.context_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.context)
 
 
@@ -122,7 +122,7 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
     termination_cause: TerminationCause | None = None
 
     @model_validator(mode="after")
-    def _cause_fits_reason(self) -> "RemoveEmbargoEventFromCaseReceivedEvent":
+    def _cause_fits_reason(self) -> RemoveEmbargoEventFromCaseReceivedEvent:
         """Refuse a cause the what cannot have (EMB-13-004)."""
         EmbargoTermination.from_reason(
             self.termination_reason, self.termination_cause
@@ -134,7 +134,7 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
@@ -142,7 +142,7 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.origin_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.origin)
 
 
@@ -158,7 +158,7 @@ class AnnounceEmbargoEventToCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
@@ -166,7 +166,7 @@ class AnnounceEmbargoEventToCaseReceivedEvent(LedgerPositionedEvent):
         return self.context_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.context)
 
 
@@ -202,7 +202,7 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.context_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.context)
 
     @property
@@ -263,7 +263,7 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def invite(self) -> "VultronActivity | None":
+    def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -271,7 +271,7 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.inner_object)
 
     @property
@@ -279,7 +279,7 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.inner_context_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.inner_context)
 
 
@@ -295,7 +295,7 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def invite(self) -> "VultronActivity | None":
+    def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -303,7 +303,7 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "EmbargoEvent | None":
+    def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.inner_object)
 
     @property
@@ -311,7 +311,7 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         return self.inner_context_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.inner_context)
 
 

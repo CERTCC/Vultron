@@ -457,7 +457,7 @@ class as_Reject(as_TransitiveActivity):
         )
 
     @model_validator(mode="after")
-    def _objectless_only_to_replay_from_genesis(self) -> "as_Reject":
+    def _objectless_only_to_replay_from_genesis(self) -> as_Reject:
         """Refuse a ``Reject`` with no object unless it asks for genesis."""
         if self.object_ is not None or self.asks_for_genesis_replay:
             return self

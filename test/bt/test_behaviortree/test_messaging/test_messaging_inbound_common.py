@@ -31,8 +31,8 @@ from vultron.bt.messaging.inbound._behaviors.common import (
 
 class MockState:
     current_message: object | None = None
-    incoming_messages: deque["MockMsg"] = deque()
-    msgs_received_this_tick: list["MockMsg"] = []
+    incoming_messages: deque[MockMsg] = deque()
+    msgs_received_this_tick: list[MockMsg] = []
 
 
 class MockMsg(BaseModel):

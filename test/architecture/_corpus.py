@@ -50,7 +50,7 @@ def _read_into(cache: dict[Path, str], path: Path) -> None:
     """Cache *path*'s UTF-8 text, or skip it if it cannot be read as such."""
     try:
         cache[path] = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    except OSError, UnicodeDecodeError:
         pass
 
 

@@ -40,7 +40,7 @@ class Record(StorableRecord):
     """
 
     @classmethod
-    def from_obj(cls, obj: PersistableModel) -> "Record":
+    def from_obj(cls, obj: PersistableModel) -> Record:
         """Creates a Record from a Pydantic BaseModel object.
 
         Args:

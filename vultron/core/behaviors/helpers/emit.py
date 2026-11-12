@@ -215,11 +215,11 @@ class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
         super().initialise()
         try:
             self.activity_id = self.get_input("activity_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.activity_id = None
         try:
             self.case_id = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.case_id = None
 
     def update(self) -> Status:

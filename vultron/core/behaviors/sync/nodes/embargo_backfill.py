@@ -81,7 +81,7 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def update(self) -> Status:

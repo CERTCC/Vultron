@@ -60,7 +60,7 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
-def from_row(dl: "SqliteDataLayer", row: StoredRow) -> PersistableModel | None:
+def from_row(dl: SqliteDataLayer, row: StoredRow) -> PersistableModel | None:
     """Convert a storage row back to a fully-typed domain object.
 
     Reconstruction is a three-step pipeline:

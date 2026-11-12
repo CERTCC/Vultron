@@ -49,6 +49,7 @@ from vultron.errors import (
     VultronError,
     VultronNotFoundError,
 )
+from vultron.primitives import normalise_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -203,7 +204,10 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.error("%s: DataLayer not available", self.name)
             return f
         try:
-            new_owner_id = self._new_owner_id()
+            # The new owner is named in a received or recorded activity, in
+            # its writer's spelling; the case and its index take the
+            # canonical one (OID-01-006, #5919).
+            new_owner_id = normalise_actor_id(self._new_owner_id())
         except VultronNotFoundError as exc:
             self.feedback_message = f"{self.name}: no new owner to name: {exc}"
             self.logger.warning("%s", self.feedback_message)
@@ -308,7 +312,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
 
     def _record_consequences(
         self,
-        trigger_activity: "TriggerActivityPort",
+        trigger_activity: TriggerActivityPort,
         participants: list[CaseParticipant],
         case: VulnerabilityCase,
     ) -> None:

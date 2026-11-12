@@ -104,7 +104,7 @@ class _WrongStubRequest(TriggerRequest[StatusResult], CaseTriggerRequest):
 class _SvcBtStubUseCase(SvcBTTriggerBase[StatusResult]):
     """Records its constructor ports; never runs a tree."""
 
-    built: list["_SvcBtStubUseCase"] = []
+    built: list[_SvcBtStubUseCase] = []
 
     def __init__(
         self,
@@ -149,7 +149,7 @@ class _SvcBtStubUseCase(SvcBTTriggerBase[StatusResult]):
 
 
 class _SvcPlainStubUseCase:
-    built: list["_SvcPlainStubUseCase"] = []
+    built: list[_SvcPlainStubUseCase] = []
 
     def __init__(
         self,

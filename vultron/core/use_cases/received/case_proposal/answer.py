@@ -60,8 +60,7 @@ logger = logging.getLogger(__name__)
 def _skipped_if_no_link(
     tree: Any,
     node_type: (
-        type[RecordCaseActorAcceptanceNode]
-        | type[RecordCaseProposalRejectionNode]
+        type[RecordCaseActorAcceptanceNode | RecordCaseProposalRejectionNode]
     ),
     report_id: str,
 ) -> HandlerResult:
@@ -101,9 +100,9 @@ class AcceptCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -190,9 +189,9 @@ class RejectCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity

@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def on_behalf_required_roles(
-    vf_state: "CS_vf | None", d_state: "CS_d | None"
+    vf_state: CS_vf | None, d_state: CS_d | None
 ) -> list[CVDRole]:
     """Return the roles an on-behalf target MUST hold for the asserted dimensions.
 

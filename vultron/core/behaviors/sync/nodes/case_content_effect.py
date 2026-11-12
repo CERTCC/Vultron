@@ -67,7 +67,7 @@ class _ApplyCaseContentFromLedgerNode(_LedgerEffectNode):
     fails the node, so the entry is not persisted as applied (SYNC-12-004).
     """
 
-    RECORD: ClassVar[type[VulnerabilityItem] | type[CaseReference]]
+    RECORD: ClassVar[type[VulnerabilityItem | CaseReference]]
     FIELD: ClassVar[Literal["vulnerability_items", "case_references"]]
 
     def update(self) -> Status:

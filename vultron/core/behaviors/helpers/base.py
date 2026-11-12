@@ -127,14 +127,14 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         return None
 
     def _require_case(
-        self, case_id: "str | None"
-    ) -> "tuple[VulnerabilityCase, Status | None]":
+        self, case_id: str | None
+    ) -> tuple[VulnerabilityCase, Status | None]:
         """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
         return require_case(self, case_id)
 
     def _resolve_case_replica(
-        self, case_id: "str | None"
-    ) -> "VulnerabilityCase | None":
+        self, case_id: str | None
+    ) -> VulnerabilityCase | None:
         """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
         return resolve_case_replica(self, case_id)
 
@@ -243,14 +243,14 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         return None
 
     def _require_case(
-        self, case_id: "str | None"
-    ) -> "tuple[VulnerabilityCase, Status | None]":
+        self, case_id: str | None
+    ) -> tuple[VulnerabilityCase, Status | None]:
         """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
         return require_case(self, case_id)
 
     def _resolve_case_replica(
-        self, case_id: "str | None"
-    ) -> "VulnerabilityCase | None":
+        self, case_id: str | None
+    ) -> VulnerabilityCase | None:
         """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
         return resolve_case_replica(self, case_id)
 
