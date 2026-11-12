@@ -339,6 +339,7 @@ For embargo times, the measure connects the embargo register and the consent row
     When the ledger never records public awareness after a published exploit, the sequence adds an implied public-awareness event at the exploit's log index and times, and marks it.
     The case's event history stays as the ledger records it.
     The layer reports every other participant with the reason it has no sequence, and it computes no score.
+    A separate measure scores each vendor's sequence through the complete histories it can still become (`vultron/measure/scoring/`), as [Reasoning over Possible Histories](reasoning_over_histories.md#scoring-a-case-that-is-still-in-progress) describes.
 
 ## Further reading
 

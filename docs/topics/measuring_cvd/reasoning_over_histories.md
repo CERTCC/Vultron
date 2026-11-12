@@ -282,7 +282,7 @@ A history that meets none scores 0.
 
     A *completion* of a prefix is a valid complete history that starts with that prefix.
     Every valid prefix has at least one completion.
-    Each completion $h$ is weighted by the probability that the same random walk that gives $f_h$ takes from where the case stands to $h$.
+    Each completion $h$ is weighted by the probability that the random walk behind $f_h$ reaches $h$ from where the case stands.
     That weight is $f_h$ divided by the probability of the prefix, so the weights of a prefix's completions sum to 1.
     The case then reports three scores:
 
