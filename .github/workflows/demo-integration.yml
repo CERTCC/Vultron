@@ -202,6 +202,14 @@ jobs:
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
 
+      # SPIKE #6053 scratch: build the Dockerfile targets the demo does not.
+      - name: Build other Dockerfile targets (spike)
+        if: strategy.job-index == 0
+        run: |
+          for t in dev test docs vultrabot_demo; do
+            docker buildx build --target "$t" -f docker/Dockerfile . || exit 1
+          done
+
       # DEMOCI-02-005, DEMOCI-02-006: run demo; detect failure via
       # exit code of the demo-runner container.
       # DEMOCI-02-008: set DEBUG log level at CI runtime so actor containers
