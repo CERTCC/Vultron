@@ -16,9 +16,9 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, ClassVar, Literal, TypeAlias, TypeVar
+from typing import ClassVar, Literal, TypeAlias, TypeVar
 
-from pydantic import Field, ValidationInfo, model_validator
+from pydantic import Field
 
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -56,35 +56,13 @@ class as_Link(as_Base):
     #: AS2 ``rel`` is not functional: one relation type as a string, or
     #: several as an array (VOC ``rel``).
     rel: NonEmptyString | list[NonEmptyString] | None = None
-    #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
-    href: NonEmptyString | None = None
+    #: A Link names its resource by ``href`` (AS2 § 3.2): one without points
+    #: nowhere, and one with a blank ``href`` points nowhere too (CS-08-001).
+    #: Required whether received or built here, so an untyped dict in an
+    #: object-or-link slot that fails its object class is refused rather than
+    #: read as an empty Link (MV-04-005).
+    href: NonEmptyString
     hreflang: NonEmptyString | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _refuse_received_link_without_href(
-        cls, data: Any, info: ValidationInfo
-    ) -> Any:
-        """Refuse a received Link that names no ``href``.
-
-        A Link has no id to name its resource by (OID-01-013); its ``href`` is
-        the reference.  Without one it points nowhere, like a blank IRI
-        (CS-08-001), so an id-less mapping such as ``{}`` is refused rather
-        than read as a Link to nothing.
-        """
-        if not isinstance(data, dict):
-            return data
-        context = info.context
-        if not isinstance(context, dict) or not context.get(
-            cls.INBOUND_CONTEXT_KEY
-        ):
-            return data
-        if data.get("href") is None:
-            raise ValueError(
-                f"a received {cls.__name__} carries no 'href', so it names"
-                " no resource (CS-08-001, OID-01-013)"
-            )
-        return data
 
 
 class as_Mention(as_Link):
@@ -121,7 +99,7 @@ ActivityStreamRef: TypeAlias = T_co | as_Link | NonEmptyString | None
 
 
 def main():
-    x = as_Link()
+    x = as_Link(href="https://example.org/")
     print(x.to_dict())
     print(x.to_json(indent=2))
 

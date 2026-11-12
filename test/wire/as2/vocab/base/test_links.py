@@ -10,10 +10,11 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""``as_Link.href`` follows CS-08-001: if present, then non-empty.
+"""``as_Link.href`` is required and non-empty (MV-04-005, CS-08-001).
 
-A Link whose ``href`` is blank points nowhere, so the value is refused at
-validation rather than carried inbound and dropped outbound (#3876 AC-3).
+A Link whose ``href`` is blank or absent points nowhere, so the value is
+refused at validation rather than carried inbound and dropped outbound
+(#3876 AC-3, #5715).
 """
 
 import pytest
@@ -21,7 +22,7 @@ from pydantic import ValidationError
 
 from test.support.blank_strings import BLANKS
 from test.support.objects import with_times
-from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.links import as_Link, as_Mention
 
 
 @pytest.mark.spec("CS-08-001")
@@ -46,7 +47,21 @@ def test_link_keeps_a_non_blank_href() -> None:
     assert link.href == "https://example.org/cases/1"
 
 
-def test_link_href_stays_optional() -> None:
-    """Absence is still allowed — the rule is "if present, then non-empty"."""
-    assert as_Link().href is None
-    assert as_Link(href=None).href is None
+@pytest.mark.spec("MV-04-005")
+@pytest.mark.parametrize("link_cls", [as_Link, as_Mention])
+@pytest.mark.parametrize(
+    "data", [{}, {"id": "https://example.org/alice"}, {"href": None}]
+)
+def test_a_link_without_an_href_is_refused(
+    link_cls: type[as_Link], data: dict
+) -> None:
+    """A Link names its resource by ``href`` (AS2 § 3.2); one without names none.
+
+    Refused when built here as well as when received, so an untyped dict in an
+    object-or-link slot that fails its object class cannot fall through the
+    union to an empty Link (#5715).
+    """
+    with pytest.raises(ValidationError, match="href"):
+        link_cls.model_validate(data)
+    with pytest.raises(ValidationError, match="href"):
+        link_cls(**data)

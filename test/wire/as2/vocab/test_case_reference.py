@@ -211,8 +211,13 @@ def test_a_tags_key_is_not_read(caplog: pytest.LogCaptureFixture):
 
 def test_wire_link_rel_is_not_functional():
     """AS2 ``rel`` takes one value or several (VOC ``rel``)."""
-    assert as_Link.model_validate({"rel": "related"}).rel == "related"
-    assert as_Link.model_validate({"rel": ["related", _PATCH]}).rel == [
+    assert (
+        as_Link.model_validate({"href": _HREF, "rel": "related"}).rel
+        == "related"
+    )
+    assert as_Link.model_validate(
+        {"href": _HREF, "rel": ["related", _PATCH]}
+    ).rel == [
         "related",
         _PATCH,
     ]
