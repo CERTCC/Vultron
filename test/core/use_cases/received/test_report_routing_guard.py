@@ -49,7 +49,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -220,6 +220,7 @@ def _offer() -> as_Offer:
         make(as_VulnerabilityReport, id_=REPORT_ID, name="r"),
         to=RECEIVING_ACTOR_ID,
         actor=SENDER_ACTOR_ID,
+        at=authored_at(),
     )
 
 
@@ -232,7 +233,10 @@ def _make_invalidate_event(
     # ``TentativeReject(Offer(VulnerabilityReport))`` the wire factory emits.
     event = received_event(
         rm_invalidate_report_activity(
-            _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
+            _offer(),
+            actor=SENDER_ACTOR_ID,
+            to=[RECEIVING_ACTOR_ID],
+            at=authored_at(),
         )
     )
     return cast(
@@ -246,7 +250,10 @@ def _make_close_report_event(
 ) -> CloseReportReceivedEvent:
     event = received_event(
         rm_close_report_activity(
-            _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
+            _offer(),
+            actor=SENDER_ACTOR_ID,
+            to=[RECEIVING_ACTOR_ID],
+            at=authored_at(),
         )
     )
     return cast(

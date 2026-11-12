@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from test.support.embargo_register import activate, propose
 from test.support.emitter import RecordingEmitter
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -180,14 +180,15 @@ def created_actors(actor_classes):
         # CoreActor stores inbox/outbox as URI strings; provide them explicitly
         # so profile-discovery tests can assert inbox/outbox are present.
         if issubclass(actor_cls, CoreActor):
-            actor = actor_cls(
+            actor = make(
+                actor_cls,
                 id_=actor_id,
                 name="Test Actor for List",
                 inbox=f"{actor_id}/inbox",
                 outbox=f"{actor_id}/outbox",
             )
         else:
-            actor = actor_cls(id_=actor_id, name="Test Actor for List")
+            actor = make(actor_cls, id_=actor_id, name="Test Actor for List")
         dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
         dl.create(object_to_record(actor))
         actors.append(actor)
@@ -320,7 +321,7 @@ def case_with_proposal(dl, actor):
     )
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
-        embargo, context=case_obj.id_, actor=actor.id_
+        embargo, context=case_obj.id_, actor=actor.id_, at=authored_at()
     )
     dl.create(proposal)
     propose(case_obj, embargo.id_)

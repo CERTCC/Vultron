@@ -111,6 +111,7 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,
+                    at=self._at,
                 )
             else:
                 accept_id, accept_blob = self._factory.accept_embargo(
@@ -118,6 +119,7 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,
+                    at=self._at,
                 )
             self._captured["activity"] = json.loads(accept_blob)
             return accept_id, accept_blob

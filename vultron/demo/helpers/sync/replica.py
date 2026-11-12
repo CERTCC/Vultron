@@ -26,6 +26,7 @@ from vultron.demo.helpers.sync.ledger import (
     _get_log_entries_for_case,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -104,14 +105,14 @@ def verify_replica_state(
     """
     auth_case_data = _case_or_none(auth_client, case_id)
     assert auth_case_data, f"Authoritative case {case_id!r} not found"
-    auth_case = as_VulnerabilityCase.model_validate(auth_case_data)
+    auth_case = from_server(as_VulnerabilityCase, auth_case_data)
 
     replica_case_data = _case_or_none(replica_client, case_id)
     assert replica_case_data, (
         f"Replica does not have a copy of case {case_id!r} — "
         "outbox delivery or inbox processing may have failed"
     )
-    replica_case = as_VulnerabilityCase.model_validate(replica_case_data)
+    replica_case = from_server(as_VulnerabilityCase, replica_case_data)
 
     # 1. Same case ID
     assert replica_case.id_ == case_id, (

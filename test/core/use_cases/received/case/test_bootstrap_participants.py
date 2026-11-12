@@ -27,7 +27,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -141,7 +141,7 @@ def case_with_two_participants():
 def create_event(make_payload, case_with_two_participants):
     case, _, _ = case_with_two_participants
     activity = create_case_activity(
-        case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID]
+        case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
     )
     return make_payload(activity)
 
@@ -323,7 +323,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         case, _, vendor_p = case_with_two_participants
 
         activity = create_case_activity(
-            case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID]
+            case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
         bootstrap_event = make_payload(activity, at=dl)
 
@@ -368,6 +368,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
             target=vendor_p,
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(
             activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl

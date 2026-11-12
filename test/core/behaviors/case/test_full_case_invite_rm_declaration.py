@@ -40,7 +40,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, write_consent_rows
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -114,6 +114,7 @@ def _seed_with_invite(dl: SqliteDataLayer, current: RM) -> tuple[Any, Any]:
         id_=_INVITE_ID,
         actor=CASE_MANAGER_ID,
         to=[ACTOR_ID],
+        at=authored_at(),
     )
     dl.create(invite)
     return invite, tail
@@ -138,7 +139,7 @@ def _deliver(
         RM.CLOSED: RejectInviteActorToFullCaseReceivedUseCase,
     }
     activity = builders[declared](
-        invite, tail, actor=sender, to=[CASE_MANAGER_ID]
+        invite, tail, actor=sender, to=[CASE_MANAGER_ID], at=authored_at()
     )
     event = received_event(activity, at=dl)
     return run_in_act(

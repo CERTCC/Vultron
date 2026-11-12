@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_record
 from test.support.signing import resigned
 from vultron.adapters.driven.clock import SystemClock
@@ -88,6 +88,7 @@ def test_the_participants_accept_embeds_the_invite_as_received():
         case_id=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
+        at=authored_at(),
     )
     embedded = json.loads(sealed)["object"]
 

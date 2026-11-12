@@ -33,7 +33,7 @@ Update this index in the same change that adds, archives, or re-scopes a note
 These describe unbuilt work. Each one ends when the issues it tracks close.
 
 - **`act-instant.md`** · `plan`
-  Migrating to one clock read per act: tree-run instant, no clock in core (ADR-0176).
+  One clock read per act: tree-run instant, no clock in core, recordings via the port (ADR-0176).
   **Load when**: adding or changing code that reads the clock or stamps a time.
 - **`as2-vocabulary-alignment.md`** · `plan`
   Wire changes from the AS2 vocabulary review: Move/Add in splits, Invite slots,

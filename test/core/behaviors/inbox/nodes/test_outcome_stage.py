@@ -29,7 +29,7 @@ from typing import Any
 import py_trees
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.behaviors.blackboard_scope import key_aliases
@@ -82,7 +82,7 @@ class _StubDispatch:
         return self._result
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: object = None
     ) -> None:
         self.faults.append(failure_class)
 
@@ -124,6 +124,7 @@ def activity():
         ),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
 

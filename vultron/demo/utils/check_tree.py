@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from vultron.core.models._helpers.scoped_install import ScopedInstall
 from vultron.errors import DemoRecordingError
 
 
@@ -275,19 +276,20 @@ class CheckRecorder:
             return tuple(self._roots)
 
 
-class _RecorderSlot:
-    """The installed recorder, or ``None`` while the capture is off.
-
-    A slot object rather than a module global so that the three hooks read one
-    attribute: a ``global`` rebind is invisible to a module that did
-    ``from ... import _RECORDER``, and the hooks are hot paths on every demo
-    check of every scenario.
-    """
-
-    value: CheckRecorder | None = None
+def _refuse_nested_capture() -> DemoRecordingError:
+    return DemoRecordingError(
+        "a check tree capture is already installed; one run records one tree."
+    )
 
 
-_SLOT = _RecorderSlot()
+#: The installed recorder, or ``None`` while the capture is off.  A slot
+#: object rather than a module global so that the three hooks read one
+#: attribute: a ``global`` rebind is invisible to a module that did
+#: ``from ... import _RECORDER``, and the hooks are hot paths on every demo
+#: check of every scenario.
+_SLOT: ScopedInstall[CheckRecorder | None] = ScopedInstall(
+    None, _refuse_nested_capture
+)
 
 
 def active_recorder() -> CheckRecorder | None:
@@ -306,17 +308,9 @@ def recording_checks() -> Generator[CheckRecorder]:
         DemoRecordingError: When a capture is already installed.  Two nested
             captures would split one run's tree between them.
     """
-    if _SLOT.value is not None:
-        raise DemoRecordingError(
-            "a check tree capture is already installed; one run records one "
-            "tree."
-        )
     recorder = CheckRecorder()
-    _SLOT.value = recorder
-    try:
+    with _SLOT.install(recorder):
         yield recorder
-    finally:
-        _SLOT.value = None
 
 
 def enter_check(kind: CheckKind, label: str) -> None:

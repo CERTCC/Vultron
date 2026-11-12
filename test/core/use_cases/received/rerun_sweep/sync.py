@@ -16,6 +16,7 @@
 from typing import Any, cast
 
 from test.support.ledger import ledger_entries
+from test.support.objects import authored_at, with_times
 from test.support.received import received_event
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
@@ -50,7 +51,10 @@ def _engaged(slug: str) -> LedgerNetwork:
         deliver(
             net,
             rm_engage_case_activity(
-                net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+                net.case(BYSTANDER),
+                actor=BYSTANDER,
+                to=[MANAGER],
+                at=authored_at(),
             ),
         ).event,
     )
@@ -59,7 +63,9 @@ def _engaged(slug: str) -> LedgerNetwork:
 
 
 def _wire(entry: CaseLedgerEntry) -> as_CaseLedgerEntry:
-    return as_CaseLedgerEntry.model_validate(entry.model_dump(mode="json"))
+    return as_CaseLedgerEntry.model_validate(
+        with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
+    )
 
 
 def _entries(net: LedgerNetwork) -> list[CaseLedgerEntry]:
@@ -113,6 +119,7 @@ def reject_case_ledger_entry() -> Scenario:
             actor=BYSTANDER,
             to=[MANAGER],
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         ),
     )
 
@@ -126,6 +133,6 @@ def read_case_ledger_entry() -> Scenario:
     return deliver(
         net,
         read_ledger_entry_activity(
-            _wire(first), actor=BYSTANDER, to=[MANAGER]
+            _wire(first), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )

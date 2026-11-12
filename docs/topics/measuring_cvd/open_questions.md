@@ -214,6 +214,7 @@ Consider an MPCVD case with 15 vendors:
 
 The proposed criterion is a high median skill coefficient across the vendors, with a low variance.
 This case probably fails that criterion, but the case protected most users.
+Vultron reports the unweighted median and spread of the vendors' scores, as [Benchmarking MPCVD](benchmarking_mpcvd.md#scoring-a-multi-party-case) describes, and that summary has the same problem.
 
 A small set of vendor and product pairs can also hold a large part of the risk from a vul.
 Thus an aggregate over all vendor and product pairs can give a wrong result.
@@ -229,6 +230,8 @@ The root problem is that no utility function connects an observed case history t
 A utility function of this kind can aggregate across vendors, across users, or both.
 The utility function can weight each history in an MPCVD case by an estimate of the risk to the users of that history.
 The utility function can also first prevent catastrophic outcomes for all users, and then apply a weighted sum over the effect on the remaining users.
+A weighted measure of this kind needs the per-vendor scores as its input, and a Vultron case already reports them: each vendor's expected, best, and worst score.
+The measure would add a weight for each vendor, such as its number of users or its share of the risk.
 Criteria other than a high median and a low variance can also apply.
 
 !!! question "Is Utilitarianism the Best Approach?"

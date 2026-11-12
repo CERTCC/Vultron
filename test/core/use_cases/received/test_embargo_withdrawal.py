@@ -33,7 +33,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -164,6 +164,7 @@ def _leave(
         context=_CASE_ID,
         actor=sender,
         to=[to],
+        at=authored_at(),
     )
 
 
@@ -391,10 +392,15 @@ def _reject(
         context=_CASE_ID,
         actor=_MANAGER,
         to=[_FINDER],
+        at=authored_at(),
     )
     dl.create(invite)
     reject = em_reject_embargo_activity(
-        invite, context=_CASE_ID, actor=_FINDER, to=[_MANAGER]
+        invite,
+        context=_CASE_ID,
+        actor=_FINDER,
+        to=[_MANAGER],
+        at=authored_at(),
     )
     event = make_payload(reject, receiving_actor_id=_MANAGER, at=dl)
     result = run_in_act(

@@ -25,7 +25,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -110,7 +110,9 @@ def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
 
 
 def _run(dl, make_payload, sender: str, case: as_VulnerabilityCase):
-    activity = create_case_activity(case, actor=sender, to=[_RECEIVER])
+    activity = create_case_activity(
+        case, actor=sender, to=[_RECEIVER], at=authored_at()
+    )
     event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,
@@ -442,7 +444,9 @@ def _run_at_owner_result(
         owner_dl = _owner_store()
     if pending_link:
         owner_dl.save(_link(creator=sender))
-    activity = create_case_activity(case, actor=sender, to=[_OWNER])
+    activity = create_case_activity(
+        case, actor=sender, to=[_OWNER], at=authored_at()
+    )
     event = cast(CreateCaseReceivedEvent, received_event(activity))
     tree = create_create_case_received_tree(
         event.case,
@@ -584,7 +588,9 @@ def test_reporter_receiving_the_introduction_relays_nothing(dl, make_payload):
 
     dl.save(_link(creator=_OWNER))
     case = _owned_case(extra=(_participant(_RECEIVER, CVDRole.REPORTER),))
-    activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
+    activity = create_case_activity(
+        case, actor=_OWNER, to=[_RECEIVER], at=authored_at()
+    )
     event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,
@@ -723,7 +729,9 @@ def test_reporter_trusts_a_receiver_that_is_its_own_case_manager(
     case = _owned_case(
         manager=_OWNER, extra=(_participant(_RECEIVER, CVDRole.REPORTER),)
     )
-    activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
+    activity = create_case_activity(
+        case, actor=_OWNER, to=[_RECEIVER], at=authored_at()
+    )
     event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,

@@ -33,7 +33,7 @@ import pytest
 
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -147,6 +147,7 @@ def _vendor_public_report(net: LedgerNetwork) -> Any:
         ),
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     )
 
 
@@ -243,6 +244,7 @@ def _no_threat_report(net: LedgerNetwork) -> Any:
         ),
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     )
 
 

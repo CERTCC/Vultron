@@ -32,6 +32,10 @@ from vultron.core.states.em import EM
 from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.workflow import find_case_for_offer
 from vultron.demo.utils import DataLayerClient, demo_check
+from vultron.demo.utils.served import from_server
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -59,7 +63,7 @@ def read_embargo(
 ) -> as_EmbargoEvent:
     """Read an ``EmbargoEvent`` from the CaseActor's own store."""
     data = client.get(client.dl_path(embargo_id, actor_id=case_actor_id))
-    return as_EmbargoEvent.model_validate(data)
+    return from_server(as_EmbargoEvent, data)
 
 
 def embargo_window(embargo: as_EmbargoEvent) -> timedelta:
@@ -98,6 +102,29 @@ def assert_window_is(
 # ---------------------------------------------------------------------------
 # Verification of the creation-time outcome
 # ---------------------------------------------------------------------------
+
+
+def offered_terms(offer: as_Offer, report_id: str) -> as_EmbargoEvent:
+    """The ``proposedEmbargo`` the Reporter's Offer carries, about its report.
+
+    Raises:
+        AssertionError: The Offer carries no ``proposedEmbargo`` (EP-04-004),
+            or the terms are about something other than the report
+            (EP-04-009).  Raised rather than returned as ``None``, so the
+            caller's ``demo_check`` or ``demo_gate`` records it.
+    """
+    proposal = offer.proposed_embargo
+    if not isinstance(proposal, as_EmbargoEvent):
+        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
+            "Offer carries no proposedEmbargo; the Reporter's terms did not"
+            " leave the trigger (EP-04-004)"
+        )
+    if proposal.context != report_id:
+        raise AssertionError(
+            f"Proposed terms are about {proposal.context!r}, not the report"
+            f" {report_id!r} (EP-04-009)"
+        )
+    return proposal
 
 
 def verify_reporter_terms_active(
@@ -171,6 +198,40 @@ def verify_pending_revision(
         revision.end_time.isoformat(),
     )
     return revision
+
+
+def verify_reporter_terms_won(
+    client: DataLayerClient,
+    case_actor_id: str,
+    case: as_VulnerabilityCase,
+    proposal_id: str,
+    proposed_end: datetime,
+    *,
+    default: timedelta,
+    revision_check: str,
+) -> None:
+    """Shortest-wins kept the Reporter's shorter terms; the default is pending.
+
+    The outcome when the Reporter's proposal ends before the receiver's actor
+    default would (EP-04-003): the Reporter's own event is the active
+    embargo, and exactly one revision is pending, running the default.
+
+    Args:
+        client: Client reading the CaseActor's store.
+        case_actor_id: The CaseActor whose store is read.
+        case: The case as the CaseActor holds it.
+        proposal_id: The id of the Reporter's proposed ``EmbargoEvent``.
+        proposed_end: When the Reporter's terms end.
+        default: The receiver's published default duration.
+        revision_check: The caller's ``demo_check`` label for the pending
+            revision's window, so a scenario can number it as a milestone.
+    """
+    active = verify_reporter_terms_active(
+        client, case_actor_id, case, proposal_id, proposed_end
+    )
+    revision = verify_pending_revision(client, case_actor_id, case, active)
+    with demo_check(revision_check):
+        assert_window_is(revision, default, "Pending")
 
 
 def verify_uncontested(

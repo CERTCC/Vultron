@@ -20,7 +20,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
@@ -229,6 +229,7 @@ def test_object_to_record_stores_nested_object_as_id_reference():
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     record = object_to_record(offer)
@@ -255,6 +256,7 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     record = object_to_record(offer)
@@ -303,6 +305,7 @@ def test_object_to_record_still_accepts_wire_activities():
         report,
         "https://example.org/finder",
         actor="https://example.org/finder",
+        at=authored_at(),
     )
 
     record = object_to_record(offer)
@@ -731,6 +734,7 @@ def _invite_naming_a_peer():
         id_="urn:uuid:inv-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
         to=[_PEER_ACTOR_ID],
+        at=authored_at(),
     )
 
 
@@ -743,6 +747,7 @@ def _recommendation_naming_a_peer():
         target="urn:uuid:case-dl08003-0000-0000-000000000001",
         id_="urn:uuid:rec-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
+        at=authored_at(),
     )
 
 
@@ -808,6 +813,7 @@ def _role_offer_naming_a_peer():
         ),
         id_="urn:uuid:role-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
+        at=authored_at(),
     )
 
 
@@ -841,6 +847,7 @@ def _ownership_offer_naming_a_peer():
         id_="urn:uuid:own-dl08003-0000-0000-000000000001",
         actor="http://vendor:7999/api/v2/actors/vendor-owner",
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
 
 
@@ -1205,7 +1212,7 @@ def test_a_case_reference_round_trips_as_a_reference():
 
     case_id = "urn:uuid:case-reference-roundtrip"
     join = rm_engage_case_activity(
-        case_id, actor=_CASE_ACTOR_ID, to=[_PEER_ACTOR_ID]
+        case_id, actor=_CASE_ACTOR_ID, to=[_PEER_ACTOR_ID], at=authored_at()
     )
     record = object_to_record(cast(Any, join))
     stored = record.data_.get("object_")
@@ -1227,3 +1234,39 @@ def test_a_case_reference_round_trips_as_a_reference():
     assert isinstance(
         getattr(back, "object_", None), as_VulnerabilityCaseReference
     )
+
+
+@pytest.mark.spec("OID-02-003")
+@pytest.mark.parametrize("slot", ["tag", "context"])
+def test_core_object_holding_a_wire_link_reads_back(slot: str) -> None:
+    """A Link in a core object's AS2 slot survives the store (#3894).
+
+    The parse edge builds a received Link inside a core object; the slot holds
+    it as a built model.  Stored, it is a mapping that is not a ``CoreObject``,
+    so the row builds it as its own class before the core class reads it.
+    """
+    from vultron.core.models.report import VulnerabilityReport
+    from vultron.wire.as2.vocab.base.links import as_Link, as_Mention
+
+    links = [
+        as_Link(href="https://example.org/x"),
+        as_Mention(href="https://example.org/actors/bob"),
+    ]
+    value = links if slot == "tag" else links[0]
+    report = VulnerabilityReport.model_validate(
+        with_times(
+            VulnerabilityReport,
+            {
+                "name": "r",
+                "content": "c",
+                "attributed_to": "https://example.org/actors/alice",
+                slot: value,
+            },
+        )
+    )
+
+    back = Record.from_obj(report).to_obj()
+
+    held = getattr(back, slot)
+    expected = links if slot == "tag" else links[0]
+    assert held == expected

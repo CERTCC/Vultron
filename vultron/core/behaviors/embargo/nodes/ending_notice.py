@@ -241,6 +241,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 actor=actor,
                 to=[recipient],
                 attributed_to=authorship.attributed_to if authorship else None,
+                at=self._require_act_instant(),
             )
         elif termination is None:
             raise BtNodePreconditionError(
@@ -257,6 +258,7 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 cause=termination.cause,
                 to=[recipient],
                 attributed_to=authorship.attributed_to if authorship else None,
+                at=self._require_act_instant(),
             )
         self._emit_through_seam(activity_id, blob)
         return activity_id

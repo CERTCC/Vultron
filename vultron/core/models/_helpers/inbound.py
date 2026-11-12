@@ -101,6 +101,31 @@ def strip_annotated(annotation: Any) -> Any:
     return annotation
 
 
+def reads_absent_as_none(field: FieldInfo) -> bool:
+    """Whether a received omission of *field* reads as ``None``.
+
+    True for a required time that admits ``None``: an author time
+    (``published``, ``updated``, an embargo's ``start_time``), which an
+    authored object states and a received one may omit (ADR-0103, ADR-0176).
+    """
+    return (
+        field.is_required()
+        and _is_datetime_field(field)
+        and _admits_none(field)
+    )
+
+
+def _admits_none(field: FieldInfo) -> bool:
+    """Return whether *field*'s annotation admits ``None``."""
+    annotation = field.annotation
+    if (
+        isinstance(annotation, types.UnionType)
+        or get_origin(annotation) is Union
+    ):
+        return type(None) in get_args(annotation)
+    return False
+
+
 def _is_datetime_field(field: FieldInfo) -> bool:
     """Return whether *field* can hold a ``datetime``.
 
@@ -121,7 +146,9 @@ def _is_datetime_field(field: FieldInfo) -> bool:
 
 
 #: Validation-context key that marks a ``model_validate`` call as reading
-#: *inbound* data.  ``parse_activity`` sets it; nothing else should.  Defined in
+#: *inbound* data.  ``parse_activity`` sets it, and so do the other edges that
+#: read a peer's body (a fetched object, a demo client reading a served one);
+#: an object this process authors must never be validated with it.  Defined in
 #: core because both ``as_Base`` and ``CoreObject`` gate on it, and under
 #: ARCH-25-003 (ADR-0099) a core class is what an inbound payload validates into.
 INBOUND_CONTEXT_KEY = "inbound_wire"
@@ -159,25 +186,25 @@ def blank_times_as_none(
 def absent_times_as_none(
     cls: type[BaseModel], data: dict[str, Any]
 ) -> dict[str, Any]:
-    """Read every absent clock-defaulted timestamp in *data* as ``None``.
+    """Read every absent required timestamp that admits ``None`` as ``None``.
 
-    A datetime field with a ``default_factory`` (``published``, ``updated``, an
-    embargo's ``start_time``, a ledger entry's ``received_at``)
-    fills an omitted value from the *local* clock.  That is right when this
-    process authors the object and wrong when it reconstructs one it received:
-    the value would be a time no one claimed, and downstream it reads as the
-    sender's claim (ISSUE-3257, CLP-15-007).
+    The author's times (``published``, ``updated``, an embargo's
+    ``start_time``) are required with no default (ADR-0176): an object this
+    process authors states the act's instant.  A received object may omit
+    them, because AS2 lets a sender omit them, and the omission is the sender
+    claiming no time, so it reads as ``None``, never as the receiver's clock
+    (ISSUE-3257, CLP-15-007).
 
     Absence has two spellings on the two inbound edges and both arrive here as
     an absent key: a sender omits the field on the wire, and a stored snapshot
-    drops it because the snapshot dump excludes ``None``.  Where the field may
-    be absent the result is ``None``; where the class requires the time
-    (``end_time``, a ledger entry's ``received_at``/``published``) or a
-    validator needs it (a case's genesis hash, CLP-08-002), validation refuses
+    drops it because the snapshot dump excludes ``None``.  A required time
+    that does not admit ``None`` (a case status's ``published``, a ledger
+    entry's ``received_at``) stays absent, so validation refuses it, as it
+    does when a validator needs the time (a case's genesis hash, CLP-08-002),
     rather than deciding on a minted value later (ADR-0032, ADR-0103).
     """
     for name, field in cls.model_fields.items():
-        if field.default_factory is None or not _is_datetime_field(field):
+        if not reads_absent_as_none(field):
             continue
         keys = {name} | {
             key
@@ -202,13 +229,13 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     ``to_camel`` spellings (``attributedTo`` → ``attributed_to``) back to the
     field name so the core type validates without loosening its guard.
 
-    Projection also reads an absent clock-defaulted timestamp as ``None``
+    Projection also reads an absent required timestamp as ``None``
     (:func:`absent_times_as_none`).  A snapshot is dumped with
     ``exclude_none=True``, so an object whose time was carried as absent has no
-    key at all here, and the core ``default_factory`` would stamp *this
-    replica's* clock in its place — the same fabrication the wire parser
-    refuses one boundary earlier, and the reason two replicas disagreed about
-    which status was current (ISSUE-3257, CLP-15-007).
+    key at all here, and reading it as anything else would invent a time —
+    once, a clock default stamped *this replica's* clock in its place — the
+    same fabrication the wire parser refuses one boundary earlier, and the
+    reason two replicas disagreed about which status was current (ISSUE-3257, CLP-15-007).
 
     Helper for the handful of core sync/effect nodes that rebuild core
     objects from inline snapshots.  The ``WireParsePort`` ADR-0082 designed to
@@ -242,3 +269,34 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
+
+
+class MissingReceivedIdError(ValueError):
+    """A received ActivityStreams Object carries no ``id`` (OID-01-013).
+
+    A :class:`ValueError` subclass so pydantic turns it into a
+    ``ValidationError`` and a union tries its next branch, as
+    :class:`DuplicateKeySpellingError` explains.
+    """
+
+
+#: The keys an object's id may arrive under: the AS2 term, and the field name
+#: a stored or by-name dump uses.
+_ID_KEYS = ("id", "id_")
+
+
+def refuse_absent_id(cls: type[BaseModel], data: dict[str, Any]) -> None:
+    """Raise :class:`MissingReceivedIdError` when *data* names no ``id``.
+
+    ActivityPub gives every object it distributes a global id, and a receiver
+    that minted one would present its own invention as the sender's object
+    (OID-01-013).  For the inbound path only: an object this process builds
+    takes the minting default.  A blank id is refused by ``NonEmptyString``
+    itself; absent and ``None`` are refused here.
+    """
+    if all(data.get(key) is None for key in _ID_KEYS):
+        raise MissingReceivedIdError(
+            f"a received {cls.__name__} carries no 'id'; every object a"
+            " sender distributes carries its own id, and the receiver mints"
+            " none for it (OID-01-013, OID-01-014)"
+        )

@@ -35,7 +35,7 @@ from pydantic import BaseModel, ValidationError
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE, days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -131,7 +131,7 @@ def sample_actor() -> as_Person:
 def sample_offer(sample_case) -> as_Offer:
     """OfferCaseOwnershipTransferActivity — used for Accept/Reject tests."""
     return offer_case_ownership_transfer_activity(
-        case=sample_case, actor=_ACTOR_URI
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
 
 
@@ -139,7 +139,7 @@ def sample_offer(sample_case) -> as_Offer:
 def sample_proposal(sample_case) -> as_Offer:
     """The owner's ownership-transfer proposal — used for Undo tests."""
     return propose_case_ownership_transfer_activity(
-        sample_case, target=_TARGET_URI, actor=_ACTOR_URI
+        sample_case, target=_TARGET_URI, actor=_ACTOR_URI, at=authored_at()
     )
 
 
@@ -147,7 +147,10 @@ def sample_proposal(sample_case) -> as_Offer:
 def sample_invite(sample_actor) -> as_Invite:
     """RmInviteToCaseActivity — used for Accept/Reject invite tests."""
     return rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
 
 
@@ -159,21 +162,24 @@ def sample_invite(sample_actor) -> as_Invite:
 @pytest.mark.spec("AF-01-002")
 def test_add_report_to_case_returns_add(sample_report):
     result = add_report_to_case_activity(
-        report=sample_report, actor=_ACTOR_URI
+        report=sample_report, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Add)
 
 
 def test_add_report_to_case_object_is_report(sample_report):
     result = add_report_to_case_activity(
-        report=sample_report, actor=_ACTOR_URI
+        report=sample_report, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_report
 
 
 def test_add_report_to_case_target_is_set(sample_report):
     result = add_report_to_case_activity(
-        report=sample_report, target=_CASE_URI, actor=_ACTOR_URI
+        report=sample_report,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == _CASE_URI
 
@@ -182,7 +188,8 @@ def test_add_report_to_case_target_is_set(sample_report):
 def test_add_report_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_report_to_case_activity(
-            report="not-a-report"  # type: ignore[arg-type]
+            report="not-a-report",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -195,21 +202,24 @@ def test_add_report_to_case_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_add_status_to_case_returns_add(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI
+        status=sample_status, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Add)
 
 
 def test_add_status_to_case_object_is_status(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, actor=_ACTOR_URI
+        status=sample_status, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_status
 
 
 def test_add_status_to_case_target_is_set(sample_status):
     result = add_status_to_case_activity(
-        status=sample_status, target=_CASE_URI, actor=_ACTOR_URI
+        status=sample_status,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == _CASE_URI
 
@@ -218,7 +228,8 @@ def test_add_status_to_case_target_is_set(sample_status):
 def test_add_status_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_case_activity(
-            status="not-a-status"  # type: ignore[arg-type]
+            status="not-a-status",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -230,24 +241,30 @@ def test_add_status_to_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_create_case_returns_create(sample_case):
-    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = create_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Create)
 
 
 def test_create_case_object_is_case(sample_case):
-    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = create_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == sample_case
 
 
 def test_create_case_kwargs_forwarded(sample_case):
-    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = create_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.actor == _ACTOR_URI
 
 
 @pytest.mark.spec("AF-04-001")
 def test_create_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        create_case_activity(case="not-a-case")  # type: ignore[arg-type]
+        create_case_activity(case="not-a-case", at=authored_at())  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 
@@ -258,18 +275,22 @@ def test_create_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_add_note_to_case_returns_add(sample_note):
-    result = add_note_to_case_activity(note=sample_note, actor=_ACTOR_URI)
+    result = add_note_to_case_activity(
+        note=sample_note, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Add)
 
 
 def test_add_note_to_case_object_is_note(sample_note):
-    result = add_note_to_case_activity(note=sample_note, actor=_ACTOR_URI)
+    result = add_note_to_case_activity(
+        note=sample_note, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == sample_note
 
 
 def test_add_note_to_case_target_is_set(sample_note):
     result = add_note_to_case_activity(
-        note=sample_note, target=_CASE_URI, actor=_ACTOR_URI
+        note=sample_note, target=_CASE_URI, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.target == _CASE_URI
 
@@ -277,7 +298,7 @@ def test_add_note_to_case_target_is_set(sample_note):
 @pytest.mark.spec("AF-04-001")
 def test_add_note_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        add_note_to_case_activity(note=42)  # type: ignore[arg-type]
+        add_note_to_case_activity(note=42, at=authored_at())  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 
@@ -288,19 +309,23 @@ def test_add_note_to_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_update_case_returns_update(sample_case):
-    result = update_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = update_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Update)
 
 
 def test_update_case_object_is_case(sample_case):
-    result = update_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = update_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == sample_case
 
 
 @pytest.mark.spec("AF-04-001")
 def test_update_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        update_case_activity(case="not-a-case")  # type: ignore[arg-type]
+        update_case_activity(case="not-a-case", at=authored_at())  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 
@@ -311,29 +336,37 @@ def test_update_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_engage_case_returns_join(sample_case):
-    result = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_engage_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Join)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_engage_case_object_names_the_case(sample_case):
     """The case travels as its typed reference, never a copy (ADR-0165)."""
-    result = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_engage_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_engage_case_takes_the_case_id(sample_case):
     """Given only the case id, the factory names the same case."""
-    by_id = rm_engage_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
-    held = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    by_id = rm_engage_case_activity(
+        case=sample_case.id_, actor=_ACTOR_URI, at=authored_at()
+    )
+    held = rm_engage_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_engage_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_engage_case_activity(case="")
+        rm_engage_case_activity(case="", at=authored_at())
     assert exc_info.value.__cause__ is not None
 
 
@@ -344,29 +377,37 @@ def test_rm_engage_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_defer_case_returns_ignore(sample_case):
-    result = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_defer_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Ignore)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_defer_case_object_names_the_case(sample_case):
     """The case travels as its typed reference, never a copy (ADR-0165)."""
-    result = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_defer_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_defer_case_takes_the_case_id(sample_case):
     """Given only the case id, the factory names the same case."""
-    by_id = rm_defer_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
-    held = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    by_id = rm_defer_case_activity(
+        case=sample_case.id_, actor=_ACTOR_URI, at=authored_at()
+    )
+    held = rm_defer_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_defer_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_defer_case_activity(case="")
+        rm_defer_case_activity(case="", at=authored_at())
     assert exc_info.value.__cause__ is not None
 
 
@@ -377,29 +418,37 @@ def test_rm_defer_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_close_case_returns_leave(sample_case):
-    result = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_close_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Leave)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_close_case_object_names_the_case(sample_case):
     """The case travels as its typed reference, never a copy (ADR-0165)."""
-    result = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    result = rm_close_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
 def test_rm_close_case_takes_the_case_id(sample_case):
     """Given only the case id, the factory names the same case."""
-    by_id = rm_close_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
-    held = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    by_id = rm_close_case_activity(
+        case=sample_case.id_, actor=_ACTOR_URI, at=authored_at()
+    )
+    held = rm_close_case_activity(
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
+    )
     assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_close_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_close_case_activity(case="")
+        rm_close_case_activity(case="", at=authored_at())
     assert exc_info.value.__cause__ is not None
 
 
@@ -411,7 +460,7 @@ def test_rm_close_case_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_offer_ownership_transfer_returns_offer(sample_case):
     result = offer_case_ownership_transfer_activity(
-        case=sample_case, actor=_ACTOR_URI
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Offer)
 
@@ -420,14 +469,17 @@ def test_offer_ownership_transfer_returns_offer(sample_case):
 def test_offer_ownership_transfer_object_names_the_case(sample_case):
     """The case travels as its typed reference, never a copy (ADR-0165)."""
     result = offer_case_ownership_transfer_activity(
-        case=sample_case, actor=_ACTOR_URI
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
 
 
 def test_offer_ownership_transfer_target_is_set(sample_case, sample_actor):
     result = offer_case_ownership_transfer_activity(
-        case=sample_case, target=sample_actor, actor=_ACTOR_URI
+        case=sample_case,
+        target=sample_actor,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == sample_actor
 
@@ -437,7 +489,7 @@ def test_offer_ownership_transfer_wraps_a_bare_transferee_id(sample_case):
     """A transferee named by URI travels inline as an Actor (#4843)."""
     transferee = "https://example.org/actors/transferee"
     result = offer_case_ownership_transfer_activity(
-        case=sample_case, target=transferee, actor=_ACTOR_URI
+        case=sample_case, target=transferee, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result.target, as_Actor)
     assert result.target.id_ == transferee
@@ -448,7 +500,7 @@ def test_offer_ownership_transfer_wraps_a_bare_transferee_id(sample_case):
 @pytest.mark.spec("AF-04-001")
 def test_offer_ownership_transfer_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        offer_case_ownership_transfer_activity(case="")
+        offer_case_ownership_transfer_activity(case="", at=authored_at())
     assert exc_info.value.__cause__ is not None
 
 
@@ -461,7 +513,7 @@ def test_offer_ownership_transfer_invalid_raises():
 @pytest.mark.spec("RF-02-001")
 def test_accept_ownership_transfer_returns_accept(sample_offer):
     result = accept_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        offer=sample_offer, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Accept)
     assert result.type_ == "Accept"
@@ -469,7 +521,7 @@ def test_accept_ownership_transfer_returns_accept(sample_offer):
 
 def test_accept_ownership_transfer_object_is_offer(sample_offer):
     result = accept_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        offer=sample_offer, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_offer
 
@@ -479,7 +531,9 @@ def test_accept_ownership_transfer_plain_offer_raises(sample_report):
     """A plain as_Offer (not from offer_case_ownership_transfer_activity) must fail."""
     plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_report)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        accept_case_ownership_transfer_activity(offer=plain_offer)
+        accept_case_ownership_transfer_activity(
+            offer=plain_offer, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -492,7 +546,7 @@ def test_accept_ownership_transfer_plain_offer_raises(sample_report):
 @pytest.mark.spec("RF-03-001")
 def test_reject_ownership_transfer_returns_reject(sample_offer):
     result = reject_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        offer=sample_offer, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Reject)
     assert result.type_ == "Reject"
@@ -500,7 +554,7 @@ def test_reject_ownership_transfer_returns_reject(sample_offer):
 
 def test_reject_ownership_transfer_object_is_offer(sample_offer):
     result = reject_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        offer=sample_offer, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_offer
 
@@ -509,7 +563,9 @@ def test_reject_ownership_transfer_object_is_offer(sample_offer):
 def test_reject_ownership_transfer_plain_offer_raises(sample_report):
     plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_report)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        reject_case_ownership_transfer_activity(offer=plain_offer)
+        reject_case_ownership_transfer_activity(
+            offer=plain_offer, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -522,14 +578,14 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 @pytest.mark.spec("CM-21-015")
 def test_undo_ownership_transfer_returns_undo(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        proposal=sample_proposal, actor=_ACTOR_URI
+        proposal=sample_proposal, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Undo)
 
 
 def test_undo_ownership_transfer_object_is_the_proposal(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        proposal=sample_proposal, actor=_ACTOR_URI
+        proposal=sample_proposal, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_proposal
 
@@ -538,7 +594,9 @@ def test_undo_ownership_transfer_object_is_the_proposal(sample_proposal):
 def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
     """The Offer itself is not withdrawn; the owner's proposal is (ADR-0148)."""
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        undo_case_ownership_transfer_activity(proposal=sample_offer)
+        undo_case_ownership_transfer_activity(
+            proposal=sample_offer, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -560,6 +618,7 @@ def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
         end_time=deadline,
         actor=_ACTOR_URI,
         to=[_CASE_ACTOR_URI],
+        at=authored_at(),
     )
 
     assert isinstance(result, as_Offer)
@@ -581,21 +640,30 @@ def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
 @pytest.mark.spec("AF-01-002")
 def test_rm_invite_to_case_returns_invite(sample_actor):
     result = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert isinstance(result, as_Invite)
 
 
 def test_rm_invite_to_case_object_is_actor(sample_actor):
     result = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.object_ == sample_actor
 
 
 def test_rm_invite_to_case_target_is_set(sample_actor):
     result = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.target == as_VulnerabilityCaseStub(case_id=_CASE_URI)
 
@@ -605,7 +673,10 @@ def test_rm_invite_to_case_target_is_set(sample_actor):
 def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
     """A case named by URI travels as a stub; ``context`` is the case."""
     result = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
     assert wire["target"]["type"] == "VulnerabilityCaseStub"
@@ -625,7 +696,7 @@ def _invite_stub_wire(sample_actor) -> dict:
         attributed_to=_ACTOR_URI,
     )
     result = rm_invite_to_case_activity(
-        invitee=sample_actor, target=case, actor=_ACTOR_URI
+        invitee=sample_actor, target=case, actor=_ACTOR_URI, at=authored_at()
     )
     wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
     stub: dict[str, Any] = wire["target"]
@@ -677,6 +748,7 @@ def test_rm_invite_to_case_refuses_when_no_stub_summary():
             invitee=_ACTOR_URI,
             target=case,
             actor=_ACTOR_URI,
+            at=authored_at(),
         )
 
 
@@ -686,6 +758,7 @@ def test_rm_invite_to_case_invalid_raises():
         rm_invite_to_case_activity(
             invitee="not-an-actor",  # type: ignore[arg-type]
             target=_CASE_URI,
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -699,18 +772,28 @@ def test_rm_invite_to_case_invalid_raises():
 @pytest.mark.spec("RF-02-001")
 def test_rm_accept_invite_to_case_returns_accept(sample_actor):
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_accept_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Accept)
     assert result.type_ == "Accept"
 
 
 def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_accept_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == invite
 
 
@@ -720,20 +803,31 @@ def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
 def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_accept_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_accept_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_accept_invite_to_case_activity(
-        invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
+        invite=invite,
+        in_reply_to=explicit_id,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.in_reply_to == explicit_id
 
@@ -743,7 +837,9 @@ def test_rm_accept_invite_to_case_plain_invite_raises(sample_actor):
     """A plain as_Invite (not from rm_invite_to_case_activity) must fail."""
     plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_accept_invite_to_case_activity(invite=plain_invite)
+        rm_accept_invite_to_case_activity(
+            invite=plain_invite, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -790,11 +886,12 @@ def test_reply_embeds_an_invite_as_its_sender_sent_it(sample_actor, factory):
             summary="A case",
         ),
         roles=["vendor"],
+        at=authored_at(),
     )
     held = _received(invite, fooBar=[1])
     assert type(held) is as_Invite
 
-    result = factory(invite=held, actor=_ACTOR_URI)
+    result = factory(invite=held, actor=_ACTOR_URI, at=authored_at())
 
     assert result.object_.id_ == invite.id_
     assert result.object_.roles == ["vendor"]
@@ -820,12 +917,13 @@ def test_reply_refuses_a_received_activity_that_is_not_an_invite(
             name="Case",
         ),
         actor=_ACTOR_URI,
+        at=authored_at(),
     )
 
     with pytest.raises(
         VultronActivityConstructionError, match="not a case Invite"
     ):
-        factory(invite=_received(offer), actor=_ACTOR_URI)
+        factory(invite=_received(offer), actor=_ACTOR_URI, at=authored_at())
 
 
 # ---------------------------------------------------------------------------
@@ -837,18 +935,28 @@ def test_reply_refuses_a_received_activity_that_is_not_an_invite(
 @pytest.mark.spec("RF-03-001")
 def test_rm_reject_invite_to_case_returns_reject(sample_actor):
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_reject_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert isinstance(result, as_Reject)
     assert result.type_ == "Reject"
 
 
 def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_reject_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.object_ == invite
 
 
@@ -858,20 +966,31 @@ def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
 def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
-    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    result = rm_reject_invite_to_case_activity(
+        invite=invite, actor=_ACTOR_URI, at=authored_at()
+    )
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+        invitee=sample_actor,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_reject_invite_to_case_activity(
-        invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
+        invite=invite,
+        in_reply_to=explicit_id,
+        actor=_ACTOR_URI,
+        at=authored_at(),
     )
     assert result.in_reply_to == explicit_id
 
@@ -880,7 +999,9 @@ def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
 def test_rm_reject_invite_to_case_plain_invite_raises(sample_actor):
     plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_reject_invite_to_case_activity(invite=plain_invite)
+        rm_reject_invite_to_case_activity(
+            invite=plain_invite, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -892,14 +1013,14 @@ def test_rm_reject_invite_to_case_plain_invite_raises(sample_actor):
 @pytest.mark.spec("AF-01-002")
 def test_announce_vulnerability_case_returns_announce(sample_case):
     result = announce_vulnerability_case_activity(
-        case=sample_case, actor=_ACTOR_URI
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Announce)
 
 
 def test_announce_vulnerability_case_object_is_case(sample_case):
     result = announce_vulnerability_case_activity(
-        case=sample_case, actor=_ACTOR_URI
+        case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_case
 
@@ -908,7 +1029,8 @@ def test_announce_vulnerability_case_object_is_case(sample_case):
 def test_announce_vulnerability_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         announce_vulnerability_case_activity(
-            case="not-a-case"  # type: ignore[arg-type]
+            case="not-a-case",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -987,6 +1109,7 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
         invitee=sample_actor,
         target=case,
         actor="https://example.org/actors/coordinator",
+        at=authored_at(),
     )
 
     stub = invite.target
@@ -1043,7 +1166,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     )
 
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=case, actor=_ACTOR_URI
+        invitee=sample_actor, target=case, actor=_ACTOR_URI, at=authored_at()
     )
     wire = json.loads(
         invite.model_dump_json(
@@ -1110,7 +1233,7 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert case.em_state == EM.REVISE
 
     invite = rm_invite_to_case_activity(
-        invitee=sample_actor, target=case, actor=_ACTOR_URI
+        invitee=sample_actor, target=case, actor=_ACTOR_URI, at=authored_at()
     )
 
     stub = invite.target
@@ -1164,6 +1287,7 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
         target=case,
         actor=_ACTOR_URI,
         embargo_obj=embargo,
+        at=authored_at(),
     )
 
     stub = invite.target
@@ -1256,6 +1380,7 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
         target=case,
         actor=_ACTOR_URI,
         embargo_obj=None if held_inline else embargo,
+        at=authored_at(),
     )
     wire = json.loads(
         invite.model_dump_json(
@@ -1288,7 +1413,10 @@ def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
 
     with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
         rm_invite_to_case_activity(
-            invitee=sample_actor, target=case, actor=_ACTOR_URI
+            invitee=sample_actor,
+            target=case,
+            actor=_ACTOR_URI,
+            at=authored_at(),
         )
 
 
@@ -1309,6 +1437,7 @@ def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
             target=case,
             actor=_ACTOR_URI,
             embargo_obj=_full_embargo(case_id),
+            at=authored_at(),
         )
 
 
@@ -1365,7 +1494,11 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
         name="C",
     )
     offer = offer_case_ownership_transfer_activity(
-        case, target=_ACTOR_URI, actor=_ACTOR_URI, to=[_ACTOR_URI]
+        case,
+        target=_ACTOR_URI,
+        actor=_ACTOR_URI,
+        to=[_ACTOR_URI],
+        at=authored_at(),
     )
     received = _received(
         offer,
@@ -1373,7 +1506,7 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
         cc=["https://example.org/actors/watcher"],
     )
 
-    result = factory(offer=received, actor=_ACTOR_URI)
+    result = factory(offer=received, actor=_ACTOR_URI, at=authored_at())
 
     assert result.object_.id_ == offer.id_
     assert result.object_.object_.id_ == case.id_
@@ -1398,11 +1531,11 @@ def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     from vultron.wire.as2.factories import rm_submit_report_activity
 
     offer = rm_submit_report_activity(
-        sample_report, to=_ACTOR_URI, actor=_ACTOR_URI
+        sample_report, to=_ACTOR_URI, actor=_ACTOR_URI, at=authored_at()
     )
 
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        factory(offer=_received(offer), actor=_ACTOR_URI)
+        factory(offer=_received(offer), actor=_ACTOR_URI, at=authored_at())
     cause = exc_info.value.__cause__
     # as_answered's validation of the parsed Offer refused it.
     assert isinstance(cause, ValidationError)

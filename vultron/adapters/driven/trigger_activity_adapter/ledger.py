@@ -35,6 +35,7 @@ carrying its active embargo), and the demo verb's ``Announce`` (AKM-02-004).
 """
 
 import logging
+from datetime import datetime
 
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.activity_ids import derived_activity_id
@@ -105,6 +106,8 @@ class _LedgerRecordsMixin:
         embargo: EmbargoEvent,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Create(EmbargoEvent)``, the embargo in full."""
         activity = create_embargo_event_activity(
@@ -114,6 +117,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "embargo-event-created", actor, embargo.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -124,6 +128,8 @@ class _LedgerRecordsMixin:
         actor: str,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Add(VulnerabilityReport)[target=VulnerabilityCase]``."""
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
@@ -137,6 +143,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "report-added-to-case", actor, case_id, report_id
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -180,6 +187,8 @@ class _LedgerRecordsMixin:
         participant: CaseParticipant,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Add(ParticipantStatus)[target=CaseParticipant]``."""
         activity = add_status_to_participant_activity(
@@ -190,6 +199,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "participant-status-added", actor, status.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -198,6 +208,8 @@ class _LedgerRecordsMixin:
         status: CaseStatus,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Add(CaseStatus)[target=VulnerabilityCase]``."""
         activity = add_status_to_case_activity(
@@ -206,6 +218,7 @@ class _LedgerRecordsMixin:
             actor=actor,
             context=case_id,
             id_=derived_activity_id("case-status-added", actor, status.id_),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -214,6 +227,8 @@ class _LedgerRecordsMixin:
         participant: CaseParticipant,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Create(CaseParticipant)``."""
         activity = create_participant_activity(
@@ -224,6 +239,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "case-participant-created", actor, participant.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -233,6 +249,8 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Update(CaseParticipant)``, the record in full."""
         activity = update_participant_activity(
@@ -242,6 +260,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "case-participant-updated", actor, cause_id, participant.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -250,6 +269,8 @@ class _LedgerRecordsMixin:
         case: VulnerabilityCase,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Update(VulnerabilityCase)`` naming the new owner."""
         # The case as it will be stored, its participants by id: each changed
@@ -264,6 +285,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "case-owner-updated", actor, cause_id, case.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -272,6 +294,8 @@ class _LedgerRecordsMixin:
         row: EmbargoConsent,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Create(EmbargoConsent)``, the new row in full."""
         activity = create_embargo_consent_activity(
@@ -279,6 +303,7 @@ class _LedgerRecordsMixin:
             actor=actor,
             context=case_id,
             id_=derived_activity_id("embargo-consent-created", actor, row.id_),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -288,6 +313,8 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
         cause_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Update(EmbargoConsent)``, the changed row in full."""
         activity = update_embargo_consent_activity(
@@ -297,6 +324,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "embargo-consent-updated", actor, cause_id, row.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -305,6 +333,8 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
         object_id: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal the demo sync verb's ``Announce(VulnerabilityCase)``."""
         activity = announce_vulnerability_case_activity(
@@ -314,6 +344,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "demo-sync-log-entry", actor, case_id, object_id
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 

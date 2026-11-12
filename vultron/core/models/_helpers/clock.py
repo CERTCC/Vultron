@@ -18,13 +18,17 @@
 :func:`stamp_after`, :func:`deadline_from` and :func:`days_after` read no
 clock: each takes the act's instant as an argument (ADR-0176).
 
-:func:`now_utc` looks up ``datetime`` on this module at call time, so a test or
-a deterministic demo run replaces ``clock.datetime`` to control the clock.
+:func:`now_utc` looks up ``datetime`` on this module at call time, so a test
+or the docs-example generator, which runs no act, replaces ``clock.datetime``
+to control the clock.  A recorded demo run does not: it installs its
+recording clock through the act clock port (``vultron.demo.determinism``,
+ADR-0176).
 """
 
 import threading
 from datetime import UTC, datetime, timedelta, timezone
 from typing import (
+    TypedDict,
     overload,
 )
 
@@ -41,11 +45,12 @@ _datetime_type = datetime
 class SteppingClock:
     """A ``datetime`` stand-in whose ``now()`` advances *step* on every call.
 
-    Lives beside the clock it replaces because replacing ``clock.datetime`` is
-    the documented way to control time (module docstring), and one stand-in
-    serves every caller that does so: the deterministic demo recordings
-    (``vultron.demo.determinism``, which re-exports this class), the docs
-    example generator, and the tests that pin a stamp.
+    Lives beside the clock it can replace, and one stand-in serves every
+    caller that controls time: the deterministic demo recordings, which
+    install it as the act clock (``vultron.demo.determinism``, which
+    re-exports this class), the docs example generator, and the tests that
+    pin a stamp by replacing ``clock.datetime``.  Its ``now()`` is the act
+    clock port's one operation.
 
     The first call returns ``start + step``; ``step=timedelta(0)`` freezes the
     clock at *start*.  *start* must be timezone-aware, as ``now_utc()``
@@ -77,6 +82,37 @@ class SteppingClock:
 def now_utc() -> datetime:
     """Return the current UTC instant, microseconds kept (CS-13-007)."""
     return datetime.now(UTC)
+
+
+class AuthoredTimes(TypedDict):
+    """The ``published``/``updated`` pair, typed for ``**`` unpacking."""
+
+    published: datetime
+    updated: datetime
+
+
+def authored_times(at: datetime) -> AuthoredTimes:
+    """``published`` and ``updated`` for an object authored at *at*.
+
+    *at* is the instant of the act that makes the object (ADR-0176): pass
+    ``**authored_times(at)`` where the object is built, so the two author
+    times are stated once and no model reads the clock.
+    """
+    return AuthoredTimes(published=at, updated=at)
+
+
+class EmbargoAuthoredTimes(AuthoredTimes):
+    """:class:`AuthoredTimes` plus an embargo's ``start_time``."""
+
+    start_time: datetime
+
+
+def embargo_authored_times(at: datetime) -> EmbargoAuthoredTimes:
+    """The times of an embargo authored at *at*: it starts when it is made.
+
+    Pass as ``**embargo_authored_times(at)`` (ADR-0176).
+    """
+    return EmbargoAuthoredTimes(published=at, updated=at, start_time=at)
 
 
 def is_aware(value: datetime) -> bool:

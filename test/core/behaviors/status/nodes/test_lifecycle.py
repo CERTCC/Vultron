@@ -21,7 +21,7 @@ ThreatTerminationBranchNode (EMB-16-001, EMB-16-002).
 Per DEMOMA-07-003 steps 4–5.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import py_trees
 import pytest
@@ -30,7 +30,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -168,7 +168,11 @@ class TestThreatTerminationBranchNodeProposedEmPath:
             end_time=days_from_now(45),
         )
         invite = em_propose_embargo_activity(
-            embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
+            embargo,
+            context=CASE_ID,
+            actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
+            at=authored_at(),
         )
         case = make(
             VulnerabilityCase,
@@ -318,6 +322,7 @@ class TestEmitCloseCaseNode:
             case_id=CASE_ID,
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
+            at=ANY,
         )
         outbox = populated_dl.outbox_list()
         assert activity_id in outbox

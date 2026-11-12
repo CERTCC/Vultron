@@ -35,7 +35,7 @@ import pytest
 from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -112,6 +112,7 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/{suffix}",
+        at=authored_at(),
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(proposal)))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason

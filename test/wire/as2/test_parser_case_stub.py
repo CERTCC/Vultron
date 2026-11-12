@@ -31,8 +31,12 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
+from test.support.objects import with_times
 from vultron.core.models.case import VulnerabilityCase
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.errors import (
+    VultronParseError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
@@ -65,6 +69,7 @@ def _enriched_stub() -> dict:
         },
         "caseStatus": {
             "type": "CaseStatus",
+            "id": f"{_CASE_ID}/statuses/1",
             "context": _CASE_ID,
             "published": "2026-01-01T00:00:00+00:00",
             "em": "ACTIVE",
@@ -190,11 +195,14 @@ def test_a_sparse_case_is_a_case_not_a_stub():
 @pytest.mark.spec("CM-11-038")
 def test_a_sparse_case_validates_as_a_case():
     case = VulnerabilityCase.model_validate(
-        {
-            "attributed_to": CASE_OWNER_ID,
-            "type": "VulnerabilityCase",
-            "id": _CASE_ID,
-        }
+        with_times(
+            VulnerabilityCase,
+            {
+                "attributed_to": CASE_OWNER_ID,
+                "type": "VulnerabilityCase",
+                "id": _CASE_ID,
+            },
+        )
     )
     assert case.id_ == _CASE_ID
 
@@ -241,7 +249,12 @@ def test_the_stub_serialises_its_type_id_and_case():
     ],
 )
 def test_a_stub_validates_from_either_spelling(data):
-    assert as_VulnerabilityCaseStub.model_validate(data).id_ == _STUB_ID
+    assert (
+        as_VulnerabilityCaseStub.model_validate(
+            with_times(as_VulnerabilityCaseStub, data)
+        ).id_
+        == _STUB_ID
+    )
 
 
 @pytest.mark.spec("CM-11-037")
@@ -254,14 +267,18 @@ def test_a_stub_validates_from_either_spelling(data):
 def test_a_stub_whose_id_disagrees_with_its_case_is_refused(stub_id):
     with pytest.raises(ValidationError, match="CM-11-013"):
         as_VulnerabilityCaseStub.model_validate(
-            {"caseId": _CASE_ID, "id": stub_id}
+            with_times(
+                as_VulnerabilityCaseStub, {"caseId": _CASE_ID, "id": stub_id}
+            )
         )
 
 
 @pytest.mark.spec("CM-11-037")
 def test_a_stub_without_its_case_is_refused():
     with pytest.raises(ValidationError, match="caseId"):
-        as_VulnerabilityCaseStub.model_validate({"id": _STUB_ID})
+        as_VulnerabilityCaseStub.model_validate(
+            with_times(as_VulnerabilityCaseStub, {"id": _STUB_ID})
+        )
 
 
 def _invite(target: object) -> dict:
@@ -303,3 +320,34 @@ def test_an_invite_whose_target_is_a_sparse_case_parses_it_as_a_case():
     )
     assert isinstance(activity.target, VulnerabilityCase)
     assert not isinstance(activity.target, as_VulnerabilityCaseStub)
+
+
+def _stub_with_untyped_status_without_published() -> dict:
+    stub = _enriched_stub()
+    del stub["caseStatus"]["type"]
+    del stub["caseStatus"]["published"]
+    return stub
+
+
+@pytest.mark.spec("MV-04-005")
+@pytest.mark.spec("CM-17-013")
+def test_an_invite_whose_stub_status_is_no_case_status_is_refused():
+    """An untyped ``caseStatus`` that fails ``CaseStatus`` is not a bare Link.
+
+    Read as a Link, the stub would lose its EM state without a trace.  A Link
+    needs an ``href``, so the parse is refused instead (#5715).
+    """
+    with pytest.raises(VultronParseError, match="caseStatus") as exc_info:
+        parse_activity(_invite(_stub_with_untyped_status_without_published()))
+    assert "href" in str(exc_info.value)
+
+
+@pytest.mark.spec("MV-04-005")
+def test_a_stub_built_here_with_no_case_status_is_refused():
+    """The same holds for a stub this process builds from a dict (#5715)."""
+    stub = _stub_with_untyped_status_without_published()
+    del stub["activeEmbargo"]  # inbound-shaped: it carries no times
+    with pytest.raises(ValidationError) as exc_info:
+        as_VulnerabilityCaseStub.model_validate(stub)
+    locs = {error["loc"][0] for error in exc_info.value.errors()}
+    assert locs == {"caseStatus"}

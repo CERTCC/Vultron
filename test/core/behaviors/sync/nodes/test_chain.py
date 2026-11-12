@@ -17,7 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -363,22 +363,32 @@ class TestPersistLogEntryNodeLogging:
 # ---------------------------------------------------------------------------
 
 
+class _Unset:
+    """No *published* given: the Reject is authored now."""
+
+
+_UNSET = _Unset()
+
+
 def _reject_event(
     entry: CaseLedgerEntry,
     peer_id: str,
     last_accepted_hash: str,
-    **activity_kwargs: object,
+    published: datetime | _Unset | None = _UNSET,
 ) -> RejectLogEntryReceivedEvent:
+    """A peer's Reject; *published* ``None`` is one that claims no time."""
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         wire_entry,
         ledger_position=peer_position(last_accepted_hash),
         actor=peer_id,
-        **activity_kwargs,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=published if isinstance(published, datetime) else authored_at(),
     )
+    if published is None:
+        activity = activity.model_copy(update={"published": None})
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
 

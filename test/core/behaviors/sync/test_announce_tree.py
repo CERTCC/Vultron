@@ -11,14 +11,14 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
-from test.support.act_runner import run_in_act, run_tree
+from test.support.act_runner import in_act, run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     propose,
     terminate,
     write_consent_rows,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -180,10 +180,10 @@ def _make_event(
     """
     recipients = [PARTICIPANT_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=actor_id, to=recipients
+        entry=wire_entry, actor=actor_id, to=recipients, at=authored_at()
     )
     event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -876,6 +876,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             case_id=CASE_ID,
             actor=case_actor.id_,
             cause_id="invite-expired:https://example.org/activities/invite-0",
+            at=authored_at(),
         )
         _announce(
             _to_persistable_entry(
@@ -1213,6 +1214,7 @@ def _create_entry(
                 target=CASE_ID,
                 actor="https://example.org/actors/manager",
                 context=CASE_ID,
+                at=authored_at(),
             )
         )
     )
@@ -1768,7 +1770,8 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
             )
             node.datalayer = datalayer
             node.setup()
-            node.update()
+            with in_act():
+                node.update()
             return steps
 
         assert _run_advance(), "the first run writes the closure"
@@ -2461,6 +2464,7 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
                 actor=CASE_ACTOR_ACTOR_ID,
                 context=CASE_ID,
                 to=[PARTICIPANT_ACTOR_ID],
+                at=authored_at(),
             )
         ),
     )

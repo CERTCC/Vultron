@@ -153,7 +153,10 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.create_case(
-            case_id=self.case_id, actor=self.actor_id, to=self._recipients
+            case_id=self.case_id,
+            actor=self.actor_id,
+            to=self._recipients,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

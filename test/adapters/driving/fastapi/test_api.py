@@ -21,7 +21,7 @@ Provides API v2 tests
 
 from datetime import timedelta
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models._helpers import clock as helpers_clock, now_utc
 from vultron.demo.determinism import SteppingClock
@@ -99,7 +99,7 @@ def test_datalayer_get_existing_actor(
     assert data["id"] == actor.id_
     assert data["name"] == actor.name
 
-    assert as_Person.model_validate(data) == actor
+    assert as_Person.model_validate(with_times(as_Person, data)) == actor
 
 
 def test_datalayer_get_existing_actor_by_id(
@@ -123,4 +123,4 @@ def test_datalayer_get_existing_actor_by_id(
     assert data["id"] == actor.id_
     assert data["name"] == actor.name
 
-    assert as_Person.model_validate(data) == actor
+    assert as_Person.model_validate(with_times(as_Person, data)) == actor

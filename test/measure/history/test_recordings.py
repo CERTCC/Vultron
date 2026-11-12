@@ -73,6 +73,9 @@ class Narrative:
 _NARRATIVES: dict[str, Narrative] = {
     # reporter → vendor; the vendor reports its fix ready.
     "rv": Narrative(owner=_actor("actor1"), vendors=(_actor("actor1"),)),
+    # reporter → vendor with a CSAF report; the case's first embargo is the
+    # report's disclosure date, the vendor's longer default stays pending.
+    "rv-csaf": Narrative(owner=_actor("actor1"), vendors=(_actor("actor1"),)),
     # reporter → vendor, which invites a second vendor.
     "rvv": Narrative(
         owner=_actor("actor1"),
@@ -278,13 +281,18 @@ def test_every_event_carries_its_entrys_index_type_and_clocks(scenario):
         e["logIndex"]: e
         for e in map(json.loads, path.read_text(encoding="utf-8").splitlines())
     }
-    for event in _history(scenario).events:
+    events = _history(scenario).events
+    for event in events:
         entry = entries[event.log_index]
         assert event.semantic_type.value == entry["semanticType"]
         assert event.committed_at == datetime.fromisoformat(entry["published"])
         claimed = entry["payloadSnapshot"]["published"]
         assert event.claimed_at == datetime.fromisoformat(claimed)
-        assert event.claimed_at != event.committed_at
+    # An act reads its clock once (ADR-0176), so an entry the committer
+    # authored itself claims the instant it commits at.  A message from
+    # another participant does not, and that is what shows the two clocks
+    # are read from their own fields.
+    assert any(e.claimed_at != e.committed_at for e in events)
 
 
 @pytest.mark.spec("CEH-03-009")

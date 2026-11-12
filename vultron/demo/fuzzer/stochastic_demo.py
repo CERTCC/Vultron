@@ -45,7 +45,7 @@ import logging
 
 import py_trees
 
-from vultron.adapters.driven.clock import SystemClock
+from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -204,7 +204,7 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
         wire_render_port=As2WireRenderAdapter(),
     )
 
-    clock = SystemClock()
+    clock = act_clock()
     for tick in range(1, n_ticks + 1):
         reset_blackboard()
         tree = create_manage_embargo_tree(

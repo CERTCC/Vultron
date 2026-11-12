@@ -80,6 +80,7 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
                 id_=derived_activity_id(
                     CREATE_CASE_ID_KIND, self._actor_id, case_id
                 ),
+                at=self._at,
             )
 
         return create_case_trigger_bt(

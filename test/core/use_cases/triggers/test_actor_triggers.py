@@ -44,7 +44,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import archive_received, case_stub
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -785,7 +785,7 @@ class TestRolesThreadingIntegration:
         invite, _wire = harness.invite(make_payload, roles=roles)
 
         accept = rm_accept_invite_to_case_activity(
-            invite, actor=harness.invitee.id_
+            invite, actor=harness.invitee.id_, at=authored_at()
         )
         event = make_payload(accept, receiving_actor_id=harness.manager.id_)
         run_in_act(
@@ -1217,6 +1217,7 @@ class TestSvcAcceptCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(inviter)
         archive_received(dl_invitee, invite)
@@ -1260,6 +1261,7 @@ class TestSvcAcceptCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=case_manager.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(case_manager)
         archive_received(dl_invitee, invite)
@@ -1333,6 +1335,7 @@ class TestSvcAcceptCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(inviter)
         archive_received(dl_invitee, invite)
@@ -1375,6 +1378,7 @@ class TestSvcAcceptCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(inviter)
         archive_received(dl_invitee, invite)
@@ -1419,6 +1423,7 @@ class TestSvcRejectCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(inviter)
         archive_received(dl_invitee, invite)
@@ -1484,6 +1489,7 @@ class TestSvcRejectCaseInviteUseCase:
             target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
+            at=authored_at(),
         )
         dl_invitee.create(inviter)
         archive_received(dl_invitee, invite)
@@ -1543,6 +1549,7 @@ class TestSvcActorRecommendationAnswerUseCases:
             target=self._CASE_ID,
             actor=case_actor_id,
             to=["http://owner:7999/api/v2/actors/owner"],
+            at=authored_at(),
         )
         # Held as intake archived it, participant inline, never under the
         # sender's id (DL-06-006).
@@ -2151,17 +2158,21 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
 
         case_wire = _VC.model_validate(
-            {
-                "id": case.id_,
-                "name": case.name or "Test",
-                "attributed_to": case.attributed_to,
-            }
+            with_times(
+                _VC,
+                {
+                    "id": case.id_,
+                    "name": case.name or "Test",
+                    "attributed_to": case.attributed_to,
+                },
+            )
         )
         offer = offer_case_ownership_transfer_activity(
             case=case_wire,
             target=transferee_id,
             actor=owner_id,
             to=[transferee_id],
+            at=authored_at(),
         )
         # Held as intake archived it, never under the sender's id (DL-06-006).
         archive_received(dl, offer)
@@ -2346,15 +2357,19 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
         offer = offer_case_ownership_transfer_activity(
             case=as_VulnerabilityCase.model_validate(
-                {
-                    "attributed_to": CASE_OWNER_ID,
-                    "id": case.id_,
-                    "name": case.name or "Test",
-                }
+                with_times(
+                    as_VulnerabilityCase,
+                    {
+                        "attributed_to": CASE_OWNER_ID,
+                        "id": case.id_,
+                        "name": case.name or "Test",
+                    },
+                )
             ),
             target=transferee.id_,
             actor=case_actor.id_,
             to=[transferee.id_],
+            at=authored_at(),
         )
         dl.create(offer)
         assert dl.read(offer.id_) is not None
@@ -2658,13 +2673,13 @@ class TestActorResolutionCallOut:
     """Tests for the ActorResolutionCallOutBundle seam (ADR-0024, ADR-0025, AKM-05).
 
     Verifies that the injectable call-out factory:
-    - fires no WARNING with the DETERMINISTIC (AlwaysSucceed) default
+    - fires no WARNING with the DETERMINISTIC default (the bound ceiling)
     - fires a WARNING when a FAILURE backend is injected
     - proceeds in both cases (annotating, not blocking — AC-4)
     """
 
     def test_default_bundle_no_warning_on_missing_invitee(self, caplog):
-        """DETERMINISTIC (AlwaysSucceed) logs at DEBUG; no WARNING emitted."""
+        """The DETERMINISTIC default records the minimal peer; no WARNING."""
         from vultron.core.behaviors.call_out.bundles.actor_resolution import (
             ACTOR_RESOLUTION_DETERMINISTIC,
         )

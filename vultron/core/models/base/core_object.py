@@ -19,13 +19,24 @@ ARCH-25-004 (ADR-0099): the core classes *are* the AS2 objects.
 """
 
 import inspect
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, ClassVar
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    TypeAlias,
+    get_args,
+    get_origin,
+)
 
 from pydantic import (
+    BaseModel,
     ConfigDict,
     Field,
+    PlainValidator,
     SerializationInfo,
+    SerializeAsAny,
     SerializerFunctionWrapHandler,
     ValidationInfo,
     field_serializer,
@@ -42,7 +53,7 @@ from vultron.core.models._helpers import (
     as_utc,
     blank_times_as_none,
     format_timestamp,
-    now_utc,
+    refuse_absent_id,
     refuse_absent_published,
 )
 from vultron.core.models.base._computed import (
@@ -54,6 +65,10 @@ from vultron.core.models.base.context import (
     JsonLdContext,
     is_default_jsonld_context,
     serialize_with_top_level_context,
+)
+from vultron.core.models.base.language_map import (
+    LanguageMap,
+    language_map_field,
 )
 from vultron.core.models.base.record import (
     CoreRecord,
@@ -127,39 +142,53 @@ class CoreObject(CoreRecord):
 
     preview: NonEmptyString | None = None
     media_type: NonEmptyString | None = None
-    replies: Any | None = None
+    # The AS2 reference properties hold an embedded object or a non-blank IRI,
+    # one or many (``replies`` one only), as on the wire base.  Core names only
+    # its own objects; a wire ``Link`` or case stub is held as the wire layer
+    # built it (``UnmodelledObject``, ARCH-01-001).  A blank IRI is refused
+    # when the object is built (CS-08-001, #3894).  The aliases are declared
+    # below the class they name.
+    replies: "CoreObjectOrIri | None" = None
     url: NonEmptyString | None = None
-    generator: Any | None = None
-    context: Any | None = None
-    tag: Any | None = None
-    in_reply_to: Any | None = None
+    generator: "CoreObjectOrIriValues" = None
+    context: "CoreObjectOrIriValues" = None
+    tag: "CoreObjectOrIriValues" = None
+    in_reply_to: "CoreObjectOrIriValues" = None
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
 
-    # An object this process authors takes the local clock (default_factory);
-    # an object it *receives* carries the sender's time, which AS2 lets the
-    # sender omit, so an explicit ``None`` stays ``None`` rather than becoming
-    # the receiver's clock (ISSUE-3257).  Decisions that need the time refuse
-    # its absence at the wire edge, not here.
-    published: datetime | None = Field(default_factory=now_utc)
-    updated: datetime | None = Field(default_factory=now_utc)
+    # Required, with no default: an object this process authors states the
+    # instant of the act that made it (ADR-0176), and an object it *receives*
+    # carries the sender's time, which AS2 lets the sender omit, so a received
+    # omission is read as ``None`` (``_carry_absent_times_on_inbound``) rather
+    # than becoming the receiver's clock (ISSUE-3257).  Decisions that need
+    # the time refuse its absence at the wire edge, not here.
+    published: datetime | None
+    updated: datetime | None
     #: Set by a subclass whose received ``published`` a decision reads, so
     #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-010).
     _inbound_requires_published: ClassVar[bool] = False
 
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
-    icon: Any | None = None
-    image: Any | None = None
-    attachment: Any | None = None
-    location: Any | None = None
-    to: Any | None = None
-    cc: Any | None = None
-    bto: Any | None = None
-    bcc: Any | None = None
-    audience: Any | None = None
+    icon: "CoreObjectOrIriValues" = None
+    image: "CoreObjectOrIriValues" = None
+    attachment: "CoreObjectOrIriValues" = None
+    location: "CoreObjectOrIriValues" = None
+    to: "CoreObjectOrIriValues" = None
+    cc: "CoreObjectOrIriValues" = None
+    bto: "CoreObjectOrIriValues" = None
+    bcc: "CoreObjectOrIriValues" = None
+    audience: "CoreObjectOrIriValues" = None
     attributed_to: NonEmptyString | None = None
+    # The natural-language map forms of ``content``, ``name`` and ``summary``
+    # (AS2 Core section 4.7), declared so the parse edge reads them rather
+    # than setting them aside (ARCH-25-008).  Empty by default; an empty map
+    # is left out of every dump.
+    content_map: LanguageMap = language_map_field()
+    name_map: LanguageMap = language_map_field()
+    summary_map: LanguageMap = language_map_field()
 
     context_: JsonLdContext | None = Field(
         default=None,
@@ -251,9 +280,9 @@ class CoreObject(CoreRecord):
         """Read an absent or blank timestamp as ``None`` when inbound.
 
         The core-class twin of ``as_Base.carry_absent_times_on_inbound``, and
-        needed for the same reason (ISSUE-3257, ADR-0103): ``default_factory=
-        now_utc`` correctly stamps an object this process authors, but on
-        inbound data it would fabricate a time the sender never claimed.  Under
+        needed for the same reason (ISSUE-3257, ADR-0103): an object this
+        process authors states its time (ADR-0176), and a received one that
+        omits it claimed none, so the omission must read as ``None``.  Under
         ARCH-25-003 (ADR-0099) an inbound ``CaseParticipant``, ``EmbargoEvent`` or
         ``VulnerabilityCase`` validates straight into this class rather than a
         wire subclass of ``as_Base``, so without this the rule silently stops
@@ -264,7 +293,9 @@ class CoreObject(CoreRecord):
         A class whose ``published`` a decision reads sets
         ``_inbound_requires_published``, and a received instance without one
         is refused here with :class:`MissingClaimedTimeError` rather than
-        read as ``None`` (CLP-15-007, CLP-15-010).
+        read as ``None`` (CLP-15-007, CLP-15-010).  A received instance
+        without an ``id`` is refused too, never given a minted one
+        (OID-01-013, OID-01-014).
         """
         if not isinstance(data, dict):
             return data
@@ -275,6 +306,7 @@ class CoreObject(CoreRecord):
             return data
         if cls._inbound_requires_published:
             refuse_absent_published(cls, data)
+        refuse_absent_id(cls, data)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")
@@ -472,3 +504,63 @@ class CoreObject(CoreRecord):
                 data = dict(data)
                 data["type"] = cls.__name__
         return data
+
+
+def _require_built_object(value: object) -> BaseModel:
+    """Admit *value* only if it is an object another layer already built."""
+    if isinstance(value, BaseModel):
+        return value
+    raise ValueError(
+        "an AS2 reference must be an embedded object or a non-blank IRI"
+    )
+
+
+#: An embedded object of a class core does not model (an AS2 ``Link``, a case
+#: stub, a case reference), held as the wire layer built it.  Core cannot name
+#: those classes (ARCH-01-001), yet the parse edge must keep one in a core
+#: object until its placement check names the fault (MV-10-002, AKM-03-004).
+#: Only a built model passes; a raw mapping must validate as a ``CoreObject``.
+#: ``SerializeAsAny`` dumps it by its own class, not as a bare ``BaseModel``.
+UnmodelledObject: TypeAlias = Annotated[
+    SerializeAsAny[BaseModel], PlainValidator(_require_built_object)
+]
+
+#: One value of an AS2 reference property as core holds it: an embedded
+#: object or a non-blank IRI (CS-08-001).
+CoreObjectOrIri: TypeAlias = CoreObject | UnmodelledObject | NonEmptyString
+
+#: A non-functional AS2 reference property: one value or a list of them.
+#: ``Sequence`` rather than ``list``, because ``list`` is invariant: a
+#: subclass narrowing ``to`` to ``list[NonEmptyString]`` is then a valid
+#: override.
+CoreObjectOrIriValues: TypeAlias = (
+    CoreObjectOrIri | Sequence[CoreObjectOrIri] | None
+)
+
+# The fields above name these aliases, which name the class, so the schema is
+# completed here, before any subclass is declared.
+CoreObject.model_rebuild()
+
+
+def _holds_unmodelled_object(annotation: object) -> bool:
+    """Return whether *annotation* admits an :data:`UnmodelledObject`."""
+    if get_origin(annotation) is Annotated and any(
+        isinstance(meta, PlainValidator) and meta.func is _require_built_object
+        for meta in getattr(annotation, "__metadata__", ())
+    ):
+        return True
+    return any(_holds_unmodelled_object(arg) for arg in get_args(annotation))
+
+
+def unmodelled_object_fields(cls: type[BaseModel]) -> frozenset[str]:
+    """Fields of *cls* that may hold an object core does not model.
+
+    A reader that rebuilds a stored row must build such a value as its own
+    class first: its stored mapping (a Link's ``href``, say) is not a
+    ``CoreObject``, and the slot admits only a built model.
+    """
+    return frozenset(
+        name
+        for name, field in cls.model_fields.items()
+        if _holds_unmodelled_object(field.annotation)
+    )

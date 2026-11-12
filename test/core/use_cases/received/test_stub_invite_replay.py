@@ -17,7 +17,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -132,7 +132,7 @@ def _the_joiner_accepts(net: LedgerNetwork) -> None:
     assert delivered, "the CASE_MANAGER sent the joiner no stub Invite"
     (invite,) = net.queued(MANAGER, to=JOINER, type_="Invite")
     _, sealed = TriggerActivityAdapter(joiner_dl).accept_case_invite(
-        invite_id=invite.id_, actor=JOINER
+        invite_id=invite.id_, actor=JOINER, at=authored_at()
     )
     verdict = net.receive(MANAGER, json.loads(sealed))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
@@ -270,7 +270,7 @@ def _the_joiner_rejects(net: LedgerNetwork) -> None:
     assert delivered, "the CASE_MANAGER sent the joiner no stub Invite"
     (invite,) = net.queued(MANAGER, to=JOINER, type_="Invite")
     _, sealed = TriggerActivityAdapter(joiner_dl).reject_case_invite(
-        invite_id=invite.id_, actor=JOINER
+        invite_id=invite.id_, actor=JOINER, at=authored_at()
     )
     verdict = net.receive(MANAGER, json.loads(sealed))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason

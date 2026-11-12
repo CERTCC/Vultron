@@ -34,7 +34,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.case_manager import add_case_manager_participant
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import (
@@ -127,7 +127,10 @@ def _announce_entry(entry: CaseLedgerEntry) -> dict[str, Any]:
     """The CASE_MANAGER's fan-out of *entry* to the receiver."""
     return _body(
         announce_log_entry_activity(
-            ledger_entry_to_wire(entry), actor=_CASE_MANAGER, to=[_RECEIVER]
+            ledger_entry_to_wire(entry),
+            actor=_CASE_MANAGER,
+            to=[_RECEIVER],
+            at=authored_at(),
         )
     )
 
@@ -245,7 +248,11 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     # genesis entry's Announce, whose own commit replays the next.
     seed = _body(
         announce_vulnerability_case_activity(
-            case, actor=_CASE_MANAGER, to=[_RECEIVER], context=_CASE_ID
+            case,
+            actor=_CASE_MANAGER,
+            to=[_RECEIVER],
+            context=_CASE_ID,
+            at=authored_at(),
         )
     )
     _deliver(dl, dispatcher, seed)
@@ -323,7 +330,9 @@ def test_pre_genesis_entries_converge_on_the_report_receivers_introduction(
     assert len(held_ledger_announces(dl, _CASE_ID)) == 2
 
     introduction = _body(
-        create_case_activity(case, actor=_REPORT_RECEIVER, to=[_RECEIVER])
+        create_case_activity(
+            case, actor=_REPORT_RECEIVER, to=[_RECEIVER], at=authored_at()
+        )
     )
     _deliver(dl, dispatcher, introduction)
 

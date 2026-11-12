@@ -27,6 +27,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
 from test.support.act_runner import run_tree
+from test.support.objects import authored_at, with_times
 from test.support.received import received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
@@ -251,11 +252,12 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
     (entry,) = seed_ledger(datalayer, 1)
     activity = reject_log_entry_activity(
         entry=WireCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)

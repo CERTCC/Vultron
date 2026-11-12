@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
@@ -138,7 +138,9 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
             CoreCaseStatus, context=CASE_ID, published=self._FIXED_TIME
         )
         rebuilt = as_CaseStatus.model_validate(
-            core.model_dump(by_alias=True, mode="json")
+            with_times(
+                as_CaseStatus, core.model_dump(by_alias=True, mode="json")
+            )
         )
         self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
@@ -196,7 +198,14 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
         for key in ("emConsentState", "em_consent_state", "embargoAdherence"):
             with self.subTest(key=key), pytest.raises(ValidationError):
                 as_ParticipantStatus.model_validate(
-                    {"attributed_to": ACTOR_ID, "context": CASE_ID, key: "X"}
+                    with_times(
+                        as_ParticipantStatus,
+                        {
+                            "attributed_to": ACTOR_ID,
+                            "context": CASE_ID,
+                            key: "X",
+                        },
+                    )
                 )
 
 
@@ -218,7 +227,10 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
             published=self._FIXED_TIME,
         )
         rebuilt = as_ParticipantStatus.model_validate(
-            core.model_dump(by_alias=True, mode="json")
+            with_times(
+                as_ParticipantStatus,
+                core.model_dump(by_alias=True, mode="json"),
+            )
         )
         self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
@@ -231,7 +243,10 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
             cvd_role=expected_roles,
         )
         rebuilt = as_ParticipantStatus.model_validate(
-            core.model_dump(by_alias=True, mode="json")
+            with_times(
+                as_ParticipantStatus,
+                core.model_dump(by_alias=True, mode="json"),
+            )
         )
         self.assertEqual(expected_roles, rebuilt.cvd_role)
 
@@ -250,22 +265,28 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
         """vfd_state in inbound data raises ValidationError, not a raw exception."""
         with pytest.raises(ValidationError):
             as_ParticipantStatus.model_validate(
-                {
-                    "context": CASE_ID,
-                    "attributed_to": ACTOR_ID,
-                    "vfd_state": "VFD",
-                }
+                with_times(
+                    as_ParticipantStatus,
+                    {
+                        "context": CASE_ID,
+                        "attributed_to": ACTOR_ID,
+                        "vfd_state": "VFD",
+                    },
+                )
             )
 
     def test_vfd_state_camel_raises_validation_error(self):
         """vfdState in inbound data raises ValidationError, not a raw exception."""
         with pytest.raises(ValidationError):
             as_ParticipantStatus.model_validate(
-                {
-                    "context": CASE_ID,
-                    "attributed_to": ACTOR_ID,
-                    "vfdState": "VFD",
-                }
+                with_times(
+                    as_ParticipantStatus,
+                    {
+                        "context": CASE_ID,
+                        "attributed_to": ACTOR_ID,
+                        "vfdState": "VFD",
+                    },
+                )
             )
 
     def test_valid_data_without_vfd_state_constructs_normally(self):

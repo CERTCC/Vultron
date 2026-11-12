@@ -21,7 +21,7 @@ duplicate of the ``vultron.wire.as2.parser`` line that follows it.
 
 import logging
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.adapters.driving.fastapi.routers.actors import _inbox
 from vultron.wire.as2.factories import rm_create_report_activity
@@ -43,6 +43,7 @@ def _body() -> dict:
         ),
         actor="https://example.org/actors/finder",
         to=["https://example.org/actors/vendor"],
+        at=authored_at(),
     )
     return signed_body(
         activity.model_dump(mode="json", by_alias=True, exclude_none=True)

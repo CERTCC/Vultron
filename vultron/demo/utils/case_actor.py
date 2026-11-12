@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
+from vultron.core.models._helpers import authored_times
+from vultron.demo import wall_clock
 from vultron.demo.utils.client import DataLayerClient
 from vultron.demo.utils.environment import seed_actor
 from vultron.errors import DemoCaseActorUnconfiguredError
@@ -157,7 +159,11 @@ def seed_case_actor(client: DataLayerClient) -> as_Actor:
             " container's own seed config",
             case_actor_id,
         )
-        return as_Actor(id_=case_actor_id, name="CaseActor")
+        return as_Actor(
+            id_=case_actor_id,
+            name="CaseActor",
+            **authored_times(wall_clock.now()),
+        )
 
     actor = seed_actor(
         client=client,

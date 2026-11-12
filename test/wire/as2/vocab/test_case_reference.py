@@ -183,7 +183,15 @@ def test_a_url_holding_another_object_type_is_refused():
         match=r"(?s)url.*A case reference's Link holds only",
     ):
         parse_activity(
-            _create(_reference({"type": "Note", "content": "not a link"}))
+            _create(
+                _reference(
+                    {
+                        "type": "Note",
+                        "id": "urn:test:note:1",
+                        "content": "not a link",
+                    }
+                )
+            )
         )
 
 
@@ -203,8 +211,13 @@ def test_a_tags_key_is_not_read(caplog: pytest.LogCaptureFixture):
 
 def test_wire_link_rel_is_not_functional():
     """AS2 ``rel`` takes one value or several (VOC ``rel``)."""
-    assert as_Link.model_validate({"rel": "related"}).rel == "related"
-    assert as_Link.model_validate({"rel": ["related", _PATCH]}).rel == [
+    assert (
+        as_Link.model_validate({"href": _HREF, "rel": "related"}).rel
+        == "related"
+    )
+    assert as_Link.model_validate(
+        {"href": _HREF, "rel": ["related", _PATCH]}
+    ).rel == [
         "related",
         _PATCH,
     ]

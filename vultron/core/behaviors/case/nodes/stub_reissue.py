@@ -181,11 +181,11 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             case_id=self.case_id,
             invitee_id=stale.invitee_id,
             roles=list(stale.roles) or None,
-            published=self._require_act_instant(),
             attributed_to=stale.attributed_to,
             in_reply_to=stale.invite_id,
             actor_config=self._actor_config,
             activity_id=self._replacement_id(stale),
+            at=self._require_act_instant(),
         )
 
         def _send_and_commit() -> None:
@@ -254,6 +254,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             actor_id=self.actor_id,
             cause_id=activity_id,
             act_commit=send_and_commit,
+            at=self._require_act_instant(),
         )
 
 

@@ -76,10 +76,12 @@ from datetime import timedelta
 from vultron.demo.helpers.embargo import publish_embargo_policy
 from vultron.demo.helpers.embargo_outcome import (
     assert_window_is,
+    offered_terms,
     read_embargo,
     verify_pending_revision,
     verify_receiver_replica_agrees,
     verify_reporter_terms_active,
+    verify_reporter_terms_won,
     verify_uncontested,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
@@ -99,7 +101,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.demo.wall_clock import from_now
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 logger = logging.getLogger(__name__)
 
@@ -182,93 +183,78 @@ def _run_negotiated_submission(
             reporter_client=client,
             proposed_embargo_end_time=proposed_end,
         )
-        proposal = offer.proposed_embargo
-        with demo_check("Offer carries the Reporter's proposed terms"):
-            if not isinstance(proposal, as_EmbargoEvent):
-                raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
-                    "Offer carries no proposedEmbargo; the Reporter's terms"
-                    " did not leave the trigger (EP-04-004)"
-                )
-            if proposal.context != report.id_:
-                raise AssertionError(
-                    f"Proposed terms are about {proposal.context!r}, not the"
-                    f" report {report.id_!r} (EP-04-009)"
-                )
-        assert isinstance(proposal, as_EmbargoEvent)
-        proposal_id = proposal.id_
+        with demo_gate("Offer carries the Reporter's proposed terms"):
+            proposal_id = offered_terms(offer, report.id_).id_
 
-        with demo_gate(
-            "Step 3: CASE_MANAGER creates the case and settles the terms"
-        ):
-            case = wait_for_case_by_report(
-                client, report.id_, actor_id=case_actor.id_
-            )
-            logger.info(
-                "Canonical case %s created at %s",
-                case.id_,
-                case.em_state,
-            )
-            # The Receiver introduces the case to the Reporter, which takes
-            # it on the trusted route (CBT-01-005, #4675).
-            verify_reporter_trusts_introduction(
-                client, reporter, vendor, report, case_id=case.id_
-            )
+            with demo_gate(
+                "Step 3: CASE_MANAGER creates the case and settles the terms"
+            ):
+                case = wait_for_case_by_report(
+                    client, report.id_, actor_id=case_actor.id_
+                )
+                logger.info(
+                    "Canonical case %s created at %s",
+                    case.id_,
+                    case.em_state,
+                )
+                # The Receiver introduces the case to the Reporter, which takes
+                # it on the trusted route (CBT-01-005, #4675).
+                verify_reporter_trusts_introduction(
+                    client, reporter, vendor, report, case_id=case.id_
+                )
 
-            if receiver_default_days is None:
-                active = verify_reporter_terms_active(
-                    client, case_actor.id_, case, proposal_id, proposed_end
-                )
-                verify_uncontested(case, active)
-            elif reporter_days < receiver_default_days:
-                active = verify_reporter_terms_active(
-                    client, case_actor.id_, case, proposal_id, proposed_end
-                )
-                revision = verify_pending_revision(
-                    client, case_actor.id_, case, active
-                )
-                with demo_check(
-                    f"Pending revision runs the Receiver's"
-                    f" {receiver_default_days}-day default"
-                ):
-                    assert_window_is(
-                        revision,
-                        timedelta(days=receiver_default_days),
-                        "Pending",
+                if receiver_default_days is None:
+                    active = verify_reporter_terms_active(
+                        client, case_actor.id_, case, proposal_id, proposed_end
                     )
-            else:
-                # The Receiver's shorter default won at creation and the
-                # Reporter's terms were registered as a revision and relayed
-                # to the Receiver, the CASE_OWNER (EP-04-027).  The protocol
-                # requires no automatic answer (EP-09-006), and the
-                # prototype's bounded auto-accept does not fire at an active
-                # embargo, so the Receiver's default stays active and the
-                # Reporter's longer terms stay pending until the owner acts.
-                assert case.active_embargo_id is not None
-                active = read_embargo(
-                    client, case_actor.id_, case.active_embargo_id
-                )
-                with demo_check(
-                    f"Receiver's {receiver_default_days}-day default is the"
-                    " active embargo"
-                ):
-                    assert_window_is(
-                        active,
-                        timedelta(days=receiver_default_days),
-                        "Active",
+                    verify_uncontested(case, active)
+                elif reporter_days < receiver_default_days:
+                    verify_reporter_terms_won(
+                        client,
+                        case_actor.id_,
+                        case,
+                        proposal_id,
+                        proposed_end,
+                        default=timedelta(days=receiver_default_days),
+                        revision_check=(
+                            "Pending revision runs the Receiver's"
+                            f" {receiver_default_days}-day default"
+                        ),
                     )
-                revision = verify_pending_revision(
-                    client, case_actor.id_, case, active
-                )
-                with demo_check(
-                    "Pending revision is the Reporter's proposed event"
-                ):
-                    if revision.id_ != proposal_id:
-                        raise AssertionError(
-                            f"Expected the Reporter's proposal {proposal_id!r}"
-                            f" to be pending, found {revision.id_!r}"
+                else:
+                    # The Receiver's shorter default won at creation and the
+                    # Reporter's terms were registered as a revision and relayed
+                    # to the Receiver, the CASE_OWNER (EP-04-027).  The protocol
+                    # requires no automatic answer (EP-09-006), and the
+                    # prototype's bounded auto-accept does not fire at an active
+                    # embargo, so the Receiver's default stays active and the
+                    # Reporter's longer terms stay pending until the owner acts.
+                    assert case.active_embargo_id is not None
+                    active = read_embargo(
+                        client, case_actor.id_, case.active_embargo_id
+                    )
+                    with demo_check(
+                        f"Receiver's {receiver_default_days}-day default is the"
+                        " active embargo"
+                    ):
+                        assert_window_is(
+                            active,
+                            timedelta(days=receiver_default_days),
+                            "Active",
                         )
+                    revision = verify_pending_revision(
+                        client, case_actor.id_, case, active
+                    )
+                    with demo_check(
+                        "Pending revision is the Reporter's proposed event"
+                    ):
+                        if revision.id_ != proposal_id:
+                            raise AssertionError(
+                                f"Expected the Reporter's proposal {proposal_id!r}"
+                                f" to be pending, found {revision.id_!r}"
+                            )
 
-            verify_receiver_replica_agrees(client, vendor, offer.id_, case)
+                verify_receiver_replica_agrees(client, vendor, offer.id_, case)
 
 
 # ---------------------------------------------------------------------------

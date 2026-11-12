@@ -25,7 +25,7 @@ from pydantic import JsonValue
 
 from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -113,7 +113,11 @@ class Receipt:
             else None
         )
         offer = rm_submit_report_activity(
-            report, to=receiver_id, actor=FINDER, proposed_embargo=proposed
+            report,
+            to=receiver_id,
+            actor=FINDER,
+            proposed_embargo=proposed,
+            at=authored_at(),
         )
         event = received_event(offer, receiving_actor_id=receiver_id)
         assert isinstance(event, SubmitReportReceivedEvent)

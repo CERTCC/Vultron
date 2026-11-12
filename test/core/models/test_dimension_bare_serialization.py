@@ -29,7 +29,8 @@ demonstrated.
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.act_clock import ACT_AT
+from test.support.objects import make, with_times
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
@@ -79,7 +80,7 @@ class TestBareSerialization:
         ],
     )
     def test_accepts_the_bare_form(self, cls, value):
-        assert cls.model_validate(value).state.name == value
+        assert cls.model_validate(with_times(cls, value)).state.name == value
 
     @pytest.mark.parametrize(
         "cls, value",
@@ -90,7 +91,10 @@ class TestBareSerialization:
     )
     def test_still_accepts_the_mapping_form(self, cls, value):
         """Callers construct dimensions as ``{"state": ...}``; that keeps working."""
-        assert cls.model_validate({"state": value}).state.name == value
+        assert (
+            cls.model_validate(with_times(cls, {"state": value})).state.name
+            == value
+        )
 
     def test_round_trips(self):
         original = RmDimension(state=RM.ACCEPTED)
@@ -171,6 +175,7 @@ _EQUIVALENT_STATES = [
             "case_status": {
                 "id": "urn:uuid:cs-nested",
                 "context": "urn:case:1",
+                "published": ACT_AT,
             },
         },
         {
@@ -312,13 +317,19 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
             "EM.EXITED was dropped on the way to storage and fell back to the"
             f" initial state; got {data.get('em')!r}"
         )
-        assert CaseStatus.model_validate(data).em.state is EM.EXITED
+        assert (
+            CaseStatus.model_validate(with_times(CaseStatus, data)).em.state
+            is EM.EXITED
+        )
 
     def test_rm_state_survives_the_normalisation_round_trip(self):
         # Built through ``model_validate`` from the wire spelling: ``rmState``
         # is a validation-time alias, not a declared parameter name.
         status = ParticipantStatus.model_validate(
-            {"context": "urn:case:1", "rmState": RM.ACCEPTED}
+            with_times(
+                ParticipantStatus,
+                {"context": "urn:case:1", "rmState": RM.ACCEPTED},
+            )
         )
 
         data = self._normalised(status)
@@ -327,7 +338,12 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
             "RM.ACCEPTED was dropped on the way to storage and fell back to"
             f" RM.START; got {data.get('rm')!r}"
         )
-        assert ParticipantStatus.model_validate(data).rm.state is RM.ACCEPTED
+        assert (
+            ParticipantStatus.model_validate(
+                with_times(ParticipantStatus, data)
+            ).rm.state
+            is RM.ACCEPTED
+        )
 
 
 class TestExplicitNullIsRefused:
@@ -351,7 +367,7 @@ class TestExplicitNullIsRefused:
     )
     def test_explicit_null_dimension_raises(self, cls, payload):
         with pytest.raises(ValidationError):
-            cls.model_validate(payload)
+            cls.model_validate(with_times(cls, payload))
 
     @pytest.mark.parametrize(
         "cls, expected_field, expected_state",
@@ -363,5 +379,5 @@ class TestExplicitNullIsRefused:
     def test_absence_still_gets_the_default(
         self, cls, expected_field, expected_state
     ):
-        obj = cls.model_validate({"context": "urn:case:1"})
+        obj = cls.model_validate(with_times(cls, {"context": "urn:case:1"}))
         assert getattr(obj, expected_field).state is expected_state

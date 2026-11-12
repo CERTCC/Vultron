@@ -46,7 +46,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -108,39 +108,47 @@ INTRODUCES: dict[
     str, tuple[Callable[[Any], as_Activity], Callable[[], Any]]
 ] = {
     "create_case_activity": (
-        lambda o: create_case_activity(o, actor=_ACTOR),
+        lambda o: create_case_activity(o, actor=_ACTOR, at=authored_at()),
         _example_object("create_case"),
     ),
     "create_participant_activity": (
-        lambda o: create_participant_activity(o, target=_CASE, actor=_ACTOR),
+        lambda o: create_participant_activity(
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("create_participant"),
     ),
     "create_embargo_consent_activity": (
-        lambda o: create_embargo_consent_activity(o, actor=_ACTOR),
+        lambda o: create_embargo_consent_activity(
+            o, actor=_ACTOR, at=authored_at()
+        ),
         _consent_row,
     ),
     "create_embargo_event_activity": (
-        lambda o: create_embargo_event_activity(o, actor=_ACTOR),
+        lambda o: create_embargo_event_activity(
+            o, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("create_embargo_event"),
     ),
     "rm_create_report_activity": (
-        lambda o: rm_create_report_activity(o, actor=_ACTOR),
+        lambda o: rm_create_report_activity(o, actor=_ACTOR, at=authored_at()),
         _example_object("create_report"),
     ),
     "create_case_proposal_activity": (
         lambda o: create_case_proposal_activity(
-            actor=vendor_profile(), proposal=o, to=[_PEER]
+            actor=vendor_profile(), proposal=o, to=[_PEER], at=authored_at()
         ),
         _example_object("create_case_proposal"),
     ),
     "create_processing_fault_activity": (
         lambda o: create_processing_fault_activity(
-            actor=_ACTOR, fault=o, to=[_PEER]
+            actor=_ACTOR, fault=o, to=[_PEER], at=authored_at()
         ),
         _example_object("create_processing_fault"),
     ),
     "add_note_to_case_activity": (
-        lambda o: add_note_to_case_activity(o, target=_CASE, actor=_ACTOR),
+        lambda o: add_note_to_case_activity(
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("add_note_to_case"),
     ),
     "add_vulnerability_item_to_case_activity": (
@@ -156,44 +164,52 @@ INTRODUCES: dict[
         _example_object("add_case_reference_to_case"),
     ),
     "add_report_to_case_activity": (
-        lambda o: add_report_to_case_activity(o, target=_CASE, actor=_ACTOR),
+        lambda o: add_report_to_case_activity(
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("add_report_to_case"),
     ),
     "add_status_to_case_activity": (
-        lambda o: add_status_to_case_activity(o, target=_CASE, actor=_ACTOR),
+        lambda o: add_status_to_case_activity(
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("add_status_to_case"),
     ),
     "add_status_to_participant_activity": (
         lambda o: add_status_to_participant_activity(
-            o, target=_PARTICIPANT, actor=_ACTOR
+            o, target=_PARTICIPANT, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_status_to_participant"),
     ),
     "add_participant_to_case_activity": (
         lambda o: add_participant_to_case_activity(
-            o, target=_CASE, actor=_ACTOR
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_vendor_participant_to_case"),
     ),
     # First delivery of the object to its receiver, though not a Create/Add.
     "rm_submit_report_activity": (
-        lambda o: rm_submit_report_activity(o, to=_PEER, actor=_ACTOR),
+        lambda o: rm_submit_report_activity(
+            o, to=_PEER, actor=_ACTOR, at=authored_at()
+        ),
         _example_object("submit_report"),
     ),
     "em_propose_embargo_activity": (
         lambda o: em_propose_embargo_activity(
-            o, context=_CASE, actor=_ACTOR, to=[_PEER]
+            o, context=_CASE, actor=_ACTOR, to=[_PEER], at=authored_at()
         ),
         _example_object("propose_embargo"),
     ),
     "announce_vulnerability_case_activity": (
         lambda o: announce_vulnerability_case_activity(
-            o, actor=_ACTOR, to=[_PEER]
+            o, actor=_ACTOR, to=[_PEER], at=authored_at()
         ),
         _example_object("announce_case"),
     ),
     "announce_log_entry_activity": (
-        lambda o: announce_log_entry_activity(o, actor=_ACTOR, to=[_PEER]),
+        lambda o: announce_log_entry_activity(
+            o, actor=_ACTOR, to=[_PEER], at=authored_at()
+        ),
         _example_object("announce_case_ledger_entry"),
     ),
 }
@@ -203,7 +219,7 @@ INTRODUCES: dict[
 BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
     "offer_case_participant_activity": (
         lambda: offer_case_participant_activity(
-            _PEER, target=_CASE, actor=_ACTOR, to=[_ACTOR]
+            _PEER, target=_CASE, actor=_ACTOR, to=[_ACTOR], at=authored_at()
         ),
         "object",
     ),
@@ -214,6 +230,7 @@ BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
             case=_CASE,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         ),
         "object",
     ),
@@ -222,7 +239,7 @@ BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
     # (CM-17-002, MV-10-001).
     "rm_invite_to_case_activity": (
         lambda: rm_invite_to_case_activity(
-            _PEER, target=_CASE, actor=_ACTOR, to=[_PEER]
+            _PEER, target=_CASE, actor=_ACTOR, to=[_PEER], at=authored_at()
         ),
         "target",
     ),
@@ -566,7 +583,7 @@ def test_a_case_naming_factory_carries_only_the_case_reference(factory, held):
     kwargs: dict[str, Any] = {"actor": _ACTOR, "to": [_PEER]}
     if "ownership" in factory:
         kwargs["target"] = _PEER
-    body: Any = wire_body(_factory(factory)(case, **kwargs))
+    body: Any = wire_body(_factory(factory)(case, **kwargs, at=authored_at()))
     for key in _CASE_NAMING_SLOTS[factory]:
         body = body[key]
     named = {k: v for k, v in body.items() if k != "@context"}

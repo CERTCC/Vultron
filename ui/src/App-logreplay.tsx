@@ -28,6 +28,8 @@ import sampleLedgerRaw from './recordings/rv/case-actor.jsonl?raw'
 // EM re-terminate, a case-level PXA jump) to exercise the red ⚠️ violation
 // flagging. See synthetic-ledgers/README.md for the entry-by-entry expected result.
 import violationLedgerRaw from './synthetic-ledgers/violations-case-ledger.jsonl?raw'
+// Two-party scenario whose case starts from the Reporter's CSAF report.
+import rvCsafLedgerRaw from './recordings/rv-csaf/case-actor.jsonl?raw'
 // Three-party scenario: reporter + two vendors (vendor invites vendor2).
 import rvvLedgerRaw from './recordings/rvv/case-actor.jsonl?raw'
 // Coordinator scenarios (R/V/C notation: Reporter/Vendor/Coordinator, with
@@ -80,6 +82,14 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
     title: '▶ rv — Reporter + Vendor',
     blurb: 'Reporter + Vendor happy path. The simplest end-to-end case.',
     raw: sampleLedgerRaw,
+    group: 'Core',
+    accent: '#2e7d32',
+  },
+  {
+    id: 'rv-csaf',
+    title: '▶ rv-csaf — Case from a CSAF Report',
+    blurb: 'The case takes its name, summary and embargo end from a CSAF report.',
+    raw: rvCsafLedgerRaw,
     group: 'Core',
     accent: '#2e7d32',
   },

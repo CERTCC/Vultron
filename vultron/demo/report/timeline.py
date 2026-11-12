@@ -15,18 +15,11 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models.events.base import MessageSemantics
-from vultron.demo.report.naming import (
-    _ACTOR_LIKE_TYPES,
-    _WRAPPER_TYPES,
-    friendly_object_label,
-)
 from vultron.errors import LedgerReadError
 from vultron.measure.ledger import (
     Dimension,
@@ -35,12 +28,15 @@ from vultron.measure.ledger import (
     coerce_int,
     collect_actor_names,
     dimension_state,
+    display_label,
+    entry_references,
     first_present,
     friendly_actor_name,
+    label_names,
     payload_of,
     read_ledger_file,
+    render_event_phrase,
 )
-from vultron.semantic_registry import lookup_entry
 
 #: Glob for the per-actor case-ledger replica files.
 _LEDGER_GLOB = "**/*-case-ledger.jsonl"
@@ -120,58 +116,7 @@ class CaseTimelineEvent(BaseModel):
         """
         payload = payload_of(raw)
 
-        raw_object = payload.get("object") or payload.get("object_")
-        # Unwrap AS wrapper activities (Accept, Reject, Offer, Invite) until we
-        # reach the innermost non-wrapper object (handles Accept(Offer(X))
-        # and Accept(Invite(X)[target=Y]) chains).  Track the innermost
-        # wrapper's own ``target`` field so callers of nested wrappers (e.g.
-        # accept_invite_actor_to_case) still surface the destination.
-        _inner_target = None
-        while (
-            isinstance(raw_object, dict)
-            and (raw_object.get("type") or raw_object.get("type_"))
-            in _WRAPPER_TYPES
-        ):
-            _inner_target = raw_object.get("target") or _inner_target
-            inner = raw_object.get("object") or raw_object.get("object_")
-            if not isinstance(inner, (dict, str)):
-                break
-            raw_object = inner
-
-        target_ref: str | None = None
-        target_type: str | None = None
-        if isinstance(raw_object, dict):
-            target_ref = raw_object.get("id") or raw_object.get("id_")
-            target_type = raw_object.get("type") or raw_object.get("type_")
-            # CaseParticipant is a proxy; use attributedTo for name resolution.
-            if target_type == "CaseParticipant":
-                target_ref = (
-                    raw_object.get("attributedTo")
-                    or raw_object.get("attributed_to")
-                    or target_ref
-                )
-        elif isinstance(raw_object, str):
-            target_ref = raw_object
-
-        # ActivityStreams ``target`` field — top-level payload wins; fall back
-        # to the innermost wrapper's target captured during unwrapping.
-        raw_dest = payload.get("target") or _inner_target
-        activity_target_ref: str | None = None
-        activity_target_type: str | None = None
-        if isinstance(raw_dest, dict):
-            activity_target_ref = raw_dest.get("id") or raw_dest.get("id_")
-            activity_target_type = raw_dest.get("type") or raw_dest.get(
-                "type_"
-            )
-            if activity_target_type == "CaseParticipant":
-                activity_target_ref = (
-                    raw_dest.get("attributedTo")
-                    or raw_dest.get("attributed_to")
-                    or activity_target_ref
-                )
-        elif isinstance(raw_dest, str):
-            activity_target_ref = raw_dest
-
+        refs = entry_references(payload)
         candidates = candidate_dicts(payload)
         received = first_present(raw, "received_at", "receivedAt")
 
@@ -188,14 +133,10 @@ class CaseTimelineEvent(BaseModel):
                 first_present(raw, "semantic_type", "semanticType", default="")
             ),
             actor_uri=actor_uri(payload.get("actor")),
-            target_ref=str(target_ref) if target_ref else None,
-            target_type=str(target_type) if target_type else None,
-            activity_target_ref=(
-                str(activity_target_ref) if activity_target_ref else None
-            ),
-            activity_target_type=(
-                str(activity_target_type) if activity_target_type else None
-            ),
+            target_ref=refs.object_ref,
+            target_type=refs.object_type,
+            activity_target_ref=refs.target_ref,
+            activity_target_type=refs.target_type,
             received_at=str(received) if received else None,
             rm_state=dimension_state(candidates, Dimension.RM),
             em_state=dimension_state(candidates, Dimension.EM),
@@ -216,36 +157,38 @@ class CaseTimelineEvent(BaseModel):
             return self.actor_display_name
         return friendly_actor_name(self.actor_uri)
 
+    def _reference_label(
+        self, ref: str | None, obj_type: str | None, display_name: str | None
+    ) -> str | None:
+        """Label one reference through the shared resolver (DRPT-03-009).
+
+        *display_name* is the name :func:`build_timeline` resolved for *ref*;
+        without one, :func:`~vultron.measure.ledger.display_label` names the
+        case "case" and never shows a bare URI or UUID.
+        """
+        names = {ref: display_name} if ref and display_name else {}
+        return display_label(
+            ref, obj_type, names, case_id=self.case_id or None
+        )
+
     @property
     def target_label(self) -> str | None:
         """Friendly target label; ``object → destination`` when both are present.
 
-        Actor-like object types (Organization, …) resolve to a display name
-        when one was extracted from payload snapshots; otherwise falls back to
-        the URI path-segment heuristic via :func:`friendly_actor_name`.
+        Each half is the display name :func:`build_timeline` resolved for it
+        (an actor's name, or for a participant the actor it stands for), else
+        the shared :func:`~vultron.measure.ledger.display_label`: the case reads
+        "case", a typed object its type's noun, and an opaque id an "unnamed"
+        label, never a bare URI or UUID (DRPT-03-001, DRPT-03-009).
         """
-        obj_label: str | None
-        dest_label: str | None
-        # Prefer the pre-resolved display name (covers UUID-based URIs and the
-        # None-type fallback path in friendly_object_label).
-        if self.target_display_name:
-            obj_label = self.target_display_name
-        elif self.target_type in _ACTOR_LIKE_TYPES:
-            obj_label = friendly_actor_name(self.target_ref)
-        else:
-            obj_label = friendly_object_label(
-                self.target_type, self.target_ref
-            )
-
-        if self.activity_target_display_name:
-            dest_label = self.activity_target_display_name
-        elif self.activity_target_type in _ACTOR_LIKE_TYPES:
-            dest_label = friendly_actor_name(self.activity_target_ref)
-        else:
-            dest_label = friendly_object_label(
-                self.activity_target_type, self.activity_target_ref
-            )
-
+        obj_label = self._reference_label(
+            self.target_ref, self.target_type, self.target_display_name
+        )
+        dest_label = self._reference_label(
+            self.activity_target_ref,
+            self.activity_target_type,
+            self.activity_target_display_name,
+        )
         if obj_label and dest_label:
             return f"{obj_label} → {dest_label}"
         return obj_label or dest_label
@@ -269,26 +212,10 @@ class CaseTimelineEvent(BaseModel):
         fills named slots with values derived from the event record's resolved
         label properties.  Unknown slot names fall back to ``"—"``.
         """
-        try:
-            semantics = MessageSemantics(self.semantic_type)
-        except ValueError:
-            humanized = (
-                self.semantic_type.replace("_", " ").strip()
-                or "performed an action"
-            )
-            phrase = humanized
-        else:
-            entry = lookup_entry(semantics)
-            slots: dict[str, str] = defaultdict(lambda: "—")
-            slots["actor"] = self.actor_label
-            if self.target_label:
-                slots["object"] = self.target_label
-                slots["target"] = self.target_label
-            phrase = entry.phrase.format_map(slots)
-
-        if not self.actor_uri and phrase.startswith("— "):
-            phrase = phrase[2:]
-        return phrase[:1].upper() + phrase[1:] if phrase else phrase
+        actor = self.actor_label if self.actor_uri else None
+        return render_event_phrase(
+            self.semantic_type, actor, self.target_label
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +288,9 @@ def build_timeline(
     labels) to semantic names like "Vendor" or "Reporter".
     """
     actor_names = collect_actor_names(replicas)
+    # Targets may name a participant by its id; this map names the actor it
+    # stands for, the same way the case-history dump does (DRPT-03-009).
+    target_names = label_names(replicas)
 
     by_key: dict[str, CaseTimelineEvent] = {}
     presence: dict[str, set[str]] = {}
@@ -383,13 +313,13 @@ def build_timeline(
         event.present_in = sorted(presence[key])
         if event.actor_uri and event.actor_uri in actor_names:
             event.actor_display_name = actor_names[event.actor_uri]
-        if event.target_ref and event.target_ref in actor_names:
-            event.target_display_name = actor_names[event.target_ref]
+        if event.target_ref and event.target_ref in target_names:
+            event.target_display_name = target_names[event.target_ref]
         if (
             event.activity_target_ref
-            and event.activity_target_ref in actor_names
+            and event.activity_target_ref in target_names
         ):
-            event.activity_target_display_name = actor_names[
+            event.activity_target_display_name = target_names[
                 event.activity_target_ref
             ]
         events.append(event)

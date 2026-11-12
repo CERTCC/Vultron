@@ -24,6 +24,7 @@ import logging
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import authored_at
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -71,7 +72,10 @@ def test_queued_announce_line_is_debug(dl, entry, caplog):
 
     with caplog.at_level(logging.DEBUG, logger=_ADAPTER_LOGGER):
         adapter.send_announce_log_entry(
-            entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT]
+            entry=entry,
+            actor_id=_CASE_ACTOR,
+            to=[_PARTICIPANT],
+            at=authored_at(),
         )
 
     records = _queued_records(caplog)
@@ -85,7 +89,10 @@ def test_queued_announce_line_not_emitted_at_info(dl, entry, caplog):
 
     with caplog.at_level(logging.INFO, logger=_ADAPTER_LOGGER):
         adapter.send_announce_log_entry(
-            entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT]
+            entry=entry,
+            actor_id=_CASE_ACTOR,
+            to=[_PARTICIPANT],
+            at=authored_at(),
         )
 
     assert not _queued_records(caplog)
@@ -96,7 +103,7 @@ def test_announce_is_still_queued_to_the_outbox(dl, entry):
     adapter = SyncActivityAdapter(dl)
 
     adapter.send_announce_log_entry(
-        entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT]
+        entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT], at=authored_at()
     )
 
     assert dl.outbox_list()

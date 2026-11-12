@@ -2,8 +2,10 @@
 
 * :mod:`~vultron.measure.ledger.fields` — tolerant field access and the
   dimension-state walker (CEH-02-002, DRPT-02-003).
-* :mod:`~vultron.measure.ledger.names` — the display-name resolver
-  (CEH-01-006, DRPT-03-001).
+* :mod:`~vultron.measure.ledger.names` — the display-name resolver and the
+  object labels (CEH-01-006, DRPT-03-001, DRPT-03-009).
+* :mod:`~vultron.measure.ledger.phrases` — event phrases, only from
+  ``SEMANTIC_REGISTRY`` (CEH-01-007, DRPT-03-002, DRPT-03-005).
 * :mod:`~vultron.measure.ledger.jsonl` — the tolerant JSONL reader
   (CEH-02-001, CEH-02-008).
 * :mod:`~vultron.measure.ledger.copies` — per-case complete-copy selection,
@@ -58,14 +60,35 @@ from vultron.measure.ledger.jsonl import (
     read_ledger_file,
 )
 from vultron.measure.ledger.names import (
+    ACTOR_LIKE_TYPES,
+    UNNAMED_ACTOR,
+    UNNAMED_OBJECT,
+    WRAPPER_TYPES,
+    EntryReferences,
     collect_actor_names,
+    collect_participant_actors,
+    display_label,
+    entry_references,
     friendly_actor_name,
+    friendly_target_noun,
+    label_names,
+)
+from vultron.measure.ledger.phrases import (
+    MISSING_SLOT,
+    event_phrase,
+    render_event_phrase,
 )
 
 __all__ = [
+    "ACTOR_LIKE_TYPES",
     "FLAT_SPELLINGS",
+    "MISSING_SLOT",
+    "UNNAMED_ACTOR",
+    "UNNAMED_OBJECT",
+    "WRAPPER_TYPES",
     "CaseLedger",
     "Dimension",
+    "EntryReferences",
     "LedgerCopy",
     "LedgerFile",
     "LedgerRead",
@@ -80,15 +103,22 @@ __all__ = [
     "case_ledgers_from_files",
     "coerce_int",
     "collect_actor_names",
+    "collect_participant_actors",
     "dimension_state",
+    "display_label",
+    "entry_references",
+    "event_phrase",
     "ends_in_case_closure",
     "entry_hash_of",
     "first_present",
     "friendly_actor_name",
+    "friendly_target_noun",
+    "label_names",
     "log_index_of",
     "payload_of",
     "read_case_ledgers",
     "read_dimension_state",
     "read_ledger_file",
+    "render_event_phrase",
     "select_case_ledger",
 ]

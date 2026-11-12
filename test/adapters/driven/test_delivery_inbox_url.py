@@ -32,7 +32,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.signing import serve_published_profiles, signed_body
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -238,7 +238,10 @@ def test_held_inboxes_reads_a_wire_profile_inbox_collection():
 
     stated = "https://elsewhere.example/actors/wire"
     held = as_Organization.model_validate(
-        {"id": stated, "inbox": "https://elsewhere.example/boxes/wire-in"}
+        with_times(
+            as_Organization,
+            {"id": stated, "inbox": "https://elsewhere.example/boxes/wire-in"},
+        )
     )
     dl = MagicMock()
     dl.read.side_effect = {stated: held}.get
@@ -266,11 +269,14 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(
     dl.create(
         object_to_record(
             as_Organization.model_validate(
-                {
-                    "name": "Finder",
-                    "id": local_actor_id,
-                    **hosted_endpoints(local_actor_id),
-                }
+                with_times(
+                    as_Organization,
+                    {
+                        "name": "Finder",
+                        "id": local_actor_id,
+                        **hosted_endpoints(local_actor_id),
+                    },
+                )
             )
         )
     )

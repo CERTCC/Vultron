@@ -45,6 +45,7 @@ class _FakeTriggerFactory:
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None,
+        at: object = None,
     ) -> tuple[str, str]:
         import json
 

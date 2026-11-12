@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -74,6 +74,7 @@ def _transferred(case_id: str) -> LedgerNetwork:
         actor=OWNER,
         to=[MANAGER],
         id_=f"{case_id}/proposals/1",
+        at=authored_at(),
     )
     _send(net, proposal)
     offer = net.stores[MANAGER].read(
@@ -83,7 +84,7 @@ def _transferred(case_id: str) -> LedgerNetwork:
     _send(
         net,
         accept_case_ownership_transfer_activity(
-            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER], at=authored_at()
         ),
     )
     return net

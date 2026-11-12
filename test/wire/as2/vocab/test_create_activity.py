@@ -29,7 +29,12 @@ class MyTestCase(unittest.TestCase):
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "Create",
             "actor": "https://example.com/actor",
-            "object": {"type": "Note", "content": "Hello, World!"},
+            "object": {
+                "type": "Note",
+                "content": "Hello, World!",
+                "published": None,
+                "updated": None,
+            },
         }
         del data["@context"]
         del data["type"]

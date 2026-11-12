@@ -20,6 +20,7 @@
 Participant offers, actor recommendations, participant membership and status.
 """
 
+from datetime import datetime
 from typing import Any, Protocol
 
 
@@ -31,6 +32,8 @@ class TriggerParticipantsPort(Protocol):
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
 
@@ -45,6 +48,8 @@ class TriggerParticipantsPort(Protocol):
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer(CaseParticipant))`` activity.
 
@@ -62,6 +67,8 @@ class TriggerParticipantsPort(Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Offer(Actor)[target=VulnerabilityCase]``
         recommendation activity.
@@ -84,6 +91,8 @@ class TriggerParticipantsPort(Protocol):
         id_: str | None = None,
         roles: list[Any] | None = None,
         content: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
@@ -108,6 +117,8 @@ class TriggerParticipantsPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``AcceptActorRecommendation`` activity.
 
@@ -126,6 +137,8 @@ class TriggerParticipantsPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``RejectActorRecommendation`` activity.
 
@@ -142,6 +155,8 @@ class TriggerParticipantsPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
@@ -162,6 +177,8 @@ class TriggerParticipantsPort(Protocol):
         actor: str,
         attributed_to: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
 
@@ -180,6 +197,8 @@ class TriggerParticipantsPort(Protocol):
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]`` activity.
 

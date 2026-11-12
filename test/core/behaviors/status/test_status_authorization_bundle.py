@@ -33,7 +33,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.call_out import tick_call_out
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
@@ -219,6 +219,7 @@ def test_teardown_follows_the_canonical_write_with_no_second_gate(
             attributed_to=actor_id,
         ),
         actor=actor_id,
+        at=authored_at(),
     )
     tree = add_participant_status_tree(
         request=make_payload(activity),

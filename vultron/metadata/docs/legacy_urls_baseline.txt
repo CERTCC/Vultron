@@ -885,6 +885,7 @@ topics/scenarios/_rcv-reject-story.md
 topics/scenarios/_rcv-story.md
 topics/scenarios/_rcvcv-story.md
 topics/scenarios/_rcvv-embargo-story.md
+topics/scenarios/_rv-csaf-story.md
 topics/scenarios/_rv-story.md
 topics/scenarios/_rvcv-extension-story.md
 topics/scenarios/_rvcv-handoff-story.md
@@ -897,6 +898,7 @@ topics/scenarios/rcv-reject.md
 topics/scenarios/rcv.md
 topics/scenarios/rcvcv.md
 topics/scenarios/rcvv-embargo.md
+topics/scenarios/rv-csaf.md
 topics/scenarios/rv.md
 topics/scenarios/rvcv-extension.md
 topics/scenarios/rvcv-handoff.md

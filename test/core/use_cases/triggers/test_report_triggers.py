@@ -34,7 +34,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import FixedClock, run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -117,6 +117,7 @@ def _make_offer(
         report,
         recipient_id,
         actor=actor_id,
+        at=authored_at(),
     )
     dl.create(offer)
     offer_record = VultronOfferRecord(

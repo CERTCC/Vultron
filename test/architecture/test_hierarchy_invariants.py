@@ -54,6 +54,7 @@ import pytest
 
 from test.support.core_vocab import import_all_core_models
 from test.support.model_keys import accepted_keys, dumped_keys
+from test.support.objects import with_times
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.subclasses import all_subclasses
@@ -64,8 +65,7 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 #: Activity Vocabulary section 4), plus ``id`` and ``type``. Listed here rather
 #: than read off a model so that a property dropped from every model still
 #: fails (ARCH-25-008). The natural-language map forms (``contentMap``,
-#: ``nameMap``, ``summaryMap``) are not listed because neither root declares
-#: them yet (#4471).
+#: ``nameMap``, ``summaryMap``, AS2 Core section 4.7) are included (#4471).
 AS2_OBJECT_PROPERTIES = frozenset(
     {
         "id",
@@ -77,6 +77,7 @@ AS2_OBJECT_PROPERTIES = frozenset(
         "bto",
         "cc",
         "content",
+        "contentMap",
         "context",
         "duration",
         "endTime",
@@ -87,11 +88,13 @@ AS2_OBJECT_PROPERTIES = frozenset(
         "location",
         "mediaType",
         "name",
+        "nameMap",
         "preview",
         "published",
         "replies",
         "startTime",
         "summary",
+        "summaryMap",
         "tag",
         "to",
         "updated",
@@ -518,7 +521,9 @@ class TestCoreObjectModelConfig:
 
         owner = "https://example.org/actors/owner"
         for spelling in ("attributedTo", "attributed_to"):
-            obj = CoreObject.model_validate({spelling: owner})
+            obj = CoreObject.model_validate(
+                with_times(CoreObject, {spelling: owner})
+            )
             assert obj.attributed_to == owner, (
                 f"CoreObject did not read {spelling!r} as attributed_to"
                 " (ARCH-25-001)"

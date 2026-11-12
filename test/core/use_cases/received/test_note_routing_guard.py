@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -138,6 +138,7 @@ class TestAddNoteToCaseLedgerRouting:
             target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID, at=dl)
 
@@ -175,6 +176,7 @@ class TestAddNoteToCaseLedgerRouting:
             target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=VENDOR_ID, at=dl)
 
@@ -217,6 +219,7 @@ class TestAddNoteToCaseLedgerRouting:
             target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = make_payload(activity, at=dl)
         # Explicitly clear receiving_actor_id to exercise the fallback path.

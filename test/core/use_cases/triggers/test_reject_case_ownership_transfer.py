@@ -30,7 +30,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -91,11 +91,19 @@ def _forwarded_offer(dl: Any, case, case_manager_id: str, transferee_id: str):
     """
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
-            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    "attributed_to": CASE_OWNER_ID,
+                    "id": case.id_,
+                    "name": case.name,
+                },
+            )
         ),
         target=transferee_id,
         actor=case_manager_id,
         to=[transferee_id],
+        at=authored_at(),
     )
     archive_received(dl, offer)
     return offer
@@ -178,11 +186,19 @@ def test_reject_of_an_offer_never_received_raises_not_found(actor_store):
     case = _seed_case(dl, owner.id_, case_manager.id_)
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
-            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    "attributed_to": CASE_OWNER_ID,
+                    "id": case.id_,
+                    "name": case.name,
+                },
+            )
         ),
         target=transferee.id_,
         actor=case_manager.id_,
         to=[transferee.id_],
+        at=authored_at(),
     )
     dl.create(offer)
     assert dl.read(offer.id_) is not None

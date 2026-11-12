@@ -28,6 +28,7 @@ from pydantic import ValidationError
 import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
+from test.support.objects import with_times
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.subclasses import all_subclasses
 
@@ -163,7 +164,9 @@ def test_every_record_has_a_sample() -> None:
 def test_record_refuses_an_unknown_key(cls: type[CoreRecord]) -> None:
     assert cls.model_config.get("extra") == "forbid"
     with pytest.raises(ValidationError) as exc:
-        cls.model_validate({**_SAMPLES[cls.__name__], "retiredKey": "x"})
+        cls.model_validate(
+            with_times(cls, {**_SAMPLES[cls.__name__], "retiredKey": "x"})
+        )
     assert any(
         e["type"] == "extra_forbidden" and e["loc"] == ("retiredKey",)
         for e in exc.value.errors()
@@ -174,8 +177,8 @@ def test_record_refuses_an_unknown_key(cls: type[CoreRecord]) -> None:
 @pytest.mark.parametrize("cls", _RECORDS, ids=_IDS)
 def test_record_dump_round_trips(cls: type[CoreRecord]) -> None:
     """One spelling of ``id_``: a dump validates back to an equal record."""
-    record = cls.model_validate(_SAMPLES[cls.__name__])
-    assert cls.model_validate(record.model_dump()) == record
+    record = cls.model_validate(with_times(cls, _SAMPLES[cls.__name__]))
+    assert cls.model_validate(with_times(cls, record.model_dump())) == record
 
 
 @pytest.mark.spec("ARCH-12-003")
@@ -184,9 +187,9 @@ def test_record_assignment_revalidates_without_an_unknown_key(
     cls: type[CoreRecord],
 ) -> None:
     """Assignment validates by field name: ``id_`` must not read as extra."""
-    record = cls.model_validate(_SAMPLES[cls.__name__])
+    record = cls.model_validate(with_times(cls, _SAMPLES[cls.__name__]))
     record.id_ = record.id_
-    assert cls.model_validate(record.model_dump()) == record
+    assert cls.model_validate(with_times(cls, record.model_dump())) == record
 
 
 def test_with_record_id_states_one_spelling() -> None:

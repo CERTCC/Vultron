@@ -22,12 +22,15 @@ import os
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
+
+#: The author's time a raw stored row states (ADR-0176).
+_AT = authored_at().isoformat()
 
 # ---------------------------------------------------------------------------
 # Initialisation
@@ -168,6 +171,8 @@ def test_create_wire_shaped_storable_record_reads_back_as_core(dl):
         "rmState": "RECEIVED",
         "case_engagement": True,
         "context": "urn:uuid:test-case-01",
+        "published": _AT,
+        "updated": _AT,
     }
     storable = StorableRecord(
         id_="urn:uuid:ps-wire-create-001",
@@ -207,6 +212,8 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
         "rmState": "RECEIVED",
         "case_engagement": True,
         "context": "urn:uuid:test-case-02",
+        "published": _AT,
+        "updated": _AT,
     }
     storable = StorableRecord(
         id_="urn:uuid:ps-wire-update-001",

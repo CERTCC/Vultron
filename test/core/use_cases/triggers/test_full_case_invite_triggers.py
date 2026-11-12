@@ -22,7 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received, case_stub
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -115,6 +115,7 @@ def _hold_invite(dl, actor, case_id: str, floor: LedgerPosition) -> str:
         actor=_MANAGER,
         to=[actor.id_],
         id_=f"{case_id}/invitations/full-{floor.log_index}",
+        at=authored_at(),
     )
     archive_received(dl, invite)
     return invite.id_
@@ -190,7 +191,11 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
     # Invite and sets no floor, though it states its sender's ledger
     # position like every case activity (SYNC-18-001).
     stub_like = rm_invite_to_case_activity(
-        actor, target=case_stub(case_id), actor=_MANAGER, to=[actor.id_]
+        actor,
+        target=case_stub(case_id),
+        actor=_MANAGER,
+        to=[actor.id_],
+        at=authored_at(),
     )
     archive_received(dl, stub_like)
 

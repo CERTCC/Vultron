@@ -2,7 +2,7 @@
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 
@@ -60,7 +60,7 @@ def test_round_trip_preserves_unique_items(item_a, item_b):
     col.append(item_a)
     col.append(item_b)
     data = col.model_dump(by_alias=True)
-    restored = as_Collection.model_validate(data)
+    restored = as_Collection.model_validate(with_times(as_Collection, data))
     assert restored.totalItems == 2
     # Duplicate still rejected after round-trip
     restored.append(make(as_Object, id_="https://example.com/objects/a"))

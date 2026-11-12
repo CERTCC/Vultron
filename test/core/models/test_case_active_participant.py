@@ -18,7 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -76,7 +76,9 @@ def test_joined_defaults_true_and_round_trips() -> None:
         CaseParticipant, attributed_to=ACTOR_ID, context=CASE_ID
     ).joined
     inert = _participant(joined=False)
-    restored = CaseParticipant.model_validate(inert.model_dump(by_alias=True))
+    restored = CaseParticipant.model_validate(
+        with_times(CaseParticipant, inert.model_dump(by_alias=True))
+    )
     assert restored.joined is False
 
 
@@ -220,7 +222,9 @@ def test_removal_fact_is_stored_and_can_be_set_and_cleared() -> None:
         participant.model_dump(mode="json"),
         participant.model_dump(by_alias=True),
     ):
-        restored = CaseParticipant.model_validate(dumped)
+        restored = CaseParticipant.model_validate(
+            with_times(CaseParticipant, dumped)
+        )
         assert restored.removal_activity == REMOVAL_ID
         assert restored == participant
     assert (
@@ -348,16 +352,24 @@ def test_active_participants_is_published_by_alias_and_round_trips() -> None:
 
     wire = case.model_dump(by_alias=True, mode="json")
     assert wire["activeParticipants"] == [f"{CASE_ID}/participants/kept"]
-    assert VulnerabilityCase.model_validate(wire) == case
     assert (
-        VulnerabilityCase.model_validate(case.model_dump(by_alias=True))
+        VulnerabilityCase.model_validate(with_times(VulnerabilityCase, wire))
+        == case
+    )
+    assert (
+        VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, case.model_dump(by_alias=True))
+        )
         == case
     )
 
     stored = case.model_dump(mode="json")
     assert "active_participants" not in stored
     assert "activeParticipants" not in stored
-    assert VulnerabilityCase.model_validate(stored) == case
+    assert (
+        VulnerabilityCase.model_validate(with_times(VulnerabilityCase, stored))
+        == case
+    )
 
 
 @pytest.mark.spec("ARCH-23-005")
@@ -374,7 +386,7 @@ def test_contradicting_active_participants_is_refused() -> None:
     ]
 
     with pytest.raises(ValidationError):
-        VulnerabilityCase.model_validate(wire)
+        VulnerabilityCase.model_validate(with_times(VulnerabilityCase, wire))
 
 
 @pytest.mark.spec("ARCH-23-005", "VM-10-001")
@@ -383,10 +395,17 @@ def test_only_the_default_context_reads_back_as_no_override() -> None:
     case = _carrying_case(_signatory("kept"))
     wire = case.model_dump(by_alias=True, mode="json")
     assert wire["@context"]
-    assert VulnerabilityCase.model_validate(wire).context_ is None
+    assert (
+        VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, wire)
+        ).context_
+        is None
+    )
 
     other = "https://example.org/other-context.jsonld"
-    restored = VulnerabilityCase.model_validate({**wire, "@context": other})
+    restored = VulnerabilityCase.model_validate(
+        with_times(VulnerabilityCase, {**wire, "@context": other})
+    )
     assert restored.context_ == other
     assert restored.model_dump(by_alias=True)["@context"] == other
 
@@ -408,17 +427,28 @@ def test_active_participants_is_left_out_while_the_roster_holds_a_reference() ->
     wire = case.model_dump(by_alias=True, mode="json")
     assert "activeParticipants" not in wire
     assert "active_participants" not in wire
-    assert VulnerabilityCase.model_validate(wire) == case
+    assert (
+        VulnerabilityCase.model_validate(with_times(VulnerabilityCase, wire))
+        == case
+    )
 
     assert (
         VulnerabilityCase.model_validate(
-            {**wire, "activeParticipants": [kept.id_]}
+            with_times(
+                VulnerabilityCase, {**wire, "activeParticipants": [kept.id_]}
+            )
         )
         == case
     )
     with pytest.raises(ValidationError):
         VulnerabilityCase.model_validate(
-            {**wire, "activeParticipants": [f"{CASE_ID}/participants/other"]}
+            with_times(
+                VulnerabilityCase,
+                {
+                    **wire,
+                    "activeParticipants": [f"{CASE_ID}/participants/other"],
+                },
+            )
         )
 
 

@@ -35,7 +35,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -99,6 +99,7 @@ def test_the_emitter_receives_the_blob_the_adapter_returned_to_core(dl):
         actor=_ACTOR,
         to=[_INVITEE],
         roles=["vendor"],
+        at=authored_at(),
     )
 
     sealed = read_sealed_body(dl, activity_id)
@@ -127,7 +128,11 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
     )
     dl.create(case)
     activity_id, _ = TriggerActivityAdapter(dl).invite_actor_to_case(
-        invitee_id=_INVITEE, case_id=case.id_, actor=_ACTOR, to=[_INVITEE]
+        invitee_id=_INVITEE,
+        case_id=case.id_,
+        actor=_ACTOR,
+        to=[_INVITEE],
+        at=authored_at(),
     )
 
     _, body, _ = _deliver(dl, activity_id)
@@ -157,7 +162,7 @@ def test_the_sync_adapter_seals_the_announce_it_queues(dl):
     )
     dl.save(entry)
     assert SyncActivityAdapter(dl).send_announce_log_entry(
-        entry, actor_id=_ACTOR, to=[_INVITEE]
+        entry, actor_id=_ACTOR, to=[_INVITEE], at=authored_at()
     )
     (activity_id,) = dl.outbox_list()
 

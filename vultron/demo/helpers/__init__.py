@@ -100,6 +100,11 @@ Sub-modules
   ``open_story_cast``: the reset, seeding and seating
   every composed family's opening shares, so a second family does not copy
   the first one's (DEMOMA-17-001). Not re-exported here, for the same reason.
+- :mod:`~vultron.demo.helpers.participant_suggestion` — ``Candidate``,
+  ``SuggestedActor`` and ``ask_who_else_belongs``: a cast member asks the
+  static participant-suggestion adapter, through the core service, who else
+  belongs in the case, from a table the scenario declares (BT-24-007). Not
+  re-exported here, because it imports the story module.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,

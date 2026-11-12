@@ -196,6 +196,7 @@ class RecordManagerEmbargoConsentNode(
             trigger_activity=self._require_trigger_activity_port(),
             actor_id=actor_id,
             cause_id=self._cause_id,
+            at=self._require_act_instant(),
         )
         self.feedback_message = (
             f"Recorded the manager's own {trigger.name} of embargo"

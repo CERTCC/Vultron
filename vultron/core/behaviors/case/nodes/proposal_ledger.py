@@ -186,7 +186,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 embargo.id_,
                 MessageSemantics.CREATE_EMBARGO_EVENT.value,
                 port.record_embargo_event_created(
-                    embargo=embargo, case_id=case_id, actor=self.actor_id
+                    embargo=embargo,
+                    case_id=case_id,
+                    actor=self.actor_id,
+                    at=self._require_act_instant(),
                 ),
             )
 
@@ -306,6 +309,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
+                at=self._require_act_instant(),
             )
             self._commit_one(
                 case_id,
@@ -359,7 +363,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 participant_id,
                 CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 port.record_case_participant_created(
-                    participant=created, case_id=case_id, actor=self.actor_id
+                    participant=created,
+                    case_id=case_id,
+                    actor=self.actor_id,
+                    at=self._require_act_instant(),
                 ),
             )
             for status in statuses[1:]:
@@ -372,6 +379,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                         participant=participant,
                         case_id=case_id,
                         actor=self.actor_id,
+                        at=self._require_act_instant(),
                     ),
                 )
 
@@ -396,7 +404,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             if not status_id:
                 continue
             activity = port.record_case_status_added(
-                status=status, case_id=case_id, actor=actor
+                status=status,
+                case_id=case_id,
+                actor=actor,
+                at=self._require_act_instant(),
             )
             self._commit_one(
                 case_id,

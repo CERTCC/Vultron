@@ -38,7 +38,7 @@ import pytest
 from test.architecture._received_tree_builds import built_received_trees
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.rerun_from_holding import Rerun, rerun_from_holding
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
@@ -117,7 +117,10 @@ def test_a_rerun_rm_gap_records_no_second_note():
     event = _event_for(
         net,
         rm_engage_case_activity(
-            net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+            net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -141,7 +144,11 @@ def _regression_event(net: LedgerNetwork) -> Any:
     return _event_for(
         net,
         add_status_to_participant_activity(
-            status, target=participant, actor=BYSTANDER, to=[MANAGER]
+            status,
+            target=participant,
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -218,6 +225,7 @@ def test_a_rerun_reinforcing_suggestion_records_no_second_note():
                 actor=recommender,
                 to=[MANAGER],
                 content=f"{recommender} vouches for them",
+                at=authored_at(),
             ),
         )
 

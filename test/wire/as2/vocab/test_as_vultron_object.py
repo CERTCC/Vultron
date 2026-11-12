@@ -28,6 +28,9 @@ class _SimpleCoreObj(BaseModel):
     type_: str | None = None
     name: str | None = None
     content: str | None = None
+    # A core object states its times (ADR-0176); this one claims none.
+    published: None = None
+    updated: None = None
 
 
 class _RenamedCoreObj(BaseModel):
@@ -36,6 +39,8 @@ class _RenamedCoreObj(BaseModel):
     id_: str = "urn:uuid:test-5678"
     type_: str | None = None
     domain_label: str | None = "hello"
+    published: None = None
+    updated: None = None
 
 
 class _MappedWireObj(as_VultronObject):

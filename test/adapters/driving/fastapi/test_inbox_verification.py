@@ -75,7 +75,11 @@ def _note(actor: str = AUTHOR) -> dict[str, Any]:
         "type": "Create",
         "id": "https://author.example/activities/1",
         "actor": actor,
-        "object": {"type": "Note", "content": "signed"},
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/signed",
+            "content": "signed",
+        },
     }
 
 

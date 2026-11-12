@@ -107,6 +107,7 @@ class SvcOfferCaseParticipantRoleUseCase:
                 target_actor_id=req.target_actor_id,
                 actor=req.actor_id,
                 to=[case_manager_id],
+                at=at,
             )
             built.update(
                 activity_id=activity_id,

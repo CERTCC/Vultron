@@ -27,7 +27,7 @@ from typing import cast
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.wire.as2.extractor._instances import AckReportPattern
 from vultron.wire.as2.factories import (
@@ -82,7 +82,10 @@ def sample_actor() -> as_Person:
 def sample_offer(sample_report, sample_actor) -> as_Offer:
     """Offer produced by the factory — used as input to validate/invalidate/close."""
     return rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
 
 
@@ -95,7 +98,7 @@ def sample_offer(sample_report, sample_actor) -> as_Offer:
 @pytest.mark.spec("VAM-02-001")
 def test_rm_create_report_returns_create(sample_report, sample_actor):
     result = rm_create_report_activity(
-        report=sample_report, actor=sample_actor
+        report=sample_report, actor=sample_actor, at=authored_at()
     )
     assert isinstance(result, as_Create)
 
@@ -104,7 +107,7 @@ def test_rm_create_report_returns_create(sample_report, sample_actor):
 @pytest.mark.spec("VAM-02-001")
 def test_rm_create_report_object_is_report(sample_report, sample_actor):
     result = rm_create_report_activity(
-        report=sample_report, actor=sample_actor
+        report=sample_report, actor=sample_actor, at=authored_at()
     )
     assert result.object_ == sample_report
 
@@ -112,7 +115,7 @@ def test_rm_create_report_object_is_report(sample_report, sample_actor):
 def test_rm_create_report_kwargs_actor_forwarded(sample_report, sample_actor):
     """``actor`` kwarg is passed through to the constructor."""
     result = rm_create_report_activity(
-        report=sample_report, actor=sample_actor
+        report=sample_report, actor=sample_actor, at=authored_at()
     )
     assert result.actor == sample_actor
 
@@ -123,6 +126,7 @@ def test_rm_create_report_invalid_report_raises(sample_actor):
         rm_create_report_activity(
             report="not-a-report",  # type: ignore[arg-type]
             actor=sample_actor,
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -137,7 +141,10 @@ def test_rm_create_report_invalid_report_raises(sample_actor):
 @pytest.mark.spec("MSM-01-001")
 def test_rm_submit_report_returns_offer(sample_report, sample_actor):
     result = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert isinstance(result, as_Offer)
 
@@ -146,7 +153,10 @@ def test_rm_submit_report_returns_offer(sample_report, sample_actor):
 @pytest.mark.spec("VAM-02-002")
 def test_rm_submit_report_object_is_report(sample_report, sample_actor):
     result = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert result.object_ == sample_report
 
@@ -154,7 +164,10 @@ def test_rm_submit_report_object_is_report(sample_report, sample_actor):
 def test_rm_submit_report_to_is_normalized_list(sample_report, sample_actor):
     """The factory normalizes ``to`` to a single-element list."""
     result = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert result.to == [_RECIPIENT_URI]
 
@@ -163,7 +176,10 @@ def test_rm_submit_report_to_accepts_actor_object(sample_report, sample_actor):
     """``to`` can be an actor object as well as a string."""
     recipient = make(as_Person, name="Vendor", id_=_RECIPIENT_URI)
     result = rm_submit_report_activity(
-        report=sample_report, to=recipient, actor=sample_actor
+        report=sample_report,
+        to=recipient,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert result.to == [recipient]
 
@@ -176,10 +192,16 @@ def test_rm_submit_report_offers_to_two_recipients_are_distinct(
     """Offering one report to two recipients yields two distinguishable Offers."""
     coordinator_uri = "https://example.org/actors/coordinator"
     first = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     second = rm_submit_report_activity(
-        report=sample_report, to=coordinator_uri, actor=sample_actor
+        report=sample_report,
+        to=coordinator_uri,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert first.to == [_RECIPIENT_URI]
     assert second.to == [coordinator_uri]
@@ -188,7 +210,10 @@ def test_rm_submit_report_offers_to_two_recipients_are_distinct(
 
 def test_rm_submit_report_kwargs_actor_forwarded(sample_report, sample_actor):
     result = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+        report=sample_report,
+        to=_RECIPIENT_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     assert result.actor == sample_actor
 
@@ -200,6 +225,7 @@ def test_rm_submit_report_invalid_report_raises(sample_actor):
             report="not-a-report",  # type: ignore[arg-type]
             to=_RECIPIENT_URI,
             actor=sample_actor,
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -213,14 +239,18 @@ def test_rm_submit_report_invalid_report_raises(sample_actor):
 @pytest.mark.spec("VAM-02-003")
 @pytest.mark.spec("MSM-01-008")
 def test_rm_read_report_returns_read(sample_offer, sample_actor):
-    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_read_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert isinstance(result, as_Read)
 
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-003")
 def test_rm_read_report_object_is_offer(sample_offer, sample_actor):
-    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_read_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert isinstance(result.object_, as_Offer)
 
 
@@ -228,13 +258,17 @@ def test_rm_read_report_object_is_offer(sample_offer, sample_actor):
 def test_rm_read_report_inner_object_is_report(
     sample_offer, sample_report, sample_actor
 ):
-    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_read_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     offer_obj = cast(as_Offer, result.object_)
     assert offer_obj.object_ == sample_report
 
 
 def test_rm_read_report_kwargs_actor_forwarded(sample_offer, sample_actor):
-    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_read_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert result.actor == sample_actor
 
 
@@ -245,7 +279,9 @@ def test_rm_read_report_malformed_offer_raises(sample_actor):
         as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_read_report_activity(offer=malformed_offer, actor=sample_actor)
+        rm_read_report_activity(
+            offer=malformed_offer, actor=sample_actor, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -253,7 +289,9 @@ def test_rm_read_report_malformed_offer_raises(sample_actor):
 @pytest.mark.spec("VAM-02-003")
 def test_rm_read_report_dispatches_as_ack_report(sample_offer, sample_actor):
     """RK wire form Read(Offer(VulnerabilityReport)) must match AckReportPattern."""
-    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_read_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert AckReportPattern.match(result)
 
 
@@ -267,7 +305,7 @@ def test_rm_read_report_dispatches_as_ack_report(sample_offer, sample_actor):
 @pytest.mark.spec("MSM-01-003")
 def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
     result = rm_validate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert isinstance(result, as_Accept)
 
@@ -277,14 +315,14 @@ def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
 @pytest.mark.spec("RF-02-004")
 def test_rm_validate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_validate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert result.object_ == sample_offer
 
 
 def test_rm_validate_report_kwargs_actor_forwarded(sample_offer, sample_actor):
     result = rm_validate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert result.actor == sample_actor
 
@@ -295,7 +333,9 @@ def test_rm_validate_report_plain_offer_with_report_succeeds(
 ):
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = make(as_Offer, actor=None, object_=sample_report)
-    result = rm_validate_report_activity(offer=plain_offer, actor=sample_actor)
+    result = rm_validate_report_activity(
+        offer=plain_offer, actor=sample_actor, at=authored_at()
+    )
     assert isinstance(result, as_Accept)
 
 
@@ -306,7 +346,9 @@ def test_rm_validate_report_malformed_offer_raises(sample_actor):
         as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_validate_report_activity(offer=malformed_offer, actor=sample_actor)
+        rm_validate_report_activity(
+            offer=malformed_offer, actor=sample_actor, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -323,7 +365,7 @@ def test_rm_invalidate_report_returns_tentative_reject(
     sample_offer, sample_actor
 ):
     result = rm_invalidate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert isinstance(result, as_TentativeReject)
 
@@ -333,7 +375,7 @@ def test_rm_invalidate_report_returns_tentative_reject(
 @pytest.mark.spec("RF-04-003")
 def test_rm_invalidate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_invalidate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert result.object_ == sample_offer
 
@@ -342,7 +384,7 @@ def test_rm_invalidate_report_kwargs_actor_forwarded(
     sample_offer, sample_actor
 ):
     result = rm_invalidate_report_activity(
-        offer=sample_offer, actor=sample_actor
+        offer=sample_offer, actor=sample_actor, at=authored_at()
     )
     assert result.actor == sample_actor
 
@@ -354,7 +396,7 @@ def test_rm_invalidate_report_plain_offer_with_report_succeeds(
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = make(as_Offer, actor=None, object_=sample_report)
     result = rm_invalidate_report_activity(
-        offer=plain_offer, actor=sample_actor
+        offer=plain_offer, actor=sample_actor, at=authored_at()
     )
     assert isinstance(result, as_TentativeReject)
 
@@ -367,7 +409,7 @@ def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_invalidate_report_activity(
-            offer=malformed_offer, actor=sample_actor
+            offer=malformed_offer, actor=sample_actor, at=authored_at()
         )
     assert exc_info.value.__cause__ is not None
 
@@ -381,7 +423,9 @@ def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
 @pytest.mark.spec("VAM-02-006")
 @pytest.mark.spec("MSM-01-006")
 def test_rm_close_report_returns_reject(sample_offer, sample_actor):
-    result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_close_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert isinstance(result, as_Reject)
 
 
@@ -389,12 +433,16 @@ def test_rm_close_report_returns_reject(sample_offer, sample_actor):
 @pytest.mark.spec("VAM-02-006")
 @pytest.mark.spec("RF-03-003")
 def test_rm_close_report_object_is_offer(sample_offer, sample_actor):
-    result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_close_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert result.object_ == sample_offer
 
 
 def test_rm_close_report_kwargs_actor_forwarded(sample_offer, sample_actor):
-    result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
+    result = rm_close_report_activity(
+        offer=sample_offer, actor=sample_actor, at=authored_at()
+    )
     assert result.actor == sample_actor
 
 
@@ -404,7 +452,9 @@ def test_rm_close_report_plain_offer_with_report_succeeds(
 ):
     """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = make(as_Offer, actor=None, object_=sample_report)
-    result = rm_close_report_activity(offer=plain_offer, actor=sample_actor)
+    result = rm_close_report_activity(
+        offer=plain_offer, actor=sample_actor, at=authored_at()
+    )
     assert isinstance(result, as_Reject)
 
 
@@ -415,7 +465,9 @@ def test_rm_close_report_malformed_offer_raises(sample_actor):
         as_Offer, actor=None, object_=make(as_Note, name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_close_report_activity(offer=malformed_offer, actor=sample_actor)
+        rm_close_report_activity(
+            offer=malformed_offer, actor=sample_actor, at=authored_at()
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -428,7 +480,10 @@ def test_rm_close_report_malformed_offer_raises(sample_actor):
 def test_parse_submit_report_offer_from_dict(sample_report, sample_actor):
     """parse_submit_report_offer accepts a raw dict and returns (report, offer)."""
     offer = rm_submit_report_activity(
-        report=sample_report, to=_ACTOR_URI, actor=sample_actor
+        report=sample_report,
+        to=_ACTOR_URI,
+        actor=sample_actor,
+        at=authored_at(),
     )
     offer_dict = offer.model_dump(by_alias=True)
     report_out, _offer_out = parse_submit_report_offer(offer_dict)
@@ -492,7 +547,9 @@ def test_response_round_trips_through_the_as2_parser(
     factory, wire_type, cls, sample_offer, sample_actor
 ):
     """A response's delivered body is AS2 that the inbound parser accepts."""
-    body = delivered_body(factory(offer=sample_offer, actor=sample_actor))
+    body = delivered_body(
+        factory(offer=sample_offer, actor=sample_actor, at=authored_at()),
+    )
 
     # AS2 first, so a plain-JSON AS2 receiver recognizes it (VM-10-001); the
     # body is signed, so it also cites the Data Integrity context its proof

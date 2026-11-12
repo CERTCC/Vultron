@@ -321,6 +321,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         return VulnerabilityCase(
             id_=case_id,
             published=published,
+            updated=published,
             attributed_to=self._owner_id,
             name=inputs.name,
             summary=inputs.summary,
@@ -334,6 +335,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
                     context=case_id,
                     attributed_to=self._owner_id,
                     pxa=PxaDimension(state=pxa),
+                    published=published,
                 )
             ],
         )

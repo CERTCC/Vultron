@@ -96,6 +96,7 @@ def propose_embargo() -> as_Invite:
         actor=_vendor.id_,
         context=_case.id_,
         summary="We propose to embargo case 1 for 90 days.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -121,9 +122,9 @@ def relay_embargo_proposal() -> as_Invite:
         attributed_to=vendor().id_,
         to=[coordinator().id_],
         context=_case.id_,
-        published=EXAMPLE_TIMESTAMP,
         rsvp_deadline=EXAMPLE_TIMESTAMP + timedelta(days=7),
         summary="The vendor proposes to embargo case 1 for 90 days.",
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -142,8 +143,8 @@ def undo_embargo_invite() -> as_Undo:
         invite,
         id_=f"{invite.id_}/undo",
         actor=case_actor().id_,
-        context=invite.context,
-        published=EXAMPLE_TIMESTAMP,
+        context=case().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -162,7 +163,7 @@ def create_embargo_event() -> as_Create:
         id_=f"{embargo.id_}/create",
         actor=case_actor().id_,
         context=_case.id_,
-        published=EXAMPLE_TIMESTAMP,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -185,7 +186,7 @@ def create_embargo_consent() -> as_Create:
         id_=f"{row.id_}/create",
         actor=case_actor().id_,
         context=_case.id_,
-        published=EXAMPLE_TIMESTAMP,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -209,7 +210,7 @@ def update_embargo_consent() -> as_Update:
         id_=f"{row.id_}/update",
         actor=case_actor().id_,
         context=_case.id_,
-        published=EXAMPLE_TIMESTAMP,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -219,8 +220,9 @@ def accept_embargo() -> as_Accept:
     activity = em_accept_embargo_activity(
         proposal,
         actor=_vendor.id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -239,8 +241,8 @@ def abandon_embargo_proposal() -> as_Reject:
         proposal,
         id_=f"{proposal.id_}/abandon",
         actor=case_actor().id_,
-        context=proposal.context,
-        published=EXAMPLE_TIMESTAMP,
+        context=case().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -250,8 +252,9 @@ def reject_embargo() -> as_Reject:
     activity = em_reject_embargo_activity(
         proposal,
         actor=_vendor.id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -270,6 +273,7 @@ def propose_embargo_revision() -> as_Invite:
         actor=vendor().id_,
         context=_case.id_,
         summary="We propose to extend the embargo on case 1 to 120 days.",
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -283,8 +287,9 @@ def accept_embargo_revision() -> as_Accept:
     return em_accept_embargo_activity(
         proposal,
         actor=vendor().id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -298,8 +303,9 @@ def reject_embargo_revision() -> as_Reject:
     return em_reject_embargo_activity(
         proposal,
         actor=vendor().id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -316,6 +322,7 @@ def activate_embargo() -> as_Add:
         actor=_vendor.id_,
         target=_case.id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -334,6 +341,7 @@ def reject_embargo_proposal() -> as_Reject:
         actor=_vendor.id_,
         target=_case.id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -350,6 +358,7 @@ def activate_embargo_revision() -> as_Add:
         actor=vendor().id_,
         target=_case.id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -366,6 +375,7 @@ def reject_embargo_revision_proposal() -> as_Reject:
         actor=vendor().id_,
         target=_case.id_,
         context=_case.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -381,6 +391,7 @@ def withdraw_from_embargo() -> as_Leave:
         actor=finder().id_,
         context=_case.id_,
         to=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -393,6 +404,7 @@ def announce_embargo() -> as_Announce:
         actor=_vendor.id_,
         context=_case.id_,
         to=f"{_case.id_}/participants",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -414,6 +426,7 @@ def announce_embargo_termination() -> as_Announce:
         actor=case_actor().id_,
         context=_case.id_,
         to=[vendor().id_, coordinator().id_, finder().id_],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -431,6 +444,7 @@ def remove_embargo() -> as_Remove:
         origin=_case.id_,
         reason=TerminationReason.EARLY,
         cause=FixDeployedCause(),
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -453,4 +467,5 @@ def notify_embargo_termination() -> as_Remove:
         origin=_case.id_,
         context=_case.id_,
         reason=TerminationReason.EARLY,
+        at=EXAMPLE_TIMESTAMP,
     )

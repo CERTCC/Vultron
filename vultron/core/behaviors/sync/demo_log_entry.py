@@ -66,6 +66,7 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
             case_id=self._case_id,
             actor=cast(str, self.actor_id),
             object_id=self._object_id,
+            at=self._require_act_instant(),
         )
 
 

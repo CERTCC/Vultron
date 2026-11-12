@@ -27,7 +27,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.examples._base import _FINDER, _REPORT, _VENDOR
+from vultron.wire.as2.vocab.examples._base import (
+    _FINDER,
+    _REPORT,
+    _VENDOR,
+    EXAMPLE_TIMESTAMP,
+)
 
 
 def create_report() -> as_Create:
@@ -37,18 +42,20 @@ def create_report() -> as_Create:
     Example:
           >>> rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     """
-    activity = rm_create_report_activity(_REPORT, actor=_FINDER.id_)
+    activity = rm_create_report_activity(
+        _REPORT, actor=_FINDER.id_, at=EXAMPLE_TIMESTAMP
+    )
     return activity
 
 
 def submit_report(verbose=False) -> as_Offer:
     if verbose:
         activity = rm_submit_report_activity(
-            _REPORT, actor=_FINDER, to=_VENDOR
+            _REPORT, actor=_FINDER, to=_VENDOR, at=EXAMPLE_TIMESTAMP
         )
     else:
         activity = rm_submit_report_activity(
-            _REPORT, actor=_FINDER.id_, to=_VENDOR.id_
+            _REPORT, actor=_FINDER.id_, to=_VENDOR.id_, at=EXAMPLE_TIMESTAMP
         )
 
     return activity
@@ -60,6 +67,7 @@ def read_report() -> as_Read:
         _offer,
         actor=_VENDOR.id_,
         content="We have received the report. We will get back to you soon.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -73,12 +81,14 @@ def validate_report(verbose: bool = False) -> as_Accept:
             _offer,
             actor=_VENDOR,
             content="We've validated the report. We'll be creating a case shortly.",
+            at=EXAMPLE_TIMESTAMP,
         )
     else:
         activity = rm_validate_report_activity(
             _offer,
             actor=_VENDOR.id_,
             content="We've validated the report. We'll be creating a case shortly.",
+            at=EXAMPLE_TIMESTAMP,
         )
     return activity
 
@@ -92,12 +102,14 @@ def invalidate_report(verbose: bool = False) -> as_TentativeReject:
             _offer,
             actor=_VENDOR,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
+            at=EXAMPLE_TIMESTAMP,
         )
     else:
         activity = rm_invalidate_report_activity(
             _offer,
             actor=_VENDOR.id_,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
+            at=EXAMPLE_TIMESTAMP,
         )
     return activity
 
@@ -107,10 +119,16 @@ def close_report(verbose: bool = False) -> as_Reject:
     _offer = submit_report(verbose=verbose)
     if verbose:
         activity = rm_close_report_activity(
-            _offer, actor=_VENDOR, content="We're closing this report."
+            _offer,
+            actor=_VENDOR,
+            content="We're closing this report.",
+            at=EXAMPLE_TIMESTAMP,
         )
     else:
         activity = rm_close_report_activity(
-            _offer, actor=_VENDOR.id_, content="We're closing this report."
+            _offer,
+            actor=_VENDOR.id_,
+            content="We're closing this report.",
+            at=EXAMPLE_TIMESTAMP,
         )
     return activity

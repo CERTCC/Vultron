@@ -26,7 +26,7 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -396,7 +396,9 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         data = self.core_policy.model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
-        restored = self.core_cls.model_validate(data)
+        restored = self.core_cls.model_validate(
+            with_times(self.core_cls, data)
+        )
         self.assertEqual(
             restored.preferred_duration, self.core_policy.preferred_duration
         )

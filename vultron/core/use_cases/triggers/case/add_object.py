@@ -89,7 +89,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
         # the pending assertion is keyed by.
         try:
             self._semantics = self._factory.add_object_to_case_semantics(
-                object_id=self._object_id, case_id=self._case_id
+                object_id=self._object_id, case_id=self._case_id, at=self._at
             )
         except VultronActivityConstructionError as exc:
             # A stored object with no wire form (a bookkeeping record, an
@@ -107,6 +107,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
                 object_id=self._object_id,
                 case_id=self._case_id,
                 to=[case_manager_id],
+                at=self._at,
             )
             self._captured["activity"] = json.loads(add_body)
             # The CASE_MANAGER keeps no pending assertion for its own case:

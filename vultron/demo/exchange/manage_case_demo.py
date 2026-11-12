@@ -56,6 +56,7 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.demo import wall_clock
 from vultron.demo.helpers.report_closure import receiver_invalidates_and_closes
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
@@ -172,13 +173,17 @@ def demo_engage_path(
         with demo_step(
             "Step 3: Vendor engages the case (RmEngageCaseActivity)"
         ):
-            engage = rm_engage_case_activity(case.id_, actor=vendor.id_)
+            engage = rm_engage_case_activity(
+                case.id_, actor=vendor.id_, at=wall_clock.now()
+            )
             post_to_inbox_and_wait(client, vendor.id_, engage)
             with demo_check("RmEngageCaseActivity activity stored"):
                 verify_received_activity_stored(client, engage.id_)
 
         with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
-            close = rm_close_case_activity(case.id_, actor=vendor.id_)
+            close = rm_close_case_activity(
+                case.id_, actor=vendor.id_, at=wall_clock.now()
+            )
             post_to_inbox_and_wait(client, vendor.id_, close)
             with demo_check("RmCloseCaseActivity activity stored"):
                 verify_received_activity_stored(client, close.id_)
@@ -236,7 +241,9 @@ def demo_defer_reengage_path(
             log_case_state(client, case.id_, "after setup")
 
         with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
-            defer = rm_defer_case_activity(case.id_, actor=vendor.id_)
+            defer = rm_defer_case_activity(
+                case.id_, actor=vendor.id_, at=wall_clock.now()
+            )
             post_to_inbox_and_wait(client, vendor.id_, defer)
             with demo_check("RmDeferCaseActivity activity stored"):
                 verify_received_activity_stored(client, defer.id_)
@@ -246,7 +253,9 @@ def demo_defer_reengage_path(
             "Step 4: Vendor re-engages the case (RmEngageCaseActivity from"
             " DEFERRED)"
         ):
-            reengage = rm_engage_case_activity(case.id_, actor=vendor.id_)
+            reengage = rm_engage_case_activity(
+                case.id_, actor=vendor.id_, at=wall_clock.now()
+            )
             post_to_inbox_and_wait(client, vendor.id_, reengage)
             with demo_check(
                 "RmEngageCaseActivity (re-engage) activity stored"
@@ -260,7 +269,9 @@ def demo_defer_reengage_path(
             )
 
         with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
-            close = rm_close_case_activity(case.id_, actor=vendor.id_)
+            close = rm_close_case_activity(
+                case.id_, actor=vendor.id_, at=wall_clock.now()
+            )
             post_to_inbox_and_wait(client, vendor.id_, close)
             with demo_check("RmCloseCaseActivity activity stored"):
                 verify_received_activity_stored(client, close.id_)

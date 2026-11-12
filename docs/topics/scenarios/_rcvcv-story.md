@@ -20,9 +20,10 @@ It is here so a reader can check the narrative above against what the demo actua
 12. C2 and V2 are ready to be invited to the case.
 13. C1 invites C2 to coordinate too; C2 accepts and joins.
 14. The case holds every participant invited so far, and is still embargoed.
-15. C2 suggests V2 via ADR-0026; C1 approves; V2 joins (DEMOMA-19-009).
-16. Ledger Fanout reaches every participant's replica of the case.
-17. C2 and V2, once joined, add to the note thread the opening posted.
-18. Vendor1 reports its fix ready and Vendor2 reports it deployed (DEMOMA-19-004, DEMOMA-19-026).
-19. V1 publishes first, triggering the embargo teardown.
-20. All five participants leave the case, and it reaches its terminal state.
+15. C2 asks its participant suggester who else belongs in the case.
+16. C2 suggests the actor its suggester named; C1 approves; it joins (DEMOMA-19-009).
+17. Ledger Fanout reaches every participant's replica of the case.
+18. C2 and V2, once joined, add to the note thread the opening posted.
+19. Vendor1 reports its fix ready and Vendor2 reports it deployed (DEMOMA-19-004, DEMOMA-19-026).
+20. V1 publishes first, triggering the embargo teardown.
+21. All five participants leave the case, and it reaches its terminal state.

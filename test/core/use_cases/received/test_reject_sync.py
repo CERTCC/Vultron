@@ -24,7 +24,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -94,7 +94,7 @@ def _make_reject_event(
     Addressed to the CASE_MANAGER unless *to* names other recipients.
     """
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         wire_entry,
@@ -102,6 +102,7 @@ def _make_reject_event(
         actor=actor,
         to=to or [CASE_ACTOR_URI],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
@@ -112,13 +113,14 @@ class TestRejectLogEntryPattern:
     @pytest.mark.spec("SYNC-03-001")
     def test_pattern_matches_reject_with_case_ledger_entry(self, entry0):
         wire_entry = WireCaseLedgerEntry.model_validate(
-            entry0.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry0.model_dump(mode="json"))
         )
         activity = reject_log_entry_activity(
             wire_entry,
             ledger_position=peer_position("a" * 64),
             actor=PARTICIPANT_URI,
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
         event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -150,12 +152,13 @@ class TestRejectLogEntryPattern:
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         wire_entry = WireCaseLedgerEntry.model_validate(
-            entry0.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry0.model_dump(mode="json"))
         )
         activity = reject_log_entry_activity(
             wire_entry,
             actor=PARTICIPANT_URI,
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
         event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)

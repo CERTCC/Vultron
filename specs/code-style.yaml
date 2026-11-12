@@ -292,7 +292,13 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Optional string fields MUST NOT contain empty strings when present; the invariant is "if present, then non-empty"
-    rationale: Distinguishes "not provided" from "provided but blank", avoiding ambiguous database states.
+    rationale: >-
+      Distinguishes "not provided" from "provided but blank", avoiding ambiguous
+      database states. It covers the wire AS2 reference properties (`to`, `context`,
+      `inReplyTo`, ...) too: a blank IRI names nothing. Lenient inbound parsing
+      (ARCH-21-002) means accepting every shape AS2 allows, and a blank is none of
+      them. ARCH-12-004 no longer exempts `Any | None` wire types; it constrains
+      only validators that read case state or stored data (#3894).
   - id: CS-08-002
     priority: SHOULD
     kind: project
@@ -472,12 +478,20 @@ groups:
       `test_every_clock_read_is_listed_and_every_listed_read_exists` in
       `test/architecture/test_clock_reads_at_act_edge.py` parses every module
       under `vultron/` except the `vultron/metadata/` repo tooling and fails on
-      any clock read its lists do not name, and on any listed read that is
-      gone. The lists name the reads ADR-0176 permits at the edge and, under an
-      owner issue each, the reads below an act's edge still to be removed (#5676).
-      `test_only_the_act_edge_holds_a_clock` in the same file fails when a
-      module other than an act's entry point or the composition root that
-      wires it names a clock port.
+      any clock read its pinned exemption set does not name, and on any listed
+      read that is gone. The set names only the reads ADR-0176 permits at the
+      edge. `test_only_the_act_edge_holds_a_clock` in the same file fails when
+      a module other than an act's entry point or the composition root that
+      wires it names a clock port or the installed act clock.
+      `test_each_act_reads_the_recording_clock_once` in
+      `test/demo_recordings/test_recorder_smoke.py` records a scenario under a
+      counting recording clock and fails when any read of it comes from
+      anywhere but an act's edge: `open_act`, `stamp_arrival`, or a demo
+      client's `wall_clock.now`.
+      `test_no_core_model_field_defaults_to_the_clock` in
+      `test/architecture/test_core_models_read_no_clock_default.py` fails when a
+      field of a model under `vultron/core/models` gains a default that reads
+      the clock or yields a time.
     statement: >-
       Application code MUST read the current time only at an act's entry point,
       through the act clock port (`ClockPort` in `vultron.core.ports.clock`),
@@ -537,7 +551,7 @@ groups:
       `test/core/behaviors/case/nodes/test_embargo_resolution.py` run the
       creation-time embargo at an instant a year past the wall clock and
       assert `end_time` is that instant plus the duration, which a deadline
-      read from the clock would miss. The clock-read ratchet
+      read from the clock would miss. The clock-read check
       (`test/architecture/test_clock_reads_at_act_edge.py`) fails on a new
       clock read in core. A deadline computed by inline arithmetic from the
       act's instant is found by inspection in review: no static check tells

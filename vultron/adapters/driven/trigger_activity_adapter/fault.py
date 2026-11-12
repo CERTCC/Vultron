@@ -14,6 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from vultron.adapters.outbox_sealed_body import requeue_if_sealed
@@ -46,6 +47,8 @@ class _FaultMixin:
         failure_class: str,
         to: list[str],
         case_id: str | None = None,
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist a ``Create(ProcessingFault)`` NACK activity.
 
@@ -86,12 +89,15 @@ class _FaultMixin:
         fault = as_ProcessingFault(
             failure_class=failure_class,
             in_reply_to=failed_activity_id,
+            published=at,
+            updated=at,
         )
         activity = create_processing_fault_activity(
             actor=actor,
             fault=fault,
             to=to,
             id_=fault_id,
+            at=at,
         )
         # One transaction: sealing signs the body (SIG-01-001), and a body
         # that cannot be signed fails again on every retry, so it must leave
@@ -128,6 +134,8 @@ class _FaultMixin:
         asserter: str,
         reason: str,
         expected_sender_sequence: int | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice (CLP-05-001).
 
@@ -162,5 +170,6 @@ class _FaultMixin:
             to=[asserter],
             id_=derived_activity_id("refusal-notice", actor, refused_id),
             **context,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "refusal_notice")

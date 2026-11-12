@@ -17,7 +17,7 @@
 
 import logging
 from typing import cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import py_trees
 import pytest
@@ -30,8 +30,9 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.act_clock import ACT_AT
+from test.support.act_runner import in_act
 from test.support.embargo_register import propose
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -103,7 +104,8 @@ class TestHasEmbargoActiveNode:
         node = HasEmbargoActiveNode(case_id=case.id_)
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
 
@@ -120,7 +122,8 @@ class TestHasEmbargoActiveNode:
         node = HasEmbargoActiveNode(case_id=case.id_)
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
 
@@ -137,7 +140,8 @@ class TestHasEmbargoActiveNode:
         node = HasEmbargoActiveNode(case_id=case.id_)
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
 
@@ -154,7 +158,8 @@ class TestHasEmbargoActiveNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
 
@@ -175,7 +180,8 @@ class TestTerminationCauseIsAdmissibleNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
         return node
 
     @pytest.mark.spec("EMB-13-005")
@@ -230,7 +236,8 @@ class TestTerminationCauseIsAdmissibleNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
         assert node.status == py_trees.common.Status.FAILURE
         assert "case status update" in node.feedback_message
 
@@ -248,7 +255,8 @@ class TestTerminationCauseIsAdmissibleNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
         assert node.status == py_trees.common.Status.FAILURE
 
 
@@ -273,7 +281,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -316,7 +325,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -349,7 +359,8 @@ class TestClearActiveEmbargoNode:
         bt.setup()
 
         with caplog.at_level(logging.INFO):
-            bt.tick()
+            with in_act():
+                bt.tick()
 
         narrative = [
             r
@@ -383,7 +394,8 @@ class TestClearActiveEmbargoNode:
         bt.setup()
 
         with caplog.at_level(logging.DEBUG):
-            bt.tick()
+            with in_act():
+                bt.tick()
 
         detail = [
             r
@@ -411,7 +423,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -435,7 +448,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -464,7 +478,8 @@ class TestClearActiveEmbargoNode:
         bt.setup()
 
         with caplog.at_level(logging.INFO):
-            bt.tick()
+            with in_act():
+                bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         assert not node.applied
@@ -495,7 +510,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         assert not node.applied
@@ -518,7 +534,8 @@ class TestClearActiveEmbargoNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
 
@@ -553,7 +570,8 @@ class TestClearActiveEmbargoNode:
 
         dl.save = recording_save
         dl.save_many = recording_save_many
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         assert len(writes) == 1, f"Expected exactly 1 write, got {writes}"
@@ -586,7 +604,8 @@ class TestClearActiveEmbargoNode:
             "apply_embargo_change",
             side_effect=VultronEntryRefusedError("refused"),
         ):
-            bt.tick()
+            with in_act():
+                bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
         assert node.refused
@@ -630,6 +649,8 @@ def _copy_node(
     # A refused step reports the divergence through this port (SYNC-16-001).
     node.trigger_activity_factory = MagicMock()
     node.activity = type("Carrier", (), {"log_entry": entry})()
+    # Ticked by hand, outside a tree run: the act's instant is stated here.
+    node._require_act_instant = authored_at  # type: ignore[method-assign]
     return node
 
 
@@ -951,7 +972,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_called_once_with(
@@ -959,6 +981,7 @@ class TestSendAnnounceEmbargoEventNode:
             case_id=case.id_,
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ACTOR],
+            at=ANY,
         )
         outbox = dl.outbox_list()
         assert "https://example.org/activities/announce1" in outbox
@@ -974,7 +997,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
 
@@ -993,7 +1017,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
         factory.announce_embargo.assert_not_called()
@@ -1014,7 +1039,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_not_called()
@@ -1044,7 +1070,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
         factory.announce_embargo.assert_not_called()
@@ -1062,7 +1089,8 @@ class TestSendAnnounceEmbargoEventNode:
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+        with in_act():
+            bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
 
@@ -1083,7 +1111,8 @@ class TestSendAnnounceEmbargoEventNode:
             "vultron.core.behaviors.embargo.nodes.emit.add_activity_to_outbox"
         )
         with patch(patch_target, side_effect=RuntimeError("outbox error")):
-            bt.tick()
+            with in_act():
+                bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_called_once()

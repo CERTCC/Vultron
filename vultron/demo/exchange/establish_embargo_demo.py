@@ -46,6 +46,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import EM, is_em_embargo_active
+from vultron.demo import wall_clock
 from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
@@ -113,6 +114,7 @@ def demo_propose_embargo_accept(
             context=case.id_,
             summary=f"Proposing a 90-day embargo for {case.name}.",
             to=[vendor.id_],
+            at=wall_clock.now(),
         )
         logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
@@ -133,6 +135,7 @@ def demo_propose_embargo_accept(
                 # recipients named, and this demo's receiver is the vendor.
                 to=[f"{case.id_}/participants", vendor.id_],
                 summary=f"Embargo for {case.name} is now active.",
+                at=wall_clock.now(),
             )
             logger.info("Announcing embargo: %s", logfmt(announce))
             post_to_inbox_and_wait(client, vendor.id_, announce)
@@ -197,6 +200,7 @@ def demo_propose_embargo_reject(
             context=case.id_,
             summary=f"Proposing a 45-day embargo for {case.name}.",
             to=[vendor.id_],
+            at=wall_clock.now(),
         )
         logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)

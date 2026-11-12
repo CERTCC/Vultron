@@ -265,6 +265,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
                 actor=actor_id,
                 to=[case_manager_id],
                 derived_id=True,
+                at=self._require_act_instant(),
             )
         # The automatic refusal is one activity per Invite, so a
         # re-delivered Invite cannot queue a second one (ID-04-004).
@@ -274,6 +275,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
             actor=actor_id,
             to=[case_manager_id],
             derived_id=True,
+            at=self._require_act_instant(),
         )
 
     def _on_outbox_write_failure(

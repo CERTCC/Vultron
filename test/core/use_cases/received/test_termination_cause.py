@@ -30,7 +30,7 @@ from pydantic import ValidationError
 
 from test.support.act_runner import run_tree
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION, extract_stamped
 from test.support.signing import signed_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -192,7 +192,7 @@ def _remove_body(
 ) -> dict[str, Any]:
     embargo = make(as_EmbargoEvent, context=CASE, end_time=now_utc())
     activity = remove_embargo_from_case_activity(
-        embargo, origin=CASE, actor=OWNER, reason=reason
+        embargo, origin=CASE, actor=OWNER, reason=reason, at=authored_at()
     )
     return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -279,7 +279,7 @@ def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
         as_CaseParticipant, attributed_to=VENDOR, context=CASE, name="vendor"
     )
     activity = remove_participant_from_case_activity(
-        participant, target=CASE, actor=OWNER
+        participant, target=CASE, actor=OWNER, at=authored_at()
     )
     body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
     body["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}
@@ -300,6 +300,7 @@ def test_the_factory_carries_the_cause_as_termination_cause(
         actor=OWNER,
         reason=TerminationReason.EARLY,
         cause=cause,
+        at=authored_at(),
     )
 
     body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -323,6 +324,7 @@ def test_the_factory_refuses_a_cause_on_an_end_time_termination() -> None:
             actor=OWNER,
             reason=TerminationReason.END_TIME_REACHED,
             cause=OtherCause(),
+            at=authored_at(),
         )
 
 
@@ -344,6 +346,7 @@ def _owner_remove(net: LedgerNetwork, cause: TerminationCause) -> Any:
         to=[MANAGER],
         reason=TerminationReason.EARLY,
         cause=cause,
+        at=authored_at(),
     )
     return net.receive(
         MANAGER,

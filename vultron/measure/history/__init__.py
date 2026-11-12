@@ -21,6 +21,10 @@ Read through :mod:`vultron.measure.ledger`, never beside it:
 * :mod:`~vultron.measure.history.derive` — the derivation:
   :func:`case_event_history` for one selected case ledger, and
   :func:`read_case_event_histories` for the files a caller names.
+* :mod:`~vultron.measure.history.render` — the history as JSON or as a
+  friendly-named Markdown table (:func:`case_history_report`, CEH-01-005).
+* :mod:`~vultron.measure.history.cli` — the ``vultron-case-history``
+  command over it (CEH-01-004).
 """
 
 from vultron.measure.history.derive import (
@@ -41,6 +45,10 @@ from vultron.measure.history.model import (
     UnreadableEntry,
     scope_of,
 )
+from vultron.measure.history.render import (
+    HistoryFormat,
+    case_history_report,
+)
 
 __all__ = [
     "CASE_KINDS",
@@ -53,8 +61,10 @@ __all__ = [
     "EventScope",
     "ExcludedState",
     "GapLabel",
+    "HistoryFormat",
     "UnreadableEntry",
     "case_event_history",
+    "case_history_report",
     "read_case_event_histories",
     "scope_of",
 ]

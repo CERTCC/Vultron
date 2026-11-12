@@ -223,6 +223,7 @@ def post_actor_outbox(
     activity = parse_activity(body)
 
     # actor.id_ must match activity.actor or activity.actor.id_
+    activity_actor_id: str | None
     if isinstance(activity.actor, str):
         activity_actor_id = activity.actor
     elif activity.actor is not None and hasattr(activity.actor, "id_"):

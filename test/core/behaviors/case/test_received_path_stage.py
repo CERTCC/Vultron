@@ -743,6 +743,25 @@ def test_a_case_scoped_type_waits_for_its_case_rather_than_being_refused() -> (
     )
 
 
+@pytest.mark.spec("CM-11-033")
+@pytest.mark.spec("HP-01-041")
+def test_a_full_case_invite_with_no_replica_waits_at_the_inbox() -> None:
+    """A full-case Invite at a store with no replica is held, never judged.
+
+    It is case-scoped, so the defer check queues it until the Announce
+    creates the replica (CM-11-033); it never reaches its received tree.
+    """
+    full_case_invite = MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
+    assert full_case_invite not in CASE_PRECEDING_SEMANTICS
+    assert not is_deferral_exempt(_event(full_case_invite))
+
+    held = _defer_check(full_case_invite)
+    assert [case_id for _, case_id, _ in held.queued] == [CASE_ID], (
+        "a full-case Invite at a store with no replica is queued by the"
+        " inbox, not delivered to its received tree"
+    )
+
+
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("HP-01-041")
 def test_the_type_that_precedes_its_case_declares_the_no_case_branch() -> None:

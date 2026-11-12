@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.store_scope import hosts_actor, store_for_actor
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.errors import VultronAlreadyExistsError
 
@@ -98,6 +99,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
                 id_=case_actor_id,
                 name="CaseActor",
                 **hosted_endpoints(case_actor_id),
+                **authored_times(self._require_act_instant()),
             )
             if own_store is not None
             else VultronService(

@@ -171,8 +171,13 @@ def read_submitted_csaf_document(
             it is raised before *data* is parsed as CSAF.
     """
     content = csaf_document_text(data)
+    # No time yet: the request is read before the trigger's act opens, and
+    # the trigger authors the attachment at the act's instant (ADR-0176).
     attachment = AttachedDocument(
-        media_type="application/json", content=content
+        media_type="application/json",
+        content=content,
+        published=None,
+        updated=None,
     )
     return SubmittedCsafDocument(
         attachment=attachment,

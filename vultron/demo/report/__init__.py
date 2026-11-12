@@ -54,7 +54,6 @@ from vultron.demo.report.cli import (
 )
 from vultron.demo.report.naming import (
     event_phrase,
-    friendly_object_label,
     friendly_target_noun,
 )
 from vultron.demo.report.render import (
@@ -82,7 +81,6 @@ __all__ = [
     "discovered_actors",
     "event_phrase",
     "friendly_actor_name",
-    "friendly_object_label",
     "friendly_target_noun",
     "generate_report",
     "group_events_by_case",

@@ -26,6 +26,7 @@ from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    DDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
@@ -40,7 +41,11 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    StateValidationError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -394,3 +399,63 @@ class TestGetActionRulesUseCase:
         req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
         result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
         assert result.participant_id == PARTICIPANT_ID
+
+
+#: The four VFD states CSB-17-001 counts valid; every other combination of the
+#: three letters is in a pattern SM-09-002 forbids.
+_VALID_VFD = {"vfd", "Vfd", "VFd", "VFD"}
+
+
+@pytest.mark.spec("SM-09-002")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "SM-09-002: the action-rules query builds a DEPLOYER-only "
+        "participant's CS state from vf 'vf' and d 'D' as vfDpxa, a *fD* "
+        "state SM-09-002 forbids, and the legacy action() answers it with a "
+        "truncated action list instead of refusing it. Tracked by #3355."
+    ),
+)
+def test_a_deployer_only_participant_gets_no_actions_for_an_invalid_cs_state():
+    """A DEPLOYER-only participant at D is not answered from an invalid state.
+
+    Such a participant holds no VF state of its own (CSB-15-004), so the query
+    has no valid compound state to read actions for. It either refuses the
+    question or answers from one of the 32 valid states (CSB-17-001); it never
+    answers from ``vfD...``, a state SM-09-002 forbids.
+    """
+    layer = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+    layer.create(
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+            case_statuses=[make(CaseStatus, context=CASE_ID)],
+        )
+    )
+    layer.create(
+        make(
+            as_CaseParticipant,
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.DEPLOYER],
+            participant_statuses=[
+                make(
+                    as_ParticipantStatus,
+                    context=CASE_ID,
+                    rm=RmDimension(state=RM.ACCEPTED),
+                    d=DDimension(state=CS_d.D),
+                )
+            ],
+        )
+    )
+    req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
+
+    try:
+        result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
+    except (VultronValidationError, StateValidationError):
+        return
+    assert result.cs_state[:3] in _VALID_VFD

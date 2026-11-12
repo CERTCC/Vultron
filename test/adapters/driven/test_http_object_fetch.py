@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx2 as httpx
 import pytest
 
+from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from vultron.adapters.driven import http_object_fetch
 from vultron.adapters.driven.http_object_fetch import (
     REQUESTER_HEADER,
@@ -43,6 +44,7 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _HOST = "https://example.org/api/v2/actors/case-actor"
 _CASE = "https://example.org/cases/c-1"
@@ -331,6 +333,33 @@ class TestAFetchedObjectsUnknownKeys:
         assert _HOST in message
         assert "the fetched object" in message
 
+    @pytest.mark.spec("CLP-15-007")
+    def test_a_fetched_body_that_omits_its_times_claims_none(self):
+        """A fetched body is received data: an omitted time reads as ``None``,
+        never as this node's clock (ADR-0103, ADR-0176)."""
+        document = {"type": "Note", "id": _FETCHED_ID, "content": "held"}
+
+        parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+        assert isinstance(parsed, as_Object)
+        assert parsed.published is None
+        assert parsed.updated is None
+
+    @pytest.mark.spec("CM-29-004")
+    def test_a_fetched_case_with_no_status_history_is_refused(self):
+        """The inbound refusals hold at the fetch edge too: a received case
+        must carry its status history (CM-29-004)."""
+        document = {
+            **INBOUND_CASE_OWNERSHIP,
+            "type": "VulnerabilityCase",
+            "id": _FETCHED_ID,
+            "published": "2026-01-01T00:00:00+00:00",
+        }
+        del document["caseStatuses"]
+
+        with pytest.raises(VultronValidationError, match="caseStatuses"):
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
+
     @pytest.mark.spec("MV-11-002", "MV-11-006", "MV-11-008")
     @pytest.mark.parametrize("body, branch", _BRANCHES)
     def test_a_near_miss_is_refused_naming_both_spellings(
@@ -345,6 +374,31 @@ class TestAFetchedObjectsUnknownKeys:
         assert "'Name'" in message
         assert "'name'" in message
         assert _FETCHED_ID in message
+
+    @pytest.mark.spec("ARCH-25-008", "MV-11-003")
+    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    def test_a_language_map_is_read_not_set_aside(
+        self,
+        body: dict[str, Any],
+        branch: type,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """``contentMap``, ``nameMap`` and ``summaryMap`` are declared (#4471)."""
+        caplog.set_level(logging.INFO)
+        maps = {
+            "contentMap": {"en": "c"},
+            "nameMap": {"en": "n"},
+            "summaryMap": {"en": "s"},
+        }
+
+        parsed = parse_fetched_object({**body, **maps}, _FETCHED_ID, _HOST)
+
+        assert isinstance(parsed, branch)
+        assert parsed.model_dump(mode="json", by_alias=True).items() >= (
+            maps.items()
+        )
+        for key in maps:
+            assert not _set_aside_records(caplog, key)
 
     @pytest.mark.spec("MV-11-002", "MV-11-003")
     def test_a_nested_object_is_partitioned_too(

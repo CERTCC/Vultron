@@ -39,7 +39,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_dead_letter import (
     InboxDeadLetterEntry,
@@ -310,6 +310,7 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
         entry=wire_entry,
         actor=_ALICE,
         to=[_BOB],
+        at=authored_at(),
     )
     alice_dl.save(announce)
     seal_outbound_body(alice_dl, announce)

@@ -327,8 +327,8 @@ class RelayEmbargoInviteToEachNode(
             attributed_to=authorship.attributed_to if authorship else None,
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
-            published=stamp.published,
             min_rsvp_window=stamp.min_rsvp_window,
+            at=self._require_act_instant(),
         )
         rsvp_deadline = invite_rsvp_deadline(json.loads(blob))
 
@@ -425,6 +425,7 @@ class RelayEmbargoInviteToEachNode(
                 actor_id=self.actor_id,
                 cause_id=cause_id,
                 act_commit=send_and_commit,
+                at=self._require_act_instant(),
             )
         except VultronNotFoundError as exc:
             raise RuntimeError(

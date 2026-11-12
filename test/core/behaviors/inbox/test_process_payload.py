@@ -28,7 +28,7 @@ from pydantic import ValidationError
 
 from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
 from vultron.config.actor import ActorConfig
@@ -117,7 +117,7 @@ class _StubDispatchAdapter:
         return self._result
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: object = None
     ) -> None:
         if self._fault_fails:
             raise RuntimeError("outbox write failed (stub)")
@@ -175,7 +175,9 @@ def report_activity():
         id_="https://example.org/reports/r-io-1",
         content="test report",
     )
-    return rm_create_report_activity(report, actor=SENDER_ID, to=[RECEIVER_ID])
+    return rm_create_report_activity(
+        report, actor=SENDER_ID, to=[RECEIVER_ID], at=authored_at()
+    )
 
 
 @pytest.fixture()
@@ -187,7 +189,7 @@ def case_activity():
         name="CASE-IO",
     )
     return announce_vulnerability_case_activity(
-        case, actor=SENDER_ID, to=[RECEIVER_ID]
+        case, actor=SENDER_ID, to=[RECEIVER_ID], at=authored_at()
     )
 
 
@@ -203,6 +205,7 @@ def note_activity_unknown_case():
             context=UNKNOWN_CASE_ID,
             actor=SENDER_ID,
             to=[RECEIVER_ID],
+            at=authored_at(),
         )
     )
 
@@ -599,7 +602,7 @@ class _NoVerdictDispatchAdapter:
         return None
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: object = None
     ) -> None:
         raise AssertionError("a returned value is no raise to answer")
 
@@ -846,6 +849,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
                 in_reply_to="https://example.org/activities/failed",
             ),
             to=[RECEIVER_ID],
+            at=authored_at(),
         )
         dispatch = _StubDispatchAdapter(should_fail=True)
 

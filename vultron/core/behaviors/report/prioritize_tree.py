@@ -73,6 +73,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
@@ -365,6 +366,8 @@ def create_prioritize_subtree(
             case_id=case_id,
             actor=actor_id,
             to=[case_manager_id],
+            # The closure runs when the tree ticks, inside the act (ADR-0176).
+            at=read_act_instant(),
         )
         return [activity_id]
 
@@ -378,6 +381,8 @@ def create_prioritize_subtree(
             case_id=case_id,
             actor=actor_id,
             to=[case_manager_id],
+            # The closure runs when the tree ticks, inside the act (ADR-0176).
+            at=read_act_instant(),
         )
         return [activity_id]
 

@@ -21,7 +21,8 @@ dedicated CaseActor:
   - V1 (cast slot 1, the first Vendor): CVDRole.VENDOR only; advances to VFd
     (fix-ready, no deploy step)
   - C2 (cast slot 3, a character actor): CVDRole.COORDINATOR participant;
-    suggests V2 via the ADR-0026 suggest-actor flow
+    asks its participant suggester who else belongs (BT-24-007) and
+    suggests the V2 it names via the ADR-0026 suggest-actor flow
   - V2 (cast slot 4, a character actor): CVDRole.VENDOR + CVDRole.DEPLOYER;
     advances to VFD (fix-ready then fix-deployed).  Both roles come from the
     Invite that seats it, not from its container (DEMOCI-11-021).

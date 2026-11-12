@@ -65,6 +65,10 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
+from vultron.core.behaviors.call_out.bundles.participant_suggestion import (
+    PARTICIPANT_SUGGESTION_DETERMINISTIC,
+    ParticipantSuggestionCallOutBundle,
+)
 from vultron.core.behaviors.call_out.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
     PrioritizationCallOutBundle,
@@ -96,6 +100,7 @@ __all__ = [
     "DeployMitigationCallOutBundle",
     "DeploymentMonitoringBundle",
     "EmbargoCallOutBundle",
+    "ParticipantSuggestionCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
     "StatusAuthorizationCallOutBundle",
@@ -111,6 +116,7 @@ __all__ = [
     "DEPLOY_FIX_DETERMINISTIC",
     "DEPLOY_MITIGATION_DETERMINISTIC",
     "EMBARGO_DETERMINISTIC",
+    "PARTICIPANT_SUGGESTION_DETERMINISTIC",
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",

@@ -28,7 +28,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -61,7 +61,11 @@ def _sent_note_body(
             make(as_Note, id_=note_id, content="stamped", context=CASE_ID)
         )
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=note_id, case_id=CASE_ID, actor=actor, to=[to]
+        note_id=note_id,
+        case_id=CASE_ID,
+        actor=actor,
+        to=[to],
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(body))
 

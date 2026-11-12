@@ -36,7 +36,7 @@ from test.support.ledger import (
     ledger_entries,
 )
 from test.support.ledger_rebuild import case_naming_its_records
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -524,7 +524,9 @@ def _rebuild_case_file(
     records: dict[str, CoreObject] = {}
     for entry in entries:
         key, cls = _CARRIED[entry.semantic_type]
-        record = cls.model_validate(entry.payload_snapshot[key])
+        record = cls.model_validate(
+            with_times(cls, entry.payload_snapshot[key])
+        )
         if isinstance(record, VulnerabilityCase):
             # The genesis Create carries its records inline; each is copied
             # from its own entry (ADR-0157).

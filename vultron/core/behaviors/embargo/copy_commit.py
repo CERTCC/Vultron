@@ -63,6 +63,7 @@ Call it from a BT node's ``update()``, never from a use case's ``execute()``
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 # The case-file read and save live outside this package so the replica copy
@@ -175,6 +176,7 @@ def consent_row_entry(
     cause_id: str,
     sync_port: "SyncActivityPort | None" = None,
     on_commit: Callable[[dict[str, Any]], None] | None = None,
+    at: datetime,
 ) -> PlannedEmbargoEntry:
     """The CASE_MANAGER's own entry for one consent row it creates or changes.
 
@@ -187,6 +189,7 @@ def consent_row_entry(
     a node inside a tree that carries one may leave it unset, and the nested
     commit inherits the tree's.  *on_commit*, when given, is called with the
     committed snapshot, so a caller can report the activity it committed.
+    *at* is the act's instant, which the entry's activity is authored at.
     """
 
     def _commit() -> dict[str, Any]:
@@ -196,7 +199,7 @@ def consent_row_entry(
             semantic_type = CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE
             activity_id, blob = (
                 trigger_activity.record_embargo_consent_created(
-                    row=change.row, case_id=case_id, actor=actor_id
+                    row=change.row, case_id=case_id, actor=actor_id, at=at
                 )
             )
         else:
@@ -207,6 +210,7 @@ def consent_row_entry(
                     case_id=case_id,
                     actor=actor_id,
                     cause_id=cause_id,
+                    at=at,
                 )
             )
         snapshot = commit_emitted_activity(

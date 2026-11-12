@@ -10,33 +10,28 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: an act reads the clock once, at its edge (ADR-0176).
+"""An act reads the clock once, at its edge (ADR-0176).
 
 Every clock read under ``vultron/`` (``_clock_reads.py`` says what counts as
-one and what is not scanned) must be listed below, one item per read, and
-every item must still be a read: the comparison is an exact multiset
-(ARCH-18-001, ARCH-18-006).  So a new clock read anywhere fails here, and so
-does an item a fix left behind.
+one and what is not scanned) must be listed in
+:data:`CLOCK_EDGE_EXEMPTIONS`, one item per read, and every item must still be
+a read: the comparison is an exact multiset (ARCH-18-001, ARCH-18-006).  So a
+new clock read anywhere fails here, and so does an item a change left behind.
 
-Two kinds of list:
-
-- :data:`CLOCK_EDGE_EXEMPTIONS` is a **pinned exemption set**: the reads
-  ADR-0176 permits for good — the wall-clock read the act clock is built on,
-  the two system clocks behind the clock ports, and the stopwatch reads at
-  named sites.
-- Each ``KNOWN_*_CLOCK_READS`` constant is a **ratchet**: today's reads below
-  an act's edge, grouped by the slice of #5676 that removes them.  A slice
-  deletes its own items as it moves each read to the act's instant
-  (``read_act_instant()`` in a node, a required argument elsewhere).
-  :data:`KNOWN_UNSLICED_CLOCK_READS` holds the reads no slice names yet.
-
-Each read appears in exactly one list, so each has one owner.
+:data:`CLOCK_EDGE_EXEMPTIONS` is a **pinned exemption set**: the reads
+ADR-0176 permits for good — the wall-clock read the act clock is built on,
+the two system clocks behind the clock ports, and the stopwatch reads at
+named sites.  Nothing below an act's edge reads the clock any more (#5676):
+an act's entry point reads the act clock through its port, a node takes the
+instant with ``read_act_instant()``, and any other code takes it as a
+required argument.  ``test_core_models_read_no_clock_default.py`` keeps the
+core models free of clock defaults.
 
 A second check keeps the clocks themselves at the edge: the modules that
-name a clock port or a system clock are a pinned exemption set too
-(:data:`CLOCK_HOLDER_EXEMPTIONS`), because only an act's entry point and the
-composition root that wires it may hold the act clock, and only an adapter
-may hold the bookkeeping clock.
+name a clock port, a system clock or the installed act clock are a pinned
+exemption set too (:data:`CLOCK_HOLDER_EXEMPTIONS`), because only an act's
+entry point and the composition root that wires it may hold the act clock,
+and only an adapter may hold the bookkeeping clock.
 
 Spec: CS-13-002 (time enters through the act clock), ARCH-18-001.
 """
@@ -134,71 +129,15 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     ),
 )
 
-# Core models and time helpers take the act's instant; a caller of a helper
-# whose signature changes is listed with the helper.
-# owner: #5758
-KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/models/base/core_object.py",
-        "CoreObject.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/base/core_object.py",
-        "CoreObject.updated",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case/_construction.py",
-        "_genesis_published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case_status.py",
-        "CaseStatus.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/embargo_event.py",
-        "EmbargoEvent.start_time",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/vocab/base/objects/base.py",
-        "as_Object.published",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/vocab/base/objects/base.py",
-        "as_Object.updated",
-        "now_utc",
-    ),
-)
-
-# Reads below an act's edge that no slice names yet: the epic routes each one.
-# owner: #5676
-KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/demo/wall_clock.py",
-        "from_now",
-        "now_utc",
-    ),
-)
-
-_ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
-    "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
-    "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
-    "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,
-}
-
-# Pinned exemption set: the modules that may name a clock port or a system
-# clock — the ports, their adapters, the act entry points and the
-# composition roots that wire them.
+# Pinned exemption set: the modules that may name a clock port, a system
+# clock or the installed act clock (act_clock) — the ports, their adapters,
+# the act entry points and the composition roots that wire them.
 # permanent: ADR-0176 (only an act's entry point holds the act clock; only an
 # adapter holds the bookkeeping clock)
 CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
     {
-        # The ports and the system clocks behind them.
+        # The ports, the system clocks behind them, and the installed act
+        # clock every composition root reads (act_clock).
         "vultron/core/ports/clock.py",
         "vultron/adapters/driven/clock.py",
         # open_act and stamp_arrival: the two places an act reads its clock.
@@ -214,7 +153,16 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         "vultron/adapters/driving/fastapi/sender_sequence_holds.py",
         "vultron/adapters/driving/fastapi/inbox_handler.py",
         "vultron/demo/fuzzer/stochastic_demo.py",
-        # Composition roots that hand the clock to an entry point.
+        # A demo client's act: it reads the installed act clock once per
+        # step it takes outside the application.
+        "vultron/demo/wall_clock.py",
+        # Requests that author a stored object: actor creation and an
+        # embargo policy's publication, stamped when the request arrives.
+        "vultron/adapters/driving/fastapi/routers/actors/_routes/registry.py",
+        "vultron/adapters/driving/fastapi/routers/actors/_embargo_policy.py",
+        # Composition roots that hand the clock to an entry point; the
+        # recording harness installs its recording clock through the port.
+        "vultron/demo/determinism.py",
         "vultron/core/trigger_dispatcher.py",
         "vultron/adapters/driving/fastapi/deps.py",
         "vultron/adapters/driving/fastapi/ledger_position_statements.py",
@@ -224,19 +172,16 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
     }
 )
 
+#: What names a clock: the ports, the system clocks, and the installed act
+#: clock's accessor and install (``act_clock`` is a substring of both, and of
+#: the FastAPI dependency ``get_act_clock``).
 _CLOCK_NAMES = (
+    "act_clock",
     "ClockPort",
     "BookkeepingClockPort",
     "SystemClock",
     "SystemBookkeepingClock",
 )
-
-
-def _listed() -> Counter[ClockRead]:
-    listed: Counter[ClockRead] = Counter()
-    for items in _ALL_LISTS.values():
-        listed.update(items)
-    return listed
 
 
 def _describe(items: Counter[ClockRead]) -> str:
@@ -251,7 +196,7 @@ def _describe(items: Counter[ClockRead]) -> str:
 @pytest.mark.spec("ARCH-18-001")
 def test_every_clock_read_is_listed_and_every_listed_read_exists() -> None:
     found = clock_reads()
-    listed = _listed()
+    listed = Counter(CLOCK_EDGE_EXEMPTIONS)
 
     new = found - listed
     stale = listed - found
@@ -263,18 +208,8 @@ def test_every_clock_read_is_listed_and_every_listed_read_exists() -> None:
     )
     assert not stale, (
         "Listed clock reads that are no longer reads; delete them from"
-        " their list (ARCH-18-002, ARCH-18-006):\n" + _describe(stale)
+        " CLOCK_EDGE_EXEMPTIONS (ARCH-18-006):\n" + _describe(stale)
     )
-
-
-@pytest.mark.spec("ARCH-18-001")
-def test_each_clock_read_has_one_owner() -> None:
-    owners: dict[ClockRead, set[str]] = {}
-    for name, items in _ALL_LISTS.items():
-        for item in items:
-            owners.setdefault(item, set()).add(name)
-    shared = {item: names for item, names in owners.items() if len(names) > 1}
-    assert not shared, f"A read is listed under two owners: {shared}"
 
 
 @pytest.mark.spec("CS-13-002")

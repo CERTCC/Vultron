@@ -139,6 +139,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
                 roles=self._suggested_roles,
+                at=self._at,
             )
             self._captured["activity"] = json.loads(activity_dict)
             return [activity_id]

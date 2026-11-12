@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
@@ -53,6 +53,7 @@ def _make_proposal(adapter, dl) -> tuple[str, str]:
         case_id=_CASE_ID,
         actor=_ACTOR,
         to=[_PEER],
+        at=authored_at(),
     )
     return proposal_id, embargo.id_
 
@@ -65,6 +66,7 @@ class TestProposeEmbargo:
             embargo_id=embargo.id_,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -79,6 +81,7 @@ class TestProposeEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -95,6 +98,7 @@ class TestProposeEmbargo:
             actor=_ACTOR,
             to=[_PEER],
             attributed_to=_PROPOSER,
+            at=authored_at(),
         )
 
         body = json.loads(blob)
@@ -105,7 +109,10 @@ class TestProposeEmbargo:
         embargo = _make_embargo(dl)
 
         _, blob = adapter.propose_embargo(
-            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert "attributedTo" not in json.loads(blob)
@@ -120,6 +127,7 @@ class TestProposeEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             activity_id=given,
+            at=authored_at(),
         )
 
         assert activity_id == given
@@ -139,7 +147,7 @@ class TestProposeEmbargo:
             actor=_ACTOR,
             to=[_PEER],
             rsvp_deadline=deadline,
-            published=published,
+            at=published,
         )
 
         body = json.loads(blob)
@@ -160,7 +168,7 @@ class TestProposeEmbargo:
                 actor=_ACTOR,
                 to=[_PEER],
                 rsvp_deadline=published + timedelta(days=2),
-                published=published,
+                at=published,
                 min_rsvp_window=timedelta(days=3),
             )
 
@@ -169,7 +177,10 @@ class TestProposeEmbargo:
         embargo = _make_embargo(dl)
 
         _, blob = adapter.propose_embargo(
-            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert "endTime" not in json.loads(blob)
@@ -184,6 +195,7 @@ class TestAcceptEmbargo:
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -197,6 +209,7 @@ class TestAcceptEmbargo:
             case_id=_CASE_ID,
             actor=_PEER,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -216,6 +229,7 @@ class TestAcceptEmbargo:
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
+            at=authored_at(),
         )
 
         obj = json.loads(activity_dict).get("object")
@@ -233,7 +247,11 @@ def _received_proposal(dl) -> tuple[str, str]:
     """
     embargo = _make_embargo(dl)
     invite = em_propose_embargo_activity(
-        embargo, context=_CASE_ID, actor=_PROPOSER, to=[_PEER]
+        embargo,
+        context=_CASE_ID,
+        actor=_PROPOSER,
+        to=[_PEER],
+        at=authored_at(),
     )
     archive_received(dl, invite)
     assert dl.read(invite.id_) is None
@@ -259,7 +277,10 @@ class TestAnswerReceivedEmbargoInvite:
         proposal_id, embargo_id = _received_proposal(dl)
 
         _, blob = getattr(adapter, method)(
-            proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            at=authored_at(),
         )
 
         body = json.loads(blob)
@@ -278,6 +299,7 @@ class TestAnswerReceivedEmbargoInvite:
                 proposal_id="urn:uuid:never-received",
                 case_id=_CASE_ID,
                 actor=_PEER,
+                at=authored_at(),
             )
 
 
@@ -296,12 +318,14 @@ class TestAutomaticAnswerId:
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
         second = adapter.accept_embargo(
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
 
         assert second == first
@@ -321,11 +345,15 @@ class TestAutomaticAnswerId:
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
 
         ids = {
             adapter.accept_embargo(
-                proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+                proposal_id=proposal_id,
+                case_id=_CASE_ID,
+                actor=_PEER,
+                at=authored_at(),
             )[0]
             for _ in range(2)
         }
@@ -347,6 +375,7 @@ class TestAutomaticAnswerId:
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
 
         assert adapter.answered_embargo_invite(_PEER, proposal_id)
@@ -361,12 +390,14 @@ class TestAutomaticAnswerId:
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
         second = adapter.reject_embargo(
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
 
         assert second == first
@@ -387,6 +418,7 @@ class TestAutomaticAnswerId:
             case_id=_CASE_ID,
             actor=_PEER,
             derived_id=True,
+            at=authored_at(),
         )
 
         ids = {
@@ -394,6 +426,7 @@ class TestAutomaticAnswerId:
                 proposal_id=proposal_id,
                 case_id=_CASE_ID,
                 actor=_PEER,
+                at=authored_at(),
             )[0]
             for _ in range(2)
         }
@@ -411,6 +444,7 @@ class TestRejectEmbargo:
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -424,6 +458,7 @@ class TestRejectEmbargo:
             case_id=_CASE_ID,
             actor=_PEER,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -443,6 +478,7 @@ class TestRejectEmbargo:
             proposal_id=proposal_id,
             case_id=_CASE_ID,
             actor=_PEER,
+            at=authored_at(),
         )
 
         obj = json.loads(activity_dict).get("object")
@@ -461,7 +497,10 @@ class TestUndoEmbargoInvite:
         invite_id, embargo_id = _make_proposal(adapter, dl)
 
         activity_id, blob = adapter.undo_embargo_invite(
-            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+            invite_id=invite_id,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
         )
 
         body = json.loads(blob)
@@ -476,10 +515,16 @@ class TestUndoEmbargoInvite:
         invite_id, _ = _make_proposal(adapter, dl)
 
         first, _ = adapter.undo_embargo_invite(
-            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+            invite_id=invite_id,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
         )
         second, _ = adapter.undo_embargo_invite(
-            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+            invite_id=invite_id,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert first == second
@@ -493,6 +538,7 @@ class TestAnnounceEmbargo:
             embargo_id=embargo.id_,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -506,6 +552,7 @@ class TestAnnounceEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -520,6 +567,7 @@ class TestTerminateEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -534,6 +582,7 @@ class TestTerminateEmbargo:
             actor=_ACTOR,
             to=[_PEER],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -556,6 +605,7 @@ class TestOwnerEmbargoDecision:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
         return activity_id, json.loads(blob), embargo.id_
 

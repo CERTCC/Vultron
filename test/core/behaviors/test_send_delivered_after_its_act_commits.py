@@ -41,7 +41,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.act_runner import run_tree
 from test.support.ledger import fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -92,9 +92,14 @@ class _AddressedCaseManagerNote(_CommitCaseManagerActivityBase):
             content="sent to every other participant",
             context_id=self._case_id,
             attributed_to=self.actor_id,
+            at=authored_at(),
         )
         return factory.add_note_to_case(
-            note_id=note_id, case_id=self._case_id, actor=self.actor_id, to=to
+            note_id=note_id,
+            case_id=self._case_id,
+            actor=self.actor_id,
+            to=to,
+            at=authored_at(),
         )
 
 

@@ -49,6 +49,8 @@ from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     _REPORT,
     _VENDOR,
+    EXAMPLE_TIMESTAMP,
+    _example_stamp,
     case,
     case_actor,
     gen_report,
@@ -80,6 +82,7 @@ def create_case() -> as_Create:
         case_roles=[CVDRole.VENDOR],
         attributed_to=_VENDOR.id_,
         name=_VENDOR.name,
+        **_example_stamp(),
     )
     _case = case(
         fresh_id=True,
@@ -92,6 +95,7 @@ def create_case() -> as_Create:
         actor=_VENDOR.id_,
         content="We've created a case from this report.",
         context=_REPORT.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -125,6 +129,7 @@ def add_report_to_case() -> as_Add:
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding this report to this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -134,7 +139,10 @@ def engage_case() -> as_Join:
     _case = case()
 
     activity = rm_engage_case_activity(
-        _case, actor=_vendor.id_, content="We're engaging this case."
+        _case,
+        actor=_vendor.id_,
+        content="We're engaging this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -144,7 +152,10 @@ def close_case() -> as_Leave:
     _case = case()
 
     activity = rm_close_case_activity(
-        _case, actor=_vendor.id_, content="We're closing this case."
+        _case,
+        actor=_vendor.id_,
+        content="We're closing this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -154,7 +165,10 @@ def defer_case() -> as_Ignore:
     _case = case()
 
     activity = rm_defer_case_activity(
-        _case, actor=_vendor.id_, content="We're deferring this case."
+        _case,
+        actor=_vendor.id_,
+        content="We're deferring this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -164,7 +178,10 @@ def reengage_case() -> as_Join:
     _case = case()
 
     activity = rm_engage_case_activity(
-        _case, actor=_vendor.id_, content="We're reengaging this case."
+        _case,
+        actor=_vendor.id_,
+        content="We're reengaging this case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity
 
@@ -184,6 +201,7 @@ def propose_case_ownership_transfer() -> as_Offer:
         actor=_vendor.id_,
         to=[case_actor().id_],
         content=f"Please offer ownership of case {_case.name} to the coordinator.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -204,6 +222,7 @@ def offer_case_ownership_transfer() -> as_Offer:
         target=_coordinator.id_,
         to=[_coordinator.id_],
         content=f"We're offering to transfer ownership of case {_case.name} to you.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -216,6 +235,7 @@ def accept_case_ownership_transfer() -> as_Accept:
         _offer,
         actor=_coordinator.id_,
         content=f"We're accepting your offer to transfer ownership of case {_case.name} to us.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -228,6 +248,7 @@ def reject_case_ownership_transfer() -> as_Reject:
         _offer,
         actor=_coordinator.id_,
         content=f"We're declining your offer to transfer ownership of case {_case.name} to us.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -241,6 +262,7 @@ def undo_case_ownership_transfer() -> as_Undo:
         actor=_vendor.id_,
         to=[case_actor().id_],
         content=f"We're withdrawing our proposal to transfer ownership of case {_case.name}.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -259,6 +281,7 @@ def update_case() -> as_Update:
     _activity = update_case_activity(
         _case,
         actor=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -321,6 +344,7 @@ def announce_case() -> as_Announce:
     return announce_vulnerability_case_activity(
         _case,
         actor=_VENDOR.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -346,6 +370,7 @@ def offer_case_participant_role() -> as_Offer:
             f"We're offering the {CVDRole.COORDINATOR.value} role on case "
             f"{_case.name} to {_coordinator.name}."
         ),
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -367,6 +392,7 @@ def forward_case_participant_role() -> as_Offer:
         to=[_coordinator.id_],
         in_reply_to=_offer.id_,
         content=_offer.content,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -383,6 +409,7 @@ def accept_case_participant_role() -> as_Accept:
         actor=_coordinator.id_,
         to=[case_actor().id_],
         content="We're accepting the role you offered.",
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -399,4 +426,5 @@ def reject_case_participant_role() -> as_Reject:
         actor=_coordinator.id_,
         to=[case_actor().id_],
         content="We're declining the role you offered.",
+        at=EXAMPLE_TIMESTAMP,
     )

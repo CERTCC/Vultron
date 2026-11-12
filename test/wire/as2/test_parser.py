@@ -70,6 +70,7 @@ def test_parse_activity_keeps_an_inline_object_of_unknown_type():
     result = parse_activity(
         {
             "type": "Create",
+            "id": "https://example.org/activities/parser-5",
             "actor": "https://example.org/alice",
             "published": PUBLISHED,
             "object": {
@@ -226,6 +227,7 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
     result = parse_activity(
         {
             "type": "Create",
+            "id": "https://example.org/activities/parser-1",
             "actor": "https://example.org/alice",
             "published": PUBLISHED,
             "object": "https://example.org/notes/1",
@@ -260,6 +262,7 @@ def test_parse_activity_returns_typed_activity_for_valid_create():
     result = parse_activity(
         {
             "type": "Create",
+            "id": "https://example.org/activities/parser-2",
             "actor": "https://example.org/alice",
             "published": PUBLISHED,
             "object": "https://example.org/notes/1",
@@ -422,6 +425,7 @@ def test_parsing_activity_line_is_debug_not_info(caplog):
         parse_activity(
             {
                 "type": "Create",
+                "id": "https://example.org/activities/parser-3",
                 "actor": "https://example.org/alice",
                 "published": PUBLISHED,
                 "object": "https://example.org/notes/1",
@@ -518,6 +522,7 @@ def test_inline_ordered_collection_resolves_to_the_wire_class():
     result = parse_activity(
         {
             "type": "Create",
+            "id": "https://example.org/activities/parser-6",
             "actor": "https://example.org/alice",
             "published": PUBLISHED,
             "object": {
@@ -564,6 +569,7 @@ def test_parse_activity_keeps_a_non_blank_target():
     activity = parse_activity(
         {
             "type": "Create",
+            "id": "https://example.org/activities/parser-4",
             "actor": "https://example.org/alice",
             "published": PUBLISHED,
             "object": "https://example.org/notes/1",
@@ -669,3 +675,38 @@ def test_parse_activity_processes_the_vultron_context_without_fetching_it():
     assert (
         getattr(event, "case_id", None) == "https://example.org/cases/case-1"
     )
+
+
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason=(
+        "AKM-02-006: a partial inline {id, type: CaseParticipant} parses, and "
+        "the parser invents a ParticipantStatus (fresh id, RM START, OBSERVER) "
+        "and joined=True that the sender never stated. Tracked by #5265."
+    ),
+)
+def test_a_partial_inline_case_participant_is_refused_not_filled_in():
+    """A receiver records no participant state the sender did not send.
+
+    A ``Remove`` whose ``object`` is only ``{id, type: CaseParticipant}``
+    states no status and no membership. Reading it as a joined participant
+    in RM ``START`` would record values nobody claimed (AKM-02-006), so the
+    parse edge refuses it.
+    """
+    body = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "https://example.org/activities/remove-1",
+        "type": "Remove",
+        "actor": "https://example.org/actors/case-manager",
+        "published": PUBLISHED,
+        "object": {
+            "id": "https://example.org/participants/p1",
+            "type": "CaseParticipant",
+        },
+        "target": "https://example.org/cases/case-1",
+    }
+
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(body)

@@ -111,6 +111,7 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts, EmitCapable):
                 self.actor_id,
                 self.trigger_activity_factory,
                 excluded_actor_ids=self.excluded_actor_ids,
+                at=self._require_act_instant(),
             )
         except VultronError as exc:
             # The adapter refuses to build an Announce it cannot complete —

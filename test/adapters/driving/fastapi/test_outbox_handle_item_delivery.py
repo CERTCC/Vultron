@@ -36,7 +36,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
@@ -213,6 +213,7 @@ def test_handle_outbox_item_delivers_an_activitystreams_activity():
         make(as_VulnerabilityReport, name="VU#OX-02-002", content="a report"),
         to=RECIPIENT,
         actor=SENDER,
+        at=authored_at(),
     )
     sealed = SealedOutboundBody(
         id_=sealed_body_id(offer.id_),
@@ -330,6 +331,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         entry,
         actor="https://example.org/actors/case-actor",
         to=[recipient],
+        at=authored_at(),
     )
     sealed = SealedOutboundBody(
         id_=sealed_body_id(activity.id_),

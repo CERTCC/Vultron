@@ -13,7 +13,7 @@ from pydantic import BaseModel, ValidationError
 import vultron
 from test.support.act_clock import ACT_AT
 from test.support.core_vocab import restore_core_registries
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
@@ -86,7 +86,9 @@ def test_core_object_context_is_emitted_on_the_as2_path_only():
     the wire, which VM-10-001 (MUST) says "is not sufficient".
     """
     obj = CoreObject.model_validate(
-        {"@context": "https://www.w3.org/ns/activitystreams"}
+        with_times(
+            CoreObject, {"@context": "https://www.w3.org/ns/activitystreams"}
+        )
     )
     assert obj.context_ == "https://www.w3.org/ns/activitystreams"
 
@@ -113,20 +115,23 @@ def test_core_object_keeps_a_list_context_through_a_round_trip():
     parsed from one, such as a fetched actor profile, accepts it and dumps
     it back unchanged on the AS2 path, and never stores it."""
     actor = CoreActor.model_validate(
-        {
-            "@context": _SIGNED_CONTEXT,
-            "id": "https://example.org/actors/signed",
-            "type": "Person",
-            "name": "Signed",
-            "inbox": "https://example.org/actors/signed/inbox",
-            "outbox": "https://example.org/actors/signed/outbox",
-        }
+        with_times(
+            CoreActor,
+            {
+                "@context": _SIGNED_CONTEXT,
+                "id": "https://example.org/actors/signed",
+                "type": "Person",
+                "name": "Signed",
+                "inbox": "https://example.org/actors/signed/inbox",
+                "outbox": "https://example.org/actors/signed/outbox",
+            },
+        )
     )
 
     assert actor.context_ == _SIGNED_CONTEXT
     as2 = actor.model_dump(mode="json", by_alias=True, exclude_none=True)
     assert as2["@context"] == _SIGNED_CONTEXT
-    assert CoreActor.model_validate(as2) == actor
+    assert CoreActor.model_validate(with_times(CoreActor, as2)) == actor
     assert "context_" not in actor.model_dump(exclude_none=True)
 
 
@@ -152,7 +157,9 @@ def test_core_object_refuses_an_inline_context_object(context: object):
 
 def _assert_core_context_refused(context: object) -> None:
     with pytest.raises(ValidationError) as raised:
-        CoreObject.model_validate({"@context": context})
+        CoreObject.model_validate(
+            with_times(CoreObject, {"@context": context})
+        )
 
     assert {error["loc"][0] for error in raised.value.errors()} == {"@context"}
 
@@ -175,10 +182,14 @@ def test_core_object_reads_the_default_list_back_as_no_override():
     so it is kept as the context the object arrived with.
     """
     obj = make(CoreObject)
-    again = CoreObject.model_validate(obj.model_dump(by_alias=True))
+    again = CoreObject.model_validate(
+        with_times(CoreObject, obj.model_dump(by_alias=True))
+    )
     assert again.context_ is None
     assert again == obj
-    single = CoreObject.model_validate({"@context": VULTRON_CONTEXT_URI})
+    single = CoreObject.model_validate(
+        with_times(CoreObject, {"@context": VULTRON_CONTEXT_URI})
+    )
     assert single.context_ == VULTRON_CONTEXT_URI
 
 
@@ -187,7 +198,7 @@ def test_core_object_context_empty_string_rejected():
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        CoreObject.model_validate({"@context": ""})
+        CoreObject.model_validate(with_times(CoreObject, {"@context": ""}))
 
 
 # --- CORE_VOCABULARY registration ------------------------------------------
@@ -557,7 +568,7 @@ def test_core_object_strips_computed_field_input(isolated_core_registries):
     # The payload agrees with the derived value, so the redundant key is
     # simply stripped.
     obj = _Derived.model_validate(
-        {"is_sealed_now": False, "is_unsealed": True}
+        with_times(_Derived, {"is_sealed_now": False, "is_unsealed": True})
     )
     assert obj.is_unsealed is True
 

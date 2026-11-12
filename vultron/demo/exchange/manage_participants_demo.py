@@ -48,10 +48,12 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.states.rm import RM
+from vultron.demo import wall_clock
 from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
@@ -165,6 +167,7 @@ def demo_manage_participants_accept(
     This follows the accept branch in
     docs/howto/activitypub/activities/manage_participants.md.
     """
+    at = wall_clock.now()  # one read for this step (ADR-0176)
     logger.info("=" * 80)
     logger.info("DEMO: Manage Participants — Accept + Status + Remove Path")
     logger.info("=" * 80)
@@ -217,12 +220,14 @@ def demo_manage_participants_accept(
                 rm=RmDimension(state=RM.ACCEPTED),
                 attributed_to=coordinator.id_,
                 cvd_role=[CVDRole.COORDINATOR],
+                **authored_times(at),
             )
             add_status = add_status_to_participant_activity(
                 participant_status,
                 actor=coordinator.id_,
                 target=coordinator_participant.id_,
                 to=[vendor.id_],
+                at=at,
             )
             # A participant sends its status to the CASE_MANAGER alone
             # (PCR-08-001); the vendor holds that role here, and a replica
@@ -241,7 +246,10 @@ def demo_manage_participants_accept(
             # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
             # vendor holds both roles here, so it posts to its own inbox.
             remove_participant = remove_participant_from_case_activity(
-                coordinator_participant, actor=vendor.id_, target=case.id_
+                coordinator_participant,
+                actor=vendor.id_,
+                target=case.id_,
+                at=at,
             )
             post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
@@ -326,7 +334,10 @@ def demo_manage_participants_accept(
             # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
             # removed coordinator is reinstated without accepting again.
             reinstate_participant = add_participant_to_case_activity(
-                coordinator_participant, actor=vendor.id_, target=case.id_
+                coordinator_participant,
+                actor=vendor.id_,
+                target=case.id_,
+                at=at,
             )
             post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
 

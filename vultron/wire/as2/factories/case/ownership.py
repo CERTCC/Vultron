@@ -17,20 +17,17 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, TypeVar, cast
 
-from pydantic import ValidationError
-
 from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._held import (
     as_answered,
 )
 from vultron.wire.as2.factories.case._named import _named_case
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.ownership import (
     _AcceptCaseOwnershipTransferActivity,
     _OfferCaseOwnershipTransferActivity,
@@ -49,8 +46,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def _carried_target(
     target: as_ActorRef | CoreActor | None,
@@ -64,6 +59,8 @@ def _carried_target(
 def offer_case_ownership_transfer_activity(
     case: as_VulnerabilityCase | str,
     target: as_ActorRef | CoreActor | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(VulnerabilityCase) to the transferee — ownership transfer.
@@ -92,26 +89,24 @@ def offer_case_ownership_transfer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _OfferCaseOwnershipTransferActivity(
-            object_=_named_case(case),
-            target=_carried_target(target),
+    return build_activity(
+        "offer_case_ownership_transfer_activity",
+        _OfferCaseOwnershipTransferActivity,
+        at,
+        lambda: {
+            "object_": _named_case(case),
+            "target": _carried_target(target),
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "offer_case_ownership_transfer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "offer_case_ownership_transfer_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def propose_case_ownership_transfer_activity(
     case: as_VulnerabilityCase | str,
     target: as_ActorRef | CoreActor,
     end_time: datetime | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build Offer(Offer(VulnerabilityCase)), the owner's proposal; context is the case.
@@ -148,22 +143,18 @@ def propose_case_ownership_transfer_activity(
     if (actor := kwargs.get("actor")) is not None:
         inner_kwargs["actor"] = actor
     inner = offer_case_ownership_transfer_activity(
-        case, target=target, **inner_kwargs
+        case, target=target, **inner_kwargs, at=at
     )
-    try:
-        return _ProposeCaseOwnershipTransferActivity(
-            object_=cast(_OfferCaseOwnershipTransferActivity, inner),
-            context=_named_case(case).id_,
+    return build_activity(
+        "propose_case_ownership_transfer_activity",
+        _ProposeCaseOwnershipTransferActivity,
+        at,
+        lambda: {
+            "object_": cast(_OfferCaseOwnershipTransferActivity, inner),
+            "context": _named_case(case).id_,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "propose_case_ownership_transfer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "propose_case_ownership_transfer_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 _OwnershipReply = TypeVar("_OwnershipReply")
@@ -174,6 +165,8 @@ def _ownership_offer_reply(
     label: str,
     offer: as_Offer,
     kwargs: dict[str, Any],
+    *,
+    at: datetime,
 ) -> _OwnershipReply:
     """Build *reply_class* around an ownership-transfer *offer*.
 
@@ -186,20 +179,21 @@ def _ownership_offer_reply(
             does for a plain ``as_Offer`` that is not an
             ``_OfferCaseOwnershipTransferActivity``.
     """
-    try:
-        return reply_class(
-            object_=as_answered(_OfferCaseOwnershipTransferActivity, offer),
+    return build_activity(
+        label,
+        reply_class,
+        at,
+        lambda: {
+            "object_": as_answered(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning("%s: invalid arguments: %s", label, exc)
-        raise VultronActivityConstructionError(
-            f"{label}: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def accept_case_ownership_transfer_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_OfferCaseOwnershipTransferActivity).
@@ -226,11 +220,14 @@ def accept_case_ownership_transfer_activity(
         "accept_case_ownership_transfer_activity",
         offer,
         kwargs,
+        at=at,
     )
 
 
 def reject_case_ownership_transfer_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_OfferCaseOwnershipTransferActivity).
@@ -257,11 +254,14 @@ def reject_case_ownership_transfer_activity(
         "reject_case_ownership_transfer_activity",
         offer,
         kwargs,
+        at=at,
     )
 
 
 def undo_case_ownership_transfer_activity(
     proposal: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Undo:
     """Build an Undo(_ProposeCaseOwnershipTransferActivity): a withdrawal.
@@ -286,15 +286,14 @@ def undo_case_ownership_transfer_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     label = "undo_case_ownership_transfer_activity"
-    try:
-        return _UndoCaseOwnershipTransferActivity(
-            object_=as_answered(
+    return build_activity(
+        label,
+        _UndoCaseOwnershipTransferActivity,
+        at,
+        lambda: {
+            "object_": as_answered(
                 _ProposeCaseOwnershipTransferActivity, proposal
             ),
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning("%s: invalid arguments: %s", label, exc)
-        raise VultronActivityConstructionError(
-            f"{label}: invalid arguments"
-        ) from exc
+        },
+    )

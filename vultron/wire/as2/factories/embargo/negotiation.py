@@ -17,10 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from datetime import datetime, timedelta
-
-from pydantic import ValidationError
 
 from vultron.core.models._helpers import as_utc
 from vultron.core.models.rsvp_deadline import (
@@ -28,6 +25,7 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -50,44 +48,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
 )
 
-logger = logging.getLogger(__name__)
-
-
-def _published_instant(published: object) -> datetime:
-    """Read a caller-supplied ``published`` as an aware instant.
-
-    This is the one input to the RSVP-deadline check not read from a
-    validated object, so it is normalised at this edge (ADR-0032, CS-13-001)
-    whether it arrived as an ISO 8601 string or a naive ``datetime``;
-    ``resolve_rsvp_deadline`` expects aware inputs (#3784).  The caller
-    supplies it: the factory reads no clock to stand in for it (ADR-0176).
-
-    Raises:
-        VultronActivityConstructionError: If *published* is absent, is not a
-            ``datetime``, or is a string that is not ISO 8601.
-    """
-    if isinstance(published, str):
-        try:
-            published = datetime.fromisoformat(published)
-        except ValueError as exc:
-            raise VultronActivityConstructionError(
-                f"em_propose_embargo_activity: published {published!r}"
-                " is not an ISO 8601 datetime"
-            ) from exc
-    if not isinstance(published, datetime):
-        raise VultronActivityConstructionError(
-            "em_propose_embargo_activity: an rsvp_deadline needs the"
-            " published instant it is measured from (EP-07-002); pass the"
-            " act's instant as published"
-        )
-    return as_utc(published)
-
 
 def em_propose_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
     rsvp_deadline: datetime | None = None,
     min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(EmbargoEvent) — the EP/EV message.
@@ -103,11 +71,12 @@ def em_propose_embargo_activity(
             earlier than the applicable minimum — ``min_rsvp_window`` after
             ``published``, or the embargo's ``end_time`` if that is
             sooner (EP-07-002) — and no later than the embargo's
-            ``end_time`` (EP-07-006).  With a deadline, ``published`` MUST
-            be given in *kwargs*: the factory reads no clock (ADR-0176).
+            ``end_time`` (EP-07-006).  The window is measured from *at*.
         min_rsvp_window: Configured minimum RSVP window; defaults to 72 hours
             (EP-07-002). Pass ``ActorConfig.min_rsvp_window`` from the caller
             to apply the configured floor.
+        at: The authoring act's instant: the Invite's ``published``, which
+            the RSVP window is measured from (ADR-0176).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -118,8 +87,8 @@ def em_propose_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
             if *rsvp_deadline* is naive, below the applicable minimum, or
-            after the embargo's end, or is given without ``published``, or
-            if *embargo* is not an ``as_EmbargoEvent``.
+            after the embargo's end, or if *embargo* is not an
+            ``as_EmbargoEvent``.
     """
     # The wire class takes the terms by URI for a received Invite (ADR-0123);
     # this codebase always sends them inline (VAM-01-016).
@@ -132,12 +101,12 @@ def em_propose_embargo_activity(
                 "em_propose_embargo_activity: rsvp_deadline must be"
                 " timezone-aware (naive datetime rejected per EP-07-002)"
             )
-        # Measure from the caller's ``published``, the one the Invite
-        # carries, so the window the sender checks is the one the receiver
-        # measures (EP-07-002).
+        # Measure from *at*, the Invite's ``published``, so the window the
+        # sender checks is the one the receiver measures (EP-07-002).  A
+        # naive *at* is read as UTC (CS-13-001, #3784).
         deadline = resolve_rsvp_deadline(
             requested=rsvp_deadline,
-            published=_published_instant(kwargs.get("published")),
+            published=as_utc(at),
             embargo_end=embargo.end_time,
             min_window=min_rsvp_window,
         )
@@ -154,22 +123,19 @@ def em_propose_embargo_activity(
                 f" {deadline.effective.isoformat()} (EP-07-006)"
             )
         kwargs["end_time"] = rsvp_deadline
-    try:
-        return _EmProposeEmbargoActivity(
-            object_=embargo, context=context, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_propose_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_propose_embargo_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "em_propose_embargo_activity",
+        _EmProposeEmbargoActivity,
+        at,
+        lambda: {"object_": embargo, "context": context, **kwargs},
+    )
 
 
 def em_accept_embargo_activity(
     proposal: as_Invite,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_EmProposeEmbargoActivity) — a Participant's consent.
@@ -198,24 +164,23 @@ def em_accept_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmAcceptEmbargoActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, proposal),
-            context=context,
+    return build_activity(
+        "em_accept_embargo_activity",
+        _EmAcceptEmbargoActivity,
+        at,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, proposal),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_accept_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_accept_embargo_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def em_reject_embargo_activity(
     proposal: as_Invite,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_EmProposeEmbargoActivity) — a refusal of the terms.
@@ -246,24 +211,23 @@ def em_reject_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmRejectEmbargoActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, proposal),
-            context=context,
+    return build_activity(
+        "em_reject_embargo_activity",
+        _EmRejectEmbargoActivity,
+        at,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, proposal),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_reject_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_reject_embargo_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def em_undo_embargo_invite_activity(
     invite: as_Invite,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Undo:
     """Build an Undo(_EmProposeEmbargoActivity): withdraw an Invite one sent.
@@ -288,16 +252,13 @@ def em_undo_embargo_invite_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmUndoEmbargoInviteActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, invite),
-            context=context,
+    return build_activity(
+        "em_undo_embargo_invite_activity",
+        _EmUndoEmbargoInviteActivity,
+        at,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, invite),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_undo_embargo_invite_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_undo_embargo_invite_activity: invalid arguments"
-        ) from exc
+        },
+    )

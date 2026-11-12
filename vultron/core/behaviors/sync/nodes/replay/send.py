@@ -239,6 +239,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             actor_id=self.case_actor_id_bb,
             peer_id=peer_id,
             through_index=cutoff,
+            at=self._require_act_instant(),
         )
         return self._record_replay_outcome(
             sent, case_id=case_id, peer_id=peer_id, from_hash=from_hash, at=at

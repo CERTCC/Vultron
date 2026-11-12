@@ -29,15 +29,19 @@ To fix a drift failure here::
     git add ui/src/data/ledgerTypes.ts
 """
 
+import typing
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
+import annotated_types
 import pytest
-from pydantic import Field, computed_field
+from pydantic import BeforeValidator, Field, computed_field
 
 from test.support.act_clock import ACT_AT
 from test.support.objects import make
 from vultron.core.models.base import CoreObject
+from vultron.core.models.base.language_map import absent_as_empty
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -201,8 +205,14 @@ def test_the_projected_keys_are_the_keys_the_model_writes(
     name: str, fields: dict[str, dict[str, export_ledger_types.FieldDef]]
 ) -> None:
     # A full AS2 dump (no exclude_none) writes every field the model has on
-    # the wire, plus the JSON-LD context: the closed world of its keys.
-    instance = _instances()[name]
+    # the wire, plus the JSON-LD context: the closed world of its keys.  An
+    # empty language map is left out of every dump (#4471), so each holds one.
+    instance = _instances()[name].model_copy(
+        update={
+            field: {"en": "text"}
+            for field in ("content_map", "name_map", "summary_map")
+        }
+    )
     dumped = instance.model_dump(mode="json", by_alias=True)
     assert set(dumped) == set(fields[name])
     # And the model reads back every key it wrote.
@@ -326,18 +336,94 @@ class _TypedMapping(CoreObject):
     counts: dict[str, int] = {}
 
 
+class _EnumValuedMapping(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    roles: dict[str, EmbargoConsentState] = {}
+
+
+class _IntKeyedMapping(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    by_index: dict[int, str] = {}
+
+
 class _NestedOptional(CoreObject):
     """No ``type_``, so it is not registered in the core vocabulary."""
 
     labels: list[str | None] = []
 
 
-def test_a_typed_mapping_fails_the_export_rather_than_typing_it_loosely() -> (
-    None
-):
-    # Only dict[str, Any] is an untyped JSON object; dict[str, int] says more.
-    with pytest.raises(TypeError, match="No ledger shape"):
-        project((LedgerType(_TypedMapping, "received"),))
+def test_a_typed_mapping_is_projected_with_its_value_shape() -> None:
+    # Only dict[str, Any] is an untyped JSON object; dict[str, int] says more,
+    # so its values keep their shape rather than being typed loosely.
+    shapes, _ = project((LedgerType(_TypedMapping, "received"),))
+    by_key = {field.key: field.shape for field in shapes["_TypedMapping"]}
+    assert by_key["counts"] == {
+        "kind": "map",
+        "keys": {"kind": "string", "nonEmpty": False},
+        "values": {"kind": "integer"},
+    }
+
+
+def test_a_mapping_value_is_projected_as_the_model_writes_it() -> None:
+    """The value probe dumps an enum member through the mapping, so the
+    shape carries the wire values, not the member names."""
+    shapes, enums = project((LedgerType(_EnumValuedMapping, "received"),))
+    by_key = {field.key: field.shape for field in shapes["_EnumValuedMapping"]}
+    assert by_key["roles"]["kind"] == "map"
+    assert by_key["roles"]["values"] == {"kind": "enum", "type": "Roles"}
+    assert enums["Roles"].values == tuple(m.value for m in EmbargoConsentState)
+
+
+def test_a_mapping_whose_keys_are_not_strings_fails_the_export() -> None:
+    with pytest.raises(TypeError, match="keys are not str or NonEmptyString"):
+        project((LedgerType(_IntKeyedMapping, "received"),))
+
+
+@pytest.mark.spec("ARCH-25-008", "CS-08-001")
+def test_the_language_maps_are_optional_non_blank_string_maps(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    """An empty map is left out of the dump (#4471), so no line needs one;
+    a ``null`` map is read as empty, so a line may carry one."""
+    non_empty = {"kind": "string", "nonEmpty": True}
+    for model in fields.values():
+        for key in ("contentMap", "nameMap", "summaryMap"):
+            field = model[key]
+            assert field.shape == {
+                "kind": "map",
+                "keys": non_empty,
+                "values": non_empty,
+            }
+            assert not field.required
+            assert field.nullable
+
+
+def test_the_null_reader_is_stripped_and_other_metadata_kept() -> None:
+    """Only the ``null``-as-empty reader leaves the annotation; a constraint
+    beside it still reaches the projection."""
+    kept = annotated_types.Ge(0)
+    annotation = Annotated[
+        dict[str, int], BeforeValidator(absent_as_empty), kept
+    ]
+
+    stripped, reads_null = export_ledger_types._strip_absent_as_empty(
+        annotation
+    )
+
+    assert reads_null
+    assert typing.get_origin(stripped) is typing.Annotated
+    assert typing.get_args(stripped) == (dict[str, int], kept)
+
+
+def test_an_annotation_without_the_null_reader_is_left_alone() -> None:
+    annotation = Annotated[dict[str, int], annotated_types.Ge(0)]
+
+    assert export_ledger_types._strip_absent_as_empty(annotation) == (
+        annotation,
+        False,
+    )
 
 
 def test_the_payload_snapshot_is_an_untyped_object(
@@ -345,6 +431,23 @@ def test_the_payload_snapshot_is_an_untyped_object(
 ) -> None:
     shape = fields["CaseLedgerEntry"]["payloadSnapshot"].shape
     assert shape == {"kind": "object"}
+
+
+@pytest.mark.parametrize("key", ["to", "context", "inReplyTo"])
+def test_an_as2_reference_slot_is_an_object_or_non_empty_iri(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]], key: str
+) -> None:
+    """One embedded object (core or another layer's) or IRI, or a list (#3894).
+
+    The core object and the already-built model both project to a JSON
+    object, so the union carries that member once.
+    """
+    one = [{"kind": "object"}, {"kind": "string", "nonEmpty": True}]
+    shape = fields["CaseLedgerEntry"][key].shape
+    assert shape == {
+        "kind": "union",
+        "of": [*one, {"kind": "array", "items": {"kind": "union", "of": one}}],
+    }
 
 
 def test_a_nested_optional_fails_the_export_rather_than_dropping_none() -> (

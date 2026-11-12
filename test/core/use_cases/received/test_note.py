@@ -24,7 +24,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body, received_event
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -138,6 +138,7 @@ class TestNoteUseCases:
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
@@ -206,6 +207,7 @@ class TestNoteUseCases:
                 target=addressed,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -257,6 +259,7 @@ class TestNoteUseCases:
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -302,6 +305,7 @@ class TestNoteUseCases:
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -334,6 +338,7 @@ class TestNoteUseCases:
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
+            at=authored_at(),
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(delivered_body(activity, at=dl))
@@ -448,6 +453,7 @@ class TestNoteUseCases:
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -492,6 +498,7 @@ class TestNoteUseCases:
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
+            at=authored_at(),
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(delivered_body(activity, at=dl))
@@ -535,6 +542,7 @@ class TestNoteUseCases:
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -574,6 +582,7 @@ class TestNoteUseCases:
                 target=case,
                 actor="https://example.org/users/finder",
                 to=[dl.actor_id],
+                at=authored_at(),
             ),
             receiving_actor_id=case_actor_id,
             at=dl,
@@ -626,6 +635,7 @@ class TestNoteUseCases:
                             target=case,
                             actor="https://example.org/users/finder",
                             to=[dl.actor_id],
+                            at=authored_at(),
                         ),
                         receiving_actor_id=case_actor_id,
                         at=dl,
@@ -685,6 +695,7 @@ class TestNoteUseCases:
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(
             activity,
@@ -958,6 +969,7 @@ class TestNoteUseCases:
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(
             activity,
@@ -1049,7 +1061,11 @@ class TestNoteUseCases:
         )
 
         activity = add_note_to_case_activity(
-            note, target=case, actor=author_id, to=[dl.actor_id]
+            note,
+            target=case,
+            actor=author_id,
+            to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
@@ -1061,10 +1077,10 @@ class TestNoteUseCases:
         send_announce = sync_port.send_announce_log_entry
 
         def recording_send_announce(
-            entry: CaseLedgerEntry, actor_id: str, to: list[str]
+            entry: CaseLedgerEntry, actor_id: str, to: list[str], *, at
         ) -> bool:
             stored_at_fan_out.append(dl.read(entry.id_) is not None)
-            return bool(send_announce(entry, actor_id, to))
+            return bool(send_announce(entry, actor_id, to, at=at))
 
         sync_port.send_announce_log_entry = recording_send_announce  # type: ignore[method-assign]
         run_in_act(
@@ -1176,7 +1192,11 @@ class TestNoteUseCases:
         )
 
         activity = add_note_to_case_activity(
-            note, target=case, actor=author_id, to=[dl.actor_id]
+            note,
+            target=case,
+            actor=author_id,
+            to=[dl.actor_id],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 

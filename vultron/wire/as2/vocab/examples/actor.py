@@ -28,6 +28,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
+    EXAMPLE_TIMESTAMP,
     case,
     case_actor,
     finder,
@@ -47,6 +48,7 @@ def recommend_actor() -> as_Offer:
         target=_case.id_,
         to=case_actor().id_,
         content=f"I'm recommending we add {_coordinator.name} to the case.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -67,6 +69,7 @@ def request_invite_actor_to_case() -> as_Offer:
         target=_case.id_,
         to=case_actor().id_,
         suggested_roles=[CVDRole.COORDINATOR.value],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -85,6 +88,7 @@ def accept_actor_recommendation() -> as_Accept:
         to=_finder.id_,
         content=f"We're accepting your recommendation to add {_coordinator.name} to the case. "
         "We'll reach out to them shortly.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -103,6 +107,7 @@ def reject_actor_recommendation() -> as_Reject:
         target=_case.id_,
         to=_finder.id_,
         content=f"We're declining your recommendation to add {_coordinator.name} to the case. Thanks anyway.",
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -122,6 +127,7 @@ def offer_case_participant() -> as_Offer:
         origin=_recommendation.id_,
         # The recommender's reason travels as ``content`` (CM-16-020).
         content=_recommendation.content,
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -141,6 +147,7 @@ def accept_case_participant_offer() -> as_Accept:
         content=(
             f"Accepting recommendation to add {_coordinator.name} to the case."
         ),
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity
 
@@ -160,5 +167,6 @@ def reject_case_participant_offer() -> as_Reject:
         content=(
             f"Declining recommendation to add {_coordinator.name} to the case."
         ),
+        at=EXAMPLE_TIMESTAMP,
     )
     return _activity

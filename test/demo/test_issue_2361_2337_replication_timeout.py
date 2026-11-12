@@ -49,13 +49,13 @@ to ``vendor_notifies_fix_ready`` in
 :mod:`vultron.demo.helpers.coordinated_story` and the milestone pair to
 ``the_fix_ready_milestones`` in
 :mod:`vultron.demo.helpers.vendor_story`, so the collaborators are patched
-where they now live and the Reporter's own poll stays on the scenario module,
-which is where its gate is.
+where they now live.  Since #6101 the fragment itself lives in
+:mod:`vultron.demo.helpers.vendor_story.continuations`, which ``rv`` and
+``rv-csaf`` share, so the Reporter's own poll is patched there too.
 """
 
 import vultron.demo.helpers.sync.ledger as sync_ledger
 import vultron.demo.helpers.sync.phase as sync_phase
-import vultron.demo.scenario.rv_demo as rv_demo_module
 from test.demo._helpers import gate_failures, mock_case, story_state
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import (
@@ -70,9 +70,11 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR,
     continuations as vendor_continuations,
 )
+from vultron.demo.helpers.vendor_story.continuations import (
+    the_vendor_reports_the_fix_ready,
+)
 from vultron.demo.scenario.rcvcv_demo import C1, C2, V1, V2
 from vultron.demo.scenario.rcvcv_demo.fragments import every_replica_converges
-from vultron.demo.scenario.rv_demo import the_vendor_reports_the_fix_ready
 from vultron.demo.utils import reset_demo_failures
 from vultron.demo.utils.failures import _demo_failures
 
@@ -161,16 +163,11 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
 
     # Every module that polls a participant's vf_state, so a poll the
     # Reporter's replica never satisfies raises wherever it is made: the
-    # Vendor's own check in ``coordinated_story.continuations``, the Reporter
-    # gate in the scenario, and the milestone pair in
-    # ``vendor_story.continuations``.  Patching only
-    # one would leave the others able to poll the Reporter unguarded, which
-    # is exactly the cascade #2361 removed.
-    for module in (
-        coordinated_continuations,
-        rv_demo_module,
-        vendor_continuations,
-    ):
+    # Vendor's own check in ``coordinated_story.continuations``, and the
+    # Reporter gate and the milestone pair in ``vendor_story.continuations``.
+    # Patching only one would leave the other able to poll the Reporter
+    # unguarded, which is exactly the cascade #2361 removed.
+    for module in (coordinated_continuations, vendor_continuations):
         monkeypatch.setattr(module, "wait_for_participant_vf_state", _vfd_poll)
 
     the_vendor_reports_the_fix_ready(state)
@@ -226,11 +223,7 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         "verify_stops_at_fix_ready",
         lambda *a, **kw: None,
     )
-    for module in (
-        coordinated_continuations,
-        rv_demo_module,
-        vendor_continuations,
-    ):
+    for module in (coordinated_continuations, vendor_continuations):
         monkeypatch.setattr(
             module, "wait_for_participant_vf_state", lambda *a, **kw: None
         )

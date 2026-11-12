@@ -19,16 +19,14 @@ Activate, refuse a proposal, withdraw, announce and remove an embargo.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
-
-from pydantic import ValidationError
+from datetime import datetime
 
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
@@ -50,13 +48,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def activate_embargo_activity(
     embargo: as_EmbargoEvent,
     in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(EmbargoEvent)[target=VulnerabilityCase].
@@ -82,24 +80,25 @@ def activate_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _ActivateEmbargoActivity(
-            object_=embargo,
-            target=case_target_ref(target),
-            in_reply_to=in_reply_to,
+    return build_activity(
+        "activate_embargo_activity",
+        _ActivateEmbargoActivity,
+        at,
+        lambda: {
+            "object_": embargo,
+            "target": case_target_ref(target),
+            "in_reply_to": in_reply_to,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning("activate_embargo_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "activate_embargo_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def reject_embargo_proposal_activity(
     embargo: as_EmbargoEvent,
     in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(EmbargoEvent)[target=VulnerabilityCase].
@@ -124,25 +123,24 @@ def reject_embargo_proposal_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RejectEmbargoProposalActivity(
-            object_=embargo,
-            target=case_target_ref(target),
-            in_reply_to=in_reply_to,
+    return build_activity(
+        "reject_embargo_proposal_activity",
+        _RejectEmbargoProposalActivity,
+        at,
+        lambda: {
+            "object_": embargo,
+            "target": case_target_ref(target),
+            "in_reply_to": in_reply_to,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_embargo_proposal_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "reject_embargo_proposal_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def withdraw_from_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Leave:
     """Build a Leave(EmbargoEvent)[context=VulnerabilityCase].
@@ -167,22 +165,19 @@ def withdraw_from_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _WithdrawFromEmbargoActivity(
-            object_=embargo, context=context, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "withdraw_from_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "withdraw_from_embargo_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "withdraw_from_embargo_activity",
+        _WithdrawFromEmbargoActivity,
+        at,
+        lambda: {"object_": embargo, "context": context, **kwargs},
+    )
 
 
 def announce_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(EmbargoEvent) — announces an active embargo.
@@ -200,15 +195,12 @@ def announce_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AnnounceEmbargoActivity(
-            object_=embargo, context=context, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning("announce_embargo_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "announce_embargo_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "announce_embargo_activity",
+        _AnnounceEmbargoActivity,
+        at,
+        lambda: {"object_": embargo, "context": context, **kwargs},
+    )
 
 
 #: The human-readable ``summary`` of a termination ``Remove``, by reason.
@@ -225,6 +217,7 @@ def remove_embargo_from_case_activity(
     *,
     reason: TerminationReason,
     cause: TerminationCause | None = None,
+    at: datetime,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(EmbargoEvent), the case in ``origin``.
@@ -261,19 +254,16 @@ def remove_embargo_from_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails,
             including a *cause* on an ``END_TIME_REACHED`` termination.
     """
-    try:
-        kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
-        return _RemoveEmbargoFromCaseActivity(
-            object_=embargo,
-            origin=origin,
-            content=reason.value,
-            termination_cause=cause,
+    kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
+    return build_activity(
+        "remove_embargo_from_case_activity",
+        _RemoveEmbargoFromCaseActivity,
+        at,
+        lambda: {
+            "object_": embargo,
+            "origin": origin,
+            "content": reason.value,
+            "termination_cause": cause,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "remove_embargo_from_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "remove_embargo_from_case_activity: invalid arguments"
-        ) from exc
+        },
+    )

@@ -17,15 +17,13 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
+from datetime import datetime
 
-from pydantic import ValidationError
-
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.content import (
     _AddCaseReferenceToCaseActivity,
     _AddNoteToCaseActivity,
@@ -56,12 +54,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def add_report_to_case_activity(
     report: as_VulnerabilityReport,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(VulnerabilityReport)[target=VulnerabilityCase].
@@ -80,22 +78,23 @@ def add_report_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AddReportToCaseActivity(
-            object_=report, target=case_target_ref(target), **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "add_report_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "add_report_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "add_report_to_case_activity",
+        _AddReportToCaseActivity,
+        at,
+        lambda: {
+            "object_": report,
+            "target": case_target_ref(target),
+            **kwargs,
+        },
+    )
 
 
 def add_status_to_case_activity(
     status: as_CaseStatus,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(CaseStatus)[target=VulnerabilityCase].
@@ -113,21 +112,22 @@ def add_status_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AddStatusToCaseActivity(
-            object_=status, target=case_target_ref(target), **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "add_status_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "add_status_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "add_status_to_case_activity",
+        _AddStatusToCaseActivity,
+        at,
+        lambda: {
+            "object_": status,
+            "target": case_target_ref(target),
+            **kwargs,
+        },
+    )
 
 
 def create_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(VulnerabilityCase).
@@ -143,18 +143,19 @@ def create_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _CreateCaseActivity(object_=case, **kwargs)
-    except ValidationError as exc:
-        logger.warning("create_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "create_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "create_case_activity",
+        _CreateCaseActivity,
+        at,
+        lambda: {"object_": case, **kwargs},
+    )
 
 
 def add_note_to_case_activity(
     note: as_Note,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(Note)[target=VulnerabilityCase].
@@ -179,17 +180,16 @@ def add_note_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AddNoteToCaseActivity(
-            object_=note,
-            target=case_target_ref(target),
+    return build_activity(
+        "add_note_to_case_activity",
+        _AddNoteToCaseActivity,
+        at,
+        lambda: {
+            "object_": note,
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning("add_note_to_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "add_note_to_case_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def add_vulnerability_item_to_case_activity(
@@ -266,6 +266,8 @@ def add_case_reference_to_case_activity(
 
 def update_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Update:
     """Build an Update(VulnerabilityCase).
@@ -285,19 +287,18 @@ def update_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _UpdateCaseActivity(
-            object_=case, **with_case_context(kwargs, case)
-        )
-    except ValidationError as exc:
-        logger.warning("update_case_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "update_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "update_case_activity",
+        _UpdateCaseActivity,
+        at,
+        lambda: {"object_": case, **with_case_context(kwargs, case)},
+    )
 
 
 def announce_vulnerability_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(VulnerabilityCase) — sent by the case owner.
@@ -317,12 +318,9 @@ def announce_vulnerability_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AnnounceVulnerabilityCaseActivity(object_=case, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "announce_vulnerability_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "announce_vulnerability_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "announce_vulnerability_case_activity",
+        _AnnounceVulnerabilityCaseActivity,
+        at,
+        lambda: {"object_": case, **kwargs},
+    )

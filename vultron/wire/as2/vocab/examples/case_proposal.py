@@ -58,6 +58,7 @@ def make_case_proposal() -> as_CaseProposal:
         target=_CASE_ACTOR_URI,
         summary="Request case initialization for a new vulnerability.",
         proposer_case_roles=[CVDRole.VENDOR],
+        **_example_stamp(),
     )
 
 
@@ -96,6 +97,7 @@ def create_case_proposal() -> as_Create:
         actor=vendor_profile(),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
+        **_example_stamp(),
     )
 
 
@@ -111,6 +113,7 @@ def accept_case_proposal() -> as_Accept:
         actor=_CASE_ACTOR_URI,
         object_=proposal,
         to=[_VENDOR.id_],
+        **_example_stamp(),
     )
 
 
@@ -125,4 +128,5 @@ def reject_case_proposal() -> as_Reject:
         actor=_CASE_ACTOR_URI,
         object_=proposal,
         to=[_VENDOR.id_],
+        **_example_stamp(),
     )

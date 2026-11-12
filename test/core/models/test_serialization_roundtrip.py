@@ -15,7 +15,7 @@ activity ID.
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -90,7 +90,9 @@ class TestVultronActivityIdRoundTrip:
         dumped = act.model_dump(by_alias=True)
         assert dumped.get("id") == "urn:uuid:act-original"
 
-        restored = VultronActivity.model_validate(dumped)
+        restored = VultronActivity.model_validate(
+            with_times(VultronActivity, dumped)
+        )
         assert restored.id_ == "urn:uuid:act-original"
 
 
@@ -128,7 +130,7 @@ class TestSubclassTypeAlias:
             "type": expected_type,
             "actor": "https://example.org/actors/test",
         }
-        obj = cls.model_validate(data)
+        obj = cls.model_validate(with_times(cls, data))
         assert obj.type_ == expected_type
 
 
@@ -150,7 +152,9 @@ class TestCrossModelRoundTrip:
             "object": "urn:uuid:case-123",
             "to": ["https://finder.example.org/actors/finder"],
         }
-        vultron_act = VultronActivity.model_validate(as_create_dump)
+        vultron_act = VultronActivity.model_validate(
+            with_times(VultronActivity, as_create_dump)
+        )
         assert vultron_act.id_ == "urn:uuid:original-activity-id"
         assert vultron_act.type_ == "Create"
 

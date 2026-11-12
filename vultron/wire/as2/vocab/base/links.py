@@ -16,12 +16,13 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal, TypeAlias, TypeVar
+from typing import ClassVar, Literal, TypeAlias, TypeVar
 
 from pydantic import Field
 
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 
 class as_Link(as_Base):
@@ -41,14 +42,42 @@ class as_Link(as_Base):
         validation_alias="type",
         serialization_alias="type",
     )
+    #: A Link is not an Object, and AS2 gives it no id of its own.  One this
+    #: process builds still takes a minted id; a received one that omits it
+    #: keeps none (OID-01-013).
+    _inbound_requires_id: ClassVar[bool] = False
+    id_: NonEmptyString | None = Field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=generate_new_id,
+        validation_alias="id",
+        serialization_alias="id",
+    )
     width: int | None = None
     height: int | None = None
     #: AS2 ``rel`` is not functional: one relation type as a string, or
     #: several as an array (VOC ``rel``).
     rel: NonEmptyString | list[NonEmptyString] | None = None
-    #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
-    href: NonEmptyString | None = None
+    #: A Link names its resource by ``href`` (AS2 § 3.2): one without points
+    #: nowhere, and one with a blank ``href`` points nowhere too (CS-08-001).
+    #: Required whether received or built here, so an untyped dict in an
+    #: object-or-link slot that fails its object class is refused rather than
+    #: read as an empty Link (MV-04-005).
+    href: NonEmptyString
     hreflang: NonEmptyString | None = None
+
+
+class as_Mention(as_Link):
+    """A specialized Link that represents an @mention (AS2 Vocabulary 3.2).
+
+    A Link subtype, so a received one keeps its ``href`` and needs no ``id``.
+    See definition in ActivityStreams Vocabulary
+    <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-mention>
+    """
+
+    type_: Literal["Mention"] = Field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+        default="Mention",
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 T_co = TypeVar("T_co", covariant=True)
@@ -70,7 +99,7 @@ ActivityStreamRef: TypeAlias = T_co | as_Link | NonEmptyString | None
 
 
 def main():
-    x = as_Link()
+    x = as_Link(href="https://example.org/")
     print(x.to_dict())
     print(x.to_json(indent=2))
 

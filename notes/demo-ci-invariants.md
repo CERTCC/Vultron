@@ -204,6 +204,7 @@ annotations such as `(≥3)` belong to the count tests and are not checked.
 | RCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
 | RCVV embargo | DEMOMA-16-017 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
 | rv | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
+| rv-csaf | DEMOMA-16-019 | same | invite_to_embargo_on_case, accept_invite_to_embargo_on_case, remove_embargo_event_from_case |
 | RVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | RVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | RVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |

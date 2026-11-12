@@ -25,6 +25,8 @@ from collections.abc import Sequence
 from vultron.core.states.cs import CS_vf
 from vultron.demo.helpers.coordinated_story import (
     REPORTER,
+    close_the_case,
+    reports_published,
     vendor_notifies_fix_ready,
 )
 from vultron.demo.helpers.milestones import (
@@ -49,7 +51,7 @@ from vultron.demo.helpers.vendor_story.opening import (
     THE_VENDORS_CASE,
     VENDORS_ANSWER,
 )
-from vultron.demo.utils import demo_check
+from vultron.demo.utils import demo_check, demo_gate
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +290,74 @@ def the_disclosure_reached_every_replica(
         )
 
 
+# ---------------------------------------------------------------------------
+# The two-party ending: the Vendor's fix, the disclosure and the closure
+# ---------------------------------------------------------------------------
+#
+# Told by ``rv`` and ``rv-csaf``, whose cases hold only the Reporter and the
+# Vendor once the case is open.  The milestone labels are both scenarios'
+# (M4 to M7): the two number their earlier milestones to match.
+
+
+def the_vendor_reports_the_fix_ready(state: StoryState) -> None:
+    """The Vendor reports fix ready and stops at VFd (CSB-15-002).
+
+    The milestone checks nest inside the trigger's gate and inside a gate on
+    the Reporter's replica, so a refused trigger or a replica that never
+    caught up skips them rather than comparing state that was never written
+    (CSB-18-001, DEMOCI-01-011).
+    """
+    vendor_notifies_fix_ready(
+        state,
+        VENDOR,
+        VENDOR_LABEL,
+        then=lambda: _the_reporter_replica_reflects_the_fix(state),
+    )
+
+
+def _the_reporter_replica_reflects_the_fix(state: StoryState) -> None:
+    """The M4 and M5 milestones, inside the gate on the Reporter's replica."""
+    with demo_gate("M4/M5: reporter replica reflects fix-ready vf_state"):
+        wait_for_participant_vf_state(
+            client=state.client(REPORTER),
+            case_id=state.case.id_,
+            actor_id=state.actor_id(VENDOR),
+            expected_states={CS_vf.VF},
+        )
+        the_fix_ready_milestones(
+            state,
+            reached="M4: both replicas show CS includes F (fix ready)",
+            stopped="M5: both replicas show the vendor stopped at VFd — no"
+            " fix-deployed transition",
+        )
+
+
+def both_publish(state: StoryState) -> None:
+    """The Vendor, the Case Owner, publishes first; then the Reporter."""
+    reports_published(state, VENDOR)
+    the_embargo_ends_for(
+        state,
+        check="Embargo terminated (EM.EXITED) after Vendor reports published",
+        watcher=VENDOR,
+    )
+    reports_published(state, REPORTER)
+    the_disclosure_reached_every_replica(
+        state,
+        check=(
+            "M6: both replicas CS.VFdPxa, EM.EXITED, vendor participant is "
+            "public-aware"
+        ),
+    )
+
+
+def both_close(state: StoryState) -> None:
+    """The Reporter leaves; the Vendor, the Case Owner, leaves last."""
+    close_the_case(state, others=(REPORTER,), owner=VENDOR, milestone="M7")
+
+
 __all__ = [
+    "both_close",
+    "both_publish",
     "both_vendors_report_the_fix_ready",
     "required_participants_are_present",
     "the_disclosure_reached_every_replica",
@@ -296,5 +365,6 @@ __all__ = [
     "the_fix_ready_milestones",
     "the_fix_ready_reached_the_reporter",
     "the_joiners_add_their_notes",
+    "the_vendor_reports_the_fix_ready",
     "the_vendors_stopped_at_vfd",
 ]

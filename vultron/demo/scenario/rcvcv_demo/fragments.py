@@ -18,7 +18,8 @@
 (:data:`~vultron.demo.helpers.coordinated_story.REPORTER_ASKS_THE_VENDOR`)
 and then tells these fragments, in the order its story lists them
 (:mod:`~vultron.demo.scenario.rcvcv_demo.story`): a second Coordinator joins,
-suggests a VendorDeployer through ADR-0026, and the five parties run the
+asks its participant suggester who else belongs (BT-24-007), suggests the
+VendorDeployer it names through ADR-0026, and the five parties run the
 lifecycle to closure.  The cast names they read are in
 :mod:`~vultron.demo.scenario.rcvcv_demo.cast` (CS-18-005, DEMOMA-19).
 """
@@ -48,6 +49,11 @@ from vultron.demo.helpers.owner_decision_story import (
     Part,
     the_owner_approves_a_suggested_actor,
 )
+from vultron.demo.helpers.participant_suggestion import (
+    Candidate,
+    SuggestedActor,
+    ask_who_else_belongs,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     wait_for_case_em_terminated,
@@ -75,6 +81,7 @@ from vultron.demo.scenario.rcvcv_demo.cast import (
 )
 from vultron.demo.utils import (
     demo_check,
+    demo_gate,
     demo_step,
     ref_id,
 )
@@ -147,10 +154,11 @@ def seed_the_second_coordinator_and_vendor(state: StoryState) -> None:
         seat_character_actors(state, {C2: seeded[3].id_, V2: seeded[4].id_})
 
 
-#: The case C2 has joined, as its id.  Read by the suggestion C2 makes next,
-#: which only a participant may make (DEMOMA-19-009), so a join whose roster
-#: never filled stops the story there rather than suggesting into a case C2 is
-#: not in (DEMOCI-01-011, #5535).
+#: The case C2 has joined, as its id.  Read by C2's ask of its participant
+#: suggester and by the suggestion C2 then makes, which only a participant may
+#: make (DEMOMA-19-009), so a join whose roster never filled stops the story
+#: there rather than suggesting into a case C2 is not in (DEMOCI-01-011,
+#: #5535).
 C2_JOINED: StoryProp[str] = StoryProp("case C2 joined", str)
 
 
@@ -189,25 +197,80 @@ def required_participants_are_present(state: StoryState) -> None:
         )
 
 
+#: Who C2's participant suggester names (BT-24-007): the scenario's
+#: candidate table, which the static adapter answers from.  V2 is two rows,
+#: one per role, because a suggestion carries one role (BT-24-004); both roles
+#: reach the Invite that seats V2, which is what makes it a Deployer as well
+#: as a Vendor (DEMOCI-11-021).
+C2_CANDIDATES: tuple[Candidate, ...] = (
+    Candidate(
+        Part(V2, V2_LABEL),
+        CVDRole.VENDOR,
+        "V2 ships the component the report names",
+    ),
+    Candidate(
+        Part(V2, V2_LABEL),
+        CVDRole.DEPLOYER,
+        "V2 also runs the component in its own deployment",
+    ),
+)
+
+#: The one actor C2's participant suggester named, kept for the suggestion
+#: C2 then makes.  Kept only when the answer names exactly one actor, so an
+#: answer that names no one stops the story before C2 suggests anybody.
+C2_SUGGESTED: StoryProp[SuggestedActor] = StoryProp(
+    "actor C2's suggester named", SuggestedActor
+)
+
+
+def c2_asks_who_else_belongs(state: StoryState) -> None:
+    """C2 asks its participant suggester who else belongs in the case.
+
+    The suggester is the static adapter over :data:`C2_CANDIDATES`, asked
+    through the core service about C2's own replica (BT-24-007, BT-24-008),
+    so the suggestion C2 makes next comes from its answer rather than from a
+    hard-coded actor (#6152).  Reads :data:`C2_JOINED` first: C2 asks about
+    a case it is in.
+    """
+    state.kept(C2_JOINED)
+    with demo_gate(
+        f"{C2_LABEL}'s participant suggester names one actor from its"
+        " candidate table"
+    ):
+        suggested = ask_who_else_belongs(
+            state, Part(C2, C2_LABEL), C2_CANDIDATES
+        )
+        if len(suggested) != 1:
+            raise AssertionError(
+                f"{C2_LABEL}'s participant suggester named "
+                f"{[s.part.label for s in suggested]}; this scenario seats "
+                "exactly one suggested actor"
+            )
+        state.keep(C2_SUGGESTED, suggested[0])
+
+
 def c2_suggests_the_vendor_deployer(state: StoryState) -> None:
-    """C2 suggests V2 via ADR-0026; C1 approves; V2 joins (DEMOMA-19-009).
+    """C2 suggests the actor its suggester named; C1 approves; it joins
+    (DEMOMA-19-009).
 
     The ADR-0026 suggest-actor flow, which the two-coordinator pair's
     ``owner-keep-case:keep`` continuation also tells, so it is one shared step
     (:func:`~vultron.demo.helpers.owner_decision_story\
-    .the_owner_approves_a_suggested_actor`, DEMOMA-17-001).  V2's roles are
-    explicit so ``EvaluateDefaultRolesNode`` does not fall back to its
-    hardcoded ``[VENDOR]`` default (#1969), which is what makes V2 a Deployer
-    as well as a Vendor.
+    .the_owner_approves_a_suggested_actor`, DEMOMA-17-001).  The newcomer and
+    its roles are :data:`C2_SUGGESTED`, the answer C2's suggester gave from
+    :data:`C2_CANDIDATES`: V2, as Vendor and Deployer.  The roles are explicit
+    so ``EvaluateDefaultRolesNode`` does not fall back to its hardcoded
+    ``[VENDOR]`` default (#1969).
     """
+    suggested = state.kept(C2_SUGGESTED)
     the_owner_approves_a_suggested_actor(
         state,
         joined=C2_JOINED,
         owner=Part(C1, C1_LABEL),
         suggester=Part(C2, C2_LABEL),
-        newcomer=Part(V2, V2_LABEL),
-        roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
-        seated=(REPORTER, C1, V1, C2, V2),
+        newcomer=suggested.part,
+        roles=list(suggested.roles),
+        seated=(REPORTER, C1, V1, C2, suggested.part.name),
         timeout_seconds=LATE_JOIN_TIMEOUT,
         join_timeout=LATE_JOINER_TIMEOUT,
     )

@@ -24,7 +24,11 @@ import py_trees
 import pytest
 
 from test.support.child_env import REPO_ROOT, child_env
-from test.support.objects import make
+from vultron.adapters.driven.clock import (
+    SystemClock,
+    act_clock,
+    install_act_clock,
+)
 from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
     clock as helpers_clock,
@@ -33,7 +37,7 @@ from vultron.core.models._helpers import (
     now_utc,
 )
 from vultron.core.models.base import CoreRecord
-from vultron.core.models.report import VulnerabilityReport
+from vultron.demo import wall_clock
 from vultron.demo.determinism import (
     RECORDING_CLOCK_STEP,
     RECORDING_EPOCH,
@@ -41,7 +45,10 @@ from vultron.demo.determinism import (
     SteppingClock,
     deterministic_run,
 )
-from vultron.errors import VultronIdSourceInstalledError
+from vultron.errors import (
+    VultronActClockInstalledError,
+    VultronIdSourceInstalledError,
+)
 
 _START = datetime(2026, 3, 1, tzinfo=UTC)
 
@@ -102,29 +109,44 @@ class TestSteppingClock:
 
 
 class TestDeterministicRun:
-    def test_now_utc_reads_the_recording_clock(self):
-        # The first read moves the clock one step, and `now_utc()` keeps
-        # microseconds, so the step shows (CS-13-007).
+    @pytest.mark.spec("CS-13-002")
+    def test_the_act_clock_is_the_recording_clock(self):
+        # The first read moves the clock one step, and the step is finer
+        # than a second, so it shows (CS-13-007).
         with deterministic_run("rv"):
-            assert now_utc() == RECORDING_EPOCH + RECORDING_CLOCK_STEP
+            assert act_clock().now() == RECORDING_EPOCH + RECORDING_CLOCK_STEP
 
-    def test_the_clock_advances_across_reads(self):
-        with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):
-            assert [now_utc(), now_utc()] == [
+    def test_the_recording_clock_advances_once_per_read(self):
+        with deterministic_run(
+            "rv", clock=SteppingClock(_START, step=timedelta(seconds=1))
+        ):
+            assert [act_clock().now(), act_clock().now()] == [
                 _START + timedelta(seconds=1),
                 _START + timedelta(seconds=2),
             ]
 
-    def test_a_captured_default_factory_reads_the_recording_clock(self):
-        # `published` defaults through a `now_utc` reference the field captured
-        # at class creation, which only the `_helpers.clock.datetime` seam
-        # reaches.  An object time still has the default (#5758 removes it
-        # last); a record's time no longer does.
-        with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):
-            report = make(VulnerabilityReport, name="r", content="c")
-        assert report.published is not None
-        assert report.published.year == _START.year
-        assert report.published.month == _START.month
+    def test_a_demo_client_reads_the_recording_clock(self):
+        clock = SteppingClock(_START, step=timedelta(seconds=1))
+        with deterministic_run("rv", clock=clock):
+            assert wall_clock.now() == _START + timedelta(seconds=1)
+
+    @pytest.mark.spec("CS-13-002")
+    def test_no_clock_is_patched(self):
+        # The recording clock arrives through the port (ADR-0176): the wall
+        # clock behind now_utc is the real one, and reading it moves no
+        # recording clock.
+        real_datetime = helpers_clock.datetime
+        clock = SteppingClock(_START, step=timedelta(seconds=1))
+        with deterministic_run("rv", clock=clock):
+            assert helpers_clock.datetime is real_datetime
+            now_utc()
+            assert act_clock().now() == _START + timedelta(seconds=1)
+
+    def test_each_run_starts_a_fresh_recording_clock(self):
+        with deterministic_run("rv"):
+            first = act_clock().now()
+        with deterministic_run("rv"):
+            assert act_clock().now() == first
 
     @pytest.mark.spec("OID-01-004")
     def test_the_shared_minter_repeats_its_ids(self):
@@ -180,10 +202,9 @@ class TestDeterministicRun:
         assert client.id() not in seeded
 
     def test_everything_is_restored_on_exit(self):
-        real_datetime = helpers_clock.datetime
         with deterministic_run("rv"):
             pass
-        assert helpers_clock.datetime is real_datetime
+        assert isinstance(act_clock(), SystemClock)
         # The seeded source is uninstalled: the minter no longer draws from
         # it, and another install is admitted.
         assert new_object_id() != _seeded_ids("rv", 1)[0]
@@ -191,25 +212,51 @@ class TestDeterministicRun:
             assert new_object_id() == _seeded_ids("after", 1)[0]
 
     def test_everything_is_restored_when_the_block_raises(self):
-        real_datetime = helpers_clock.datetime
         with pytest.raises(RuntimeError), deterministic_run("rv"):
             raise RuntimeError("boom")
-        assert helpers_clock.datetime is real_datetime
+        assert isinstance(act_clock(), SystemClock)
         assert new_object_id() != _seeded_ids("rv", 1)[0]
         with install_id_source(SeededUuid4("after")):
             assert new_object_id() == _seeded_ids("after", 1)[0]
 
     def test_a_nested_run_is_refused(self):
-        real_datetime = helpers_clock.datetime
-        with deterministic_run("rv"):
+        clock = SteppingClock(_START, step=timedelta(seconds=1))
+        with deterministic_run("rv", clock=clock):
             with (
                 pytest.raises(VultronIdSourceInstalledError),
                 deterministic_run("rcv"),
             ):
                 pass
-            # The refused run leaves the outer one's ids in place.
+            # The refused run leaves the outer one's ids and clock in place.
             assert new_object_id() == _seeded_ids("rv", 1)[0]
-        assert helpers_clock.datetime is real_datetime
+            assert act_clock() is clock
+        assert isinstance(act_clock(), SystemClock)
+
+    def test_a_run_inside_an_installed_act_clock_is_refused_whole(self):
+        # The id source is installed first, so the refused clock install
+        # must hand it back: the seeded stream does not outlive the refusal.
+        clock = SteppingClock(_START)
+        with install_act_clock(clock):
+            with (
+                pytest.raises(VultronActClockInstalledError),
+                deterministic_run("rv"),
+            ):
+                pass
+            assert act_clock() is clock
+            assert new_object_id() != _seeded_ids("rv", 1)[0]
+            with install_id_source(SeededUuid4("after")):
+                assert new_object_id() == _seeded_ids("after", 1)[0]
+
+    def test_a_nested_act_clock_install_is_refused(self):
+        clock = SteppingClock(_START)
+        with install_act_clock(clock):
+            with (
+                pytest.raises(VultronActClockInstalledError),
+                install_act_clock(SteppingClock(_START)),
+            ):
+                pass
+            assert act_clock() is clock
+        assert isinstance(act_clock(), SystemClock)
 
 
 def _run_fresh(code: str) -> subprocess.CompletedProcess[str]:

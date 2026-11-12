@@ -285,6 +285,27 @@ groups:
       spec_id: MV-04-003
     adr:
     - ADR-0090
+  - id: MV-04-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A Link MUST carry a non-empty `href`, whether it is received or built locally.
+    rationale: >-
+      A Link names its resource by `href` (AS2 Vocabulary § 3.2), so a Link without one
+      names nothing. If a Link could lack an `href`, every untyped inline object that
+      failed its object class would fall through the slot's union to an empty Link,
+      and its content would be lost without a trace (#5715). With the `href` required,
+      such an object is refused instead.
+    verification: >-
+      Tests marked `MV-04-005` in `test/wire/as2/vocab/base/test_links.py`,
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` and
+      `test/wire/as2/test_parser_case_stub.py` confirm that a Link or Mention with no
+      `href` is refused, that an untyped `attributedTo` and an untyped stub
+      `caseStatus` that fail their object class are refused, and that a Link with an
+      `href` still parses.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-04-003
 - id: MV-05
   title: URI Validation
   specs:

@@ -13,12 +13,12 @@
 """``broadcast_case_update``: who the CASE_MANAGER's case announcement reaches."""
 
 from collections.abc import Collection
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.behaviors.case import update_support
 from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.case import VulnerabilityCase
@@ -61,6 +61,7 @@ def test_announces_to_the_selected_recipients_and_queues_it(monkeypatch):
         make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         MANAGER_ID,
         port,
+        at=authored_at(),
     )
 
     port.announce_vulnerability_case.assert_called_once_with(
@@ -68,6 +69,7 @@ def test_announces_to_the_selected_recipients_and_queues_it(monkeypatch):
         actor=MANAGER_ID,
         context_id=CASE_ID,
         to=[PARTICIPANT_ID],
+        at=ANY,
     )
     dl.outbox_append.assert_called_once_with("urn:uuid:announce-1")
 
@@ -84,6 +86,7 @@ def test_no_active_participant_means_no_announce(monkeypatch):
         make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         MANAGER_ID,
         port,
+        at=authored_at(),
     )
 
     port.announce_vulnerability_case.assert_not_called()
@@ -100,6 +103,7 @@ def test_omitted_exclusions_exclude_nobody(monkeypatch):
         make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         MANAGER_ID,
         MagicMock(),
+        at=authored_at(),
     )
 
     assert seen == [set()]
@@ -115,6 +119,7 @@ def test_given_exclusions_reach_the_selection(monkeypatch):
         MANAGER_ID,
         MagicMock(),
         excluded_actor_ids={PARTICIPANT_ID},
+        at=authored_at(),
     )
 
     assert seen == [{PARTICIPANT_ID}]

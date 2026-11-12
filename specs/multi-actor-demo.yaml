@@ -3584,6 +3584,24 @@ groups:
     - spec_id: VAM-05-008
       reason: 'a cited rationale'
 
+  - id: DEMOMA-16-019
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The RV-CSAF scenario expected-semantic-types list MUST include
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
+      `remove_embargo_event_from_case`, besides the universal types
+      (DEMOMA-16-001). They record the relayed revision of the Vendor's longer
+      default, its acceptance, and the end of the embargo.
+    rationale: >-
+      The relayed revision is what shortest-wins leaves behind when the CSAF
+      date is the shorter term (EP-04-003, EP-04-027); without its entries a
+      run in which the Vendor's default never competed passes the type check.
+    relationships:
+    - rel_type: extends
+      spec_id: DEMOMA-16-001
+
   - id: DEMOMA-16-014
     priority: MUST
     kind: project
@@ -4152,9 +4170,11 @@ groups:
     - order: 2
       actor: c2
       action: >-
-        c2_suggests_v2 phase — drive the ADR-0026 suggest-actor flow for V2's
-        onboarding (DEMOMA-19-009)
+        c2_suggests_v2 phase — C2 asks its static participant-suggestion
+        adapter who else belongs (BT-24-007), then drives the ADR-0026
+        suggest-actor flow for the V2 it names (DEMOMA-19-009)
       expected: >-
+        the adapter names V2 as VENDOR and DEPLOYER from the scenario's table;
         C2 posts suggest-actor-to-case; C1 posts accept-actor-recommendation;
         CaseActor invites V2; V2 posts accept-case-invite
     - order: 3
@@ -7264,5 +7284,160 @@ groups:
       spec_id: DEMOMA-17-001
     - rel_type: uses_definition
       spec_id: DEMOMA-12-017
+    tags:
+    - demo
+- id: DEMOMA-28
+  title: RV-CSAF Scenario (a Reporter's CSAF report starts the Vendor's case)
+  trigger:
+    type: scenario_start
+    value: rv-csaf
+  specs:
+  - id: DEMOMA-28-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The RV-CSAF scenario MUST involve three actor identities, each with its own
+      isolated DataLayer and separate container: Reporter, Vendor and CaseActor.
+      Throughout, the Vendor holds CVDRole.CASE_OWNER and the CaseActor holds
+      CVDRole.CASE_MANAGER.
+    rationale: >-
+      The topology is rv's (DEMOMA-06): the scenario exists to show one thing,
+      a case that starts from a CSAF report, so every other variable is held
+      equal to the baseline two-party run.
+    verification: >-
+      `test/demo/test_rv_csaf_demo.py::test_the_cast_is_the_reporter_the_vendor_and_the_case_actor`
+      asserts the scenario's `ROLES`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    tags:
+    - demo
+  - id: DEMOMA-28-002
+    priority: MUST
+    kind: project
+    statement: >-
+      In the RV-CSAF scenario, the Reporter MUST call submit-report with a CSAF
+      2.1 vulnerability report attached and no report name, summary or embargo
+      end. The Vendor has first published a default embargo longer than the
+      term to the document's `disclosure_date`.
+    rationale: >-
+      Stating none of the three leaves each one to the document (CSAF-04-010),
+      so the case's values can only have come from it. The Vendor's longer
+      default gives the document's date an actor default to compete with, so
+      the run shows shortest-wins (EP-04-003) rather than an uncontested
+      proposal.
+    verification: >-
+      `test/demo/test_rv_csaf_demo.py::TestTheReporterSendsACsafReport`
+      asserts the policy is published before the submission and that the
+      submission attaches the document and states no report name.
+    relationships:
+    - rel_type: refines
+      spec_id: CSAF-04-010
+    tags:
+    - demo
+  - id: DEMOMA-28-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The RV-CSAF scenario MUST check the canonical case against the CSAF
+      document. Its name is the `document.title` and its summary the
+      document-level `summary` note. Its active embargo ends at the
+      `disclosure_date`, and the Vendor's default is the pending revision.
+    rationale: >-
+      These are the values a CASE_MANAGER fills from an initial CSAF report
+      (CSAF-03-001, CSAF-03-007). Reading them on the CaseActor's store checks
+      the side that created the case, not a replica that may lag it
+      (DEMOMA-06-004).
+    preconditions:
+    - description: >-
+        The Reporter, Vendor and CaseActor containers are running, the actors
+        are seeded and cross-registered, and no VulnerabilityCase exists for
+        the report (DEMOMA-28-001).
+    steps:
+    - order: 1
+      actor: vendor
+      action: >-
+        The Vendor publishes its default embargo policy on its own profile.
+      expected: >-
+        The Vendor's profile carries an EmbargoPolicy longer than the
+        document's term (DEMOMA-28-002).
+    - order: 2
+      actor: reporter
+      action: >-
+        The Reporter calls submit-report with the CSAF document attached and
+        no report name, summary or proposed embargo end; the Vendor validates
+        the report and engages the case.
+      expected: >-
+        The Offer's report is named from the document's title and its
+        `proposedEmbargo` ends at the document's `disclosure_date`
+        (CSAF-04-010); the CaseActor creates the case with the Vendor as
+        CVDRole.CASE_OWNER (DEMOMA-28-001).
+    - order: 3
+      actor: reporter
+      action: >-
+        The scenario reads the canonical case on the CaseActor's container.
+      expected: >-
+        The case's name, summary and active embargo end are the document's,
+        and the Vendor's default is the one pending revision (DEMOMA-28-003).
+    - order: 4
+      actor: vendor
+      action: >-
+        The note thread, the Vendor's fix, the publication and the closure
+        follow as in rv.
+      expected: >-
+        Every participant at RM.CLOSED, which the universal Invariant 7 check
+        (`test_invariant_7_log_terminates_all_rm_closed`) asserts for every
+        scenario rather than this group.
+    postconditions:
+    - description: >-
+        The case is closed, and its name, summary and first embargo came from
+        the Reporter's CSAF report (DEMOMA-28-003).
+    verification: >-
+      `test/demo/test_rv_csaf_demo.py::TestTheCaseStartsFromTheCsafReport`
+      drives the checks against a case that matches the document and against
+      one that does not; the scenario's recording,
+      `ui/src/recordings/rv-csaf/case-actor.jsonl`, holds the case as created.
+    relationships:
+    - rel_type: refines
+      spec_id: CSAF-03-001
+    - rel_type: refines
+      spec_id: CSAF-03-007
+    tags:
+    - demo
+  - id: DEMOMA-28-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The RV-CSAF scenario's CSAF document MUST be a document this project wrote
+      that is schema-valid against the pinned CSAF 2.1 revision.
+    rationale: >-
+      The suite never reads the CSAF Technical Committee's test documents
+      (CSAF-05-004), and the submit-report trigger refuses a document that is
+      not schema-valid (CSAF-04-009), so an invalid fixture would stop the
+      scenario at its first act.
+    verification: >-
+      `test/demo_unit/test_csaf_report_fixture.py` reads the document with the
+      trigger's own reader and asserts a schema-valid verdict with no errors.
+    relationships:
+    - rel_type: refines
+      spec_id: CSAF-04-009
+    tags:
+    - demo
+  - id: DEMOMA-28-005
+    priority: MUST
+    kind: project
+    statement: >-
+      After the case starts, the RV-CSAF story MUST tell rv's note thread, fix,
+      publication and closure with rv's own fragments.
+    rationale: >-
+      Only the opening differs from rv, so what follows the case's start is one
+      copy of the code (DEMOMA-17-001), and a fix to rv's ending reaches this
+      scenario too.
+    verification: >-
+      `test/demo/test_rv_csaf_demo.py::test_the_story_ends_with_rvs_fragments`
+      asserts the scenario's last fragments are the ones rv's story ends with.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
     tags:
     - demo

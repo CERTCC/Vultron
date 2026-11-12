@@ -24,7 +24,9 @@ from typing import cast
 
 import pytest
 
+from test.support.objects import with_times
 from vultron.demo.utils import DataLayerClient, discover_actors
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 _UTILS_LOGGER = "vultron.demo.utils"
 
@@ -32,10 +34,18 @@ _REPORTER_ID = "https://example.org/actors/finn"
 _VENDOR_ID = "https://example.org/actors/vendorco"
 _COORDINATOR_ID = "https://example.org/actors/cert"
 
+#: Each served actor states its author's times, as a server's actor does.
 _ACTORS: list[dict] = [
-    {"type": "Person", "id": _REPORTER_ID, "name": "Finn the Reporter"},
-    {"type": "Organization", "id": _VENDOR_ID, "name": "VendorCo Inc"},
-    {"type": "Organization", "id": _COORDINATOR_ID, "name": "Coordinator CC"},
+    with_times(as_Actor, actor)
+    for actor in (
+        {"type": "Person", "id": _REPORTER_ID, "name": "Finn the Reporter"},
+        {"type": "Organization", "id": _VENDOR_ID, "name": "VendorCo Inc"},
+        {
+            "type": "Organization",
+            "id": _COORDINATOR_ID,
+            "name": "Coordinator CC",
+        },
+    )
 ]
 
 

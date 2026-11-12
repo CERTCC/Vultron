@@ -58,6 +58,7 @@ from vultron.adapters.driven.http_retry import (
 from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
+from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
 from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 from vultron.errors import VultronValidationError
@@ -342,7 +343,12 @@ def parse_fetched_body(
         report_set_aside(
             set_aside, {"object_id": object_id, "actor_id": holder_id}
         )
-        parsed = cls.model_validate(declared)
+        # A fetched body is received data: a time it omits is the holder
+        # claiming none, read as ``None``, never this node's clock (ADR-0103,
+        # ADR-0176).
+        parsed = cls.model_validate(
+            declared, context={INBOUND_CONTEXT_KEY: True}
+        )
     except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} is not a valid"

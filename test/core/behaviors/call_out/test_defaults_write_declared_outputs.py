@@ -38,10 +38,8 @@ rate's yes/no direction (BT-23-002), save the pinned
 
 A field no singleton binds answers no declaration, so its backends are
 binary and BT-23-013 does not reach it.  Those fields are the pinned
-exemption set :data:`BINARY_FIELD_EXEMPTIONS` plus the ratchet
-:data:`UNDECLARED_CAPABILITY_EXEMPTIONS` (owner #6306), together kept equal
-to what the bindings derive, and every backend they build declares no
-outputs.
+exemption set :data:`BINARY_FIELD_EXEMPTIONS`, kept equal to what the
+bindings derive, and every backend they build declares no outputs.
 """
 
 from __future__ import annotations
@@ -303,17 +301,7 @@ BINARY_FIELD_EXEMPTIONS: frozenset[FieldKey] = frozenset(
     {("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory")}
 )
 
-# Ratchet: fields that will answer a declared capability but have none yet.
-# Actor resolution is a stub until it becomes a Retriever with a CoreActor
-# output port; that issue binds it and empties this set.
-# owner: #6306
-UNDECLARED_CAPABILITY_EXEMPTIONS: frozenset[FieldKey] = frozenset(
-    {("ActorResolutionCallOutBundle", "resolve_actor_factory")}
-)
-
-_FIELDS_WITH_NO_CAPABILITY = (
-    BINARY_FIELD_EXEMPTIONS | UNDECLARED_CAPABILITY_EXEMPTIONS
-)
+_FIELDS_WITH_NO_CAPABILITY = BINARY_FIELD_EXEMPTIONS
 
 
 @pytest.mark.spec("BT-23-013")
@@ -332,8 +320,7 @@ def test_a_field_with_no_capability_is_binary(key: FieldKey) -> None:
     """A field no singleton binds declares no outputs anywhere it is built.
 
     BT-23-013 reaches only a capability that declares output ports, so such
-    a field (the status adoption gate; actor resolution until #6306) stays
-    binary until a declaration for it exists.
+    a field (the status adoption gate) stays binary.
     """
     _, field = key
     for bundle in _ALL_INSTANCES:
