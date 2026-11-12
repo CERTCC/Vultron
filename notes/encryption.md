@@ -16,6 +16,7 @@ related_specs:
   - specs/signing.yaml
   - specs/encryption.yaml
   - specs/message-validation.yaml
+  - specs/inbox-endpoint.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
   - specs/object-ids.yaml

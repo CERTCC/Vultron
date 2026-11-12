@@ -244,9 +244,12 @@ class HttpObjectFetcher:
             # body fails here on every Python version (#6353).
             body = signing.load_json(content)
         except ValueError as exc:
-            # A 2xx whose body is not JSON it reads: a retry gets the same.
+            # A 2xx whose body is not JSON, or JSON the strict reader
+            # refuses: a retry gets the same.
             raise TerminalAttemptError(
-                ValueError(f"answered with no JSON: {exc}")
+                ValueError(
+                    f"answered with a body it cannot read as JSON: {exc}"
+                )
             ) from exc
         if not isinstance(body, dict):
             raise TerminalAttemptError(
