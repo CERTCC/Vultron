@@ -21,6 +21,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from vultron.metadata import base as base_module
 from vultron.metadata.base import (
@@ -135,6 +136,36 @@ class TestMkDocsConfigFaults:
             "x: !ENV FOO\ny: !!python/name:mod.attr\nnav: [a.md]\n"
         )
 
+        assert mkdocs_config(tmp_path)["nav"] == ["a.md"]
+
+
+class TestMkDocsConfigCache:
+    """A docs run reads ``mkdocs.yml`` from a dozen checks (#6158)."""
+
+    def test_an_unchanged_config_is_parsed_once(self, tmp_path, monkeypatch):
+        (tmp_path / "mkdocs.yml").write_text(f"nav: [{tmp_path.name}.md]\n")
+        parsed: list[object] = []
+        real_load = yaml.load
+
+        def counting_load(stream, Loader):
+            parsed.append(stream)
+            return real_load(stream, Loader=Loader)
+
+        monkeypatch.setattr(yaml, "load", counting_load)
+        for _ in range(3):
+            mkdocs_config(tmp_path)
+        assert len(parsed) == 1
+
+    def test_an_edit_is_read(self, tmp_path):
+        config = tmp_path / "mkdocs.yml"
+        config.write_text("nav: [a.md]\n")
+        assert mkdocs_config(tmp_path)["nav"] == ["a.md"]
+        config.write_text("nav: [b.md]\n")
+        assert mkdocs_config(tmp_path)["nav"] == ["b.md"]
+
+    def test_a_caller_that_changes_the_result_changes_no_other(self, tmp_path):
+        (tmp_path / "mkdocs.yml").write_text("nav: [a.md]\n")
+        mkdocs_config(tmp_path)["nav"].append("x.md")  # type: ignore[attr-defined]
         assert mkdocs_config(tmp_path)["nav"] == ["a.md"]
 
 

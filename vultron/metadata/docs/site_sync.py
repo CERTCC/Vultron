@@ -100,6 +100,7 @@ from vultron.metadata.docs.lookup_page import (
     lookup_sections,
     splice_lookup,
 )
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
 from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
@@ -154,11 +155,13 @@ def desired_contents(root: Path) -> dict[str, str]:
             or malformed, the requirement registry does not load, or an
             listed requirement's file is on no catalog page (DF-12-015).
     """
+    # Classified once for the three readers below (#6158).
+    tree = classify_docs_tree(root)
     contents = {
         FRAGMENT_PATH: render_fragment(),
-        MATRIX_PATH: render_matrix(measure_coverage(root)),
+        MATRIX_PATH: render_matrix(measure_coverage(root, tree)),
     }
-    indexes = discover_section_indexes(root)
+    indexes = discover_section_indexes(root, tree)
     threads = load_threads(root)
     faults = [
         fault
@@ -192,7 +195,7 @@ def desired_contents(root: Path) -> dict[str, str]:
         contents.update(draft_fragments(register))
     sections: tuple[LookupSection, ...] = ()
     try:
-        sections = lookup_sections(root)
+        sections = lookup_sections(root, tree)
     except MetadataLoadErrors as exc:
         # Reported with the missing links, so one run names every
         # hand-fixable fault (EH-07-001).

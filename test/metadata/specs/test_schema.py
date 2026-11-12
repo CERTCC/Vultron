@@ -747,6 +747,52 @@ def test_registry_all_specs(spec_dir):
     assert "TST-01-001" in registry.all_specs
 
 
+def test_registry_get_file_id_names_the_holding_file(multi_spec_dir):
+    registry = load_registry(multi_spec_dir)
+    assert registry.get_file_id("TST-01-001") == "TST"
+    assert registry.get_file_id("MOR-01-001") == "MOR"
+
+
+def test_registry_get_file_id_raises_for_unknown_id(spec_dir):
+    with pytest.raises(KeyError):
+        load_registry(spec_dir).get_file_id("XX-99-999")
+
+
+def test_reloading_an_unchanged_spec_dir_parses_each_file_once(
+    multi_spec_dir, monkeypatch
+):
+    """A growth guard loads the tree twice; the second load re-parses
+    nothing, yet the registries share no model (#5880)."""
+    parsed: list[str] = []
+    real_load = yaml.load
+
+    def counting_load(stream, Loader):
+        parsed.append(stream)
+        return real_load(stream, Loader=Loader)
+
+    # Unique text, so no earlier test in this process warmed the cache.
+    for path in multi_spec_dir.glob("*.yaml"):
+        path.write_text(path.read_text() + f"# {path.name} {id(parsed)}\n")
+    monkeypatch.setattr(yaml, "load", counting_load)
+    first = load_registry(multi_spec_dir)
+    second = load_registry(multi_spec_dir)
+    assert len(parsed) == 2
+    spec = first.get("TST-01-001")
+    assert spec is not second.get("TST-01-001")
+    spec.tags.clear()
+    assert load_registry(multi_spec_dir).get("TST-01-001").tags
+
+
+def test_reloading_an_edited_spec_file_sees_the_edit(spec_dir):
+    """The cache is keyed by text, so a drift check sees an edit."""
+    load_registry(spec_dir)
+    path = next(spec_dir.glob("*.yaml"))
+    path.write_text(path.read_text().replace("satisfy the test", "pass it"))
+    assert load_registry(spec_dir).get("TST-01-001").statement == (
+        "TST-01-001 MUST pass it"
+    )
+
+
 def test_registry_validate_cross_references_clean(spec_dir):
     registry = load_registry(spec_dir)
     assert registry.validate_cross_references() == []

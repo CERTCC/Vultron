@@ -28,6 +28,8 @@ first (SR-03-009): :class:`FailureCollector` gathers them and raises one
 
 from __future__ import annotations
 
+import copy
+import functools
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -342,6 +344,44 @@ def loads_yaml(
         ) from exc
     except ValueError as exc:
         raise _construction_error(exc, str(shown)) from exc
+
+
+@functools.lru_cache(maxsize=512)
+def _parsed_yaml(text: str, shown: str, loader: YamlLoader) -> object:
+    """:func:`loads_yaml` of *text*, cached by text, name and loader.
+
+    A fault is not cached, so it is raised again on each call.
+    """
+    return loads_yaml(text, Path(shown), loader=loader)
+
+
+def loads_yaml_cached(
+    text: str, shown: str, *, loader: YamlLoader, shared: bool = False
+) -> object:
+    """:func:`loads_yaml` of *text*, parsed once per process for each text.
+
+    For an input many checks in one run parse unchanged, such as
+    ``mkdocs.yml`` or a spec file read at the working tree and again at the
+    merge base (#5880, #6158). The cache key is the text itself, so an edit
+    is parsed afresh and a drift check still sees it. Each call returns its
+    own deep copy, so a caller that changes the result changes no other
+    caller's.
+
+    Args:
+        text: The YAML text.
+        shown: The name a fault is attributed to.
+        loader: The PyYAML loader class.
+        shared: Return the cached object itself, not a copy. Only for a
+            caller that reads the result and never changes it, such as one
+            that hands it straight to :func:`validate`; the copy costs about
+            as much as the parse it saves.
+
+    Raises:
+        MetadataLoadError: As :func:`loads_yaml` documents.
+    """
+    # A class is hashable; the PyYAML stubs leave the loader types unproven.
+    parsed = _parsed_yaml(text, shown, loader)  # type: ignore[arg-type]
+    return parsed if shared else copy.deepcopy(parsed)
 
 
 #: Lead-in for a frontmatter parse fault. Kept identical across loaders so the

@@ -422,15 +422,22 @@ def _spec_calls(tree: ast.AST, source: str) -> Iterator[ast.Call]:
         stack.extend(ast.iter_child_nodes(node))
 
 
+def _ids_of(calls: Iterable[ast.Call]) -> frozenset[str]:
+    """The IDs *calls* name."""
+    return frozenset().union(*(spec_call_ids(call) for call in calls))
+
+
 def _spec_ids_in(tree: ast.AST, source: str) -> frozenset[str]:
     """The IDs of every ``mark.spec`` call anywhere in *tree*."""
-    return frozenset().union(
-        *(spec_call_ids(call) for call in _spec_calls(tree, source))
-    )
+    return _ids_of(_spec_calls(tree, source))
 
 
+@functools.lru_cache(maxsize=4096)
 def read_marked_file(path: str, source: str) -> MarkedFile:
     """The spec IDs and marked cases of one test file.
+
+    Cached by path and text, so the checks in one run that read the test
+    tree parse each unchanged file once (#5880); the result is frozen.
 
     Args:
         path: The file's path, as reported in :attr:`MarkedCase.test`.
@@ -445,10 +452,12 @@ def read_marked_file(path: str, source: str) -> MarkedFile:
     constants = _module_constants(tree)
     module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
     cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
-    unplaced = _unplaced_spec_ids(tree, source)
+    # One walk serves both the file's IDs and its unplaced ones (#5880).
+    calls = tuple(_spec_calls(tree, source))
+    unplaced = _unplaced_spec_ids(tree, calls)
     if unplaced:
         cases.append(MarkedCase(path, unplaced, ()))
-    return MarkedFile(_spec_ids_in(tree, source), tuple(cases))
+    return MarkedFile(_ids_of(calls), tuple(cases))
 
 
 def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
@@ -517,7 +526,9 @@ def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
             yield from _mark_sites(stmt.body)
 
 
-def _unplaced_spec_ids(tree: ast.Module, source: str) -> frozenset[str]:
+def _unplaced_spec_ids(
+    tree: ast.Module, calls: Iterable[ast.Call]
+) -> frozenset[str]:
     """IDs of ``mark.spec`` calls outside every place the reader reads.
 
     Such a marker (in a factory function, under an ``if``) still marks a
@@ -528,10 +539,4 @@ def _unplaced_spec_ids(tree: ast.Module, source: str) -> frozenset[str]:
     placed = {
         id(node) for site in _mark_sites(tree.body) for node in ast.walk(site)
     }
-    return frozenset().union(
-        *(
-            spec_call_ids(call)
-            for call in _spec_calls(tree, source)
-            if id(call) not in placed
-        )
-    )
+    return _ids_of(call for call in calls if id(call) not in placed)

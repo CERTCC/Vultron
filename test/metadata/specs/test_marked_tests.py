@@ -1,11 +1,16 @@
 """Tests for vultron.metadata.specs.marked_tests (SR-05-017)."""
 
+import ast
+import uuid
+
 import pytest
 
+from vultron.metadata.specs import marked_tests
 from vultron.metadata.specs.marked_tests import (
     MarkedCase,
     issue_refs,
     marked_cases_in,
+    read_marked_file,
 )
 
 pytestmark = pytest.mark.spec("SR-05-017")
@@ -287,3 +292,47 @@ def test_a_spec_call_the_reader_cannot_place_gets_an_unheld_case():
         ("t.py::test_a", frozenset({"A"}), ("r",)),
         ("t.py", frozenset({"A", "B"}), ()),
     }
+
+
+def test_reading_a_file_walks_its_spec_calls_once(monkeypatch):
+    """The file's IDs and its unplaced IDs come from one walk (#5880)."""
+    walks: list[object] = []
+    real_walk = marked_tests._spec_calls
+
+    def counting_walk(tree, source):
+        walks.append(tree)
+        return real_walk(tree, source)
+
+    monkeypatch.setattr(marked_tests, "_spec_calls", counting_walk)
+    source = (
+        f"# {uuid.uuid4()}\nimport pytest\n"
+        "@pytest.mark.spec('A')\ndef test_a(): pass\n"
+        "def _factory():\n    return pytest.mark.spec('B')\n"
+    )
+    marked = read_marked_file("t.py", source)
+    assert marked.spec_ids == {"A", "B"}
+    assert ("t.py", frozenset({"B"}), ()) in {
+        (c.test, c.spec_ids, c.xfail_reasons) for c in marked.cases
+    }
+    assert len(walks) == 1
+
+
+def test_rereading_an_unchanged_file_parses_it_once(monkeypatch):
+    """Checks in one run that read the test tree share each parse (#5880)."""
+    parses: list[str] = []
+    real_parse = ast.parse
+
+    def counting_parse(source, *args, **kwargs):
+        parses.append(source)
+        return real_parse(source, *args, **kwargs)
+
+    monkeypatch.setattr(marked_tests.ast, "parse", counting_parse)
+    source = (
+        f"# {uuid.uuid4()}\nimport pytest\n"
+        "@pytest.mark.spec('A')\ndef test_a(): pass\n"
+    )
+    first = read_marked_file("t.py", source)
+    assert read_marked_file("t.py", source) == first
+    assert len(parses) == 1
+    edited = source.replace("'A'", "'C'")
+    assert read_marked_file("t.py", edited).spec_ids == {"C"}
