@@ -85,7 +85,7 @@ class ReadEmStateNode(DataLayerConditionWithPorts):
 
         try:
             em_state = case.em_state
-        except (ValueError, KeyError, AttributeError, VultronError):
+        except ValueError, KeyError, AttributeError, VultronError:
             err = VultronValidationError(
                 f"Case '{self._case_id}' has no derivable EM state."
             )

@@ -26,6 +26,7 @@ import logging
 import pytest
 
 from test.support.objects import make
+from test.support.signatures import signature_of
 from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import CoreActor, VultronOrganization
@@ -136,9 +137,7 @@ def test_the_profile_is_fetched_from_the_author_and_not_stored():
 @pytest.mark.spec("SIG-02-003")
 def test_the_resolver_takes_no_store():
     """No parameter could carry a stored copy to the lookup."""
-    assert (
-        "dl" not in inspect.signature(vk.resolve_verification_key).parameters
-    )
+    assert "dl" not in signature_of(vk.resolve_verification_key).parameters
 
 
 @pytest.mark.spec("SIG-02-001")

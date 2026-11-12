@@ -58,9 +58,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

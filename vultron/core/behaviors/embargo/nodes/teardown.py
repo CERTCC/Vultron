@@ -359,7 +359,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             return super().update()  # Regime 2, or a malformed entry
         try:
             step = cast(RegisterStep, self._change(entry))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return super().update()  # reported by the frame
         if case.active_embargo_id != step.embargo_id:
             self.feedback_message = (
@@ -429,7 +429,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+    def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
         assert self.datalayer is not None
         case, failure = self._require_case(self._case_id)
         if failure is not None:

@@ -9,8 +9,9 @@ description: >
   concluding a ceiling is inert, profiling a near-ceiling test
   before re-tiering it, sizing the integration tier from measured load, the
   ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
-  work without a wall-clock window, an in-process pass that hides what each node
-  holds on its own,
+  work without a wall-clock window, reading a signature or a class's own
+  annotations on Python 3.14 (`signature_of`, `own_annotations`), an
+  in-process pass that hides what each node holds on its own,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
@@ -718,6 +719,16 @@ question of the **filesystem** instead — walk `test/` and parse, as
 `test/test_pytest_collection_hygiene.py` does — or probe a collection in a
 subprocess you launch with the paths you mean, as
 `test/test_integration_timeout_tier.py` does for `test/demo`.
+
+### Read a Signature With `signature_of`, Not `inspect.signature`
+
+On Python 3.14 (PEP 649) production code writes a `TYPE_CHECKING`-only name
+unquoted, and `inspect.signature` evaluates annotations by default, so it raises
+`NameError` on that name. A test that asks which parameters a callable takes
+calls `test.support.signatures.signature_of`, which reads the `FORWARDREF`
+format. Read a class's own annotations with `own_annotations`, not
+`vars(cls)["__annotations__"]`: on 3.14 that key exists only in a module with
+`from __future__ import annotations`, so the read is empty elsewhere (#6054).
 
 ### Module-Split Test Layout Rules (NODES-SPLIT-883)
 

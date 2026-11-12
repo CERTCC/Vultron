@@ -7,7 +7,9 @@
 # one stored at a tag. The gate names the publish's tag before the build, so
 # every page's footer can show it, and the tag job creates exactly that name
 # (DOCBW-06-031). The gate logic lives in .github/scripts/publish_gate.py,
-# with its unit tests in test/ci/test_publish_gate.py.
+# with its unit tests in test/ci/test_publish_gate.py. Every publish also
+# serves each released Protocol Specification draft's frozen pages at
+# spec/draft-N/, from main's drafts register (ADR-0188, DOCBW-08-027/028).
 name: Publish site to Pages
 
 on:
@@ -26,8 +28,9 @@ on:
       rollback-to:
         description: >-
           Roll back: the publish-* or v* tag whose commit to redeploy. The
-          commit must be on main and carry the build's local actions, which
-          no release before v2026.10.0 does. Leave empty to publish main.
+          commit must be on main and carry the build's local actions, the
+          frozen-draft serving step among them, which no commit before it
+          does. Leave empty to publish main.
         type: string
         default: ''
 
@@ -108,9 +111,48 @@ jobs:
             --actor "$ACTOR" --run-id "$RUN_ID" --skip-ci-gate "$SKIP_CI_GATE" \
             --rollback-to "$ROLLBACK_TO"
 
+  # The drafts register as main holds it when the run starts, whatever commit
+  # the run deploys, so a rollback still serves every frozen draft
+  # (DOCBW-08-027). Read by main's own loader, which refuses a malformed
+  # register; the build job below runs the deployed commit's code.
+  drafts:
+    name: Read main's drafts register
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    # A checkout, a dependency install and one read. Cap at 10 min so a hang
+    # fails fast (TB-14-006).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      register: ${{ steps.read.outputs.register }}
+    steps:
+      # The run's own commit: main's tip when the run started, as the gate
+      # refuses a run from any other ref (DOCBW-06-029).
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          uv-sync-args: "--no-dev"
+
+      # Assigned first, so a refused register fails the step instead of
+      # writing an empty output.
+      - name: Read the drafts register
+        id: read
+        run: |
+          register=$(PYTHONPATH='' uv run drafts-register show)
+          {
+            echo 'register<<EOF_DRAFTS_REGISTER'
+            echo "$register"
+            echo 'EOF_DRAFTS_REGISTER'
+          } >> "$GITHUB_OUTPUT"
+
   build:
     name: Build and check the site
-    needs: gate
+    needs: [gate, drafts]
     if: needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
     # Observed: 2.1 min on its only successful run; it runs the docs-build-check
@@ -176,6 +218,20 @@ jobs:
             echo "::error::The footer of site/index.html does not name $TAG_NAME."
             exit 1
           fi
+
+      # Each released draft's frozen pages, from its published release, at
+      # spec/draft-N/, or a placeholder while its release is unpublished
+      # (DOCBW-08-028, DOCBW-08-032). After the build and before the
+      # publication checks, so they judge the tree that ships, and in this
+      # job, which holds no token that can write or deploy. A published
+      # release whose archive is missing or does not match its manifest fails
+      # the step, and the notify job files the failure (DOCBW-08-033). The
+      # action loads from the deployed commit, which the gate checked carries
+      # it (DOCBW-08-038).
+      - name: Serve frozen drafts
+        uses: ./.github/actions/serve-frozen-drafts
+        with:
+          register-json: ${{ needs.drafts.outputs.register }}
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -252,7 +308,7 @@ jobs:
 
   notify:
     name: Report the publish
-    needs: [gate, build, deploy, tag]
+    needs: [gate, drafts, build, deploy, tag]
     if: always()
     runs-on: ubuntu-latest
     # The notify-failure action makes a few API calls. Cap at 10 min so a hang

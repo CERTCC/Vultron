@@ -142,11 +142,11 @@ class CreateCaseProposalReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: CreateCaseProposalReceivedEvent,
-        actor_config: "ActorConfig | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        call_out: "CaseProposalCallOutBundle | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
+        actor_config: ActorConfig | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        call_out: CaseProposalCallOutBundle | None = None,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request

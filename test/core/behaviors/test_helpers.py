@@ -928,8 +928,8 @@ _ACTOR_URI = "https://example.org/actors/emit-test-actor"
 class _StubEmitNode(_EmitSingleActivityBase):
     """Concrete stub — delegates to injected callables set before use."""
 
-    factory_fn: Callable[["_StubEmitNode"], tuple[str, str]] | None = None
-    on_success_fn: Callable[["_StubEmitNode", str, str], None] | None = None
+    factory_fn: Callable[[_StubEmitNode], tuple[str, str]] | None = None
+    on_success_fn: Callable[[_StubEmitNode, str, str], None] | None = None
 
     def _call_factory(self) -> tuple[str, str]:
         if self.factory_fn is None:

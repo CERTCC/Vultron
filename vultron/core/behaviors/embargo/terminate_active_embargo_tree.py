@@ -102,7 +102,7 @@ def create_terminate_active_embargo_tree(
     *,
     case_id: str,
     result_out: dict[str, object],
-    call_out: "EmbargoCallOutBundle | None" = None,
+    call_out: EmbargoCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the actor-voluntary active embargo termination BT (EMB-14).
 

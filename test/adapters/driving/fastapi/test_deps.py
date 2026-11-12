@@ -49,6 +49,7 @@ from fastapi.params import Depends as params_Depends
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import FixedClock
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
@@ -344,9 +345,8 @@ def test_alias_deps_delegate_through_depends(alias) -> None:
     Asserting the *signature* rather than the behaviour catches the regression
     at its cause: the delegation has to be a ``Depends`` default.
     """
-    import inspect
 
-    params = list(inspect.signature(alias).parameters.values())
+    params = list(signature_of(alias).parameters.values())
     assert len(params) == 1, (
         f"{alias.__name__} must take exactly one parameter, the injected"
         f" DataLayer; got {[p.name for p in params]}"
@@ -389,16 +389,13 @@ def test_trigger_dispatcher_takes_the_act_clock_through_depends() -> None:
     override table, so a test that pins the inbox's arrival stamp would leave
     the triggers on the installed clock.
     """
-    import inspect
 
     from vultron.adapters.driving.fastapi.deps import (
         get_act_clock,
         get_trigger_dispatcher,
     )
 
-    default = (
-        inspect.signature(get_trigger_dispatcher).parameters["clock"].default
-    )
+    default = signature_of(get_trigger_dispatcher).parameters["clock"].default
     assert isinstance(default, params_Depends)
     assert default.dependency is get_act_clock
 

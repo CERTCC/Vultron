@@ -1,10 +1,10 @@
 """Tests for the unified SemanticRegistry module."""
 
 import importlib
-import inspect
 
 import pytest
 
+from test.support.signatures import signature_of
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
@@ -179,7 +179,7 @@ def test_each_use_case_accepts_the_event_class_its_semantics_route():
             continue
         checked += 1
         annotation = (
-            inspect.signature(entry.use_case_class.__init__)
+            signature_of(entry.use_case_class.__init__)
             .parameters["request"]
             .annotation
         )

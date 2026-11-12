@@ -266,7 +266,7 @@ class PxaDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> CS_pxa:
         return _coerce_pxa(v)
 
-    def transition(self, trigger: PXA_Trigger) -> "PxaDimension":
+    def transition(self, trigger: PXA_Trigger) -> PxaDimension:
         """Return a new PxaDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.
@@ -304,7 +304,7 @@ class RmDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> RM:
         return _coerce_rm(v)
 
-    def transition(self, trigger: RM_Trigger) -> "RmDimension":
+    def transition(self, trigger: RM_Trigger) -> RmDimension:
         """Return a new RmDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.
@@ -341,7 +341,7 @@ class VfDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> CS_vf:
         return _coerce_vf(v)
 
-    def transition(self, trigger: VF_Trigger) -> "VfDimension":
+    def transition(self, trigger: VF_Trigger) -> VfDimension:
         """Return a new VfDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.
@@ -373,7 +373,7 @@ class DDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> CS_d:
         return _coerce_d(v)
 
-    def transition(self, trigger: D_Trigger) -> "DDimension":
+    def transition(self, trigger: D_Trigger) -> DDimension:
         """Return a new DDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.

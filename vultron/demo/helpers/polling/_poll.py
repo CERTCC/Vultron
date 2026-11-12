@@ -75,7 +75,7 @@ BACKFILL_PROGRESS_CEILING: float = 300.0
 
 
 def _client_in(
-    client: DataLayerClient, clients: "Sequence[DataLayerClient]"
+    client: DataLayerClient, clients: Sequence[DataLayerClient]
 ) -> bool:
     """Identity-based membership: is *client* one of *clients*?
 

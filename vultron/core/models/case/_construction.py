@@ -131,7 +131,7 @@ def _genesis_published(data: dict[str, Any]) -> datetime | None:
         return published_val
     try:
         parsed = datetime.fromisoformat(str(published_val))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     data["published"] = parsed
     return parsed

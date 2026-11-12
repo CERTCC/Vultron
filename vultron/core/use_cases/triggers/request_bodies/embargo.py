@@ -130,7 +130,7 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
     cause: TerminationCause | None = None
 
     @model_validator(mode="after")
-    def _cause_fits_request(self) -> "TerminateEmbargoRequest":
+    def _cause_fits_request(self) -> TerminateEmbargoRequest:
         """Refuse a cause this request may not name (EMB-13-004/005)."""
         if self.cause is None:
             return self

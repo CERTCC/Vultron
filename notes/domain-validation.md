@@ -393,10 +393,13 @@ returns a silently wrong value (a child's `type_` default reads as the parent's
 `None`, #2982).
 
 To inspect a class's own declarations at registration time, read the raw
-namespace: `cls.__dict__["type_"]` (a `FieldInfo` when assigned via `Field(...)`)
-and `cls.__dict__["__annotations__"]`. After construction Pydantic strips field
-definitions from `cls.__dict__`, so only `model_fields` answers then. Code that
-must work in both contexts needs both paths
+namespace for the default, `cls.__dict__["type_"]` (a `FieldInfo` when assigned
+via `Field(...)`), and `own_annotations(cls)` for the annotations. On Python 3.14
+(PEP 649) `__annotations__` is not in `cls.__dict__`, and reading it with the
+default `VALUE` format raises `NameError` on a name the module defines later;
+`own_annotations` reads the `FORWARDREF` format (#6054). After construction
+Pydantic strips field definitions from `cls.__dict__`, so only `model_fields`
+answers then. Code that must work in both contexts needs both paths
 (`vultron/wire/as2/vocab/base/registry.py::declared_wire_type`); otherwise defer
 inspection to `model_post_init` or a `mode="before"` validator.
 

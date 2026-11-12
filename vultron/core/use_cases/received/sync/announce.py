@@ -268,8 +268,8 @@ class AnnounceLedgerEntryReceivedUseCase:
         request: AnnounceLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
         inbox_replay: InboxReplayPort | None = None,
     ) -> None:
         self._dl = dl

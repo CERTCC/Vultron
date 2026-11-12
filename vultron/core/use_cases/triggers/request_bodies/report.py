@@ -172,6 +172,6 @@ class SubmitReportRequest(SubmitReportFields):
     csaf_document: dict[str, JsonValue] | None = None
 
     @model_validator(mode="after")
-    def _named_or_csaf(self) -> "SubmitReportRequest":
+    def _named_or_csaf(self) -> SubmitReportRequest:
         require_report_name_or_csaf(self.report_name, self.csaf_document)
         return self

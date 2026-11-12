@@ -81,8 +81,8 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: ProposeCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -181,8 +181,8 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: OfferCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -254,8 +254,8 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -317,9 +317,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectCaseOwnershipTransferReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -382,9 +382,9 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: UndoCaseOwnershipTransferReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity

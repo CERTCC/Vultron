@@ -80,9 +80,8 @@ _Answer = Callable[[SqliteDataLayer, str, str, str | None], ActivityResult]
 
 
 def _answer_with(
-    use_case: type[SvcAcceptEmbargoUseCase] | type[SvcRejectEmbargoUseCase],
-    request: type[AcceptEmbargoTriggerRequest]
-    | type[RejectEmbargoTriggerRequest],
+    use_case: type[SvcAcceptEmbargoUseCase | SvcRejectEmbargoUseCase],
+    request: type[AcceptEmbargoTriggerRequest | RejectEmbargoTriggerRequest],
 ) -> _Answer:
     """Return a caller that runs *use_case* for one actor, case and Invite."""
 

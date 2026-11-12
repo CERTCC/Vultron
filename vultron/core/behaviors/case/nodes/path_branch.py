@@ -124,7 +124,7 @@ class OnPaths:
         name: str,
         *children: py_trees.behaviour.Behaviour,
         body_name: str | None = None,
-    ) -> "OnPaths":
+    ) -> OnPaths:
         """The branch that runs at the case's CASE_MANAGER alone."""
         return cls(
             name=name,
@@ -139,7 +139,7 @@ class OnPaths:
         name: str,
         *children: py_trees.behaviour.Behaviour,
         body_name: str | None = None,
-    ) -> "OnPaths":
+    ) -> OnPaths:
         """The branch that runs on every declared path but the manager's.
 
         The complement of :meth:`at_case_manager`, and the replacement for

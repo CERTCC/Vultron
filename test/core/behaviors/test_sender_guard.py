@@ -47,6 +47,7 @@ from test.support.sender_guard import (
     guard_tree,
     staged_sender_guard,
 )
+from test.support.signatures import signature_of
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.leave_case_trigger_tree import (
@@ -1209,7 +1210,7 @@ def test_factory_rejects_a_rule_without_a_context() -> None:
 @pytest.mark.spec("HP-01-007")
 def test_factory_takes_no_sender_guard_built_by_a_tree() -> None:
     """The guard comes from the declared rule alone (HP-01-025, #4437)."""
-    parameters = inspect.signature(create_receive_activity_tree).parameters
+    parameters = signature_of(create_receive_activity_tree).parameters
     assert "sender_guard" not in parameters
 
 

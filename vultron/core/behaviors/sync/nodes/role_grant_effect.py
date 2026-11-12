@@ -80,7 +80,7 @@ def role_and_target_from_accept_snapshot(
         return None
     try:
         roles = validate_roles([raw_role])
-    except (TypeError, ValueError, KeyError):
+    except TypeError, ValueError, KeyError:
         return None
     if not roles:
         return None

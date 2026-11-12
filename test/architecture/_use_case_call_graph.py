@@ -154,7 +154,7 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
     try:
         source = source_path.read_text(encoding="utf-8")
         tree = _corpus.parse_inline(source, filename=str(source_path))
-    except (OSError, SyntaxError):
+    except OSError, SyntaxError:
         return False
     return _has_dl_mutation_in_execute_tree(tree)
 

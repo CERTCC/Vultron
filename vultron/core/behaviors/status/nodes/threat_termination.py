@@ -152,7 +152,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
             return None
         try:
             return case_obj.current_status
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             return None
 
     def _threat_present(self) -> bool:

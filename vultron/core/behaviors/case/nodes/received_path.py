@@ -229,7 +229,7 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         self._activity = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
         self._activity = self._try_get_input("activity")
 

@@ -86,6 +86,15 @@ run it again. A re-run that finds a complete draft release refuses and leaves it
 waiting for you to publish. Never publish a draft release that a run reported as
 incomplete.
 
+Every site publish, and the docs check of every pull request that touches the
+site, serves each released draft's frozen pages at `spec/draft-N/` from its
+published release (DOCBW-08-028). Until you publish the release, that address
+shows a placeholder page and the run summary names the draft. Once the release
+is published, a missing or mismatched archive fails every publish and files a
+failure issue, and an immutable release cannot be repaired in place, so check
+both files are attached before you click **Publish release**. A rollback to a
+commit older than the step that serves the drafts is refused.
+
 Do not tag a release by hand or from the **Draft a new release** dialog: the
 dialog's default target is the tip of `main`, which is usually not what the site
 shows. A `v*` tag pushed by hand whose commit has no `publish-*` tag files a

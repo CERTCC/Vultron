@@ -128,7 +128,7 @@ class _NeedsRevisionGate(BehaviourWithPorts):
         """
         try:
             decision = self.get_input(REVIEW_DECISION_KEY)
-        except (KeyError, NoDataAvailable, NotImplementedError):
+        except KeyError, NoDataAvailable, NotImplementedError:
             self.logger.debug(
                 "%s: no %s on blackboard — skipping revision",
                 self.name,

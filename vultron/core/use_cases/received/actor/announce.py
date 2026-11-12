@@ -74,8 +74,8 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         dl: CasePersistence,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
         inbox_replay: InboxReplayPort | None = None,
     ) -> None:
         self._dl = dl

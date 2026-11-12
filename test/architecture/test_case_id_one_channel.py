@@ -37,6 +37,7 @@ import pytest
 from py_trees.ports import PortsMixin
 
 import vultron.core.behaviors
+from test.support.signatures import signature_of
 from vultron.core.behaviors.case_id_scope import (
     CaseIdScope,
     seeded_case_id,
@@ -74,7 +75,7 @@ def _takes_case_id(cls: type) -> bool:
 
     Fails closed: ``**kwargs`` could carry one, so it counts too.
     """
-    parameters = inspect.signature(cls).parameters
+    parameters = signature_of(cls).parameters
     return _PORT in parameters or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()
     )

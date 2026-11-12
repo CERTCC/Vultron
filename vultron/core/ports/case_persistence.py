@@ -69,7 +69,7 @@ class CasePersistence(Protocol):
         """
         ...
 
-    def clone_for_actor(self, actor_id: str) -> "CasePersistence":
+    def clone_for_actor(self, actor_id: str) -> CasePersistence:
         """Return the store belonging to *actor_id*.
 
         The only way to reach a store other than this one, and deliberately
@@ -92,7 +92,7 @@ class CasePersistence(Protocol):
         """
         ...
 
-    def create(self, record: "StorableRecord | PersistableModel") -> None: ...
+    def create(self, record: StorableRecord | PersistableModel) -> None: ...
 
     def read(
         self, object_id: str, raise_on_missing: bool = False
@@ -100,7 +100,7 @@ class CasePersistence(Protocol):
 
     def read_case(
         self, case_id: str, raise_on_missing: bool = False
-    ) -> "VulnerabilityCase | None": ...
+    ) -> VulnerabilityCase | None: ...
 
     def save(self, obj: PersistableModel) -> None: ...
 
@@ -110,7 +110,7 @@ class CasePersistence(Protocol):
 
     def find_case_by_report_id(
         self, report_id: str
-    ) -> "VulnerabilityCase | None": ...
+    ) -> VulnerabilityCase | None: ...
 
     def find_actor_by_short_id(
         self, short_id: str
@@ -118,7 +118,7 @@ class CasePersistence(Protocol):
 
     def find_case_by_short_id(
         self, short_id: str
-    ) -> "VulnerabilityCase | None": ...
+    ) -> VulnerabilityCase | None: ...
 
     def find_protocol_pair(
         self,

@@ -37,7 +37,6 @@ DEMOMA-23.
 
 import contextlib
 import importlib
-import inspect
 import json
 from types import ModuleType
 from unittest.mock import MagicMock, patch
@@ -46,6 +45,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.demo.helpers import story_cast
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.helpers.story import Story, StoryState, story
@@ -165,7 +165,7 @@ def _client_kwargs(run_fn) -> dict[str, MagicMock]:
     """Build a MagicMock for every ``*_client`` parameter of *run_fn*."""
     return {
         name: MagicMock()
-        for name in inspect.signature(run_fn).parameters
+        for name in signature_of(run_fn).parameters
         if name.endswith("_client")
     }
 

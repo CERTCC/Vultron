@@ -66,7 +66,7 @@ def pxa_is_embargo_eligible(pxa_state: CS_pxa) -> bool:
     return pxa_state == CS_pxa.pxa
 
 
-def rejection_ends_embargo(case: "VulnerabilityCase", embargo_id: str) -> bool:
+def rejection_ends_embargo(case: VulnerabilityCase, embargo_id: str) -> bool:
     """True when rejecting *embargo_id* must also end the embargo (EMB-04-002).
 
     The case is in ``REVISE`` (an embargo is in force and *embargo_id* is
@@ -83,7 +83,7 @@ def rejection_ends_embargo(case: "VulnerabilityCase", embargo_id: str) -> bool:
     )
 
 
-def embargo_outlives_disclosure(case: "VulnerabilityCase") -> bool:
+def embargo_outlives_disclosure(case: VulnerabilityCase) -> bool:
     """True when the prior terms stand after CS went public (EMB-04-002).
 
     An embargo is in force, no proposal is open, and CS is public, exploited
@@ -95,7 +95,7 @@ def embargo_outlives_disclosure(case: "VulnerabilityCase") -> bool:
     return not case.proposed_embargo_ids and _in_force_disclosed(case)
 
 
-def _in_force_disclosed(case: "VulnerabilityCase") -> bool:
+def _in_force_disclosed(case: VulnerabilityCase) -> bool:
     """An embargo is in force and CS is public, exploited or attacked."""
     return case.active_embargo_id is not None and not pxa_is_embargo_eligible(
         case.current_status.pxa.state

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 def find_offer_for_report(
-    datalayer: "CasePersistence", report_id: str | None
+    datalayer: CasePersistence, report_id: str | None
 ) -> tuple[str | None, str | None]:
     """Return ``(offer_id, offer_actor_id)`` for *report_id*.
 
@@ -56,7 +56,7 @@ def find_offer_for_report(
 
 
 def offer_for_report_or(
-    datalayer: "CasePersistence",
+    datalayer: CasePersistence,
     report_id: str,
     fallback: tuple[str | None, str | None],
 ) -> tuple[str | None, str | None]:
