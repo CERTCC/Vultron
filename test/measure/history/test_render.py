@@ -49,7 +49,6 @@ from vultron.measure.history.render import (
     CASE_SUBJECT,
     TABLE_HEADERS,
     event_row,
-    label_names,
     render_table,
 )
 from vultron.measure.ledger import (
@@ -60,6 +59,7 @@ from vultron.measure.ledger import (
     Dimension,
     LedgerSource,
     UnusableRow,
+    label_names,
 )
 
 #: A bare URI or an opaque UUID, which no table cell may hold (DRPT-03-009).

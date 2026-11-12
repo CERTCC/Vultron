@@ -238,23 +238,6 @@ def friendly_target_noun(target_type: str | None) -> str | None:
     return " ".join(w.lower() for w in words) if words else target_type.lower()
 
 
-def friendly_object_label(
-    obj_type: str | None, obj_ref: str | None
-) -> str | None:
-    """Return a friendly label for a target object.
-
-    Actor-like types (Organization, Actor, …) are resolved via
-    :func:`friendly_actor_name` using their URI so the label reads "Vendor"
-    rather than "organization".  All other types fall back to
-    :func:`friendly_target_noun`.
-    """
-    if not obj_type:
-        return friendly_actor_name(obj_ref) if obj_ref else None
-    if obj_type in ACTOR_LIKE_TYPES:
-        return friendly_actor_name(obj_ref)
-    return friendly_target_noun(obj_type)
-
-
 def _is_opaque(ref: str) -> bool:
     """Whether *ref* holds no readable word: a URN, or a UUID last segment."""
     if ref.lower().startswith("urn:"):
@@ -296,6 +279,27 @@ def display_label(
     if _is_opaque(ref):
         return UNNAMED_ACTOR if obj_type else UNNAMED_OBJECT
     return friendly_actor_name(ref)
+
+
+def label_names(
+    replicas: Mapping[str, Iterable[Mapping[str, Any]]],
+) -> dict[str, str]:
+    """The display name of every id a row may name (DRPT-03-003).
+
+    An actor's ``name`` from the payloads (:func:`collect_actor_names`), and
+    for each ``CaseParticipant`` id the label of the actor it stands for
+    (:func:`collect_participant_actors`), so a reader that labels a
+    reference through :func:`display_label` with this map names a
+    participant by its actor.  The case-history dump and the demo report
+    both label through it (CEH-01-006, DRPT-03-009).
+    """
+    actor_names = collect_actor_names(replicas)
+    participants = {
+        participant: display_label(actor, "Actor", actor_names)
+        or UNNAMED_ACTOR
+        for participant, actor in collect_participant_actors(replicas).items()
+    }
+    return participants | actor_names
 
 
 @dataclass(frozen=True)

@@ -22,17 +22,17 @@ from pydantic import BaseModel, Field
 
 from vultron.errors import LedgerReadError
 from vultron.measure.ledger import (
-    ACTOR_LIKE_TYPES,
     Dimension,
     actor_uri,
     candidate_dicts,
     coerce_int,
     collect_actor_names,
     dimension_state,
+    display_label,
     entry_references,
     first_present,
     friendly_actor_name,
-    friendly_object_label,
+    label_names,
     payload_of,
     read_ledger_file,
     render_event_phrase,
@@ -157,36 +157,38 @@ class CaseTimelineEvent(BaseModel):
             return self.actor_display_name
         return friendly_actor_name(self.actor_uri)
 
+    def _reference_label(
+        self, ref: str | None, obj_type: str | None, display_name: str | None
+    ) -> str | None:
+        """Label one reference through the shared resolver (DRPT-03-009).
+
+        *display_name* is the name :func:`build_timeline` resolved for *ref*;
+        without one, :func:`~vultron.measure.ledger.display_label` names the
+        case "case" and never shows a bare URI or UUID.
+        """
+        names = {ref: display_name} if ref and display_name else {}
+        return display_label(
+            ref, obj_type, names, case_id=self.case_id or None
+        )
+
     @property
     def target_label(self) -> str | None:
         """Friendly target label; ``object → destination`` when both are present.
 
-        Actor-like object types (Organization, …) resolve to a display name
-        when one was extracted from payload snapshots; otherwise falls back to
-        the URI path-segment heuristic via :func:`friendly_actor_name`.
+        Each half is the display name :func:`build_timeline` resolved for it
+        (an actor's name, or for a participant the actor it stands for), else
+        the shared :func:`~vultron.measure.ledger.display_label`: the case reads
+        "case", a typed object its type's noun, and an opaque id an "unnamed"
+        label, never a bare URI or UUID (DRPT-03-001, DRPT-03-009).
         """
-        obj_label: str | None
-        dest_label: str | None
-        # Prefer the pre-resolved display name (covers UUID-based URIs and the
-        # None-type fallback path in friendly_object_label).
-        if self.target_display_name:
-            obj_label = self.target_display_name
-        elif self.target_type in ACTOR_LIKE_TYPES:
-            obj_label = friendly_actor_name(self.target_ref)
-        else:
-            obj_label = friendly_object_label(
-                self.target_type, self.target_ref
-            )
-
-        if self.activity_target_display_name:
-            dest_label = self.activity_target_display_name
-        elif self.activity_target_type in ACTOR_LIKE_TYPES:
-            dest_label = friendly_actor_name(self.activity_target_ref)
-        else:
-            dest_label = friendly_object_label(
-                self.activity_target_type, self.activity_target_ref
-            )
-
+        obj_label = self._reference_label(
+            self.target_ref, self.target_type, self.target_display_name
+        )
+        dest_label = self._reference_label(
+            self.activity_target_ref,
+            self.activity_target_type,
+            self.activity_target_display_name,
+        )
         if obj_label and dest_label:
             return f"{obj_label} → {dest_label}"
         return obj_label or dest_label
@@ -286,6 +288,9 @@ def build_timeline(
     labels) to semantic names like "Vendor" or "Reporter".
     """
     actor_names = collect_actor_names(replicas)
+    # Targets may name a participant by its id; this map names the actor it
+    # stands for, the same way the case-history dump does (DRPT-03-009).
+    target_names = label_names(replicas)
 
     by_key: dict[str, CaseTimelineEvent] = {}
     presence: dict[str, set[str]] = {}
@@ -308,13 +313,13 @@ def build_timeline(
         event.present_in = sorted(presence[key])
         if event.actor_uri and event.actor_uri in actor_names:
             event.actor_display_name = actor_names[event.actor_uri]
-        if event.target_ref and event.target_ref in actor_names:
-            event.target_display_name = actor_names[event.target_ref]
+        if event.target_ref and event.target_ref in target_names:
+            event.target_display_name = target_names[event.target_ref]
         if (
             event.activity_target_ref
-            and event.activity_target_ref in actor_names
+            and event.activity_target_ref in target_names
         ):
-            event.activity_target_display_name = actor_names[
+            event.activity_target_display_name = target_names[
                 event.activity_target_ref
             ]
         events.append(event)

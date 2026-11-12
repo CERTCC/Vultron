@@ -285,7 +285,7 @@ function lanedName(ctx: ReplayContext, ref: As2Object | null | undefined): strin
  * A friendly label for an activity's object or target, never a bare URI
  * (DRPT-03-001): the lane name of the actor it is or is attributed to, else its
  * type as a lowercase noun (`CaseParticipant` → "case participant"), as the
- * Python report's `friendly_object_label` does.
+ * Python report's `display_label` does for a typed object.
  */
 function referentLabel(ctx: ReplayContext, ref: As2Object | string | null | undefined): string | undefined {
   if (!ref) return undefined

@@ -23,8 +23,7 @@ are re-exported here for the report tool's callers.
 
 from vultron.measure.ledger import (
     event_phrase,
-    friendly_object_label,
     friendly_target_noun,
 )
 
-__all__ = ["event_phrase", "friendly_object_label", "friendly_target_noun"]
+__all__ = ["event_phrase", "friendly_target_noun"]
