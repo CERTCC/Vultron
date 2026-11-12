@@ -57,6 +57,7 @@ from vultron.demo.helpers.story_cast import CASE_ACTOR_NAME
 from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.check_tree import CheckKind, recording_checks, walk
 from vultron.demo.utils.failures import _demo_failures
 from vultron.errors import VultronError
 
@@ -210,6 +211,28 @@ def no_demo_banners(*modules: ModuleType) -> Iterator[None]:
         for module in modules:
             null_demo_contexts(stack, module)
         yield
+
+
+@contextlib.contextmanager
+def recorded_labels(kind: CheckKind) -> Iterator[list[str]]:
+    """Record the labels of every *kind* node the block enters.
+
+    Through the real context managers, read off the check tree
+    :func:`~vultron.demo.utils.check_tree.recording_checks` captures, rather
+    than stubbed with a ``nullcontext``: that stub lets an assertion inside
+    the block propagate, so the test passes while proving nothing
+    (``vultron/demo/AGENTS.md`` § "Gate Each Step on Its Cause" rule 8).  The
+    recorder keeps the real accumulate-and-continue behaviour (DEMOCI-01-003,
+    DEMOCI-01-010) and reports the same labels (DEMOCI-11-056).
+
+    The list fills as the block leaves, so read it after the ``with``.
+    """
+    labels: list[str] = []
+    with recording_checks() as recorder:
+        yield labels
+    labels.extend(
+        node.label for node in walk(recorder.tree()) if node.kind is kind
+    )
 
 
 def devlogs_name_of(
