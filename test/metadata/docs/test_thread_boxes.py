@@ -5,8 +5,9 @@ page: a start link and previous and next tiles, the same for every reader),
 DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
 committed fragment under ``docs/start/_paths/``, generated, check gated and
 excluded from the build), DF-11-034 (the start link and the tiles), DF-11-035 (the same
-for every reader), DF-11-044 (placed by hand), DF-11-009 (titled by situation, never by
-``stakeholder_type``).
+for every reader), DF-11-044 (placed by hand), DF-11-053 (a start page's box is one
+Begin tile, with no hand-written buttons beside it), DF-11-009 (titled by situation,
+never by ``stakeholder_type``).
 """
 
 from __future__ import annotations
@@ -318,8 +319,8 @@ class TestBeginTile:
 @pytest.mark.spec("DF-11-053")
 def test_no_start_page_has_buttons():
     """The Begin tile replaces a start page's hand-written buttons (DF-11-053)."""
-    start = repo_root() / "docs" / "start"
-    pages = sorted(start.glob("*.md"))
+    docs = repo_root() / "docs"
+    pages = sorted(docs / t.path for t in load_threads(repo_root()))
     assert pages
     assert [p.name for p in pages if "md-button" in p.read_text()] == []
 

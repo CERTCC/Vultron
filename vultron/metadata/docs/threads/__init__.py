@@ -3,7 +3,8 @@
 Requirements: specs/diataxis-requirements.yaml DF-11-013 (a thread is staged
 data on its start page), DF-11-014 (the start page's listing is generated and
 check gated), DF-11-015 (each member page shows a box per thread: a link
-back to the start page and previous and next tiles), DF-11-016
+back to the start page and previous and next tiles), DF-11-053 (a start
+page's box is one Begin tile to the first stage's entry pages), DF-11-016
 (the thread check), DF-11-022 (a section member's box names the section),
 DF-11-023 (each box is a committed fragment), DF-11-044 (placed by hand),
 DF-11-034 (the link and the tiles), DF-11-009 (titled by situation, never by
@@ -25,6 +26,8 @@ in two:
   and the page's author places with an ``include-markdown`` line. It links
   back to the start page and holds a tile of the pages before the page and a
   tile of the pages after it, both sets (:func:`position`).
+  On the start page the box is one Begin tile to the first stage's entry
+  pages (DF-11-053), placed the same way.
   That every page renders its boxes is the built-site check
   (:mod:`~vultron.metadata.docs.path_boxes`).
 

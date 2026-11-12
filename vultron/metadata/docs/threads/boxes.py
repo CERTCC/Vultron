@@ -151,7 +151,7 @@ def _begin_box(
     title already names the reader's situation. The tile links the first
     stage's entry pages: a chain's first member, or every member of a set.
     """
-    first = _entry(thread.stages[0]) if thread.stages else ()
+    first = _entry(thread.stages[0])
     lines = [
         *_open_box(thread, thread.path, f"{BOX_CLASS} {BOX_CLASS}-begin-box"),
         f'<div class="{BOX_CLASS}-tiles" markdown>',
