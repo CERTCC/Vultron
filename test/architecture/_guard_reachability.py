@@ -109,7 +109,8 @@ It Can Miss or Invent").  Five are narrowed:
   a translated persistence error were all subjects, and removing the one
   caller that supplied each would have failed code that refuses nothing.
   This reading **misses** rather than invents: a refuser handed a value
-  *derived* from the parameter (``_check(read(p))``, ``_check(p.items)``),
+  *derived* from the parameter (``_check(read(p))``, ``_check(p.items)``)
+  or handed it after a ``*args`` splat, whose position cannot be counted,
   a ``_fail()`` helper that raises unconditionally, and an ``except``
   handler that translates a validation error of the input
   (``except ValueError: raise BadInput``) all read as refusing nothing.

@@ -1026,7 +1026,7 @@ def run():
 def test_detector_reads_a_delegation_to_a_public_spec_citing_guard() -> None:
     """A gated call to a public refusal counts, because it refuses.
 
-    ``_refusing_names`` admits a public function whose raise names a spec
+    ``_refusers`` admits a public function whose raise names a spec
     requirement; that is the act, so a gate on a call to one is a gate.
     """
     source = """
@@ -1232,6 +1232,11 @@ def test_detector_reads_a_delegation_of_the_gating_parameter_as_a_gate(
             "    if items is not None:\n"
             "        _check_items(DEFAULTS, label=items)",
             id="unchecked-slot",
+        ),
+        pytest.param(
+            "    if items is not None:\n"
+            "        _check_items(*EXTRA, items, label='item')",
+            id="after-a-star-splat",
         ),
         pytest.param(
             "    stored = _seed(client) if client is not None else None",
