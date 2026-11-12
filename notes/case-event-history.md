@@ -273,7 +273,11 @@ case grows with the participant count, and its baselines change with that count,
 no table would serve every case. Do not build a whole-case walk, and do not key a
 baseline on the number of participants. An incomplete sequence is scored through its
 completions under the same walk (expected, best and worst), and a case reports
-per-vendor scores with their unweighted median and spread.
+per-vendor scores with their unweighted median and spread (`score_case`).
+
+Take the spread as the range (highest minus lowest), never a variance. Reason: the
+vendors share P, X and A, so their scores are not a sample, and the spread reads as
+evenness across vendors, not across users (ADR-0182).
 
 Score through `vultron.measure.baselines`, never a second walk: its
 `completion_probabilities(prefix)` weights each six-event completion from where the
