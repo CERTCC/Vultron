@@ -29,7 +29,11 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.models._helpers import blank_as_none, new_object_id
+from vultron.core.models._helpers import (
+    blank_as_none,
+    new_object_id,
+    normalise_inbound_actor_id,
+)
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_participant._consent import (
     EmbargoConsentRowsMixin,
@@ -46,6 +50,7 @@ from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.errors import (
     VultronValidationError,
 )
+from vultron.primitives import NormalisedActorId
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +97,12 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         validation_alias="type",
         serialization_alias="type",
     )
+    # The participant's actor, in its canonical spelling: the roster index
+    # (``VulnerabilityCase.actor_participant_index``) is keyed on this value,
+    # so one spelling here is one key there (OID-01-006).  A received record
+    # is normalised at its parse; any other construction with a trailing
+    # slash is refused (ARCH-10-001, #5919).
+    attributed_to: NormalisedActorId | None = None  # pyright: ignore[reportIncompatibleVariableOverride]
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     # Consent is per (participant, embargo) (ADR-0122, CM-10-001, CM-18-001):
@@ -139,6 +150,10 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         if actor_id is None:
             return rows
         return [row.for_actor(actor_id) for row in rows]
+
+    _normalise_inbound_attributed_to = field_validator(
+        "attributed_to", mode="before"
+    )(normalise_inbound_actor_id)
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:

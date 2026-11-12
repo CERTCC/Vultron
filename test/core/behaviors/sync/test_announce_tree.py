@@ -1851,6 +1851,32 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         assert updated is not None
         assert updated.attributed_to == NEW_OWNER_ID
 
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_new_owner_is_copied_canonical(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The entry keeps its writer's spelling; the replica stores the
+        canonical one, which ``attributed_to``'s type requires (#5919)."""
+        entry = _make_ownership_transfer_entry(
+            0, f"{NEW_OWNER_ID}/", case_obj.genesis_hash
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = run_tree(
+            bridge,
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == NEW_OWNER_ID
+
     @pytest.mark.spec("SYNC-12-003")
     def test_ownership_transfer_is_idempotent(
         self, bridge, datalayer, case_actor

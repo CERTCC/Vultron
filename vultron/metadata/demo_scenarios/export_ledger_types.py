@@ -98,7 +98,7 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
 from vultron.metadata.generated_files import read_committed, write_generated
-from vultron.primitives import NonEmptyString
+from vultron.primitives import NonEmptyString, NormalisedActorId
 
 #: Where the artifact lives, beside the other generated ``ui/`` artifacts.
 OUTPUT_PATH = REPO_ROOT / "ui" / "src" / "data" / "ledgerTypes.ts"
@@ -414,6 +414,10 @@ def _scalar_shape(annotation: object) -> dict[str, Any] | None:
     """The shape of a JSON scalar annotation, or ``None`` if it is not one."""
     if annotation == NonEmptyString:
         return {"kind": "string", "nonEmpty": True}
+    if annotation == NormalisedActorId:
+        # An actor id in its canonical spelling refuses a trailing slash
+        # (OID-01-006), so the UI refuses one too (#5919).
+        return {"kind": "string", "nonEmpty": True, "noTrailingSlash": True}
     simple: dict[object, dict[str, Any]] = {
         str: {"kind": "string", "nonEmpty": False},
         bool: {"kind": "boolean"},
@@ -548,7 +552,7 @@ export type LedgerTypeName = {type_names}
 
 /** The kind of value one field holds. */
 export type FieldShape =
-  | {{ readonly kind: 'string'; readonly nonEmpty: boolean }}
+  | {{ readonly kind: 'string'; readonly nonEmpty: boolean; readonly noTrailingSlash?: boolean }}
   | {{ readonly kind: 'datetime' }}
   | {{ readonly kind: 'duration' }}
   | {{ readonly kind: 'integer'; readonly minimum?: number; readonly maximum?: number }}

@@ -132,6 +132,31 @@ class TestSeating:
         assert status.vf is not None
         assert status.vf.state == CS_vf.vf
 
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_invitee_is_seated_under_the_canonical_id(
+        self, scenario: BTTestScenario
+    ) -> None:
+        """The inviter's spelling is normalised before the record is built.
+
+        The record's ``attributed_to`` refuses a trailing slash (#5919), and
+        its roster key and its id both derive from the canonical id.
+        """
+        scenario.assert_success(
+            scenario.run(
+                CreateInertInviteeParticipantNode(
+                    invitee_id=f"{INVITEE_ID}/",
+                    case_id=CASE_ID,
+                    roles=["VENDOR"],
+                ),
+                case_id=CASE_ID,
+            )
+        )
+
+        assert _case(scenario).actor_participant_index == {
+            INVITEE_ID: PARTICIPANT_ID
+        }
+        assert _participant(scenario).attributed_to == INVITEE_ID
+
     def test_non_vendor_invitee_has_no_vf_dimension(
         self, scenario: BTTestScenario
     ) -> None:

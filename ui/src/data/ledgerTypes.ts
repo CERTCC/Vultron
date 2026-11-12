@@ -11,7 +11,7 @@ export type LedgerTypeName = 'CaseLedgerEntry' | 'ParticipantStatus' | 'CaseStat
 
 /** The kind of value one field holds. */
 export type FieldShape =
-  | { readonly kind: 'string'; readonly nonEmpty: boolean }
+  | { readonly kind: 'string'; readonly nonEmpty: boolean; readonly noTrailingSlash?: boolean }
   | { readonly kind: 'datetime' }
   | { readonly kind: 'duration' }
   | { readonly kind: 'integer'; readonly minimum?: number; readonly maximum?: number }
@@ -428,7 +428,7 @@ export const LEDGER_SHAPES = {
       { key: "bto", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "bcc", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
       { key: "audience", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "union", of: [{ kind: "object" }, { kind: "string", nonEmpty: true }] } }] } },
-      { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
+      { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true, noTrailingSlash: true } },
       { key: "contentMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "nameMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },
       { key: "summaryMap", required: false, nullable: true, shape: { kind: "map", keys: { kind: "string", nonEmpty: true }, values: { kind: "string", nonEmpty: true } } },

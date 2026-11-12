@@ -63,6 +63,7 @@ from vultron.core.services.embargo_lifecycle.creation import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
+from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -285,9 +286,12 @@ class InitializeCreationEmbargoNode(
         # path: the case the rule is about does not exist when the path stage
         # asks, so the role is asked here, through the shared predicate, which
         # takes the authority role from the single resolver (ARCH-24-007,
-        # ADR-0153).
+        # ADR-0153).  The owner id is canonical (``NormalisedActorId``,
+        # #5919); the executing actor's id is the configured one and carries
+        # no such type, so the owner test stays tolerant, as ``has_role`` is
+        # (OID-01-006, #5901).
         owner_actor_id = stored_case.attributed_to
-        if self.actor_id != owner_actor_id and not has_role(
+        if not same_actor_id(self.actor_id, owner_actor_id) and not has_role(
             self.actor_id, case_id, CVDRole.CASE_MANAGER, self.datalayer
         ):
             self.feedback_message = (

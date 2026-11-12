@@ -1419,68 +1419,18 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
     )
 
 
-def _respell_or_add_manager(
-    dl: SqliteDataLayer,
-    case_id: str,
-    *,
-    respell_manager_as: str | None = None,
-    second_holder: str | None = None,
+def _add_second_manager(
+    dl: SqliteDataLayer, case_id: str, second_holder: str
 ) -> None:
-    """Edit the stored roster the way a peer's activities can leave it.
+    """Grant ``CVDRole.CASE_MANAGER`` to *second_holder*'s stored record.
 
-    *respell_manager_as* rewrites the manager record's ``attributed_to``: the
-    roster keeps the spelling a peer wrote inside an activity, which the
-    extractor does not normalise as it does a sender id (OID-01-007).
-    *second_holder* also grants ``CVDRole.CASE_MANAGER`` to that actor's
-    record, listed after the manager's — the window a role delegation opens
-    (CM-33).
+    Listed after the manager's — the window a role delegation opens (CM-33).
+    A roster can no longer hold the manager under another spelling: its
+    ``attributed_to`` is a ``NormalisedActorId`` (#5919).
     """
-    if respell_manager_as is not None:
-        manager = _participant_of(dl, case_id, MANAGER)
-        manager.attributed_to = respell_manager_as
-        dl.save(manager)
-    if second_holder is not None:
-        holder = _participant_of(dl, case_id, second_holder)
-        holder.add_role(CVDRole.CASE_MANAGER)
-        dl.save(holder)
-
-
-@pytest.mark.spec("OID-01-006")
-@pytest.mark.spec("PCR-08-010")
-@pytest.mark.spec("ARCH-24-008")
-def test_a_relay_from_a_slash_spelled_manager_keeps_its_attribution(
-    make_payload,
-):
-    """The roster spells the manager with a trailing slash; its relay is
-    still a relay.
-
-    The sender id arrives normalised and the roster's ``attributed_to`` does
-    not, but the two name one actor (OID-01-006).  Taking the manager's relay
-    for a participant's spoof would record the manager's consent in the
-    proposer's place and invite the proposer to its own terms (#5924).
-    """
-    case_id = "https://example.org/cases/relay-slash-manager"
-    # No embargo in force, so no consent row binds the manager record to
-    # the spelling it is about to lose.
-    dl, revision = _active_case_with_revision(
-        case_id,
-        store_actor=OTHER_A,
-        participants=[PROPOSER, OTHER_A, OTHER_B],
-        active=False,
-    )
-    _respell_or_add_manager(dl, case_id, respell_manager_as=MANAGER + "/")
-    case = cast(VulnerabilityCase, dl.read_case(case_id))
-    assert resolve_case_manager_id(case, dl) == MANAGER + "/"
-    invite = _proposal(
-        revision, case_id, actor=MANAGER, attributed_to=PROPOSER
-    )
-
-    assert (
-        resolve_proposer_id(
-            make_payload(invite, receiving_actor_id=OTHER_A, at=dl), dl
-        )
-        == PROPOSER
-    )
+    holder = _participant_of(dl, case_id, second_holder)
+    holder.add_role(CVDRole.CASE_MANAGER)
+    dl.save(holder)
 
 
 @pytest.mark.spec("PCR-08-010")
@@ -1502,7 +1452,7 @@ def test_only_the_resolved_manager_may_attribute_a_proposal(
         store_actor=OTHER_B,
         participants=[PROPOSER, OTHER_A, OTHER_B],
     )
-    _respell_or_add_manager(dl, case_id, second_holder=OTHER_A)
+    _add_second_manager(dl, case_id, OTHER_A)
     case = cast(VulnerabilityCase, dl.read_case(case_id))
     assert resolve_case_manager_id(case, dl) == MANAGER
     invite = _proposal(revision, case_id, actor=sender, attributed_to=PROPOSER)

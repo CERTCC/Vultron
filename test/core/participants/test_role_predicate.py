@@ -17,6 +17,7 @@
 (ADR-0153, CM-02-011)."""
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -63,32 +64,6 @@ def seeded(dl: SqliteDataLayer) -> SqliteDataLayer:
         actor_participant_index={
             MANAGER_ID: manager.id_,
             VENDOR_ID: vendor.id_,
-        },
-    )
-    dl.create(manager)
-    dl.create(vendor)
-    dl.create(case)
-    return dl
-
-
-@pytest.fixture
-def slashed(dl: SqliteDataLayer) -> SqliteDataLayer:
-    """The same roster, written with a trailing slash on every actor id.
-
-    The shape a replica ends up in when a peer spelled the ids that way
-    inside the activity the roster was built from (OID-01-006).
-    """
-    manager = _participant("manager", f"{MANAGER_ID}/", CVDRole.CASE_MANAGER)
-    vendor = _participant("vendor", f"{VENDOR_ID}/", CVDRole.VENDOR)
-    case = make(
-        VulnerabilityCase,
-        id_=CASE_ID,
-        name="ROLE-PREDICATE",
-        attributed_to=OWNER_ID,
-        case_participants=[manager.id_, vendor.id_],
-        actor_participant_index={
-            f"{MANAGER_ID}/": manager.id_,
-            f"{VENDOR_ID}/": vendor.id_,
         },
     )
     dl.create(manager)
@@ -234,56 +209,19 @@ def test_a_queried_id_spelled_with_a_trailing_slash_still_holds_the_role(
 
 
 @pytest.mark.spec("OID-01-006")
-@pytest.mark.spec("CLP-10-021")
-def test_a_roster_record_spelled_with_a_trailing_slash_names_its_actor(
-    slashed: SqliteDataLayer,
-) -> None:
-    """A roster record's own spelling does not decide who holds the role.
+@pytest.mark.spec("ARCH-10-001")
+def test_a_roster_record_cannot_carry_the_other_spelling() -> None:
+    """The record side of the comparison has one spelling (#5919).
 
-    ``attributed_to`` is an id the sender wrote inside the activity, not the
-    sender id the extractor normalises, so it reaches the store in whatever
-    spelling it arrived in (OID-01-006, OID-01-007).  Comparing it exactly
-    answered "holds no role" for the case's actual CASE_MANAGER, which sends
-    a correctly addressed delivery down the participant-replica or no-case
-    path and refuses it with a reason untrue of its receiver (HP-01-037,
-    HP-01-039).  Both branches of the predicate are covered: the authority
-    role, through the single resolver, and a roster-scanned role.
+    ``CaseParticipant.attributed_to`` is a ``NormalisedActorId``: a received
+    record is normalised at its parse, and any other construction with a
+    trailing slash is refused.  So the roster a replica holds is keyed on
+    canonical ids, and ``has_role``'s tolerance is reached only by the
+    *queried* id — the executing actor's configured id, which carries no
+    such type, and which the queried-id test above pins.
     """
-    assert has_role(MANAGER_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is True
-    assert has_role(VENDOR_ID, CASE_ID, CVDRole.VENDOR, slashed) is True
-    # Same answers when the query carries the slash the record carries, and
-    # still no answer for an actor the roster does not record.
-    assert (
-        has_role(f"{MANAGER_ID}/", CASE_ID, CVDRole.CASE_MANAGER, slashed)
-        is True
-    )
-    assert has_role(f"{VENDOR_ID}/", CASE_ID, CVDRole.VENDOR, slashed) is True
-    assert (
-        has_role(STRANGER_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is False
-    )
-    assert has_role(VENDOR_ID, CASE_ID, CVDRole.CASE_MANAGER, slashed) is False
-
-
-@pytest.mark.spec("OID-01-006")
-def test_a_roster_record_keeps_the_spelling_it_was_given(
-    slashed: SqliteDataLayer,
-) -> None:
-    """The premise of the tolerance: the field is not normalised on the way in.
-
-    ``CaseParticipant.attributed_to`` is a ``NonEmptyString``, not a
-    ``NormalisedActorId``, so a trailing slash is stored rather than refused
-    at construction, and the resolver reports it as it stands.  If that ever
-    changes — the field is retyped and the records are migrated — the
-    tolerance in :func:`has_role` becomes unreachable rather than wrong, and
-    this test is what says so.
-    """
-    manager = slashed.read(f"{CASE_ID}/participants/manager")
-    assert isinstance(manager, CaseParticipant)
-    assert manager.attributed_to == f"{MANAGER_ID}/"
-
-    case = slashed.read_case(CASE_ID)
-    assert case is not None
-    assert resolve_case_manager_id(case, slashed) == f"{MANAGER_ID}/"
+    with pytest.raises(ValidationError, match="trailing slash"):
+        _participant("manager", f"{MANAGER_ID}/", CVDRole.CASE_MANAGER)
 
 
 @pytest.mark.spec("CM-26-001")

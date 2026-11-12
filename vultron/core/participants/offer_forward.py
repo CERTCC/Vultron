@@ -32,6 +32,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
+from vultron.primitives import same_actor_id
 
 
 def activity_type_name(obj: object) -> str | None:
@@ -79,7 +80,12 @@ def forwarded_offer_entry(
     forward = dl.read(forward_id)
     if forward is None or activity_type_name(forward) != "Offer":
         return None
-    if _as_id(getattr(forward, "actor", None)) != issuer_id:
+    # The stored Offer's ``actor`` is read as its writer spelled it (an
+    # activity's actor field is not normalised by type), so the issuer test
+    # is tolerant; the ``target`` test below normalises both sides
+    # (OID-01-006, #5901).
+    forward_actor = _as_id(getattr(forward, "actor", None))
+    if forward_actor is None or not same_actor_id(forward_actor, issuer_id):
         return None
     if _as_id(getattr(forward, case_field, None)) != case_id:
         return None

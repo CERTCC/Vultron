@@ -33,6 +33,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.wire_keys import wire_key
+from vultron.primitives import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +77,15 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         entry = self._get_entry()
         case_id = entry.case_id
         carried = entry.payload_snapshot.get("object")
-        new_owner_id = (
+        # The entry carries the owner in its writer's spelling; the replica
+        # stores the canonical one (OID-01-006, #5919).
+        carried_owner = (
             _extract_id_from_field(carried.get(_ATTRIBUTED_TO))
             if isinstance(carried, dict)
             else None
+        )
+        new_owner_id = (
+            normalise_actor_id(carried_owner) if carried_owner else None
         )
         if not new_owner_id:
             self.feedback_message = (
