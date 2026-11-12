@@ -36,8 +36,10 @@ regressions where case creation no longer delivers the case copy
 
 AC-2 tests (``test_subsequent_case_scoped_activity_routes_without_deferral``)
 seed the replica directly in the participant's store (faster, sufficient
-for routing coverage) and then verify both the absence of deferral *and* the presence of
-the handler's side effect (note appended to ``replica.notes``).
+for routing coverage) and then verify, from the activity's received record,
+that the ``Add(Note)`` handler ran on the case its ``context`` names and gave
+its own verdict -- not a deferral, and not a refusal at the parse edge or a
+door.
 """
 
 import pytest
@@ -45,6 +47,7 @@ import pytest
 from test.demo.conftest import (
     submit_report_through_reporter,
 )
+from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.objects import authored_at, make
@@ -52,6 +55,10 @@ from test.support.received import delivered_body
 from test.support.signing import post_delivered, serve_published_profiles
 from vultron.core.models.dimensions import (
     RmDimension,
+)
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.services.received_holding import records_awaiting_case
@@ -561,14 +568,20 @@ class TestBootstrapSequence:
         routing decision after a replica exists.  End-to-end emission coverage
         is provided by the AC-1 tests above.
 
-        Two handler side-effects are asserted in addition to the non-deferral
-        check:
+        The activity is delivered as its sender sends it: stamped with the
+        sender's ledger position (SYNC-18-015), addressed to this actor
+        (HP-01-005), its note naming the case.  The replica names its
+        CASE_MANAGER, as every seeded replica does (CP-09-004).
 
-        - The note's ID appears in the replica's ``notes`` list, confirming
-          the ``AddNoteToCaseReceivedUseCase`` ran to completion.
-        - The actor's inbox queue is drained, confirming the inbox handler
-          dispatched the ``Add(Note)`` activity rather than silently dropping
-          or re-queuing it.
+        Only the CASE_MANAGER attaches a note; a participant learns of it from
+        the ledger fan-out (SYNC-02-001).  So the verdict a routed ``Add(Note)``
+        earns here is the handler's own HP-01-005 refusal, "not the
+        CASE_MANAGER of" this case, which it gives only after resolving the
+        case from the activity's ``context``.  The received record proves
+        that verdict: one owing no replay and waiting on no case (not
+        deferred), refused with exactly that reason (not refused at the parse
+        edge, at a door, or for want of the case).  The replica is left
+        without the note, and the inbox queue is drained.
         """
         participant_iso, participant_tc = participant_setup
         base = participant_iso.base_url + "/api/v2"
@@ -590,16 +603,26 @@ class TestBootstrapSequence:
         # (ADR-0073).
         actor_dl = participant_iso.store_for(actor_id)
         actor_dl.create(case)
+        # A seeded replica names its CASE_MANAGER on the roster (CP-09-004);
+        # without one the handler refuses the note for want of a manager
+        # instead of reaching its own decision.
+        add_case_manager_participant(actor_dl, case, _DIRECT_OWNER_ACTOR_ID)
         assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
             "Prerequisite: case replica must exist before routing test."
         )
 
         # Post a case-scoped Add(Note) with context = case_id.
-        note = make(as_Note, name="Routing check note for PCR-07-006")
+        note = make(
+            as_Note,
+            name="Routing check note for PCR-07-006",
+            content="Routing check note for PCR-07-006",
+            context=_DIRECT_CASE_ID,
+        )
         note_activity = add_note_to_case_activity(
             note,
             target=case,
             actor=_DIRECT_OWNER_ACTOR_ID,
+            to=[actor_id],
             context=_DIRECT_CASE_ID,
             at=authored_at(),
         )
@@ -609,26 +632,47 @@ class TestBootstrapSequence:
             delivered_body(note_activity),
         )
 
-        # Assert 1: The note activity must NOT have been deferred.  What
-        # waits on a case names it on its own received record (ADR-0154).
+        # Assert 1: The activity reached intake and was not deferred.  Every
+        # received activity has one record under the receiver's key; one
+        # left waiting on its case owes a replay and names the case
+        # (ADR-0154, IO-03-009).
+        record = actor_dl.read(
+            ReceivedActivityRecord.build_id(note_activity.id_)
+        )
+        assert isinstance(record, ReceivedActivityRecord), (
+            f"No received record for '{note_activity.id_}': the activity "
+            f"never reached intake (PCR-07-006 AC-2). Read: {record!r}"
+        )
         waiting = [
-            record.activity_id
-            for record in records_awaiting_case(actor_dl, _DIRECT_CASE_ID)
+            held.activity_id
+            for held in records_awaiting_case(actor_dl, _DIRECT_CASE_ID)
         ]
         assert note_activity.id_ not in waiting, (
             f"Case-scoped activity '{note_activity.id_}' was left waiting on "
             f"case '{_DIRECT_CASE_ID}' even though its replica already "
             f"exists. Activity was incorrectly deferred (PCR-07-006 AC-2)."
         )
+        assert not record.replay_owed and record.awaiting_case_id is None, (
+            f"Activity '{note_activity.id_}' is still owed a replay "
+            f"(awaiting_case_id={record.awaiting_case_id!r}): it was held, "
+            f"not routed (PCR-07-006 AC-2)."
+        )
 
-        # Assert 2: Non-CaseActors must NOT attach the note to their replica.
-        # In the new protocol model (ADR-0022), note attachment is gated by
-        # CheckIsCaseManagerNode — only the CaseActor attaches the note to its
-        # case replica.  Non-CaseActor participants receive the note update
-        # exclusively via Announce(CaseLedgerEntry) fan-out from the CaseActor
-        # (SYNC-02-001, SYNC-02-003).  The BT still returns SUCCESS (via the
-        # fallback path), so the handler ran to completion — demonstrated by
-        # Assert 3 below.
+        # Assert 2: The Add(Note) handler ran on the case `context` names and
+        # gave its own verdict.  Only the CASE_MANAGER attaches a note; a
+        # participant refuses it naming the case (HP-01-005, SYNC-02-001).
+        # Any other outcome -- applied, or refused at the parse edge, at a
+        # door, or for want of the case -- is a different path.
+        assert record.stage is ReceivedStage.REFUSED, (
+            f"Expected the handler's HP-01-005 refusal at a participant; "
+            f"record stage is {record.stage!r}."
+        )
+        assert record.refusal_reason == (
+            f"not the CASE_MANAGER of case '{_DIRECT_CASE_ID}'"
+        ), (
+            f"Activity '{note_activity.id_}' was refused before the Add(Note) "
+            f"handler reached its decision: {record.refusal_reason!r}"
+        )
         replica = actor_dl.read(_DIRECT_CASE_ID)
         assert replica is not None
         replica_note_ids = [
