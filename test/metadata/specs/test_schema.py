@@ -4,6 +4,8 @@ Covers: SpecIdStr validation, StatementSpec, BehavioralSpec, SpecGroup,
 SpecFile, SpecRegistry round-trip, and load_registry helpers.
 """
 
+import uuid
+
 import pytest
 import yaml
 from pydantic import ValidationError
@@ -772,13 +774,14 @@ def test_reloading_an_unchanged_spec_dir_parses_each_file_once(
 
     # Unique text, so no earlier test in this process warmed the cache.
     for path in multi_spec_dir.glob("*.yaml"):
-        path.write_text(path.read_text() + f"# {path.name} {id(parsed)}\n")
+        path.write_text(path.read_text() + f"# {path.name} {uuid.uuid4()}\n")
     monkeypatch.setattr(yaml, "load", counting_load)
     first = load_registry(multi_spec_dir)
     second = load_registry(multi_spec_dir)
     assert len(parsed) == 2
     spec = first.get("TST-01-001")
     assert spec is not second.get("TST-01-001")
+    assert spec.tags is not None
     spec.tags.clear()
     assert load_registry(multi_spec_dir).get("TST-01-001").tags
 

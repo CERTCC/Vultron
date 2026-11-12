@@ -12,8 +12,17 @@ from vultron.metadata.specs.marked_tests import (
     marked_cases_in,
     read_marked_file,
 )
+from vultron.metadata.text_cache import CACHE_DIR_ENV
 
 pytestmark = pytest.mark.spec("SR-05-017")
+
+
+@pytest.fixture(autouse=True)
+def _parse_every_time(tmp_path, monkeypatch):
+    """Start from empty caches, so each test runs the parser."""
+    monkeypatch.setenv(CACHE_DIR_ENV, str(tmp_path / "text-cache"))
+    marked_tests.read_marked_file.cache_clear()
+    marked_tests._file_at_no_path.cache_clear()
 
 
 def _cases(source: str) -> list[MarkedCase]:

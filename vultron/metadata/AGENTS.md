@@ -35,8 +35,8 @@ just edited a metadata file and got it wrong, so **error messages are the produc
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests/`); merged `base:main` PRs and the Issues they close, through `gh` search, and a `git blame` trace of each bug-fix PR in the local clone (`size_calibration/`, `pr-size --calibrate`); `.github/workflows/` and a branch diff, running CI's pull-request checks locally (`ci_mirror/`: `prepush-ci-mirror`); a PR body file or `gh pr view` payload (`pr_body_lint/`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate and CI mirror: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
 Shared helpers live in `base.py`, `markdown_tables.py`, `git_runner.py` (`GitRunner`,
-the `git` seam) and `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)).
-**Do not re-derive any of them** — see the `repo_root` history below for the cost.
+the `git` seam), `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)) and
+`text_cache.py` (per-file reads kept on disk, #5880). **Do not re-derive any of them.**
 
 `base.py` — cross-subpackage primitives:
 
