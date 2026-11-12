@@ -2330,6 +2330,33 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-028
+      - id: DOCBW-08-039
+        priority: MUST
+        kind: project
+        statement: >-
+          The job of the promote workflow that builds the DOCBW-08-009 archive
+          MUST run the DOCBW-08-028 step after the shared build and before its
+          publication checks, reading the drafts register at the promoted
+          commit.
+        rationale: >-
+          The Revision Log at that commit links the frozen copy of every
+          released draft, including the draft this run releases. Without the
+          served tree, the link check and the archive build find no file for
+          those links and fail, so the run makes no tag. With it, the archive
+          builder writes each link as its live URL (DOCBW-08-016).
+        verification: >-
+          Tests in `test/ci/test_serve_frozen_drafts.py` read the promote
+          workflow and check that its archive job runs the serving step after
+          the shared build and before the publication checks and the archive
+          build, with the checked-out register. A test in
+          `test/ci/test_frozen_drafts.py` builds an archive from a site whose
+          Revision Log links a served frozen-copy page and checks that the
+          link becomes its live URL.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
       - id: DOCBW-08-036
         priority: MUST_NOT
         kind: project
