@@ -26,33 +26,26 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.adapters.driving.fastapi.test_stub_invite_on_arrival import (  # noqa: F401
-    _CASE_ACTOR_ID,
-    _CASE_ID,
-    _INVITEE_ID,
-    _LONG_AGO,
-    _PENDING_ID,
-    _age_queue,
-    _awaiting,
-    _note_body,
-    _pending,
-    _stub_invite_body,
-    case_actor_dl,
-    invitee_dl,
-)
-from test.core.use_cases.received.conftest import seed_case_participant
 from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
 from test.support.received import delivered_body, stamped
-from vultron.adapters.driven.clock import SystemClock
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
+from test.support.stub_invite_arrival import (
+    CASE_ACTOR_ID,
+    CASE_ID as INVITED_CASE_ID,
+    INVITEE_ID,
+    LONG_AGO,
+    PENDING_ID,
+    age_queue,
+    awaiting,
+    deliver,
+    drain,
+    note_body,
+    pending_record,
+    sealed_announce_body,
+    stub_invite_body,
 )
-from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
-from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
-from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.adapters.driven.clock import SystemClock
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.inbox import (
@@ -1108,76 +1101,26 @@ class TestOneDeliveryIsOneAct:
 # A full-case Invite before the Announce waits at the inbox (CM-11-033)
 # ---------------------------------------------------------------------------
 
-# The CASE_MANAGER, the invitee, the case, the stub Invite and the
-# case-scoped Note come from the stub-Invite arrival tests, which drive the
-# same real adapters (#4915).
-_FCI_INVITE_ID = f"{_CASE_ID}/invitations/full-6309"
+# The CASE_MANAGER, the invitee, the case, the stub Invite, the case-scoped
+# Note and the delivery come from ``test.support.stub_invite_arrival``, which
+# drives the same real adapters as the stub-Invite arrival tests (#4915).
+_FCI_INVITE_ID = f"{INVITED_CASE_ID}/invitations/full-6309"
 _FCI_RECEIVED = "received the full-case Invite"
-
-
-@pytest.fixture
-def fci_invitee_run(invitee_dl) -> pipeline._InboxRun:  # noqa: F811
-    """The invitee's inbox run, over its store that holds no case yet.
-
-    The real ingress, dispatch and queue adapters, sharing one staging so a
-    deferred delivery is held for its replay, and the production
-    dispatcher (DL-06-006, IO-03-003).
-    """
-    return pipeline._InboxRun(invitee_dl, _INVITEE_ID, make_dispatcher())
-
-
-def _fci_deliver(
-    run: pipeline._InboxRun, body: dict[str, Any]
-) -> InboxOutcome:
-    """One delivery to the invitee's inbox, as ``run_inbox_pipeline`` makes it."""
-    return process_payload(
-        body,
-        run.ingress,
-        run.dispatch,
-        run.queue,
-        received_outcome_port=run.outcome,
-        arrived_at=SystemClock().now(),
-    )
 
 
 def _fci_full_case_invite_body() -> dict[str, Any]:
     """The CASE_MANAGER's full-case Invite to the invitee."""
     return delivered_body(
         rm_invite_to_full_case_activity(
-            make(as_Organization, id_=_INVITEE_ID),
-            _CASE_ID,
+            make(as_Organization, id_=INVITEE_ID),
+            INVITED_CASE_ID,
             LedgerPosition(log_index=0, entry_hash="ab" * 32),
             id_=_FCI_INVITE_ID,
-            actor=_CASE_ACTOR_ID,
-            to=[_INVITEE_ID],
+            actor=CASE_ACTOR_ID,
+            to=[INVITEE_ID],
             at=authored_at(),
         )
     )
-
-
-def _fci_announce_body(manager_dl: SqliteDataLayer) -> dict[str, Any]:
-    """The sealed ``Announce(VulnerabilityCase)`` the CASE_MANAGER sends.
-
-    Built by the CASE_MANAGER's trigger adapter, so the case carries its
-    roster inline as the invitee receives it (CBT-05-005, AKM-02-004): the
-    replica then names its CASE_MANAGER before any ledger entry arrives.
-    """
-    case = manager_dl.read(_CASE_ID)
-    assert isinstance(case, VulnerabilityCase)
-    seed_case_participant(manager_dl, case, _INVITEE_ID)
-    manager_dl.save(case)
-    announce_id = TriggerActivityAdapter(
-        manager_dl
-    ).announce_vulnerability_case(
-        case_id=_CASE_ID,
-        actor=_CASE_ACTOR_ID,
-        context_id=_CASE_ID,
-        to=[_INVITEE_ID],
-        at=authored_at(),
-    )
-    body = read_sealed_body_dict(manager_dl, announce_id)
-    assert body is not None
-    return body
 
 
 def _fci_received_logs(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -1204,39 +1147,35 @@ class TestFullCaseInviteBeforeTheAnnounce:
     @pytest.mark.spec("HP-01-041")
     def test_an_anchored_invitee_judges_it_after_the_announce_replay(
         self,
-        case_actor_dl,  # noqa: F811
-        fci_invitee_run,
+        case_actor_dl,
+        invitee_dl,
         caplog,
     ):
         """Deferred before the Announce; admitted on its replay."""
-        dl = fci_invitee_run.actor_dl
-        stub = _fci_deliver(
-            fci_invitee_run, _stub_invite_body(case_actor_dl)[1]
-        )
+        dl = invitee_dl
+        stub = deliver(dl, stub_invite_body(case_actor_dl)[1])
         assert stub.status is InboxOutcomeStatus.PROCESSED, stub.failure_reason
 
         with caplog.at_level(logging.DEBUG):
-            held = _fci_deliver(fci_invitee_run, _fci_full_case_invite_body())
+            held = deliver(dl, _fci_full_case_invite_body())
 
             assert held.status is InboxOutcomeStatus.DEFERRED, (
                 held.failure_reason
             )
-            assert _awaiting(dl) == [_FCI_INVITE_ID]
+            assert awaiting(dl) == [_FCI_INVITE_ID]
             assert _fci_received_logs(caplog) == [], (
                 "the Invite was judged before the replica existed"
             )
 
-            announced = _fci_deliver(
-                fci_invitee_run, _fci_announce_body(case_actor_dl)
-            )
+            announced = deliver(dl, sealed_announce_body(case_actor_dl))
             assert announced.status is InboxOutcomeStatus.PROCESSED, (
                 announced.failure_reason
             )
-            assert isinstance(dl.read(_CASE_ID), VulnerabilityCase)
+            assert isinstance(dl.read(INVITED_CASE_ID), VulnerabilityCase)
 
-            fci_invitee_run.drain_queue()
+            drain(dl)
 
-        assert _awaiting(dl) == []
+        assert awaiting(dl) == []
         record = dl.read(ReceivedActivityRecord.build_id(_FCI_INVITE_ID))
         assert isinstance(record, ReceivedActivityRecord)
         assert record.stage is ReceivedStage.ARCHIVED, "archived as applied"
@@ -1252,42 +1191,38 @@ class TestFullCaseInviteBeforeTheAnnounce:
     @pytest.mark.spec("CBT-03-003")
     def test_with_no_trust_anchor_it_is_dropped_unjudged_when_the_hold_expires(
         self,
-        case_actor_dl,  # noqa: F811
-        fci_invitee_run,
+        case_actor_dl,
+        invitee_dl,
         caplog,
     ):
         """No anchor admits the Announce, so the held Invite expires unjudged."""
-        dl = fci_invitee_run.actor_dl
+        dl = invitee_dl
         with caplog.at_level(logging.DEBUG):
-            held = _fci_deliver(fci_invitee_run, _fci_full_case_invite_body())
+            held = deliver(dl, _fci_full_case_invite_body())
             assert held.status is InboxOutcomeStatus.DEFERRED, (
                 held.failure_reason
             )
 
-            announced = _fci_deliver(
-                fci_invitee_run, _fci_announce_body(case_actor_dl)
-            )
-            assert announced.status is not InboxOutcomeStatus.PROCESSED
-            assert dl.read(_CASE_ID) is None, (
+            announced = deliver(dl, sealed_announce_body(case_actor_dl))
+            assert announced.status is InboxOutcomeStatus.REJECTED
+            assert dl.read(INVITED_CASE_ID) is None, (
                 "an Announce with no trust anchor created the replica"
             )
-            assert _awaiting(dl) == [_FCI_INVITE_ID]
+            assert awaiting(dl) == [_FCI_INVITE_ID]
 
-            assert not _pending(dl).invite_anchored
-            _age_queue(dl, _LONG_AGO)
+            assert not pending_record(dl).invite_anchored
+            age_queue(dl, LONG_AGO)
 
             # The next case-scoped delivery finds the hold expired.
-            expired = _fci_deliver(
-                fci_invitee_run, _note_body("https://example.org/notes/n-6309")
+            expired = deliver(
+                dl, note_body("https://example.org/notes/n-6309")
             )
-            fci_invitee_run.drain_queue()
+            drain(dl)
 
         assert expired.status is InboxOutcomeStatus.REJECTED
-        assert _awaiting(dl) == [], "the expired hold is dropped"
-        assert dl.read(_PENDING_ID) is None
-        record = dl.read(ReceivedActivityRecord.build_id(_FCI_INVITE_ID))
-        assert not (
-            isinstance(record, ReceivedActivityRecord)
-            and record.stage is ReceivedStage.ARCHIVED
-        ), "the held Invite was applied"
+        assert awaiting(dl) == [], "the expired hold is dropped"
+        assert dl.read(PENDING_ID) is None
+        assert (
+            dl.read(ReceivedActivityRecord.build_id(_FCI_INVITE_ID)) is None
+        ), "the expired hold kept the Invite's record"
         assert _fci_received_logs(caplog) == [], "the held Invite was judged"

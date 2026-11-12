@@ -21,6 +21,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.support.objects import make
+
+# The CASE_MANAGER's and the invitee's stores for the stub-Invite arrival
+# tests (``test_stub_invite_on_arrival.py``); a module defining its own
+# fixture of either name keeps it.
+from test.support.stub_invite_arrival import (  # noqa: F401
+    case_actor_dl,
+    invitee_dl,
+)
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import app_v2 as app
