@@ -11,7 +11,7 @@ from vultron.metadata.docs.page_schema import (
     START_DIR,
     THREAD_KEY,
 )
-from vultron.metadata.docs.threads.check import StartThread, _entry, position
+from vultron.metadata.docs.threads.check import StartThread, position
 from vultron.metadata.docs.threads.listing import _link
 
 #: ``docs/``-relative directory of the committed box fragments, one
@@ -65,10 +65,11 @@ def thread_name(thread: StartThread) -> str:
 def box_targets(thread: StartThread) -> list[str]:
     """Every page string that carries a box of *thread*, in reading order.
 
-    The start page's path first, then each member's ``page``, with a section
-    member's anchor kept: a section's box is not its page's box (DF-11-022).
+    Each member's ``page``, with a section member's anchor kept: a section's
+    box is not its page's box (DF-11-022). The start page carries none: its
+    listing already shows the whole thread (DF-11-015).
     """
-    return [thread.path, *(member.page for member in thread.members())]
+    return [member.page for member in thread.members()]
 
 
 def box_fragment_path(thread: StartThread, target: str) -> str:
@@ -133,50 +134,41 @@ def _tile(side: str, links: list[str]) -> list[str]:
 def render_box(
     thread: StartThread, target: str, titles: Mapping[str, str]
 ) -> str:
-    """Render *thread*'s box for *target*: its start page or a member's ``page``.
+    """Render *thread*'s box for *target*, a member's ``page``.
 
     The box is an admonition titled by the start page's situation, the same
     for every reader: no ``stakeholder_type``, no level, no script, no query
-    string (DF-11-009, DF-11-035). A member's box names its stage, as a page
-    or, for a ``page.md#anchor`` member, a section (DF-11-022); a start page's
-    names none. A member's box links back to the start page; a start page's
-    has no such link, being that page. Two tiles follow, the pages before and
+    string (DF-11-009, DF-11-035). It names the member's stage, as a page or,
+    for a ``page.md#anchor`` member, a section (DF-11-022), and links back to
+    the start page. Two tiles follow, the pages before and
     the pages after (DF-11-034). The tiles are HTML blocks that ``md_in_html``
     processes as Markdown, so MkDocs rewrites and validates every link in
     them; links are relative to the fragment, and ``include-markdown``
     rewrites them for the page that includes it.
 
     Raises:
-        ValueError: If *target* is neither the start page nor a member.
+        ValueError: If *target* is not a member, the start page included.
     """
     fragment = box_fragment_path(thread, target)
-    if target == thread.path:
-        where_line: list[str] = []
-        before: list[str] = []
-        after_members = _entry(thread.stages[0]) if thread.stages else ()
-    else:
-        member = next((m for m in thread.members() if m.page == target), None)
-        where = position(thread, member.path) if member else None
-        if member is None or where is None:
-            raise ValueError(
-                f"{target} is not on the thread of docs/{thread.path}"
-            )
-        unit = "section" if "#" in member.page else "page"
-        start_href = posixpath.relpath(
-            thread.path, posixpath.dirname(fragment)
+    member = next((m for m in thread.members() if m.page == target), None)
+    where = position(thread, member.path) if member else None
+    if member is None or where is None:
+        raise ValueError(
+            f"{target} is not on the thread of docs/{thread.path}"
         )
-        where_line = [
-            f'<div class="{BOX_CLASS}-where" markdown>',
-            f"This {unit} is part of *{where.stage.title}*.",
-            "",
-            f'<p class="{BOX_CLASS}-start" markdown>'
-            f"[{START_LINK_TEXT}]({start_href})</p>",
-            "</div>",
-            "",
-        ]
-        before = [_link(m, fragment, titles) for m in where.before]
-        after_members = where.after
-    after = [_link(m, fragment, titles) for m in after_members]
+    unit = "section" if "#" in member.page else "page"
+    start_href = posixpath.relpath(thread.path, posixpath.dirname(fragment))
+    where_line = [
+        f'<div class="{BOX_CLASS}-where" markdown>',
+        f"This {unit} is part of *{where.stage.title}*.",
+        "",
+        f'<p class="{BOX_CLASS}-start" markdown>'
+        f"[{START_LINK_TEXT}]({start_href})</p>",
+        "</div>",
+        "",
+    ]
+    before = [_link(m, fragment, titles) for m in where.before]
+    after = [_link(m, fragment, titles) for m in where.after]
     lines = [
         _box_marker(thread),
         "",

@@ -2,8 +2,8 @@
 
 Requirements: specs/diataxis-requirements.yaml DF-11-013 (a thread is staged
 data on its start page), DF-11-014 (the start page's listing is generated and
-check gated), DF-11-015 (each member page and start page shows a box per
-thread: a link back to the start page and previous and next tiles), DF-11-016
+check gated), DF-11-015 (each member page shows a box per thread: a link
+back to the start page and previous and next tiles), DF-11-016
 (the thread check), DF-11-022 (a section member's box names the section),
 DF-11-023 (each box is a committed fragment), DF-11-044 (placed by hand),
 DF-11-034 (the link and the tiles), DF-11-009 (titled by situation, never by
@@ -20,11 +20,11 @@ in two:
   :data:`LISTING_END`, which ``uv run docs-site --write`` splices in
   (:mod:`~vultron.metadata.docs.site_sync`) — a stage is a section, a chain a
   numbered list, a set a bulleted one;
-* on the start page and each **member page**, as a box per thread: a
-  committed fragment under :data:`BOX_DIR` that ``docs-site --write``
-  generates (:func:`render_boxes`) and the page's author places with an
-  ``include-markdown`` line. Its table holds the start page, the pages before
-  and after the page, both as sets (:func:`position`), and the page itself.
+* on each **member page**, as a box per thread: a committed fragment under
+  :data:`BOX_DIR` that ``docs-site --write`` generates (:func:`render_boxes`)
+  and the page's author places with an ``include-markdown`` line. It links
+  back to the start page and holds a tile of the pages before the page and a
+  tile of the pages after it, both sets (:func:`position`).
   That every page renders its boxes is the built-site check
   (:mod:`~vultron.metadata.docs.path_boxes`).
 

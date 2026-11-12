@@ -1,7 +1,7 @@
 """Tests for the built-site reading-path box check (``uv run docs-path-boxes``).
 
-Requirements: DF-11-045 (every member page and start page renders its box for
-each thread it is on; the check names the page and the line to add and fails
+Requirements: DF-11-045 (every member page renders its box for each thread it
+is on, and a start page renders none; the check names the page and the line to add and fails
 on an empty target set), DF-11-044 (through an ``include-markdown`` line placed
 by hand), DF-11-043 (a section member's box sits in its section), DF-09-009.
 """
@@ -21,6 +21,7 @@ from vultron.metadata.docs.path_boxes import check_boxes, scan_page
 from vultron.metadata.docs.site_urls import url_path
 from vultron.metadata.docs.threads import (
     box_fragment_path,
+    box_targets,
     include_line,
     load_threads,
     page_titles,
@@ -29,10 +30,6 @@ from vultron.metadata.docs.threads import (
 from vultron.metadata.file_loading import MetadataLoadError
 
 _EXTENSIONS = ["admonition", "attr_list", "md_in_html", "tables"]
-
-#: ``(thread, target)`` of every box the fixture's pages must render.
-_PRACTICE = ("practice", "start/practice.md")
-_STUDY = ("study", "start/study.md")
 
 
 def _stage(title: str, kind: str, *members: dict) -> dict[str, object]:
@@ -78,7 +75,7 @@ def _fragments(root: Path) -> dict[tuple[str, str], tuple[str, str]]:
     out = {}
     for thread in threads:
         name = thread.path.removeprefix("start/").removesuffix(".md")
-        for target in [thread.path, *(m.page for m in thread.members())]:
+        for target in box_targets(thread):
             fragment = box_fragment_path(thread, target)
             out[(name, target)] = (
                 fragment,
@@ -89,8 +86,8 @@ def _fragments(root: Path) -> dict[tuple[str, str], tuple[str, str]]:
 
 #: Each page's boxes, by ``(thread, target)``, in the layout that passes.
 _LAYOUT: dict[str, list[tuple[str, str]]] = {
-    "start/practice.md": [_PRACTICE],
-    "start/study.md": [_STUDY],
+    "start/practice.md": [],
+    "start/study.md": [],
     "a.md": [("practice", "a.md")],
     "shared.md": [("practice", "shared.md"), ("study", "shared.md")],
     "g.md": [("study", "g.md#later")],
@@ -167,7 +164,7 @@ class TestBuiltSiteCheck:
     def test_every_box_in_place_passes(self, site):
         report = check_boxes(site)
         assert report.faults == []
-        assert report.boxes == 6
+        assert report.boxes == 4
         assert report.pages == 6
 
     def test_a_member_page_with_no_box_names_the_line_to_add(self, site):
@@ -178,12 +175,18 @@ class TestBuiltSiteCheck:
             'path; add {% include-markdown "./start/_paths/practice/a.md" %}'
         )
 
-    def test_a_start_page_with_no_box_fails(self, site):
-        _build(site, {"start/study.md": []})
-        (fault,) = _faults(site)
-        assert fault.startswith("docs/start/study.md: does not render its box")
-        assert (
-            '{% include-markdown "./_paths/study/start__study.md" %}' in fault
+    def test_a_start_page_needs_no_box(self, site):
+        assert not any(
+            fault.startswith("docs/start/") for fault in _faults(site)
+        )
+
+    def test_a_start_page_showing_a_members_box_fails(self, site):
+        _build(site, {"start/study.md": [("study", "shared.md")]})
+        assert any(
+            fault.startswith(
+                "docs/start/study.md: renders the box made for shared.md"
+            )
+            for fault in _faults(site)
         )
 
     def test_a_page_on_two_threads_with_one_box_fails(self, site):
@@ -266,7 +269,7 @@ class TestBuiltSiteCheck:
     def test_a_box_with_no_include_directive_fails(self, site):
         _build(site, sourced=False)
         faults = _faults(site)
-        assert len(faults) == 6
+        assert len(faults) == 4
         assert (
             "docs/a.md: renders the practice box for a.md with no matching "
             "include-markdown directive in its source"
@@ -309,7 +312,7 @@ class TestBuiltSiteCheck:
     def test_cli_reports_what_it_checked(self, site, monkeypatch, capsys):
         monkeypatch.setattr(path_boxes, "repo_root", lambda: site)
         path_boxes.main([])
-        assert "Checked 6 reading-path box(es) over 6 built page(s)." in (
+        assert "Checked 4 reading-path box(es) over 6 built page(s)." in (
             capsys.readouterr().out
         )
 

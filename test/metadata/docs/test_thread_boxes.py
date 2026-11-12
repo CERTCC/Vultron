@@ -11,6 +11,7 @@ for every reader), DF-11-044 (placed by hand), DF-11-009 (titled by situation, n
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
 
@@ -145,11 +146,9 @@ class TestBoxTiles:
     def test_one_box_per_thread_and_target(self, two_threads):
         fragments = set(_boxes(two_threads))
         assert fragments == {
-            f"{BOX_DIR}/practice/start__practice.md",
             f"{BOX_DIR}/practice/a.md",
             f"{BOX_DIR}/practice/topics__shared.md",
             f"{BOX_DIR}/practice/b.md",
-            f"{BOX_DIR}/study/start__study.md",
             *(f"{BOX_DIR}/study/{x}.md" for x in "cdef"),
             f"{BOX_DIR}/study/topics__shared.md",
             f"{BOX_DIR}/study/g--later.md",
@@ -211,15 +210,12 @@ class TestBoxTiles:
             two_threads, "start/practice.md", "a.md"
         )
 
-    def test_a_start_page_box(self, two_threads):
-        box = _box(two_threads, "start/study.md", "start/study.md")
-        tiles = _tiles(box)
-        assert _start(box) is None
-        assert tiles["Previous"].strip() == ""
-        assert _links(tiles["Next"]) == ["../../../c.md"]
-        assert "is part of" not in box
+    def test_a_start_page_has_no_box(self, two_threads):
+        thread = _thread(two_threads, "start/study.md")
+        with pytest.raises(ValueError, match="is not on the thread"):
+            render_box(thread, "start/study.md", {})
 
-    def test_a_start_page_box_next_is_a_whole_first_set(self, tmp_path):
+    def test_the_first_member_has_no_previous(self, tmp_path):
         root = tree(
             tmp_path,
             {
@@ -230,8 +226,11 @@ class TestBoxTiles:
                 "b.md": page("B"),
             },
         )
-        tiles = _tiles(_box(root, "start/s.md", "start/s.md"))
-        assert _links(tiles["Next"]) == ["../../../a.md", "../../../b.md"]
+        tiles = _tiles(_box(root, "start/s.md", "a.md"))
+        assert tiles["Previous"].strip() == ""
+        assert _start(_box(root, "start/s.md", "a.md")) == (
+            f'<a href="../../s.md">{START_LINK_TEXT}</a>'
+        )
 
     @pytest.mark.spec("DF-11-035")
     def test_titled_by_situation_and_the_same_for_every_reader(
@@ -254,13 +253,12 @@ class TestBoxTiles:
             assert not re.search(r'href="[^"]*\?', html)
             assert html.count('class="admonition abstract reading-path"') == 1
 
-    def test_a_quote_in_the_title_is_escaped(self):
-        thread = StartThread(
-            path="start/s.md",
+    def test_a_quote_in_the_title_is_escaped(self, two_threads):
+        thread = dataclasses.replace(
+            _thread(two_threads, "start/practice.md"),
             title='You say "hi" & <go>',
-            stages=(),
         )
-        box = render_box(thread, "start/s.md", {})
+        box = render_box(thread, "a.md", page_titles(two_threads, (thread,)))
         assert "Reading path: You say &quot;hi&quot; &amp; &lt;go&gt;</p>" in (
             box
         )
