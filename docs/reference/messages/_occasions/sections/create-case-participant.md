@@ -17,10 +17,7 @@ Carries the new participant record in full: its roles, statuses, joined mark and
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        create_participant,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(create_participant()))
+    print(render_example("create_participant"))
     ```

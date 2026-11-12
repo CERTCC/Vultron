@@ -17,10 +17,7 @@ Declines the recommender's suggestion, with `inReplyTo` naming it. The suggested
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        reject_actor_recommendation,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(reject_actor_recommendation()))
+    print(render_example("reject_actor_recommendation"))
     ```

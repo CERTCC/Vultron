@@ -17,10 +17,7 @@ Carries the case with its new owner in attributedTo. The CASE_MANAGER commits it
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        update_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(update_case()))
+    print(render_example("update_case"))
     ```

@@ -17,10 +17,7 @@ Designates the report as invalid, moving the sender's RM state to Invalid.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        invalidate_report,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(invalidate_report()))
+    print(render_example("invalidate_report"))
     ```

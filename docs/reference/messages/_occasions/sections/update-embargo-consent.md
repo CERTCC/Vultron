@@ -17,10 +17,7 @@ Carries the changed consent row in full. A CASE_MANAGER with an embargo stake of
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        update_embargo_consent,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(update_embargo_consent()))
+    print(render_example("update_embargo_consent"))
     ```

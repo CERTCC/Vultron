@@ -170,15 +170,19 @@ def seen_in_link(page: PageLink, prefix: str) -> str:
 
 
 def _example_block(row: OccasionRow) -> str:
-    """The exec block that renders *row*'s example JSON at build time."""
+    """The exec block that renders *row*'s example JSON at build time.
+
+    It renders through ``render_example``, which builds the example the way
+    the generator does, so the page shows the committed
+    ``docs/reference/examples/<example>.json`` rather than a fresh build
+    with its own ids and stamps (#5893).
+    """
     return (
         '```python exec="true" idprefix=""\n'
-        "from vultron.wire.as2.vocab.examples.vocab_examples import (\n"
-        f"    {row.example},\n"
-        "    json2md,\n"
-        ")\n"
+        "from vultron.wire.as2.vocab.examples.vocab_examples import "
+        "render_example\n"
         "\n"
-        f"print(json2md({row.example}()))\n"
+        f'print(render_example("{row.example}"))\n'
         "```"
     )
 

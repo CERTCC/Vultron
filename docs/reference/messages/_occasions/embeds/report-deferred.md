@@ -13,10 +13,7 @@
     ??? example "Example activity"
 
         ```python exec="true" idprefix=""
-        from vultron.wire.as2.vocab.examples.vocab_examples import (
-            defer_case,
-            json2md,
-        )
+        from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-        print(json2md(defer_case()))
+        print(render_example("defer_case"))
         ```

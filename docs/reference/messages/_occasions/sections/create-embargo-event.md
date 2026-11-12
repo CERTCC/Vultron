@@ -17,10 +17,7 @@ Carries the new embargo in full, its start and end times included. It follows th
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        create_embargo_event,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(create_embargo_event()))
+    print(render_example("create_embargo_event"))
     ```

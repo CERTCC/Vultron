@@ -18,10 +18,7 @@ Tells one participant that the embargo has ended, with immediate effect. The CAS
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        notify_embargo_termination,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(notify_embargo_termination()))
+    print(render_example("notify_embargo_termination"))
     ```

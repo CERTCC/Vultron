@@ -673,7 +673,9 @@ def test_section_is_anchored_by_the_occasion_id(table):
     _, row = _rows(table)["fix-readiness"]
     section = gen.render_section(row)
     assert section.startswith("## Fix Readiness (CF) { #fix-readiness }\n")
-    assert "print(json2md(add_fix_readiness_to_participant()))" in section
+    assert (
+        'print(render_example("add_fix_readiness_to_participant"))' in section
+    )
 
 
 def test_section_puts_facts_and_example_in_tabs_below_its_heading(table):
@@ -1246,7 +1248,8 @@ def test_embed_links_its_canonical_section_and_collapses_the_example(table):
     fence = lines.index('        ```python exec="true" idprefix=""')
     assert collapse < fence
     assert (
-        "        print(json2md(add_fix_readiness_to_participant()))" in lines
+        '        print(render_example("add_fix_readiness_to_participant"))'
+        in lines
     )
 
 

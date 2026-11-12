@@ -17,10 +17,7 @@ Terminates the embargo with immediate effect.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        remove_embargo,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(remove_embargo()))
+    print(render_example("remove_embargo"))
     ```

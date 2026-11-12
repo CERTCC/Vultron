@@ -16,10 +16,7 @@ Accepts the Stub Invite. The actor joins the case at RM Received.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        accept_invite_to_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(accept_invite_to_case()))
+    print(render_example("accept_invite_to_case"))
     ```

@@ -15,10 +15,7 @@ Offers the case to the actor named by the target, on the Case Owner's behalf: `a
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        offer_case_ownership_transfer,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(offer_case_ownership_transfer()))
+    print(render_example("offer_case_ownership_transfer"))
     ```

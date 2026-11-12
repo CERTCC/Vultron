@@ -17,10 +17,7 @@ Carries the new consent row in full: the embargo it answers, the participant it 
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        create_embargo_consent,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(create_embargo_consent()))
+    print(render_example("create_embargo_consent"))
     ```

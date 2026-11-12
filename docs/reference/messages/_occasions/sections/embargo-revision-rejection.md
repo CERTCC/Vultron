@@ -18,10 +18,7 @@ Rejects the revision for the case. The active embargo stays in force on its prio
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        reject_embargo_revision_proposal,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(reject_embargo_revision_proposal()))
+    print(render_example("reject_embargo_revision_proposal"))
     ```

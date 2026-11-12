@@ -18,10 +18,7 @@ Proposes a revision to the terms of the active embargo. The wire form is the sam
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        propose_embargo_revision,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(propose_embargo_revision()))
+    print(render_example("propose_embargo_revision"))
     ```

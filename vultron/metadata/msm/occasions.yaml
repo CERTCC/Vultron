@@ -332,7 +332,7 @@ groups:
       title: How to Seat a Participant on an Existing Case
     - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
-    example: rm_invite_to_case
+    example: invite_to_case
   - anchor: accept-invite-to-case
     heading: Accept invite to case
     when: an invited actor agrees to join the case

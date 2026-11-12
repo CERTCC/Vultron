@@ -1,0 +1,120 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
+  "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "type": "VulnerabilityCase",
+  "name": "VendorCo Case #20260601",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
+  "attributedTo": "https://vultron.example/organizations/vendorco",
+  "caseParticipants": [
+    {
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/finndervul",
+      "type": "CaseParticipant",
+      "name": "Finn der Vul",
+      "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "attributedTo": "https://vultron.example/users/finndervul",
+      "caseRoles": [
+        "reporter"
+      ],
+      "participantStatuses": [
+        {
+          "id": "urn:uuid:01e762ad-ba69-4503-ab88-edffddbd1746",
+          "type": "ParticipantStatus",
+          "name": "START",
+          "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "updated": "2026-06-01T19:12:00.000000+00:00",
+          "attributedTo": "https://vultron.example/users/finndervul",
+          "rmState": "START",
+          "caseEngagement": true,
+          "cvdRole": [
+            "REPORTER"
+          ]
+        }
+      ],
+      "embargoConsents": [],
+      "joined": true
+    },
+    {
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco",
+      "type": "CaseParticipant",
+      "name": "VendorCo",
+      "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "caseRoles": [
+        "vendor"
+      ],
+      "participantStatuses": [
+        {
+          "id": "urn:uuid:9acd8e31-1ee0-43de-b4e1-93a37b6354df",
+          "type": "ParticipantStatus",
+          "name": "RECEIVED Vf",
+          "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "updated": "2026-06-01T19:12:00.000000+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "rmState": "RECEIVED",
+          "vfState": "Vf",
+          "caseEngagement": true,
+          "cvdRole": [
+            "OBSERVER"
+          ]
+        }
+      ],
+      "embargoConsents": [],
+      "joined": true
+    }
+  ],
+  "actorParticipantIndex": {
+    "https://vultron.example/users/finndervul": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/finndervul",
+    "https://vultron.example/organizations/vendorco": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco"
+  },
+  "vulnerabilityReports": [
+    {
+      "id": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
+      "type": "VulnerabilityReport",
+      "name": "FDR-8675309",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "content": "I found a vulnerability!",
+      "attributedTo": "https://vultron.example/users/finndervul"
+    }
+  ],
+  "vulnerabilityItems": [],
+  "caseReferences": [],
+  "caseStatuses": [
+    {
+      "id": "urn:uuid:9f57c0e9-0f40-49cd-af2e-f132d23427c1",
+      "type": "CaseStatus",
+      "name": "NONE pxa",
+      "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "emState": "NONE",
+      "pxaState": "pxa"
+    }
+  ],
+  "notes": [],
+  "embargoRegister": [],
+  "pendingEmbargoProposalIndex": {},
+  "caseActivity": [],
+  "genesisHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d",
+  "ledgerPosition": {
+    "logIndex": -1,
+    "entryHash": "41ebcb1d996477859b8fec00382f75af72401ede0814022bab3f0d54f1b25e0d"
+  },
+  "parentCases": [],
+  "childCases": [],
+  "siblingCases": [],
+  "activeParticipants": [
+    "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/finndervul",
+    "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco"
+  ]
+}

@@ -17,10 +17,7 @@ Acknowledges receipt of the submitted report. Report submission is not replicate
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        read_report,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(read_report()))
+    print(render_example("read_report"))
     ```

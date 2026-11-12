@@ -14,10 +14,7 @@
     ??? example "Example activity"
 
         ```python exec="true" idprefix=""
-        from vultron.wire.as2.vocab.examples.vocab_examples import (
-            add_public_awareness_to_case,
-            json2md,
-        )
+        from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-        print(json2md(add_public_awareness_to_case()))
+        print(render_example("add_public_awareness_to_case"))
         ```

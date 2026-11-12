@@ -18,10 +18,7 @@ Recommends an actor to the CASE_MANAGER for the case named by the target.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        recommend_actor,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(recommend_actor()))
+    print(render_example("recommend_actor"))
     ```

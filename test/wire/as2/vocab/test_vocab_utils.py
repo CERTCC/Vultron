@@ -27,8 +27,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 # Rendering helpers and the CLI entry point, not vocabulary examples. Only
-# ``main`` is load-bearing here: the other three take a required argument, so
-# ``_requires_arguments`` would exclude them anyway.
+# ``main`` and ``example_names`` are load-bearing here: the others take a
+# required argument, so ``_requires_arguments`` would exclude them anyway.
 #: Module plumbing reachable from ``vocab_examples`` that is not an example
 #: factory: the generator's entry point and table helpers, and the writers.
 _NOT_EXAMPLES = frozenset(
@@ -41,6 +41,9 @@ _NOT_EXAMPLES = frozenset(
         "check_tables",
         "example_filename",
         "example_uuid",
+        "example_names",
+        "build_example",
+        "render_example",
     }
 )
 
@@ -71,9 +74,9 @@ def _requires_arguments(func) -> bool:
 def _example_funcs() -> list:
     """Every zero-argument example function reachable from ``vocab_examples``.
 
-    These are exactly the callables the ``markdown_exec`` blocks under
-    ``docs/reference/`` invoke, so this list is what keeps the docs
-    build from being the only place a broken example is detected.
+    The ``markdown_exec`` blocks under ``docs/`` render these through
+    ``render_example`` (#5893), so this list is what keeps the docs build
+    from being the only place a broken example is detected.
     """
     return [
         f for f in _candidate_example_funcs() if not _requires_arguments(f)
@@ -160,8 +163,9 @@ class TestRenderedTimestamps(unittest.TestCase):
 def test_every_example_renders_as_json(func):
     """Every documented example must render to parseable JSON.
 
-    The ``markdown_exec`` blocks in ``docs/`` are `print(json2md(func()))`,
-    so a failure here is a broken page on the published site.
+    The ``markdown_exec`` blocks in ``docs/`` render through
+    ``render_example``, which is ``json2md`` of the built example, so a
+    failure here is a broken page on the published site.
     """
     rendered = examples.json2md(func())
 
