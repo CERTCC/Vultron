@@ -86,7 +86,7 @@ The decision has these parts:
 - **Served by every deploy, never rebuilt.** Every deploy reads the register as `main` holds it and, for each released draft whose release is published, downloads the archive, checks it against its manifest and unpacks it into `spec/draft-N/`.
   The unpack refuses any member that could write outside that folder, and runs in the job that holds no token to write or deploy.
   No build ever builds a commit other than the one it checked out, so a toolchain change cannot alter a frozen draft.
-  Because the register is read from `main`, a rollback to an older commit still serves every frozen draft.
+  Because the register is read from `main`, any rollback the deploy accepts still serves every frozen draft; the deploy refuses a rollback to a commit older than the serving step, as it already refuses one that lacks the build's local actions.
   A released draft whose release is not published yet (its tag not made, or its release still a draft) gets a placeholder page at its address that names the release, and a notice in the run summary, so the pages that link it never link a missing page.
   A published release whose archive is missing, or does not match its manifest, fails the deploy through the failure notice: the site never drops a frozen draft silently.
 - **Checked by links, not by later editorial rules.** The pull-request check serves the frozen drafts the same way, from the register in the pull request, so it sees the same tree as the deploy.
@@ -97,7 +97,7 @@ The decision has these parts:
 
 ### Relation to ADR-0171 and #3559
 
-This decision builds on ADR-0171 and changes none of its parts: the schedule, the CI gate, the tags and the rollback stay as they are.
+This decision builds on ADR-0171 and changes none of its parts: the schedule, the CI gate, the tags and the rollback stay as they are, except that the rollback gate gains one refusal, for a target older than the serving step.
 The promote that ADR-0171 introduced gains the archive step, ordered before its draft release exists, and every publish gains the unpack step.
 
 Issue #3559 is about the whole site, versioned for each release.
@@ -109,7 +109,7 @@ If #3559 later versions the whole site, the `spec/draft-N/` addresses must keep 
 
 - Good, because each released draft has one permanent address, and its pages are the bytes the promote built, protected by an immutable release and checked against a manifest at every deploy.
 - Good, because the draft status is written once, and the pages, the promote and the deploy all read it from the register.
-- Good, because a toolchain change, a new site rule or a rollback cannot alter or drop a frozen draft.
+- Good, because a toolchain change, a new site rule or any rollback the deploy accepts cannot alter or drop a frozen draft.
 - Good, because the archive is also a download that a reviewer can read offline.
 - Good, because every draft release a maintainer can publish already carries its archive, so the manual publish step needs no new rule.
 - Bad, because a published release whose archive is missing or broken cannot be repaired in place: an immutable release refuses a new asset.
@@ -123,8 +123,8 @@ If #3559 later versions the whole site, the `spec/draft-N/` addresses must keep 
 
 ## Validation
 
-Tests of the promote run it against a fixture repository and check that a release the register names for a draft gets the archive and the manifest, that any other release gets neither, that every frozen page carries the banner, that its relative links resolve inside the archive and its other links name the live site, that no draft release ever exists without its archive, that a failed upload deletes the draft release and keeps the tag, that a re-run finds a complete draft release or rebuilds it, and that a register naming the wrong tag is refused.
-Tests of the deploy unpack fixture archives and check that a published draft is served byte for byte as its manifest lists it, that an unpublished one gets a placeholder and a notice, that an unsafe or mismatched archive is refused, and that a missing archive fails the run.
+Tests of the promote run it against a fixture repository and check that a release the register names for a draft gets the archive and the manifest, that any other release gets neither, that every frozen page carries the banner, that its relative links resolve inside the archive and its other links name the live site, that no draft release is created before its archive passes its checks, that a failed upload deletes the draft release and keeps the tag, that a re-run finds a complete draft release or rebuilds it, and that a register naming the wrong tag is refused.
+Tests of the deploy unpack fixture archives and check that a published draft is served byte for byte as its manifest lists it, that an unpublished one gets a placeholder and a notice, that an unsafe or mismatched archive is refused, that a missing archive fails the run, and that a rollback to a commit older than the serving step is refused.
 The specs that this decision generated name each test.
 
 ## Pros and Cons of the Options
@@ -176,7 +176,7 @@ The specs that this decision generated name each test.
 
 ## More Information
 
-Generated spec requirements: `docs-build-workflow.yaml` DOCBW-08-001 through DOCBW-08-037.
+Generated spec requirements: `docs-build-workflow.yaml` DOCBW-08-001 through DOCBW-08-038.
 
 The ordering of the promote's steps was decided by the maintainer on 2026-11-12 (#6284).
 The facts about immutable releases are from GitHub's documentation of immutable releases: only the assets and the tag are locked, the title and notes of a published immutable release stay editable, and a deleted immutable release's tag name cannot be reused.

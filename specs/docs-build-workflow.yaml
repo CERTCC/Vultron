@@ -2164,7 +2164,8 @@ groups:
         rationale: >-
           A rollback deploys an older commit, whose register may not name a
           draft that was released later. Reading the register from `main` keeps
-          every frozen draft served across a rollback.
+          every frozen draft served across any rollback the gate accepts
+          (DOCBW-08-038).
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` roll a fixture repository
           back to a commit from before a draft's release, and check that the
@@ -2174,6 +2175,32 @@ groups:
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-001
+      - id: DOCBW-08-038
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A rollback MUST NOT pass the CI gate when its target commit lacks the
+          DOCBW-08-028 step.
+        rationale: >-
+          The build runs the target commit's own steps and checks, so a target
+          older than the step would serve no frozen draft, and its publication
+          checks, which lack the DOCBW-08-036 exemption, would judge the
+          frozen pages. Refused at the gate, the rollback writes its reason to
+          the run summary (DOCBW-06-011), as DOCBW-06-030 does for a missing
+          local action. Every rollback the gate accepts serves every frozen
+          draft (DOCBW-08-027).
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` give the gate a rollback
+          target from before the DOCBW-08-028 step and check that it is refused
+          with its reason in the run summary, and one after it and check that
+          it passes.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-030
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-028
       - id: DOCBW-08-028
         priority: MUST
         kind: project
