@@ -66,7 +66,9 @@ groups:
       `test/measure/history/test_recordings.py::test_a_recording_yields_the_events_its_narrative_requires`
       calls `read_case_event_histories` on each recording, and every test in
       `test/measure/history/test_derive.py` calls `case_event_history` on a selected
-      ledger; neither runs a command.
+      ledger; neither runs a command. The renderer tests in
+      `test/measure/history/test_render.py` call `case_history_report`, the library
+      function the command wraps, without running it.
   - id: CEH-01-004
     priority: MUST
     kind: project
@@ -78,8 +80,11 @@ groups:
       many. A command makes each committed demo recording inspectable without writing
       Python.
     verification: >-
-      A command-line test runs the registered console script against one ledger and
-      asserts that it wrote a history.
+      `test/measure/history/test_cli.py::test_the_console_script_is_registered_to_main`
+      asserts `vultron-case-history` is registered to
+      `vultron.measure.history.cli:main`, and
+      `test_the_table_format_writes_a_markdown_table` runs it against a recording and
+      reads back the history it wrote.
   - id: CEH-01-005
     priority: MUST
     kind: project
@@ -91,8 +96,9 @@ groups:
       machine-readable form, and a person checking a case against its scenario
       narrative reads the table.
     verification: >-
-      A command-line test runs the script once per format and asserts that each output
-      parses or renders as that format.
+      `test/measure/history/test_cli.py::test_the_table_format_writes_a_markdown_table`
+      asserts the table output's header, separator and row shape, and
+      `test_the_json_format_writes_parsable_json` parses the JSON output.
     relationships:
     - rel_type: extends
       spec_id: CEH-01-004
@@ -107,10 +113,12 @@ groups:
       to read side by side. One display-name resolver, serving both, keeps one answer
       for one actor.
     verification: >-
-      A renderer test asserts, for the actor cell and for the object cell of a rendered
-      row, that a subject holding a display name shows that name, and that neither cell
-      holds a bare URI. A fixture whose object has no display name asserts the
-      documented fallback rather than a URI.
+      `test/measure/history/test_render.py::test_a_row_names_its_actor_and_object_by_display_name`
+      asserts both cells show the payload's display names and hold no URI or UUID, and
+      `test_an_object_with_no_display_name_shows_the_fallback_not_its_uri` asserts the
+      `unnamed actor` and `unnamed object` fallbacks of `display_label`, which
+      `test/measure/ledger/test_labels.py::test_display_label_never_shows_a_bare_uri`
+      covers branch by branch.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-03-003
@@ -124,8 +132,11 @@ groups:
       A second phrase table drifts as the set of semantic types grows, and the drift
       is invisible until a reader sees a stale phrase. The registry is the one source.
     verification: >-
-      A test asserts that the measure package defines no mapping from a semantic type
-      to a phrase, and reaches every phrase through the registry lookup.
+      `test/measure/test_no_phrase_table.py` asserts no module under
+      `vultron/measure/` defines a mapping from a semantic type to a string or spells
+      out a registry phrase, and
+      `test/measure/ledger/test_labels.py::test_the_phrase_is_read_through_the_registry_lookup`
+      asserts the phrase is read through `lookup_entry`.
     relationships:
     - rel_type: refines
       spec_id: DRPT-03-005
@@ -139,8 +150,10 @@ groups:
       A tool that reports an empty history on a bad path looks like a case with no
       events. A non-zero exit tells a caller and a test apart from a real empty result.
     verification: >-
-      A command-line test asserts a non-zero exit code for each of the three bad
-      inputs.
+      `test/measure/history/test_cli.py` asserts a non-zero exit code for a missing
+      input (`test_a_missing_input_exits_non_zero`), an input with no ledger entry
+      (`test_an_input_with_no_ledger_entry_exits_non_zero`) and a case the input does
+      not hold (`test_a_case_the_input_does_not_hold_exits_non_zero`).
     relationships:
     - rel_type: extends
       spec_id: CEH-01-004
@@ -1145,8 +1158,9 @@ groups:
       The library tests never call the entry point, so a broken argument or a missing
       script registration passes them. A smoke test fails on either.
     verification: >-
-      A command-line test runs the registered script against one recording and asserts
-      exit code zero and a written file.
+      `test/measure/history/test_cli.py::test_the_registered_script_dumps_a_committed_recording`
+      runs the installed `vultron-case-history` script against the `rv` recording and
+      asserts exit code zero and the written file.
     relationships:
     - rel_type: depends_on
       spec_id: CEH-01-004

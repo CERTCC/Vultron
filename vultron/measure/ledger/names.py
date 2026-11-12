@@ -2,7 +2,7 @@
 
 Two tools that read the same ledger and name the same actor differently are hard
 to read side by side, so the demo report and the measure layer resolve an actor
-URI through this one resolver. It lives beside the ledger reader so the demo
+URI, and label an entry's object, through this one resolver. It lives beside the ledger reader so the demo
 layer imports both from here and the two packages never import each other
 (``notes/case-event-history.md`` § "Reuse the One JSONL Walker").
 """
@@ -22,7 +22,9 @@ layer imports both from here and the two packages never import each other
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from vultron.core.display import friendly_name
@@ -98,6 +100,49 @@ def collect_actor_names(
     return names
 
 
+def _collect_participant_actors_from_obj(
+    obj: object, out: dict[str, str]
+) -> None:
+    """Recursively map each ``CaseParticipant`` id to the actor it stands for."""
+    if isinstance(obj, list):
+        for item in obj:
+            _collect_participant_actors_from_obj(item, out)
+        return
+    if not isinstance(obj, dict):
+        return
+    obj_type = obj.get("type") or obj.get("type_")
+    obj_id = obj.get("id") or obj.get("id_")
+    actor = obj.get("attributedTo") or obj.get("attributed_to")
+    if (
+        obj_type == "CaseParticipant"
+        and isinstance(obj_id, str)
+        and isinstance(actor, str)
+        and obj_id
+        and actor
+    ):
+        out.setdefault(obj_id, actor)
+    for value in obj.values():
+        _collect_participant_actors_from_obj(value, out)
+
+
+def collect_participant_actors(
+    replicas: Mapping[str, Iterable[Mapping[str, Any]]],
+) -> dict[str, str]:
+    """Build a participant-id→actor-URI map by scanning all raw ledger entries.
+
+    An activity often names a participant by its ``CaseParticipant`` id
+    alone, an opaque identifier; the case snapshots carry each participant
+    inline with the actor it is ``attributedTo``.  The map lets a label name
+    that actor instead (DRPT-03-009).  Replicas are scanned in sorted key
+    order, and the first actor seen for an id is kept.
+    """
+    actors: dict[str, str] = {}
+    for key in sorted(replicas):
+        for raw in replicas[key]:
+            _collect_participant_actors_from_obj(payload_of(raw), actors)
+    return actors
+
+
 def friendly_actor_name(
     actor_uri: str | None,
     actor_names: Mapping[str, str] | None = None,
@@ -121,3 +166,200 @@ def friendly_actor_name(
         # segment, which names *something*, rather than the no-actor dash.
         return actor_uri.rstrip("/").rsplit("/", 1)[-1]
     return label
+
+
+# ---------------------------------------------------------------------------
+# Object labels (DRPT-03-001, DRPT-03-009)
+# ---------------------------------------------------------------------------
+
+#: Activity-Streams wrapper types whose ``object`` child is the real semantic target.
+WRAPPER_TYPES = frozenset({"Accept", "Reject", "Offer", "Invite"})
+
+#: Wire types that resolve to actor names; use friendly_actor_name on their id instead of a generic noun.
+ACTOR_LIKE_TYPES = frozenset(
+    {
+        "Organization",
+        "Actor",
+        "Service",
+        "Application",
+        "Person",
+        "Group",
+        "CaseParticipant",
+    }
+)
+
+#: Wire object type → friendly noun for event summaries and the target column.
+_TARGET_NOUNS: dict[str, str] = {
+    "VulnerabilityReport": "report",
+    "VulnerabilityCase": "case",
+    "CaseProposal": "case proposal",
+    "Note": "note",
+    "ParticipantStatus": "participant status",
+    "CaseStatus": "case status",
+    "EmbargoEvent": "embargo",
+    "CaseParticipant": "participant",
+    "CaseLedgerEntry": "ledger entry",
+    "Actor": "actor",
+    "Offer": "offer",
+    "Accept": "acceptance",
+    "Reject": "rejection",
+}
+
+#: The label :func:`display_label` gives an actor that has no display name
+#: and whose URI holds no readable word (DRPT-03-009).
+UNNAMED_ACTOR = "unnamed actor"
+
+#: The label :func:`display_label` gives an untyped reference that has no
+#: display name and whose URI holds no readable word (DRPT-03-009).
+UNNAMED_OBJECT = "unnamed object"
+
+
+def friendly_target_noun(target_type: str | None) -> str | None:
+    """Return a friendly noun for a wire object type (``Note`` → "note")."""
+    if not target_type:
+        return None
+    if target_type in _TARGET_NOUNS:
+        return _TARGET_NOUNS[target_type]
+    # Fallback: split a CamelCase / prefixed type into lowercase words.
+    stripped = (
+        target_type[3:] if target_type.startswith("as_") else target_type
+    )
+    words: list[str] = []
+    current = ""
+    for char in stripped:
+        if char.isupper() and current:
+            words.append(current)
+            current = char
+        else:
+            current += char
+    if current:
+        words.append(current)
+    return " ".join(w.lower() for w in words) if words else target_type.lower()
+
+
+def friendly_object_label(
+    obj_type: str | None, obj_ref: str | None
+) -> str | None:
+    """Return a friendly label for a target object.
+
+    Actor-like types (Organization, Actor, …) are resolved via
+    :func:`friendly_actor_name` using their URI so the label reads "Vendor"
+    rather than "organization".  All other types fall back to
+    :func:`friendly_target_noun`.
+    """
+    if not obj_type:
+        return friendly_actor_name(obj_ref) if obj_ref else None
+    if obj_type in ACTOR_LIKE_TYPES:
+        return friendly_actor_name(obj_ref)
+    return friendly_target_noun(obj_type)
+
+
+def _is_opaque(ref: str) -> bool:
+    """Whether *ref* holds no readable word: a URN, or a UUID last segment."""
+    if ref.lower().startswith("urn:"):
+        return True
+    segment = ref.rstrip("/").rsplit("/", 1)[-1]
+    try:
+        uuid.UUID(segment)
+    except ValueError:
+        return False
+    return True
+
+
+def display_label(
+    ref: str | None,
+    obj_type: str | None,
+    actor_names: Mapping[str, str],
+    *,
+    case_id: str | None = None,
+) -> str | None:
+    """Label a reference without ever showing a bare URI or UUID (DRPT-03-009).
+
+    The display name collected from the payloads wins.  Otherwise the case
+    itself reads "case", a typed non-actor object reads as its type's noun
+    (:func:`friendly_target_noun`), and an actor, or a reference with no type,
+    reads as the URI path-segment heuristic of :func:`friendly_actor_name`.
+    When that heuristic would show an opaque identifier — a ``urn:`` reference
+    or a UUID last segment — the label is :data:`UNNAMED_ACTOR` for an actor
+    and :data:`UNNAMED_OBJECT` for an untyped reference.  Returns ``None``
+    when there is neither a reference nor a type.
+    """
+    if ref and ref in actor_names:
+        return actor_names[ref]
+    if ref and case_id and ref == case_id:
+        return _TARGET_NOUNS["VulnerabilityCase"]
+    if obj_type and obj_type not in ACTOR_LIKE_TYPES:
+        return friendly_target_noun(obj_type)
+    if not ref:
+        return UNNAMED_ACTOR if obj_type else None
+    if _is_opaque(ref):
+        return UNNAMED_ACTOR if obj_type else UNNAMED_OBJECT
+    return friendly_actor_name(ref)
+
+
+@dataclass(frozen=True)
+class EntryReferences:
+    """The object and destination one ledger entry's activity names.
+
+    Fields:
+        object_ref: The id of the innermost non-wrapper object (for a
+            ``CaseParticipant``, the actor it is attributed to).
+        object_type: That object's wire type, when the payload carries it.
+        target_ref: The id of the activity's destination (``target``).
+        target_type: The destination's wire type, when carried.
+    """
+
+    object_ref: str | None = None
+    object_type: str | None = None
+    target_ref: str | None = None
+    target_type: str | None = None
+
+
+def _ref_and_type(value: object) -> tuple[str | None, str | None]:
+    """The id and wire type of an inline object, or the id a string names."""
+    if isinstance(value, str):
+        return value, None
+    if not isinstance(value, dict):
+        return None, None
+    ref = value.get("id") or value.get("id_")
+    obj_type = value.get("type") or value.get("type_")
+    # CaseParticipant is a proxy; use attributedTo for name resolution.
+    if obj_type == "CaseParticipant":
+        ref = value.get("attributedTo") or value.get("attributed_to") or ref
+    return (
+        str(ref) if ref else None,
+        str(obj_type) if obj_type else None,
+    )
+
+
+def entry_references(payload: Mapping[str, Any]) -> EntryReferences:
+    """Return the object and destination an entry's payload snapshot names.
+
+    Unwraps AS wrapper activities (Accept, Reject, Offer, Invite) until the
+    innermost non-wrapper object (handles ``Accept(Offer(X))`` and
+    ``Accept(Invite(X)[target=Y])`` chains).  The destination is the
+    payload's own ``target``, falling back to the innermost wrapper's, so a
+    nested wrapper such as an accepted invitation still names it.
+    """
+    raw_object = payload.get("object") or payload.get("object_")
+    inner_target = None
+    while (
+        isinstance(raw_object, dict)
+        and (raw_object.get("type") or raw_object.get("type_"))
+        in WRAPPER_TYPES
+    ):
+        inner_target = raw_object.get("target") or inner_target
+        inner = raw_object.get("object") or raw_object.get("object_")
+        if not isinstance(inner, (dict, str)):
+            break
+        raw_object = inner
+    object_ref, object_type = _ref_and_type(raw_object)
+    target_ref, target_type = _ref_and_type(
+        payload.get("target") or inner_target
+    )
+    return EntryReferences(
+        object_ref=object_ref,
+        object_type=object_type,
+        target_ref=target_ref,
+        target_type=target_type,
+    )

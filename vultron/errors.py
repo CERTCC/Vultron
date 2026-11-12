@@ -736,3 +736,13 @@ class LedgerReadError(VultronError):
     error: the reader degrades it to one unusable row and reads the rest
     (CEH-02-008).
     """
+
+
+class CaseHistoryInputError(VultronError):
+    """Raised when the case event history command is handed input it cannot dump.
+
+    Raised by :func:`vultron.measure.history.case_history_report` when the
+    files hold no case ledger entry, or do not hold the case the caller named
+    (CEH-01-008).  The command exits non-zero on it, so a bad input never
+    reads as a case with no events.
+    """
