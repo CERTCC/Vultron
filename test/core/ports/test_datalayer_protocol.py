@@ -91,14 +91,6 @@ def test_actor_scoped_datalayer_exposes_queue_methods():
 def test_base_datalayer_clone_for_actor_return_annotation():
     """DataLayer.clone_for_actor return annotation must be DataLayer."""
 
-    hints = {}
-    for cls in (DataLayer,):
-        hints.update(
-            {
-                name: hint
-                for name, hint in (getattr(cls, "__annotations__", {}).items())
-            }
-        )
     # The return type is set on the Protocol method; check via inspect.
     method = getattr(DataLayer, "clone_for_actor", None)
     assert method is not None

@@ -9,7 +9,9 @@ description: >
   concluding a ceiling is inert, profiling a near-ceiling test
   before re-tiering it, sizing the integration tier from measured load, the
   ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
-  work without a wall-clock window, an in-process pass that hides what each node
+  work without a wall-clock window, reading a signature or a class's own
+  annotations on Python 3.14 (`signature_of`, `own_annotations`), an in-process
+  pass that hides what each node
   holds on its own,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for

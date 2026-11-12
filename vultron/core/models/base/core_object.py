@@ -462,9 +462,10 @@ class CoreObject(CoreRecord):
         # We inspect the subclass's *own* annotations (``own_annotations``,
         # which does not evaluate a forward reference the module has not
         # defined yet) so an inheriting class that does not redeclare
-        # ``type_`` (e.g. a behavioral mixin) is not registered. We then resolve the annotation through
-        # ``typing.get_type_hints`` so the check is robust under
-        # ``from __future__ import annotations`` (PEP 563), where raw
+        # ``type_`` (e.g. a behavioral mixin) is not registered. We then
+        # resolve the annotation through ``typing.get_type_hints`` so the
+        # check is robust under ``from __future__ import annotations``
+        # (PEP 563), where raw
         # annotations are stringified and ``isinstance(..., UnionType)``
         # would silently fall through and register abstract bases.
         if "type_" not in own_annotations(cls):
