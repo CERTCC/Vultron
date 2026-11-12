@@ -32,7 +32,7 @@ from pydantic.alias_generators import to_camel
 import vultron.wire.as2.vocab.activities  # trigger dynamic discovery
 import vultron.wire.as2.vocab.objects  # noqa: F401
 from test.support.blank_strings import BLANKS
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -196,13 +196,25 @@ def test_core_object_reads_a_raw_mapping_as_a_core_object() -> None:
     than carried unexamined.
     """
     obj = CoreObject.model_validate(
-        {"context": {"id": "https://example.org/cases/1", "type": "Note"}}
+        with_times(
+            CoreObject,
+            {
+                "context": with_times(
+                    CoreObject,
+                    {"id": "https://example.org/cases/1", "type": "Note"},
+                )
+            },
+        )
     )
     assert isinstance(obj.context, CoreObject)
     assert obj.context.id_ == "https://example.org/cases/1"
 
     with pytest.raises(ValidationError):
-        CoreObject.model_validate({"context": {"href": "https://example.org"}})
+        CoreObject.model_validate(
+            with_times(
+                CoreObject, {"context": {"href": "https://example.org"}}
+            )
+        )
 
 
 @pytest.mark.spec("CS-08-001")

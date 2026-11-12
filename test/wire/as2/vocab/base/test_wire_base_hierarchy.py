@@ -169,7 +169,12 @@ def test_as_object_attributed_to_accepts_an_inline_object():
     """
     obj = as_Object.model_validate(
         with_times(
-            as_Object, {"attributed_to": {"id": "https://example.org/alice"}}
+            as_Object,
+            {
+                "attributed_to": with_times(
+                    as_Object, {"id": "https://example.org/alice"}
+                )
+            },
         )
     )
     assert isinstance(obj.attributed_to, as_Object)
