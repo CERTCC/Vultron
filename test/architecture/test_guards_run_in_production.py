@@ -81,6 +81,8 @@ TB-13-004 (``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001,
 ARCH-18-002 (``specs/architecture.yaml``).
 """
 
+import ast
+
 import pytest
 
 from test.architecture import _corpus, _guard_reachability as _reach
@@ -1282,3 +1284,241 @@ def run(rules):
     assert _reach.findings_in_source(source).unsupplied == {
         "inline.py:7 build() [window]"
     }
+
+
+@pytest.mark.parametrize(
+    "refuser",
+    [
+        pytest.param(
+            """\
+def _check(items):
+    items = DEFAULTS
+    if not items:
+        raise ValueError("no items")""",
+            id="callee-rebinds-its-parameter",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    for items in DEFAULTS:
+        if not items:
+            raise ValueError("a blank default")""",
+            id="loop-variable-shadows-the-parameter",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    for index in range(items):
+        if fetch(index) is None:
+            raise ValueError("a missing row")""",
+            id="loop-over-a-computed-range",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    if not items:
+        raise NotImplementedError("empty item lists are not handled yet")""",
+            id="callee-only-raises-not-implemented",
+        ),
+    ],
+)
+def test_detector_does_not_read_a_callee_that_tests_something_else(
+    refuser: str,
+) -> None:
+    """A refuser whose test is not of the value handed in makes no gate.
+
+    Rebinding or shadowing the parameter, looping over something computed
+    from it, or raising only ``NotImplementedError`` each leave the
+    caller's argument untested, the same readings arm B applies on the
+    caller's side.
+    """
+    source = f"""
+{refuser}
+
+
+def build(*, items=None):
+    if items is not None:
+        _check(items)
+    return items
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+@pytest.mark.parametrize(
+    "refuser",
+    [
+        pytest.param(
+            """\
+def _check(rows, /):
+    for row in rows:
+        for cell in row:
+            if not cell:
+                raise ValueError("a blank cell")""",
+            id="positional-only-nested-loop",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    for key, value in rows.items():
+        if value is None:
+            raise ValueError("a missing value")""",
+            id="mapping-entry-view",
+        ),
+    ],
+)
+def test_detector_reads_a_callee_that_tests_what_it_is_handed(
+    refuser: str,
+) -> None:
+    """Each shape tests the handed value, so the delegation is a gate."""
+    source = f"""
+{refuser}
+
+
+def build(*, rows=None):
+    if rows is not None:
+        _check(rows)
+    return rows
+
+
+def run():
+    build()
+"""
+    findings = _reach.findings_in_source(source)
+    assert [gate.parameter for gate in findings.gates] == ["rows"]
+
+
+@pytest.mark.parametrize(
+    "decorator", ["@staticmethod", "@classmethod"], ids=["static", "class"]
+)
+def test_detector_reads_a_decorated_method_refuser_at_the_callers_index(
+    decorator: str,
+) -> None:
+    """A static or class method refuser's slot is read as a caller writes it."""
+    receiver = "cls, " if decorator == "@classmethod" else ""
+    source = f"""
+class Rules:
+    {decorator}
+    def _check({receiver}window):
+        if window < 0:
+            raise ValueError("a window must not be negative")
+
+    def build(self, window=None):
+        if window is not None:
+            Rules._check(window)
+        return window
+
+
+def run(rules):
+    rules.build()
+"""
+    findings = _reach.findings_in_source(source)
+    assert [gate.parameter for gate in findings.gates] == ["window"]
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        pytest.param(
+            """\
+        try:
+            raise ValueError("a negative limit")
+        finally:
+            close()""",
+            id="try-body",
+        ),
+        pytest.param(
+            """\
+        try:
+            prepare()
+        except KeyError:
+            pass
+        else:
+            raise ValueError("a negative limit")""",
+            id="try-else",
+        ),
+        pytest.param(
+            """\
+        try:
+            prepare()
+        finally:
+            raise ValueError("a negative limit")""",
+            id="finally",
+        ),
+    ],
+)
+def test_detector_reads_a_raise_outside_the_except_handler_as_a_gate(
+    branch: str,
+) -> None:
+    """Only an ``except`` handler is cut off; the rest of a ``try`` counts."""
+    source = f"""
+def build(*, limit=None):
+    if limit is not None:
+{branch}
+    return limit
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 build() [limit]"
+    }
+
+
+def test_the_refuser_table_answers_nothing_for_an_unknown_name() -> None:
+    """An unknown or missing callee name checks no slot."""
+    refusers = _reach.Refusers(definitions={})
+    assert refusers.slots_of("_absent") == frozenset()
+    assert refusers.slots_of(None) == frozenset()
+
+
+def test_the_refuser_table_derives_each_name_once() -> None:
+    """A name's slots are derived on first ask and then read from the table."""
+    tree = _corpus.parse_inline(
+        "def _check(window, *, label):\n"
+        "    if window < 0:\n"
+        "        raise ValueError(label)\n",
+        "inline.py",
+    )
+    assert isinstance(tree, ast.Module)
+    definition = tree.body[0]
+    assert isinstance(definition, ast.FunctionDef)
+    refusers = _reach.Refusers(definitions={"_check": ((definition, False),)})
+    first = refusers.slots_of("_check")
+    assert first == {"window", 0}
+    assert refusers.slots_of("_check") is first
+
+
+def test_detector_does_not_follow_a_refuser_that_delegates_its_own_raise() -> (
+    None
+):
+    """One level of delegation is read, not two — a known miss, pinned.
+
+    ``_check`` tests the rows it is handed, but its refusal is a further
+    call rather than a raise of its own, so arm B reads the delegation as
+    refusing nothing.  Following the chain would mean a fixed point over
+    the whole refuser table; the miss is stated in the module docstring.
+    """
+    source = """
+def _check(rows):
+    return rows if rows else _raise(ValueError("no rows"))
+
+
+def _raise(exc):
+    raise exc
+
+
+def build(*, rows=None):
+    if rows is not None:
+        _check(rows)
+    return rows
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).gates == ()

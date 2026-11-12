@@ -111,9 +111,17 @@ It Can Miss or Invent").  Five are narrowed:
   This reading **misses** rather than invents: a refuser handed a value
   *derived* from the parameter (``_check(read(p))``, ``_check(p.items)``)
   or handed it after a ``*args`` splat, whose position cannot be counted,
-  a ``_fail()`` helper that raises unconditionally, and an ``except``
+  a ``_fail()`` helper that raises unconditionally, a refuser that hands
+  its own refusal on to another call rather than raising (one level of
+  delegation is read, not a chain), a refuser whose test
+  only returns early (``if p is None: return`` before an unconditional
+  raise), a method refuser called unbound (``Rules._check(self, w)``, whose
+  positions are one off the receiver-less reading), a loop over anything
+  computed from the parameter (``for i in range(n)``), and an ``except``
   handler that translates a validation error of the input
   (``except ValueError: raise BadInput``) all read as refusing nothing.
+  The ``except`` stop applies inside the gated branch only: a gate that
+  itself sits in a handler is read like any other.
 
 The rest cannot be narrowed without resolving bindings or intent, so they are
 stated here instead.  Each would surface as a *failure*, so the first reader
@@ -560,7 +568,10 @@ def _refusal_scope(statement: ast.AST) -> Iterator[ast.AST]:
     *defines* is that function's refusal, not the branch's, the way
     :func:`own_scope` scopes arm A — and at an ``except`` handler: a raise
     there translates a failure of the code the ``try`` ran, which is not a
-    refusal of what the caller passed.
+    refusal of what the caller passed.  Only a handler *below* the branch is
+    cut off; an ``if`` that itself sits in a handler is a branch like any
+    other, so its own refusal still counts.  The ``try`` body, ``else`` and
+    ``finally`` are walked.
     """
     pending: list[ast.AST] = [statement]
     while pending:
@@ -619,8 +630,9 @@ def checked_slots(
     """Where a caller may hand *fn* an argument that *fn* tests, then refuses.
 
     A parameter is checked when an ``if`` whose test reads it — or reads a
-    name a ``for`` loop binds from it, the per-entry check of a collection —
-    has an arm that refuses directly.  Each checked parameter gives its
+    name a ``for`` loop binds from it, the per-entry check of a collection
+    (:func:`_entry_aliases`) — has an arm that refuses directly.  A
+    parameter the body rebinds is not checked.  Each checked parameter gives its
     keyword name and, when it can be passed positionally, its index as the
     caller writes it.  This is what makes a delegation a refusal *of the
     caller's input*: ``_validate_entry_timestamps`` raises under a test of
@@ -630,15 +642,14 @@ def checked_slots(
     positional = [
         argument.arg for argument in (*fn.args.posonlyargs, *fn.args.args)
     ]
-    declared = {*positional, *(a.arg for a in fn.args.kwonlyargs)}
-    entries: dict[str, str] = {}
-    for node in own_scope(fn):
-        if isinstance(node, (ast.For, ast.AsyncFor)):
-            sources = _loaded_names(node.iter) & declared
-            if len(sources) == 1:
-                (source,) = sources
-                for target in _stored_names(node.target):
-                    entries[target] = source
+    # A parameter the body rebinds — ``items = DEFAULTS``, or a loop variable
+    # that shadows it — is no longer what the caller handed in, the same
+    # reading :func:`gated_params` applies on the caller's side.
+    declared = {
+        *positional,
+        *(a.arg for a in fn.args.kwonlyargs),
+    } - reassigned_names(fn)
+    entries = _entry_aliases(fn, declared)
     checked: set[str] = set()
     for node in own_scope(fn):
         arms = _branches(node)
@@ -657,6 +668,58 @@ def checked_slots(
         if name in checked and index >= offset
     )
     return frozenset(slots)
+
+
+#: Methods whose result iterates a mapping's own entries.
+_ENTRY_VIEWS: frozenset[str] = frozenset({"items", "values", "keys"})
+
+
+def _entry_aliases(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef, declared: set[str]
+) -> dict[str, str]:
+    """Loop variables that each name an entry of one of *declared*.
+
+    Only a loop over the parameter itself counts — ``for x in items``,
+    ``for k, v in items.items()`` — or over an entry already known, so a
+    nested loop over ``item.parts``-style attributes is not followed but
+    ``for part in item`` is.  A loop over anything *computed* from a
+    parameter, ``for i in range(n)``, is iterating something else, and a
+    test of ``i`` is not a test of ``n``.
+    """
+    loops = [
+        node
+        for node in own_scope(fn)
+        if isinstance(node, (ast.For, ast.AsyncFor))
+    ]
+    entries: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for loop in loops:
+            source = _iterated_name(loop.iter)
+            root = source if source in declared else entries.get(source or "")
+            if root is None:
+                continue
+            for target in _stored_names(loop.target):
+                if target not in entries and target not in declared:
+                    entries[target] = root
+                    changed = True
+    return entries
+
+
+def _iterated_name(iterable: ast.expr) -> str | None:
+    """The bare name a loop iterates directly, or through an entry view."""
+    if isinstance(iterable, ast.Name):
+        return iterable.id
+    if (
+        isinstance(iterable, ast.Call)
+        and not iterable.args
+        and isinstance(iterable.func, ast.Attribute)
+        and iterable.func.attr in _ENTRY_VIEWS
+        and isinstance(iterable.func.value, ast.Name)
+    ):
+        return iterable.func.value.id
+    return None
 
 
 def _loaded_names(node: ast.AST) -> set[str]:
