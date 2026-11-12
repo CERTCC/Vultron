@@ -216,9 +216,9 @@ groups:
       the id is a string or a number.
     rationale: >-
       A VINCE case, participant or post id identifies the real case as surely
-      as its text does, and VSD-02-006 covers only string values. ADR-0189 rule
-      4 says sanitized output keeps none of the source's ids, so each id is
-      replaced by a synthetic one, consistent across the case.
+      as its text does, and VSD-02-006 covers only string values. Sanitized
+      output keeps none of the source's ids, so each id is replaced by a
+      synthetic one, consistent across the case.
     verification: >-
       The sanitizer's leak test (#6348) collects every id of a test-instance
       source case, string and numeric, and asserts none appears in the output or
