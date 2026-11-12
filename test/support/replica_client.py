@@ -15,8 +15,8 @@
 For tests of demo helpers that read an actor's replica through its DataLayer
 inspection routes: :class:`StoreClient` answers ``get(dl_path(key))`` from a
 real :class:`SqliteDataLayer` exactly as the route does
-(``AS2JSONResponse`` of what ``dl.read`` returns), so the helper validates
-the same bytes it would read from a container.
+(the route function itself serves each read), so the helper validates the
+same bytes it would read from a container.
 """
 
 from __future__ import annotations
@@ -27,10 +27,13 @@ from typing import Any
 from urllib.parse import unquote
 
 import httpx2 as httpx
+from fastapi import HTTPException, Response
 
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.driving.fastapi.routers.datalayer.routes import (
+    get_object_by_key,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
@@ -61,15 +64,20 @@ class StoreClient:
             httpx.HTTPStatusError: The store holds no such object (404).
         """
         self.paths.append(path)
-        obj = self._store.read(unquote(path))
-        if obj is None:
+        try:
+            served = get_object_by_key(unquote(path), datalayer=self._store)
+        except HTTPException as exc:
             request = httpx.Request("GET", f"http://test/{path}")
             raise httpx.HTTPStatusError(
-                "404 Not Found",
+                str(exc.detail),
                 request=request,
-                response=httpx.Response(404, request=request),
-            )
-        body: dict[str, Any] = json.loads(bytes(AS2JSONResponse(obj).body))
+                response=httpx.Response(exc.status_code, request=request),
+            ) from exc
+        body: dict[str, Any] = (
+            json.loads(bytes(served.body))
+            if isinstance(served, Response)
+            else served
+        )
         return body
 
 

@@ -40,10 +40,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from vultron.adapters.driven.datalayer_sqlite import (
-    SqliteDataLayer,
-    dispose_actor_engines,
-)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_suggestion import ParticipantSuggestion
@@ -127,8 +124,9 @@ def replica_copy(
         f"sqlite:///file:suggest-{uuid.uuid4().hex}"
         "?mode=memory&cache=shared&uri=true"
     )
-    store = SqliteDataLayer(db_url, actor_id=actor_id)
-    try:
+    # The context manager disposes the copy's engine on exit, whether the
+    # copy finished or a read raised part-way through it.
+    with SqliteDataLayer(db_url, actor_id=actor_id) as store:
         case = VulnerabilityCase.model_validate(
             client.get(client.dl_path(dl_key(case_id)))
         )
@@ -138,6 +136,8 @@ def replica_copy(
             (VulnerabilityReport, case.vulnerability_reports),
         ):
             for ref in refs:
+                # A replica may hold an object inline; it is already the
+                # record, so only a reference is read.
                 record = (
                     kind.model_validate(
                         client.get(client.dl_path(dl_key(ref)))
@@ -147,8 +147,6 @@ def replica_copy(
                 )
                 store.save(record)
         yield store
-    finally:
-        dispose_actor_engines(db_url, actor_id)
 
 
 def _resolved_table(

@@ -20,17 +20,23 @@ The asker's replica is a real store read the way the inspection route
 serves it (:class:`~test.support.replica_client.StoreClient`).
 """
 
+import json
+from unittest.mock import MagicMock
 from urllib.parse import unquote
 
 import httpx2 as httpx
 import pytest
 
 from test.demo._helpers import mock_case, story_state
+from test.support.objects import make
 from test.support.replica_client import StoreClient, seed_case_replica
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     engine as sqlite_engine,
 )
+from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_suggestion import ParticipantSuggestion
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.owner_decision_story import Part
@@ -150,3 +156,53 @@ def test_the_copy_needs_a_client_that_names_its_actor() -> None:
     with pytest.raises(ValueError, match="must name the actor"):
         with replica_copy(client, _CASE):  # type: ignore[arg-type]
             pass
+
+
+def test_a_failed_copy_is_disposed_too() -> None:
+    """A replica read that raises part-way still leaves no copy behind."""
+    empty = SqliteDataLayer("sqlite:///:memory:", actor_id="urn:test:asker")
+    before = set(sqlite_engine._ENGINES)
+    with pytest.raises(httpx.HTTPStatusError):
+        with replica_copy(StoreClient(empty), _CASE):  # type: ignore[arg-type]
+            pass  # pragma: no cover - the copy never opens
+    assert set(sqlite_engine._ENGINES) == before
+
+
+def test_an_object_the_replica_holds_inline_is_copied_without_a_read() -> None:
+    """Only a reference is fetched; an inline participant is the record."""
+    participant = make(
+        CaseParticipant,
+        attributed_to="urn:test:owner",
+        context=_CASE,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE,
+        attributed_to="urn:test:owner",
+        case_participants=[participant],
+    )
+    served = json.loads(bytes(AS2JSONResponse(case).body))
+    client = MagicMock()
+    client.actor_id = "urn:test:asker"
+    client.dl_path.side_effect = lambda key: key
+    client.get.return_value = served
+
+    with replica_copy(client, _CASE) as copy:
+        assert copy.read(participant.id_) is not None
+
+    client.get.assert_called_once()
+
+
+def test_a_role_named_twice_for_one_actor_is_kept_once() -> None:
+    state = story_state(_NEWCOMER.name)
+    newcomer = state.actor_id(_NEWCOMER.name)
+    twice = [
+        ParticipantSuggestion(
+            actor_id=newcomer, role=CVDRole.VENDOR, rationale=reason
+        )
+        for reason in ("ships it", "ships it again")
+    ]
+    assert _grouped(state, _TABLE, twice) == (
+        SuggestedActor(_NEWCOMER, newcomer, (CVDRole.VENDOR,)),
+    )

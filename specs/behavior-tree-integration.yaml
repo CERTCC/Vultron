@@ -3329,7 +3329,6 @@ groups:
       second vendor is suggested from the scenario-declared table.
     adr:
     - ADR-0186
-    tracking_issue: '#6152'
     relationships:
     - rel_type: uses_definition
       spec_id: BT-23-014
