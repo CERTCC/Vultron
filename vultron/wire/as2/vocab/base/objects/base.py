@@ -50,12 +50,12 @@ class as_Object(as_Base):
     # never a blank: the IRI branch is ``NonEmptyString``, so ``""`` and
     # whitespace are refused at the parse edge (CS-08-001, #3894).  The
     # aliases are declared below the class because they name it.
-    replies: "as_CollectionValue" = None
-    url: "as_UrlValues" = None
-    generator: "as_ObjectOrLinkValues" = None
-    context: "as_ObjectOrLinkValues" = None
-    tag: "as_ObjectOrLinkValues" = None
-    in_reply_to: "as_ObjectOrLinkValues" = None
+    replies: as_CollectionValue = None
+    url: as_UrlValues = None
+    generator: as_ObjectOrLinkValues = None
+    context: as_ObjectOrLinkValues = None
+    tag: as_ObjectOrLinkValues = None
+    in_reply_to: as_ObjectOrLinkValues = None
 
     # time (aka Wibbly-Wobbly Time-Wimey Stuff)
     # in python we want datetime or timedelta objects
@@ -82,16 +82,16 @@ class as_Object(as_Base):
     # VM-07-005)
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
-    icon: "as_ObjectOrLinkValues" = None
-    image: "as_ObjectOrLinkValues" = None
-    attachment: "as_ObjectOrLinkValues" = None
-    location: "as_ObjectOrLinkValues" = None
-    to: "as_ObjectOrLinkValues" = None
-    cc: "as_ObjectOrLinkValues" = None
-    bto: "as_ObjectOrLinkValues" = None
-    bcc: "as_ObjectOrLinkValues" = None
-    audience: "as_ObjectOrLinkValues" = None
-    attributed_to: "as_ObjectOrLinkValues" = None
+    icon: as_ObjectOrLinkValues = None
+    image: as_ObjectOrLinkValues = None
+    attachment: as_ObjectOrLinkValues = None
+    location: as_ObjectOrLinkValues = None
+    to: as_ObjectOrLinkValues = None
+    cc: as_ObjectOrLinkValues = None
+    bto: as_ObjectOrLinkValues = None
+    bcc: as_ObjectOrLinkValues = None
+    audience: as_ObjectOrLinkValues = None
+    attributed_to: as_ObjectOrLinkValues = None
     # The natural-language map forms (AS2 Core section 4.7), declared on
     # ``CoreObject`` too (ARCH-25-008).  Empty by default and left out of a
     # dump when empty.

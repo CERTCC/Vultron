@@ -142,13 +142,13 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._create_activity_id_bb = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
         try:
             self._create_activity_id_bb = self.get_input(
                 "create_case_activity_id"
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def _commit_genesis(self, case_id: str) -> None:

@@ -3,34 +3,25 @@
 <div class="admonition abstract reading-path" data-thread="connect-your-tracker" data-member="topics/message_semantics.md" markdown>
 <p class="admonition-title">Reading path: You maintain a vulnerability tracker and want it to talk to your partners</p>
 
+<div class="reading-path-where" markdown>
 This page is part of *Send your first message*.
 
-<table class="reading-path-table" markdown>
-<thead><tr><th>Start</th><th>Previous</th><th>Current</th><th>Next</th></tr></thead>
-<tbody markdown>
-<tr markdown>
-<td markdown="block">
+<p class="reading-path-start" markdown>[Path overview](../../connect-your-tracker.md)</p>
+</div>
 
-- [You maintain a vulnerability tracker and want it to talk to your partners](../../connect-your-tracker.md)
-
-</td>
-<td markdown="block">
+<div class="reading-path-tiles" markdown>
+<div class="reading-path-tile reading-path-previous" markdown>
+<p class="reading-path-direction">Previous</p>
 
 - [Vultron and ActivityPub](../../../howto/activitypub/index.md)
 
-</td>
-<td markdown="block">
-
-- Message Semantics
-
-</td>
-<td markdown="block">
+</div>
+<div class="reading-path-tile reading-path-next" markdown>
+<p class="reading-path-direction">Next</p>
 
 - [Protocol Event Flow](../../../topics/protocol_flow.md)
 
-</td>
-</tr>
-</tbody>
-</table>
+</div>
+</div>
 
 </div>

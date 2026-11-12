@@ -44,6 +44,7 @@ import pytest
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from test.support.received import archive_delivered
+from test.support.signatures import signature_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -901,10 +902,7 @@ def test_the_activity_is_sealed_complete(world, method):
 
     body = json.loads(sealed.body)
     assert body["id"] == activity_id
-    if (
-        "to"
-        in inspect.signature(getattr(TriggerActivityPort, method)).parameters
-    ):
+    if "to" in signature_of(getattr(TriggerActivityPort, method)).parameters:
         assert body.get("to"), (
             f"{method} sealed an activity with no recipients"
         )

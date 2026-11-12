@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 def dead_letter_append(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
     reason: str,
     total_attempts: int,
@@ -95,7 +95,7 @@ def dead_letter_append(
 
 
 def dead_letter_list(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
 ) -> list[OutboxDeadLetterEntry]:
     """Return this actor's dead-letter entries (OX-13-004).
 
@@ -131,7 +131,7 @@ def dead_letter_list(
 
 
 def inbox_dead_letter_append(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
     reason: str,
     total_attempts: int,
@@ -174,7 +174,7 @@ def inbox_dead_letter_append(
 
 
 def inbox_dead_letter_list(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
 ) -> list[InboxDeadLetterEntry]:
     """Return this actor's inbox dead-letter entries (IE-06-008).
 

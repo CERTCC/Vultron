@@ -115,9 +115,7 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
     return core_obj
 
 
-def _case_for_wire(
-    dl: CasePersistence, case_id: str
-) -> "as_VulnerabilityCase":
+def _case_for_wire(dl: CasePersistence, case_id: str) -> as_VulnerabilityCase:
     """Return the stored case as a wire object with its references carried inline.
 
     Takes the narrow read port rather than the full ``DataLayer``: reading is all
@@ -432,7 +430,7 @@ class _TriggerAdapterBase:
         """
         return load_received_view(self._dl, activity_id)
 
-    def for_store(self, dl: CaseOutboxPersistence) -> "_TriggerAdapterBase":
+    def for_store(self, dl: CaseOutboxPersistence) -> _TriggerAdapterBase:
         """Return an equivalent adapter that reads and writes *dl* (DL-07-009).
 
         Opting into

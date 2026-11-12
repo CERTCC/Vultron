@@ -237,7 +237,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
 
 
 def _build_embargo_event_object(
-    obj: "as_Event | EmbargoEvent", context: object, target: object
+    obj: as_Event | EmbargoEvent, context: object, target: object
 ) -> dict[str, Any]:
     end_time = getattr(obj, "end_time", None)
     object_id = _get_id(obj)

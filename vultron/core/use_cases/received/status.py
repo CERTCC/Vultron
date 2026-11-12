@@ -99,9 +99,9 @@ class AddCaseStatusToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AddCaseStatusToCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -209,10 +209,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AddParticipantStatusToParticipantReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        call_out: "StatusAuthorizationCallOutBundle | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        call_out: StatusAuthorizationCallOutBundle | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

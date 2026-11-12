@@ -147,7 +147,7 @@ class SyncActivityAdapter:
         #: rows read so far (``_pending_announce_index``).
         self._queued_rows: dict[str, _QueuedRow] = {}
 
-    def for_store(self, dl: CaseOutboxPersistence) -> "SyncActivityAdapter":
+    def for_store(self, dl: CaseOutboxPersistence) -> SyncActivityAdapter:
         """Return an equivalent adapter that reads and writes *dl* (DL-07-009).
 
         Opting into

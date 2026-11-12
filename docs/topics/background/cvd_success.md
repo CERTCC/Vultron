@@ -166,7 +166,6 @@ Taken together, these twelve ordering preferences are the minimum set of outcome
 
 ## Further reading
 
-- [Vultron Process Models](../process_models/index.md) — the report, embargo, and case state processes that act on these goals during a case.
 - [Embargo Principles](../process_models/em/principles.md) — why an embargo exists and what cooperating with one means.
 - [On the Desirability of Possible Histories](../measuring_cvd/desirable_histories.md) — these preferences revisited formally, as a way to measure CVD skill.
 - [CVD as a Coordination Problem](cvd-coordination-problem.md) — why every CVD case is treated as a multi-party case.

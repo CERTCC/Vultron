@@ -133,7 +133,7 @@ class _ShouldPublishArtifactGate(BehaviourWithPorts):
         """
         try:
             decision = self.get_input(INTENT_DECISION_KEY)
-        except (KeyError, NoDataAvailable, NotImplementedError):
+        except KeyError, NoDataAvailable, NotImplementedError:
             self.logger.debug(
                 "%s: no %s on blackboard — treating as 'do not publish'",
                 self.name,

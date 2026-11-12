@@ -49,7 +49,7 @@ class DuplicateKeySpellingError(ValueError):
 
 def collapse_duplicate_spellings(
     data: dict[str, Any],
-    pairs: "Iterable[tuple[str, str]]",
+    pairs: Iterable[tuple[str, str]],
     *,
     owner: str,
 ) -> dict[str, Any]:

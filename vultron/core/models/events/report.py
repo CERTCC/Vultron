@@ -28,7 +28,7 @@ class CreateReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.object_)
 
 
@@ -57,7 +57,7 @@ class SubmitReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.object_)
 
 
@@ -73,7 +73,7 @@ class ValidateReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -81,11 +81,11 @@ class ValidateReportReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.inner_object)
 
     @model_validator(mode="after")
-    def _require_offer_and_report_ids(self) -> "ValidateReportReceivedEvent":
+    def _require_offer_and_report_ids(self) -> ValidateReportReceivedEvent:
         if self.offer_id is None:
             raise ValueError(
                 "ValidateReportReceivedEvent requires offer_id "
@@ -111,7 +111,7 @@ class InvalidateReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -119,7 +119,7 @@ class InvalidateReportReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.inner_object)
 
 
@@ -135,7 +135,7 @@ class AckReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -143,7 +143,7 @@ class AckReportReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.inner_object)
 
 
@@ -159,7 +159,7 @@ class CloseReportReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -167,5 +167,5 @@ class CloseReportReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.inner_object)

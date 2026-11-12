@@ -142,7 +142,7 @@ async def end_hosted_expired_holds(
 class SenderSequenceHoldTimer:
     """The running hold timer: its task and its stop signal."""
 
-    task: "asyncio.Task[None]"
+    task: asyncio.Task[None]
     stop: asyncio.Event
 
 

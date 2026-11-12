@@ -45,7 +45,6 @@ call shape (``test_demo_context_managers.py`` owns their behaviour).
 """
 
 import contextlib
-import inspect
 import json
 import logging
 from typing import cast
@@ -74,6 +73,7 @@ from test.demo._helpers import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
@@ -1752,7 +1752,7 @@ class TestWaitForContiguousLedgerCoverage:
         under CI load; the second failure cascaded because it ran straight
         after and found an empty replica.
         """
-        sig = inspect.signature(wait_for_contiguous_ledger_coverage)
+        sig = signature_of(wait_for_contiguous_ledger_coverage)
         default_timeout = sig.parameters["timeout_seconds"].default
         assert default_timeout >= 30.0, (
             "wait_for_contiguous_ledger_coverage's default timeout is"

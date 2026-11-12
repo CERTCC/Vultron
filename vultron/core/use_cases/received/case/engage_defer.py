@@ -49,9 +49,9 @@ class EngageCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: EngageCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -150,9 +150,9 @@ class DeferCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: DeferCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

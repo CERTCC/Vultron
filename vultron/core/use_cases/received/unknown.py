@@ -46,9 +46,9 @@ class UnknownUseCase:
         self,
         dl: CasePersistence,
         request: UnknownReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         # The received baseline supplies the trigger port to every use case;
@@ -83,9 +83,9 @@ class UnresolvableObjectUseCase:
         self,
         dl: CasePersistence,
         request: UnresolvableObjectReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity

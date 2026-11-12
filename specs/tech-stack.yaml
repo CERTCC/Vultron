@@ -15,14 +15,14 @@ groups:
   - id: IMPLTS-01-001
     priority: MUST
     kind: project
-    statement: The implementation MUST use Python 3.13 or later.
+    statement: The implementation MUST use Python 3.14 or later.
     rationale: >-
       A minimum Python version tells users and contributors which interpreters the code
-      supports. CI and the container images run Python 3.13, so 3.13 is the oldest
+      supports. CI and the container images run Python 3.14, so 3.14 is the oldest
       version the code is tested on. A lower floor would be a claim nothing tests.
     verification: >-
       `test/ci/test_python_version_floor.py` checks that the `requires-python` floor
-      in `pyproject.toml` is 3.13 or later.
+      in `pyproject.toml` is 3.14 or later.
   - id: IMPLTS-01-009
     priority: MUST
     kind: project

@@ -19,6 +19,10 @@ ADR-0188; DOCBW-08-013 to DOCBW-08-018 and DOCBW-08-021 in
   reference of a page leaves the tree or when the tree is not exactly what
   the manifest lists.
 
+The deploy and the pull-request docs check serve each released archive
+through ``serve_frozen_drafts.py``, which unpacks it with
+:func:`unpack_matching` (DOCBW-08-028 to DOCBW-08-030).
+
 The archive's root is the specification's root: the page built at
 ``reference/vultron-spec/index.html`` is ``index.html`` in the archive. A
 file a page loads from elsewhere in the site (a stylesheet, a script, an
@@ -77,7 +81,8 @@ FOOTER_CLASS = "build-footer"
 # What a URL path keeps unescaped: RFC 3986's sub-delims, ":" and "@".
 _PATH_SAFE = "/!$&'()*+,;=:@~"
 _SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
-_DRAFT = re.compile(r"^draft-[1-9][0-9]*$")
+#: A draft version, ``draft-N``; also the name of its folder below ``spec/``.
+DRAFT_VERSION = re.compile(r"^draft-[1-9][0-9]*$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64}) [ *](.+)$")
 # One attribute of a start tag as written: name, and a value if it has one.
@@ -327,7 +332,7 @@ class FrozenDraft:
 
     def problems(self) -> list[str]:
         faults = []
-        if not _DRAFT.match(self.version):
+        if not DRAFT_VERSION.match(self.version):
             faults.append(f"{self.version!r} is not a draft-N version")
         if not _SHA.match(self.commit):
             faults.append(f"{self.commit!r} is not a full commit SHA")
@@ -786,12 +791,41 @@ def reference_faults(root: Path) -> list[str]:
     return faults
 
 
+def unpack_matching(archive: Path, manifest: Path, into: Path) -> list[str]:
+    """Unpack *archive* into the empty folder *into*; check it is *manifest*.
+
+    The check a deploy runs on a released archive (DOCBW-08-029,
+    DOCBW-08-030): every member is checked before any file is written, and
+    the unpacked tree must hold exactly the files the manifest lists, each
+    with its listed digest.
+
+    Returns:
+        Where the tree is not what the manifest lists: an unreadable
+        manifest, a file it does not list or lists with another digest, and
+        a listed file that is missing. Empty when the tree matches.
+
+    Raises:
+        FrozenDraftError: When *into* is not empty or a member is unsafe, as
+            :func:`unpack` refuses; nothing has then been written.
+    """
+    unpack(archive, into)
+    text = _text(manifest.read_bytes())
+    if text is None:
+        return [f"{manifest.name}: not UTF-8 text"]
+    digests, faults = read_manifest(text, manifest.name)
+    return faults + manifest_faults(into, digests)
+
+
 def verify_archive(
     archive: Path, manifest: Path, into: Path | None = None
 ) -> None:
     """Unpack *archive* into the empty folder *into* and check it (DOCBW-08-021).
 
-    With no *into*, a temporary folder is used and removed.
+    With no *into*, a temporary folder is used and removed. On top of
+    :func:`unpack_matching`, every relative reference must resolve inside
+    the tree: the promote checks that before the archive is released. A
+    deploy does not, so a later, stricter reference rule cannot fail an
+    archive that can never change (ADR-0188).
 
     Raises:
         FrozenDraftError: Listing every fault: an unsafe member, a file the
@@ -803,12 +837,7 @@ def verify_archive(
         with tempfile.TemporaryDirectory() as tmp:
             verify_archive(archive, manifest, Path(tmp) / "tree")
         return
-    unpack(archive, into)
-    text = _text(manifest.read_bytes())
-    if text is None:
-        raise FrozenDraftError([f"{manifest.name}: not UTF-8 text"])
-    digests, faults = read_manifest(text, manifest.name)
-    faults += manifest_faults(into, digests)
+    faults = unpack_matching(archive, manifest, into)
     faults += reference_faults(into)
     if faults:
         raise FrozenDraftError(faults)

@@ -627,7 +627,7 @@ def _make_case_with_case_owner_and_manager(
     owner_id: str,
     finder_id: str,
     manager_id: str,
-) -> "Any":
+) -> Any:
     """Create a VulnerabilityCase where *owner_id* is CASE_OWNER and *manager_id* is CASE_MANAGER."""
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant

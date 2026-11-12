@@ -25,7 +25,6 @@ patching them out with ``nullcontext`` would let the assertion propagate and
 prove nothing (vultron/demo/AGENTS.md § causal gating, rule 8).
 """
 
-import inspect
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -33,6 +32,7 @@ import pytest
 
 import vultron.demo.helpers.sync.ledger as sync_ledger
 import vultron.demo.helpers.sync.phase as sync_phase
+from test.support.signatures import signature_of
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
@@ -135,7 +135,7 @@ class TestWaitForReplicaLedgerCoverage:
         late joiner had 45 s; sharing the loop must not tighten either.
         """
         primitive_default = (
-            inspect.signature(wait_for_contiguous_ledger_coverage)
+            signature_of(wait_for_contiguous_ledger_coverage)
             .parameters["timeout_seconds"]
             .default
         )

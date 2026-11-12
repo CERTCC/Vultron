@@ -536,3 +536,32 @@ def test_cli_require_recorded_and_snapshot_are_exclusive():
     with pytest.raises(SystemExit) as exc:
         main(["--snapshot", "HEAD", "--require-recorded"])
     assert exc.value.code == 2
+
+
+# --- frozen drafts (DOCBW-08-036) ----------------------------------------
+
+
+@pytest.mark.spec("DOCBW-08-036")
+def test_frozen_draft_pages_are_neither_judged_nor_recorded(tmp_path):
+    """A frozen page below ``site/spec/`` that no record lists, beside a
+    redirect stub to a page that does not exist, leaves both the continuity
+    check and the require-recorded check passing, and a snapshot records no
+    URL below ``spec/``: each reads the pages the commit's ``docs/`` builds,
+    never what is below ``spec/``."""
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md"])
+    _site(
+        repo,
+        {
+            "index.html": "<html>home</html>",
+            "spec/draft-1/index.html": "<html>frozen</html>",
+            "spec/draft-1/old/index.html": _stub("../gone/"),
+        },
+    )
+    assert unmapped_pages(repo, ["index.md"], NO_ARTIFACTS) == []
+    assert unrecorded_pages(["index.md"], "HEAD", repo) == []
+    # Nor does recording the build add a URL below spec/.
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("# header\n", encoding="utf-8")
+    snapshot("HEAD", repo, baseline)
+    assert load_baseline(baseline) == ["index.md"]

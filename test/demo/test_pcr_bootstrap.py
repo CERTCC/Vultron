@@ -49,33 +49,23 @@ from test.demo.conftest import (
 )
 from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.embargo_register import activate
 from test.support.objects import authored_at, make
-from test.support.received import delivered_body
+from test.support.received import delivered_body, refused_received
 from test.support.signing import post_delivered, serve_published_profiles
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.services.received_holding import records_awaiting_case
-from vultron.core.states.rm import RM
 from vultron.demo.in_process import (
     InProcessRouter,
     create_isolated_actor_app,
 )
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-    as_ParticipantStatus,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -246,16 +236,14 @@ def _bootstrap_case_for_participant(
 
     1. Participant submits a report through its own ``submit-report``
        trigger, which records its trust anchor and delivers the Offer to the
-       owner's inbox; the ``create_receive_report_case_tree`` BT there creates
-       the preliminary ``as_VulnerabilityCase`` with embargo.
+       owner's inbox, where the ``create_receive_report_case_tree`` BT
+       records the report.
     2. Owner creates the case (``trigger/create-case``) with the
        participant as its addressee, which queues the bootstrap
        ``Create(VulnerabilityCase)`` carrying the case copy.
     3. The Create is delivered via the outbox → ``InProcessRouter`` →
        participant inbox chain, and the participant's inbox handler seeds
        its replica from it.
-    4. Owner validates the report (``trigger/validate-report``), which
-       runs the ``create_validate_report_tree`` BT.
 
     Args:
         owner_iso: Owner's ``IsolatedActorApp``.
@@ -288,10 +276,9 @@ def _bootstrap_case_for_participant(
 
     # The participant submits through its own trigger, which writes its trust
     # anchor (the pending ReportCaseLink naming the owner) and delivers the
-    # Offer to the owner's inbox.  That runs create_receive_report_case_tree,
-    # which creates the preliminary as_VulnerabilityCase with embargo needed
-    # by the validate-report step below.
-    report, offer = submit_report_through_reporter(
+    # Offer to the owner's inbox, which records the report the create-case
+    # step below names.
+    report, _ = submit_report_through_reporter(
         participant_tc,
         participant_actor_id,
         owner_actor_id,
@@ -320,94 +307,31 @@ def _bootstrap_case_for_participant(
         f"trigger/create-case failed ({resp.status_code}): {resp.text}"
     )
 
-    # Find the case that the CaseActor created for this report.
-    # Under ADR-0041, case_proposal_received_tree creates the canonical case
-    # when Create(CaseProposal) is processed; trigger/create-case above
-    # may add a second case — find by report_id to avoid ambiguity.
-    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # The case trigger/create-case made for this report, read from the
+    # owner's own store, not `owner_iso.dl`: this test creates its actor
     # under a per-test slug, while `dl` is the app's default-slug store, so
     # reading `dl` reports an empty store and the assertion fails for the wrong
     # reason (ADR-0073 — a store is exactly one actor's).
-    owner_dl = owner_iso.store_for(owner_actor_id)
+    owner_case = owner_iso.store_for(owner_actor_id).find_case_by_report_id(
+        report.id_
+    )
+    assert owner_case is not None, (
+        f"No VulnerabilityCase for report {report.id_!r} in the owner's store "
+        "after trigger/create-case."
+    )
+    case_id = str(owner_case.id_)
 
-    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
-    case_id: str
-    if case_from_proposal is not None:
-        case_id = str(case_from_proposal.id_)
-    else:
-        all_cases = owner_dl.get_all("VulnerabilityCase")
-        assert len(all_cases) >= 1, (
-            "Expected at least one as_VulnerabilityCase in owner's DataLayer "
-            "after trigger/create-case, but none was found."
+    # Every step above is meant to apply, so neither store holds a refusal
+    # (#6360).  That the participant applied the Create is what every caller
+    # asserts: the replica it seeded, or the trust anchor it bound to the case.
+    for actor_id, iso in (
+        (owner_actor_id, owner_iso),
+        (participant_actor_id, participant_iso),
+    ):
+        refused = refused_received(iso.store_for(actor_id))
+        assert refused == {}, (
+            f"{actor_id} refused a bootstrap setup step: {refused!r}"
         )
-        case_id = str(all_cases[0]["id_"])
-
-    # trigger/create-case is a shortcut around the real ADR-0041 path, so the
-    # case it leaves behind is missing two things a delivered
-    # Create(VulnerabilityCase) replica always carries.  Both are now load-bearing
-    # on the validate path (ISSUE-2548), where the checks moved upstream of every
-    # write instead of running after the RM.VALID latch had already been written:
-    #
-    #   - an active embargo, without which RM.VALID is refused for an
-    #     embargo-eligible case (DUR-07-004);
-    #   - a CaseParticipant for the owner, reachable through
-    #     actor_participant_index (CM-19-003), without which the case-scoped half
-    #     of the RM.VALID transition has nothing to advance.
-    #
-    # Seed both here, alongside the trust anchor below.
-    case_obj = owner_dl.read(case_id)
-    assert case_obj is not None, (
-        f"case {case_id!r} not readable from the owner's own store"
-    )
-    activate(case_obj, f"{case_id}/embargoes/bootstrap-embargo")
-
-    # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
-    # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
-    # in the report; RECEIVED → VALID is the legal move validate-report makes.
-    owner_participant = make(
-        as_CaseParticipant,
-        attributed_to=owner_actor_id,
-        context=case_id,
-        case_roles=[CVDRole.CASE_OWNER],
-        participant_statuses=[
-            make(
-                as_ParticipantStatus,
-                attributed_to=owner_actor_id,
-                context=case_id,
-                rm=RmDimension(state=RM.RECEIVED),
-            )
-        ],
-    )
-    owner_dl.create(owner_participant)
-    case_obj.actor_participant_index[owner_actor_id] = owner_participant.id_
-    if owner_participant.id_ not in case_obj.case_participants:
-        case_obj.case_participants.append(owner_participant.id_)
-    owner_dl.save(case_obj)
-
-    # In this test the owner also acts as the CaseActor (its
-    # case_actor_service_url points at its own base).  Register that identity in
-    # the VultronReportCaseLink so `_find_case_actor_id` can resolve it: the case
-    # was made by trigger/create-case, which does not register a CASE_MANAGER
-    # participant, so the trust anchor is the only route to the case actor and
-    # validate-report otherwise fails with "no routable recipients".
-    for link in owner_dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            link.case_id = case_id
-            link.case_manager_id = owner_actor_id
-            owner_dl.save(link)
-            break
-
-    # Owner validates the report: this runs the validate-report BT.  The
-    # participant's replica already came from the Create above.
-    resp = owner_tc.post(
-        f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
-        "/trigger/validate-report",
-        json={"offer_id": offer.id_},
-    )
-    assert resp.status_code == 202, (
-        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
-    )
-
     return case_id, owner_actor_id, participant_actor_id
 
 

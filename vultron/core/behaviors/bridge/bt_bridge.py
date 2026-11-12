@@ -91,9 +91,9 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
         self,
         datalayer: CasePersistence,
         is_leader: Callable[[], bool] = _default_is_leader,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.

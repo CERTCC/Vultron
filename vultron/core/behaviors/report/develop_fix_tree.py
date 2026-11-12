@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 def create_develop_fix_tree(
     case_id: str,
     actor_id: str,
-    call_out: "DevelopFixCallOutBundle | None" = None,
+    call_out: DevelopFixCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the fix development workflow.
 

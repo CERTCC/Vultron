@@ -69,7 +69,7 @@ def create_case_proposal_received_tree(
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
     inline_report: VulnerabilityReport | None = None,
-    call_out: "CaseProposalCallOutBundle | None" = None,
+    call_out: CaseProposalCallOutBundle | None = None,
     proposer_case_roles: Sequence[CVDRole] = (),
     *,
     sender_rule: SenderRule,

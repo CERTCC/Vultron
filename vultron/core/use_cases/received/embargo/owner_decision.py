@@ -53,10 +53,10 @@ class _OwnerDecisionReceivedUseCase(_EmbargoEventReceivedUseCase):
             ActivateEmbargoOnCaseReceivedEvent
             | RejectEmbargoProposalOnCaseReceivedEvent
         ),
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        actor_config: "ActorConfig | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         super().__init__(
             dl,
@@ -78,10 +78,10 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
         self,
         dl: CaseOutboxPersistence,
         request: ActivateEmbargoOnCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        actor_config: "ActorConfig | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         # The activation tree emits: stub-Invite re-issue (CM-11-016) and the
         # embargo-ending notices (CM-31-009) both need the trigger port, and
@@ -125,10 +125,10 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
         self,
         dl: CaseOutboxPersistence,
         request: RejectEmbargoProposalOnCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        actor_config: "ActorConfig | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         super().__init__(
             dl,

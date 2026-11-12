@@ -389,12 +389,12 @@ class DeferCheckNode(_InboxNodeWithPorts):
         # context_id can legitimately be None (no case scope on the activity).
         try:
             context_id: str | None = self.get_input(KEY_CONTEXT_ID)
-        except (NotImplementedError, NoDataAvailable):
+        except NotImplementedError, NoDataAvailable:
             context_id = None
 
         try:
             queue = self.get_input(KEY_QUEUE)
-        except (NotImplementedError, NoDataAvailable, KeyError):
+        except NotImplementedError, NoDataAvailable, KeyError:
             queue = None
 
         # No deferral needed when there is no case context, when the

@@ -164,12 +164,8 @@ You can run the reference implementation as a test peer for your own system, or 
 
 ## Where to go next
 
-Pick the description that matches your situation.
-
-- [You handle vulnerability reports and coordinate cases with other organizations](../../start/coordinate-cases.md)
-- [You maintain a vulnerability tracker and want it to talk to your partners](../../start/connect-your-tracker.md)
-- [You study how vulnerability disclosure works and want the models behind it](../../start/study-the-process.md)
-- [You want to work on the Vultron reference implementation](../../start/contribute.md)
+This page is on the reading paths below; each one says where it goes next.
+If none of them matches your situation, [find the reading path that does](../../start/index.md).
 
 {% include-markdown "../../start/_paths/connect-your-tracker/topics__background__what-is-vultron.md" %}
 

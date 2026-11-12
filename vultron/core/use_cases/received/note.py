@@ -73,9 +73,9 @@ class AddNoteToCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AddNoteToCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -159,9 +159,9 @@ class RemoveNoteFromCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RemoveNoteFromCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity

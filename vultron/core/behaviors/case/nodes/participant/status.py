@@ -93,11 +93,11 @@ class CreateParticipantStatusNode(
     def __init__(
         self,
         actor_id: str,
-        rm_state: "RM | None",
-        vf_state: "CS_vf | None",
-        d_state: "CS_d | None",
-        pxa_state: "CS_pxa | None",
-        result_out: "dict | None" = None,
+        rm_state: RM | None,
+        vf_state: CS_vf | None,
+        d_state: CS_d | None,
+        pxa_state: CS_pxa | None,
+        result_out: dict | None = None,
         name: str | None = None,
         force_rm_state: bool = False,
         rm_rule: RMRule = RMRule.TRANSITION,
@@ -201,7 +201,7 @@ class CreateParticipantStatusNode(
         super().stop(new_status)
 
     def _persist_status(
-        self, dl: object, participant_id: str, status: "ParticipantStatus"
+        self, dl: object, participant_id: str, status: ParticipantStatus
     ) -> None:
         """Write the status to the DataLayer and link it to the participant.
 
@@ -232,9 +232,9 @@ class CreateParticipantStatusNode(
 
     def _apply_ac1_promotions(
         self,
-        eff_vf: "CS_vf | None",
+        eff_vf: CS_vf | None,
         eff_pxa: CS_pxa,
-    ) -> "tuple[CS_vf | None, CS_pxa]":
+    ) -> tuple[CS_vf | None, CS_pxa]:
         """Apply SM-09-003 pX→PX and vP→VP promotions to the actor's own state."""
         if self._pxa_state is None:
             return eff_vf, eff_pxa
@@ -269,7 +269,7 @@ class CreateParticipantStatusNode(
 
     def _resolve_target(
         self, case_id: str
-    ) -> "tuple[VulnerabilityCase, str] | None":
+    ) -> tuple[VulnerabilityCase, str] | None:
         """Return (case, participant_id), or None after reporting a failure."""
         # Regime 1 (ADR-0087): a case must exist to attach a ParticipantStatus.
         case, failure = self._require_case(case_id)

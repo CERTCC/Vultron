@@ -248,11 +248,11 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         self._activity = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
         try:
             self._activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def update(self) -> Status:

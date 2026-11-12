@@ -61,7 +61,7 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
     termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")
-    def _status_fields_agree(self) -> "EmbargoRegisterEntry":
+    def _status_fields_agree(self) -> EmbargoRegisterEntry:
         """Refuse a ``replaces`` or ``termination`` the status cannot carry."""
         problems: list[str] = []
         if (self.termination is None) == (self.status == _S.TERMINATED):
@@ -106,7 +106,7 @@ class RegisterChange(ValidatedAssignmentMixin, BaseModel):
     termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")
-    def _trigger_fields_agree(self) -> "RegisterChange":
+    def _trigger_fields_agree(self) -> RegisterChange:
         """Refuse a termination or embargo object the trigger cannot carry (EH-07-001)."""
         problems: list[str] = []
         if (self.termination is None) == (self.trigger == _T.TERMINATE):

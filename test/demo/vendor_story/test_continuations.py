@@ -29,6 +29,7 @@ from test.demo._helpers import (
     MilestoneRead,
     mock_case,
     no_demo_banners,
+    recorded_labels,
     recorded_milestone_reads,
     story_state,
 )
@@ -50,42 +51,13 @@ from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.vendor_story import (
     continuations as vendor_continuations,
 )
-from vultron.demo.utils.check_tree import (
-    CheckKind,
-    recording_checks,
-    walk,
-)
+from vultron.demo.utils.check_tree import CheckKind
 from vultron.demo.utils.failures import demo_failures
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
-
-
-@contextlib.contextmanager
-def _recording_checks() -> Iterator[list[str]]:
-    """Record the continuations' ``demo_check`` labels, through the real one.
-
-    Each milestone's label is the *caller's* — a scenario numbers its own
-    milestones — so the labels are what a test of a shared continuation can
-    pin.  Recorded rather than stubbed with a ``nullcontext``: that stub lets
-    an assertion inside the block propagate, so the test passes while proving
-    nothing, which is the shape ``vultron/demo/AGENTS.md`` § "Gate Each Step
-    on Its Cause" rule 8 names.  The recorder keeps the real
-    accumulate-and-continue behaviour (DEMOCI-01-003, DEMOCI-01-010) and
-    reports the same labels (DEMOCI-11-056).
-
-    The list fills as the block leaves, so read it after the ``with``.
-    """
-    labels: list[str] = []
-    with recording_checks() as recorder:
-        yield labels
-    labels.extend(
-        node.label
-        for node in walk(recorder.tree())
-        if node.kind is CheckKind.CHECK
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +102,7 @@ class TestRequiredParticipantsArePresent:
             patch.object(
                 vendor_continuations, "verify_case_active"
             ) as milestone,
-            _recording_checks() as labels,
+            recorded_labels(CheckKind.CHECK) as labels,
         ):
             family.required_participants_are_present(
                 state, check="M1: required participants (≥2), EM.ACTIVE"
@@ -194,7 +166,7 @@ class TestTheFixReadyMilestones:
                 "verify_stops_at_fix_ready",
                 side_effect=AssertionError("it deployed after all"),
             ) as stopped,
-            _recording_checks() as labels,
+            recorded_labels(CheckKind.CHECK) as labels,
         ):
             family.the_fix_ready_milestones(state, reached="M4", stopped="M5")
 
@@ -224,7 +196,7 @@ class TestTheFixReadyMilestones:
             state = family_state(family.VENDOR2)
             with (
                 _recorded_reads(state) as reads,
-                _recording_checks() as labels,
+                recorded_labels(CheckKind.CHECK) as labels,
             ):
                 teller(state, check=half, vendors=vendors)
             assert labels == [half]
@@ -438,7 +410,7 @@ class TestTheEmbargoEndsFor:
             patch.object(
                 vendor_continuations, "wait_for_case_em_terminated"
             ) as em_wait,
-            _recording_checks() as labels,
+            recorded_labels(CheckKind.CHECK) as labels,
         ):
             family.the_embargo_ends_for(
                 state, check="Embargo terminated", watcher=family.VENDOR2
@@ -471,7 +443,7 @@ class TestTheDisclosureReachedEveryReplica:
                 vendor_continuations, "wait_for_participant_vf_state"
             ),
             patch.object(vendor_continuations, "verify_publicly_disclosed"),
-            _recording_checks() as labels,
+            recorded_labels(CheckKind.CHECK) as labels,
         ):
             family.the_disclosure_reached_every_replica(state, check="M7")
 

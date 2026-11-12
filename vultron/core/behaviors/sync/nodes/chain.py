@@ -107,7 +107,7 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is None:
             try:
                 self.activity = self.get_input("activity")
-            except (NoDataAvailable, NotImplementedError):
+            except NoDataAvailable, NotImplementedError:
                 # Optional port: absent (NoDataAvailable) or explicitly None
                 # (NotImplementedError).  Any other error is a real port-wiring
                 # fault and must surface (CS-23-001).

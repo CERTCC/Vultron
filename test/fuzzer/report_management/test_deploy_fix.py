@@ -71,7 +71,7 @@ _ALL_NODES = [spec[0] for spec in _NODE_SPECS]
 # ---------------------------------------------------------------------------
 
 
-def _run_trials(node_cls: "type[WeightedBehavior]", n: int = _TRIALS) -> float:
+def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()

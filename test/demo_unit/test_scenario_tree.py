@@ -28,12 +28,12 @@ gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import replace
 from typing import Any
 
 import pytest
 
+from test.support.signatures import signature_of
 from test.support.trigger_routes import (
     DEMO_PATH_FRAGMENT,
     TRIGGER_PATH_FRAGMENT,
@@ -198,7 +198,7 @@ def test_scenario_decorator_takes_no_path_prompt_or_choice_label() -> None:
     Pinned as equality rather than as a set of absent names: a check that only
     forbade ``path`` would pass on ``path_override`` or ``steps``.
     """
-    assert set(inspect.signature(scenario).parameters) == {
+    assert set(signature_of(scenario).parameters) == {
         "name",
         "label",
         "participants",

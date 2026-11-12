@@ -68,7 +68,7 @@ _TREE_LABEL = "AcceptInviteToEmbargoBT"
 
 def _resolve_case_for_embargo_acceptance(
     dl: CasePersistence, request: AcceptInviteToEmbargoOnCaseReceivedEvent
-) -> "VulnerabilityCase | None":
+) -> VulnerabilityCase | None:
     if request.case_id:
         return dl.read_case(request.case_id)
 
@@ -89,10 +89,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AcceptInviteToEmbargoOnCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        actor_config: "ActorConfig | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

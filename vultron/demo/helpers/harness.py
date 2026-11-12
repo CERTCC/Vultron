@@ -136,7 +136,7 @@ class StepMark:
         }
 
     @classmethod
-    def from_json(cls, data: Mapping[str, Any]) -> "StepMark":
+    def from_json(cls, data: Mapping[str, Any]) -> StepMark:
         """Return the mark :meth:`as_json` rendered as *data*, parsed JSON.
 
         The values are not checked here: the reader of a committed file

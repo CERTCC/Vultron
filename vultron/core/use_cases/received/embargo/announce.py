@@ -49,9 +49,9 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AnnounceEmbargoEventToCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
