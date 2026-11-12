@@ -20,8 +20,9 @@ clock: each takes the act's instant as an argument (ADR-0176).
 
 :func:`now_utc` looks up ``datetime`` on this module at call time, so a test
 or the docs-example generator, which runs no act, replaces ``clock.datetime``
-to control the clock.  A recorded demo run does not: it installs its recording clock through the act clock port
-(``vultron.demo.determinism``, ADR-0176).
+to control the clock.  A recorded demo run does not: it installs its
+recording clock through the act clock port (``vultron.demo.determinism``,
+ADR-0176).
 """
 
 import threading
