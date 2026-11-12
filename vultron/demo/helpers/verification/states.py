@@ -173,7 +173,7 @@ def _check_participant_rm_state_in(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    expected_states: "set[RM]",
+    expected_states: set[RM],
     label: str,
     dl_actor_id: str | None = None,
 ) -> None:
@@ -211,7 +211,7 @@ def _check_participant_vf_state_in(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    expected_states: "set[CS_vf]",
+    expected_states: set[CS_vf],
     label: str,
 ) -> None:
     """Assert actor's latest participant VF state is in *expected_states*.
@@ -237,7 +237,7 @@ def _check_participant_d_state_in(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    expected_states: "set[CS_d]",
+    expected_states: set[CS_d],
     label: str,
 ) -> None:
     """Assert actor's latest participant D state is in *expected_states*.

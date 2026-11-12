@@ -94,7 +94,7 @@ logger = logging.getLogger(__name__)
 def create_deploy_mitigation_tree(
     case_id: str,
     actor_id: str,
-    call_out: "DeployMitigationCallOutBundle | None" = None,
+    call_out: DeployMitigationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the mitigation deployment workflow.
 

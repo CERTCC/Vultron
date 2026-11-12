@@ -401,7 +401,7 @@ def get_directory_tree(max_depth: int = TREE_MAX_DEPTH) -> list[str]:
                 files.append(str(rel_path))
                 if item.is_dir():
                     walk(item, depth + 1)
-        except (PermissionError, OSError):
+        except PermissionError, OSError:
             pass
 
     walk(Path.cwd(), 0)

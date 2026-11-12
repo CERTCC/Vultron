@@ -20,7 +20,7 @@ authors = [
 ]
 description = "A reference implementation of the Vultron CVD protocol, for research and evaluation, not production use."
 readme = {file="README.md", content-type="text/markdown"}
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 keywords =["vultron","cvd","vulnerability disclosure"]
 license = {file="LICENSE.md"}
 classifiers = [
@@ -164,7 +164,7 @@ git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 # surface; gitignored paths are skipped by ruff's `respect-gitignore` default.
 # See ADR-0094 and notes/lint-tooling.md.
 line-length = 79                 # the retired [tool.black] value
-target-version = "py313"         # IMPLTS-01-009
+target-version = "py314"         # IMPLTS-01-009
 # Pre-commit passes staged filenames; without this ruff would lint a file named
 # on the command line even when the config excludes it, and the hook and the CI
 # job would disagree about scope.

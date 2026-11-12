@@ -45,9 +45,9 @@ class _BridgeSetup:
     datalayer: CasePersistence
     is_leader: Callable[[], bool]
     _is_leader_explicit: bool
-    trigger_activity: "TriggerActivityPort | None"
-    sync_port: "SyncActivityPort | None"
-    wire_render_port: "WireRenderPort | None"
+    trigger_activity: TriggerActivityPort | None
+    sync_port: SyncActivityPort | None
+    wire_render_port: WireRenderPort | None
     logger: logging.Logger
 
     def _store_for_actor(self, actor_id: str) -> CasePersistence:
@@ -102,9 +102,9 @@ class _BridgeSetup:
     def _ports_for_store(
         self, store: CasePersistence
     ) -> tuple[
-        "TriggerActivityPort | None",
-        "SyncActivityPort | None",
-        "WireRenderPort | None",
+        TriggerActivityPort | None,
+        SyncActivityPort | None,
+        WireRenderPort | None,
     ]:
         """Return this bridge's driven ports, rebound to *store* (DL-07-009).
 

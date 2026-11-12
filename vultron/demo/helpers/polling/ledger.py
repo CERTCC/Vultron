@@ -88,8 +88,8 @@ def _ledger_entry_matches(
     entry: dict,
     case_id: str,
     semantic_type: str,
-    log_object_id: "str | None",
-    min_log_index: "int | None",
+    log_object_id: str | None,
+    min_log_index: int | None,
 ) -> bool:
     """Return True if *entry* satisfies all supplied ledger-event criteria."""
     if entry.get("case_id") != case_id:
@@ -112,8 +112,8 @@ def wait_for_ledger_event(
     client: DataLayerClient,
     case_id: str,
     semantic_type: str,
-    log_object_id: "str | None" = None,
-    min_log_index: "int | None" = None,
+    log_object_id: str | None = None,
+    min_log_index: int | None = None,
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
     poll_interval: float = 0.5,
     dl_actor_id: str | None = None,

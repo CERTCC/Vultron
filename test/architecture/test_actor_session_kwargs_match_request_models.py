@@ -34,6 +34,7 @@ import inspect
 
 import pytest
 
+from test.support.signatures import signature_of
 from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
@@ -109,7 +110,7 @@ _NON_VERB_METHODS = {"with_case", "quiet"}
 
 def _keyword_params(method) -> set[str]:
     """Return the keyword parameter names of *method*, excluding ``self``."""
-    params = inspect.signature(method).parameters
+    params = signature_of(method).parameters
     return {
         name
         for name, p in params.items()
@@ -154,7 +155,7 @@ def test_every_public_verb_method_is_mapped():
 
 def _var_keyword_params(method) -> set[str]:
     """Return the name of *method*'s ``**kwargs`` parameter, if it has one."""
-    params = inspect.signature(method).parameters
+    params = signature_of(method).parameters
     return {name for name, p in params.items() if p.kind is p.VAR_KEYWORD}
 
 

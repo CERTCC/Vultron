@@ -131,8 +131,7 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
 
     _RECORDS: ClassVar[
         tuple[
-            type[CaseProposalAdmissionRecord]
-            | type[CaseProposalDeclineRecord],
+            type[CaseProposalAdmissionRecord | CaseProposalDeclineRecord],
             ...,
         ]
     ] = (CaseProposalAdmissionRecord, CaseProposalDeclineRecord)

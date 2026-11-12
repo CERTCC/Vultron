@@ -47,6 +47,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.objects import authored_at, make
+from test.support.signatures import signature_of
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -530,7 +531,7 @@ def test_an_answering_or_acting_factory_takes_its_object_typed(factory):
     parameter = INTRODUCES_NOTHING[factory].object_parameter
     assert parameter is not None, f"{factory} names no object parameter"
     function = _factory(factory)
-    assert parameter in inspect.signature(function).parameters, (
+    assert parameter in signature_of(function).parameters, (
         f"{factory} has no parameter {parameter!r}"
     )
     annotation = typing.get_type_hints(function).get(parameter, Any)

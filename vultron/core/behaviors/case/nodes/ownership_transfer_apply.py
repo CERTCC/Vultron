@@ -308,7 +308,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
 
     def _record_consequences(
         self,
-        trigger_activity: "TriggerActivityPort",
+        trigger_activity: TriggerActivityPort,
         participants: list[CaseParticipant],
         case: VulnerabilityCase,
     ) -> None:

@@ -74,7 +74,7 @@ class RefusalNoticeReceivedEvent(LedgerPositionedEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")
-    def _names_the_refused_activity(self) -> "RefusalNoticeReceivedEvent":
+    def _names_the_refused_activity(self) -> RefusalNoticeReceivedEvent:
         if self.in_reply_to is None and self.object_id is None:
             raise ValueError(
                 f"refusal notice '{self.activity_id}' names no refused"

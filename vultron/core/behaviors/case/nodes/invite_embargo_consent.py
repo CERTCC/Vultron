@@ -68,7 +68,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._invitee_case_bb = self.get_input("invitee_case")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._invitee_case_bb = None
 
     def update(self) -> Status:
@@ -123,7 +123,7 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):
         self.new_invite_participant = self.get_input("new_invite_participant")
         try:
             self._invitee_case = self.get_input("invitee_case")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._invitee_case = None
 
     def update(self) -> Status:

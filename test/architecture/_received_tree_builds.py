@@ -35,6 +35,7 @@ bundle keeps its default.  A factory the synthesizer cannot build fails the
 build with its name, so a new factory signature is a decision, not a skip.
 """
 
+import annotationlib
 import functools
 import importlib
 import inspect
@@ -54,6 +55,7 @@ from test.architecture.test_received_tree_case_manager_gate import (
 from test.support.act_clock import ACT_AT
 from test.support.future_dates import FAR_FUTURE
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
@@ -62,6 +64,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models._helpers import own_annotations
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -259,7 +262,7 @@ def built_received_trees() -> dict[_Site, py_trees.behaviour.Behaviour]:
     domain = _domain_values()
     trees: dict[_Site, py_trees.behaviour.Behaviour] = {}
     for site, factory in sorted(received_tree_factories().items()):
-        signature = inspect.signature(factory, eval_str=False)
+        signature = signature_of(factory)
         hints = _resolved_hints(factory)
         kwargs = {
             name: _argument_for(
@@ -282,13 +285,19 @@ def built_received_trees() -> dict[_Site, py_trees.behaviour.Behaviour]:
 def _resolved_hints(factory: Callable[..., Any]) -> dict[str, Any]:
     """The factory's annotations, each resolved where its module can.
 
-    A string annotation naming a ``TYPE_CHECKING``-only import stays a
-    string; :func:`_argument_for` then falls back to the parameter's default
-    or its name.
+    An annotation naming a ``TYPE_CHECKING``-only import stays a string
+    (an unquoted one is read as an ``annotationlib.ForwardRef``, PEP 649,
+    and turned back into its string); :func:`_argument_for` then falls back
+    to the parameter's default or its name.
     """
     namespace = vars(inspect.getmodule(factory))
     hints: dict[str, Any] = {}
-    for name, written in inspect.get_annotations(factory).items():
+    for name, read in own_annotations(factory).items():
+        written = (
+            read.__forward_arg__
+            if isinstance(read, annotationlib.ForwardRef)
+            else read
+        )
         hints[name] = written
         if isinstance(written, str):
             try:

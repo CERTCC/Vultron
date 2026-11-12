@@ -150,7 +150,7 @@ class SigningKey:
         )
 
     @classmethod
-    def from_secret_multibase(cls, secret: str, key_id: str) -> "SigningKey":
+    def from_secret_multibase(cls, secret: str, key_id: str) -> SigningKey:
         """Load a key from a ``secretKeyMultibase`` value, as test vectors give one."""
         seed = _decode_multibase(secret, _ED25519_SECRET_PREFIX, "secret key")
         return cls(Ed25519PrivateKey.from_private_bytes(seed), key_id)

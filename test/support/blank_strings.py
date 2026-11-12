@@ -19,14 +19,13 @@ admit, and does the field refuse a blank in each shape it can arrive in — so
 the answers live here once (CS-08-002).
 """
 
-import inspect
 from collections.abc import Iterator, Sequence
 from typing import Annotated, Any, get_args, get_origin
 
 from pydantic import TypeAdapter, ValidationError
 from pydantic.fields import FieldInfo
 
-from vultron.core.models._helpers import strip_annotated
+from vultron.core.models._helpers import own_annotations, strip_annotated
 
 #: Every spelling of "the sender supplied no value".  Whitespace-only is blank
 #: by the project's canonical predicate (``not v.strip()``, see
@@ -134,11 +133,11 @@ def rejects_blank(annotation: Any) -> bool:
 def owner_of(cls: type, field_name: str) -> type:
     """The class in *cls*'s MRO that declares *field_name*.
 
-    Reads each class's own annotations (``inspect.get_annotations``, which
+    Reads each class's own annotations (``own_annotations``, which
     also covers lazily evaluated ones) rather than ``model_fields``, which
     reports inherited fields as if the subclass declared them.
     """
     for base in cls.__mro__:
-        if field_name in inspect.get_annotations(base):
+        if field_name in own_annotations(base):
             return base
     return cls

@@ -58,10 +58,10 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RemoveEmbargoEventFromCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        actor_config: "ActorConfig | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

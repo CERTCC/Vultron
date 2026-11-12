@@ -96,9 +96,9 @@ class OfferCaseParticipantReceivedUseCase:
         self,
         dl: CasePersistence,
         request: OfferCaseParticipantReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -199,9 +199,9 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptOfferCaseParticipantReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -282,9 +282,9 @@ class RejectOfferCaseParticipantReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectOfferCaseParticipantReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

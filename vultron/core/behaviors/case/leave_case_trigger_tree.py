@@ -55,7 +55,7 @@ def create_leave_case_trigger_tree(
     case_id: str,
     activity_builder: Callable[[str], list[str]],
     result_out: dict[str, object],
-    call_out: "CloseReportCallOutBundle | None" = None,
+    call_out: CloseReportCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the ``leave-case`` trigger.
 

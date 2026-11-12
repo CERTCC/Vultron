@@ -28,6 +28,7 @@ import inspect
 from typing import Any
 
 from test.support.received import delivered_body
+from test.support.signatures import signature_of
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.examples import (
     submit_report_tutorial,
@@ -77,8 +78,8 @@ def _takes_no_required_arguments(value: object) -> bool:
     ``verbose``, and testing for an empty parameter list skipped all of them.
     """
     try:
-        parameters = inspect.signature(value).parameters.values()  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+        parameters = signature_of(value).parameters.values()  # type: ignore[arg-type]
+    except TypeError, ValueError:
         return False
     return all(
         p.default is not inspect.Parameter.empty

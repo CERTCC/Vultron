@@ -235,7 +235,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         )
         return Status.FAILURE
 
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+    def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure

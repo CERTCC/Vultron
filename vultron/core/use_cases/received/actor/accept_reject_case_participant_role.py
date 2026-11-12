@@ -99,9 +99,9 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AcceptCaseParticipantRoleReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -157,9 +157,9 @@ class RejectCaseParticipantRoleReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectCaseParticipantRoleReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity

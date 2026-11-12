@@ -99,7 +99,7 @@ def slot_count(lock_dir: Path) -> int:
     """N from the ``slots`` file, or :data:`DEFAULT_SLOTS` without a usable one."""
     try:
         value = int((lock_dir / SLOTS_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return DEFAULT_SLOTS
     return value if value >= 1 else DEFAULT_SLOTS
 

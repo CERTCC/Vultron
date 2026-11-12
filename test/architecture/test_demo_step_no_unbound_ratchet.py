@@ -668,7 +668,7 @@ def _first_event_in_operands(
 
 
 def _first_event_across_branches(
-    split: "_Split", name: str
+    split: _Split, name: str
 ) -> tuple[str, int] | None:
     """:func:`_first_event` for a statement split by
     :func:`_control_flow_split`.

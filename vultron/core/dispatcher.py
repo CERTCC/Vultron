@@ -57,7 +57,7 @@ class DispatcherBase:
         port_factories: (
             Mapping[
                 MessageSemantics,
-                Callable[["DataLayer"], dict[str, Any]],
+                Callable[[DataLayer], dict[str, Any]],
             ]
             | None
         ) = None,
@@ -65,9 +65,7 @@ class DispatcherBase:
         self._use_case_map = use_case_map
         self._port_factories = port_factories or {}
 
-    def dispatch(
-        self, event: "VultronEvent", dl: "DataLayer"
-    ) -> HandlerResult:
+    def dispatch(self, event: VultronEvent, dl: DataLayer) -> HandlerResult:
         logger.info(
             "Dispatching activity of type '%s' with semantics '%s'",
             event.object_type,
@@ -81,7 +79,7 @@ class DispatcherBase:
         )
         return self._handle(event, dl)
 
-    def _handle(self, event: "VultronEvent", dl: "DataLayer") -> HandlerResult:
+    def _handle(self, event: VultronEvent, dl: DataLayer) -> HandlerResult:
         """Run the routed use case and return its verdict.
 
         This is the link that calls ``execute()``, so it is the first hop that
@@ -121,7 +119,7 @@ class DispatcherBase:
         return result
 
     @staticmethod
-    def _no_use_case_found(event: "VultronEvent") -> HandlerResult:
+    def _no_use_case_found(event: VultronEvent) -> HandlerResult:
         """Report an activity whose semantic type no use case handles.
 
         The registry recognizes the type, but this receiver does not handle
@@ -152,7 +150,7 @@ def get_dispatcher(
     port_factories: (
         Mapping[
             MessageSemantics,
-            Callable[["DataLayer"], dict[str, Any]],
+            Callable[[DataLayer], dict[str, Any]],
         ]
         | None
     ) = None,

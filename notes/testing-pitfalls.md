@@ -719,6 +719,16 @@ question of the **filesystem** instead — walk `test/` and parse, as
 subprocess you launch with the paths you mean, as
 `test/test_integration_timeout_tier.py` does for `test/demo`.
 
+### Read a Signature With `signature_of`, Not `inspect.signature`
+
+On Python 3.14 (PEP 649) production code writes a `TYPE_CHECKING`-only name
+unquoted, and `inspect.signature` evaluates annotations by default, so it raises
+`NameError` on that name. A test that asks which parameters a callable takes
+calls `test.support.signatures.signature_of`, which reads the `FORWARDREF`
+format. Read a class's own annotations with `own_annotations`, not
+`vars(cls)["__annotations__"]`: on 3.14 that key exists only in a module with
+`from __future__ import annotations`, so the read is empty elsewhere (#6054).
+
 ### Module-Split Test Layout Rules (NODES-SPLIT-883)
 
 When splitting `nodes.py` → `nodes/` subpackage:

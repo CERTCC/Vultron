@@ -88,8 +88,8 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         request: object,
         trigger_activity: object = None,
         call_out: ActorResolutionCallOutBundle = ACTOR_RESOLUTION_DETERMINISTIC,
-        wire_render_port: "WireRenderPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
         *,
         clock: ClockPort,
     ) -> None:

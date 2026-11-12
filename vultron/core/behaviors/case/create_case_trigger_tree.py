@@ -111,7 +111,7 @@ class _RegisterCreatorParticipantNode(
         super().initialise()
         try:
             self._case_id_bb: str = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = ""
 
     def update(self) -> Status:
@@ -183,7 +183,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._case_id_bb: str = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = ""
 
     def update(self) -> Status:

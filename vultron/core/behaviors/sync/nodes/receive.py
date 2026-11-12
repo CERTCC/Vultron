@@ -216,7 +216,7 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
         self.activity = self.get_input("activity")
         try:
             self.tail_index: int | None = self.get_input("tail_index")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.tail_index = None
 
     def update(self) -> Status:
@@ -355,7 +355,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def update(self) -> Status:

@@ -190,7 +190,7 @@ def _unusable(root: Path, path: Path, branch: str) -> str | BuildContext:
         return "no build context file"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return "build context is not valid JSON"
     try:
         context = BuildContext.model_validate(raw)

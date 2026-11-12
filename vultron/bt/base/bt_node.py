@@ -109,7 +109,7 @@ class BtNode:
 
         self._setup_complete = True
 
-    def add_child(self, child: "BtNode") -> "BtNode":
+    def add_child(self, child: BtNode) -> BtNode:
         """Adds a child to the node.
 
         Args:

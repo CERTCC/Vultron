@@ -40,9 +40,9 @@ class PersistableModel(Protocol):
 
     def model_copy(
         self, *, update: Mapping[str, Any] | None = None, deep: bool = False
-    ) -> "PersistableModel": ...
+    ) -> PersistableModel: ...
 
 
 class CaseStatusModel(Protocol):
-    em: "EmDimension"
-    pxa: "PxaDimension"
+    em: EmDimension
+    pxa: PxaDimension

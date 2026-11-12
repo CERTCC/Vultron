@@ -24,6 +24,7 @@ Verifies that ``SqliteDataLayer`` satisfies ``DataLayer`` and
 that ``clone_for_actor()`` returns an actor-scoped instance.
 """
 
+from test.support.signatures import signature_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.ports.datalayer import DataLayer
 
@@ -89,7 +90,6 @@ def test_actor_scoped_datalayer_exposes_queue_methods():
 
 def test_base_datalayer_clone_for_actor_return_annotation():
     """DataLayer.clone_for_actor return annotation must be DataLayer."""
-    import inspect
 
     hints = {}
     for cls in (DataLayer,):
@@ -102,7 +102,7 @@ def test_base_datalayer_clone_for_actor_return_annotation():
     # The return type is set on the Protocol method; check via inspect.
     method = getattr(DataLayer, "clone_for_actor", None)
     assert method is not None
-    sig = inspect.signature(method)
+    sig = signature_of(method)
     return_annotation = sig.return_annotation
     # The annotation is "DataLayer" (forward ref string) or the class
     assert "DataLayer" in str(return_annotation), (

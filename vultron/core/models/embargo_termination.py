@@ -115,7 +115,7 @@ class ThreatSignalCause(ValidatedAssignmentMixin, BaseModel):
     signals: list[ThreatSignal] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _signals_are_distinct_and_ordered(self) -> "ThreatSignalCause":
+    def _signals_are_distinct_and_ordered(self) -> ThreatSignalCause:
         """Refuse a repeated or out-of-order signal, so one cause has one form."""
         order = list(ThreatSignal)
         expected = sorted(set(self.signals), key=order.index)
@@ -146,7 +146,7 @@ class FixReadyCause(ValidatedAssignmentMixin, BaseModel):
     vendors: list[NormalisedActorId] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _vendors_are_distinct(self) -> "FixReadyCause":
+    def _vendors_are_distinct(self) -> FixReadyCause:
         """Refuse a vendor named twice, so one quorum has one form."""
         repeated = sorted(
             {
@@ -209,7 +209,7 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
     cause: TerminationCause | None = None
 
     @model_validator(mode="after")
-    def _cause_fits_reason(self) -> "EmbargoTermination":
+    def _cause_fits_reason(self) -> EmbargoTermination:
         """Refuse a cause the what cannot have (EH-07-001)."""
         if (
             self.cause is not None
@@ -222,17 +222,17 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         return self
 
     @classmethod
-    def early(cls) -> "EmbargoTermination":
+    def early(cls) -> EmbargoTermination:
         """An early termination with no structured cause recorded."""
         return cls(reason=TerminationReason.EARLY)
 
     @classmethod
-    def end_time_reached(cls) -> "EmbargoTermination":
+    def end_time_reached(cls) -> EmbargoTermination:
         """The embargo reached its end time."""
         return cls(reason=TerminationReason.END_TIME_REACHED)
 
     @classmethod
-    def threat(cls, signals: list[ThreatSignal]) -> "EmbargoTermination":
+    def threat(cls, signals: list[ThreatSignal]) -> EmbargoTermination:
         """An early termination caused by the threat *signals*."""
         return cls(
             reason=TerminationReason.EARLY,
@@ -243,8 +243,8 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
     def from_reason(
         cls,
         reason: TerminationReason,
-        cause: "TerminationCause | None" = None,
-    ) -> "EmbargoTermination":
+        cause: TerminationCause | None = None,
+    ) -> EmbargoTermination:
         """The termination a ``Remove`` tells its receiver.
 
         *reason* is the what the ``Remove`` carries in ``content``; *cause*
@@ -258,7 +258,7 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         return cls(reason=reason, cause=cause)
 
     @property
-    def participant_cause(self) -> "TerminationCause | None":
+    def participant_cause(self) -> TerminationCause | None:
         """The cause a participant's ask for this termination may carry.
 
         The cause itself, unless only the CASE_MANAGER may name its kind
@@ -289,7 +289,7 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
     signals: list[ThreatSignal] | None = None
 
     @model_validator(mode="after")
-    def _signals_form_a_cause(self) -> "ThreatSignalTermination":
+    def _signals_form_a_cause(self) -> ThreatSignalTermination:
         """Refuse given signals no :class:`ThreatSignalCause` would accept."""
         if self.signals is not None:
             ThreatSignalCause(signals=self.signals)

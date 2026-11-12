@@ -17,7 +17,6 @@ Covers new and modified helpers with positive cases (condition satisfied)
 and negative cases (timeout → AssertionError).
 """
 
-import inspect
 import json
 import threading
 import time
@@ -36,6 +35,7 @@ from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.embargo_register import register
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
+from test.support.signatures import signature_of
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -137,7 +137,7 @@ def test_em_transition_timeout_value_and_signature_defaults():
     """
     assert EM_TRANSITION_TIMEOUT >= 30.0
     for fn in (wait_for_case_em_state, wait_for_case_em_terminated):
-        default = inspect.signature(fn).parameters["timeout_seconds"].default
+        default = signature_of(fn).parameters["timeout_seconds"].default
         assert default == EM_TRANSITION_TIMEOUT, (
             f"{fn.__name__} default ({default}s) no longer tracks "
             "EM_TRANSITION_TIMEOUT, whose comment is its only justification"
@@ -151,7 +151,7 @@ def test_em_transition_timeout_value_and_signature_defaults():
 
 def test_wait_for_case_participants_default_timeout_at_least_15s():
     """Default timeout must survive cross-container CI contention (#2305)."""
-    sig = inspect.signature(wait_for_case_participants)
+    sig = signature_of(wait_for_case_participants)
     default = sig.parameters["timeout_seconds"].default
     assert default >= 15.0, (
         f"wait_for_case_participants default ({default}s) is too short; "
@@ -161,7 +161,7 @@ def test_wait_for_case_participants_default_timeout_at_least_15s():
 
 def test_wait_for_case_participants_accepts_set_parameter():
     """Function must accept expected_actor_ids as a set (AC-2)."""
-    sig = inspect.signature(wait_for_case_participants)
+    sig = signature_of(wait_for_case_participants)
     assert "expected_actor_ids" in sig.parameters
     assert "expected_count" not in sig.parameters
 
@@ -416,7 +416,7 @@ def test_wait_for_case_attributed_to_missing_field_then_timeout():
 
 
 def test_wait_for_case_attributed_to_default_timeout():
-    sig = inspect.signature(wait_for_case_attributed_to)
+    sig = signature_of(wait_for_case_attributed_to)
     default = sig.parameters["timeout_seconds"].default
     assert default >= 20.0
 

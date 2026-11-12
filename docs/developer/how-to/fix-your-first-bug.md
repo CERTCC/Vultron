@@ -287,7 +287,7 @@ uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tai
 This is a diagnostic for a red CI run, not a step you take before pushing.
 CI is the authority for the whole suite, and GitHub's required `CI gate` check refuses the merge until it passes.
 
-If tests still pass locally, check for timing or environment differences (CI uses Python 3.13; your local interpreter may be newer).
+If tests still pass locally, check for timing or environment differences (CI uses Python 3.14; your local interpreter may be newer).
 
 ## Finalizing (the skill does this)
 

@@ -51,5 +51,5 @@ class ActivityDispatcher(Protocol):
     """
 
     def dispatch(
-        self, event: "VultronEvent", dl: "DataLayer"
-    ) -> "HandlerResult": ...
+        self, event: VultronEvent, dl: DataLayer
+    ) -> HandlerResult: ...

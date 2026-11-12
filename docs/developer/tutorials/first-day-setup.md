@@ -8,7 +8,7 @@ By the end of this tutorial, we will have a working local maintainer environment
 
 ## Prerequisites
 
-- Python 3.13+
+- Python 3.14+
 - `uv`
 - Git
 
@@ -74,6 +74,6 @@ We now have a local maintainer setup that supports code changes, test runs, and 
 
 ## Troubleshooting
 
-- If `uv sync --dev` fails, verify Python 3.13+ and rerun `uv sync --dev`.
+- If `uv sync --dev` fails, verify Python 3.14+ and rerun `uv sync --dev`.
 - If `mkdocs serve` starts but `/developer/` is missing, confirm you are running `mkdocs serve` (not `mkdocs build`) — draft pages are served locally but excluded from production builds.
 - If Docker docs do not include maintainer pages, ensure you started the `docs` service from `docker/docker-compose.yml`.

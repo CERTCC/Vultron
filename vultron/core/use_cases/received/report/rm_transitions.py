@@ -80,9 +80,9 @@ class ValidateReportReceivedUseCase:
         self,
         dl: CasePersistence,
         request: ValidateReportReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -177,9 +177,9 @@ class InvalidateReportReceivedUseCase:
         self,
         dl: CasePersistence,
         request: InvalidateReportReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -239,9 +239,9 @@ class AckReportReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AckReportReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -306,9 +306,9 @@ class CloseReportReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CloseReportReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

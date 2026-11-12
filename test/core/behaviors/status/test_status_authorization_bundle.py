@@ -26,7 +26,6 @@ adoption gate; adoption also authorizes the embargo teardown (ADR-0166):
 """
 
 import dataclasses
-import inspect
 
 import py_trees
 import pytest
@@ -34,6 +33,7 @@ from py_trees.common import Status
 
 from test.support.call_out import tick_call_out
 from test.support.objects import authored_at, make
+from test.support.signatures import signature_of
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
@@ -184,7 +184,7 @@ def test_add_participant_status_tree_accepts_call_out_bundle():
         add_participant_status_tree,
     )
 
-    sig = inspect.signature(add_participant_status_tree)
+    sig = signature_of(add_participant_status_tree)
     param = sig.parameters["call_out"]
     assert param.default is STATUS_AUTHORIZATION_DETERMINISTIC
 
@@ -252,4 +252,4 @@ def test_add_case_status_tree_takes_no_call_out_bundle():
         add_case_status_tree,
     )
 
-    assert "call_out" not in inspect.signature(add_case_status_tree).parameters
+    assert "call_out" not in signature_of(add_case_status_tree).parameters

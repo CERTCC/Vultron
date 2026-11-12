@@ -61,7 +61,7 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
 
 
 def from_row(
-    dl: "SqliteDataLayer", row: VultronObjectRecord
+    dl: SqliteDataLayer, row: VultronObjectRecord
 ) -> PersistableModel | None:
     """Convert a storage row back to a fully-typed domain object.
 

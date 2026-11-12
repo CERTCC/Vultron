@@ -298,8 +298,8 @@ def create_defer_case_tree(
 def create_prioritize_subtree(
     case_id: str,
     actor_id: str,
-    trigger_activity: "TriggerActivityPort | None" = None,
-    call_out: "PrioritizationCallOutBundle | None" = None,
+    trigger_activity: TriggerActivityPort | None = None,
+    call_out: PrioritizationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
