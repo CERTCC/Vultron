@@ -69,7 +69,10 @@ def test_every_corpus_read_goes_through_the_shared_helper() -> None:
     it, so a loop that went back to its own ``try``/``except OSError`` would
     fail here rather than at the next non-UTF-8 file.
     """
-    tree = ast.parse(Path(_corpus.__file__).read_text(encoding="utf-8"))
+    corpus_path = Path(_corpus.__file__)
+    tree = _corpus.parse_inline(
+        _corpus.source_of(corpus_path), corpus_path.name
+    )
     helper = next(
         node
         for node in ast.walk(tree)
