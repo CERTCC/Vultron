@@ -24,25 +24,22 @@ auto-marked as ``@pytest.mark.integration`` by the conftest hook in
 
 Coverage approach
 -----------------
-Both test methods in ``TestLateJoinerSequence`` run the complete
+Every test method in ``TestLateJoinerSequence`` runs the complete
 ``_run_late_joiner_sequence`` helper:
 
 1. A reporter submits a report through its own ``submit-report`` trigger,
    which records its trust anchor and delivers the Offer to the owner's inbox
-   (``create_receive_report_case_tree`` BT creates the case and the
-   CaseActor).
-2. The owner validates the report (``trigger/validate-report``), which
-   triggers ``create_validate_report_tree`` and causes the CaseActor to
-   emit ``Create(VulnerabilityCase)`` to the reporter via the outbox.
-3. The owner triggers ``invite-actor-to-case`` for the late-joiner actor.
+   (``create_receive_report_case_tree`` BT proposes the case to the
+   CaseActor, which creates it).
+2. The owner triggers ``invite-actor-to-case`` for the late-joiner actor.
    Per PCR-08-007, the ``Invite`` is placed in the **CaseActor's** outbox
    and drained explicitly here, delivering it to the late-joiner's inbox.
-4. The late-joiner triggers ``accept-case-invite``.  The outbox drain
-   delivers the ``Accept`` to the owner's inbox; the owner processes it via
+3. The late-joiner triggers ``accept-case-invite``.  The outbox drain
+   delivers the ``Accept`` to the CaseActor's inbox; the CaseActor, which
+   holds CASE_MANAGER, processes it via
    ``AcceptInviteActorToCaseReceivedUseCase``, adds the late-joiner as a
-   participant, and queues ``Announce(VulnerabilityCase)`` in the *CaseActor's*
-   outbox.
-5. The CaseActor's outbox is drained via the real ``outbox_handler`` so the
+   participant, and queues ``Announce(VulnerabilityCase)`` in its own outbox.
+4. The CaseActor's outbox is drained via the real ``outbox_handler`` so the
    Announce dispatch is exercised end-to-end (routing, recipient extraction,
    OX-08-001 validation) before delivery to the late-joiner's inbox.
 
@@ -63,7 +60,11 @@ import pytest
 from test.demo.conftest import (
     submit_report_through_reporter,
 )
-from test.support.received import received_activities, received_of_type
+from test.support.received import (
+    received_activities,
+    received_of_type,
+    refused_received,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
@@ -229,12 +230,13 @@ def _bootstrap_case(
 
     1. Reporter submits a report through its own ``submit-report`` trigger,
        which records its trust anchor and delivers the Offer to owner's
-       inbox; ``create_receive_report_case_tree`` there creates the
-       preliminary ``VulnerabilityCase`` with CaseActor.
-    2. Owner validates the report (``trigger/validate-report``), which
-       triggers ``create_validate_report_tree`` and causes the CaseActor to
-       emit ``Create(VulnerabilityCase)`` to the reporter (the existing
-       case participant).
+       inbox.
+    2. ``create_receive_report_case_tree`` there proposes the case to the
+       CaseActor hosted on the owner's node, which creates the case and
+       holds CASE_MANAGER for it (ADR-0041).
+
+    No later step needs the report validated, so the sequence does not
+    validate it.
 
     Args:
         owner_iso: Owner's ``IsolatedActorApp``.
@@ -276,7 +278,7 @@ def _bootstrap_case(
     # The reporter submits through its own trigger, which writes its trust
     # anchor (the pending ReportCaseLink naming the owner, CBT-01-005) and
     # delivers the Offer to the owner's inbox.
-    report, offer = submit_report_through_reporter(
+    report, _ = submit_report_through_reporter(
         reporter_tc,
         reporter_actor_id,
         owner_actor_id,
@@ -287,43 +289,19 @@ def _bootstrap_case(
         ),
     )
 
-    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
-    # sends Create(CaseProposal) — no VulnerabilityCase yet.
-    # Simulate the CaseActor's Create(VulnerabilityCase) response directly.
-    # Pass reporter as `to` so the outbound activity satisfies OX-08-001.
-    resp = owner_tc.post(
-        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
-        json={
-            "name": "PCR-07-007 late-joiner test case",
-            "content": "Case seeded by trigger/create-case (ADR-0041).",
-            "report_id": report.id_,
-            "to": [reporter_actor_id],
-        },
-    )
-    assert resp.status_code == 202, (
-        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
-    )
-
-    # Find the canonical case by report_id to avoid picking up the extra
-    # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
-    # also creates one via case_proposal_received_tree).
-    # The owner's own store, not `owner_iso.dl`: this test creates its actor
-    # under a per-test slug, while `dl` is the app's default-slug store, so
-    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # The case the CaseActor created for this report, read from the owner's
+    # own store, not `owner_iso.dl`: this test creates its actor under a
+    # per-test slug, while `dl` is the app's default-slug store, so reading
+    # `dl` reports an empty store and the assertion fails for the wrong
     # reason (ADR-0073 — a store is exactly one actor's).
-    owner_dl = owner_iso.store_for(owner_actor_id)
-
-    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
-    case_id: str
-    if case_from_proposal is not None:
-        case_id = str(case_from_proposal.id_)
-    else:
-        all_cases = owner_dl.get_all("VulnerabilityCase")
-        assert len(all_cases) >= 1, (
-            "Expected at least one VulnerabilityCase in owner's DataLayer "
-            f"({owner_actor_id}) after trigger/create-case."
-        )
-        case_id = str(all_cases[0]["id_"])
+    owner_case = owner_iso.store_for(owner_actor_id).find_case_by_report_id(
+        report.id_
+    )
+    assert owner_case is not None, (
+        f"No VulnerabilityCase for report {report.id_!r} in the owner's store "
+        f"({owner_actor_id}): the CaseProposal round-trip did not complete."
+    )
+    case_id = str(owner_case.id_)
 
     # The case-actor hosted on the owner's node holds CASE_MANAGER for this
     # case; the owner holds CASE_OWNER only.  The invite/accept flow runs
@@ -331,16 +309,6 @@ def _bootstrap_case(
     # impersonate it by rewriting the ReportCaseLink, because a role-gated
     # tree admits an invitee only when the executing actor, its store and the
     # role holder are one actor (BT-05-006, ADR-0088, #3752).
-
-    resp = owner_tc.post(
-        f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
-        "/trigger/validate-report",
-        json={"offer_id": offer.id_},
-    )
-    assert resp.status_code == 202, (
-        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
-    )
-
     return case_id, owner_actor_id
 
 
@@ -386,7 +354,8 @@ def _run_late_joiner_sequence(
     """Execute the full invite → accept → Announce sequence.
 
     Steps:
-      1. Bootstrap the case (reporter submits report, owner validates).
+      1. Bootstrap the case (reporter submits a report, the CaseActor
+         creates the case).
       2. Create the late-joiner actor on both the late-joiner's and owner's
          apps (owner's app must know the invitee for invite dispatch).
       3. Owner triggers ``invite-actor-to-case``; the outbox drain delivers
@@ -446,18 +415,19 @@ def _run_late_joiner_sequence(
         f"during create_receive_report_case_tree."
     )
     ca_dl = owner_iso.store_for(case_actor_id)
-    _case_obj = ca_dl.read(case_id)
-    if _case_obj is not None:
-        ca_dl.save(
-            _case_obj.model_copy(
-                update={
-                    "stub_summary": (
-                        "PCR-07-007 test case"
-                        " — details shared after acceptance."
-                    )
-                }
-            )
+    ca_case = ca_dl.read(case_id)
+    assert ca_case is not None, (
+        f"case {case_id!r} not readable from the CaseActor's own store"
+    )
+    ca_dl.save(
+        ca_case.model_copy(
+            update={
+                "stub_summary": (
+                    "PCR-07-007 test case — details shared after acceptance."
+                )
+            }
         )
+    )
 
     # Step 3: owner triggers invite-actor-to-case (CM-11-019: roles required)
     resp = owner_tc.post(
@@ -504,6 +474,22 @@ def _run_late_joiner_sequence(
     # Announce(VulnerabilityCase) is routed to late-joiner via the
     # configured default emitter (InProcessRouter).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
+
+    # Every step above is meant to apply, so no store it delivers to holds a
+    # refusal (#6360).
+    for actor_id, iso in (
+        (owner_actor_id, owner_iso),
+        (case_actor_id, owner_iso),
+        (
+            f"{reporter_iso.base_url}/api/v2/actors/{reporter_slug}",
+            reporter_iso,
+        ),
+        (lj_actor_id, late_joiner_iso),
+    ):
+        refused = refused_received(iso.store_for(actor_id))
+        assert refused == {}, (
+            f"{actor_id} refused a late-joiner setup step: {refused!r}"
+        )
 
     return case_id, lj_actor_id
 
