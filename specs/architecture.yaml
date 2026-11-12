@@ -293,7 +293,8 @@ groups:
       domain types. Case logic, authorization and the case ledger belong in core, where
       one implementation serves every connector. If a connector holds any of them, two
       connectors can make different decisions for the same case, and a tracker becomes a
-      way around the core rules.
+      way around the core rules. A `CaseReader` adapter's translated ledger is
+      translation: it commits nothing and is never stored (ADR-0191).
   - id: ARCH-05-004
     priority: MUST
     kind: project
@@ -317,8 +318,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      A connector plugin MUST NOT expose a method of a core port it does not
-      implement, including a stub that raises, logs or does nothing.
+      A connector plugin MUST NOT expose a method of a port the core declares for
+      outside systems that it does not implement, including a stub that raises,
+      logs or does nothing.
     rationale: >-
       A stub write method is still a write path in the interface: a later change can
       fill it in without anyone noticing that the connector was meant to be read-only.
@@ -332,8 +334,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The connector loader MUST refuse an entry point that implements no core port,
-      with an error that names the entry point.
+      The connector loader MUST refuse an entry point that implements no port the
+      core declares for outside systems, with an error that names the entry point.
     rationale: >-
       A plugin that implements no port can do nothing, so loading it hides a packaging
       mistake. Naming the entry point lets the operator find the bad package.

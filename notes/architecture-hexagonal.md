@@ -110,7 +110,8 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
   port arrives with the gateway decision; add a port only when a caller needs it.
 - A one-port connector is complete, because the shadow reads with no write path.
   Declare the port in `vultron/core/ports/`, never in `adapters/connectors/`, so
-  core states what it needs and never imports a connector (ARCH-05-001).
+  core states what it needs and never imports a connector (CRD-01-001,
+  ARCH-05-001).
 - A connector keeps all its ports in one plugin under `adapters/connectors/`.
   The driving/driven split above is about adapter categories, not connector
   directions: never split a two-port connector across modules (ARCH-05-004).

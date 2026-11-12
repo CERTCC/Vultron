@@ -26,8 +26,10 @@ groups:
       The shadow advises the people working a case and never acts in it. With no
       delivery path, nothing can reach a participant, whatever its settings.
     verification: >-
-      An import test asserts that no module of the shadow tool imports the
-      outbox, an activity emitter, or an HTTP delivery adapter.
+      An import test asserts that no module of the shadow tool imports, directly
+      or transitively, the outbox, an activity emitter, or an HTTP delivery
+      adapter. A run against the recorded transport of SHD-01-002 also fails on
+      any request to a host other than the configured outside system.
   - id: SHD-01-002
     priority: MUST_NOT
     kind: project
@@ -57,7 +59,9 @@ groups:
     verification: >-
       A test runs one request over a synthetic case whose content holds a marker
       string, then asserts the marker is in no file under the tool's working and
-      temporary directories.
+      temporary directories or `~/.streamlit`, and that a second request in the
+      same process cannot read the first request's translation from a Streamlit
+      cache or session state.
   - id: SHD-01-004
     priority: MUST
     kind: project
@@ -90,7 +94,7 @@ groups:
       behind when the container stops.
     verification: >-
       A test loads the Compose file and asserts the `shadow` service declares no
-      volume.
+      volume, and inspects the image to assert it declares no `VOLUME`.
   - id: SHD-02-002
     priority: MUST
     kind: project
@@ -103,8 +107,9 @@ groups:
       The page shows embargoed case data. Publishing it on loopback keeps it off
       the network the host sits on.
     verification: >-
-      A test loads the Compose file and asserts every port the `shadow` service
-      publishes is bound to `127.0.0.1`.
+      A test loads the Compose file and asserts the `shadow` service publishes at
+      least one port, binds every published port to `127.0.0.1`, and does not
+      set `network_mode: host`.
   - id: SHD-02-003
     priority: MUST
     kind: project
@@ -117,8 +122,10 @@ groups:
       An image or a compose file is shared and often committed. A credential
       read only at runtime has no path into either.
     verification: >-
-      A test asserts the image build and the Compose file carry no credential
-      value, and that the tool reads one from the page or the environment.
+      A test builds the image with a marker credential in the build environment
+      and asserts no image layer contains it, asserts the Compose file names the
+      credential only through `${VAR}` interpolation, and asserts the tool reads
+      one from the page or the environment.
   - id: SHD-02-004
     priority: MUST_NOT
     kind: project

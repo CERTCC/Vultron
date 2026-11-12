@@ -39,20 +39,23 @@ groups:
       A reader that cannot write is safe whatever its adapter does. A write
       method that refuses every call is still a write path in the interface.
     verification: >-
-      A test asserts the port's declared methods are exactly its read methods.
+      A test asserts the port's declared methods equal a list of read methods
+      written out in the test, so any method added to the port fails it.
   - id: CRD-01-003
     priority: MUST
     kind: architecture
     adr:
     - ADR-0191
     statement: >-
-      A `CaseReader` adapter MUST return the case as a core case ledger.
+      A `CaseReader` adapter MUST return the case as a core case ledger,
+      together with the facts it could not translate.
     rationale: >-
       A case is its ledger and the projection of that ledger. A snapshot alone
       loses the order and timing the CVD desiderata are about.
     verification: >-
-      A test asserts a fake adapter's result is a sequence of core ledger entries
-      that the core's projection accepts.
+      A conformance test, run over every registered `CaseReader` adapter and a
+      fake, asserts each result holds a sequence of core ledger entries that the
+      core's projection accepts, and a list of untranslated facts.
   - id: CRD-01-004
     priority: MUST
     kind: architecture
@@ -65,8 +68,9 @@ groups:
       Every insight must trace back to the record it rests on, so an analyst can
       check a surprising score against the outside system.
     verification: >-
-      A test over a synthetic outside-system case asserts every translated entry
-      names a source record present in the input.
+      A conformance test, run over every registered `CaseReader` adapter with a
+      synthetic case, asserts every translated entry names a source record
+      present in the input.
   - id: CRD-01-005
     priority: MUST
     kind: architecture
@@ -79,8 +83,9 @@ groups:
       A fact that is dropped silently makes the analysis look complete when it is
       not.
     verification: >-
-      A test feeds an adapter a synthetic case holding a record it cannot map and
-      asserts the record is in the result's untranslated facts.
+      A conformance test feeds every registered `CaseReader` adapter a synthetic
+      case holding a record it cannot map and asserts the record is in the
+      result's untranslated facts.
   - id: CRD-01-006
     priority: MUST
     kind: architecture
@@ -94,5 +99,6 @@ groups:
       native one. This holds only because a translation is never stored and
       never enters a protocol path (ADR-0190).
     verification: >-
-      A test over a synthetic case asserts that an entry translated from a
-      vendor's status change names that vendor as its actor.
+      A conformance test, run over every registered `CaseReader` adapter with a
+      synthetic case, asserts that an entry translated from a vendor's status
+      change names that vendor as its actor.

@@ -1,8 +1,8 @@
 id: VSD
 title: VINCE Shadow Data Handling
 description: >-
-  Rules for data read from a VINCE instance by the VINCE shadow: where it is
-  stored, what logs may carry, how the API credential is read, and the only ways
+  Rules for data read from a VINCE instance by the VINCE shadow: what logs may
+  carry, how the API credential is read, and the only ways
   it may enter the repository or a publication. Live production readers and
   retention are not yet decided (#6349).
 scope:
@@ -20,7 +20,7 @@ groups:
     adr:
     - ADR-0189
     statement: >-
-      A shadow-mode log record MUST NOT carry VINCE case content, such as a
+      A shadow log record MUST NOT carry VINCE case content, such as a
       title, description, post, vul detail or contact detail.
     rationale: >-
       Logs are copied into issues, CI artifacts and Coding Agent sessions, so a
@@ -28,10 +28,11 @@ groups:
       still be logged, which keeps records joinable without carrying what the
       embargo protects.
     verification: >-
-      A shadow run test (#5959) seeds a synthetic VINCE case whose content holds
-      a unique marker and asserts no captured record, at any level and including
-      tracebacks, contains it. So the test is not vacuous, it also asserts the
-      run logged records carrying the case and activity ids.
+      A shadow run test (#5959) reads a synthetic VINCE case, whose content
+      holds a unique marker, through the reader and asserts no captured record,
+      at any level and including tracebacks, contains it. So the test is not
+      vacuous, it also asserts the run logged records carrying the case and
+      source-record ids.
   - id: VSD-01-004
     priority: MUST
     kind: project

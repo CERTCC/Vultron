@@ -90,7 +90,7 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
-| VINCE shadow data handling (storage, logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
+| VINCE shadow data handling (logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |

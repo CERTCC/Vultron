@@ -62,7 +62,7 @@ How the shadow is presented and packaged is [ADR-0192](0192-the-shadow-is-a-stre
 
 ## Validation
 
-`specs/case-shadow.yaml` states the checkable rules (no delivery or write path, no long-lived copy, credential read at runtime only), each citing this record.
+`specs/case-shadow.yaml` states the checkable rules (no delivery or write path, no long-lived copy), each citing this record; its packaging rules cite [ADR-0192](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md).
 The data rules for VINCE in [ADR-0189](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md) still apply.
 
 ## Pros and Cons of the Options

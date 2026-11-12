@@ -98,6 +98,7 @@ It now reads: "The shadow keeps no long-lived copy of VINCE-derived records. It 
 The shadow is now a standalone tool that hosts no actor and has no store of its own ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)), so there is no `database.db_url` for the rule to point at.
 The rule's purpose holds and is stronger: no VINCE-derived record outlives the request, inside the repository or out of it.
 VSD-01-001 and VSD-01-002 are retired; SHD-01-003 (no copy kept after its request) and SHD-02-001 (no persistent volume) replace them.
+So `specs/vince-shadow-data.yaml` now restates rules 3 to 6, and rule 1 is restated in `specs/case-shadow.yaml`; the Validation section's "rules 1 and 3 to 6" predates this amendment.
 
 - Source: #6336
 
