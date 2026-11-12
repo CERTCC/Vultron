@@ -2044,8 +2044,9 @@ groups:
         rationale: >-
           A draft release left without its matching assets could be published
           by hand and then never repaired, and the maintainer publishes only
-          the draft release of a green run, so a red run leaves none. A draft release is not yet
-          immutable, so deleting it is safe, and the tag stays: DOCBW-07-009
+          the draft release of a green run, so a red run leaves none. A draft
+          release is not yet immutable, so deleting it is safe, and the tag
+          stays: DOCBW-07-009
           forbids deleting it, and a re-run then resumes it under DOCBW-07-010.
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` make the upload fail, make
