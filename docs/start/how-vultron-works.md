@@ -48,6 +48,8 @@ Each section builds on the ones before it; read a numbered list in order and a b
 
 {% include-markdown "../includes/lookup_link.md" %}
 
+{% include-markdown "./_paths/how-vultron-works/start__how-vultron-works.md" %}
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Know what kind of thing Vultron is

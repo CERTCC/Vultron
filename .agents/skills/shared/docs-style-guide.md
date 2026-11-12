@@ -470,11 +470,13 @@ Do not use either for columns of prose. Each diagram or figure still needs its
 adjacent sentence (SG-33), outside the grid.
 
 **SG-50 — Buttons: at most two, at the top of a landing page.** Use
-`{ .md-button }` on a link for the primary destinations of a landing or start
-page, directly after the orientation paragraph: at most two, the first marked
+`{ .md-button }` on a link for the primary destinations of a landing page,
+directly after the orientation paragraph: at most two, the first marked
 `.md-button--primary`. Label a button with what the reader does there, such as
 "Send your first message". Do not use buttons in body prose, on a content page,
-or to make an ordinary link stand out.
+or to make an ordinary link stand out. A start page has none: its Begin tile,
+generated from its reading path, is its primary action, and a hand-picked
+button drifts from the path (DF-11-053).
 
 **SG-51 — The page-type badge is rendered, never written.** The site draws the
 badge above the title from the page's `page_type` (DF-11-019), and a `routing`

@@ -66,8 +66,7 @@ Each section builds on the ones before it; read a numbered list in order and a b
 
 {% include-markdown "../includes/lookup_link.md" %}
 
-[Send your first message](../tutorials/submit-a-report.md){ .md-button .md-button--primary }
-[Read the Protocol Specification](../reference/vultron-spec/index.md){ .md-button }
+{% include-markdown "./_paths/connect-your-tracker/start__connect-your-tracker.md" %}
 
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 

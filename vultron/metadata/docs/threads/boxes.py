@@ -11,7 +11,7 @@ from vultron.metadata.docs.page_schema import (
     START_DIR,
     THREAD_KEY,
 )
-from vultron.metadata.docs.threads.check import StartThread, position
+from vultron.metadata.docs.threads.check import StartThread, _entry, position
 from vultron.metadata.docs.threads.listing import _link
 
 #: ``docs/``-relative directory of the committed box fragments, one
@@ -21,9 +21,10 @@ from vultron.metadata.docs.threads.listing import _link
 BOX_DIR = f"{START_DIR}/_paths"
 
 
-#: The two tiles of a box, in order: the pages before this one and the pages
-#: after it. Each value is the tile's direction label (DF-11-034).
-BOX_TILES = {"previous": "Previous", "next": "Next"}
+#: The tiles a box may hold, each with its direction label: a member's box
+#: holds the pages before it and the pages after it (DF-11-034); a start
+#: page's box holds only where the thread begins (DF-11-053).
+BOX_TILES = {"previous": "Previous", "next": "Next", "begin": "Begin"}
 
 
 #: Added to a tile's direction label when its set holds more than one page,
@@ -65,11 +66,10 @@ def thread_name(thread: StartThread) -> str:
 def box_targets(thread: StartThread) -> list[str]:
     """Every page string that carries a box of *thread*, in reading order.
 
-    Each member's ``page``, with a section member's anchor kept: a section's
-    box is not its page's box (DF-11-022). The start page carries none: its
-    listing already shows the whole thread (DF-11-015).
+    The start page's path first, then each member's ``page``, with a section
+    member's anchor kept: a section's box is not its page's box (DF-11-022).
     """
-    return [member.page for member in thread.members()]
+    return [thread.path, *(member.page for member in thread.members())]
 
 
 def box_fragment_path(thread: StartThread, target: str) -> str:
@@ -131,10 +131,42 @@ def _tile(side: str, links: list[str]) -> list[str]:
     ]
 
 
+def _open_box(thread: StartThread, target: str, classes: str) -> list[str]:
+    """The marker comment and the box's opening tag, naming thread and target."""
+    return [
+        _box_marker(thread),
+        "",
+        f'<div class="{classes}" '
+        f'{THREAD_ATTR}="{html.escape(thread_name(thread))}" '
+        f'{MEMBER_ATTR}="{html.escape(target)}" markdown>',
+    ]
+
+
+def _begin_box(
+    thread: StartThread, fragment: str, titles: Mapping[str, str]
+) -> str:
+    """A start page's box: one tile, where the thread begins (DF-11-053).
+
+    It has no title or stage line: the start page is the thread, and its own
+    title already names the reader's situation. The tile links the first
+    stage's entry pages: a chain's first member, or every member of a set.
+    """
+    first = _entry(thread.stages[0]) if thread.stages else ()
+    lines = [
+        *_open_box(thread, thread.path, f"{BOX_CLASS} {BOX_CLASS}-begin-box"),
+        f'<div class="{BOX_CLASS}-tiles" markdown>',
+        *_tile("begin", [_link(m, fragment, titles) for m in first]),
+        "</div>",
+        "",
+        "</div>",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def render_box(
     thread: StartThread, target: str, titles: Mapping[str, str]
 ) -> str:
-    """Render *thread*'s box for *target*, a member's ``page``.
+    """Render *thread*'s box for *target*: its start page or a member's ``page``.
 
     The box is an admonition titled by the start page's situation, the same
     for every reader: no ``stakeholder_type``, no level, no script, no query
@@ -144,12 +176,15 @@ def render_box(
     the pages after (DF-11-034). The tiles are HTML blocks that ``md_in_html``
     processes as Markdown, so MkDocs rewrites and validates every link in
     them; links are relative to the fragment, and ``include-markdown``
-    rewrites them for the page that includes it.
+    rewrites them for the page that includes it. A start page's box is
+    :func:`_begin_box` instead.
 
     Raises:
-        ValueError: If *target* is not a member, the start page included.
+        ValueError: If *target* is neither the start page nor a member.
     """
     fragment = box_fragment_path(thread, target)
+    if target == thread.path:
+        return _begin_box(thread, fragment, titles)
     member = next((m for m in thread.members() if m.page == target), None)
     where = position(thread, member.path) if member else None
     if member is None or where is None:
@@ -170,11 +205,7 @@ def render_box(
     before = [_link(m, fragment, titles) for m in where.before]
     after = [_link(m, fragment, titles) for m in where.after]
     lines = [
-        _box_marker(thread),
-        "",
-        f'<div class="admonition abstract {BOX_CLASS}" '
-        f'{THREAD_ATTR}="{html.escape(thread_name(thread))}" '
-        f'{MEMBER_ATTR}="{html.escape(target)}" markdown>',
+        *_open_box(thread, target, f"admonition abstract {BOX_CLASS}"),
         '<p class="admonition-title">Reading path: '
         f"{html.escape(thread.title)}</p>",
         "",

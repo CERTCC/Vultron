@@ -78,13 +78,14 @@
 }
 
 /*
- * Reading-path box (DF-11-015, DF-11-034). Rendered by `docs-site --write`
- * into docs/start/_paths/, never written by an author (SG-45). The box is an
- * admonition so its title and stage line keep their meaning without this
- * stylesheet; these rules restyle it as a strip with a rule on top, a link
- * back to the path's start page, and two tiles: the pages before this one and
- * the pages after it. A tile is shaded with a faint tint of the brand red, so
- * it reads as a button above the white page without becoming a solid block.
+ * Reading-path boxes (DF-11-015, DF-11-034, DF-11-053). Rendered by
+ * `docs-site --write` into docs/start/_paths/, never written by an author
+ * (SG-45). A member page's box is an admonition, so its title and stage line
+ * keep their meaning without this stylesheet; these rules restyle it as a
+ * strip with a rule on top, a link back to the path's start page, and two
+ * tiles: the pages before this one and the pages after it. A start page's box
+ * is a single Begin tile. A tile is shaded with a faint tint of the brand red,
+ * so it reads as a button above the white page without becoming a solid block.
  */
 .md-typeset .admonition.reading-path {
   border: none;
@@ -156,6 +157,14 @@
   content: "← ";
 }
 .md-typeset .reading-path-next .reading-path-direction::after {
+  content: " →";
+}
+/* A start page's box is one Begin tile, without the admonition frame: the
+   page itself is the path, so the tile is its primary action (DF-11-053). */
+.md-typeset .reading-path-begin-box .reading-path-tiles {
+  margin: 1em 0 1.4em;
+}
+.md-typeset .reading-path-begin .reading-path-direction::after {
   content: " →";
 }
 .md-typeset .reading-path-tile ul {

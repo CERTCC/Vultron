@@ -146,9 +146,11 @@ class TestBoxTiles:
     def test_one_box_per_thread_and_target(self, two_threads):
         fragments = set(_boxes(two_threads))
         assert fragments == {
+            f"{BOX_DIR}/practice/start__practice.md",
             f"{BOX_DIR}/practice/a.md",
             f"{BOX_DIR}/practice/topics__shared.md",
             f"{BOX_DIR}/practice/b.md",
+            f"{BOX_DIR}/study/start__study.md",
             *(f"{BOX_DIR}/study/{x}.md" for x in "cdef"),
             f"{BOX_DIR}/study/topics__shared.md",
             f"{BOX_DIR}/study/g--later.md",
@@ -210,11 +212,6 @@ class TestBoxTiles:
             two_threads, "start/practice.md", "a.md"
         )
 
-    def test_a_start_page_has_no_box(self, two_threads):
-        thread = _thread(two_threads, "start/study.md")
-        with pytest.raises(ValueError, match="is not on the thread"):
-            render_box(thread, "start/study.md", {})
-
     def test_the_first_member_has_no_previous(self, tmp_path):
         root = tree(
             tmp_path,
@@ -237,6 +234,8 @@ class TestBoxTiles:
         self, two_threads
     ):
         for path, box in _boxes(two_threads).items():
+            if "/start__" in path:
+                continue  # a start page's box has no title (DF-11-053)
             html = _html(box)
             situation = (
                 "You coordinate cases"
@@ -267,6 +266,62 @@ class TestBoxTiles:
         thread = _thread(two_threads, "start/practice.md")
         with pytest.raises(ValueError, match=r"c\.md is not on the thread"):
             render_box(thread, "c.md", {})
+
+
+def _begin_tile(box: str) -> str:
+    """The Begin tile's HTML in a start page's box; there must be exactly one."""
+    tiles: list[str] = re.findall(
+        r'<div class="reading-path-tile reading-path-begin">(.*?)</div>',
+        _html(box),
+        re.DOTALL,
+    )
+    (tile,) = tiles
+    return tile
+
+
+@pytest.mark.spec("DF-11-053", "DF-11-035")
+class TestBeginTile:
+    def test_a_chain_begins_at_its_first_member(self, two_threads):
+        box = _box(two_threads, "start/study.md", "start/study.md")
+        tile = _begin_tile(box)
+        assert '<p class="reading-path-direction">Begin</p>' in tile
+        assert _links(tile) == ["../../../c.md"]
+
+    def test_a_set_begins_at_every_member(self, tmp_path):
+        root = tree(
+            tmp_path,
+            {
+                "start/s.md": start_page(
+                    "S", [_stage("Any", "set", member("a.md"), member("b.md"))]
+                ),
+                "a.md": page("A"),
+                "b.md": page("B"),
+            },
+        )
+        tile = _begin_tile(_box(root, "start/s.md", "start/s.md"))
+        assert _links(tile) == ["../../../a.md", "../../../b.md"]
+        assert f"Begin{CHOOSE_SUFFIX}</p>" in tile
+
+    def test_it_has_no_title_stage_line_or_other_tile(self, two_threads):
+        box = _box(two_threads, "start/study.md", "start/study.md")
+        html = _html(box)
+        assert "admonition" not in html
+        assert "is part of" not in html
+        assert _start(box) is None
+        assert "reading-path-previous" not in html
+        assert "reading-path-next" not in html
+        assert 'class="reading-path reading-path-begin-box"' in html
+        assert 'data-member="start/study.md"' in html
+        assert "<script" not in html
+
+
+@pytest.mark.spec("DF-11-053")
+def test_no_start_page_has_buttons():
+    """The Begin tile replaces a start page's hand-written buttons (DF-11-053)."""
+    start = repo_root() / "docs" / "start"
+    pages = sorted(start.glob("*.md"))
+    assert pages
+    assert [p.name for p in pages if "md-button" in p.read_text()] == []
 
 
 @pytest.mark.spec("DF-11-022")

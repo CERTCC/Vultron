@@ -1326,23 +1326,22 @@ groups:
     adr:
       - ADR-0150
     statement: >-
-      Every page that is a member of a thread MUST show one box per thread it is on.
-      Each box is titled by the reader's situation rather than by `stakeholder_type`
-      (DF-11-009). It names the stage the page belongs to. It holds a link back to the
-      start page, then two tiles: the pages before this one and the pages after it. A
-      start page shows no box: its listing is the whole thread.
+      Every page that is a member of a thread, and every start page, MUST show one box
+      per thread it is on. A member page's box is titled by the reader's situation
+      rather than by `stakeholder_type` (DF-11-009). It names the stage the page belongs
+      to. It holds a link back to the start page, then two tiles: the pages before this
+      one and the pages after it. A start page's box is its Begin tile (DF-11-053).
     rationale: >-
       A reader who followed a thread into a page needs directions onward. A page on
       several threads shows each, so it never needs to know which thread a reader is on,
-      and it still stands alone (DF-11-007). A start page's box would hold only its
-      first stage, which the listing below it already shows, and it would compete with
-      the page's buttons (SG-50) as a second way in.
+      and it still stands alone (DF-11-007). A reader who lands on a start page needs
+      one place to begin.
     verification: >-
       A test renders the boxes of a fixture tree with a page on two threads and a start
-      page, and confirms one box per thread and member with the expected stage name, the
-      start link, the previous and next tiles, a title taken from the start page's
-      situation, no `stakeholder_type` or `level` value, and no box for a start page.
-      That every member page shows its boxes is checked over the built site by
+      page, and confirms one box per thread and target, a member's box with the expected
+      stage name, the start link, the previous and next tiles, a title taken from the
+      start page's situation, and no `stakeholder_type` or `level` value. That every
+      member page and start page shows its boxes is checked over the built site by
       DF-11-045. Covered by `test/metadata/docs/test_thread_boxes.py::TestBoxTiles`.
   - id: DF-11-034
     priority: MUST
@@ -1370,6 +1369,30 @@ groups:
       with a page in a chain and one in a set stage, and a first and a last member. It
       confirms the expected start link and previous and next lists, an empty tile for an
       empty set, and the label of a tile with several pages.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-015
+  - id: DF-11-053
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A start page's box (DF-11-015) MUST be a single tile labelled "Begin". The tile
+      links the first stage's entry pages: a chain's first member, or every member of a
+      set. It has no title and no stage line. A start page carries no hand-written
+      buttons beside it (SG-50).
+    rationale: >-
+      A reader new to the situation needs one obvious place to begin, and it must be
+      where the thread begins. Hand-picked buttons drifted: three of four pointed
+      somewhere other than their thread's first page. A tile generated from the thread
+      data stays in step. A reader who knows the basics skips ahead by the goal-named
+      stage headings, and a returning reader has the lookup link (DF-11-021).
+    verification: >-
+      `test/metadata/docs/test_thread_boxes.py::TestBeginTile` renders a start page's
+      box over a chain and over a set first stage, and confirms one Begin tile with the
+      expected links, no title and no stage line. `test_no_start_page_has_buttons`
+      confirms no committed start page holds an `.md-button`.
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
@@ -1863,20 +1886,21 @@ groups:
     adr:
       - ADR-0150
     statement: >-
-      A built-site check MUST fail when a member page does not render its box for each
-      of its threads.
+      A built-site check MUST fail when a member page or start page does not render its
+      box for each of its threads.
     rationale: >-
       A check over the built site finds a missing box however the page is assembled,
       and the placement does not need to be mechanical.
     verification: >-
       Unit tests over a fixture site cover each built-site check failure, asserting that
       the message names the page and the `include-markdown` line to add: a member page
-      with no box, a page on two threads with one box, a page that includes another
-      page's fragment, and a section member's box outside its section. The check fails
-      when it resolves no targets (DF-09-009). The check runs in CI beside the other
-      built-site checks, not as a pre-commit hook, since it needs a full site build.
-      Covered by `test/metadata/docs/test_path_boxes.py` (`TestBuiltSiteCheck`, one test
-      per failure, and `test_the_check_runs_in_ci_beside_the_built_site_checks`).
+      with no box, a start page with no box, a page on two threads with one box, a page
+      that includes another page's fragment, and a section member's box outside its
+      section. The check fails when it resolves no targets (DF-09-009). The check runs
+      in CI beside the other built-site checks, not as a pre-commit hook, since it needs
+      a full site build. Covered by `test/metadata/docs/test_path_boxes.py`
+      (`TestBuiltSiteCheck`, one test per failure, and
+      `test_the_check_runs_in_ci_beside_the_built_site_checks`).
     relationships:
     - rel_type: verifies
       spec_id: DF-11-015

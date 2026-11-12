@@ -494,16 +494,19 @@ at some points and not at others (ADR-0150).
   because a member page carries the thread's box (DF-11-016). Put such a link
   in its stage's `framing:`, which renders under the stage heading; that is
   how `contribute.md` keeps its decision-record and developer-docs links.
-- **Member pages carry a box per thread; start pages carry none.** A box is
-  titled by situation, never by `stakeholder_type`, names the page's stage,
-  links back to the start page ("Path overview"), and holds a previous tile and
-  a next tile, each a list of links. An empty set leaves its tile empty, a tile
-  of several pages says "pick one", and the page itself is not repeated. The
-  tiles are shaded like buttons because a table read as data, not as directions
-  onward; their classes live in `docs/stylesheets/components.css` and only the
-  generator writes them (SG-45). A start page has no box because its listing
-  already is the thread, and a box beside its SG-50 buttons would be a second,
-  competing way in (DF-11-015). The sets are
+- **Member pages and start pages carry a box per thread.** A member page's
+  box is titled by situation, never by `stakeholder_type`, names the page's
+  stage, links back to the start page ("Path overview"), and holds a previous
+  tile and a next tile, each a list of links. An empty set leaves its tile
+  empty, a tile of several pages says "pick one", and the page itself is not
+  repeated. The tiles are shaded like buttons because a table read as data, not
+  as directions onward; their classes live in `docs/stylesheets/components.css`
+  and only the generator writes them (SG-45). A start page's box is one "Begin"
+  tile to the first stage's entry pages, with no title, and it replaces the
+  page's hand-written buttons: those were picked by hand and drifted from their
+  own paths, while the tile is generated from the thread (DF-11-053, SG-50). A
+  reader who knows the basics skips ahead by the goal-named stage headings, and
+  a returning reader has the lookup link. The sets are
   the adjacent ones: the neighbor in a chain, or else the whole neighboring set
   stage (or the near end of a neighboring chain). It is the same for every
   reader, so no query parameter or referrer is needed (DF-11-035).
