@@ -32,6 +32,7 @@ from vultron.demo.helpers.verification.participants import (
     _fetch_participant_data,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -84,14 +85,14 @@ def verify_case_closed(
         pass  # name the participants that are still open, below
     case_data = client.get(client.dl_path(case_id))
     assert case_data, f"verify_case_closed: case {case_id!r} not found"
-    case = as_VulnerabilityCase.model_validate(case_data)
+    case = from_server(as_VulnerabilityCase, case_data)
     open_actors: list[str] = []
     for a_id, p_id in case.actor_participant_index.items():
         p_data = _fetch_participant_data(client, p_id)
         if p_data is None:
             open_actors.append(f"'{a_id}' (no participant record)")
             continue
-        p = as_CaseParticipant(**p_data)
+        p = from_server(as_CaseParticipant, p_data)
         if not p.joined:
             continue  # unanswered invitee (CM-11-006) — not yet a full
             # participant; excluded from the "all closed" check

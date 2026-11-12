@@ -484,6 +484,10 @@ groups:
       `test_only_the_act_edge_holds_a_clock` in the same file fails when a
       module other than an act's entry point or the composition root that
       wires it names a clock port.
+      `test_no_core_model_field_defaults_to_the_clock` in
+      `test/architecture/test_core_models_read_no_clock_default.py` fails when a
+      field of a model under `vultron/core/models` gains a default that reads
+      the clock or yields a time.
     statement: >-
       Application code MUST read the current time only at an act's entry point,
       through the act clock port (`ClockPort` in `vultron.core.ports.clock`),

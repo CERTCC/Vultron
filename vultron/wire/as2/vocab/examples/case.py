@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.examples._base import (
     _REPORT,
     _VENDOR,
     EXAMPLE_TIMESTAMP,
+    _example_stamp,
     case,
     case_actor,
     gen_report,
@@ -74,6 +75,7 @@ def create_case() -> as_Create:
         case_roles=[CVDRole.VENDOR],
         attributed_to=_VENDOR.id_,
         name=_VENDOR.name,
+        **_example_stamp(),
     )
     _case = case(
         fresh_id=True,

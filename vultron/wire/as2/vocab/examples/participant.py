@@ -87,6 +87,7 @@ def _participant_for(
             context=_case.id_,
             case_roles=case_roles,
             participant_statuses=participant_statuses,
+            **_example_stamp(),
         )
     return as_CaseParticipant(
         id_=participant_id,
@@ -94,6 +95,7 @@ def _participant_for(
         attributed_to=actor.id_,
         context=_case.id_,
         case_roles=case_roles,
+        **_example_stamp(),
     )
 
 
@@ -107,6 +109,7 @@ def vendor_participant() -> as_CaseParticipant:
         attributed_to=_vendor.id_,
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
+        **_example_stamp(),
     )
     return _participant_for(_vendor, [CVDRole.VENDOR], [_pstatus])
 
@@ -219,6 +222,7 @@ def _coordinator_participant() -> as_CaseParticipant:
         attributed_to=_coordinator.id_,
         context=_case.id_,
         case_roles=[CVDRole.COORDINATOR],
+        **_example_stamp(),
     )
 
 

@@ -21,7 +21,7 @@ from typing import Any, TypeAlias, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
-from vultron.core.models._helpers import as_utc, format_timestamp, now_utc
+from vultron.core.models._helpers import as_utc, format_timestamp
 from vultron.core.models.base import (
     CoreObject,
     LanguageMap,
@@ -70,12 +70,13 @@ class as_Object(as_Base):
     end_time: datetime | None = Field(
         default=None, json_schema_extra={"format": "date-time"}
     )
+    # Required, with no default (ADR-0176): an outbound object states the
+    # act's instant, and a received omission is read as ``None``
+    # (``as_Base.carry_absent_times_on_inbound``).
     published: datetime | None = Field(
-        default_factory=now_utc, json_schema_extra={"format": "date-time"}
+        json_schema_extra={"format": "date-time"}
     )
-    updated: datetime | None = Field(
-        default_factory=now_utc, json_schema_extra={"format": "date-time"}
-    )
+    updated: datetime | None = Field(json_schema_extra={"format": "date-time"})
 
     # content: blank text is refused when the object is built (CS-08-001,
     # VM-07-005)
@@ -146,11 +147,10 @@ class as_Object(as_Base):
         reject the whole message over a field the nested object is allowed to
         omit outright.
 
-        Absence here means ``None``, **not** the field default.  ``published``
-        and ``updated`` carry ``default_factory=now_utc`` so that an object this
-        process *authors* is stamped with the local clock; on inbound data that
-        default would fabricate a time and present it as the sender's claim.
-        ``as_Base.carry_absent_times_on_inbound`` therefore reads an omitted
+        Absence here means ``None``.  ``published`` and ``updated`` are
+        required, with no default (ADR-0176): an object this process
+        *authors* states the act's instant, and a received one carries the
+        sender's claim.  ``as_Base.carry_absent_times_on_inbound`` reads an omitted
         key as ``None`` under the inbound validation context, so omission,
         ``null`` and blank all arrive as the same ``None`` (ISSUE-3257,
         ADR-0103).
@@ -205,7 +205,7 @@ as_Object.model_rebuild()
 
 
 def main():
-    o = as_Object()
+    o = as_Object(published=None, updated=None)
     print(o.to_json(indent=2))
     print(o.model_dump(exclude_none=True))
 

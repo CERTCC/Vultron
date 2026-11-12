@@ -31,6 +31,7 @@ import json
 
 import pytest
 
+from test.support.objects import with_times
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.recordings.runner import record_scenario
@@ -52,7 +53,9 @@ def test_the_recorder_records_a_scenario():
 
     recording = run.recording
     entries = [
-        CaseLedgerEntry.model_validate(json.loads(line))
+        CaseLedgerEntry.model_validate(
+            with_times(CaseLedgerEntry, json.loads(line))
+        )
         for line in recording.entries
     ]
     assert entries, "the recording is empty"

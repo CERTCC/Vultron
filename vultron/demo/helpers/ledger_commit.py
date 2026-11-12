@@ -22,6 +22,8 @@ cap; committing is a separate responsibility from verifying replication.
 
 import logging
 
+from vultron.core.models._helpers import authored_times
+from vultron.demo import wall_clock
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -55,7 +57,8 @@ def trigger_log_commit(
     Spec: SYNC-02-001, SYNC-02-003.
     """
     session = ActorSession(
-        client=client, actor=as_Actor(id_=actor_id)
+        client=client,
+        actor=as_Actor(id_=actor_id, **authored_times(wall_clock.now())),
     ).with_case(case_id)
     result = session.sync_log_entry(
         object_id=object_id if object_id is not None else case_id,

@@ -32,6 +32,7 @@ from vultron.demo.utils import (
     seed_actor,
     seed_peer,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ def get_actor_by_id(client: DataLayerClient, actor_id: str) -> as_Actor:
     """
     actors = client.get("/actors/")
     for a in actors:
-        actor = as_Actor.model_validate(a)
+        actor = from_server(as_Actor, a)
         if actor.id_ == actor_id:
             return actor
     raise ValueError(f"Actor {actor_id!r} not found in container")

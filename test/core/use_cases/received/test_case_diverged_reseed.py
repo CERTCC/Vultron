@@ -33,7 +33,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_tree
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.core.models.fault_classes import (
@@ -592,7 +592,9 @@ def test_a_fault_naming_an_announce_this_actor_did_not_send_is_refused() -> (
     net, _ = _diverged("reseed-foreign-announce")
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
     foreign = announce_log_entry_activity(
-        entry=as_CaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
+        entry=as_CaseLedgerEntry.model_validate(
+            with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
+        ),
         actor=OWNER,
         to=[MANAGER],
         at=authored_at(),

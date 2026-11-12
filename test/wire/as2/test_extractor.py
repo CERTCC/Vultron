@@ -1015,7 +1015,12 @@ def test_activity_snapshot_carries_attributed_to():
     "raw, expected",
     [
         pytest.param(
-            {"id": "https://example.org/users/vendor", "type": "Person"},
+            {
+                "id": "https://example.org/users/vendor",
+                "type": "Person",
+                "published": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-01T00:00:00Z",
+            },
             "https://example.org/users/vendor",
             id="inline-object-resolves-to-its-id",
         ),
@@ -1055,7 +1060,15 @@ def test_activity_snapshot_carries_the_id_an_id_less_attributed_to_was_given():
     shared minter gives every object built without one.  The snapshot carries
     that id, never a repr of the mapping (CLP-07-011).
     """
-    event = extract_stamped(_ownership_offer({"type": "Person"}))
+    event = extract_stamped(
+        _ownership_offer(
+            {
+                "type": "Person",
+                "published": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-01T00:00:00Z",
+            }
+        )
+    )
 
     assert event.activity is not None
     attributed_to = event.activity.attributed_to

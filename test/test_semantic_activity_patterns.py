@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -579,7 +579,10 @@ def test_a_stub_that_claims_another_type_is_refused():
 
     with pytest.raises(ValidationError):
         as_VulnerabilityCaseStub.model_validate(
-            {"type": "VulnerabilityCase", "caseId": CASE_URI}
+            with_times(
+                as_VulnerabilityCaseStub,
+                {"type": "VulnerabilityCase", "caseId": CASE_URI},
+            )
         )
 
 

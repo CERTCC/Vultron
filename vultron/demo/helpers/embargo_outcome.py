@@ -32,6 +32,7 @@ from vultron.core.states.em import EM
 from vultron.demo.helpers.polling._poll import _poll_until
 from vultron.demo.helpers.workflow import find_case_for_offer
 from vultron.demo.utils import DataLayerClient, demo_check
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -59,7 +60,7 @@ def read_embargo(
 ) -> as_EmbargoEvent:
     """Read an ``EmbargoEvent`` from the CaseActor's own store."""
     data = client.get(client.dl_path(embargo_id, actor_id=case_actor_id))
-    return as_EmbargoEvent.model_validate(data)
+    return from_server(as_EmbargoEvent, data)
 
 
 def embargo_window(embargo: as_EmbargoEvent) -> timedelta:

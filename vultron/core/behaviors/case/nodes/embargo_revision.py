@@ -42,7 +42,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import deadline_from
+from vultron.core.models._helpers import (
+    deadline_from,
+    embargo_authored_times,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
@@ -182,6 +185,7 @@ class ResolveCreationTimeRevisionNode(DataLayerActionWithPorts):
                     end_time=deadline_from(
                         self._require_act_instant(), actor_default
                     ),
+                    **embargo_authored_times(self._require_act_instant()),
                 )
             return None
         if resolved.source is EmbargoDurationSource.ACTOR_DEFAULT:

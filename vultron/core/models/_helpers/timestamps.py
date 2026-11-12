@@ -106,6 +106,13 @@ def as_utc(value: datetime | None) -> datetime | None:
     return value
 
 
+def blank_as_none(value: Any) -> Any:
+    """*value*, or ``None`` when it is a blank string: absence (CS-08-001)."""
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
 def parse_published(value: Any) -> datetime | None:
     """Return *value* as a timezone-aware UTC datetime, or ``None``.
 

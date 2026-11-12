@@ -25,6 +25,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 from datetime import datetime
 from typing import cast
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories._actor import carried_actor
@@ -222,6 +223,7 @@ def offer_case_participant_activity(
                 id_=f"{actor_id}#participant",
                 attributed_to=actor_id,
                 case_roles=effective_roles,
+                **authored_times(at),
             ),
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),

@@ -24,7 +24,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -419,7 +419,13 @@ class TestAcceptCaseInvite:
     @pytest.mark.spec("CM-11-038")
     @pytest.mark.parametrize(
         "held_target",
-        [{"type": "VulnerabilityCase", "id": _CASE_ID}, _CASE_ID],
+        [
+            with_times(
+                as_VulnerabilityCase,
+                {"type": "VulnerabilityCase", "id": _CASE_ID},
+            ),
+            _CASE_ID,
+        ],
         ids=["full-case-target", "uri-target"],
     )
     def test_a_held_invite_that_does_not_carry_a_stub_is_refused(

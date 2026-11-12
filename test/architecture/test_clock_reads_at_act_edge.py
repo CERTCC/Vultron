@@ -25,7 +25,9 @@ Two kinds of list:
   the two system clocks behind the clock ports, and the stopwatch reads at
   named sites.
 - Each ``KNOWN_*_CLOCK_READS`` constant is a **ratchet**: today's reads below
-  an act's edge, grouped by the slice of #5676 that removes them.  A slice
+  an act's edge, grouped by the slice of #5676 that removes them.  The core
+  models' list is gone (#5758): no core model reads the clock, and
+  ``test_core_models_read_no_clock_default.py`` keeps it so.  A slice
   deletes its own items as it moves each read to the act's instant
   (``read_act_instant()`` in a node, a required argument elsewhere).
   :data:`KNOWN_UNSLICED_CLOCK_READS` holds the reads no slice names yet.
@@ -134,47 +136,6 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     ),
 )
 
-# Core models and time helpers take the act's instant; a caller of a helper
-# whose signature changes is listed with the helper.
-# owner: #5758
-KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/models/base/core_object.py",
-        "CoreObject.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/base/core_object.py",
-        "CoreObject.updated",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case/_construction.py",
-        "_genesis_published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case_status.py",
-        "CaseStatus.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/embargo_event.py",
-        "EmbargoEvent.start_time",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/vocab/base/objects/base.py",
-        "as_Object.published",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/vocab/base/objects/base.py",
-        "as_Object.updated",
-        "now_utc",
-    ),
-)
-
 # Reads below an act's edge that no slice names yet: the epic routes each one.
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
@@ -187,7 +148,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
 
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
-    "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
     "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,
 }
 
@@ -214,6 +174,10 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         "vultron/adapters/driving/fastapi/sender_sequence_holds.py",
         "vultron/adapters/driving/fastapi/inbox_handler.py",
         "vultron/demo/fuzzer/stochastic_demo.py",
+        # Requests that author a stored object: actor creation and an
+        # embargo policy's publication, stamped when the request arrives.
+        "vultron/adapters/driving/fastapi/routers/actors/_routes/registry.py",
+        "vultron/adapters/driving/fastapi/routers/actors/_embargo_policy.py",
         # Composition roots that hand the clock to an entry point.
         "vultron/core/trigger_dispatcher.py",
         "vultron/adapters/driving/fastapi/deps.py",

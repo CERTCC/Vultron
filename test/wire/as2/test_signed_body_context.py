@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -148,6 +148,8 @@ def test_a_wire_object_refuses_an_inline_context_object(context: Any):
 
 def _assert_context_refused(context: Any) -> None:
     with pytest.raises(ValidationError) as raised:
-        as_Activity.model_validate({"@context": context, "actor": ACTOR})
+        as_Activity.model_validate(
+            with_times(as_Activity, {"@context": context, "actor": ACTOR})
+        )
 
     assert {error["loc"][0] for error in raised.value.errors()} == {"@context"}

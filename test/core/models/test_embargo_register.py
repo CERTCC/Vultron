@@ -21,7 +21,7 @@ from test.support.embargo_register import (
     reject,
     terminate,
 )
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -667,7 +667,10 @@ def test_a_former_stored_field_is_refused_as_an_unknown_key() -> None:
     """``activeEmbargo`` is no longer a field: ``forbid`` refuses it (ADR-0175)."""
     with pytest.raises(ValidationError) as exc_info:
         VulnerabilityCase.model_validate(
-            {"id": CASE_ID, "attributedTo": OWNER, "activeEmbargo": A}
+            with_times(
+                VulnerabilityCase,
+                {"id": CASE_ID, "attributedTo": OWNER, "activeEmbargo": A},
+            )
         )
     assert [(e["type"], e["loc"]) for e in exc_info.value.errors()] == [
         ("extra_forbidden", ("activeEmbargo",))
@@ -715,6 +718,8 @@ def test_the_register_round_trips_through_its_wire_spelling() -> None:
         "replaces": A,
         "termination": None,
     }
-    restored = VulnerabilityCase.model_validate(dumped)
+    restored = VulnerabilityCase.model_validate(
+        with_times(VulnerabilityCase, dumped)
+    )
     assert restored.embargo_register == case.embargo_register
     assert restored.em_state is EM.ACTIVE

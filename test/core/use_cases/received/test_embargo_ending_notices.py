@@ -46,7 +46,7 @@ from test.support import embargo_register
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -1303,7 +1303,7 @@ def _entry_event(
         )
     )
     wire_entry = as_CaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
     )
     announce = announce_log_entry_activity(
         entry=wire_entry, actor=MANAGER, to=[to], at=authored_at()

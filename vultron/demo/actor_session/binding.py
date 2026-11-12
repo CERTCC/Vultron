@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.demo.actor_session.results import WireTriggerResult
 from vultron.demo.utils import DataLayerClient, post_to_trigger, ref_id
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -145,7 +146,7 @@ class SessionBinding:
             body=body,
             path_prefix=path_prefix,
         )
-        return result_cls.model_validate(raw)
+        return from_server(result_cls, raw)
 
     @staticmethod
     def _roles_body(roles: list[CVDRole] | None) -> dict[str, Any]:

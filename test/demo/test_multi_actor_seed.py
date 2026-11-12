@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+from test.support.objects import with_times
 from vultron.demo.cli import main
 from vultron.demo.helpers.cast import (
     ALL_SLOTS,
@@ -194,7 +195,10 @@ class TestSeedCLIWithDeterministicId:
                 {"name": name, "actor_type": actor_type, "actor_id": actor_id}
             )
             return as_Actor.model_validate(
-                {"id": actor_id or f"http://mock/{name}", "name": name}
+                with_times(
+                    as_Actor,
+                    {"id": actor_id or f"http://mock/{name}", "name": name},
+                )
             )
 
         def _capturing_peer(
@@ -212,7 +216,9 @@ class TestSeedCLIWithDeterministicId:
                     "actor_type": actor_type,
                 }
             )
-            return as_Actor.model_validate({"id": peer_id, "name": name})
+            return as_Actor.model_validate(
+                with_times(as_Actor, {"id": peer_id, "name": name})
+            )
 
         runner = CliRunner()
         with (

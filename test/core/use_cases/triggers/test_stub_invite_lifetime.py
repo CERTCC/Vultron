@@ -124,7 +124,8 @@ def _answer(
     assert isinstance(invite, as_Invite)
     return route_received(
         dl,
-        reply(
+        make(
+            reply,
             actor=invitee_id,
             to=[manager_id],
             object_=invite,

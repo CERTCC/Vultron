@@ -17,7 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -378,7 +378,7 @@ def _reject_event(
 ) -> RejectLogEntryReceivedEvent:
     """A peer's Reject; *published* ``None`` is one that claims no time."""
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         wire_entry,

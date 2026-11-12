@@ -20,7 +20,6 @@
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/2",
     "type": "CaseLedgerEntry",
     "published": "2024-01-01T12:00:00.000000+00:00",
-    "updated": "2026-06-01T19:12:00.000000+00:00",
     "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "logIndex": 2,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000003",
@@ -41,6 +40,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3479xFkf1j1ZTTSUqzBBeVCC9W6uAgQjfJuVpMkeKrpNicMmYZeqaDV4y1ZYwxPCpwMpKKBiY3yfsQE8h5BQknBB"
+    "proofValue": "z5QwbPDq85MRDFXDa2Nr3kKNm33sGYX5KovMu9WxEHqsi35fYf4us3EKeG3YKCJ8kitaTMb2AgFG4s17QC884jt7Z"
   }
 }

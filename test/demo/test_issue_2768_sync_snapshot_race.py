@@ -61,7 +61,7 @@ def _stub_case_reads(monkeypatch):
         sync_replica, "_case_or_none", lambda client, cid: {"id_": cid}
     )
     fake_case_cls = SimpleNamespace(
-        model_validate=lambda data: SimpleNamespace(
+        model_validate=lambda data, **_: SimpleNamespace(
             id_=_CASE_ID, actor_participant_index={}, active_embargo=None
         )
     )

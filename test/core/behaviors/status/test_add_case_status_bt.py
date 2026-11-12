@@ -56,7 +56,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -1434,7 +1434,9 @@ class TestThreatTerminationBranchNode:
         )
         entry = record.to_ledger_entry()
         activity = announce_log_entry_activity(
-            WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
+            WireCaseLedgerEntry.model_validate(
+                with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
+            ),
             actor=CASE_MANAGER_ID,
             to=[ACTOR_ID],
             at=authored_at(),

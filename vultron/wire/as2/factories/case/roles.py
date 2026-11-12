@@ -20,6 +20,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 from datetime import datetime
 from typing import cast
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories._actor import carried_actor
@@ -92,7 +93,7 @@ def offer_case_participant_role_activity(
         _OfferCaseParticipantRoleActivity,
         at,
         lambda: {
-            "object_": as_CaseParticipantRole(role=role),
+            "object_": as_CaseParticipantRole(role=role, **authored_times(at)),
             "target": carried_actor(target_actor),
             "context": case_uri_of(case) or case,
             **kwargs,

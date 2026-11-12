@@ -34,7 +34,7 @@ import pytest
 import vultron.wire.as2.vocab.activities as _act_pkg
 import vultron.wire.as2.vocab.objects as _obj_pkg
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.enums import as_AllObjectTypes
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -155,7 +155,9 @@ def test_embargo_event_roundtrip_preserves_context():
         end_time=days_from_now(45),
     )
     data = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
-    restored = as_EmbargoEvent.model_validate(data)
+    restored = as_EmbargoEvent.model_validate(
+        with_times(as_EmbargoEvent, data)
+    )
     assert restored.context == obj.context
 
 

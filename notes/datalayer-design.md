@@ -252,24 +252,28 @@ test names.
 
 ---
 
-## A Clock-Minted Default Cannot Round-Trip Through a Field That Does Not Store It
+## A Time Is Stated by Its Author, Never Minted by a Default
 
-A value a wire default mints at construction cannot survive a round trip through
-a core field that does not store it; the symptom is an equality that holds only
-when write and read land in the same wall-clock second (#3732). Neither "store
-more" nor "re-mint on read" is the fix — the fix is to stop minting. For example,
-an actor endpoint is an *address*: the core actor keeps it as a URI string
-(ARCH-12-006), so `_address_collection()` in
-`vultron/wire/as2/vocab/base/objects/actors.py` builds the derived wire
-collection with `published=None, updated=None`, while a collection that
-*arrives* carrying its own times keeps them as received (ADR-0103).
+No model field defaults to the clock: an object's `published`, `updated` and an
+embargo's `start_time` are required, and whatever builds the object states the act's
+instant (ADR-0176, #5758). A minted default broke round trips — an equality held only
+when write and read landed in the same wall-clock second (#3732) — and made an
+object's time disagree with the act that made it.
+`test/architecture/test_core_models_read_no_clock_default.py` refuses a new one.
 
-- **A round-trip equality test must cross a second boundary on purpose.** Step
-  the clock between write and read with `SteppingClock` from
+- **A stored record without a required time is unsupported.** There is no
+  migration and no fallback that fills one in; re-create the store.
+- **A derived object that does not own a time states `None`.** An actor endpoint
+  is an *address*: the core actor keeps it as a URI string (ARCH-12-006), so
+  `_address_collection()` in `vultron/wire/as2/vocab/base/objects/actors.py` builds
+  the wire collection with `published=None, updated=None`, while a collection that
+  *arrives* carrying its own times keeps them as received (ADR-0103).
+- **A received omission reads as `None`**, never as the receiver's clock
+  (`absent_times_as_none`, ISSUE-3257); a time the class requires non-null is then
+  refused at validation.
+- **A round-trip equality test must cross a second boundary on purpose.** Step the
+  clock between write and read with `SteppingClock` from
   `vultron/demo/determinism.py`; never `time.sleep()`.
-- **Ask which side of the boundary owns a default before adding one.** If a
-  field defaults on the wire branch and the core branch reduces the object to a
-  reference, the default is unstorable and every read disagrees with every write.
 
 ## A Read-Modify-Write of a Shared Record Uses `save_if_unchanged`, Not `save`
 

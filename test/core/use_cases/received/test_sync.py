@@ -32,7 +32,7 @@ from test.support.inbox_replay import (
     ledger_announce_event,
     replayed_event,
 )
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event, received_record
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -205,7 +205,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         self, entry: CaseLedgerEntry
     ) -> AnnounceLogEntryReceivedEvent:
         wire_entry = WireCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
+            with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
         )
         activity = announce_log_entry_activity(
             wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI], at=authored_at()

@@ -75,10 +75,10 @@ def _build_activity_snapshot(
     CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
 
     ``published`` is carried for the same class of reason (ISSUE-3149).  It is
-    the sender's *claimed* event time; omitting it let
-    ``VultronActivity.published`` fall back to ``default_factory=now_utc``, the
-    receiver's own clock, so core read the receiver's clock as the sender's
-    claim (CLP-15-004).
+    the sender's *claimed* event time; omitting it once let
+    ``VultronActivity.published`` fall back to a clock default, the receiver's
+    own clock, so core read the receiver's clock as the sender's claim
+    (CLP-15-004).  The field is now required (ADR-0176).
 
     This summary is what core reads and intake records, not what a received
     ledger entry records: the entry records the received body itself, which

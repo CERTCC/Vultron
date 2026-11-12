@@ -35,6 +35,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from test.support.act_clock import no_clock
+from test.support.objects import with_times
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -119,7 +120,9 @@ def _trigger(request: TriggerRequest[ResultT_co]) -> ResultT_co:
             "emitting_actor_id": _ACTOR,
         },
     }
-    result = result_cls.model_validate(sample[result_cls.__name__])
+    result = result_cls.model_validate(
+        with_times(result_cls, sample[result_cls.__name__])
+    )
     # ``result_type_of`` returns ``type[TriggerResult]``; the static binding
     # is what the call sites below assert with ``assert_type``.
     return result  # type: ignore[return-value]
@@ -335,7 +338,9 @@ def test_end_time_validator_is_declared_once() -> None:
 def test_end_time_rejects_a_naive_datetime(model: type[BaseModel]) -> None:
     with pytest.raises(ValidationError, match="timezone-aware"):
         naive = datetime(2099, 12, 1)  # noqa: DTZ001 — deliberately naive
-        model.model_validate(_end_time_payload(model, naive))
+        model.model_validate(
+            with_times(model, _end_time_payload(model, naive))
+        )
 
 
 @pytest.mark.spec("CS-13-002")
@@ -353,7 +358,9 @@ def test_end_time_leaves_the_future_check_to_the_trigger(
         2020, 1, 1, tzinfo=UTC
     )  # idiom 3: a deliberately past date
     with no_clock():
-        built = model.model_validate(_end_time_payload(model, past))
+        built = model.model_validate(
+            with_times(model, _end_time_payload(model, past))
+        )
     # Typed ``BaseModel``; getattr keeps the type checker out.
     assert getattr(built, "end_time") == past  # noqa: B009
 
@@ -362,7 +369,9 @@ def test_end_time_leaves_the_future_check_to_the_trigger(
 def test_end_time_accepts_an_aware_future_datetime(
     model: type[BaseModel],
 ) -> None:
-    built = model.model_validate(_end_time_payload(model, _FUTURE))
+    built = model.model_validate(
+        with_times(model, _end_time_payload(model, _FUTURE))
+    )
     # Typed ``BaseModel``; getattr keeps the type checker out.
     assert getattr(built, "end_time") == _FUTURE  # noqa: B009
 
@@ -402,7 +411,9 @@ def test_role_list_bodies_refuse_finder_as_an_invalid_value(
     """A trigger body offering the former 'finder' role is refused (ADR-0175)."""
     with pytest.raises(ValidationError) as excinfo:
         model.model_validate(
-            {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+            with_times(
+                model, {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+            )
         )
     assert [e["msg"] for e in excinfo.value.errors()] == [
         "Value error, 'finder' is not a valid CVDRole"
@@ -414,10 +425,14 @@ def test_role_list_bodies_parse_roles_like_every_other_path(
     model: type[BaseModel], actor_field: str
 ) -> None:
     """Omitted roles stay None; role strings parse in any case."""
-    absent = model.model_validate({"case_id": _CASE, actor_field: _ACTOR})
+    absent = model.model_validate(
+        with_times(model, {"case_id": _CASE, actor_field: _ACTOR})
+    )
     assert absent.model_dump()["roles"] is None
     built = model.model_validate(
-        {"case_id": _CASE, actor_field: _ACTOR, "roles": ["VENDOR"]}
+        with_times(
+            model, {"case_id": _CASE, actor_field: _ACTOR, "roles": ["VENDOR"]}
+        )
     )
     assert built.model_dump()["roles"] == [CVDRole.VENDOR]
 
@@ -465,7 +480,9 @@ def test_role_list_bodies_refuse_an_authority_role(
     """
     with pytest.raises(ValidationError, match="CM-20-009"):
         model.model_validate(
-            {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+            with_times(
+                model, {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+            )
         )
 
 

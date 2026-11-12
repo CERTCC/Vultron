@@ -40,7 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_in_act, run_tree
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -175,7 +175,10 @@ class TestProposalCarriesTheProvenance:
             offer_actor_id=_REPORTER_URI,
         )
         restored = as_CaseProposal.model_validate(
-            original.model_dump(by_alias=True, serialize_as_any=True)
+            with_times(
+                as_CaseProposal,
+                original.model_dump(by_alias=True, serialize_as_any=True),
+            )
         )
         assert restored.offer_id == _OFFER_URI
         assert restored.offer_actor_id == _REPORTER_URI
@@ -334,7 +337,9 @@ class TestProposalCarriesTheOfferItself:
         )
 
         wire_report = as_VulnerabilityReport.model_validate(
-            report.model_dump(by_alias=True)
+            with_times(
+                as_VulnerabilityReport, report.model_dump(by_alias=True)
+            )
         )
         terms = (
             make(EmbargoEvent, context=report.id_, end_time=self._END)

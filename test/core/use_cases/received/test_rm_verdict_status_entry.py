@@ -29,7 +29,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger import fail_commits, ledger_entries
-from test.support.objects import authored_at
+from test.support.objects import authored_at, with_times
 from test.support.received import received_event
 from vultron.core.behaviors.case.nodes.participant import status_entries
 from vultron.core.models._helpers import project_wire_snapshot_to_core
@@ -93,8 +93,11 @@ def test_the_verdict_is_followed_by_the_stored_status_in_full():
     assert isinstance(stored, ParticipantStatus)
     assert stored.rm.state == RM.INVALID
     carried = ParticipantStatus.model_validate(
-        project_wire_snapshot_to_core(
-            ParticipantStatus, entries[1].payload_snapshot["object"]
+        with_times(
+            ParticipantStatus,
+            project_wire_snapshot_to_core(
+                ParticipantStatus, entries[1].payload_snapshot["object"]
+            ),
         )
     )
     assert carried == stored

@@ -34,7 +34,7 @@ from test.support.ledger import (
     case_snapshot_position_violations,
     checking_each_commit,
 )
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import STORED_ROW_CONTEXT
 from vultron.core.behaviors.bridge import BTBridge
@@ -183,7 +183,9 @@ def test_building_a_case_without_the_field_starts_it_at_its_empty_ledger() -> (
     None
 ):
     """Construction and storage reads share the validator; only a read refuses."""
-    case = VulnerabilityCase.model_validate(_old_shape_row())
+    case = VulnerabilityCase.model_validate(
+        with_times(VulnerabilityCase, _old_shape_row())
+    )
 
     assert case.ledger_position == LedgerPosition(
         log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=case.genesis_hash

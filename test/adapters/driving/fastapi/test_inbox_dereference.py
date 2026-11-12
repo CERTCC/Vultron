@@ -32,7 +32,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.received import TEST_SENDER_POSITION
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -54,6 +54,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
@@ -424,17 +425,23 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
     dispatches carries it, and its store keeps no copy (CP-01-010)."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR)
     profile = CoreActor.model_validate(
-        {
-            "type": "Organization",
-            "id": _REPLICA,
-            "name": "Vendor",
-            "embargoPolicy": {
-                "type": "EmbargoPolicy",
-                "actorId": _REPLICA,
-                "inbox": f"{_REPLICA}/inbox",
-                "preferredDuration": "P45D",
+        with_times(
+            CoreActor,
+            {
+                "type": "Organization",
+                "id": _REPLICA,
+                "name": "Vendor",
+                "embargoPolicy": with_times(
+                    EmbargoPolicy,
+                    {
+                        "type": "EmbargoPolicy",
+                        "actorId": _REPLICA,
+                        "inbox": f"{_REPLICA}/inbox",
+                        "preferredDuration": "P45D",
+                    },
+                ),
             },
-        }
+        )
     )
     payload = {
         "type": "Create",
@@ -928,7 +935,10 @@ def test_a_handed_off_bodys_set_aside_key_is_reported_once(
     )
     profile = _body(
         CoreActor.model_validate(
-            {"type": "Organization", "id": _REPLICA, "name": "Vendor"}
+            with_times(
+                CoreActor,
+                {"type": "Organization", "id": _REPLICA, "name": "Vendor"},
+            )
         )
     )
     body = {**profile, "peerExtension": {"rank": 1}}

@@ -195,8 +195,11 @@ def _answer(activity_cls) -> Scenario:
     link_id = VultronReportCaseLink.build_id(report_id)
     before = dl.read(link_id)
     event = received_event(
-        activity_cls(
-            actor=_CASE_ACTOR_URI, object_=proposal, to=[_VENDOR_URI]
+        make(
+            activity_cls,
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
         ),
         receiving_actor_id=_VENDOR_URI,
     )

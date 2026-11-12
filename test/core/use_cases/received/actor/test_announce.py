@@ -33,7 +33,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -109,7 +109,10 @@ def case():
 def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
     """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
     return as_VulnerabilityCase.model_validate(
-        {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID}
+        with_times(
+            as_VulnerabilityCase,
+            {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID},
+        )
     )
 
 
@@ -1074,13 +1077,16 @@ class TestFirstSeedStatesLedgerPosition:
         _anchor_expected_authority(dl)
         case = _joined_case()
         unlisted = as_VulnerabilityCase.model_validate(
-            {
-                **case.model_dump(exclude_none=True),
-                "case_participants": case.case_participants[:1],
-                "actor_participant_index": {
-                    _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    **case.model_dump(exclude_none=True),
+                    "case_participants": case.case_participants[:1],
+                    "actor_participant_index": {
+                        _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+                    },
                 },
-            }
+            )
         )
 
         result = self._seed(dl, make_payload, unlisted)
