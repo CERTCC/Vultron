@@ -34,6 +34,7 @@ from vultron.wire.as2.vocab.base.base import (
     VULTRON_CONTEXT_URI,
     as_Base,
 )
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
@@ -182,6 +183,36 @@ def test_as_object_attributed_to_accepts_an_inline_object():
 
     with pytest.raises(ValidationError, match="attributed_to"):
         as_Object.model_validate(with_times(as_Object, {"attributed_to": 42}))
+
+
+@pytest.mark.spec("MV-04-005")
+def test_as_object_attributed_to_refuses_an_untyped_dict_that_is_no_object():
+    """An untyped inline dict that fails ``as_Object`` is not read as a Link.
+
+    The dict below lacks the times an ``as_Object`` requires.  A Link needs an
+    ``href``, which it lacks too, so no member of the slot's union admits it and
+    the object is refused rather than kept with an empty Link (#5715).
+    """
+    with pytest.raises(ValidationError, match="attributed_to"):
+        as_Object.model_validate(
+            with_times(
+                as_Object,
+                {"attributed_to": {"id": "https://example.org/alice"}},
+            )
+        )
+
+
+@pytest.mark.spec("MV-04-005")
+def test_as_object_attributed_to_keeps_an_inline_link_with_an_href():
+    """A genuine Link, one naming its ``href``, still fills the slot."""
+    obj = as_Object.model_validate(
+        with_times(
+            as_Object,
+            {"attributed_to": {"href": "https://example.org/alice"}},
+        )
+    )
+    assert isinstance(obj.attributed_to, as_Link)
+    assert obj.attributed_to.href == "https://example.org/alice"
 
 
 def test_as_object_id_uses_wire_default():
