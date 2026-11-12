@@ -218,18 +218,27 @@ records itself without ending the run. A helper that wraps a trigger call in
 `test/architecture/test_demo_step_no_unbound_ratchet.py` enforces the first
 bullet over **all** of `vultron/demo/`, `exchange/` included — the scope line
 above bounds this note's other rules, not this ratchet. Its unbound check
-reports a name assigned only inside a demo block and read after it (#2308);
-its sentinel check reports a name pre-initialised to `None` or `""`, assigned
-inside a demo block, then read after it with no guard before that first read
-(#3038). A **read** is the name passed to a call — inside a `dict`, `list` or
-f-string argument counts — an attribute or subscript of it, or iterating or
-calling it. A **guard** is any test that is false for a placeholder: `is None`,
-`is not None`, `== ""`, `== "ok"` and `is True` (equality with any constant
-proves the name is neither `None` nor `""`, while `!= "ok"` proves nothing), a
-truthiness test, or a rebinding. The first guard in evaluation order defends
-every read after it, so the `if x is None: raise` shape this section asks for
-satisfies the check without enclosing the reads. Dropping the guard means
-nesting the reader.
+reports a name assigned only inside a demo block and read after it (#2308); its
+sentinel check reports a name pre-initialised to `None` or `""`, assigned inside
+a demo block, then read after it with no guard before that first read (#3038).
+"After it" covers the rest of an enclosing demo block, a `try`'s `else`,
+handlers and `finally`, and an enclosing loop's test and body on the next pass,
+because the block swallows its failure and all of them still run (#5904). A
+**read** is the name passed to a call — inside a `dict`, `list` or f-string
+argument counts — an attribute or subscript of it, or iterating or calling it. A
+**guard** is any test that is false for a placeholder: `is None`, `is not None`,
+`== ""`, `== "ok"` and `is True` (equality with any constant proves the name is
+neither `None` nor `""`, while `!= "ok"` proves nothing), a truthiness test, or
+a rebinding. The first guard in evaluation order defends every read after it, so
+the `if x is None: raise` shape this section asks for satisfies the check
+without enclosing the reads. That holds only for a guard at the reads' own
+statement level: one inside a branch that may not run — an `if` or loop body, a
+`try` arm other than `finally`, a `match` case, a demo block's body — defends
+nothing past that branch, unless every arm of an `if`/`else`, an exhaustive
+`match` or a `try` and its handlers decides it or leaves by `raise`, `return`,
+`break` or `continue`, or every exit of a loop decides it (#5904). A comparison
+proves only what its test acts on: `assert x is None` defends nothing. Dropping
+the guard means nesting the reader.
 
 ---
 
