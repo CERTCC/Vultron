@@ -90,14 +90,13 @@ def test_actor_scoped_datalayer_exposes_queue_methods():
 
 def test_base_datalayer_clone_for_actor_return_annotation():
     """DataLayer.clone_for_actor return annotation must be DataLayer."""
-
-    # The return type is set on the Protocol method; check via inspect.
+    # The return type is set on the Protocol method; signature_of reads it
+    # without failing on a TYPE_CHECKING name, and DataLayer resolves.
     method = getattr(DataLayer, "clone_for_actor", None)
     assert method is not None
     sig = signature_of(method)
     return_annotation = sig.return_annotation
-    # The annotation is "DataLayer" (forward ref string) or the class
-    assert "DataLayer" in str(return_annotation), (
+    assert return_annotation is DataLayer, (
         f"clone_for_actor return annotation should be DataLayer,"
         f" got: {return_annotation!r}"
     )

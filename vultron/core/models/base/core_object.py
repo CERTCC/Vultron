@@ -465,9 +465,9 @@ class CoreObject(CoreRecord):
         # ``type_`` (e.g. a behavioral mixin) is not registered. We then
         # resolve the annotation through ``typing.get_type_hints`` so the
         # check is robust under ``from __future__ import annotations``
-        # (PEP 563), where raw
-        # annotations are stringified and ``isinstance(..., UnionType)``
-        # would silently fall through and register abstract bases.
+        # (PEP 563), where raw annotations are stringified and
+        # ``isinstance(..., UnionType)`` would silently fall through and
+        # register abstract bases.
         if "type_" not in own_annotations(cls):
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class
