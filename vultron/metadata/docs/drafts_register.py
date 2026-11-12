@@ -42,6 +42,7 @@ CLI (``uv run drafts-register``)::
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import posixpath
 import re
@@ -559,6 +560,73 @@ def desired_fragments(register: DraftsRegister) -> dict[str, str]:
 
 
 _DRAFT_INCLUDE = re.compile(r"_drafts/")
+_DRAFT_HEADING = re.compile(r"Draft [1-9][0-9]*")
+
+
+def _number(version: str) -> int:
+    return int(version.removeprefix("draft-"))
+
+
+@dataclass
+class _IncludeScan:
+    """What a pass over the Revision Log found, line by line."""
+
+    shown: str
+    wanted: dict[str, str]
+    #: ``(line, version)`` of each accepted status-table include, in order.
+    found: list[tuple[int, str]]
+    #: Each ``## Draft N`` heading's line, and whether a table sits under it.
+    draft_headings: dict[int, bool]
+    faults: list[MetadataLoadError]
+
+    def fault(self, detail: str, line: int | None = None) -> None:
+        self.faults.append(
+            MetadataLoadError(detail, path=self.shown, line=line)
+        )
+
+    def include(self, line: str, number: int, heading: str | None) -> None:
+        """Judge one status-table include line under *heading*."""
+        version = self.wanted.get(line.strip())
+        if version is None:
+            self.fault(
+                "a status-table include that names no draft in the "
+                f"register, or is not written as {include_line('draft-N')!r}"
+                " (DOCBW-08-004)",
+                number,
+            )
+            return
+        if any(v == version for _, v in self.found):
+            self.fault(
+                f"{version}'s status table is included twice (DOCBW-08-004)",
+                number,
+            )
+            return
+        expected = f"Draft {_number(version)}"
+        if heading != expected:
+            where = "no heading" if heading is None else repr("## " + heading)
+            self.fault(
+                f"{version}'s status table sits under {where}, not "
+                f"'## {expected}' (DOCBW-08-004)",
+                number,
+            )
+        self.found.append((number, version))
+
+
+def _scan_revision_log(text: str, scan: _IncludeScan) -> None:
+    heading: str | None = None
+    heading_line = 0
+    for number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("## "):
+            heading = line.removeprefix("## ").strip()
+            heading_line = number
+            if _DRAFT_HEADING.fullmatch(heading):
+                scan.draft_headings[number] = False
+            continue
+        if "include-markdown" not in line or not _DRAFT_INCLUDE.search(line):
+            continue
+        if heading_line in scan.draft_headings:
+            scan.draft_headings[heading_line] = True
+        scan.include(line, number, heading)
 
 
 def revision_log_faults(
@@ -568,77 +636,46 @@ def revision_log_faults(
 
     The Revision Log includes each draft's table once, newest first, under its
     ``## Draft N`` heading, through :func:`include_line`, and no table of a
-    draft the register lacks; a released draft whose table is not included
-    would leave its frozen copy unlinked (DOCBW-08-008). The page's prose is
-    hand-written, so a fault here is fixed by hand: nothing is written for it.
+    draft the register lacks; every ``## Draft N`` section holds a table. A
+    released draft whose table is not included would leave its frozen copy
+    unlinked (DOCBW-08-008). The page's prose is hand-written, so a fault here
+    is fixed by hand: nothing is written for it.
     """
     path = root / REVISION_LOG_PATH
     shown = display_path(path, root)
-    text = read_utf8(path, shown)
-    wanted = {include_line(e.version): e.version for e in register.drafts}
-    found: list[tuple[int, str]] = []
-    faults: list[MetadataLoadError] = []
-    heading: str | None = None
-    for number, line in enumerate(text.splitlines(), start=1):
-        if line.startswith("## "):
-            heading = line.removeprefix("## ").strip()
-            continue
-        if "include-markdown" not in line or not _DRAFT_INCLUDE.search(line):
-            continue
-        version = wanted.get(line.strip())
-        if version is None:
-            faults.append(
-                MetadataLoadError(
-                    "a status-table include that names no draft in the "
-                    f"register, or is not written as {include_line('draft-N')!r}"
-                    " (DOCBW-08-004)",
-                    path=shown,
-                    line=number,
-                )
-            )
-            continue
-        if any(v == version for _n, v in found):
-            faults.append(
-                MetadataLoadError(
-                    f"{version}'s status table is included twice (DOCBW-08-004)",
-                    path=shown,
-                    line=number,
-                )
-            )
-            continue
-        expected = f"Draft {version.removeprefix('draft-')}"
-        if heading != expected:
-            faults.append(
-                MetadataLoadError(
-                    f"{version}'s status table sits under "
-                    f"{'no heading' if heading is None else repr('## ' + heading)}"
-                    f", not '## {expected}' (DOCBW-08-004)",
-                    path=shown,
-                    line=number,
-                )
-            )
-        found.append((number, version))
-    included = {v for _n, v in found}
+    scan = _IncludeScan(
+        shown=shown,
+        wanted={include_line(e.version): e.version for e in register.drafts},
+        found=[],
+        draft_headings={},
+        faults=[],
+    )
+    _scan_revision_log(read_utf8(path, shown), scan)
+    included = {v for _, v in scan.found}
     for entry in register.drafts:
         if entry.version not in included:
-            faults.append(
-                MetadataLoadError(
-                    f"{entry.version} has no section: add one with the line "
-                    f"{include_line(entry.version)!r} (DOCBW-08-004, "
-                    "DOCBW-08-008)",
-                    path=shown,
-                )
+            scan.fault(
+                f"{entry.version} has no section: add one with the line "
+                f"{include_line(entry.version)!r} (DOCBW-08-004, "
+                "DOCBW-08-008)"
             )
-    order = [int(v.removeprefix("draft-")) for _n, v in found]
-    if order != sorted(order, reverse=True):
-        faults.append(
-            MetadataLoadError(
-                "the drafts' status tables are not newest first",
-                path=shown,
-                line=found[0][0],
+    for number, has_table in scan.draft_headings.items():
+        if not has_table:
+            scan.fault(
+                "a draft section with no status-table include: each "
+                "'## Draft N' section includes its generated table "
+                "(DOCBW-08-004)",
+                number,
             )
-        )
-    return faults
+    for (_, before), (number, version) in itertools.pairwise(scan.found):
+        if _number(version) > _number(before):
+            scan.fault(
+                "the drafts' status tables are not newest first: "
+                f"{version} comes after {before}",
+                number,
+            )
+            break
+    return scan.faults
 
 
 # --- Release tags (DOCBW-08-003) ---------------------------------------------
@@ -647,6 +684,29 @@ def revision_log_faults(
 def release_tags(git: GitRunner) -> list[str]:
     """Every ``v*`` tag in the clone, in git's order."""
     return git(["tag", "--list", "v*"]).split()
+
+
+def _tag_fault(
+    register: DraftsRegister, tag: str, tagged: DraftsRegister
+) -> tuple[str, str] | None:
+    """``(version, fault)`` when *register* changed what *tag* released."""
+    carried = tagged.released_by(tag)
+    if carried is None:
+        return None
+    here = register.entry(carried.version)
+    if here is None:
+        return carried.version, (
+            f"{register.shown}: {carried.version} is missing; release "
+            f"{tag}'s register gives it as released by {tag}, and a "
+            "released entry never changes"
+        )
+    if here != carried:
+        return carried.version, (
+            f"{register.shown}: {carried.version} differs from its entry "
+            f"at release {tag} ({_describe(carried)}): a released entry "
+            "never changes"
+        )
+    return None
 
 
 def release_faults(
@@ -664,34 +724,24 @@ def release_faults(
     A fault is reported when a tag's register names a draft released by that
     tag and *register* lacks that entry or holds a different one, or when
     *register* names an existing tag as a draft's release and that tag's
-    register lacks the same entry. A released entry whose tag does not exist
-    yet is not judged: it waits for the promote that makes the tag.
+    register lacks the same entry. One disagreement is reported once. A
+    released entry whose tag does not exist yet is not judged: it waits for
+    the promote that makes the tag.
     """
     faults: list[str] = []
-    existing = set(tags)
-    at: dict[str, DraftsRegister | None] = {}
-    for tag in tags:
-        at[tag] = tagged = register_at(tag)
-        if tagged is None:
-            continue
-        carried = tagged.released_by(tag)
-        if carried is None:
-            continue
-        here = register.entry(carried.version)
-        if here is None:
-            faults.append(
-                f"{register.shown}: {carried.version} is missing; release "
-                f"{tag}'s register gives it as released by {tag}, and a "
-                "released entry never changes"
-            )
-        elif here != carried:
-            faults.append(
-                f"{register.shown}: {carried.version} differs from its entry "
-                f"at release {tag} ({_describe(carried)}): a released entry "
-                "never changes"
-            )
+    at = {tag: register_at(tag) for tag in tags}
+    # (version, tag) pairs already reported from the tag's side.
+    reported: set[tuple[str, str]] = set()
+    for tag, tagged in at.items():
+        found = None if tagged is None else _tag_fault(register, tag, tagged)
+        if found is not None:
+            reported.add((found[0], tag))
+            faults.append(found[1])
     for entry in register.released:
-        if entry.release not in existing:
+        if (
+            entry.release not in at
+            or (entry.version, entry.release) in reported
+        ):
             continue
         tagged = at[entry.release]
         theirs = None if tagged is None else tagged.entry(entry.version)

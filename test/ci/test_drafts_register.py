@@ -546,10 +546,8 @@ def test_a_changed_released_entry_fails(repo):
         _entry("draft-1", "released", date="2026-11-07", release="v2026.11.0")
     )
     _commit_register(repo, changed)
-    faults = dr.check_releases(repo)
-    assert any(
-        "differs from its entry at release v2026.11.0" in f for f in faults
-    )
+    (fault,) = dr.check_releases(repo)
+    assert "differs from its entry at release v2026.11.0" in fault
 
 
 @pytest.mark.spec("DOCBW-08-003")
@@ -672,3 +670,28 @@ def test_a_table_under_another_drafts_heading_is_named(tmp_path, text, words):
     (fault,) = dr.revision_log_faults(tmp_path, register)
     assert words in fault.detail
     assert fault.line is not None
+
+
+@pytest.mark.spec("DOCBW-08-004")
+def test_a_draft_section_with_no_table_is_named_at_its_heading(tmp_path):
+    register = dr.parse_register(_register(_open(1)), SHOWN)
+    text = (
+        "# Log\n\n## Draft 2\n\nA hand-written section.\n\n"
+        "## Draft 1\n\n" + dr.include_line("draft-1") + "\n"
+    )
+    write_generated(tmp_path / dr.REVISION_LOG_PATH, text)
+    (fault,) = dr.revision_log_faults(tmp_path, register)
+    assert "no status-table include" in fault.detail
+    assert fault.line == 3
+
+
+@pytest.mark.spec("DOCBW-08-004")
+def test_the_order_fault_is_named_where_the_order_breaks(tmp_path):
+    register = dr.parse_register(
+        _register(_released(1), _released(2), _open(3)), SHOWN
+    )
+    _revision_log(tmp_path, "draft-3", "draft-1", "draft-2")
+    (fault,) = dr.revision_log_faults(tmp_path, register)
+    assert "draft-2 comes after draft-1" in fault.detail
+    lines = (tmp_path / dr.REVISION_LOG_PATH).read_text().splitlines()
+    assert lines[fault.line - 1] == dr.include_line("draft-2")
