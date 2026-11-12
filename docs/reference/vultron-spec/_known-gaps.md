@@ -101,6 +101,15 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#3355](https://github.com/CERTCC/Vultron/issues/3355)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "SM-09-002",
+))
+```
+
 ### Tracked by [#3659](https://github.com/CERTCC/Vultron/issues/3659)
 
 ```python exec="true" idprefix=""
@@ -297,15 +306,6 @@ The requirements are grouped by the issues that the held tests cite.
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "ASK-03-002",
-))
-```
-
-### Tracked by [#3355](https://github.com/CERTCC/Vultron/issues/3355)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CSB-17-001",
 ))
 ```
 
@@ -640,7 +640,6 @@ print(requirement_callout(
     "RMB-13-001",
     "RMB-13-003",
     "RMB-14-003",
-    "SM-09-002",
     "SM-10-001",
     "SM-10-002",
 ))

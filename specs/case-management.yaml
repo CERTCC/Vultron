@@ -7664,9 +7664,10 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose closure
       that case's ledger records, committing no entry and sending nothing.
-      That record is the sender's status entry with rmState=CLOSED. The refusal is the
-      closed-sender door's, so no refusal notice is sent either (CLP-02-005,
-      CLP-05-006).
+      That record is the sender's status entry with rmState=CLOSED. On a tree whose
+      act may close its sender, the closed-sender door refuses it; on every other
+      tree the sender guard does (HP-01-006). Either way no refusal notice is sent
+      (CLP-05-006).
       CM-23-048, CM-23-049 and CM-23-050 give the exceptions.
     rationale: >-
       `RM.CLOSED` is terminal (ADR-0085). The CASE_MANAGER sends no more case content to

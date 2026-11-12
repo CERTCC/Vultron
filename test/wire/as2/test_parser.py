@@ -680,6 +680,7 @@ def test_parse_activity_processes_the_vultron_context_without_fetching_it():
 @pytest.mark.spec("AKM-02-006")
 @pytest.mark.xfail(
     strict=True,
+    raises=pytest.fail.Exception,
     reason=(
         "AKM-02-006: a partial inline {id, type: CaseParticipant} parses, and "
         "the parser invents a ParticipantStatus (fresh id, RM START, OBSERVER) "

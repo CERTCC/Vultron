@@ -41,7 +41,11 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    StateValidationError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -398,17 +402,18 @@ class TestGetActionRulesUseCase:
 
 
 #: The four VFD states CSB-17-001 counts valid; every other combination of the
-#: three letters is causally impossible.
+#: three letters is in a pattern SM-09-002 forbids.
 _VALID_VFD = {"vfd", "Vfd", "VFd", "VFD"}
 
 
-@pytest.mark.spec("CSB-17-001")
+@pytest.mark.spec("SM-09-002")
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
-        "CSB-17-001: the action-rules query builds a DEPLOYER-only "
-        "participant's CS state from vf 'vf' and d 'D' as vfDpxa, which "
-        "CSB-17-001 counts invalid, and the legacy action() answers it with a "
+        "SM-09-002: the action-rules query builds a DEPLOYER-only "
+        "participant's CS state from vf 'vf' and d 'D' as vfDpxa, a *fD* "
+        "state SM-09-002 forbids, and the legacy action() answers it with a "
         "truncated action list instead of refusing it. Tracked by #3355."
     ),
 )
@@ -418,7 +423,7 @@ def test_a_deployer_only_participant_gets_no_actions_for_an_invalid_cs_state():
     Such a participant holds no VF state of its own (CSB-15-004), so the query
     has no valid compound state to read actions for. It either refuses the
     question or answers from one of the 32 valid states (CSB-17-001); it never
-    answers from ``vfD...``.
+    answers from ``vfD...``, a state SM-09-002 forbids.
     """
     layer = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     layer.create(
@@ -451,6 +456,6 @@ def test_a_deployer_only_participant_gets_no_actions_for_an_invalid_cs_state():
 
     try:
         result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
-    except VultronValidationError:
+    except (VultronValidationError, StateValidationError):
         return
     assert result.cs_state[:3] in _VALID_VFD
