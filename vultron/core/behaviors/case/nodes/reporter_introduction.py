@@ -39,6 +39,7 @@ from vultron.core.services.case_replica_seeding import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
+from vultron.primitives import same_actor_id
 
 
 class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
@@ -100,7 +101,9 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         assert self.datalayer is not None
         assert self.actor_id is not None
         owner_actor_id = case.attributed_to
-        if owner_actor_id != self.actor_id:
+        # The owner is canonical; the executing actor's configured id has no
+        # normalised type, so compare tolerantly (CLP-10-021, #5901).
+        if not same_actor_id(owner_actor_id, self.actor_id):
             return "this actor is not the case owner"
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
@@ -126,7 +129,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         # case authority" (ARCH-24-008): comparing the resolved id here read
         # the roster's spelling exactly, so an owner id differing only by a
         # trailing slash made the skip miss (OID-01-006).
-        assert case.attributed_to == self.actor_id
+        assert same_actor_id(case.attributed_to, self.actor_id)
         if has_role(
             owner_actor_id,
             self.case_id,

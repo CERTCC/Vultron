@@ -74,6 +74,7 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
+from vultron.primitives import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +314,9 @@ class CreateInertInviteeParticipantNode(_SeatInertInviteeBase):
         name: str | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
-        self.invitee_id = invitee_id
+        # The invitee id is the inviter's spelling; the record and its roster
+        # key take the canonical one (OID-01-006, #5919).
+        self.invitee_id = normalise_actor_id(invitee_id)
         self._injected_roles = roles
         self._roles_key = (
             f"/{suggested_roles_key(recommendation_id)}"

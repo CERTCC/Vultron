@@ -1204,9 +1204,16 @@ def _invitee_record() -> CaseParticipant:
 
 
 def _create_entry(
-    record: CaseParticipant, log_index: int, prev_hash: str
+    record: CaseParticipant,
+    log_index: int,
+    prev_hash: str,
+    carried_actor: str | None = None,
 ) -> CaseLedgerEntry:
-    """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*."""
+    """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*.
+
+    *carried_actor* replaces the record's ``attributedTo`` in the snapshot,
+    for a writer that spelled it differently from the record.
+    """
     snapshot = json.loads(
         dump_outbound_body(
             create_participant_activity(
@@ -1218,6 +1225,8 @@ def _create_entry(
             )
         )
     )
+    if carried_actor is not None:
+        snapshot["object"]["attributedTo"] = carried_actor
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -1328,6 +1337,30 @@ class TestAnnounceLogEntryAppliesStubPath:
 
         held = self._held(datalayer)
         assert held.model_dump(mode="json") == sent.model_dump(mode="json")
+
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("SYNC-12-001")
+    def test_a_slash_spelled_carried_record_is_stored_canonical(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The entry keeps its writer's spelling of the record's actor
+        (OID-01-008); the replica stores the canonical one, which
+        ``attributed_to``'s type requires, instead of refusing the entry
+        the CASE_MANAGER admitted (#5919)."""
+        entry = _create_entry(
+            _invitee_record(),
+            0,
+            case_obj.genesis_hash,
+            carried_actor=f"{INVITEE_ACTOR_ID}/",
+        )
+        assert entry.payload_snapshot["object"]["attributedTo"] == (
+            f"{INVITEE_ACTOR_ID}/"
+        )
+
+        result = self._announce(bridge, case_actor, entry)
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert self._held(datalayer).attributed_to == INVITEE_ACTOR_ID
         case = datalayer.read(CASE_ID)
         assert INVITEE_RECORD_ID in {str(p) for p in case.case_participants}
 
@@ -1847,6 +1880,32 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         )
 
         assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == NEW_OWNER_ID
+
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_new_owner_is_copied_canonical(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The entry keeps its writer's spelling; the replica stores the
+        canonical one, which ``attributed_to``'s type requires (#5919)."""
+        entry = _make_ownership_transfer_entry(
+            0, f"{NEW_OWNER_ID}/", case_obj.genesis_hash
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = run_tree(
+            bridge,
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.attributed_to == NEW_OWNER_ID
