@@ -94,6 +94,18 @@ profile (SIG-02-001, SIG-02-003). The adapter (`HttpActorProfileFetchAdapter`) m
 GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
 HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 
+### `ActorResolutionPort`
+
+`ActorResolutionPort` (`actor_resolution.py`) is how the ResolveActorDetails
+call-out gets a peer's record: `resolve_actor(actor_id, requester_id)` returns the
+peer's profile as a `CoreActor`, `None` when the source holds none (*no*), or raises
+`VultronActorProfileFetchError` (*error*). The adapters
+(`vultron/adapters/driven/actor_resolution.py`) are `StaticActorResolutionAdapter`
+(profiles declared up front) and `HttpActorResolutionAdapter` (a live fetch through
+`ActorProfileFetchPort`). Reason: a call-out answers synchronously within its time
+budget (BT-18-011, BT-18-015), so the port is synchronous and the live adapter
+bounds the async fetch itself.
+
 ### `ParticipantSuggestionPort`
 
 `ParticipantSuggestionPort` (`participant_suggestion.py`) answers "who else

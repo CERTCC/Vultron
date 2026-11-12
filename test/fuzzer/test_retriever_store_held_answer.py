@@ -35,11 +35,6 @@ from vultron.core.behaviors.call_out.guard import unwrap_call_out
 
 _MARKER = "Store-held answer (BT-18-039):"
 
-#: Core-placed Retriever fields whose STOCHASTIC backend is no fuzzer node.
-_RETRIEVER_FIELDS_WITHOUT_FUZZER_NODE: list[tuple[type, str]] = [
-    (ActorResolutionCallOutBundle, "resolve_actor_factory"),
-]
-
 
 def _retriever_classes() -> list[type]:
     return [
@@ -71,7 +66,7 @@ def _field_docstring(bundle_cls: type, field_name: str) -> str:
 
 
 def _bundle_retriever_fields() -> list[tuple[type, str]]:
-    fields: set[tuple[type, str]] = set(_RETRIEVER_FIELDS_WITHOUT_FUZZER_NODE)
+    fields: set[tuple[type, str]] = set()
     for module in pkgutil.iter_modules(stochastic_pkg.__path__):
         loaded = importlib.import_module(
             f"{stochastic_pkg.__name__}.{module.name}"
@@ -106,7 +101,9 @@ def _assert_states_verdict(doc: str, where: str) -> None:
 
 def test_retrievers_are_found():
     assert len(_RETRIEVERS) >= 1
-    assert len(_BUNDLE_FIELDS) > len(_RETRIEVER_FIELDS_WITHOUT_FUZZER_NODE)
+    assert (ActorResolutionCallOutBundle, "resolve_actor_factory") in (
+        _BUNDLE_FIELDS
+    )
 
 
 @pytest.mark.spec("BT-18-039")

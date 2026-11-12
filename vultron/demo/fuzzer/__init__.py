@@ -13,6 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Demo fuzzer package — probabilistic py_trees behaviour nodes."""
 
+from vultron.demo.fuzzer.actor_resolution import ResolveActorDetails
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -174,4 +175,6 @@ __all__ = [
     "ReprioritizeReport",
     # messaging inbound nodes
     "FollowUpOnErrorMessage",
+    # actor resolution
+    "ResolveActorDetails",
 ]
