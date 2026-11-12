@@ -717,7 +717,8 @@ groups:
     statement: >-
       The receive-tree factory MUST place the HP-01-005 addressee check in every
       received tree as its first door guard, ahead of the seen-before door, the path
-      stage, the post-close boundary, the sender guard and intake (CLP-10-010).
+      stage, the post-close boundary, the closed-sender door, the sender guard and
+      intake (CLP-10-010).
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
       can forget it. That tree then acts on copies addressed to a different party. A

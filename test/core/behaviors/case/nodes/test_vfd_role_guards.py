@@ -429,7 +429,7 @@ def test_not_sole_observer_failure_when_case_missing(
 
 
 # ---------------------------------------------------------------------------
-# CSB-15-004: DEPLOYER-only d→D causal gate (not yet implemented)
+# CSB-15-004: DEPLOYER-only d→D causal gate (CheckSomeVendorAtVFNode)
 # ---------------------------------------------------------------------------
 
 

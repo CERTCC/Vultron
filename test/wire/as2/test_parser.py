@@ -675,3 +675,38 @@ def test_parse_activity_processes_the_vultron_context_without_fetching_it():
     assert (
         getattr(event, "case_id", None) == "https://example.org/cases/case-1"
     )
+
+
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason=(
+        "AKM-02-006: a partial inline {id, type: CaseParticipant} parses, and "
+        "the parser invents a ParticipantStatus (fresh id, RM START, OBSERVER) "
+        "and joined=True that the sender never stated. Tracked by #5265."
+    ),
+)
+def test_a_partial_inline_case_participant_is_refused_not_filled_in():
+    """A receiver records no participant state the sender did not send.
+
+    A ``Remove`` whose ``object`` is only ``{id, type: CaseParticipant}``
+    states no status and no membership. Reading it as a joined participant
+    in RM ``START`` would record values nobody claimed (AKM-02-006), so the
+    parse edge refuses it.
+    """
+    body = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "https://example.org/activities/remove-1",
+        "type": "Remove",
+        "actor": "https://example.org/actors/case-manager",
+        "published": PUBLISHED,
+        "object": {
+            "id": "https://example.org/participants/p1",
+            "type": "CaseParticipant",
+        },
+        "target": "https://example.org/cases/case-1",
+    }
+
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(body)
