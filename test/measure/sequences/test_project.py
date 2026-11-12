@@ -21,8 +21,6 @@ the exploit is public.
 
 import ast
 import itertools
-import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -44,6 +42,7 @@ from test.measure.history.builders import (
     seat_vendor,
     status,
 )
+from test.support.fresh_imports import loaded_under
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs.states import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import (
@@ -614,11 +613,12 @@ def test_the_layer_imports_no_scoring_entry_point(module):
     assert not any("score" in name.lower() for name in imported)
 
 
-#: The scoring entry points: the legacy desiderata scorer
-#: (``CVDmodel.score_hist``), the chance baselines, and the scorer that reads
-#: the sequences (``vultron.measure.scoring``).
+#: The scoring entry points: the legacy case-state package, whose hypercube
+#: holds the desiderata scorer (``CVDmodel.score_hist``), the chance
+#: baselines, and the scorer that reads the sequences
+#: (``vultron.measure.scoring``).
 _SCORING_PACKAGES = (
-    "vultron.core.case_states.hypercube",
+    "vultron.core.case_states",
     "vultron.measure.baselines",
     "vultron.measure.scoring",
 )
@@ -627,17 +627,7 @@ _SCORING_PACKAGES = (
 @pytest.mark.spec("CEH-05-008")
 def test_importing_the_layer_loads_no_scoring_entry_point():
     """Indirect imports count too, so ask a fresh interpreter."""
-    probe = (
-        "import sys, vultron.measure.sequences\n"
-        f"print([m for m in sys.modules if m.startswith({_SCORING_PACKAGES!r})])"
-    )
-    loaded = subprocess.run(
-        [sys.executable, "-c", probe],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    assert loaded == "[]"
+    assert loaded_under(["vultron.measure.sequences"], _SCORING_PACKAGES) == []
 
 
 @pytest.mark.spec("CEH-05-008")

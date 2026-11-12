@@ -17,7 +17,6 @@
 
 from enum import StrEnum
 
-from vultron.core.case_states.validations import ensure_valid_state
 from vultron.core.states.cs.dimensions import (
     AttackObservation,
     ExploitPublication,
@@ -32,6 +31,28 @@ from vultron.core.states.cs.states import (
     CS_pxa,
     CS_vf,
 )
+from vultron.errors import StateValidationError
+
+
+def cs_state(s: object) -> CS:
+    """Return the ``CS`` member a state string names.
+
+    The 32 members of ``CS`` are the valid compound states (CSB-17-001), so a
+    string names a valid state exactly when it is one of their names; nothing
+    else, a pattern with wildcards included, is a state.
+
+    Args:
+        s: the state string, such as ``"VFdpxa"``
+
+    Returns:
+        the ``CS`` member named *s*
+
+    Raises:
+        StateValidationError: if *s* is not the name of a ``CS`` member
+    """
+    if isinstance(s, str) and s in CS.__members__:
+        return CS[s]
+    raise StateValidationError(f"Invalid state [{s}]")
 
 
 def _last3(s):
@@ -42,20 +63,17 @@ def _first3(s):
     return s[:3]
 
 
-@ensure_valid_state
 def vfd(state):
     vf, d, _pxa = state_string_to_enums(state)
     return (vf, d)
 
 
-@ensure_valid_state
 def pxa(state):
     _vf, _d, pxa = state_string_to_enums(state)
     value = pxa.value
     return value
 
 
-@ensure_valid_state
 def state_string_to_enums(s: str) -> tuple[CS_vf, CS_d, CS_pxa]:
     """
     Convert a state string to a tuple of enums that define the state `(CS_vf, CS_d, CS_pxa)`
@@ -66,15 +84,14 @@ def state_string_to_enums(s: str) -> tuple[CS_vf, CS_d, CS_pxa]:
     Returns:
         a tuple of enums
 
+    Raises:
+        StateValidationError: if *s* does not name a valid CS state
+
     """
-    s1, s2, s3 = s[:2], s[2:3], s[3:]
-    vf = CS_vf[s1]
-    d = CS_d[s2]
-    pxa = CS_pxa[s3]
-    return (vf, d, pxa)
+    vf_state, d_state, pxa_state = cs_state(s).value
+    return (vf_state, d_state, pxa_state)
 
 
-@ensure_valid_state
 def state_string_to_enum2(
     s: str,
 ) -> tuple[StrEnum, ...]:
@@ -100,7 +117,11 @@ def state_string_to_enum2(
 
     Returns:
         a list of Enums
+
+    Raises:
+        StateValidationError: if *s* does not name a valid CS state
     """
+    cs_state(s)
     enums = [
         VendorAwareness,
         FixReadiness,
