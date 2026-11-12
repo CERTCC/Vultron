@@ -65,6 +65,7 @@ from vultron.core.behaviors.case_id_scope import (
 )
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.behaviors.sender_entitlement import (
+    NoSenderAdmittedNode,
     SenderEntitlementKind,
     SenderRule,
 )
@@ -350,8 +351,6 @@ def test_a_tree_without_a_declaration_reports_no_path() -> None:
         name="UndeclaredBT",
         case_id=CASE_ID,
         precondition_guards=[],
-        sender_rule=_RULE,
-        sender_context=_CONTEXT,
     )
 
     assert received_path(tree) is None
@@ -368,7 +367,7 @@ def _declared_tree() -> ReceivedActivityTree:
         name="DeclaredBT",
         case_id=CASE_ID,
         precondition_guards=[],
-        paths={ReceivedPath.CASE_MANAGER},
+        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=_RULE,
         sender_context=_CONTEXT,
     )
@@ -542,6 +541,27 @@ def test_a_declaration_naming_no_path_is_a_wiring_error() -> None:
 
 
 @pytest.mark.spec("HP-01-035")
+def test_a_run_time_resolved_case_may_declare_the_no_case_path_alone() -> None:
+    """With no case ahead of it the stage reads the no-case path for every
+    delivery, so a tree declaring that path alone gets exactly what it says.
+    """
+    tree = create_receive_activity_tree(
+        name="RunTimeCaseBT",
+        case_id=None,
+        precondition_guards=[],
+        paths={ReceivedPath.NO_CASE},
+        sender_rule=_RULE,
+        sender_context=SenderCheckContext(sender_id=OWNER_ID, case_id=None),
+        case_resolution=[RequireCaseForReport(report_id=REPORT_ID)],
+    )
+    (stage,) = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
+    assert stage.declared == frozenset({ReceivedPath.NO_CASE})
+    # The guard is the rule's outside-case side, which this rule leaves
+    # empty, so no in-case check is composed with no case to read.
+    assert any(isinstance(n, NoSenderAdmittedNode) for n in tree.door_guards)
+
+
+@pytest.mark.spec("HP-01-035")
 def test_declaring_paths_on_a_run_time_resolved_case_is_a_wiring_error() -> (
     None
 ):
@@ -580,7 +600,11 @@ def _leaf_types(node: py_trees.behaviour.Behaviour) -> set[str]:
 @pytest.mark.spec("HP-01-036")
 def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
     """With a path stage the arms are path checks, not a second role read."""
-    stage = ReceivedPathNode(declared=frozenset({ReceivedPath.CASE_MANAGER}))
+    stage = ReceivedPathNode(
+        declared=frozenset(
+            {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+        )
+    )
     guard = compose_sender_guard(_RULE, _CONTEXT, stage)
     assert guard is not None
 
@@ -595,21 +619,24 @@ def test_the_sender_guards_arms_read_the_path_stages_answer() -> None:
 
 
 @pytest.mark.spec("HP-01-036")
-def test_without_a_path_stage_the_arms_read_the_role_themselves() -> None:
-    """The stageless shape still composes, which is what the tests rely on.
+def test_a_two_sided_rule_without_a_path_stage_is_a_wiring_error() -> None:
+    """The guard never reads the role itself (#5876).
 
-    No received tree reaches it: after #5044 every call site that passes a
-    sender rule also declares its paths, so this is the shape the
-    guard-composition tests get when they compose a guard in isolation and
-    let the fallback read the receiver's role from their store fixture.  It
-    goes with the fallback itself, in #5876.
+    A two-sided rule asks exactly the question the path stage answers, so a
+    tree that declares one without declaring its paths would ask it twice.
+    The composer refuses it rather than reading the roster in the stage's
+    place.
     """
-    guard = compose_sender_guard(_RULE, _CONTEXT)
-    assert guard is not None
-
-    types = _leaf_types(guard)
-    assert CheckIsCaseManagerNode.__name__ in types
-    assert CheckReceivedPathNode.__name__ not in types
+    with pytest.raises(VultronWiringError, match="HP-01-036"):
+        compose_sender_guard(_RULE, _CONTEXT)
+    with pytest.raises(VultronWiringError, match="HP-01-036"):
+        create_receive_activity_tree(
+            name="UndeclaredTwoSidedBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=_RULE,
+            sender_context=_CONTEXT,
+        )
 
 
 @pytest.mark.spec("HP-01-036")
@@ -639,7 +666,7 @@ def test_the_manager_arm_matches_only_the_manager_path(
 ) -> None:
     """``CheckReceivedPathNode`` answers for exactly the path it names."""
     stage = _run_stage(path, ALL_PATHS)
-    arm = CheckReceivedPathNode.on_manager_path(stage)
+    arm = CheckReceivedPathNode(stage, ReceivedPath.CASE_MANAGER)
 
     expected = (
         Status.SUCCESS if path is ReceivedPath.CASE_MANAGER else Status.FAILURE
@@ -654,7 +681,8 @@ def test_an_arm_whose_stage_has_not_run_does_not_match() -> None:
 
     assert stage.resolved_path is None
     assert (
-        CheckReceivedPathNode.on_manager_path(stage).update() is Status.FAILURE
+        CheckReceivedPathNode(stage, ReceivedPath.CASE_MANAGER).update()
+        is Status.FAILURE
     )
 
 

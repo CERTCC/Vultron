@@ -36,6 +36,12 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from test.support.sender_guard import (
+    NO_CASE_PATHS,
+    guard_tree,
+    staged_sender_guard,
+)
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
@@ -50,7 +56,6 @@ from vultron.core.behaviors.sender_guard import (
     AuthoredNote,
     AuthoredParticipantRecord,
     SenderCheckContext,
-    compose_sender_guard,
     embargo_sender_context,
 )
 from vultron.core.models.case_participant import CaseParticipant
@@ -195,10 +200,10 @@ def _admits(
     sender: str,
     store: Callable[[str], BTTestScenario] = _store,
 ) -> bool:
-    guard = compose_sender_guard(rule, context(sender))
+    guard = staged_sender_guard(rule, context(sender))
     assert guard is not None
     result = store(receiver).run(
-        guard, activity=SimpleNamespace(actor_id=sender)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
     )
     assert not result.internal_error, result.feedback_message
     return result.status == Status.SUCCESS
@@ -524,14 +529,20 @@ def test_embargo_rule_refuses_the_case_manager_where_the_case_is_unheld(
     """With no case to check standing against, an embargo sender is refused.
 
     The pass-through a CASE_MANAGER check allows during the bootstrap window
-    does not apply to embargo state (Regime 1, ADR-0087).
+    does not apply to embargo state (Regime 1, ADR-0087).  A receiver that
+    does not hold the case is on the no-case path, whose side every embargo
+    rule leaves empty, so even a guard whose tree declared that path refuses
+    (HP-01-036).
     """
-    guard = compose_sender_guard(rule, _embargo(MANAGER))
+    guard = staged_sender_guard(
+        rule, _embargo(MANAGER), frozenset(ReceivedPath)
+    )
     assert guard is not None
     result = BTTestScenario(actor_id=REPLICA).run(
-        guard, activity=SimpleNamespace(actor_id=MANAGER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=MANAGER)
     )
     assert result.status == Status.FAILURE
+    assert guard.status == Status.FAILURE
 
 
 def test_to_case_manager_states_the_case_manager_at_a_participant() -> None:
@@ -679,14 +690,15 @@ def test_participant_status_from_a_closed_record_owner_is_refused() -> None:
 
 @pytest.mark.spec("HP-01-008")
 def test_participant_status_with_no_case_is_refused() -> None:
-    """The status rule states no side outside a case, so no sender passes."""
+    """The status rule states no side on the no-case path, so no sender
+    passes there (HP-01-036)."""
     rule = AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
-    guard = compose_sender_guard(
-        rule, SenderCheckContext(sender_id=VENDOR, case_id=None)
+    guard = staged_sender_guard(
+        rule, SenderCheckContext(sender_id=VENDOR, case_id=None), NO_CASE_PATHS
     )
     assert guard is not None
     result = _store(MANAGER).run(
-        guard, activity=SimpleNamespace(actor_id=VENDOR)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=VENDOR)
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.FAILURE

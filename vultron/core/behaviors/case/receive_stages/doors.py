@@ -237,18 +237,21 @@ def received_path_stage(
     BTND-01-006) where it places the stage, and *case_id* is read here only
     to refuse a tree whose case nothing ahead of the stage could name.
 
-    ``None`` for a tree that has not declared its paths yet; the migration
-    onto the declaration is tracked by the ratchet in
-    ``test/architecture/test_received_path_role_question.py``.
+    ``None`` for a tree that declares no paths; such a tree may compose
+    only a sender rule whose sides name the same kinds (HP-01-036).
 
     Raises:
         VultronWiringError: The declaration names no path — a tree that
             handles no path would refuse every delivery, so an empty
             declaration is a wiring mistake, not a path stage — or the tree
-            names no case at build time and resolves it with
-            ``case_resolution``, which runs *after* this stage: the stage
-            would read the no-case path for every delivery and refuse any
-            tree that did not declare it.
+            names no case at build time, resolves it with
+            ``case_resolution``, which runs *after* this stage, and declares
+            a path other than the no-case one: nothing ahead of the stage
+            names the case, so it reads the role only in a case the activity
+            itself names, and an in-case declaration would refuse every other
+            delivery at the stage.  Declaring the no-case path alone is
+            admitted: ``case_resolution`` then decides the delivery, and the
+            guard judges the rule's ``outside_case`` side (HP-01-036).
     """
     if paths is None:
         return None
@@ -258,12 +261,16 @@ def received_path_stage(
         raise VultronWiringError(
             f"{where}: paths must name at least one ReceivedPath (ADR-0153)"
         )
-    if case_id is None and case_resolved_at_run_time:
+    if (
+        case_id is None
+        and case_resolved_at_run_time
+        and declared != {ReceivedPath.NO_CASE}
+    ):
         raise VultronWiringError(
             f"{where}: the path stage runs before case_resolution, so a tree"
             " whose case only that stage resolves has no case to read the"
-            " receiver's role in; name the case at build time or declare no"
-            " paths yet (ADR-0153, HP-01-025)"
+            " receiver's role in; name the case at build time or declare the"
+            " no-case path alone (ADR-0153, HP-01-025)"
         )
     return ReceivedPathNode(declared=declared, label=name)
 
@@ -352,9 +359,8 @@ def sender_guard_stage(
     reads the case from the activity at run time, so it is given only to a
     tree with no commit case at build time.
 
-    With *path_stage* the rule's ``at_case_manager`` and ``at_participant``
-    arms are selected from the path that stage resolved, so the role
-    question is asked once (HP-01-036).
+    With *path_stage* the rule's side is selected from the path that stage
+    resolved, so the role question is asked once (HP-01-036).
     """
     if sender_rule is None:
         if sender_context is not None:

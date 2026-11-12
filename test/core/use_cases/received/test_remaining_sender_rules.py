@@ -332,7 +332,7 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             InviteActorToCaseReceivedUseCase,
-            SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+            SenderRule.on_every_path(SenderEntitlementKind.CASE_MANAGER),
             id="invite",
         ),
         pytest.param(

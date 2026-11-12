@@ -384,7 +384,9 @@ def test_the_factory_places_it_first_ahead_of_the_seen_before_door():
     tree = create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
-        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_rule=SenderRule.on_every_path(
+            SenderEntitlementKind.PARTICIPANT
+        ),
         sender_context=SenderCheckContext(sender_id=_SENDER, case_id=_CASE),
         precondition_guards=[],
     )

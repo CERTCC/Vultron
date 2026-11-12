@@ -22,17 +22,17 @@ from collections.abc import Callable
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.received_path import (
-    CheckReceivedPathNode,
+    ReceivedPath,
     ReceivedPathNode,
+    on_any_of_paths,
 )
-from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_check_context import (
     LedgerActivityContext,
     SenderContext,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
     NoSenderAdmittedNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
@@ -134,34 +134,45 @@ def compose_sender_guard(
 ) -> py_trees.behaviour.Behaviour | None:
     """Compose the guard *rule* requires for the activity *ctx* describes.
 
+    Each side of the rule is the standing a sender needs on one received
+    path, and the path the stage resolved picks it (HP-01-036, ADR-0153):
+
+    - ``at_case_manager`` on the manager path,
+    - ``at_participant`` on the participant-replica path,
+    - ``outside_case`` on the no-case path.
+
+    Only the paths the stage declares are judged, since the stage refuses
+    any other before this guard runs (CLP-10-010).  When those paths' sides
+    name the same kinds, the guard is that one side and reads no path.
+    Otherwise it has one arm per distinct side, each read off the stage's
+    answer, so the role question is asked once (HP-01-036).  What the
+    context names never picks the side.
+
+    A context that names no case, in a tree declaring only in-case paths,
+    composes its in-case checks with no case at build time: such a check
+    reads ``/case_id`` or the activity at run time, and one that cannot
+    (an ``AUTHOR`` check on a participant record, say) raises here.  The
+    combination is not refused outright, because each such tree's stage
+    reads its case from the activity, which names none, so the stage
+    refuses the delivery first; making those case-scoped types declare the
+    no-case path instead would go against HP-01-041.
+
     Args:
         rule: The use case's declared sender rule.
         ctx: The sender and the records its kinds are checked against, or a
             :class:`LedgerActivityContext` for an activity whose case the
-            ledger entry it carries names.
-        path_stage: The tree's path door stage, when it declared its paths.
-            The rule's ``at_case_manager`` and ``at_participant`` arms are
-            then selected from the path that stage resolved, so the role
-            question is asked once, ahead of this guard (HP-01-036).
-            Without it the arms read the role themselves, as every tree did
-            before the path stage.  No received tree reaches that fallback
-            any more — every call site that passes a sender rule declares
-            its paths — so it survives for the tests that compose a guard in
-            isolation, and goes with them in #5876.  The ``outside_case``
-            side is still
-            selected by the context naming no case, not by the no-case path
-            HP-01-036 would map it onto: that side is chosen at
-            composition time, and a tree whose context names a case the
-            receiver does not hold has always been judged by the
-            ``at_participant`` side.  Moving it is a behaviour change beyond
-            what HP-01-036 asks for, so it is #5744's, not the migration
-            waves'.
+            ledger entry it carries names.  A ledger activity's rule has one
+            in-case side, read at run time on every path (HP-01-024).
+        path_stage: The tree's path door stage.  A tree with no stage can
+            compose only a rule whose three sides name the same kinds, since
+            nothing then says which path the receiver is on.
 
     Returns:
-        The guard, or ``None`` when the receiver's side admits any actor.
+        The guard, or ``None`` when every judged side admits any actor.
 
     Raises:
-        VultronWiringError: The context lacks a record a kind needs: an
+        VultronWiringError: The rule's sides differ and no path stage picks
+            one (HP-01-036); the context lacks a record a kind needs: an
             ``INVITEE`` kind without ``invite_id``, a ``NAMED_ACTOR`` kind
             without ``request``, an ``AUTHOR`` kind without
             ``authored_object``, or a case-scoped check without
@@ -174,27 +185,63 @@ def compose_sender_guard(
     return guard
 
 
-def _at_case_manager(
-    case_id: str, path_stage: ReceivedPathNode | None
-) -> py_trees.behaviour.Behaviour:
-    """The condition "this receiver is the case's CASE_MANAGER", for an arm.
+#: The side of a rule each received path reads (HP-01-036, ADR-0153).
+_SIDE_ON_PATH: dict[ReceivedPath, AddresseeSide] = {
+    ReceivedPath.CASE_MANAGER: AddresseeSide.CASE_MANAGER,
+    ReceivedPath.PARTICIPANT_REPLICA: AddresseeSide.PARTICIPANT,
+    ReceivedPath.NO_CASE: AddresseeSide.OUTSIDE_CASE,
+}
 
-    The path stage's answer when the tree declared its paths (ADR-0153), and
-    the role read of
-    :class:`~vultron.core.behaviors.case.nodes.conditions.CheckIsCaseManagerNode`
-    otherwise.  One helper, so both arms of the rule guard agree on which it
-    is.
+#: Each path's arm name and the receiver it names in a refusal reason.
+_ARM_NAME: dict[ReceivedPath, str] = {
+    ReceivedPath.CASE_MANAGER: "AtCaseManager",
+    ReceivedPath.PARTICIPANT_REPLICA: "AtParticipant",
+    ReceivedPath.NO_CASE: "OutsideCase",
+}
+_RECEIVER: dict[ReceivedPath, str] = {
+    ReceivedPath.CASE_MANAGER: "the CASE_MANAGER",
+    ReceivedPath.PARTICIPANT_REPLICA: (
+        "a participant other than the CASE_MANAGER"
+    ),
+    ReceivedPath.NO_CASE: (
+        "a receiver that holds no case for it (the activity names no case"
+        " this store holds)"
+    ),
+}
+_IN_CASE = frozenset(
+    {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+)
 
-    The second branch is the last entry in
-    ``test/architecture/test_received_path_role_question.py``'s
-    ``KNOWN_ROLE_QUESTION_SITES``.  No received tree reaches it; it is held
-    open by the guard-composition tests, and #5876 retires both together.
-    """
-    if path_stage is not None:
-        return CheckReceivedPathNode.on_manager_path(path_stage)
-    return with_case_id(
-        CheckIsCaseManagerNode(case_may_be_absent=True), case_id
+
+def _receiver_of(paths: frozenset[ReceivedPath]) -> str:
+    """The receiver *paths* put the guard at, for a refusal reason."""
+    if paths == _IN_CASE:
+        return "a case actor"
+    return " or ".join(
+        _RECEIVER[path] for path in ReceivedPath if path in paths
     )
+
+
+def _arm_name(paths: frozenset[ReceivedPath]) -> str:
+    return "Or".join(_ARM_NAME[path] for path in ReceivedPath if path in paths)
+
+
+def _sides(
+    rule: SenderRule, path_stage: ReceivedPathNode | None
+) -> list[tuple[frozenset[ReceivedPath], frozenset[SenderEntitlementKind]]]:
+    """The judged paths grouped by the kinds their side names.
+
+    In the enum's order, so the built guard reads the same whatever order a
+    declaration listed its paths in.
+    """
+    judged = (
+        frozenset(ReceivedPath) if path_stage is None else path_stage.declared
+    )
+    groups: dict[frozenset[SenderEntitlementKind], set[ReceivedPath]] = {}
+    for path in ReceivedPath:
+        if path in judged:
+            groups.setdefault(rule.side(_SIDE_ON_PATH[path]), set()).add(path)
+    return [(frozenset(paths), kinds) for kinds, paths in groups.items()]
 
 
 def _compose(
@@ -209,49 +256,36 @@ def _compose(
     def node_for(kind: SenderEntitlementKind) -> py_trees.behaviour.Behaviour:
         return _kind_node(kind, ctx)
 
-    if ctx.case_id is None:
-        return _any_of(
-            rule.outside_case,
-            node_for,
-            "a receiver that holds no case for it (the activity names no"
-            " case this store holds)",
+    sides = _sides(rule, path_stage)
+    if len(sides) == 1:
+        paths, kinds = sides[0]
+        return _any_of(kinds, node_for, _receiver_of(paths))
+    if path_stage is None:
+        raise VultronWiringError(
+            "compose_sender_guard: the rule names different kinds on"
+            " different paths, and only the path stage may say which path"
+            " the receiver is on; declare the tree's paths (HP-01-036)"
         )
-    if rule.at_case_manager == rule.at_participant:
-        return _any_of(rule.at_case_manager, node_for, "a case actor")
-    manager = _or_pass(
-        _any_of(rule.at_case_manager, node_for, "the CASE_MANAGER"),
-        "AtCaseManager",
-    )
-    participant = _or_pass(
-        _any_of(
-            rule.at_participant,
-            node_for,
-            "a participant other than the CASE_MANAGER",
-        ),
-        "AtParticipant",
-    )
+    # Each arm passes off its own paths, and on them fails on its own
+    # kinds' failure, so the refusal reason is the failing kind's
+    # (BT-13-001).  The last arm passes on every other arm's paths, so it
+    # judges the receiver whichever path the others do not claim.
+    arms: list[py_trees.behaviour.Behaviour] = []
+    for index, (paths, kinds) in enumerate(sides):
+        name = _arm_name(paths)
+        guard = _or_pass(_any_of(kinds, node_for, _receiver_of(paths)), name)
+        if index < len(sides) - 1:
+            skip: py_trees.behaviour.Behaviour = py_trees.decorators.Inverter(
+                name=f"Not{name}", child=on_any_of_paths(path_stage, paths)
+            )
+        else:
+            others = frozenset(ReceivedPath) - paths
+            skip = on_any_of_paths(path_stage, others & path_stage.declared)
+        arms.append(
+            py_trees.composites.Selector(
+                name=name, memory=False, children=[skip, guard]
+            )
+        )
     return py_trees.composites.Sequence(
-        name=_RULE_GUARD,
-        memory=False,
-        children=[
-            py_trees.composites.Selector(
-                name="AtCaseManager",
-                memory=False,
-                children=[
-                    py_trees.decorators.Inverter(
-                        name="NotAtCaseManager",
-                        child=_at_case_manager(ctx.case_id, path_stage),
-                    ),
-                    manager,
-                ],
-            ),
-            py_trees.composites.Selector(
-                name="AtParticipant",
-                memory=False,
-                children=[
-                    _at_case_manager(ctx.case_id, path_stage),
-                    participant,
-                ],
-            ),
-        ],
+        name=_RULE_GUARD, memory=False, children=arms
     )

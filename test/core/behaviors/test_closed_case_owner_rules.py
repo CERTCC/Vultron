@@ -43,6 +43,10 @@ from test.core.behaviors.test_widened_sender_rules import (
     _vendor_record,
 )
 from test.support.objects import make
+from test.support.sender_guard import (
+    guard_tree,
+    staged_sender_guard,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -51,7 +55,6 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.behaviors.sender_guard import (
     OwnershipOfferRequest,
     SenderCheckContext,
-    compose_sender_guard,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -237,13 +240,13 @@ def test_the_list_names_every_case_owner_use_case() -> None:
 def test_a_closed_case_owner_still_passes_the_leave_guard() -> None:
     """Its repeated Leave finishes the case's closure; the close-case
     tree's closed-sender door guard, not the sender guard, decides it."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         _rule(CloseCaseReceivedUseCase), _closing_owner(OWNER)
     )
     assert guard is not None
 
     result = _closed_owner_store(MANAGER).run(
-        guard, activity=SimpleNamespace(actor_id=OWNER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=OWNER)
     )
 
     assert not result.internal_error, result.feedback_message
@@ -257,11 +260,11 @@ def test_a_closed_case_owner_is_refused_at_the_case_manager(
     label: str,
 ) -> None:
     use_case, context, _ = CASE_OWNER_USE_CASES[label]
-    guard = compose_sender_guard(_rule(use_case), context(OWNER))
+    guard = staged_sender_guard(_rule(use_case), context(OWNER))
     assert guard is not None
 
     result = _closed_owner_store(MANAGER).run(
-        guard, activity=SimpleNamespace(actor_id=OWNER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=OWNER)
     )
 
     assert not result.internal_error, result.feedback_message

@@ -41,6 +41,12 @@ from test.core.use_cases.received.conftest import (
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
+from test.support.sender_guard import (
+    IN_CASE_PATHS,
+    NO_CASE_PATHS,
+    guard_tree,
+    staged_sender_guard,
+)
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.leave_case_trigger_tree import (
@@ -50,6 +56,10 @@ from vultron.core.behaviors.case.nodes.carried_snapshot import (
     StoreEmbeddedParticipantsNode,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
+from vultron.core.behaviors.case.nodes.received_path import (
+    CheckReceivedPathNode,
+    ReceivedPath,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -166,12 +176,12 @@ def _owner_role_check(
 
 def _admits(rule: SenderRule, receiver: str, sender: str) -> bool:
     """Whether the guard composed from *rule* admits *sender* at *receiver*."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         rule, SenderCheckContext(sender_id=sender, case_id=CASE_ID)
     )
     assert guard is not None
     result = _store(receiver).run(
-        guard, activity=SimpleNamespace(actor_id=sender)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
     )
     assert not result.internal_error, result.feedback_message
     return result.status == Status.SUCCESS
@@ -257,13 +267,13 @@ def test_two_sided_rule_admits_exactly_each_sides_kinds(
 
 @pytest.mark.spec("HP-01-006")
 def test_any_of_refusal_names_every_kind_the_side_accepts() -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
     )
     assert isinstance(guard, py_trees.composites.Selector)
     assert isinstance(guard.children[-1], SenderHoldsNoneOfNode)
     result = _store(MANAGER).run(
-        guard, activity=SimpleNamespace(actor_id=VENDOR)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=VENDOR)
     )
     assert result.status == Status.FAILURE
     reason = BTBridge.get_failure_reason(guard)
@@ -279,7 +289,7 @@ def test_an_empty_side_admits_no_one() -> None:
 
 
 def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
@@ -289,23 +299,25 @@ def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
 
 
 # ---------------------------------------------------------------------------
-# An activity that names no case: the outside-case side
+# The no-case path: the outside-case side
 # ---------------------------------------------------------------------------
 
 
 def test_any_actor_before_a_case_composes_no_guard() -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.before_case(Kind.ANY_ACTOR),
         SenderCheckContext(sender_id=STRANGER),
+        NO_CASE_PATHS,
     )
     assert guard is None
 
 
-@pytest.mark.spec("HP-01-006")
-def test_case_rule_refuses_an_activity_that_names_no_case() -> None:
-    guard = compose_sender_guard(
+@pytest.mark.spec("HP-01-006", "HP-01-036")
+def test_case_rule_refuses_a_receiver_on_the_no_case_path() -> None:
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.ACTIVE_PARTICIPANT),
         SenderCheckContext(sender_id=VENDOR),
+        NO_CASE_PATHS,
     )
     assert isinstance(guard, NoSenderAdmittedNode)
     result = _store(MANAGER).run(guard)
@@ -316,10 +328,190 @@ def test_case_rule_refuses_an_activity_that_names_no_case() -> None:
 
 def test_invitee_without_an_invite_id_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="invite_id"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.in_case(Kind.INVITEE),
             SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
         )
+
+
+# ---------------------------------------------------------------------------
+# HP-01-036: the path the stage resolved picks the side, never the context
+# ---------------------------------------------------------------------------
+
+_PICKED_OFFER = "https://example.org/activities/offer-side-picking"
+
+#: A different outcome on each path: the manager side admits no one, the
+#: participant side admits any actor, and the outside-case side admits only
+#: an addressee of an Offer this store never recorded, so no one.
+THREE_SIDED = SenderRule(
+    at_case_manager=frozenset(),
+    at_participant=any_of(Kind.ANY_ACTOR),
+    outside_case=any_of(Kind.NAMED_ACTOR),
+)
+
+
+def _side_judged(
+    store: BTTestScenario, context_case: str | None, activity_case: str | None
+) -> type[py_trees.behaviour.Behaviour] | None:
+    """The node that refused the sender, or ``None`` when it was admitted.
+
+    The guard is composed for a tree declaring every path, and the stage
+    runs ahead of it against *store*, so the store alone puts the receiver
+    on a path.
+    """
+    guard = staged_sender_guard(
+        THREE_SIDED,
+        SenderCheckContext(
+            sender_id=STRANGER,
+            case_id=context_case,
+            request=ReportOfferRequest(offer_id=_PICKED_OFFER),
+        ),
+        frozenset(ReceivedPath),
+    )
+    assert guard is not None
+    activity = SimpleNamespace(
+        actor_id=STRANGER, object_=SimpleNamespace(case_id=activity_case)
+    )
+    result = store.run(guard_tree(guard, context_case), activity=activity)
+    assert not result.internal_error, result.feedback_message
+    if result.status is Status.SUCCESS:
+        return None
+    refused = [
+        node
+        for node in guard.iterate()
+        if not node.children
+        and node.status is Status.FAILURE
+        and isinstance(node, SenderEntitlementConditionNode)
+    ]
+    assert len(refused) == 1, [type(node).__name__ for node in refused]
+    return type(refused[0])
+
+
+@pytest.mark.spec("HP-01-036")
+@pytest.mark.parametrize(
+    ("store", "context_case", "activity_case", "judged_by"),
+    [
+        # The context names no case and the store holds none: the no-case
+        # path, so the outside-case side.
+        (
+            lambda: BTTestScenario(actor_id=MANAGER),
+            None,
+            None,
+            SenderIsOfferAddresseeNode,
+        ),
+        # The context names no case, but the activity names one this
+        # receiver manages: the manager path, so the manager side.
+        (lambda: _store(MANAGER), None, CASE_ID, NoSenderAdmittedNode),
+        # The context names a case the receiver does not hold: the no-case
+        # path, so the outside-case side, not the participant side.
+        (
+            lambda: BTTestScenario(actor_id=REPLICA),
+            CASE_ID,
+            CASE_ID,
+            SenderIsOfferAddresseeNode,
+        ),
+        # The context names a case the receiver manages: the manager side.
+        (lambda: _store(MANAGER), CASE_ID, CASE_ID, NoSenderAdmittedNode),
+        # The context names a case the receiver holds a replica of: the
+        # participant side, which admits any actor.
+        (lambda: _store(REPLICA), CASE_ID, CASE_ID, None),
+    ],
+    ids=[
+        "no-context-case-none-held",
+        "no-context-case-manager-of-the-activitys-case",
+        "context-case-not-held",
+        "context-case-managed",
+        "context-case-replica",
+    ],
+)
+def test_the_resolved_path_picks_the_side(
+    store: Callable[[], BTTestScenario],
+    context_case: str | None,
+    activity_case: str | None,
+    judged_by: type[py_trees.behaviour.Behaviour] | None,
+) -> None:
+    """One rule picks the side: the path the stage resolved (HP-01-036)."""
+    assert _side_judged(store(), context_case, activity_case) is judged_by
+
+
+@pytest.mark.spec("HP-01-036", "BT-13-001")
+def test_paths_whose_sides_agree_share_one_arm() -> None:
+    """Two paths naming the same kinds are one arm, named and refused as
+    both, while the path between them keeps its own arm."""
+    rule = SenderRule(
+        at_case_manager=frozenset(),
+        at_participant=any_of(Kind.ANY_ACTOR),
+        outside_case=frozenset(),
+    )
+
+    def guard() -> py_trees.behaviour.Behaviour:
+        composed = staged_sender_guard(
+            rule,
+            SenderCheckContext(sender_id=STRANGER, case_id=CASE_ID),
+            frozenset(ReceivedPath),
+        )
+        assert isinstance(composed, py_trees.composites.Sequence)
+        return composed
+
+    assert [arm.name for arm in guard().children] == [
+        "AtCaseManagerOrOutsideCase",
+        "AtParticipant",
+    ]
+
+    activity = SimpleNamespace(
+        actor_id=STRANGER, object_=SimpleNamespace(case_id=CASE_ID)
+    )
+    held_none = guard()
+    result = BTTestScenario(actor_id=REPLICA).run(
+        guard_tree(held_none, CASE_ID), activity=activity
+    )
+    assert result.status is Status.FAILURE
+    reason = BTBridge.get_failure_reason(held_none)
+    assert "the CASE_MANAGER or a receiver that holds no case" in reason
+
+    replica = _store(REPLICA).run(
+        guard_tree(guard(), CASE_ID), activity=activity
+    )
+    assert replica.status is Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-036")
+def test_a_rule_whose_sides_differ_needs_a_path_stage() -> None:
+    """Nothing but the path stage may say which side the receiver is on."""
+    with pytest.raises(VultronWiringError, match="HP-01-036"):
+        compose_sender_guard(
+            TWO_SIDED, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
+        )
+    with pytest.raises(VultronWiringError, match="HP-01-036"):
+        compose_sender_guard(
+            SenderRule.in_case(Kind.CASE_OWNER),
+            SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+        )
+
+
+def test_a_rule_with_one_kind_on_every_path_needs_no_path_stage() -> None:
+    """A rule with nothing to pick between composes with no stage at all."""
+    guard = compose_sender_guard(
+        SenderRule.on_every_path(Kind.CASE_OWNER),
+        SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    )
+    assert isinstance(
+        unscoped(_owner_role_check(guard)), SenderIsCaseOwnerNode
+    )
+
+
+@pytest.mark.spec("HP-01-036")
+def test_only_the_declared_paths_sides_are_composed() -> None:
+    """A side on a path the tree does not declare is never reached: the
+    stage refuses that path first, so the guard holds no arm for it."""
+    guard = staged_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    )
+    assert guard is not None
+    assert not any(
+        isinstance(node, CheckReceivedPathNode) for node in guard.iterate()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -363,11 +555,12 @@ def test_named_actor_picks_the_check_for_the_record_holding_its_request(
         if case_id is None
         else SenderRule.in_case(Kind.NAMED_ACTOR)
     )
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         rule,
         SenderCheckContext(
             sender_id=VENDOR, case_id=case_id, request=request_record
         ),
+        NO_CASE_PATHS if case_id is None else IN_CASE_PATHS,
     )
     assert type(guard) is check
     assert isinstance(guard, SenderIsRequestAddresseeNode)
@@ -376,7 +569,7 @@ def test_named_actor_picks_the_check_for_the_record_holding_its_request(
 
 def test_named_actor_without_its_request_record_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="NAMED_ACTOR"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.in_case(Kind.NAMED_ACTOR),
             SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
         )
@@ -384,7 +577,7 @@ def test_named_actor_without_its_request_record_is_a_wiring_error() -> None:
 
 def test_an_ownership_offer_check_without_a_case_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="case_id"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.before_case(Kind.NAMED_ACTOR),
             SenderCheckContext(
                 sender_id=VENDOR,
@@ -392,6 +585,7 @@ def test_an_ownership_offer_check_without_a_case_is_a_wiring_error() -> None:
                     offer_id=OFFER_ID, reply_id=REPLY_ID
                 ),
             ),
+            NO_CASE_PATHS,
         )
 
 
@@ -407,12 +601,15 @@ def _run_addressee_check(
     scenario: BTTestScenario, request_record: AddresseeRequest, sender: str
 ) -> tuple[Status, str]:
     """Run the NAMED_ACTOR check for *request_record* in *scenario*."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.before_case(Kind.NAMED_ACTOR),
         SenderCheckContext(sender_id=sender, request=request_record),
+        NO_CASE_PATHS,
     )
     assert guard is not None
-    result = scenario.run(guard, activity=SimpleNamespace(actor_id=sender))
+    result = scenario.run(
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
+    )
     assert not result.internal_error, result.feedback_message
     return result.status, guard.feedback_message
 
@@ -494,7 +691,7 @@ def test_a_proposal_with_no_recorded_addressee_admits_nobody() -> None:
 
 
 def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(
             sender_id=OWNER,
@@ -515,7 +712,7 @@ def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
 ):
     """A new Offer's own id selects the check that also admits its
     recorded sender's redelivery (HP-01-003); without it, the role alone."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(
             sender_id=OWNER, case_id=CASE_ID, ownership_proposal_id=OFFER_ID
@@ -540,7 +737,7 @@ def test_a_required_case_manager_refuses_a_case_this_store_lacks(
 ) -> None:
     """Without the case there is no CASE_MANAGER to match: the bootstrap
     window passes through, a required CASE_MANAGER refuses."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_MANAGER),
         SenderCheckContext(
             sender_id=MANAGER,
@@ -550,7 +747,7 @@ def test_a_required_case_manager_refuses_a_case_this_store_lacks(
     )
     assert guard is not None
     result = BTTestScenario(actor_id=REPLICA).run(
-        guard, activity=SimpleNamespace(actor_id=MANAGER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=MANAGER)
     )
     assert (result.status == Status.SUCCESS) is admitted
     if not admitted:
@@ -580,7 +777,7 @@ def _store_with_note(author: str) -> BTTestScenario:
 def test_author_kind_admits_only_the_objects_author(
     sender: str, admitted: bool
 ) -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
             sender_id=sender,
@@ -591,7 +788,7 @@ def test_author_kind_admits_only_the_objects_author(
     assert isinstance(guard, SenderIsNoteAuthorNode)
     assert guard.guards_kind is Kind.AUTHOR
     result = _store_with_note(VENDOR).run(
-        guard, activity=SimpleNamespace(actor_id=sender)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=sender)
     )
     assert not result.internal_error, result.feedback_message
     assert (result.status == Status.SUCCESS) is admitted
@@ -599,7 +796,7 @@ def test_author_kind_admits_only_the_objects_author(
 
 @pytest.mark.spec("CM-10-004")
 def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
             sender_id=STRANGER,
@@ -609,14 +806,14 @@ def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
     )
     assert guard is not None
     result = _store_with_note(STRANGER).run(
-        guard, activity=SimpleNamespace(actor_id=STRANGER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=STRANGER)
     )
     assert result.status == Status.FAILURE
 
 
 def test_author_without_the_changed_object_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="authored_object"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.in_case(Kind.AUTHOR),
             SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
         )
@@ -629,12 +826,13 @@ PROPOSAL_ID = "https://example.org/proposals/sender-rule"
 
 
 def _proposal_author_guard(sender: str) -> py_trees.behaviour.Behaviour:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.before_case(Kind.AUTHOR),
         SenderCheckContext(
             sender_id=sender,
             authored_object=AuthoredCaseProposal(proposal_id=PROPOSAL_ID),
         ),
+        NO_CASE_PATHS,
     )
     assert isinstance(guard, SenderIsProposalAuthorNode)
     assert guard.guards_kind is Kind.AUTHOR
@@ -699,7 +897,7 @@ def test_author_kind_admits_only_a_proposals_recorded_proposer(
     for record in records:
         scenario.dl.create(record)
     result = scenario.run(
-        _proposal_author_guard(sender),
+        guard_tree(_proposal_author_guard(sender), CASE_ID),
         activity=SimpleNamespace(actor_id=sender),
     )
     assert not result.internal_error, result.feedback_message
@@ -730,11 +928,12 @@ def test_a_store_error_never_admits_the_proposal_sender() -> None:
 
 def test_author_without_a_case_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="case_id"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.before_case(Kind.AUTHOR),
             SenderCheckContext(
                 sender_id=VENDOR, authored_object=AuthoredNote(note_id=NOTE_ID)
             ),
+            NO_CASE_PATHS,
         )
 
 
@@ -788,7 +987,7 @@ def _store_where_vendor(
 
 
 def _composed_vendor_guard(kind: Kind) -> py_trees.behaviour.Behaviour:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(kind),
         SenderCheckContext(
             sender_id=VENDOR,
@@ -818,7 +1017,8 @@ def test_each_active_participant_guard_admits_an_active_open_sender(
 ) -> None:
     """Control: the vendor, active and not closed, is admitted by each guard."""
     result = _store_where_vendor(None).run(
-        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
+        guard_tree(make_guard(), CASE_ID),
+        activity=SimpleNamespace(actor_id=VENDOR),
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.SUCCESS, result.feedback_message
@@ -834,7 +1034,8 @@ def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
 ) -> None:
     """A closed, an inert and a removed sender each fail every guard."""
     result = _store_where_vendor(standing).run(
-        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
+        guard_tree(make_guard(), CASE_ID),
+        activity=SimpleNamespace(actor_id=VENDOR),
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.FAILURE
@@ -855,7 +1056,7 @@ def test_participant_kind_refuses_only_a_closed_sender(
     has left the case and may act on nothing further (CM-23-018).
     """
     result = _store_where_vendor(standing).run(
-        _composed_vendor_guard(Kind.PARTICIPANT),
+        guard_tree(_composed_vendor_guard(Kind.PARTICIPANT), CASE_ID),
         activity=SimpleNamespace(actor_id=VENDOR),
     )
     assert not result.internal_error, result.feedback_message
@@ -876,7 +1077,7 @@ def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
     case.actor_participant_index.pop(VENDOR)
     scenario.dl.save(case)
     result = scenario.run(
-        _composed_vendor_guard(Kind.PARTICIPANT),
+        guard_tree(_composed_vendor_guard(Kind.PARTICIPANT), CASE_ID),
         activity=SimpleNamespace(actor_id=VENDOR),
     )
     assert not result.internal_error, result.feedback_message
@@ -888,7 +1089,7 @@ def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
 @pytest.mark.spec("CM-23-048")
 def test_ledger_peer_kind_composes_the_resync_guard() -> None:
     """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.LEDGER_PEER),
         SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
@@ -975,6 +1176,7 @@ def test_every_kind_but_any_actor_has_a_guard() -> None:
 def test_factory_refusal_names_the_missing_standing() -> None:
     tree = create_receive_activity_tree(
         name="RuleTreeBT",
+        paths=IN_CASE_PATHS,
         case_id=CASE_ID,
         precondition_guards=[],
         sender_rule=TWO_SIDED,
@@ -986,9 +1188,9 @@ def test_factory_refusal_names_the_missing_standing() -> None:
         if isinstance(n, py_trees.composites.Sequence)
         and n.name == "SenderRuleGuard"
     )
-    activity = SimpleNamespace(actor_id=VENDOR)
-    result = _store(MANAGER).run(guard, activity=activity)
+    result = _store(MANAGER).run(tree, activity=_engage_event(VENDOR))
     assert result.status == Status.FAILURE
+    assert sender_guard_refused(tree)
     reason = BTBridge.get_failure_reason(guard)
     assert "is not the Case Owner" in reason
 
@@ -997,6 +1199,7 @@ def test_factory_rejects_a_rule_without_a_context() -> None:
     with pytest.raises(VultronWiringError, match="sender_context"):
         create_receive_activity_tree(
             name="RuleTreeBT",
+            paths=IN_CASE_PATHS,
             case_id=None,
             precondition_guards=[],
             sender_rule=ANY_OF,
@@ -1015,6 +1218,7 @@ def test_factory_rejects_a_context_naming_another_case() -> None:
     with pytest.raises(VultronWiringError, match="names case"):
         create_receive_activity_tree(
             name="RuleTreeBT",
+            paths=IN_CASE_PATHS,
             case_id=f"{CASE_ID}/other",
             precondition_guards=[],
             sender_rule=ANY_OF,
@@ -1029,16 +1233,18 @@ def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
     activity names, as the received ``Announce(EmbargoEvent)`` tree does."""
     tree = create_receive_activity_tree(
         name="RuleTreeBT",
+        paths=IN_CASE_PATHS,
         case_id=None,
         precondition_guards=[],
         sender_rule=ANY_OF,
         sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
 
-    # addressee door, seen-before door, post-close, sender guard, intake,
-    # the answer to the sender's ledger position in that case (SYNC-18-007),
-    # and the judgment of the sender's number in that case (SYNC-21-023)
-    assert len(tree.children) == 7
+    # addressee door, seen-before door, path stage, post-close, sender
+    # guard, intake, the answer to the sender's ledger position in that case
+    # (SYNC-18-007), and the judgment of the sender's number in that case
+    # (SYNC-21-023)
+    assert len(tree.children) == 8
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:
@@ -1101,10 +1307,10 @@ _OWNER_CONTEXTS = {
 @pytest.mark.parametrize("label", list(_OWNER_CONTEXTS))
 def test_a_closed_case_owner_is_refused(rule: SenderRule, label: str) -> None:
     """An owner whose closure the case records may act on nothing (#4746)."""
-    guard = compose_sender_guard(rule, _OWNER_CONTEXTS[label])
+    guard = staged_sender_guard(rule, _OWNER_CONTEXTS[label])
     assert guard is not None
     result = _close_owner(_store(MANAGER)).run(
-        guard, activity=SimpleNamespace(actor_id=OWNER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=OWNER)
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.FAILURE
@@ -1122,13 +1328,13 @@ def test_a_closed_owner_holding_another_kind_is_refused_naming_every_kind() -> (
     None
 ):
     """In an any-of side the closed owner falls through to the last arm."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER, Kind.CASE_MANAGER),
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
     assert guard is not None
     result = _close_owner(_store(MANAGER)).run(
-        guard, activity=SimpleNamespace(actor_id=OWNER)
+        guard_tree(guard, CASE_ID), activity=SimpleNamespace(actor_id=OWNER)
     )
     assert result.status == Status.FAILURE
     assert "none of the standings" in BTBridge.get_failure_reason(guard)
@@ -1162,7 +1368,7 @@ def test_ledger_context_composes_the_in_case_guard(
 ) -> None:
     """A ledger activity's guard is the in-case side's, not ``outside_case``:
     its node reads the case from the entry the activity carries."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(kind), LedgerActivityContext()
     )
     assert isinstance(guard, node_type)
@@ -1174,7 +1380,7 @@ def test_ledger_context_refuses_a_kind_that_needs_the_case_at_build_time() -> (
     None
 ):
     with pytest.raises(VultronWiringError, match="read from a ledger"):
-        compose_sender_guard(
+        staged_sender_guard(
             SenderRule.in_case(Kind.PARTICIPANT), LedgerActivityContext()
         )
 
@@ -1182,13 +1388,14 @@ def test_ledger_context_refuses_a_kind_that_needs_the_case_at_build_time() -> (
 @pytest.mark.spec("HP-01-008")
 def test_ledger_context_refuses_a_two_sided_rule() -> None:
     with pytest.raises(VultronWiringError, match="same kinds"):
-        compose_sender_guard(TWO_SIDED, LedgerActivityContext())
+        staged_sender_guard(TWO_SIDED, LedgerActivityContext())
 
 
 def test_factory_rejects_a_ledger_context_on_a_tree_with_a_case() -> None:
     with pytest.raises(VultronWiringError, match="names case"):
         create_receive_activity_tree(
             name="RuleTreeBT",
+            paths=IN_CASE_PATHS,
             case_id=CASE_ID,
             precondition_guards=[],
             sender_rule=SenderRule.in_case(Kind.CASE_MANAGER),
@@ -1211,6 +1418,7 @@ def test_case_resolution_runs_just_before_the_sender_guard() -> None:
     resolve = _ResolveCase(name="ResolveCase")
     tree = create_receive_activity_tree(
         name="RuleTreeBT",
+        paths=IN_CASE_PATHS,
         case_id=CASE_ID,
         precondition_guards=[],
         sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
@@ -1249,6 +1457,7 @@ def test_factory_rejects_a_case_resolution_that_writes() -> None:
     with pytest.raises(VultronWiringError, match="may only read"):
         create_receive_activity_tree(
             name="RuleTreeBT",
+            paths=IN_CASE_PATHS,
             case_id=CASE_ID,
             precondition_guards=[],
             sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
@@ -1294,6 +1503,7 @@ def test_factory_admits_only_read_only_case_resolving_steps(
     with pytest.raises(VultronWiringError, match="may only read"):
         create_receive_activity_tree(
             name="RuleTreeBT",
+            paths=IN_CASE_PATHS,
             case_id=CASE_ID,
             precondition_guards=[],
             sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
@@ -1311,11 +1521,37 @@ class _Refuse(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
+def _engage_event(sender: str) -> EngageCaseReceivedEvent:
+    """A ``Join`` from *sender* to the CASE_MANAGER, past every door."""
+    return with_evidence(
+        EngageCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
+            activity_id="https://example.org/activities/engage-guard",
+            actor_id=sender,
+            object_=make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Sender rule case",
+            ),
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=make(
+                VultronActivity,
+                id_="https://example.org/activities/engage-guard",
+                type_="Join",
+                actor=sender,
+                to=[MANAGER],
+            ),
+        )
+    )
+
+
 def _participant_tree(
     sender: str, guards: list[py_trees.behaviour.Behaviour]
 ) -> py_trees.composites.Sequence:
     return create_receive_activity_tree(
         name="RuleTreeBT",
+        paths=IN_CASE_PATHS,
         case_id=CASE_ID,
         precondition_guards=guards,
         sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
@@ -1340,27 +1576,7 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
     status: Status,
 ) -> None:
     tree = _participant_tree(sender, guards)
-    event = with_evidence(
-        EngageCaseReceivedEvent(
-            ledger_position=TEST_SENDER_POSITION,
-            activity_id="https://example.org/activities/engage-guard",
-            actor_id=sender,
-            object_=make(
-                as_VulnerabilityCase,
-                attributed_to=CASE_OWNER_ID,
-                id_=CASE_ID,
-                name="Sender rule case",
-            ),
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=make(
-                VultronActivity,
-                id_="https://example.org/activities/engage-guard",
-                type_="Join",
-                actor=sender,
-                to=[MANAGER],
-            ),
-        )
-    )
+    event = _engage_event(sender)
     result = _store(MANAGER).run(tree, activity=event)
     assert result.status == status
     assert sender_guard_refused(tree) is refused
@@ -1439,7 +1655,7 @@ def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     arm fails, the ``CASE_OWNER`` arm admits it, and nothing was refused, so
     the first arm's line is DEBUG and carries no ``REFUSED`` wording (#5460).
     """
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         ANY_OF, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
     )
     assert guard is not None
@@ -1447,7 +1663,8 @@ def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     assert failure_is_the_refusal(check) is False
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
-            guard, activity=SimpleNamespace(actor_id=OWNER)
+            guard_tree(guard, CASE_ID),
+            activity=SimpleNamespace(actor_id=OWNER),
         )
     assert result.status == Status.SUCCESS
     lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
@@ -1467,7 +1684,7 @@ def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
 ) -> None:
     """``CASE_MANAGER`` alone on the side is the guard's whole answer, so its
     FAILURE is the tree's refusal and stays at WARNING (#5460)."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_MANAGER),
         SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
@@ -1476,7 +1693,8 @@ def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
     assert failure_is_the_refusal(check) is True
     with caplog.at_level(logging.DEBUG):
         result = _store(REPLICA).run(
-            guard, activity=SimpleNamespace(actor_id=VENDOR)
+            guard_tree(guard, CASE_ID),
+            activity=SimpleNamespace(actor_id=VENDOR),
         )
     assert result.status == Status.FAILURE
     lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
@@ -1495,13 +1713,14 @@ def test_an_any_of_side_still_logs_one_refusal_for_a_sender_it_refuses(
 ) -> None:
     """Demoting an overruled arm to DEBUG keeps the refusal signal: the side's
     last arm names every standing it accepts, at WARNING (BT-13-001)."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         ANY_OF, SenderCheckContext(sender_id=STRANGER, case_id=CASE_ID)
     )
     assert guard is not None
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
-            guard, activity=SimpleNamespace(actor_id=STRANGER)
+            guard_tree(guard, CASE_ID),
+            activity=SimpleNamespace(actor_id=STRANGER),
         )
     assert result.status == Status.FAILURE
     refusals = _refusals_logged(caplog)
@@ -1559,7 +1778,7 @@ def test_every_declared_side_places_the_case_manager_check_knowingly() -> None:
     overruled: dict[str, bool] = {}
     final: dict[str, bool] = {}
     for name, side, rule in _declared_case_manager_sides():
-        guard = compose_sender_guard(
+        guard = staged_sender_guard(
             rule,
             SenderCheckContext(
                 sender_id=VENDOR,
@@ -1689,7 +1908,7 @@ def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
     warnings: dict[str, list[str]] = {}
     overruled: dict[str, list[tuple[int, bool]]] = {}
     for label, rule, side, authored in rows:
-        guard = compose_sender_guard(
+        guard = staged_sender_guard(
             rule,
             SenderCheckContext(
                 sender_id=STRANGER,
@@ -1709,7 +1928,8 @@ def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
         caplog.clear()
         with caplog.at_level(logging.DEBUG):
             result = scenario.run(
-                guard, activity=SimpleNamespace(actor_id=STRANGER)
+                guard_tree(guard, CASE_ID),
+                activity=SimpleNamespace(actor_id=STRANGER),
             )
         assert result.status == Status.FAILURE, label
         warnings[label] = _refusals_logged(caplog)
@@ -1776,7 +1996,7 @@ def test_the_closed_sender_check_keeps_its_info_line(
         ("lone-side", SenderRule.in_case(Kind.CASE_OWNER)),
         ("any-of-arm", SenderRule.in_case(Kind.CASE_OWNER, Kind.PARTICIPANT)),
     ):
-        guard = compose_sender_guard(
+        guard = staged_sender_guard(
             rule, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
         )
         assert guard is not None
@@ -1790,7 +2010,8 @@ def test_the_closed_sender_check_keeps_its_info_line(
         caplog.clear()
         with caplog.at_level(logging.DEBUG):
             result = scenario.run(
-                guard, activity=SimpleNamespace(actor_id=OWNER)
+                guard_tree(guard, CASE_ID),
+                activity=SimpleNamespace(actor_id=OWNER),
             )
         assert result.status == Status.FAILURE, label
         seen[label] = [
@@ -1823,7 +2044,7 @@ def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
     embargo decisions among them — so their refusal must reach a reader and
     ``expect_no_sender_refusals`` (#5845).
     """
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
@@ -1833,7 +2054,8 @@ def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
     assert failure_is_the_refusal(check) is True
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
-            guard, activity=SimpleNamespace(actor_id=VENDOR)
+            guard_tree(guard, CASE_ID),
+            activity=SimpleNamespace(actor_id=VENDOR),
         )
     assert result.status == Status.FAILURE
     lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
@@ -1856,13 +2078,14 @@ def test_an_overruled_case_owner_arm_logs_debug_without_refusal_wording(
     """Inside an any-of side the ``CASE_OWNER`` arm refuses no one: the side's
     last arm names every standing it accepts, so the arm's own line is DEBUG
     and drops the ``REFUSED`` group (SL-03-002, SL-03-003)."""
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
     )
     assert guard is not None
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
-            guard, activity=SimpleNamespace(actor_id=VENDOR)
+            guard_tree(guard, CASE_ID),
+            activity=SimpleNamespace(actor_id=VENDOR),
         )
     assert result.status == Status.FAILURE
     lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)

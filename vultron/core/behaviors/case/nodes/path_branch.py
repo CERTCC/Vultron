@@ -47,16 +47,16 @@ another path" from "this receiver is on the branch's path and the work
 failed", and would report the second as a benign skip.
 """
 
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import py_trees
 
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.received_path import (
-    CheckReceivedPathNode,
     ReceivedPath,
     ReceivedPathNode,
+    on_any_of_paths,
 )
 from vultron.errors import VultronWiringError
 
@@ -193,25 +193,6 @@ class PathBranch(py_trees.composites.Selector):
         return self.children[1]
 
 
-def _on_any_of(
-    stage: ReceivedPathNode, paths: Collection[ReceivedPath]
-) -> py_trees.behaviour.Behaviour:
-    """The condition "the stage resolved one of *paths*", read, never asked.
-
-    One path needs one condition node; several are a Selector over them, in
-    the enum's own order so the built tree reads the same whatever order the
-    declaration listed.
-    """
-    ordered = [path for path in ReceivedPath if path in paths]
-    if len(ordered) == 1:
-        return CheckReceivedPathNode(stage, ordered[0])
-    return py_trees.composites.Selector(
-        name="OnAnyBranchPath",
-        memory=False,
-        children=[CheckReceivedPathNode(stage, path) for path in ordered],
-    )
-
-
 def path_branch_stage(
     where: str,
     declaration: OnPaths,
@@ -269,7 +250,7 @@ def path_branch_stage(
         children=[
             py_trees.decorators.Inverter(
                 name=f"NotOn{declaration.name}Path",
-                child=_on_any_of(stage, paths),
+                child=on_any_of_paths(stage, paths),
             )
         ],
     )

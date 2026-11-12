@@ -346,7 +346,11 @@ nothing is written before the last one admits the message (ADR-0154).
    case (HP-01-041), and with the manager path where a redelivery can reach
    the CASE_MANAGER of a case this actor created only after the first
    delivery — which is why `Create(CaseProposal)` declares the manager path
-   beside the no-case one its sender rule gives it. Every declaration in the
+   beside the no-case one. Each declared path is judged by its own side of the
+   sender rule — `at_case_manager`, `at_participant`, `outside_case` — so a
+   widened declaration states that side in the rule too (`SenderRule.on_every_path`
+   for the stub Invite and the first `Announce`), or the path refuses every
+   sender (HP-01-036). Every declaration in the
    migrated areas, and the disposition each gives a non-manager receiver, is
    pinned in `test/core/behaviors/test_declared_received_paths.py`.
 

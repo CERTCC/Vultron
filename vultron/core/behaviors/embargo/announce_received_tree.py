@@ -67,9 +67,10 @@ def announce_embargo_received_tree(
 
     The door guards come first: a copy not addressed to this receiver is
     refused (HP-01-005), and so is any sender but the case's CASE_MANAGER
-    (HP-01-006, ADR-0115) — an announcement naming no case is refused by
-    the rule's empty ``outside_case`` side.  An announcement naming no
-    embargo carries nothing to apply, so its tree only archives it.
+    (HP-01-006, ADR-0115) — an announcement naming no case puts the receiver
+    on the no-case path, which this type does not declare, so the path stage
+    refuses it.  An announcement naming no embargo carries nothing to apply,
+    so its tree only archives it.
 
     The type declares both the manager and the participant-replica path
     (HP-01-038).  The announcement is the CASE_MANAGER's, and it is addressed

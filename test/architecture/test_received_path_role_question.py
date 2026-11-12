@@ -23,24 +23,12 @@ the migration retires, and this module keeps the exact inventory of those
 sites:
 
 1. **Ratchet** :data:`KNOWN_ROLE_QUESTION_SITES`: every received-side site
-   that asks the question another way.  Terminal value: empty, driven there
-   by the Epic's migration waves: #5042 for the embargo trees, #5043 for the
-   case, participant, report and status trees, #5044 for the sync, ledger
-   and actor-offer trees and the role-gate registries, #5785 for the note and
-   dead-letter trees, #5046 for the `Offer(VulnerabilityReport)` trees.
-
-   The last entry is not waiting for a wave at all, and #5044 established
-   that: ``sender_guard``'s fallback read is taken only when a tree passes a
-   two-sided sender rule and no path stage, and after #5044 no call site in
-   ``vultron/`` does — 62 sites, of which 52 pass both and 10 pass no sender
-   rule.  The conditional declaration in
-   ``report/received_report_trees/verdicts.py`` passes ``paths=None`` exactly
-   when its ``case_id`` is ``None``, which is exactly when ``_compose``
-   returns before the side split.  Built live, no composed sender guard in
-   any of the 58 received trees holds a ``CheckIsCaseManagerNode``.  What
-   keeps the entry is the 22 guard-composition test functions that compose a
-   guard with no stage and let the fallback derive the receiver's role from
-   their store fixture; retiring it means reworking them, which is #5876.
+   that asks the question another way.  It reached its terminal value,
+   empty, when #5876 retired the sender guard's own role read: a sender rule
+   whose sides differ now needs the tree's path stage, and composing one
+   without it is a wiring error (HP-01-036).  The set stays, held empty by
+   :func:`test_the_ratchet_stays_empty`, so a site written again is reported
+   instead of silently exempt.
 
    ``role_gates.py`` was the other such entry, and #5044 cleared it a
    different way: that module held two gates, and only the
@@ -137,23 +125,9 @@ _E = f"{_B}/embargo"
 
 # ---------------------------------------------------------------------------
 # 1. Received-side sites that still ask the role question another way.
-#    Terminal value: empty.  Each wave of Epic #5193 moves a family of trees
-#    onto the declaration and drops its entries in the same commit.
+#    At its terminal value: empty.  A new site is a regression, not an entry.
 # ---------------------------------------------------------------------------
-# owner: #5876
-KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset(
-    {
-        # The sender guard's own role read, taken when a two-sided rule is
-        # composed with no path stage: with a declaration the arms read the
-        # stage's answer instead (HP-01-036).  No call site in ``vultron/``
-        # reaches it after #5044 — the module docstring has the count — so
-        # the entry is held open by the guard-composition tests that compose
-        # without a stage, not by any unmigrated tree.  Retiring it means
-        # making a two-sided rule without a declaration a wiring error and
-        # reworking those tests: #5876, not a declaring wave.
-        (f"{_B}/sender_guard/compose.py", CONDITION),
-    }
-)
+KNOWN_ROLE_QUESTION_SITES: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------
 # 2. Sites ADR-0153 does not retire: the factory's own stages, whose
@@ -304,19 +278,18 @@ def test_sanctioned_role_question_sites_are_pinned() -> None:
 
 
 @pytest.mark.spec("ARCH-18-002")
-def test_the_ratchet_has_entries_left_to_retire() -> None:
-    """The ratchet is not yet at its terminal value.
+@pytest.mark.spec("HP-01-036")
+def test_the_ratchet_stays_empty() -> None:
+    """The migration is complete, and stays complete.
 
-    When the last entry goes, invert this assertion rather than deleting the
-    module: the scan keeps covering every shape, so a site written again is
-    reported instead of silently exempt
+    The scan keeps covering every shape, so a received-side site written
+    again fails :func:`test_received_side_role_question_sites_are_ratcheted`
+    instead of being added here; :func:`test_the_detector_finds_every_shape`
+    is the positive control that the scan still sees the act
     (``notes/architecture-ratchet-corpus.md``).
     """
-    assert KNOWN_ROLE_QUESTION_SITES, (
-        "the migration is complete: replace this with an assertion that the"
-        " scan reports no received-side site, and keep"
-        " test_the_detector_finds_every_shape as the positive control"
-    )
+    assert frozenset() == KNOWN_ROLE_QUESTION_SITES
+    assert not _role_question_sites() - SANCTIONED_ROLE_QUESTION_SITES
 
 
 @pytest.mark.spec("ARCH-18-001")

@@ -21,6 +21,9 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.sender_guard import (
+    staged_sender_guard,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderClosureNotRecordedNode,
     SenderEntitlementKind,
@@ -32,7 +35,6 @@ from vultron.core.behaviors.sender_guard import (
     case_owner_guard,
     closed_sender_door,
     closed_sender_turned_away,
-    compose_sender_guard,
     sender_guard_refused,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -60,7 +62,7 @@ def _ran(node: py_trees.behaviour.Behaviour, status: Status) -> None:
 
 
 def _guard(rule: SenderRule) -> py_trees.behaviour.Behaviour:
-    guard = compose_sender_guard(
+    guard = staged_sender_guard(
         rule, SenderCheckContext(sender_id=SENDER_ID, case_id=CASE_ID)
     )
     assert guard is not None

@@ -270,8 +270,6 @@ def test_a_branch_in_a_tree_that_declared_no_paths_is_a_wiring_error() -> None:
         create_receive_activity_tree(
             name="PathBranchProofBT",
             case_id=CASE_ID,
-            sender_rule=_RULE,
-            sender_context=_CONTEXT,
             precondition_guards=[
                 OnPaths.at_case_manager("Adjudicate", _Marker("work"))
             ],

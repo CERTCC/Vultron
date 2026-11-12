@@ -46,7 +46,6 @@ declares its paths with the factory's ``paths`` argument and nothing else
 
 from collections.abc import Collection
 from enum import Enum
-from typing import Self
 
 import py_trees
 from py_trees.common import Status
@@ -62,6 +61,7 @@ __all__ = [
     "ReceivedPath",
     "ReceivedPathNode",
     "declared_paths",
+    "on_any_of_paths",
     "undeclared_path_reason",
 ]
 
@@ -290,9 +290,9 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
 class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
     """Condition: the path stage resolved the receiver onto *path*.
 
-    The sender guard's ``at_case_manager`` and ``at_participant`` arms are
-    selected with this, so the role question is asked once, by the path stage
-    (HP-01-036, HP-01-008).  It reads the answer the stage already
+    The sender guard's side arms (``at_case_manager``, ``at_participant``,
+    ``outside_case``) are selected with this, so the role question is asked
+    once, by the path stage (HP-01-036, HP-01-008).  It reads the answer the stage already
     recorded and touches neither the store nor the blackboard.
 
     Returns:
@@ -300,9 +300,9 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
         and for a stage that has not run.
 
     FAILURE for a stage that has not run is not a safe default on its own:
-    in the sender guard's two arms a FAILURE here skips the
-    at-the-CASE_MANAGER rule and runs the at-a-participant one, so an unrun
-    stage would judge the sender by the participant rule.  What makes that
+    in the sender guard's side arms a FAILURE here skips every arm but the
+    last and runs the last one, so an unrun stage would judge the sender by
+    the last arm's side.  What makes that
     unreachable is the stage order, not this node: the factory places the
     path stage among the door guards, ahead of the guard it feeds, and a
     stage that refused ends the tree (CLP-10-010, HP-01-035).
@@ -319,12 +319,28 @@ class CheckReceivedPathNode(py_trees.behaviour.Behaviour):
         self.stage = stage
         self.path = path
 
-    @classmethod
-    def on_manager_path(cls, stage: ReceivedPathNode) -> Self:
-        """The arm that runs only on the manager path."""
-        return cls(stage, ReceivedPath.CASE_MANAGER)
-
     def update(self) -> Status:
         if self.stage.resolved_path is self.path:
             return Status.SUCCESS
         return Status.FAILURE
+
+
+def on_any_of_paths(
+    stage: ReceivedPathNode, paths: Collection[ReceivedPath]
+) -> py_trees.behaviour.Behaviour:
+    """The condition "the stage resolved one of *paths*", read, never asked.
+
+    One path needs one condition node; several are a Selector over them, in
+    the enum's own order so the built tree reads the same whatever order the
+    declaration listed.  Shared by a path branch's skip arm and the sender
+    guard's side arms, so both read the stage's answer the same way
+    (HP-01-036, CS-22-001).
+    """
+    ordered = [path for path in ReceivedPath if path in paths]
+    if len(ordered) == 1:
+        return CheckReceivedPathNode(stage, ordered[0])
+    return py_trees.composites.Selector(
+        name="OnAnyBranchPath",
+        memory=False,
+        children=[CheckReceivedPathNode(stage, path) for path in ordered],
+    )

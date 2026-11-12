@@ -62,7 +62,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     tree here.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The first Announce reaches a participant with no replica, on the
+    # no-case path, which reads the outside-case side (HP-01-041,
+    # HP-01-036); the CASE_MANAGER is the sender there too (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.on_every_path(
         SenderEntitlementKind.CASE_MANAGER
     )
 

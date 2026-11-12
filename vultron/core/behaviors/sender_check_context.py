@@ -184,9 +184,10 @@ class SenderCheckContext:
 
     Attributes:
         sender_id: The activity's sender.
-        case_id: The case the activity names; ``None`` for an activity sent
-            before any case exists, which is checked against the rule's
-            ``outside_case`` side.
+        case_id: The case the activity names, which the kinds' checks read;
+            ``None`` for an activity sent before any case exists.  It never
+            picks the rule's side: the path stage's answer does
+            (HP-01-036).
         invite_id: The recorded Invite an ``INVITEE`` sender answers.
         invite_is_case_join: The Invite is a case-join Invite, so the record
             must also be one this CASE_MANAGER issued for ``case_id``
@@ -241,10 +242,10 @@ class LedgerActivityContext:
     read the sender and the case from the activity on the blackboard when the
     tree runs: ``CASE_MANAGER`` from the announced entry (SYNC-13-006), and
     ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The guard is
-    composed for the activity's case, never for the rule's ``outside_case``
-    side, and the rule must state the same kinds at the CASE_MANAGER and at a
-    participant: telling the receiver's side apart needs the case at build
-    time.
+    composed for the activity's case on every path, never for the rule's
+    ``outside_case`` side, and the rule must state the same kinds at the
+    CASE_MANAGER and at a participant (HP-01-024): its one in-case side is
+    the whole guard, so no path picks a side for it.
     """
 
 

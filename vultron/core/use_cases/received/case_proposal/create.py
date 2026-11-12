@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.case_proposal import (
@@ -127,8 +128,14 @@ class CreateCaseProposalReceivedUseCase:
     # actor may make, the admission decision being the call-out point's
     # (CP-05-002).  The proposal id is the sender's choice, so another
     # proposer's admitted or declined id is refused (CP-05-010, #4719).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
-        SenderEntitlementKind.AUTHOR
+    #
+    # A redelivery reaches the CASE_MANAGER of the case the first delivery
+    # created, on the manager path, which reads the at-the-CASE_MANAGER side
+    # (HP-01-036): the same author check admits it there, so the
+    # idempotency arms answer it (HP-01-038).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.AUTHOR),
+        outside_case=any_of(SenderEntitlementKind.AUTHOR),
     )
 
     def __init__(

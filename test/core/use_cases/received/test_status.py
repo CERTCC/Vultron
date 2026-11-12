@@ -849,10 +849,11 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        # The type declares the manager and participant-replica paths, so a
-        # store that holds no replica of the case is refused at the path
-        # stage, with the reason the composer gives that path (HP-01-039).
-        assert "holds no replica of" in result.reason
+        # With no case for the status the tree declares the no-case path
+        # alone, and the sender guard's empty outside-case side refuses
+        # every sender there, at a door (HP-01-036, HP-08-014).
+        assert "a receiver that holds no case for it" in result.reason
+        assert "REFUSED" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
 
@@ -914,10 +915,11 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        # The type declares the manager and participant-replica paths, so a
-        # store that holds no replica of the case is refused at the path
-        # stage, with the reason the composer gives that path (HP-01-039).
-        assert "holds no replica of" in result.reason
+        # With no case for the status the tree declares the no-case path
+        # alone, and the sender guard's empty outside-case side refuses
+        # every sender there, at a door (HP-01-036, HP-08-014).
+        assert "a receiver that holds no case for it" in result.reason
+        assert "REFUSED" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(target.id_))
         assert status_id not in [

@@ -257,7 +257,7 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             AnnounceVulnerabilityCaseReceivedUseCase,
-            SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+            SenderRule.on_every_path(SenderEntitlementKind.CASE_MANAGER),
             id="announce-case",
         ),
     ],

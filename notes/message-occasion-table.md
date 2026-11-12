@@ -102,7 +102,8 @@ lookup table is mostly links.
   against the `to` of the recorded Invite (EP-09-010, CM-11-017).
 - **A declaration is the full rule, per addressee side** (HP-01-008). It is
   "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,
-  or an actor outside any case), and the factory builds the guard from it alone.
+  or a receiver holding no replica of the case), and the factory builds the guard
+  from it alone; the received path picks which side applies (HP-01-036).
   No part of the rule is left to the tree: `Remove(Note)` admits the note's
   author or the Case Owner at the CASE_MANAGER, and the embargo
   `Invite(EmbargoEvent)` admits the CASE_MANAGER or an active participant there;

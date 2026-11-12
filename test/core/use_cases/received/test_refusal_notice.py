@@ -169,7 +169,9 @@ def _tree(
     return create_receive_activity_tree(
         name="RefusalNoticeTestBT",
         case_id=case_id,
-        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_rule=SenderRule.on_every_path(
+            SenderEntitlementKind.PARTICIPANT
+        ),
         sender_context=SenderCheckContext(sender_id=sender, case_id=case_id),
         precondition_guards=[
             guard if guard is not None else _Refuses(name="Refuses")
@@ -476,7 +478,9 @@ def test_a_notice_that_cannot_be_built_does_not_stop_the_next_effect(
     tree = create_receive_activity_tree(
         name="RefusalNoticeTestBT",
         case_id=net.case_id,
-        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_rule=SenderRule.on_every_path(
+            SenderEntitlementKind.PARTICIPANT
+        ),
         sender_context=SenderCheckContext(
             sender_id=BYSTANDER, case_id=net.case_id
         ),

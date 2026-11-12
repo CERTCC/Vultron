@@ -547,7 +547,9 @@ class TestRefusalEffects:
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
-            sender_rule=SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+            sender_rule=SenderRule.on_every_path(
+                SenderEntitlementKind.CASE_MANAGER
+            ),
             sender_context=SenderCheckContext(
                 sender_id="https://example.org/actors/sender", case_id=CASE_ID
             ),
@@ -1003,7 +1005,9 @@ class _Crashing(py_trees.behaviour.Behaviour):
 
 def _sender_args(case_id: str | None = CASE_ID) -> dict:
     return {
-        "sender_rule": SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+        "sender_rule": SenderRule.on_every_path(
+            SenderEntitlementKind.CASE_MANAGER
+        ),
         "sender_context": SenderCheckContext(
             sender_id="https://example.org/actors/sender", case_id=case_id
         ),
@@ -1372,7 +1376,9 @@ class TestClosedSenderStage:
             case_id=CASE_ID,
             precondition_guards=[],
             closed_sender=ClosedSenderCheck(sender_id="https://example.org/a"),
-            sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+            sender_rule=SenderRule.on_every_path(
+                SenderEntitlementKind.PARTICIPANT
+            ),
             sender_context=SenderCheckContext(
                 sender_id="https://example.org/a", case_id=CASE_ID
             ),
