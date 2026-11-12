@@ -23,8 +23,9 @@ dispatch, queue and outcome adapters and the production dispatcher, from the
 sealed body the CASE_MANAGER's outbox delivers, so a case-scoped activity
 the invitee cannot yet process is held for its replay (DL-06-006).
 
-Import the fixtures (``case_actor_dl``, ``invitee_dl``) into the test module
-that uses them.
+Import the fixtures (``case_actor_dl``, ``invitee_dl`` and
+``clear_actor_locks``) into the test module that uses them, and request
+``clear_actor_locks`` for every test that delivers through the pipeline.
 """
 
 from collections.abc import Iterator
@@ -107,6 +108,14 @@ def invitee_dl() -> Iterator[SqliteDataLayer]:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE_ID)
     yield dl
     dl.close()
+
+
+@pytest.fixture
+def clear_actor_locks() -> Iterator[None]:
+    """Clear the pipeline's process-global per-actor inbox locks."""
+    pipeline._actor_inbox_locks.clear()
+    yield
+    pipeline._actor_inbox_locks.clear()
 
 
 def stub_invite_body(

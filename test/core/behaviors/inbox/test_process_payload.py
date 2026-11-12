@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support import stub_invite_arrival
 from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
@@ -1097,6 +1098,13 @@ class TestOneDeliveryIsOneAct:
         assert outer.seen == [_FIRST, _FIRST]
 
 
+# The shared stores and lock reset (``test.support.stub_invite_arrival``),
+# bound here so only this module sees them.
+case_actor_dl = stub_invite_arrival.case_actor_dl
+invitee_dl = stub_invite_arrival.invitee_dl
+clear_actor_locks = stub_invite_arrival.clear_actor_locks
+
+
 # ---------------------------------------------------------------------------
 # A full-case Invite before the Announce waits at the inbox (CM-11-033)
 # ---------------------------------------------------------------------------
@@ -1132,6 +1140,7 @@ def _fci_received_logs(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
+@pytest.mark.usefixtures("clear_actor_locks")
 class TestFullCaseInviteBeforeTheAnnounce:
     """A full-case Invite with no replica is held, then judged on replay.
 

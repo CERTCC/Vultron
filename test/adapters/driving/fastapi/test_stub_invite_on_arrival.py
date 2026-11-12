@@ -39,6 +39,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.core.use_cases.received.conftest import seed_case_manager_participant
+from test.support import stub_invite_arrival
 from test.support.act_runner import run_in_act
 from test.support.objects import authored_at, make
 from test.support.stub_invite_arrival import (
@@ -79,14 +80,13 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
+# The shared stores and lock reset (``test.support.stub_invite_arrival``),
+# bound here so only this module sees them.
+case_actor_dl = stub_invite_arrival.case_actor_dl
+invitee_dl = stub_invite_arrival.invitee_dl
+clear_actor_locks = stub_invite_arrival.clear_actor_locks
 
-@pytest.fixture(autouse=True)
-def clear_actor_locks() -> Iterator[None]:
-    from vultron.adapters.driving.fastapi.inbox_orchestration import pipeline
-
-    pipeline._actor_inbox_locks.clear()
-    yield
-    pipeline._actor_inbox_locks.clear()
+pytestmark = pytest.mark.usefixtures("clear_actor_locks")
 
 
 def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
