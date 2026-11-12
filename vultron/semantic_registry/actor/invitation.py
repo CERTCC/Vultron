@@ -84,7 +84,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Sends a Stub Invite carrying the case stub and the "
                     "embargo terms the invitee would agree to."
                 ),
-                example="rm_invite_to_case",
+                example="invite_to_case",
                 howto=HowToGuide.INVITE_ACTOR,
             ),
         ),

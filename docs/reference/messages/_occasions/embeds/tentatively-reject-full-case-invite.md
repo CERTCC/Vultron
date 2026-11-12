@@ -13,10 +13,7 @@
     ??? example "Example activity"
 
         ```python exec="true" idprefix=""
-        from vultron.wire.as2.vocab.examples.vocab_examples import (
-            tentative_reject_full_case_invite,
-            json2md,
-        )
+        from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-        print(json2md(tentative_reject_full_case_invite()))
+        print(render_example("tentative_reject_full_case_invite"))
         ```

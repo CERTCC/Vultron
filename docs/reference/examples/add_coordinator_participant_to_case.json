@@ -1,0 +1,59 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
+  "type": "Add",
+  "id": "urn:uuid:87e53760-1733-48e0-a89f-e7f8567fc4f8",
+  "name": "https://vultron.example/organizations/vendorco Add Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
+  "content": "We're reinstating the coordinator in this case.",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "object": {
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/coordinator",
+    "type": "CaseParticipant",
+    "name": "Coordinator LLC",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "attributedTo": "https://vultron.example/organizations/coordinator",
+    "caseRoles": [
+      "coordinator"
+    ],
+    "participantStatuses": [
+      {
+        "id": "urn:uuid:94423d36-7e74-4433-b108-786eb3c87905",
+        "type": "ParticipantStatus",
+        "name": "START",
+        "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+        "published": "2026-06-01T19:12:00.000000+00:00",
+        "updated": "2026-06-01T19:12:00.000000+00:00",
+        "attributedTo": "https://vultron.example/organizations/coordinator",
+        "rmState": "START",
+        "caseEngagement": true,
+        "cvdRole": [
+          "COORDINATOR"
+        ]
+      }
+    ],
+    "embargoConsents": [],
+    "joined": true
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "zN5nQXZMtKkJz5JqYUvhcpkrzG9D3dMnd3GnK3u7gEvhY3Rdp11PxK8BUk8EXiNRkjL6eHXkyNKMPKEPTg5zTkPR"
+  }
+}

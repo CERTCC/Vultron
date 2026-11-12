@@ -18,10 +18,7 @@ Announces that the report has reached the Vendor whose participant record is the
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        add_vendor_awareness_to_participant,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(add_vendor_awareness_to_participant()))
+    print(render_example("add_vendor_awareness_to_participant"))
     ```

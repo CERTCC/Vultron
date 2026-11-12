@@ -52,11 +52,12 @@ from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     coordinator,
     finder,
     gen_report,
+    json2md,
     obj_to_file,
     vendor,
 )
 from vultron.wire.as2.vocab.examples.actor import *  # noqa: F403  # CS-03-001
-from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
+from vultron.wire.as2.vocab.examples.actor import (
     accept_actor_recommendation,
     accept_case_participant_offer,
     offer_case_participant,
@@ -66,7 +67,7 @@ from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F403  # CS-03-001
-from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
+from vultron.wire.as2.vocab.examples.case import (
     accept_case_ownership_transfer,
     accept_case_participant_role,
     add_case_reference_to_case,
@@ -207,9 +208,11 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (close_report, None),
     # the case workflow
     (create_case, None),
+    (populated_case, None),
     (add_report_to_case, None),
     (add_vendor_participant_to_case, None),
     (add_finder_participant_to_case, None),
+    (add_coordinator_participant_to_case, None),
     (engage_case, None),
     (close_case, None),
     (defer_case, None),
@@ -230,6 +233,9 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     (accept_actor_recommendation, None),
     (reject_actor_recommendation, None),
     (request_invite_actor_to_case, None),
+    (offer_case_participant, None),
+    (accept_case_participant_offer, None),
+    (reject_case_participant_offer, None),
     # participants and invitations
     (create_participant, None),
     (update_participant, None),
@@ -313,6 +319,9 @@ INLINE_OBJECTS: tuple[tuple[Callable[[], BaseModel], str, str], ...] = (
     (create_case, "object_", "vulnerability_case.json"),
     (add_vendor_participant_to_case, "object_", "vendor_participant.json"),
     (add_finder_participant_to_case, "object_", "finder_participant.json"),
+    (offer_case_participant_role, "object_", "case_participant_role.json"),
+    (announce_case_ledger_entry, "object_", "case_ledger_entry.json"),
+    (create_case_proposal, "object_", "case_proposal.json"),
 )
 
 
@@ -321,6 +330,15 @@ def example_filename(
 ) -> str:
     """The file a row of :data:`EXAMPLES` is written to."""
     return filename or f"{builder.__name__}.json"
+
+
+def _all_filenames() -> list[str]:
+    """Every file the tables write, in write order, repeats included."""
+    names = [
+        example_filename(builder, filename) for builder, filename in EXAMPLES
+    ]
+    names += [filename for _, _, filename in INLINE_OBJECTS]
+    return names
 
 
 def check_tables() -> None:
@@ -336,10 +354,7 @@ def check_tables() -> None:
     row of :data:`EXAMPLES`, so the inline object is read off that row's one
     built instance rather than from a second call.
     """
-    names = [
-        example_filename(builder, filename) for builder, filename in EXAMPLES
-    ]
-    names += [filename for _, _, filename in INLINE_OBJECTS]
+    names = _all_filenames()
     repeated = sorted({name for name in names if names.count(name) > 1})
     if repeated:
         raise ValueError(
@@ -379,6 +394,22 @@ def _build(builder: Callable[[], BaseModel]) -> BaseModel:
         return builder()
 
 
+def _inline_object(
+    activity: BaseModel,
+    builder: Callable[[], BaseModel],
+    attribute: str,
+    filename: str,
+) -> BaseModel:
+    """The object an :data:`INLINE_OBJECTS` row reads off its built activity."""
+    inline = getattr(activity, attribute)
+    if not isinstance(inline, BaseModel):
+        raise TypeError(
+            f"{builder.__name__}().{attribute} is not a model, so "
+            f"{filename} cannot be written from it: {inline!r}"
+        )
+    return inline
+
+
 def build_examples() -> dict[str, BaseModel]:
     """Every example to write, keyed by filename, built before anything is.
 
@@ -396,14 +427,65 @@ def build_examples() -> dict[str, BaseModel]:
         by_builder[builder.__name__] = example
         built[example_filename(builder, filename)] = example
     for builder, attribute, filename in INLINE_OBJECTS:
-        inline = getattr(by_builder[builder.__name__], attribute)
-        if not isinstance(inline, BaseModel):
-            raise TypeError(
-                f"{builder.__name__}().{attribute} is not a model, so "
-                f"{filename} cannot be written from it: {inline!r}"
-            )
-        built[filename] = inline
+        built[filename] = _inline_object(
+            by_builder[builder.__name__], builder, attribute, filename
+        )
     return built
+
+
+def example_names() -> list[str]:
+    """The name of every committed example, in the order it is written.
+
+    A name is the committed file's stem: ``create_case`` for
+    ``docs/reference/examples/create_case.json``.  These are the names
+    :func:`render_example` accepts.
+    """
+    return [name.removesuffix(".json") for name in _all_filenames()]
+
+
+def build_example(name: str) -> BaseModel:
+    """Build the one committed example named *name*, as the generator does.
+
+    *name* is the committed file's stem (:func:`example_names`).  The example
+    is built inside the id scope :func:`build_examples` builds it in, and an
+    inline object is read off its activity the same way, so what this returns
+    serializes to the committed file's bytes.
+
+    Raises:
+        ValueError: no committed example has that name.
+    """
+    check_tables()
+    filename = f"{name}.json"
+    for builder, row_filename in EXAMPLES:
+        if example_filename(builder, row_filename) == filename:
+            return _build(builder)
+    for builder, attribute, row_filename in INLINE_OBJECTS:
+        if row_filename == filename:
+            return _inline_object(
+                _build(builder), builder, attribute, filename
+            )
+    raise ValueError(
+        f"no committed example is named {name!r}: a docs page renders only "
+        "an example the generator writes to docs/reference/examples/ "
+        "(see example_names())"
+    )
+
+
+def render_example(name: str) -> str:
+    """The markdown a docs page shows for the committed example *name*.
+
+    The one way a ``python exec`` block under ``docs/`` renders a vocab
+    example (#5893).  A block that called a builder itself ran it outside
+    the example id scope, so every id and stamp it showed was drawn afresh
+    on each site build and disagreed with the committed
+    ``docs/reference/examples/<name>.json``.  This builds the example the way
+    the generator does (:func:`build_example`) and renders it with the text
+    the generator writes, so the page and the artifact show one example.
+
+    Raises:
+        ValueError: no committed example has that name.
+    """
+    return json2md(build_example(name))
 
 
 def main(outdir=None):

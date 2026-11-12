@@ -15,10 +15,7 @@ Asks the CASE_MANAGER to offer the case to another participant, for example from
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        propose_case_ownership_transfer,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(propose_case_ownership_transfer()))
+    print(render_example("propose_case_ownership_transfer"))
     ```

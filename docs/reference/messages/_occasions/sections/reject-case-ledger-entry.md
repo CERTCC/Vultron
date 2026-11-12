@@ -15,10 +15,7 @@ Tells the CASE_MANAGER that the entry's previous hash does not match the sender'
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        reject_case_ledger_entry,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(reject_case_ledger_entry()))
+    print(render_example("reject_case_ledger_entry"))
     ```

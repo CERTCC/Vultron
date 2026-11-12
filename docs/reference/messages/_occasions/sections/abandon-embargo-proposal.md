@@ -18,10 +18,7 @@ Cancels the proposal for the case. The CASE_MANAGER then withdraws each Invite i
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        abandon_embargo_proposal,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(abandon_embargo_proposal()))
+    print(render_example("abandon_embargo_proposal"))
     ```

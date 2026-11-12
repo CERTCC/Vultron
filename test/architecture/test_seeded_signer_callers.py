@@ -158,6 +158,7 @@ _SIGNING_WRAPPERS = {
     "_example_json": (_EXAMPLES_PACKAGE,),
     "json2md": (_EXAMPLES_PACKAGE,),
     "obj_to_file": (_EXAMPLES_PACKAGE,),
+    "render_example": (_EXAMPLES_PACKAGE,),
 }
 
 

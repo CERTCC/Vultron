@@ -230,6 +230,18 @@ def _yaml_error(
     )
 
 
+def _construction_error(exc: ValueError, shown: str) -> MetadataLoadError:
+    """Attribute a value PyYAML parsed but could not build to *shown*.
+
+    PyYAML resolves a scalar such as ``2026-13-45`` as a timestamp and then
+    raises the ``ValueError`` of :class:`datetime.date`, not a
+    ``YAMLError``, so the fault carries no position (MS-17-002).
+    """
+    return MetadataLoadError(
+        f"YAML parse error: a value cannot be read: {exc}", path=shown
+    )
+
+
 def _load_default(source: str | TextIO) -> object:
     """Parse *source* with :data:`SAFE_LOADER`, faulting as ``SafeLoader`` does.
 
@@ -266,7 +278,8 @@ def load_yaml(
     is :func:`_load_default`'s: fast, with the pure-Python parser's error.
 
     Raises:
-        MetadataLoadError: On a YAML syntax fault or an undecodable file.
+        MetadataLoadError: On a YAML syntax fault, a value PyYAML cannot
+            build (an impossible date), or an undecodable file.
         FileNotFoundError: If *path* does not exist.
     """
     shown = display_path(path, root)
@@ -279,6 +292,8 @@ def load_yaml(
         raise _yaml_error(exc, shown, "YAML parse error") from exc
     except UnicodeDecodeError as exc:
         raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
+    except ValueError as exc:
+        raise _construction_error(exc, shown) from exc
 
 
 def read_utf8(path: Path, shown: str) -> str:
@@ -314,7 +329,8 @@ def loads_yaml(
     cut-out block reads at its line in the file.
 
     Raises:
-        MetadataLoadError: On a YAML syntax fault.
+        MetadataLoadError: On a YAML syntax fault, or a value PyYAML cannot
+            build (an impossible date).
     """
     try:
         if loader is None:
@@ -324,6 +340,8 @@ def loads_yaml(
         raise _yaml_error(
             exc, str(shown), "YAML parse error", line_offset
         ) from exc
+    except ValueError as exc:
+        raise _construction_error(exc, str(shown)) from exc
 
 
 #: Lead-in for a frontmatter parse fault. Kept identical across loaders so the

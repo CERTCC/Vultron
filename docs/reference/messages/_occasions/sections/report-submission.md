@@ -17,10 +17,7 @@ Offers the report to a new Participant. The Offer may carry proposed embargo ter
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        submit_report,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(submit_report()))
+    print(render_example("submit_report"))
     ```

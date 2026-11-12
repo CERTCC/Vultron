@@ -37,7 +37,7 @@ _EXCLUSION_KEY = "guard-tests.yml::guard-tests::Run the guard tests"
 
 #: How many tests the job runs. A fixed floor, not `len()` of the list below:
 #: a floor derived from the thing it guards shrinks with it (#5535).
-_GUARD_TEST_COUNT = 14
+_GUARD_TEST_COUNT = 15
 
 #: Guards with an input that **no** CI job running pytest reaches, so each is a
 #: reason this job exists rather than an incidental member. Derived against two
@@ -79,6 +79,10 @@ _INPUTS_NO_SUITE_REACHES = (
     # `docs/reference/user_stories/**`.
     "test/metadata/docs/test_page_frontmatter.py",
     "test/metadata/docs/test_level_order.py",
+    # Reads every exec block in `docs/**/*.md`, so a hand-written page such
+    # as `docs/reference/activitypub/objects.md` that calls a vocab example
+    # builder again is caught on a docs-only pull request (#5893).
+    "test/architecture/test_docs_vocab_examples_pinned.py",
 )
 
 

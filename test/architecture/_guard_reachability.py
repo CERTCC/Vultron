@@ -33,9 +33,10 @@ detector tests drive the same judgement without a file on disk.
 Only files containing ``raise `` are parsed, and within them the guard pass
 walks only definitions whose own source span contains ``raise ``, so the cost
 stays proportional to the match count (TB-13-002, TB-13-008).  The whole
-derivation measures about 2.9 s with a warm corpus, above TB-13-004's 0.5 s
-SHOULD and in the band of the heaviest existing ratchets (1–11 s); it is
-cached per process, so one test pays it.
+derivation measures about 2.1 s in the architecture suite, with a warm
+corpus, and about 3.6 s alone with a cold one, inside TB-13-004's 10 s tier
+for a cached derivation; it is cached per process, so one test pays it and
+the rest read it well inside the 0.5 s tier.
 
 **Where it reads loosely.**  The derivation resolves names, not bindings, so
 most of its imprecision lets a violation through rather than inventing one:
@@ -74,7 +75,7 @@ most of its imprecision lets a violation through rather than inventing one:
 Some readings go the other way and **invent** a violation, which is the
 direction that fails correct code and gets a ratchet switched off
 (``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
-It Can Miss or Invent").  Four are narrowed:
+It Can Miss or Invent").  Five are narrowed:
 
 * A parameter the body **rebinds** before testing it is no longer a gate on
   what the caller passed, so :func:`reassigned_names` drops it.
@@ -93,27 +94,56 @@ It Can Miss or Invent").  Four are narrowed:
   :func:`_call_sites` counts the same literals as unreadable sites for arm
   B.  Only those arguments count, not every string constant, so a guard named only in a
   docstring or comment still reads as unreached.
+* **"Refusing" means refusing the caller's input** (#5896).  A raise
+  counts only where it refuses what the caller passed: ``raise
+  NotImplementedError`` refuses a feature nothing provides yet, and a raise
+  in an ``except`` handler translates a failure of the code the ``try``
+  ran, so neither opens a gate (:func:`is_refusal`, :func:`_refusal_scope`).
+  A per-entry check of the optional payload does refuse it, and counts.  A
+  delegated call counts only when the branch hands the gating parameter
+  itself, as a bare name, into a parameter the callee tests before raising
+  (:func:`hands_on`, :func:`checked_slots`), and the callee's test reads
+  the parameter itself, not a value a call derived from it
+  (``client.lookup() is None``; :func:`_tested_names`).  Before this, any raise in the
+  branch and any call to a refuser's name counted, so an optional seeding
+  step, a lookup whose value the branch returns, an idempotent re-read and
+  a translated persistence error were all subjects, and removing the one
+  caller that supplied each would have failed code that refuses nothing.
+  This reading **misses** rather than invents: a refuser handed a value
+  *derived* from the parameter (``_check(read(p))``, ``_check(p.items)``)
+  or handed it after a ``*args`` splat, whose position cannot be counted,
+  a delegation made per entry on the caller's side (``for item in items:
+  _check(item)``; the loop alias is read only in the callee), a delegated
+  call inside an ``except`` handler of the branch (the ``except`` stop cuts
+  calls as well as raises), a callee that tests the parameter only through
+  a call (``if read(p) is None``),
+  a ``_fail()`` helper that raises unconditionally, a refuser that hands
+  its own refusal on to another call rather than raising (one level of
+  delegation is read, not a chain), a refuser whose test
+  only returns early (``if p is None: return`` before an unconditional
+  raise), a method refuser called unbound (``Rules._check(self, w)``, whose
+  positions are one off the receiver-less reading), a loop over anything
+  computed from the parameter (``for i in range(n)``), and an ``except``
+  handler that translates a validation error of the input
+  (``except ValueError: raise BadInput``) all read as refusing nothing.
+  The ``except`` stop applies inside the gated branch only: a gate that
+  itself sits in a handler is read like any other.
 
 The rest cannot be narrowed without resolving bindings or intent, so they are
 stated here instead.  Each would surface as a *failure*, so the first reader
 of a red arm needs to know they exist:
 
-* **"Refusing" is wider than "refuses the caller's input."** :func:`_refuses`
-  accepts any raise in the gated branch — an error translated in an
-  ``except``, a ``NotImplementedError`` stub, a per-entry check of the
-  optional payload — and any call to a name :func:`_refusing_names` collected.
-  Some of arm B's subjects today are that shape rather than gates: an
-  optional seeding step and a lookup whose value the branch returns, each a
-  subject only because the callee raises somewhere of its own. They pass
-  because a call site does supply the argument; were one removed, the arm
-  would fail code that refuses nothing. Narrowing to a spec-citing callee was
-  measured: it drops only some of them and costs over half the names
-  :func:`_refusing_names` collects, so the width is reported rather than
-  traded away (#5896).
-* **A name in** :func:`_refusing_names` **is matched across the whole
-  corpus.** A gated branch that calls some *other* binding of a name that a
-  spec-citing raiser elsewhere happens to share reads as refusing, which
-  invents a gate and, if no caller supplies the parameter, a violation.
+* **A refuser's name is matched across the whole corpus.** A gated branch
+  that hands its parameter to some *other* binding of a name a refuser
+  elsewhere happens to share reads as refusing, which invents a gate and,
+  if no caller supplies the parameter, a violation.
+* **Both arms refusing makes no gate, but reads as one.**  A branch whose
+  raise differs from the fall-through's only in its message —
+  ``if progress is not None: raise AssertionError(msg + progress)`` before
+  ``raise AssertionError(msg)`` — opens no check the caller could leave
+  closed.  ``_poll_until()`` ``[progress]`` and ``_poll_datalayer_for()``
+  ``[progress_fn]`` in ``vultron/demo/helpers/polling/_poll.py`` are that
+  shape and are subjects today; a call site supplies each.
 * **Only an attribute-by-name call's literal is read.** ``getattr(self,
   prefix + "guard")`` names no literal, and a mapping lookup such as
   ``vars(self)["_guard"]`` or ``type(self).__dict__["_guard"]`` is not one of
@@ -121,10 +151,9 @@ of a red arm needs to know they exist:
   way reads as unreached, and a gate reached only that way as unsupplied.  No
   instance exists in the package today.
 
-Only the first has an instance in the package today, and it is green; the
+Only the second has an instance in the package today, and it is green; the
 other two have none — measured, not assumed, since both arms' baselines are
-empty.  The first two are tracked for narrowing in #5896; read them before
-reading a red arm as a real dead guard.
+empty.  Read them before reading a red arm as a real dead guard.
 
 Where arm B's call-site scope is production only, that is not imprecision: a
 gate opened solely from ``test/`` is a check that never runs where it matters
@@ -138,7 +167,7 @@ import ast
 import functools
 import re
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from test.architecture import _corpus
@@ -518,34 +547,51 @@ def presence_asserted(
         yield test.id
 
 
-def _refuses(body: Sequence[ast.AST], refusing: frozenset[str]) -> bool:
-    """Whether *body* raises, or calls a name in *refusing*.
+#: Where a call site can write an argument: a keyword name, or a positional
+#: index as the *caller* counts it (after :func:`receiver_offset`).
+Slot = str | int
 
-    Scoped the way :func:`own_scope` scopes arm A: a raise inside a nested
-    function the branch merely *defines* is that function's refusal, not the
-    branch's, so it does not make the branch a gate.
+
+def is_refusal(node: ast.AST) -> bool:
+    """Whether *node* is a ``raise`` that refuses, for arm B.
+
+    A bare re-raise is not one (:func:`raises_in`), and neither is ``raise
+    NotImplementedError``: a stub refuses the feature, not the caller's
+    input, and a branch no caller opens because nothing implements it yet is
+    not a check that never runs.  A raise inside an ``except`` handler is
+    excluded by where :func:`_refusal_scope` stops, not here.
     """
-    for statement in body:
-        for node in _own_scope_of(statement):
-            if isinstance(node, ast.Raise) and node.exc is not None:
-                return True
-            if (
-                isinstance(node, ast.Call)
-                and _corpus.callee_name(node.func) in refusing
-            ):
-                return True
-    return False
+    if not (isinstance(node, ast.Raise) and node.exc is not None):
+        return False
+    raised = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
+    return _corpus.callee_name(raised) != "NotImplementedError"
 
 
-def _own_scope_of(statement: ast.AST) -> Iterator[ast.AST]:
-    """*statement* and its descendants, stopping at a nested scope."""
+def _refusal_scope(statement: ast.AST) -> Iterator[ast.AST]:
+    """*statement* and its descendants, as far as a refusal of input reaches.
+
+    Stops at a nested scope — a raise inside a function the branch merely
+    *defines* is that function's refusal, not the branch's, the way
+    :func:`own_scope` scopes arm A — and at an ``except`` handler: a raise
+    there translates a failure of the code the ``try`` ran, which is not a
+    refusal of what the caller passed.  Only a handler *below* the branch is
+    cut off; an ``if`` that itself sits in a handler is a branch like any
+    other, so its own refusal still counts.  The ``try`` body, ``else`` and
+    ``finally`` are walked.
+    """
     pending: list[ast.AST] = [statement]
     while pending:
         node = pending.pop()
         yield node
         if isinstance(
             node,
-            (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef),
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.Lambda,
+                ast.ClassDef,
+                ast.ExceptHandler,
+            ),
         ):
             continue
         for _field, value in ast.iter_fields(node):
@@ -557,9 +603,256 @@ def _own_scope_of(statement: ast.AST) -> Iterator[ast.AST]:
                 pending.append(value)
 
 
+def _refuses_directly(body: Sequence[ast.AST]) -> bool:
+    """Whether *body* holds a refusal of its own (:func:`is_refusal`)."""
+    return any(
+        is_refusal(node)
+        for statement in body
+        for node in _refusal_scope(statement)
+    )
+
+
+def _branches(
+    node: ast.AST,
+) -> tuple[tuple[ast.expr, bool, Sequence[ast.AST]], ...]:
+    """The ``(test, polarity, body)`` arms of an ``if`` statement or expression.
+
+    Empty for any other node.  Polarity ``True`` is the arm taken when the
+    test holds.
+    """
+    if isinstance(node, ast.If):
+        return ((node.test, True, node.body), (node.test, False, node.orelse))
+    if isinstance(node, ast.IfExp):
+        return (
+            (node.test, True, [node.body]),
+            (node.test, False, [node.orelse]),
+        )
+    return ()
+
+
+def checked_slots(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef, *, in_class: bool
+) -> frozenset[Slot]:
+    """Where a caller may hand *fn* an argument that *fn* tests, then refuses.
+
+    A parameter is checked when an ``if`` whose test reads it — or reads a
+    name a ``for`` loop binds from it, the per-entry check of a collection
+    (:func:`_entry_aliases`) — has an arm that refuses directly.  A
+    parameter the body rebinds is not checked.  Each checked parameter gives its
+    keyword name and, when it can be passed positionally, its index as the
+    caller writes it.  This is what makes a delegation a refusal *of the
+    caller's input*: ``_validate_entry_timestamps`` raises under a test of
+    the ``case_published`` it is handed, while ``_seed_stub_summary`` raises
+    under a test of a value it looked up itself.
+    """
+    positional = [
+        argument.arg for argument in (*fn.args.posonlyargs, *fn.args.args)
+    ]
+    # A parameter the body rebinds — ``items = DEFAULTS``, or a loop variable
+    # that shadows it — is no longer what the caller handed in, the same
+    # reading :func:`gated_params` applies on the caller's side.
+    declared = {
+        *positional,
+        *(a.arg for a in fn.args.kwonlyargs),
+    } - reassigned_names(fn)
+    entries = _entry_aliases(fn, declared)
+    checked: set[str] = set()
+    for node in own_scope(fn):
+        arms = _branches(node)
+        if not any(body and _refuses_directly(body) for _t, _p, body in arms):
+            continue
+        for name in _tested_names(arms[0][0]):
+            if name in declared:
+                checked.add(name)
+            elif name in entries:
+                checked.add(entries[name])
+    offset = receiver_offset(fn, in_class=in_class)
+    slots: set[Slot] = set(checked)
+    slots.update(
+        index - offset
+        for index, name in enumerate(positional)
+        if name in checked and index >= offset
+    )
+    return frozenset(slots)
+
+
+#: Methods whose result iterates a mapping's own entries.
+_ENTRY_VIEWS: frozenset[str] = frozenset({"items", "values", "keys"})
+
+
+def _entry_aliases(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef, declared: set[str]
+) -> dict[str, str]:
+    """Loop variables that each name an entry of one of *declared*.
+
+    Only a loop over the parameter itself counts — ``for x in items``,
+    ``for k, v in items.items()`` — or over an entry already known, so a
+    nested loop over ``item.parts``-style attributes is not followed but
+    ``for part in item`` is.  A loop over anything *computed* from a
+    parameter, ``for i in range(n)``, is iterating something else, and a
+    test of ``i`` is not a test of ``n``.
+    """
+    loops = [
+        node
+        for node in own_scope(fn)
+        if isinstance(node, (ast.For, ast.AsyncFor))
+    ]
+    entries: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for loop in loops:
+            source = _iterated_name(loop.iter)
+            root = source if source in declared else entries.get(source or "")
+            if root is None:
+                continue
+            for target in _stored_names(loop.target):
+                if target not in entries:
+                    entries[target] = root
+                    changed = True
+    return entries
+
+
+def _iterated_name(iterable: ast.expr) -> str | None:
+    """The bare name a loop iterates directly, or through an entry view."""
+    if isinstance(iterable, ast.Name):
+        return iterable.id
+    if (
+        isinstance(iterable, ast.Call)
+        and not iterable.args
+        and isinstance(iterable.func, ast.Attribute)
+        and iterable.func.attr in _ENTRY_VIEWS
+        and isinstance(iterable.func.value, ast.Name)
+    ):
+        return iterable.func.value.id
+    return None
+
+
+#: Builtins whose call tests the argument it is handed, not a value derived
+#: from it, so ``isinstance(p, int)`` and ``len(p)`` still test ``p``.
+_PREDICATE_CALLS: frozenset[str] = frozenset(
+    {"isinstance", "issubclass", "len", "callable", "hasattr", "bool"}
+)
+
+
+def _tested_names(test: ast.AST) -> set[str]:
+    """Every bare name a branch *test* reads as itself, not through a call.
+
+    A name read only inside a call — a method call on it,
+    ``client.lookup() is None``, or an argument to anything but a
+    :data:`_PREDICATE_CALLS` builtin, ``read(p) is None`` — tests a value
+    the call derived, the callee-side twin of the derived value
+    :func:`hands_on` refuses to count on the caller's side.  An attribute
+    read, ``p.deadline is None``, still tests what the caller handed in.
+    """
+    if isinstance(test, ast.Name):
+        return {test.id} if isinstance(test.ctx, ast.Load) else set()
+    if isinstance(test, ast.Call):
+        if (
+            isinstance(test.func, ast.Name)
+            and test.func.id in _PREDICATE_CALLS
+        ):
+            return {
+                name
+                for argument in (*test.args, *(k.value for k in test.keywords))
+                for name in _tested_names(argument)
+            }
+        return set()
+    return {
+        name
+        for child in ast.iter_child_nodes(test)
+        for name in _tested_names(child)
+    }
+
+
+def _stored_names(target: ast.AST) -> set[str]:
+    """Every bare name an assignment *target* binds."""
+    return {
+        child.id
+        for child in ast.walk(target)
+        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
+    }
+
+
+def hands_on(call: ast.Call, parameter: str, slots: frozenset[Slot]) -> bool:
+    """Whether *call* passes *parameter*, as a bare name, into one of *slots*.
+
+    Only the bare name counts: ``_to_wire(self._dl.read(p))`` hands the
+    callee a value derived from ``p``, and whatever the callee then refuses
+    is that value, not the caller's input.  Positions after a ``*args``
+    splat cannot be counted, so they are not read.
+    """
+    for index, argument in enumerate(call.args):
+        if isinstance(argument, ast.Starred):
+            break
+        if (
+            isinstance(argument, ast.Name)
+            and argument.id == parameter
+            and index in slots
+        ):
+            return True
+    return any(
+        keyword.arg in slots
+        and isinstance(keyword.value, ast.Name)
+        and keyword.value.id == parameter
+        for keyword in call.keywords
+    )
+
+
+@dataclass
+class Refusers:
+    """The definitions a gated branch may delegate a refusal to, by name.
+
+    :func:`_refusers` decides which names qualify; what each one
+    checks (:func:`checked_slots`) is derived only for the names a gated
+    branch actually calls, and once per name.  Same-named definitions are
+    unioned, which follows the derivation's names-not-bindings reading.
+    """
+
+    definitions: Mapping[
+        str, tuple[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool], ...]
+    ]
+    _slots: dict[str, frozenset[Slot]] = field(default_factory=dict)
+
+    def slots_of(self, name: str | None) -> frozenset[Slot]:
+        """Where *name*'s definitions check what they are handed."""
+        if name is None or name not in self.definitions:
+            return frozenset()
+        if name not in self._slots:
+            self._slots[name] = frozenset().union(
+                *(
+                    checked_slots(fn, in_class=in_class)
+                    for fn, in_class in self.definitions[name]
+                )
+            )
+        return self._slots[name]
+
+
+def _refuses(
+    body: Sequence[ast.AST], parameter: str, refusers: Refusers
+) -> bool:
+    """Whether *body* refuses the input *parameter* opened it for.
+
+    Either the branch refuses directly (:func:`is_refusal`, within
+    :func:`_refusal_scope`), or it hands *parameter* itself to a refuser
+    that tests it before raising (:func:`hands_on`).
+    """
+    for statement in body:
+        for node in _refusal_scope(statement):
+            if is_refusal(node):
+                return True
+            if isinstance(node, ast.Call) and hands_on(
+                node,
+                parameter,
+                refusers.slots_of(_corpus.callee_name(node.func)),
+            ):
+                return True
+    return False
+
+
 def gated_params(
     fn: ast.FunctionDef | ast.AsyncFunctionDef,
-    refusing: frozenset[str],
+    refusers: Refusers,
     *,
     offset: int = 0,
 ) -> dict[str, int | None]:
@@ -581,20 +874,11 @@ def gated_params(
         return {}
     found: dict[str, int | None] = {}
     for node in own_scope(fn):
-        if isinstance(node, ast.If):
-            branches: tuple[tuple[bool, Sequence[ast.AST]], ...] = (
-                (True, node.body),
-                (False, node.orelse),
-            )
-        elif isinstance(node, ast.IfExp):
-            branches = ((True, [node.body]), (False, [node.orelse]))
-        else:
-            continue
-        for polarity, body in branches:
-            if not body or not _refuses(body, refusing):
+        for test, polarity, body in _branches(node):
+            if not body:
                 continue
-            for name in presence_asserted(node.test, positive=polarity):
-                if name in candidates:
+            for name in presence_asserted(test, positive=polarity):
+                if name in candidates and _refuses(body, name, refusers):
                     found[name] = candidates[name]
     return found
 
@@ -676,15 +960,19 @@ def _may_raise(lines: Sequence[str], fn: ast.AST) -> bool:
     return any(RAISE_FRAGMENT in line for line in lines[start - 1 : end])
 
 
-def _refusing_names(scans: Sequence[_FileScan]) -> frozenset[str]:
-    """Names a gated branch may call and still count as refusing.
+def _refusers(scans: Sequence[_FileScan]) -> Refusers:
+    """The definitions a gated branch may delegate a refusal to.
 
     A private guard, or any function whose raise names a spec requirement.
     Both are the act of refusing, so neither is lost to a rename; a
     delegation to one of them is the shape ``_validate_canonical_entry``
-    had, where the gated branch raised nothing itself.
+    had, where the gated branch raised nothing itself.  Whether a given
+    delegation refuses the *caller's* input is :class:`Refusers`'s question,
+    asked only of the names a gated branch calls.
     """
-    found: set[str] = set()
+    found: dict[
+        str, list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool]]
+    ] = {}
     for scan in scans:
         for definition in scan.definitions:
             if not _may_raise(scan.lines, definition):
@@ -696,15 +984,19 @@ def _refusing_names(scans: Sequence[_FileScan]) -> frozenset[str]:
                 is_private(definition.name)
                 and is_transparently_decorated(definition)
             ) or any(cites_a_spec(node) for node in raises):
-                found.add(definition.name)
-    return frozenset(found)
+                found.setdefault(definition.name, []).append(
+                    (definition, id(definition) in scan.methods)
+                )
+    return Refusers(
+        definitions={name: tuple(defs) for name, defs in found.items()}
+    )
 
 
 def _subjects(
     scans: Sequence[_FileScan],
 ) -> tuple[tuple[Guard, ...], tuple[Gate, ...]]:
     """Both arms' subjects, from one pass over *scans*."""
-    refusing = _refusing_names(scans)
+    refusers = _refusers(scans)
     guards: list[Guard] = []
     gates: list[Gate] = []
     for scan in scans:
@@ -741,7 +1033,7 @@ def _subjects(
             if not none_defaulted_params(definition, offset=offset):
                 continue
             for parameter, index in sorted(
-                gated_params(definition, refusing, offset=offset).items()
+                gated_params(definition, refusers, offset=offset).items()
             ):
                 gates.append(
                     Gate(

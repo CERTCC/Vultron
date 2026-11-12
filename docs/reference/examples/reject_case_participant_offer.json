@@ -1,0 +1,78 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
+  ],
+  "type": "Reject",
+  "id": "urn:uuid:3fa43889-3476-4ecc-95d6-b4d69d5e8ead",
+  "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/case-actors/vendorco-case-actor Offer https://vultron.example/organizations/coordinator from urn:uuid:c208f2aa-5bc8-4a37-99d2-93e0743107d7 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:ef15e5f6-2ed9-4fa0-a798-9024543e72f5",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
+  "content": "Declining recommendation to add Coordinator LLC to the case.",
+  "to": [
+    "https://vultron.example/case-actors/vendorco-case-actor"
+  ],
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "object": {
+    "type": "Offer",
+    "id": "urn:uuid:ef15e5f6-2ed9-4fa0-a798-9024543e72f5",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer https://vultron.example/organizations/coordinator from urn:uuid:c208f2aa-5bc8-4a37-99d2-93e0743107d7 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "content": "I'm recommending we add Coordinator LLC to the case.",
+    "to": [
+      "https://vultron.example/organizations/vendorco"
+    ],
+    "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+    "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "origin": "urn:uuid:c208f2aa-5bc8-4a37-99d2-93e0743107d7",
+    "object": {
+      "id": "https://vultron.example/organizations/coordinator#participant",
+      "type": "CaseParticipant",
+      "name": "https://vultron.example/organizations/coordinator",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "updated": "2026-06-01T19:12:00.000000+00:00",
+      "attributedTo": "https://vultron.example/organizations/coordinator",
+      "caseRoles": [
+        "vendor"
+      ],
+      "participantStatuses": [
+        {
+          "id": "urn:uuid:c7810e2f-8b69-402f-8663-2766ee0d62d5",
+          "type": "ParticipantStatus",
+          "name": "START vf",
+          "context": "https://vultron.example/organizations/coordinator#participant",
+          "published": "2026-06-01T19:12:00.000000+00:00",
+          "updated": "2026-06-01T19:12:00.000000+00:00",
+          "attributedTo": "https://vultron.example/organizations/coordinator",
+          "rmState": "START",
+          "vfState": "vf",
+          "caseEngagement": true,
+          "cvdRole": [
+            "VENDOR"
+          ]
+        }
+      ],
+      "embargoConsents": [],
+      "joined": true
+    }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z3N7vkKrVuAcx6ixpUz5HYrNnXoxccweKyLeQETAPdiroP43TiJ91LUj5NU1MfuLKTAMXTuuzmYapfDD96kjUpJcs"
+  }
+}

@@ -1575,8 +1575,6 @@ groups:
           register and check that every entry has the fields its status
           requires, and load fixture registers with a field missing and check
           that each is refused.
-        lint_suppress:
-          - phantom_path_ref
         adr:
           - ADR-0188
       - id: DOCBW-08-002
@@ -1597,8 +1595,6 @@ groups:
         verification: >-
           Tests in `test/ci/test_drafts_register.py` load one fixture register
           for each malformed case and check the refusal and its location.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-001
@@ -1626,8 +1622,6 @@ groups:
           new entry that names that existing tag, and passes on an unchanged
           register; they also read the review workflow and check that it runs
           the step.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-001
@@ -1647,8 +1641,6 @@ groups:
           Tests in `test/ci/test_drafts_register.py` generate the fragments
           from a fixture register and compare them with the register's
           entries.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: uses_definition
             spec_id: DOCBW-08-001
@@ -1667,8 +1659,6 @@ groups:
           without regenerating and check that the check fails, and read
           `.pre-commit-config.yaml` to check that the hook's `files:` match the
           register and the fragments.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-004
@@ -1685,8 +1675,6 @@ groups:
         verification: >-
           Tests in `test/ci/test_drafts_register.py` generate the status box
           from a fixture register with an unreleased entry and check the label.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-004
@@ -1706,8 +1694,6 @@ groups:
           Tests in `test/ci/test_drafts_register.py` generate the status box
           from a fixture register whose entries are all released and check
           the draft, the tag and the absence of the label.
-        lint_suppress:
-          - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-004

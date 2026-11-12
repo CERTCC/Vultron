@@ -127,9 +127,9 @@ The report keeps its own human-readable text in `content`.
 A receiver reads the CSAF document as the sender's statement only on the first `Offer` of a report that belongs to no case yet ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import gen_report, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(gen_report()))
+print(render_example("vulnerability_report"))
 ```
 
 !!! tip "Articles and Documents"
@@ -153,9 +153,9 @@ The `VulnerabilityCase` object is consistent with the [Case Model](../../topics/
     data model internally.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import json2md, populated_case
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(populated_case()))
+print(render_example("populated_case"))
 ```
 
 ### CaseStatus
@@ -167,9 +167,9 @@ The distinction between *participant-agnostic* and *participant-specific* status
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import case_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(case_status()))
+print(render_example("case_status"))
 ```
 
 ### CaseParticipant
@@ -183,9 +183,9 @@ The `CaseParticipant` object also includes a `participantStatus` property that d
 participant's status in the case as it progresses.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import case_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(case_participant()))
+print(render_example("case_participant"))
 ```
 
 ### ParticipantStatus
@@ -196,9 +196,9 @@ As noted [above](#casestatus), see the [Global vs Local](../../topics/process_mo
 section for more information about the distinction between *participant-agnostic* and *participant-specific* status.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import participant_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(participant_status()))
+print(render_example("participant_status"))
 ```
 
 !!! question "Why is there a CaseStatus inside the ParticipantStatus?"
@@ -216,9 +216,9 @@ An `EmbargoEvent` object is used to represent the end date and time of an embarg
 It is a specialization of the `as:Event` object.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import embargo_event, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(embargo_event()))
+print(render_example("embargo_event"))
 ```
 
 ### CaseParticipantRole
@@ -228,9 +228,9 @@ It is a distinct type so that offering a role (`Offer(CaseParticipantRole)`) is 
 The example is the object carried by such an offer.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant_role, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(offer_case_participant_role().object_))
+print(render_example("case_participant_role"))
 ```
 
 ### CaseLedgerEntry
@@ -241,9 +241,9 @@ See [Ledger Replication](../messages/ledger_replication.md) for the activities t
 The example is the object carried by such an announcement.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import announce_case_ledger_entry, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(announce_case_ledger_entry().object_))
+print(render_example("case_ledger_entry"))
 ```
 
 ### CaseProposal
@@ -254,7 +254,7 @@ The report is carried inline, and `target` names the prospective case-actor serv
 See [Case Proposal](../messages/case_proposal.md) for the three-message flow.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_case_proposal, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-print(json2md(create_case_proposal().object_))
+print(render_example("case_proposal"))
 ```

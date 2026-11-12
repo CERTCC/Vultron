@@ -72,14 +72,16 @@ be.  Its judgements are driven over inline source by the detector tests
 below, so a detector change cannot pass its own tests while reading the
 package differently.
 
-The first arm to run pays the derivation, about 2.9 s with a warm corpus,
-over TB-13-004's 0.5 s SHOULD and inside the 1–11 s band of the heaviest
-existing ratchets; the rest read the cache.
+The first arm to run pays the derivation, about 2.1 s with a warm corpus,
+inside TB-13-004's 10 s tier for a cached derivation; the rest read the
+cache, inside its 0.5 s tier.
 
 Rule: TB-16-001, TB-16-002.  Corpus: TB-13-001, TB-13-002, TB-13-003,
 TB-13-004 (``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001,
 ARCH-18-002 (``specs/architecture.yaml``).
 """
+
+import ast
 
 import pytest
 
@@ -106,9 +108,9 @@ KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset()
 # commit that supplies the argument or drops the gate (ARCH-18-002);
 # a new entry needs its owning issue named beside it.
 #
-# Read `_guard_reachability`'s docstring before adding one: this arm reads
-# "refuses" more widely than "refuses the caller's input", so a red arm may
-# be naming an optional step that raises for some other reason.
+# Read `_guard_reachability`'s docstring before adding one: it says where
+# this arm can still read a branch as refusing the caller's input when it
+# does not, so a red arm may be naming a gate that is not one.
 # ---------------------------------------------------------------------------
 KNOWN_UNSUPPLIED_GATES: frozenset[str] = frozenset()
 
@@ -1026,7 +1028,7 @@ def run():
 def test_detector_reads_a_delegation_to_a_public_spec_citing_guard() -> None:
     """A gated call to a public refusal counts, because it refuses.
 
-    ``_refusing_names`` admits a public function whose raise names a spec
+    ``_refusers`` admits a public function whose raise names a spec
     requirement; that is the act, so a gate on a call to one is a gate.
     """
     source = """
@@ -1087,5 +1089,485 @@ def test_detector_skips_a_framework_decorated_gate() -> None:
 def run(scenario=None):
     if scenario is not None:
         raise ValueError("unsupported")
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+# ---------------------------------------------------------------------------
+# What "refuses" means: the caller's input, not any raise (#5896)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "branch",
+    [
+        pytest.param(
+            """\
+        try:
+            store.save(note)
+        except KeyError as exc:
+            raise StoreError("could not save") from exc""",
+            id="error-translation",
+        ),
+        pytest.param(
+            '        raise NotImplementedError("notes are not stored yet")',
+            id="not-implemented-stub",
+        ),
+        pytest.param(
+            "        raise NotImplementedError",
+            id="bare-not-implemented-class",
+        ),
+    ],
+)
+def test_detector_does_not_read_a_raise_that_refuses_no_input_as_a_gate(
+    branch: str,
+) -> None:
+    """An error translation and a stub refuse nothing the caller passed.
+
+    A raise in an ``except`` handler reports a failure of the code the
+    ``try`` ran; ``NotImplementedError`` refuses a feature nothing provides
+    yet.  Neither branch is a check that never runs when no caller opens it,
+    so neither makes its parameter a gate.
+    """
+    source = f"""
+def store_note(store, *, note=None):
+    if note is not None:
+{branch}
+    return store
+
+
+def run():
+    store_note(STORE)
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+def test_detector_reads_a_per_entry_check_of_the_optional_payload_as_a_gate() -> (
+    None
+):
+    """A loop that refuses a bad entry refuses the caller's own input.
+
+    The counter-case to the readings above: the branch tests what the
+    caller handed it, entry by entry, so a caller that never passes the
+    payload leaves that check unexercised.
+    """
+    source = """
+def admit(*, items=None):
+    if items is not None:
+        for item in items:
+            if not item:
+                raise ValueError("an item must not be blank")
+    return items
+
+
+def run():
+    admit()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 admit() [items]"
+    }
+
+
+#: A refuser that tests what it is handed, then the delegation under test.
+_DELEGATED = """
+def _check_items(items, *, label):
+    for item in items:
+        if not item:
+            raise ValueError("a blank entry: " + label)
+
+
+def _seed(client):
+    found = client.lookup()
+    if found is None:
+        raise ValueError("no CASE_MANAGER participant (CM-02-014)")
+
+
+def build(client=None, *, items=None):
+{branch}
+    return items
+
+
+def run():
+    build()
+"""
+
+
+@pytest.mark.parametrize(
+    ("branch", "parameter"),
+    [
+        pytest.param(
+            "    if items is not None:\n        _check_items(items, label='item')",
+            "items",
+            id="positional-per-entry-check",
+        ),
+        pytest.param(
+            "    if items is not None:\n"
+            "        _check_items(label='item', items=items)",
+            "items",
+            id="keyword",
+        ),
+    ],
+)
+def test_detector_reads_a_delegation_of_the_gating_parameter_as_a_gate(
+    branch: str, parameter: str
+) -> None:
+    """Handing the parameter itself to a refuser that tests it is a gate.
+
+    This is the witness's delegation shape: the guard's raise sits under a
+    test of exactly the value the gated branch passes it.
+    """
+    findings = _reach.findings_in_source(_DELEGATED.format(branch=branch))
+    assert [gate.parameter for gate in findings.gates] == [parameter]
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        pytest.param(
+            "    if client is not None:\n        _seed(client)",
+            id="callee-tests-its-own-lookup",
+        ),
+        pytest.param(
+            "    if items is not None:\n"
+            "        _check_items(tuple(items), label='item')",
+            id="derived-value",
+        ),
+        pytest.param(
+            "    if items is not None:\n"
+            "        _check_items(DEFAULTS, label=items)",
+            id="unchecked-slot",
+        ),
+        pytest.param(
+            "    if items is not None:\n"
+            "        _check_items(*EXTRA, items, label='item')",
+            id="after-a-star-splat",
+        ),
+        pytest.param(
+            "    stored = _seed(client) if client is not None else None",
+            id="lookup-whose-value-the-branch-returns",
+        ),
+    ],
+)
+def test_detector_does_not_read_a_delegation_that_refuses_no_input_as_a_gate(
+    branch: str,
+) -> None:
+    """A callee that raises about something else does not make a gate.
+
+    ``_seed`` raises under a test of a value it looked up itself — the shape
+    of the demo's optional ``_seed_stub_summary`` step — and a callee handed
+    a value *derived* from the parameter, or the parameter in a slot it never
+    tests, refuses nothing the caller passed.  Before #5896 each of these
+    read as a gate, so removing the one caller that supplied the argument
+    would have failed code that refuses nothing.
+    """
+    findings = _reach.findings_in_source(_DELEGATED.format(branch=branch))
+    assert findings.gates == ()
+
+
+def test_detector_reads_a_delegated_method_check_at_the_callers_index() -> (
+    None
+):
+    """A method refuser's checked slot is counted without its receiver."""
+    source = """
+class Rules:
+    def _check(self, window):
+        if window < 0:
+            raise ValueError("a window must not be negative")
+
+    def build(self, window=None):
+        if window is not None:
+            self._check(window)
+        return window
+
+
+def run(rules):
+    rules.build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:7 build() [window]"
+    }
+
+
+@pytest.mark.parametrize(
+    "refuser",
+    [
+        pytest.param(
+            """\
+def _check(items):
+    items = DEFAULTS
+    if not items:
+        raise ValueError("no items")""",
+            id="callee-rebinds-its-parameter",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    for items in DEFAULTS:
+        if not items:
+            raise ValueError("a blank default")""",
+            id="loop-variable-shadows-the-parameter",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    for index in range(items):
+        if fetch(index) is None:
+            raise ValueError("a missing row")""",
+            id="loop-over-a-computed-range",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    if not items:
+        raise NotImplementedError("empty item lists are not handled yet")""",
+            id="callee-only-raises-not-implemented",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    if items.lookup() is None:
+        raise ValueError("no CASE_MANAGER participant (CM-02-014)")""",
+            id="callee-tests-a-method-call-on-it",
+        ),
+        pytest.param(
+            """\
+def _check(items):
+    if read(items) is None:
+        raise ValueError("no stored row")""",
+            id="callee-tests-a-value-derived-by-a-call",
+        ),
+    ],
+)
+def test_detector_does_not_read_a_callee_that_tests_something_else(
+    refuser: str,
+) -> None:
+    """A refuser whose test is not of the value handed in makes no gate.
+
+    Rebinding or shadowing the parameter, looping over something computed
+    from it, testing only what a call derived from it (the inline form of
+    the ``_seed_stub_summary`` shape), or raising only
+    ``NotImplementedError`` each leave the caller's argument untested, the
+    same readings arm B applies on the caller's side.
+    """
+    source = f"""
+{refuser}
+
+
+def build(*, items=None):
+    if items is not None:
+        _check(items)
+    return items
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).gates == ()
+
+
+@pytest.mark.parametrize(
+    "refuser",
+    [
+        pytest.param(
+            """\
+def _check(rows, /):
+    for row in rows:
+        for cell in row:
+            if not cell:
+                raise ValueError("a blank cell")""",
+            id="positional-only-nested-loop",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    for key, value in rows.items():
+        if value is None:
+            raise ValueError("a missing value")""",
+            id="mapping-entry-view",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    if not isinstance(rows, list) or len(rows) > 10:
+        raise ValueError("rows must be a short list")""",
+            id="predicate-builtins",
+        ),
+        pytest.param(
+            """\
+def _check(rows):
+    if rows.deadline is None:
+        raise ValueError("rows need a deadline")""",
+            id="attribute-of-the-parameter",
+        ),
+    ],
+)
+def test_detector_reads_a_callee_that_tests_what_it_is_handed(
+    refuser: str,
+) -> None:
+    """Each shape tests the handed value, so the delegation is a gate."""
+    source = f"""
+{refuser}
+
+
+def build(*, rows=None):
+    if rows is not None:
+        _check(rows)
+    return rows
+
+
+def run():
+    build()
+"""
+    findings = _reach.findings_in_source(source)
+    assert [gate.parameter for gate in findings.gates] == ["rows"]
+
+
+@pytest.mark.parametrize(
+    "decorator", ["@staticmethod", "@classmethod"], ids=["static", "class"]
+)
+def test_detector_reads_a_decorated_method_refuser_at_the_callers_index(
+    decorator: str,
+) -> None:
+    """A static or class method refuser's slot is read as a caller writes it."""
+    receiver = "cls, " if decorator == "@classmethod" else ""
+    source = f"""
+class Rules:
+    {decorator}
+    def _check({receiver}window):
+        if window < 0:
+            raise ValueError("a window must not be negative")
+
+    def build(self, window=None):
+        if window is not None:
+            Rules._check(window)
+        return window
+
+
+def run(rules):
+    rules.build()
+"""
+    findings = _reach.findings_in_source(source)
+    assert [gate.parameter for gate in findings.gates] == ["window"]
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        pytest.param(
+            """\
+        try:
+            raise ValueError("a negative limit")
+        finally:
+            close()""",
+            id="try-body",
+        ),
+        pytest.param(
+            """\
+        try:
+            prepare()
+        except KeyError:
+            pass
+        else:
+            raise ValueError("a negative limit")""",
+            id="try-else",
+        ),
+        pytest.param(
+            """\
+        try:
+            prepare()
+        finally:
+            raise ValueError("a negative limit")""",
+            id="finally",
+        ),
+    ],
+)
+def test_detector_reads_a_raise_outside_the_except_handler_as_a_gate(
+    branch: str,
+) -> None:
+    """Only an ``except`` handler is cut off; the rest of a ``try`` counts."""
+    source = f"""
+def build(*, limit=None):
+    if limit is not None:
+{branch}
+    return limit
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 build() [limit]"
+    }
+
+
+def test_detector_reads_a_gate_that_itself_sits_in_a_handler() -> None:
+    """The ``except`` stop applies inside a gated branch, not around it."""
+    source = """
+def build(*, limit=None):
+    try:
+        prepare()
+    except KeyError:
+        if limit is not None:
+            raise ValueError("a negative limit")
+    return limit
+
+
+def run():
+    build()
+"""
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:2 build() [limit]"
+    }
+
+
+def test_the_refuser_table_answers_nothing_for_an_unknown_name() -> None:
+    """An unknown or missing callee name checks no slot."""
+    refusers = _reach.Refusers(definitions={})
+    assert refusers.slots_of("_absent") == frozenset()
+    assert refusers.slots_of(None) == frozenset()
+
+
+def test_the_refuser_table_derives_each_name_once() -> None:
+    """A name's slots are derived on first ask and then read from the table."""
+    tree = _corpus.parse_inline(
+        "def _check(window, *, label):\n"
+        "    if window < 0:\n"
+        "        raise ValueError(label)\n",
+        "inline.py",
+    )
+    assert isinstance(tree, ast.Module)
+    definition = tree.body[0]
+    assert isinstance(definition, ast.FunctionDef)
+    refusers = _reach.Refusers(definitions={"_check": ((definition, False),)})
+    first = refusers.slots_of("_check")
+    assert first == {"window", 0}
+    assert refusers.slots_of("_check") is first
+
+
+def test_detector_does_not_follow_a_refuser_that_delegates_its_own_raise() -> (
+    None
+):
+    """One level of delegation is read, not two — a known miss, pinned.
+
+    ``_check`` tests the rows it is handed, but its refusal is a further
+    call rather than a raise of its own, so arm B reads the delegation as
+    refusing nothing.  Following the chain would mean a fixed point over
+    the whole refuser table; the miss is stated in the module docstring.
+    """
+    source = """
+def _check(rows):
+    return rows if rows else _raise(ValueError("no rows"))
+
+
+def _raise(exc):
+    raise exc
+
+
+def build(*, rows=None):
+    if rows is not None:
+        _check(rows)
+    return rows
+
+
+def run():
+    build()
 """
     assert _reach.findings_in_source(source).gates == ()

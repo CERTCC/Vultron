@@ -12,9 +12,9 @@ description: >
   each final outcome leaves (the archive, a receipt stub, the hold),
   when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
-  the queue replay's bounded retry and held fault, what is left of the
-  staged-record migration (ADR-0153, ADR-0154), how a re-run is told
-  from a first run by the record and finished on restart within the
+  the queue replay's bounded retry and held fault, why a run starts over and
+  the one input each stage boundary hands over (ADR-0153, ADR-0154), how a
+  re-run is told from a first run by the record and finished on restart within the
   inbox retry budget, the
   sender-sequence hold that returns a record to HELD (ADR-0178),
   pending-queue port injection, and the test surface.
@@ -316,10 +316,13 @@ that caught its own raise, such as extraction) is retried like a raise, or the i
 lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
 a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
 
-**What is left of the staged-record migration.** No sweep yet proves every handling
-tree safe to run twice from holding (#5047). New work should add no receiver-role gate
-outside the path stage and no reader of in-memory state an earlier stage left
-(ADR-0154).
+**A run starts over, and a stage reads only the input its boundary hands over.** A
+delivery whose run ended with no verdict runs again from its door guards, never from a
+later stage (CLP-10-083), so no stage depends on what a lost run held in memory. Add no
+receiver-role gate outside the path stage. A handling-tree node reads no in-memory state
+a door left except the path the path stage resolved (CLP-10-084, ADR-0154): an act that
+changes who the CASE_MANAGER is mid-run would make a second role read disagree with the
+door (HP-01-036).
 
 **A re-run is told from a first run by the record, at intake.** Intake writes a new
 message `HELD` and moves a `HELD` record an earlier run left to `HANDLED`, so a stage

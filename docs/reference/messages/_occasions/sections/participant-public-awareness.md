@@ -20,10 +20,7 @@ Announces, in the sender's own participant status, evidence that the vulnerabili
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        add_public_awareness_to_participant,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(add_public_awareness_to_participant()))
+    print(render_example("add_public_awareness_to_participant"))
     ```

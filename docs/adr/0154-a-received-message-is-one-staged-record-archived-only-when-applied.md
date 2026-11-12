@@ -1,9 +1,13 @@
 ---
 status: accepted-provisional
+status_override: >-
+  Maintainer decision, planning #6003 (2026-11-12): a received run starts over
+  from its entry checks and never resumes partway; the rewrite of detail 8
+  records that, and the status stays accepted-provisional.
 date: 2026-10-21
 created: 2026-10-21
-updated: 2026-10-21
-revision: 1
+updated: 2026-11-12
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0068, ADR-0111, ADR-0135, ADR-0149, ADR-0151, ADR-0153;
@@ -104,11 +108,18 @@ Chosen option: **"One staged record per message"**, because it is the only optio
    A node that embeds or reads the body of the message being handled, such as the refusal notice and the late-accept acknowledgement, reads it from the holding record.
    A reader after the run reads the archive, which now holds only applied messages, or the stub, which says only that a message was refused and why.
    What tells a stage that a delivery is new is the record's stage and the seen-before answer, not in-memory state from an earlier stage.
-8. **Split points are around the handling tree only.**
+8. **A run starts over; it never resumes partway.**
+   A message whose run ended with no verdict is run again from its door guards, never from a later stage.
    The stage boundaries are arrival, doors, waiting, the handling tree and the outcome.
-   A stage reads only the record and the store, never what an earlier stage left in memory.
+   Each boundary hands over one named input, and a stage reads nothing else that an earlier stage left in memory.
+   The doors read the delivery that arrival hands over.
+   The handling tree reads the path that the path stage resolved (ADR-0153).
+   The outcome stage reads the handler's result.
+   Every other fact a stage needs comes from the record and the store.
    The handling tree stays one unit with its blackboard (ADR-0135).
-   This adds no queues or workers; the rule keeps the option of running the stages as separate queues or functions later.
+   The handling tree takes the path from the door and does not read the role again, because an act such as an ownership transfer changes who the CASE_MANAGER is partway through the run, and a second read would disagree with the door.
+   Because every run starts at the doors, the path the handling tree reads always comes from the same run, and a restart loses nothing.
+   Resuming a run at a later stage, or running the stages as separate queues or functions, is not part of this decision: it would need the path kept on the record, and a decision of its own.
 
 ### Consequences
 
@@ -122,7 +133,7 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 
 ### Confirmation
 
-- An architecture test fails when a stage outside the handling tree reads in-memory state written by an earlier stage.
+- An architecture test fails when a handling-tree node reads in-memory state that a door stage wrote, other than the resolved path.
 - Tests drive each final outcome and assert what remains: the archive for applied, a stub with no body for refused, nothing new for a duplicate.
 - Tests drive a resend against a stub with a matching hash, a stub with a different hash, and an archive, and assert the verdict detail 5 gives each.
 - A per-tree re-run test drives each handling tree twice from holding and asserts that nothing is committed or sent twice.

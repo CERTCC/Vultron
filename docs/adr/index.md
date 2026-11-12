@@ -254,7 +254,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* *(provisional)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0152 A Case Manager's Act Shares the Participants' Semantic Type, and an Observation Is Not Ledgered](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md) *(provisional)* — partially supersedes 0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md
 - [ADR-0153 One Role Check per Message Picks the Received Path](0153-one-role-check-per-message-picks-the-received-path.md) *(revision 3)* *(provisional)* — partially supersedes 0088-consolidate-case-authority-determination.md
-- [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
+- [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) *(revision 2)* *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 - [ADR-0155 A Participant States Its Ledger Position, and the Case Manager Answers a Lag](0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md) *(provisional)*
 - [ADR-0157 A Case's Creation Is One `Create`, Delivered and Ledgered](0157-a-cases-creation-is-one-create-delivered-and-ledgered.md) *(provisional)*
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md) *(provisional)*
@@ -282,6 +282,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0184 A CSAF Document Travels as a Report Attachment and Speaks for the Sender Only at the First Report](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) *(provisional)*
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
+- [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
 - [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md)
 
 ## Proposed ADRs
@@ -293,7 +294,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 2)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
-- [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md)
 
 ## Rejected ADRs
 

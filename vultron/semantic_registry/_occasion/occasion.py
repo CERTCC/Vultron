@@ -63,8 +63,10 @@ class Occasion(BaseModel):
             (MSM-08-008); both depend on the whole registry, so
             ``vultron.metadata.msm`` checks them, not this model.
         description: One or two sentences on what the activity does.
-        example: Name of the ``vocab_examples`` function that builds this
-            occasion's example (MSM-08-003).
+        example: Name of the committed vocab example this occasion shows:
+            the stem of ``docs/reference/examples/<example>.json``, which
+            ``vocab_examples.render_example`` renders and
+            ``vocab_examples.build_example`` builds (MSM-08-003, #5893).
         distinguisher: What tells this occasion apart from the entry's other
             occasions, when it has any.  It is required when another
             occasion of the entry has the same addressee, which

@@ -213,8 +213,10 @@ how-to tree.
   page.
 - **The table fragments avoid the name `*table*.md`**: `lint-docs` exempts that
   name as generated, and their cells are occasion prose it must check (DF-09-007).
-- **The example stays an exec block inside the section fragment**: its IDs are
-  minted per run, so a committed copy could never pass `--check`.
+- **The example is an exec block calling `render_example("<name>")`, never a
+  builder**: a builder called at build time runs outside the example id scope,
+  so its ids and stamps differ from `docs/reference/examples/<name>.json`.
+  `test_docs_vocab_examples_pinned.py` refuses any other form (#5893).
 - **A pipe in a "Send" cell is a `<code>` element with entities.**
   Python-Markdown shows `\|` literally inside a backtick span, GFM splits the
   cell at a bare `|`, and `markdownlint --fix` rewrites an unprotected

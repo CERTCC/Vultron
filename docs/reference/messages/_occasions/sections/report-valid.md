@@ -17,10 +17,7 @@ Designates the report as valid, moving the sender's RM state to Valid.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        validate_report,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(validate_report()))
+    print(render_example("validate_report"))
     ```

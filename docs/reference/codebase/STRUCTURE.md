@@ -92,7 +92,11 @@ stakeholder_type: [project-contributor]
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
     It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-029), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
     It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).
+    It writes the Protocol Specification's status box `docs/reference/vultron-spec/_status.md` and one Revision Log status table per draft under `docs/reference/vultron-spec/_drafts/` from the drafts register `docs/reference/vultron-spec/drafts.yaml`, deletes the table of a draft the register no longer holds, and refuses a malformed register or a Revision Log that does not include each draft's table once, newest first, under its own `## Draft N` heading (DOCBW-08-002, DOCBW-08-004, DOCBW-08-005).
     `--check` fails if any committed copy is stale.
+  - `drafts-register` → `vultron.metadata.docs.drafts_register:main`.
+    `show [--ref REF]` prints the current draft and every released draft with its release tag as JSON, read from the checkout or from a git ref, for the promote and deploy workflows.
+    `check-releases` fails when a released entry differs from the register at its release tag, or names an existing tag whose register does not hold it (DOCBW-08-003).
   - `docs-threads` → `vultron.metadata.docs.threads:main`.
     It fails when a start page declares no thread, a thread lists a page twice or a page that is missing, working record, or not a page, or no thread resolves at all (DF-11-016).
   - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.

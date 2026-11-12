@@ -17,10 +17,7 @@ Accepts the Full-Case Invite, which records RM Valid. It carries the sender's ow
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        accept_full_case_invite,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(accept_full_case_invite()))
+    print(render_example("accept_full_case_invite"))
     ```

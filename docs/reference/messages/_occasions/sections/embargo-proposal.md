@@ -18,10 +18,7 @@ Proposes embargo terms, such as an end date and time.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        propose_embargo,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(propose_embargo()))
+    print(render_example("propose_embargo"))
     ```

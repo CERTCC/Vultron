@@ -128,6 +128,7 @@ def _interrupt_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 @pytest.mark.spec("CLP-10-074")
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("CLP-10-083")
 def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
