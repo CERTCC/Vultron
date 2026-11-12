@@ -389,7 +389,7 @@ _SESSION_LOCKS_GUARD = threading.Lock()
 
 
 def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
-    """Return what a ``Session`` on *engine* must hold for its whole lifetime.
+    """Return what a ``Session``, or a read's connection, on *engine* must hold.
 
     An in-memory engine uses ``StaticPool``: every ``Session`` gets the *same*
     DB-API connection, and ``check_same_thread=False`` lets it cross threads.
