@@ -615,6 +615,7 @@ class TestVerifyCaseClosed:
                 "joined": True,
                 "participantStatuses": [
                     {
+                        "id": f"{index[actor]}/status",
                         "type": "ParticipantStatus",
                         "attributedTo": actor,
                         "context": _CASE,

@@ -20,7 +20,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
@@ -1254,12 +1254,15 @@ def test_core_object_holding_a_wire_link_reads_back(slot: str) -> None:
     ]
     value = links if slot == "tag" else links[0]
     report = VulnerabilityReport.model_validate(
-        {
-            "name": "r",
-            "content": "c",
-            "attributed_to": "https://example.org/actors/alice",
-            slot: value,
-        }
+        with_times(
+            VulnerabilityReport,
+            {
+                "name": "r",
+                "content": "c",
+                "attributed_to": "https://example.org/actors/alice",
+                slot: value,
+            },
+        )
     )
 
     back = Record.from_obj(report).to_obj()

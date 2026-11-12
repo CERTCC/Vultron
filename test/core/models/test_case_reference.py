@@ -16,7 +16,7 @@
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_reference import (
     CASE_REFERENCE_REL_NAMESPACE,
@@ -251,7 +251,9 @@ class TestTagsFieldIsGone:
     def test_tags_key_refused(self):
         with pytest.raises(ValidationError) as exc_info:
             CaseReference.model_validate(
-                {"url": {"href": _HREF}, "tags": ["patch"]}
+                with_times(
+                    CaseReference, {"url": {"href": _HREF}, "tags": ["patch"]}
+                )
             )
         assert _errors(exc_info.value) == [(("tags",), "extra_forbidden")]
 
