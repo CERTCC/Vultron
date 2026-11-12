@@ -69,7 +69,7 @@ The decision has these parts:
   At the promoted commit the draft has just been marked released and no newer draft is open, so the pages the archive freezes read as that released draft.
   The revision log links every released draft's frozen copy.
 - **Made at promote.** When the register at the promoted commit names the new release as the release of a draft, the promote builds the site at that commit through the shared build, and takes the rendered specification pages and the files they load.
-  A promote refuses a register that names a release tag the run will not make, and one that still holds an open draft beside the draft it releases.
+  A promote refuses a register that names, as a draft's release, a tag that is neither the run's release nor an earlier release whose own register holds the same entry, and one that still holds an open draft beside the draft it releases.
   Each frozen page gets a banner that names the draft, the release, the commit and the build date.
   Links inside the specification stay relative and work offline.
   Links that leave the specification point to the live site, and the banner says so: the frozen copy does not freeze the rest of the site.
@@ -77,12 +77,12 @@ The decision has these parts:
   A release that carries no draft gets neither file.
 - **Ordered so that a draft release always carries its archive.** The promote builds the archive and a SHA-256 manifest of its files, unpacks the real archive and checks its links and its manifest, all before it pushes the tag or creates any release.
   It then creates the draft release with the archive and the manifest attached, in the same step, and checks that what was attached is what it built.
-  If the upload or that check fails, the run deletes the draft release it created; the tag stays, because tags are never deleted, and a draft release is not immutable, so its deletion costs nothing.
-  A run that fails at any point therefore leaves no draft release for the maintainer to publish.
+  If the upload, that check or any later step fails, the run deletes the draft release it created; the tag stays, because tags are never deleted, and a draft release is not immutable, so its deletion costs nothing.
+  A run that fails at any point therefore leaves no draft release for the maintainer to publish; if the deletion itself fails, the run says that the draft release is incomplete and must not be published.
   A re-run finds either a complete draft release, and says it is waiting to be published, or none, and does everything again for the tag it finds.
   A draft release left incomplete by a run stopped from outside is deleted by the next run; no path completes the assets of an existing draft.
   The maintainer then reviews and edits the generated notes and publishes the draft release by hand, as before.
-  A published release whose archive is missing can arise only if the maintainer publishes a draft that a stopped run left behind; the promote then refuses and says that a re-run cannot help.
+  A published release whose archive is missing can arise only if the maintainer publishes a draft that a stopped run, or a failed deletion, left behind; the promote then refuses and says that a re-run cannot help.
 - **Served by every deploy, never rebuilt.** Every deploy reads the register as `main` holds it and, for each released draft whose release is published, downloads the archive, checks it against its manifest and unpacks it into `spec/draft-N/`.
   The unpack refuses any member that could write outside that folder, and runs in the job that holds no token to write or deploy.
   No build ever builds a commit other than the one it checked out, so a toolchain change cannot alter a frozen draft.
@@ -176,7 +176,7 @@ The specs that this decision generated name each test.
 
 ## More Information
 
-Generated spec requirements: `docs-build-workflow.yaml` DOCBW-08-001 through DOCBW-08-036.
+Generated spec requirements: `docs-build-workflow.yaml` DOCBW-08-001 through DOCBW-08-037.
 
 The ordering of the promote's steps was decided by the maintainer on 2026-11-12 (#6284).
 The facts about immutable releases are from GitHub's documentation of immutable releases: only the assets and the tag are locked, the title and notes of a published immutable release stay editable, and a deleted immutable release's tag name cannot be reused.
