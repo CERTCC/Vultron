@@ -70,6 +70,11 @@ lint: format ruff mdlint mypy ## Run all linters (ruff, markdownlint, mypy)
 docs:  ## Serve documentation locally
 	uv run mkdocs serve
 
+# PROTOTYPE — reading-path button variants (branch prototype/reading-path-buttons)
+.PHONY: docs-prototype
+docs-prototype:  ## Serve docs with the reading-path variant switcher
+	ENABLE_MKDOCSTRINGS=false uv run mkdocs serve -f mkdocs-prototype-reading-path.yml
+
 # build docker images
 .PHONY: docker_build
 docker_build:  ## Build docker images
