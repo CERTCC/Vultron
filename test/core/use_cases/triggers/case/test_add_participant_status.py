@@ -86,14 +86,14 @@ class _FakeDL:
         return self._stored
 
 
-def _as_persistence(dl: "_FakeDL"):
+def _as_persistence(dl: _FakeDL):
     """Cast the stub to CaseOutboxPersistence so pyright is satisfied."""
     from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return cast(CaseOutboxPersistence, dl)
 
 
-def _make_use_case(dl: "_FakeDL"):
+def _make_use_case(dl: _FakeDL):
     """Return a SvcAddParticipantStatusUseCase backed by the given stub DL."""
     from vultron.core.use_cases.triggers.case import (
         SvcAddParticipantStatusUseCase,

@@ -37,7 +37,7 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
 
 
 def _get_queue_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     queue: str,
     activity_id: str,
 ) -> int:
@@ -52,7 +52,7 @@ def _get_queue_attempt_count(
 
 
 def _set_queue_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     queue: str,
     activity_id: str,
     count: int,
@@ -79,7 +79,7 @@ def _set_queue_attempt_count(
 
 
 def _clear_queue_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     queue: str,
     activity_id: str,
 ) -> None:
@@ -101,7 +101,7 @@ def _clear_queue_attempt_count(
 
 
 def get_outbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> int:
     """Return this actor's delivery attempt count for *activity_id* (0 if unseen).
@@ -122,7 +122,7 @@ def get_outbox_attempt_count(
 
 
 def set_outbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
     count: int,
 ) -> None:
@@ -140,7 +140,7 @@ def set_outbox_attempt_count(
 
 
 def clear_outbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> None:
     """Remove this actor's attempt count entry for *activity_id*.
@@ -162,7 +162,7 @@ def clear_outbox_attempt_count(
 
 
 def get_inbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> int:
     """Return this actor's processing attempt count for inbox *activity_id*.
@@ -178,7 +178,7 @@ def get_inbox_attempt_count(
 
 
 def set_inbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
     count: int,
 ) -> None:
@@ -193,7 +193,7 @@ def set_inbox_attempt_count(
 
 
 def clear_inbox_attempt_count(
-    dl: "SqliteDataLayer",
+    dl: SqliteDataLayer,
     activity_id: str,
 ) -> None:
     """Remove this actor's attempt count entry for inbox *activity_id*.

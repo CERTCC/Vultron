@@ -111,7 +111,7 @@ class EmbargoConsent(CoreObject):
         return as_utc(value)
 
     @model_validator(mode="after")
-    def _deadline_only_while_invited(self) -> "EmbargoConsent":
+    def _deadline_only_while_invited(self) -> EmbargoConsent:
         """Refuse a deadline on a row that is not waiting on an invitation."""
         if (
             self.rsvp_deadline is not None
@@ -124,7 +124,7 @@ class EmbargoConsent(CoreObject):
             )
         return self
 
-    def for_actor(self, actor_id: str) -> "EmbargoConsent":
+    def for_actor(self, actor_id: str) -> EmbargoConsent:
         """This row attributed to *actor_id*, under the id that derives.
 
         For the participant record that seats the row: a row with no

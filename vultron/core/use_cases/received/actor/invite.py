@@ -84,8 +84,8 @@ class InviteActorToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: InviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -163,8 +163,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -273,8 +273,8 @@ class RejectInviteActorToCaseReceivedUseCase:
         dl: CasePersistence,
         request: RejectInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port

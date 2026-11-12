@@ -85,14 +85,14 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
 
     def __init__(
         self,
-        dl: "CaseOutboxPersistence",
+        dl: CaseOutboxPersistence,
         request: object,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        sync_port: SyncActivityPort | None = None,
         call_out: CloseReportCallOutBundle = CLOSE_REPORT_DETERMINISTIC,
         *,
-        clock: "ClockPort",
+        clock: ClockPort,
     ) -> None:
         super().__init__(
             dl=dl,

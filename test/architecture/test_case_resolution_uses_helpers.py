@@ -113,14 +113,14 @@ def _read_case_scopes(tree: ast.AST) -> set[str]:
     return visitor.scopes
 
 
-def _read_case_counts(tree: ast.AST) -> "Counter[str]":
+def _read_case_counts(tree: ast.AST) -> Counter[str]:
     """Return direct read_case call counts keyed by class-qualified scope."""
     visitor = _ReadCaseScopeVisitor()
     visitor.visit(tree)
     return visitor.counts
 
 
-def _collect_sites() -> "Counter[tuple[str, str]]":
+def _collect_sites() -> Counter[tuple[str, str]]:
     """Return read_case call counts keyed by ``(relpath, scope)`` under behaviors/."""
     sites: Counter[tuple[str, str]] = Counter()
     for py_file, tree in _corpus.files_mentioning(

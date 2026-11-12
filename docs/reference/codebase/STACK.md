@@ -10,8 +10,8 @@ stakeholder_type: [project-contributor]
 
 | Area | Value | Evidence |
 |------|-------|----------|
-| Primary language | Python 3.13+ | `pyproject.toml` `requires-python = ">=3.13"` |
-| Runtime version (CI) | Python 3.13 | `.github/actions/setup-python-uv/action.yml` (default: `"3.13"`) |
+| Primary language | Python 3.14+ | `pyproject.toml` `requires-python = ">=3.14"` |
+| Runtime version (CI) | Python 3.14 | `.github/actions/setup-python-uv/action.yml` (default: `"3.14"`) |
 | Package manager | uv (CI syncs with `--dev --frozen`) | `Makefile`, `uv.lock`, `.github/actions/setup-python-uv/action.yml` |
 | Build system | setuptools + setuptools-scm | `pyproject.toml` `[build-system]` |
 | Version source | git tags, three-component `N.N.N` with optional `v` prefix and no pre-release suffix (ADR-0006); `git describe` matches `v[0-9]*`; fallback `0.0.0+dev`; written to `vultron/_version.py` | `pyproject.toml` `[tool.setuptools_scm]` |
@@ -116,7 +116,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
   - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-011, SYNC-20-005).
 - `.env.example` documents only `PROJECT_NAME` (default `vultron`), which the Docker Compose files use for image names.
-- Deployment/runtime constraints: Python 3.13+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
+- Deployment/runtime constraints: Python 3.14+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
 - Containerized multi-actor demo: `docker/docker-compose.yml` and `docker/docker-compose-multi-actor.yml` (single Dockerfile at `docker/Dockerfile`, entrypoint `docker/demo-entrypoint.sh`, seed configs under `docker/seed-configs/`), used by the `demo-integration.yml` CI workflow.
   The codebase scan's "No containerization configs detected" is a false negative, because it does not scan the `docker/` subdirectory.
 

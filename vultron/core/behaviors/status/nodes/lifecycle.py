@@ -83,7 +83,7 @@ class EmitCloseCaseNode(_EmitSingleActivityBase):
             self.case_manager_id: str | None = self.get_input(
                 "case_manager_id"
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.case_manager_id = None
 
     def update(self) -> Status:

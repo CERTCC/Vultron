@@ -165,7 +165,7 @@ def _gone(pid: int, seconds: float = 20.0) -> bool:
     while time.monotonic() < deadline:
         try:
             state = stat.read_text().rsplit(")", 1)[1].split()[0]
-        except (OSError, IndexError):
+        except OSError, IndexError:
             return True
         if state in ("Z", "X"):
             return True

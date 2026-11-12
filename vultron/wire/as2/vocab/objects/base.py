@@ -109,7 +109,7 @@ class as_VultronObject(as_Object):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def from_core(cls, core_obj: Any) -> "as_VultronObject":
+    def from_core(cls, core_obj: Any) -> as_VultronObject:
         """Create a wire object from a core domain object.
 
         The default implementation performs a JSON round-trip::

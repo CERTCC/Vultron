@@ -52,7 +52,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
         """
         raise NotImplementedError
 
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+    def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
         """Resolve the embargo ID and Case Manager actor ID for the factory call.
 
         Called after ``datalayer`` and ``actor_id`` have been validated.
@@ -64,7 +64,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
 
     def _call_factory(
         self, _actor_id: str, _embargo_id: str, _case_manager_id: str
-    ) -> "tuple[str, object]":
+    ) -> tuple[str, object]:
         """Invoke the appropriate ``TriggerActivityPort`` method.
 
         Returns ``(activity_id, <extra>)``; raises on any factory error.

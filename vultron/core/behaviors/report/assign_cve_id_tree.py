@@ -116,7 +116,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
     def update(self) -> Status:
         try:
             roles = self.get_input(_ACTOR_ROLES_KEY)
-        except (KeyError, NoDataAvailable, NotImplementedError):
+        except KeyError, NoDataAvailable, NotImplementedError:
             self.logger.debug(
                 "%s: %s not on blackboard — treating as non-CNA",
                 self.name,
@@ -184,7 +184,7 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
     def update(self) -> Status:
         try:
             intent_set = self.get_input(_PUBLICATION_INTENT_SET_KEY)
-        except (KeyError, NoDataAvailable, NotImplementedError):
+        except KeyError, NoDataAvailable, NotImplementedError:
             self.logger.debug(
                 "%s: no publication intent on blackboard — FAILURE", self.name
             )
@@ -204,7 +204,7 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
 
 def create_assign_cve_id_tree(
     case_id: str,
-    call_out: "AssignCveIdCallOutBundle | None" = None,
+    call_out: AssignCveIdCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the CVE ID assignment workflow.
 

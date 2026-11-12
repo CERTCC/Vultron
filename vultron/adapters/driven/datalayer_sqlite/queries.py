@@ -40,7 +40,7 @@ _CASE_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
 
 def count_all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
 ) -> dict[str, int]:
     """Return a dict mapping type → record count.
 
@@ -64,7 +64,7 @@ def count_all(
 
 
 def by_type(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     type_: str,
 ) -> dict[str, dict[str, Any]]:
     """Return all records of a given type as a ``{id_: data_}`` dict.
@@ -88,7 +88,7 @@ def by_type(
 
 
 def all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str | None = None,
 ) -> list[StorableRecord] | dict[str, PersistableModel]:
     """Return all records, optionally filtered by type.
@@ -125,7 +125,7 @@ def all(
 
 
 def exists(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
     id_: str,
 ) -> bool:
@@ -148,7 +148,7 @@ def exists(
         return row is not None
 
 
-def ping(dl: "Any") -> bool:  # SqliteDataLayer
+def ping(dl: Any) -> bool:  # SqliteDataLayer
     """Probe storage; returns ``True`` when the backend is accessible.
 
     Args:
@@ -163,7 +163,7 @@ def ping(dl: "Any") -> bool:  # SqliteDataLayer
 
 
 def list_objects(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     type_key: str,
 ) -> list[PersistableModel]:
     """Return fully rehydrated domain objects of the given type.
@@ -203,7 +203,7 @@ def list_objects(
 
 
 def find_actor_by_short_id(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     short_id: str,
 ) -> PersistableModel | None:
     """Find an actor by the last path segment of its URI.
@@ -243,7 +243,7 @@ def find_actor_by_short_id(
 
 
 def find_case_by_short_id(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     short_id: str,
 ) -> PersistableModel | None:
     """Find a case by its URL-safe surrogate key.
@@ -279,7 +279,7 @@ def find_case_by_short_id(
 
 
 def find_case_by_report_id(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     report_id: str,
 ) -> PersistableModel | None:
     """Find a ``VulnerabilityCase`` referencing the given report ID.
@@ -336,7 +336,7 @@ def _answered_object(entry: Any) -> str | None:
 
 
 def find_protocol_pair(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     case_id: str,
     request_semantic_type: str,
     object_id: str,

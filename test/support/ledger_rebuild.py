@@ -33,7 +33,6 @@ whose ledger starts on a case built outside it, the case as it stood before
 the first entry was committed.  Every later write comes from an entry.
 """
 
-import inspect
 import json
 import uuid
 from collections.abc import Iterable, Mapping
@@ -47,6 +46,7 @@ from test.support.ledger import (
 )
 from test.support.objects import authored_at, with_times
 from test.support.received import received_event
+from test.support.signatures import signature_of
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
@@ -116,7 +116,7 @@ def run_use_case(
         "wire_render_port": As2WireRenderAdapter(),
         "inbox_replay": InboxReplayAdapter(cast(Any, dl)),
     }
-    accepted = inspect.signature(use_case).parameters
+    accepted = signature_of(use_case).parameters
     ports = {
         k: v for k, v in offered.items() if k in accepted and k not in without
     }

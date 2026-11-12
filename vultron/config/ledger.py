@@ -155,7 +155,7 @@ class LedgerConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _resend_ceiling_not_below_base(self) -> "LedgerConfig":
+    def _resend_ceiling_not_below_base(self) -> LedgerConfig:
         """Refuse a resend ceiling below its base: the cooldown only grows."""
         if (
             self.invite_resend_max_cooldown_seconds

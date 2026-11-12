@@ -47,6 +47,7 @@ from pathlib import Path
 import pytest
 
 from test.architecture import _corpus
+from test.support.signatures import signature_of
 from vultron.core.models.use_case_result import TriggerResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers.requests import (
@@ -203,7 +204,7 @@ def test_row_constructor_accepts_the_port_bundle_its_flag_earns(
     ``trigger_activity`` alone; a subclass that overrides ``__init__`` and
     drops a keyword would turn its row into a ``TypeError`` at dispatch.
     """
-    params = inspect.signature(row.use_case_class).parameters
+    params = signature_of(row.use_case_class).parameters
     accepts_var_kw = any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
     )

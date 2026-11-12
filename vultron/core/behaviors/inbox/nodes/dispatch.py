@@ -128,12 +128,12 @@ class DispatchNode(_InboxNodeWithPorts):
         """
         try:
             context_id: str | None = self.get_input(KEY_CONTEXT_ID)
-        except (NotImplementedError, NoDataAvailable):
+        except NotImplementedError, NoDataAvailable:
             context_id = None
 
         try:
             queue = self.get_input(KEY_QUEUE)
-        except (NotImplementedError, NoDataAvailable, KeyError):
+        except NotImplementedError, NoDataAvailable, KeyError:
             queue = None
 
         if (

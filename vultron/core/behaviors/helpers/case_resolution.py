@@ -46,8 +46,8 @@ from vultron.core.models.case import VulnerabilityCase
 
 def require_case(
     node: py_trees.behaviour.Behaviour,
-    case_id: "str | None",
-) -> "tuple[VulnerabilityCase, Status | None]":
+    case_id: str | None,
+) -> tuple[VulnerabilityCase, Status | None]:
     """Resolve a case that MUST exist for authoritative coordination (Regime 1).
 
     The canonical case-resolution helper for BT nodes that coordinate an
@@ -105,8 +105,8 @@ def require_case(
 
 def resolve_case_replica(
     node: py_trees.behaviour.Behaviour,
-    case_id: "str | None",
-) -> "VulnerabilityCase | None":
+    case_id: str | None,
+) -> VulnerabilityCase | None:
     """Resolve a case for replica-apply of a remote ledger entry (Regime 2).
 
     Apply-from-ledger nodes run against a *partial* local replica whose case

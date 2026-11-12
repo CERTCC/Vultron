@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 def _reconstitute_offer(
-    offer_id: str, dl: "CaseOutboxPersistence", *, at: datetime
+    offer_id: str, dl: CaseOutboxPersistence, *, at: datetime
 ) -> Any | None:
     """Reconstitute a wire Offer from VultronOfferRecord + VulnerabilityReport.
 

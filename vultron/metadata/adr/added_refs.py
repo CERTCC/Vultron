@@ -247,7 +247,7 @@ def _suppressed(text: str) -> set[AdrLintSuppressCode]:
     """
     try:
         fm = AdrFrontmatter.model_validate(loads_frontmatter(text).metadata)
-    except (ValidationError, ValueError):
+    except ValidationError, ValueError:
         return set()
     return set(fm.lint_suppress or [])
 

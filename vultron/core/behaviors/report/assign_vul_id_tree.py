@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def create_assign_vul_id_tree(
     case_id: str,
-    call_out: "AssignVulIdCallOutBundle | None" = None,
+    call_out: AssignVulIdCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the VUL ID assignment workflow (Phase 1 stub).
 

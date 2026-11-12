@@ -218,7 +218,7 @@ class as_CaseProposal(as_VultronObject):
         return value
 
     @model_validator(mode="after")
-    def _offer_reference_agrees_with_inline_offer(self) -> "as_CaseProposal":
+    def _offer_reference_agrees_with_inline_offer(self) -> as_CaseProposal:
         """The bare provenance and the inline Offer name the same submission.
 
         Raises ``ValueError`` (a Pydantic validation error) when both forms are

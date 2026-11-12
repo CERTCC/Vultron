@@ -50,8 +50,8 @@ def _storable_to_record(record: StorableRecord) -> Record:
 
 
 def create(
-    dl: "Any",  # SqliteDataLayer
-    record: "StorableRecord | PersistableModel",
+    dl: Any,  # SqliteDataLayer
+    record: StorableRecord | PersistableModel,
 ) -> None:
     """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists.
 
@@ -91,7 +91,7 @@ def create(
 
 
 def read(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     object_id: str,
     raise_on_missing: bool = False,
 ) -> PersistableModel | None:
@@ -134,7 +134,7 @@ def read(
 
 
 def save(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     obj: PersistableModel,
 ) -> None:
     """Persist a domain object, overwriting any existing record.
@@ -171,7 +171,7 @@ def save(
 
 
 def save_if_unchanged(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     obj: PersistableModel,
     expected: PersistableModel,
 ) -> bool:
@@ -257,8 +257,8 @@ def save_if_unchanged(
 
 
 def save_many(
-    dl: "Any",  # SqliteDataLayer
-    objs: list["PersistableModel"],
+    dl: Any,  # SqliteDataLayer
+    objs: list[PersistableModel],
 ) -> None:
     """Persist multiple domain objects in a single atomic transaction.
 
@@ -292,7 +292,7 @@ def save_many(
 
 
 def delete(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
     id_: str,
 ) -> bool:
@@ -320,7 +320,7 @@ def delete(
 
 
 def clear_table(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
 ) -> None:
     """Remove all records of a given object type.
@@ -340,7 +340,7 @@ def clear_table(
 
 
 def clear_all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
 ) -> None:
     """Remove every object record and queue entry in this actor's store.
 
@@ -359,7 +359,7 @@ def clear_all(
 
 
 def update(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     id_: str,
     record: StorableRecord,
 ) -> bool:
@@ -387,7 +387,7 @@ def update(
 
 
 def get(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str | None = None,
     id_: str | None = None,
 ) -> PersistableModel | dict[str, Any] | None:
@@ -435,7 +435,7 @@ def get(
 
 
 def get_all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
 ) -> list[dict[str, Any]]:
     """Return all raw data dicts for a given object type.

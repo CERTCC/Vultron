@@ -91,7 +91,7 @@ class RecordedBaseline(NamedTuple):
     @classmethod
     def from_history(
         cls, history: Sequence[ParticipantStatus]
-    ) -> "RecordedBaseline":
+    ) -> RecordedBaseline:
         """Return the baseline of a non-empty status *history*, oldest first."""
         vf = d = pxa = None
         for status in history:

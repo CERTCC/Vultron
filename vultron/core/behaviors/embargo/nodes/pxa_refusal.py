@@ -199,7 +199,7 @@ class SendEmbargoProposalRefusalNode(SendEmbargoInviteAnswerNode):
         )
         self._sender_id = sender_id
 
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+    def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
         resolved = super()._resolve_embargo_and_manager()
         if isinstance(resolved, Status):
             return resolved

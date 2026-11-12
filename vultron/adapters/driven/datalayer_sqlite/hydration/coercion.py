@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 
 def rehydrate_fields(
-    dl: "SqliteDataLayer", obj: PersistableModel
+    dl: SqliteDataLayer, obj: PersistableModel
 ) -> PersistableModel:
     """Expand dehydrated object-reference fields back to typed objects.
 
@@ -125,7 +125,7 @@ def rehydrate_fields(
     return obj
 
 
-def hydrate(dl: "SqliteDataLayer", obj: PersistableModel) -> PersistableModel:
+def hydrate(dl: SqliteDataLayer, obj: PersistableModel) -> PersistableModel:
     """Deep-hydrate all reference fields in *obj*, including list fields.
 
     Extends :func:`rehydrate_fields` (which handles scalar object-ref

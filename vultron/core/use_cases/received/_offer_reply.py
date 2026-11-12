@@ -71,8 +71,8 @@ def run_offer_reply_tree(
     subject: str,
     refine: VerdictRefinement,
     sync_port: SyncActivityPort | None,
-    wire_render_port: "WireRenderPort | None",
-    trigger_activity: "TriggerActivityPort | None" = None,
+    wire_render_port: WireRenderPort | None,
+    trigger_activity: TriggerActivityPort | None = None,
     applied_note: str | None = None,
 ) -> HandlerResult:
     """Run the received tree of a reply to an Offer and read its verdict.

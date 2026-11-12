@@ -138,7 +138,7 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
 #: (CM-10-004).  Each reads only the sender and the case.
 _MEMBERSHIP_NODES: dict[
     SenderEntitlementKind,
-    type[SenderIsParticipantNode] | type[SenderIsActiveParticipantNode],
+    type[SenderIsParticipantNode | SenderIsActiveParticipantNode],
 ] = {
     SenderEntitlementKind.PARTICIPANT: SenderIsParticipantNode,
     SenderEntitlementKind.ACTIVE_PARTICIPANT: SenderIsActiveParticipantNode,

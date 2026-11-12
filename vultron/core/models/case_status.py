@@ -108,7 +108,7 @@ class CaseStatus(CoreObject):
     # a copy via :meth:`with_em` rather than mutating the status (ADR-0122).
 
     @model_validator(mode="after")
-    def _set_name(self) -> "CaseStatus":
+    def _set_name(self) -> CaseStatus:
         """Derive the display ``name`` label from the dimension states.
 
         Mirrors ``as_CaseStatus.set_name`` exactly, and must keep mirroring it.
@@ -133,7 +133,7 @@ class CaseStatus(CoreObject):
         """The label :meth:`_set_name` derives from the current states."""
         return " ".join([self.em.state.name, self.pxa.state.name])
 
-    def with_em(self, em: EM) -> "CaseStatus":
+    def with_em(self, em: EM) -> CaseStatus:
         """A copy of this status carrying *em*: the owning case's EM stamp.
 
         ``model_copy`` runs no validator, so a label derived from the old

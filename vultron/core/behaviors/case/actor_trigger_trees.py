@@ -322,9 +322,11 @@ def offer_case_ownership_transfer_trigger_bt(
 def _ownership_answer_trigger_bt(
     name: str,
     emit_node: (
-        type[EmitAcceptCaseOwnershipTransferNode]
-        | type[EmitRejectCaseOwnershipTransferNode]
-        | type[EmitWithdrawCaseOwnershipTransferNode]
+        type[
+            EmitAcceptCaseOwnershipTransferNode
+            | EmitRejectCaseOwnershipTransferNode
+            | EmitWithdrawCaseOwnershipTransferNode
+        ]
     ),
     offer_id: str,
     case_id: str,

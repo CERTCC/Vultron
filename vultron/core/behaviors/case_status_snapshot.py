@@ -312,7 +312,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
         try:
             current = case.current_status
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             self.feedback_message = (
                 f"Case '{self.case_id}' has no materialized CaseStatus"
             )

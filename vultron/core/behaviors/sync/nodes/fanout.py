@@ -219,13 +219,13 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             self.fanout_withheld: list[str] = list(
                 self.get_input("fanout_withheld") or []
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.fanout_withheld = []
         try:
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def _pause_and_backfill(

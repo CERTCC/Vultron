@@ -20,7 +20,7 @@ authors = [
 ]
 description = "A reference implementation of the Vultron CVD protocol, for research and evaluation, not production use."
 readme = {file="README.md", content-type="text/markdown"}
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 keywords =["vultron","cvd","vulnerability disclosure"]
 license = {file="LICENSE.md"}
 classifiers = [
@@ -164,11 +164,21 @@ git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 # surface; gitignored paths are skipped by ruff's `respect-gitignore` default.
 # See ADR-0094 and notes/lint-tooling.md.
 line-length = 79                 # the retired [tool.black] value
-target-version = "py313"         # IMPLTS-01-009
+target-version = "py314"         # IMPLTS-01-009
 # Pre-commit passes staged filenames; without this ruff would lint a file named
 # on the command line even when the config excludes it, and the hook and the CI
 # job would disagree about scope.
 force-exclude = true
+
+# A script that runs on a `python3` other than the project's interpreter keeps
+# the syntax of the oldest version that runs it: the py314 formatter would write
+# PEP 758 `except A, B:`, a SyntaxError before 3.14. `.github/scripts/` runs on
+# the ubuntu-latest runner's system python3 (3.12); the others on the host's.
+[tool.ruff.per-file-target-version]
+".agents/skills/acquire-codebase-knowledge/scripts/scan.py" = "py38"  # skill says 3.8+
+".github/scripts/**/*.py" = "py312"
+"integration_tests/demo/colorize_compose_logs.py" = "py39"
+"test/metadata/_fake_gh.py" = "py39"
 
 [tool.ruff.lint]
 select = [

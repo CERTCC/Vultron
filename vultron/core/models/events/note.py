@@ -27,7 +27,7 @@ class AddNoteToCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def note(self) -> "VultronNote | None":
+    def note(self) -> VultronNote | None:
         return cast("VultronNote | None", self.object_)
 
     @property
@@ -35,7 +35,7 @@ class AddNoteToCaseReceivedEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)
 
 
@@ -51,7 +51,7 @@ class RemoveNoteFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def note(self) -> "VultronNote | None":
+    def note(self) -> VultronNote | None:
         return cast("VultronNote | None", self.object_)
 
     @property
@@ -59,5 +59,5 @@ class RemoveNoteFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)

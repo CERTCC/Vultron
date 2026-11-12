@@ -104,7 +104,7 @@ class AddReporterParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         self._case_id_bb = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:

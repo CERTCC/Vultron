@@ -194,7 +194,7 @@ def iter_tree_texts(
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 continue
             yield relative_posix(path, root), text
 
