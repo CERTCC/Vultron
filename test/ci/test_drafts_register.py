@@ -694,4 +694,5 @@ def test_the_order_fault_is_named_where_the_order_breaks(tmp_path):
     (fault,) = dr.revision_log_faults(tmp_path, register)
     assert "draft-2 comes after draft-1" in fault.detail
     lines = (tmp_path / dr.REVISION_LOG_PATH).read_text().splitlines()
+    assert fault.line is not None
     assert lines[fault.line - 1] == dr.include_line("draft-2")
