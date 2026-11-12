@@ -170,8 +170,6 @@ Vultron is a protocol, not a product, so the last step is to obtain software tha
 
 - [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — what the case looks like from your seat once these steps are done
 - [Embargo Principles](../topics/process_models/em/principles.md) — the norms your embargo rules should follow
-- [ISO Crosswalk](../reference/iso_crosswalks/index.md) — where each step lands in ISO/IEC 29147, 30111, and TR 5895
-- [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a prioritization decision enters a case
 - [Vultron Protocol Specification, §13 Conformance](../reference/vultron-spec/conformance.md#13-conformance-n) — the normative definition of capability sets and conformance claims
 
 {% include-markdown "../start/_paths/coordinate-cases/howto__adopt_vultron.md" %}

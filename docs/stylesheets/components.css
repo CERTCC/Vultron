@@ -96,6 +96,14 @@
   padding: 0;
   font-size: .72rem;
 }
+/* A page's boxes form one block, set apart from the content above them (a
+   "Further reading" list, say), so the two lists do not read as one. */
+.md-typeset :not(.reading-path) + .admonition.reading-path {
+  margin-top: 2.6em;
+}
+.md-typeset .reading-path + .admonition.reading-path {
+  margin-top: .6em;
+}
 .md-typeset .reading-path > .admonition-title {
   background: none;
   margin: 0;
