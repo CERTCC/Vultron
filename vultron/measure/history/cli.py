@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -84,12 +85,16 @@ def _write_output(text: str, output: Path | None) -> None:
     """Write the dump to *output*, or to standard output when it is ``None``.
 
     The file is written beside *output* and then moved into place, so a write
-    that fails partway leaves no truncated dump behind.
+    that fails partway leaves no truncated dump behind.  The partial file's
+    name carries this process's id, so two runs writing one output never
+    remove each other's.  A symlinked *output* is resolved first, so the dump
+    replaces the file it points at, not the link.
     """
     if output is None:
         sys.stdout.write(text)
         return
-    partial = output.with_name(f".{output.name}.partial")
+    output = output.resolve()
+    partial = output.with_name(f".{output.name}.{os.getpid()}.partial")
     try:
         partial.write_text(text, encoding="utf-8")
         partial.replace(output)

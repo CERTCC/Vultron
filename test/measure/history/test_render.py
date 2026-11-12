@@ -335,6 +335,7 @@ def test_a_row_in_no_case_is_listed_in_the_table_as_in_the_json(tmp_path):
 
 
 def test_the_table_and_the_json_list_cases_in_one_order(tmp_path):
+    """Pins the two forms of one dump to one case order; the reader sets it."""
     first = _small_ledger()
     second = _small_ledger()
     for entry in second.entries:
@@ -352,3 +353,64 @@ def test_the_table_and_the_json_list_cases_in_one_order(tmp_path):
         if line.startswith("## Case ")
     ]
     assert headings == list(data["histories"])
+
+
+def test_a_row_that_names_its_case_is_listed_only_in_that_case(tmp_path):
+    path = _write(_small_ledger(), tmp_path / "ledger.jsonl")
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"caseId": CASE, "foo": 1}) + "\n")
+        fh.write("{not json\n")
+    text = case_history_report([path], fmt=HistoryFormat.TABLE)
+    data = json.loads(case_history_report([path], fmt=HistoryFormat.JSON))
+    assert len(data["unusable_rows"]) == 2
+    unusable = [
+        line
+        for line in text.splitlines()
+        if line.startswith("- Unusable row:")
+    ]
+    assert len(unusable) == 2
+    lines = text.splitlines()
+    in_no_case = lines[lines.index("## Rows in no case") :]
+    in_no_case = in_no_case[: in_no_case.index(f"## Case `{CASE}`")]
+    assert [line for line in in_no_case if line.startswith("- ")] == [
+        f"- Unusable row: {path} line {len(_small_ledger().entries) + 2}: "
+        + data["unusable_rows"][1]["reason"]
+    ]
+
+
+def test_a_named_cases_own_rows_are_not_listed_as_in_no_case(tmp_path):
+    path = _write(_small_ledger(), tmp_path / "ledger.jsonl")
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"caseId": CASE, "foo": 1}) + "\n")
+    text = case_history_report([path], fmt=HistoryFormat.TABLE, case_id=CASE)
+    assert "## Rows in no case" not in text
+    assert (
+        sum(line.startswith("- Unusable row:") for line in text.splitlines())
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    ("case_id", "heading"),
+    [
+        ("urn:uuid:a|b", "## Case `urn:uuid:a|b`"),
+        ("urn:uuid:a\r\nb", "## Case `urn:uuid:a b`"),
+        ("urn:uuid:a`b", "## Case ``urn:uuid:a`b``"),
+        ("`x", "## Case `` `x ``"),
+    ],
+)
+def test_a_case_id_heading_stays_one_code_span_on_one_line(case_id, heading):
+    history = CaseEventHistory(
+        case_id=case_id,
+        source=LedgerSource.COMPLETE_COPY,
+        end_confirmed=True,
+        events=[],
+    )
+    ledger = CaseLedger(
+        case_id=case_id,
+        source=LedgerSource.COMPLETE_COPY,
+        rows=[],
+        copies=[],
+    )
+    text = render_table([(history, ledger)], {})
+    assert heading in text.splitlines()

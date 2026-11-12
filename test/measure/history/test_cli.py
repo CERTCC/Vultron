@@ -134,7 +134,24 @@ def test_the_registered_script_dumps_a_committed_recording(tmp_path):
     )
 
 
-def test_a_failed_write_leaves_no_partial_file(tmp_path, monkeypatch):
+def test_a_failed_write_keeps_the_old_output_and_leaves_no_partial_file(
+    tmp_path, monkeypatch
+):
+    output = tmp_path / "history.md"
+    output.write_text("old dump", encoding="utf-8")
+    real_write_text = Path.write_text
+
+    def fail_partway(self, data, *args, **kwargs):
+        real_write_text(self, data[:10], *args, **kwargs)
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", fail_partway)
+    assert main([str(RECORDING), "-o", str(output)]) == EXIT_BAD_INPUT
+    assert list(tmp_path.iterdir()) == [output]
+    assert output.read_text(encoding="utf-8") == "old dump"
+
+
+def test_a_failed_move_leaves_no_partial_file(tmp_path, monkeypatch):
     output = tmp_path / "history.md"
 
     def fail(self, *args, **kwargs):
@@ -143,6 +160,30 @@ def test_a_failed_write_leaves_no_partial_file(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "replace", fail)
     assert main([str(RECORDING), "-o", str(output)]) == EXIT_BAD_INPUT
     assert list(tmp_path.iterdir()) == []
+
+
+def test_another_runs_partial_file_is_left_alone(tmp_path):
+    output = tmp_path / "history.md"
+    other = tmp_path / ".history.md.partial"
+    other.write_text("another run", encoding="utf-8")
+    assert main([str(RECORDING), "-o", str(output)]) == 0
+    assert other.read_text(encoding="utf-8") == "another run"
+    assert sorted(tmp_path.iterdir()) == sorted([output, other])
+
+
+def test_a_symlinked_output_is_written_through(tmp_path):
+    target = tmp_path / "target.md"
+    target.write_text("old dump", encoding="utf-8")
+    link = tmp_path / "history.md"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"the filesystem refuses a symlink: {exc}")
+    assert main([str(RECORDING), "-o", str(link)]) == 0
+    assert link.is_symlink()
+    assert target.read_text(encoding="utf-8").startswith(
+        "# Case event history"
+    )
 
 
 def test_a_failed_write_to_stdout_names_standard_output(monkeypatch, caplog):

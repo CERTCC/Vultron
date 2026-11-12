@@ -30,6 +30,7 @@ hole, conflict, unusable row, excluded state and unreadable entry.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
@@ -130,18 +131,33 @@ class EventRow(BaseModel):
         ]
 
 
+def _one_line(text: str) -> str:
+    """Replace each line break in *text* with a space."""
+    return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+
 def _md_cell(text: str) -> str:
     """Escape a value for one Markdown table cell or one Markdown line.
 
     A ``|`` would split the cell and a line break would end the row, and both
     can arrive in a display name taken from a payload.
     """
-    return (
-        text.replace("|", "\\|")
-        .replace("\r\n", " ")
-        .replace("\r", " ")
-        .replace("\n", " ")
-    )
+    return _one_line(text.replace("|", "\\|"))
+
+
+def _code_span(text: str) -> str:
+    """Render *text* as one Markdown code span on one line.
+
+    A line break would end the heading, and a backtick in *text* would close a
+    single-backtick span early, so the fence is one backtick longer than the
+    longest run in *text*.  A ``|`` cannot break a heading and is kept as is,
+    since a backslash inside a code span renders literally.
+    """
+    flat = _one_line(text)
+    runs = [len(m) for m in re.findall(r"`+", flat)]
+    fence = "`" * (max(runs, default=0) + 1)
+    pad = " " if flat.startswith("`") or flat.endswith("`") else ""
+    return f"{fence}{pad}{flat}{pad}{fence}"
 
 
 def _entries_by_index(ledger: CaseLedger) -> dict[int, dict[str, Any]]:
@@ -283,8 +299,9 @@ def render_table(
 ) -> str:
     """Render one Markdown section per case, each with its event table.
 
-    *unplaced* are the rows that name no case the input holds; they are
-    listed first, as the JSON form lists them, so neither form drops one.
+    *unplaced* are the unusable rows that name no case the input holds;
+    they are listed first, so with each case's own unusable rows in its
+    section the table shows every unusable row the JSON form lists, once.
     """
     lines = ["# Case event history", ""]
     if unplaced:
@@ -295,7 +312,7 @@ def render_table(
             "",
         ]
     for history, ledger in cases:
-        lines += [f"## Case `{_md_cell(history.case_id)}`", ""]
+        lines += [f"## Case {_code_span(history.case_id)}", ""]
         lines += [*_trust_lines(history), ""]
         lines.append("| " + " | ".join(TABLE_HEADERS) + " |")
         lines.append("| " + " | ".join(["---"] * len(TABLE_HEADERS)) + " |")
@@ -351,8 +368,11 @@ def case_history_report(
             )
         )
     names = label_names({cid: lg.entries for cid, lg in read.cases.items()})
+    in_a_case = {
+        row for ledger in read.cases.values() for row in ledger.unusable_rows
+    }
     return render_table(
         ((histories[cid], ledgers[cid]) for cid in histories),
         names,
-        read.unusable_rows,
+        [row for row in read.unusable_rows if row not in in_a_case],
     )
