@@ -86,10 +86,11 @@ run it again. A re-run that finds a complete draft release refuses and leaves it
 waiting for you to publish. Never publish a draft release that a run reported as
 incomplete.
 
-Every site publish, and the docs check of every pull request that touches the
-site, serves each released draft's frozen pages at `spec/draft-N/` from its
-published release (DOCBW-08-028). Until you publish the release, that address
-shows a placeholder page and the run summary names the draft. Once the release
+Every site publish, the docs check of every pull request that touches the site,
+and the promote's archive build serve each released draft's frozen pages at
+`spec/draft-N/` from its published release (DOCBW-08-028, DOCBW-08-039). Until
+you publish the release, that address shows a placeholder page and the run
+summary names the draft. Once the release
 is published, a missing or mismatched archive fails every publish and files a
 failure issue, and an immutable release cannot be repaired in place, so check
 both files are attached before you click **Publish release**. A rollback to a
