@@ -167,7 +167,7 @@ def compose_sender_guard(
             without ``request``, an ``AUTHOR`` kind without
             ``authored_object``, or a case-scoped check without
             ``case_id``; or a ledger activity's rule declares a kind that
-            cannot read the case at run time, or differs by side.
+            cannot read the case at run time.
     """
     guard = _compose(rule, ctx, path_stage)
     if guard is not None:
