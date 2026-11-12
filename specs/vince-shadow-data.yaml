@@ -1,0 +1,158 @@
+id: VSD
+title: VINCE Shadow Data Handling
+description: >-
+  Rules for data read from a VINCE instance by the VINCE shadow: where it is
+  stored, what logs may carry, how the API credential is read, and the only
+  ways it may enter the repository or a publication. Live production readers
+  and retention are not yet decided (#6349).
+scope:
+- prototype
+- production
+tags:
+- security
+groups:
+- id: VSD-01
+  title: Runtime Handling
+  specs:
+  - id: VSD-01-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      In shadow mode, the server MUST store VINCE-derived records only in the
+      store `database.db_url` names, and MUST refuse to start when that store is
+      the default, in memory, or resolves inside the repository checkout.
+    rationale: >-
+      A relative or default store path lands inside the checkout, where an
+      agent or a commit can pick up a live case. Refusing to start is the only
+      outcome that cannot write a case to the wrong place.
+    verification: >-
+      A startup test (#5958) runs shadow mode with `database.db_url` at its
+      default, in memory, and at a SQLite path inside the checkout (relative and
+      through a symlink), and asserts each refuses to start with an error naming
+      the setting; a path outside the checkout starts and receives the records.
+  - id: VSD-01-002
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      A shadow-mode log record MUST NOT carry VINCE case content, such as a
+      title, description, post, vul detail or participant contact detail, at
+      any level; it MAY carry VINCE case, activity and actor ids.
+    rationale: >-
+      Logs are copied into issues, CI artifacts and Coding Agent sessions, so a
+      log record is a publication path. Ids keep records joinable without
+      carrying what the embargo protects.
+    verification: >-
+      A shadow run test (#5959) seeds a synthetic VINCE case whose content holds a
+      unique marker string and asserts no captured log record, at any level and
+      including tracebacks, contains the marker, while records still carry the
+      case and activity ids.
+  - id: VSD-01-003
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      The VINCE API credential MUST be read at runtime from the environment or a
+      secret file, and MUST NOT appear in a configuration file, log record,
+      exception message or object repr.
+    rationale: >-
+      Configuration files live in the repository, and logs and errors are
+      copied out of it. A credential read only at runtime and never rendered
+      has no path into either.
+    verification: >-
+      A test (#5960) runs the connector with a marker credential value and asserts
+      the marker appears in no log record, exception message or repr, and that a
+      configuration file carrying the credential is refused at load.
+- id: VSD-02
+  title: Repository and Publication
+  specs:
+  - id: VSD-02-001
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      Data read from a VINCE instance MUST NOT be committed to the repository or
+      published unless it is synthetic (VSD-02-004) or its VINCE case id is on
+      the cleared-case list (VSD-02-002).
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VSD-02-002
+    - rel_type: uses_definition
+      spec_id: VSD-02-004
+    rationale: >-
+      A committed response stays in git history until the history is
+      rewritten. Clearance and sanitization are the two gates a person or a
+      test can check before anything leaves.
+    verification: >-
+      The committed-data check (#5961) fails on a VINCE-shaped file that is
+      neither synthetic nor from a cleared case id, and runs in pre-commit and CI
+      with a non-empty target set.
+  - id: VSD-02-002
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      Each entry on the cleared-case list MUST name one VINCE case id and link
+      the maintainer's comment that cleared it, and the check that guards
+      committed VINCE data MUST refuse an entry without both.
+    rationale: >-
+      A clearance covers one case, so an entry that names no case or cites no
+      decision clears nothing a reviewer can confirm.
+    verification: >-
+      A test of the committed-data check (#5961) feeds it a cleared-case entry
+      with no case id and one with no clearance link, and asserts it refuses both.
+  - id: VSD-02-003
+    priority: MUST_NOT
+    kind: process
+    adr:
+    - ADR-0189
+    statement: >-
+      A Coding Agent MUST NOT add an entry to the cleared-case list or post a
+      clearance; it MAY ask a maintainer to clear a VINCE case id.
+    rationale: >-
+      A Coding Agent acts under its operator's GitHub account, so no check can
+      tell its comment from a maintainer's. The rule rests on the agent not
+      granting what only a maintainer may decide.
+    verification: >-
+      Review: a pull request that adds a cleared-case entry links a clearance
+      comment the maintainer wrote in a session with no Coding Agent acting.
+  - id: VSD-02-004
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      A VINCE-shaped file MUST count as synthetic only if the committed fixture
+      generator or the sanitizer wrote it and it carries the synthetic marker.
+    rationale: >-
+      A marker anyone can type proves nothing on its own. Tying it to the two
+      tools whose tests prove their output holds no case content is what makes
+      synthetic data safe to commit without clearance.
+    verification: >-
+      A test of the committed-data check (#5961, #6348) asserts a VINCE-shaped
+      file carrying the marker but written by neither the generator nor the
+      sanitizer is refused, and the generator's and sanitizer's outputs pass.
+  - id: VSD-02-005
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0189
+    statement: >-
+      The sanitizer's output MUST NOT contain any string value of its source
+      VINCE case other than the enumerated values the VINCE API defines, and the
+      sanitizer MUST refuse a response field it does not classify.
+    rationale: >-
+      Sanitizer output is committed without clearance, so a single string that
+      survives from the source would publish it. Refusing an unclassified field
+      keeps a new API field from passing through unread.
+    verification: >-
+      The sanitizer's leak test (#6348) collects every non-enumerated string value
+      of a test-instance source case and asserts none appears in the output or in
+      any log record of the run; a second test asserts an unclassified field is
+      refused with an error naming it.
