@@ -15,17 +15,19 @@
 
 """Tests for create_embargo_response_decision_tree (EMB-15).
 
-AC-6: verify tree structure, CASE_OWNER bypass vs call-out routing, and
-both flows' accept/reject/counter delegation.
+Verify tree structure, the absence of any approval gate ahead of
+``EvaluateEmbargoProposal``, and both flows' accept/reject/counter delegation.
 
 Covers:
   - EMB-15-001: default-accept (EvaluateEmbargoProposal → SUCCESS)
-  - EMB-15-002: CASE_OWNER gospel-bypass seam
+  - EMB-15-013: no approval gate; EvaluateEmbargoProposal alone decides
   - EMB-15-003: counter arm present/absent (Flow A vs Flow B)
   - EMB-15-004: reject arm always present as fallback
   - BT-18-004: factory parameter wired + deterministic default
   - BT-23-002: DETERMINISTIC bundle uses AlwaysSucceed/AlwaysFail
 """
+
+import dataclasses
 
 import py_trees
 import pytest
@@ -42,16 +44,13 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
-from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
-    CaseOwnerApprovesEmbargoResponse,
     EvaluateEmbargoProposal,
     WillingToCounterEmbargoProposal,
 )
@@ -140,114 +139,63 @@ class TestAcceptArm:
         tree = _make_tree()
         assert tree.children[0].name == "AcceptArm"
 
-    def test_accept_arm_has_three_children(self):
-        """AcceptArm: AuthorizeSelector + EvaluateEmbargoProposal + delegate."""
+    @pytest.mark.spec("EMB-15-013")
+    def test_accept_arm_has_two_children(self):
+        """AcceptArm: EvaluateEmbargoProposal + delegate, no approval gate."""
         tree = _make_tree()
         accept_arm = tree.children[0]
-        assert len(accept_arm.children) == 3
-
-    def test_accept_arm_first_child_is_authorize_selector(self):
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        assert isinstance(auth, py_trees.composites.Selector)
-        assert auth.name == "AuthorizeSelector"
-
-    def test_authorize_selector_memory_false(self):
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        assert auth.memory is False  # type: ignore[attr-defined]
-
-    def test_authorize_selector_has_two_children(self):
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        assert len(auth.children) == 2
-
-    @pytest.mark.spec("EMB-15-002")
-    def test_authorize_first_child_is_check_is_case_owner(self):
-        """EMB-15-002: the gospel bypass reads the deciding actor's
-        CASE_OWNER role; it is a role read, not a sender guard."""
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        check = unscoped(auth.children[0])
-        assert isinstance(check, ActorHoldsRoleInCaseNode)
-        assert check._role is CVDRole.CASE_OWNER
-
-    def test_authorize_first_child_name(self):
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        assert auth.children[0].name == "CheckIsCaseOwner"
+        assert len(accept_arm.children) == 2
 
     @pytest.mark.spec("EMB-15-005")
-    def test_accept_arm_second_child_is_evaluate_embargo_proposal_deterministic(
+    def test_accept_arm_first_child_is_evaluate_embargo_proposal_deterministic(
         self,
     ):
         """EMB-15-001: EvaluateEmbargoProposal defaults to AlwaysSucceed."""
         tree = _make_tree()
-        evaluate_node = tree.children[0].children[1]
+        evaluate_node = tree.children[0].children[0]
         assert isinstance(unwrap_call_out(evaluate_node), AlwaysSucceed)
 
-    def test_accept_arm_second_child_name(self):
+    @pytest.mark.spec("EMB-15-013")
+    def test_accept_arm_first_child_name(self):
         tree = _make_tree()
-        evaluate_node = tree.children[0].children[1]
+        evaluate_node = tree.children[0].children[0]
         assert evaluate_node.name == "EvaluateEmbargoProposal"
 
-    def test_accept_arm_third_child_is_delegate(self):
+    def test_accept_arm_second_child_is_delegate(self):
         tree = _make_tree()
-        delegate = tree.children[0].children[2]
+        delegate = tree.children[0].children[1]
         assert delegate.name == "AcceptDelegate"
 
 
 # ---------------------------------------------------------------------------
-# CASE_OWNER authorization seam (EMB-15-002)
+# No approval gate (EMB-15-013)
 # ---------------------------------------------------------------------------
 
+_REMOVED_GATE_NAMES = {
+    "AuthorizeSelector",
+    "CheckIsCaseOwner",
+    "CaseOwnerApprovesEmbargoResponse",
+}
 
-class TestAuthorizeSeam:
-    @pytest.mark.spec("EMB-15-007")
-    def test_non_owner_seam_deterministic_is_always_succeed(self):
-        """DETERMINISTIC bundle: CaseOwnerApprovesEmbargoResponse → AlwaysSucceed."""
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        non_owner_node = auth.children[1]
-        assert isinstance(unwrap_call_out(non_owner_node), AlwaysSucceed)
 
-    @pytest.mark.spec("EMB-15-007")
-    def test_non_owner_seam_name(self):
-        tree = _make_tree()
-        auth = tree.children[0].children[0]
-        non_owner_node = auth.children[1]
-        assert non_owner_node.name == "CaseOwnerApprovesEmbargoResponse"
+class TestNoApprovalGate:
+    """EMB-15-013: no arm asks another actor to approve the answer."""
 
-    @pytest.mark.spec("EMB-15-007")
-    def test_non_owner_seam_stochastic_is_correct_fuzzer_class(self):
-        """STOCHASTIC bundle: CaseOwnerApprovesEmbargoResponse → fuzzer class."""
-        tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
-        auth = tree.children[0].children[0]
-        non_owner_node = auth.children[1]
-        assert isinstance(
-            unwrap_call_out(non_owner_node), CaseOwnerApprovesEmbargoResponse
+    @pytest.mark.spec("EMB-15-013")
+    @pytest.mark.parametrize("counter", [False, True])
+    def test_tree_has_no_approval_gate(self, counter: bool):
+        tree = _make_tree(counter=counter)
+        names = {node.name for node in tree.iterate()}
+        assert names.isdisjoint(_REMOVED_GATE_NAMES)
+
+    @pytest.mark.spec("EMB-15-013")
+    def test_bundle_has_no_owner_approval_factory(self):
+        field_names = {
+            f.name for f in dataclasses.fields(EmbargoCallOutBundle)
+        }
+        assert (
+            "case_owner_approves_embargo_response_factory" not in field_names
         )
-
-    def test_custom_case_owner_approves_factory_wired(self):
-        """BT-18-004: custom factory is injected into the authorize seam."""
-        called = {"flag": False}
-
-        def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
-            called["flag"] = True
-
-            class _Custom(CallOutBackend):
-                def answer(self) -> CallOutAnswer:
-                    return CallOutAnswer.yes()
-
-            return _Custom(name="CustomApproval")
-
-        bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=custom_factory  # type: ignore[arg-type]
-        )
-        tree = _make_tree(call_out=bundle)
-        assert called["flag"]
-        auth = tree.children[0].children[0]
-        assert auth.children[1].name == "CustomApproval"
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +208,7 @@ class TestEvaluateEmbargoProposalCallOut:
     def test_stochastic_evaluate_is_correct_fuzzer_class(self):
         """STOCHASTIC bundle: EvaluateEmbargoProposal → fuzzer class."""
         tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
-        evaluate_node = tree.children[0].children[1]
+        evaluate_node = tree.children[0].children[0]
         assert isinstance(
             unwrap_call_out(evaluate_node), EvaluateEmbargoProposal
         )
@@ -284,7 +232,7 @@ class TestEvaluateEmbargoProposalCallOut:
         )
         tree = _make_tree(call_out=bundle)
         assert called["flag"]
-        assert tree.children[0].children[1].name == "CustomEvaluate"
+        assert tree.children[0].children[0].name == "CustomEvaluate"
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +404,7 @@ class TestBTBridgeIntegration:
     """
 
     # ------------------------------------------------------------------
-    # CASE_OWNER gospel bypass (EMB-15-002)
+    # EvaluateEmbargoProposal alone decides the answer (EMB-15-013)
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("EMB-15-006")
@@ -478,94 +426,70 @@ class TestBTBridgeIntegration:
         assert accept_log["ticked"], "accept_bt must be ticked for CASE_OWNER"
 
     @pytest.mark.spec("EMB-15-006")
-    def test_case_owner_skips_case_owner_approves_call_out(self):
-        """CASE_OWNER gospel bypass: CaseOwnerApproves call-out is never reached."""
-        called: dict = {"flag": False}
+    @pytest.mark.spec("EMB-15-013")
+    @pytest.mark.parametrize("accepts", [True, False])
+    def test_case_owner_answer_follows_evaluate_alone(self, accepts: bool):
+        """CASE_OWNER: EvaluateEmbargoProposal's answer is the owner's answer."""
+        self._assert_answer_follows_evaluate(
+            _OWNER_ACTOR, CVDRole.CASE_OWNER, accepts=accepts
+        )
 
-        def tracking_approves_factory(
-            name: str,
-        ) -> py_trees.behaviour.Behaviour:
-            class _Track(CallOutBackend):
+    @pytest.mark.spec("EMB-15-013")
+    @pytest.mark.parametrize("accepts", [True, False])
+    def test_non_owner_answer_follows_evaluate_alone(self, accepts: bool):
+        """Non-owner invitee: EvaluateEmbargoProposal alone decides its answer.
+
+        No approval is sought from the Case Owner: a yes ticks the accept
+        delegate, a no falls through to the reject delegate.
+        """
+        self._assert_answer_follows_evaluate(
+            _NON_OWNER_ACTOR, CVDRole.VENDOR, accepts=accepts
+        )
+
+    @staticmethod
+    def _assert_answer_follows_evaluate(
+        actor_id: str, role: CVDRole, *, accepts: bool
+    ) -> None:
+        evaluated: dict = {"count": 0}
+
+        def evaluate_factory(name: str) -> py_trees.behaviour.Behaviour:
+            class _Evaluate(CallOutBackend):
                 def answer(self) -> CallOutAnswer:
-                    called["flag"] = True
-                    return CallOutAnswer.yes()
+                    evaluated["count"] += 1
+                    if accepts:
+                        return CallOutAnswer.yes()
+                    return CallOutAnswer.no("test policy declines")
 
-            return _Track(name=name)
+            return _Evaluate(name=name)
 
         bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=tracking_approves_factory  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=evaluate_factory  # type: ignore[arg-type]
         )
-        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
-        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
-        _make_case_with_participants(scenario, owner_p)
+        scenario = BTTestScenario(actor_id=actor_id)
+        _make_case_with_participants(
+            scenario, _make_participant(actor_id, role)
+        )
 
-        accept_bt, _ = _tracking_stub("AcceptDelegate")
+        accept_bt, accept_log = _tracking_stub("AcceptDelegate")
+        reject_bt, reject_log = _tracking_stub("RejectDelegate")
         tree = create_embargo_response_decision_tree(
             case_id=_INT_CASE_ID,
-            deciding_actor_id=_OWNER_ACTOR,
+            deciding_actor_id=actor_id,
             accept_bt=accept_bt,
-            reject_bt=_failing_stub("RejectDelegate"),
+            reject_bt=reject_bt,
             call_out=bundle,
         )
-        scenario.run(tree, actor_id=_OWNER_ACTOR)
-        assert not called["flag"], (
-            "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
-        )
-
-    # ------------------------------------------------------------------
-    # Non-owner routes through call-out seam (EMB-15-002)
-    # ------------------------------------------------------------------
-
-    @pytest.mark.spec("EMB-15-007")
-    def test_non_owner_routes_through_case_owner_approves_call_out(self):
-        """Non-owner: CaseOwnerApprovesEmbargoResponse call-out IS invoked."""
-        called: dict = {"flag": False}
-
-        def tracking_approves_factory(
-            name: str,
-        ) -> py_trees.behaviour.Behaviour:
-            class _Track(CallOutBackend):
-                def answer(self) -> CallOutAnswer:
-                    called["flag"] = True
-                    return CallOutAnswer.yes()
-
-            return _Track(name=name)
-
-        bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=tracking_approves_factory  # type: ignore[arg-type]
-        )
-        scenario = BTTestScenario(actor_id=_NON_OWNER_ACTOR)
-        non_owner_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        _make_case_with_participants(scenario, non_owner_p)
-
-        accept_bt, _ = _tracking_stub("AcceptDelegate")
-        tree = create_embargo_response_decision_tree(
-            case_id=_INT_CASE_ID,
-            deciding_actor_id=_NON_OWNER_ACTOR,
-            accept_bt=accept_bt,
-            reject_bt=_failing_stub("RejectDelegate"),
-            call_out=bundle,
-        )
-        scenario.run(tree, actor_id=_NON_OWNER_ACTOR)
-        assert called["flag"], (
-            "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
-        )
+        result = scenario.run(tree, actor_id=actor_id)
+        scenario.assert_success(result)
+        assert evaluated["count"] == 1
+        assert accept_log["ticked"] is accepts
+        assert reject_log["ticked"] is not accepts
 
     @pytest.mark.spec("EMB-15-004")
     def test_unknown_actor_falls_through_to_reject(self):
-        """Actor not in case: CheckIsCaseOwner → FAILURE; call-out denies → reject."""
-        deny_factory_called: dict = {"flag": False}
-
-        def deny_factory(name: str) -> py_trees.behaviour.Behaviour:
-            class _Deny(CallOutBackend):
-                def answer(self) -> CallOutAnswer:
-                    deny_factory_called["flag"] = True
-                    return CallOutAnswer.no("test backend declines")
-
-            return _Deny(name=name)
-
+        """Actor not in case: EvaluateEmbargoProposal declines → reject."""
         bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=deny_factory  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=call_out_no,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         # Seed case with no entry for _UNKNOWN_ACTOR
@@ -582,9 +506,6 @@ class TestBTBridgeIntegration:
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
-        assert deny_factory_called["flag"], (
-            "CaseOwnerApproves call-out seam must be reached for unknown actor"
-        )
         assert reject_log["ticked"], (
             "reject_bt must be ticked for unknown actor"
         )
@@ -627,19 +548,16 @@ class TestBTBridgeIntegration:
     @pytest.mark.spec("EMB-15-011")
     def test_flow_a_counter_delegation_when_willing(self):
         """Flow A: WillingToCounter → SUCCESS → counter_bt is ticked."""
-        # Accept arm fails because AuthorizeSelector fails:
-        # _UNKNOWN_ACTOR is not in case → CheckIsCaseOwner FAILURE,
-        # CaseOwnerApproves also returns FAILURE → AuthorizeSelector FAILURE
-        # → AcceptArm Sequence short-circuits at child[0] (never reaches
-        # EvaluateProposal or accept_bt).
+        # Accept arm fails because EvaluateEmbargoProposal returns FAILURE,
+        # so the AcceptArm Sequence short-circuits at child[0] (never
+        # reaches accept_bt).
         # WillingToCounter returns SUCCESS so counter arm is then taken.
         accept_fail_bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=call_out_no,  # type: ignore[arg-type]
             willing_to_counter_factory=_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
-        # Case has no entry for _UNKNOWN_ACTOR so CheckIsCaseOwner returns FAILURE
         case = make(
             VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
@@ -674,12 +592,11 @@ class TestBTBridgeIntegration:
     def test_flow_a_reject_delegation_when_all_arms_fail(self):
         """Flow A: accept + counter arms fail → reject_bt is ticked (EMB-15-004).
 
-        Accept arm fails via AuthorizeSelector: _UNKNOWN_ACTOR not in case →
-        CheckIsCaseOwner FAILURE; CaseOwnerApproves → FAILURE → AcceptArm fails.
+        Accept arm fails because EvaluateEmbargoProposal → FAILURE.
         Counter arm fails because WillingToCounter → FAILURE.
         """
         deny_all = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=call_out_no,  # type: ignore[arg-type]
             willing_to_counter_factory=call_out_no,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
@@ -743,12 +660,10 @@ class TestBTBridgeIntegration:
     def test_flow_b_reject_delegation(self):
         """Flow B: accept arm fails → reject_bt is ticked (EMB-15-004).
 
-        AuthorizeSelector fails because _UNKNOWN_ACTOR is not in the case:
-        CheckIsCaseOwner → FAILURE; CaseOwnerApproves → FAILURE.
-        EvaluateEmbargoProposal is never reached, so no factory override needed.
+        The accept arm fails because EvaluateEmbargoProposal → FAILURE.
         """
         deny_accept = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=call_out_no,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)

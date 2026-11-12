@@ -2540,46 +2540,33 @@ groups:
     stories:
     - story_2026_004
     - story_2022_006
-  - id: EMB-15-002
-    priority: MUST
+  - id: EMB-15-013
+    priority: MUST_NOT
     kind: project
     statement: >-
-      The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
-      adjudication call-out point.
+      The decision seam MUST NOT make the deciding actor's answer wait on
+      another actor's approval. `EvaluateEmbargoProposal` alone decides
+      whether the accept arm runs, whether or not the deciding actor holds
+      `CVDRole.CASE_OWNER`.
     rationale: >-
-      This mirrors the status adoption gate's CASE_OWNER bypass (ADR-0046) and the
-      case_proposal_received_tree pattern: the CASE_OWNER is the human
-      decision-maker whose choice is gospel, while other actors need an
-      adjudication seam that a UI or LLM agent can later fulfil. The distinction
-      matters because a CASE_MANAGER may process an overture routed to it without
-      being the party whose consent is being recorded.
+      The answer is the deciding actor's own. A participant's Accept or Reject
+      of an embargo Invite records only its own consent row (CM-18, ADR-0122),
+      so the Case Owner has nothing to approve. A gate that asks another actor
+      for a decision is a protocol ask, not a call-out point (BT-18-014). The
+      CASE_MANAGER never runs this seam for its own consent, which
+      `record_manager_embargo_consent_tree` records. A gate where the Case
+      Owner delegates embargo activation to the CASE_MANAGER belongs on the
+      CASE_MANAGER's activation path (#6045), not in this seam.
     verification: >-
-      Inspection of `vultron/core/` confirms that the inbound embargo-response
-      decision tree includes a `CheckIsCaseOwner` Condition node as the leading
-      arm of the Selector, positioned before the `CaseOwnerApprovesEmbargoResponse`
-      call-out point.
-    testable: true
-    preconditions:
-    - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
-    steps:
-    - order: 1
-      actor: system
-      action: Run CheckIsCaseOwner guard (hard-bypass arm of the Selector)
-      expected: >-
-        SUCCESS when actor holds CASE_OWNER (owner's response is authoritative);
-        FAILURE otherwise, falling through to the adjudication call-out point
-    - order: 2
-      actor: system
-      action: >-
-        For non-owners, run CaseOwnerApprovesEmbargoResponse call-out point
-      expected: Returns SUCCESS (default) or FAILURE (adjudication withholds)
-    postconditions:
-    - description: >-
-        Owner responses proceed unconditionally; non-owner responses gated by
-        the adjudication seam
+      `test/core/behaviors/embargo/test_response_decision_tree.py::TestNoApprovalGate`
+      confirms the accept arm is `EvaluateEmbargoProposal` then the accept
+      delegate, and that a non-owner's answer follows `EvaluateEmbargoProposal`
+      alone.
     relationships:
     - rel_type: extends
       spec_id: EMB-15-001
+    - rel_type: refines
+      spec_id: BT-18-014
     stories:
     - story_2022_046
     - story_2022_006
@@ -2587,8 +2574,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_skips_case_owner_approves_call_out`
-      confirms the Case Owner's response bypasses the approval call-out.
+      `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_answer_follows_evaluate_alone`
+      confirms the Case Owner's response is decided by `EvaluateEmbargoProposal`
+      alone, with no approval call-out.
     statement: >-
       When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
       response is authoritative and the seam MUST NOT require external approval.
@@ -2597,28 +2585,7 @@ groups:
       external approval for the owner's response would violate the authorization model.
     relationships:
     - rel_type: refines
-      spec_id: EMB-15-002
-  - id: EMB-15-007
-    priority: MUST
-    kind: project
-    statement: >-
-      Non-owner actors (e.g., a CASE_MANAGER processing an overture on the owner's
-      behalf) MUST route through the `CaseOwnerApprovesEmbargoResponse` call-out
-      point, which defaults to SUCCESS under the DETERMINISTIC bundle.
-    rationale: >-
-      Non-owner actors need an adjudication seam that a UI or LLM agent can later
-      fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
-    verification: >-
-      Inspection of `vultron/core/` confirms that the non-owner path in the decision
-      tree routes through `CaseOwnerApprovesEmbargoResponse`, which is resolved to a
-      SUCCESS-returning node under the DETERMINISTIC bundle.
-    relationships:
-    - rel_type: extends
-      spec_id: EMB-15-002
-
-    stories:
-    - story_2022_046
-    - story_2022_006
+      spec_id: EMB-15-013
   - id: EMB-15-003
     priority: SHOULD
     kind: project

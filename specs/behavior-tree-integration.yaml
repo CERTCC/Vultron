@@ -3106,8 +3106,7 @@ groups:
       operator must document (ADR-0076). Because the rule is general, each gate author
       applies it when the gate is added, and an audit does not have to find it later.
       notes/call-out-configuration.md tells which gates qualify. It also tells why
-      similar gates do not qualify, for example the accept-direction
-      CaseOwnerApprovesEmbargoResponse (EMB-15-001) and the trigger-side
+      similar gates do not qualify, for example the trigger-side
       EmbargoExitPolicyGuard. This rule sets only the default posture. RSH-07-004
       (ADR-0080) tells how to compose a qualifying gate.
     relationships:

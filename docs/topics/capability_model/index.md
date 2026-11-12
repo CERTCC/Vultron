@@ -282,9 +282,9 @@ print(render_capability_table("case_management"))
 
 *See also: [Embargo behaviors](../behavior_logic/em_bt.md), [Evaluate proposed embargo](../behavior_logic/em_eval_bt.md), [Propose embargo](../behavior_logic/em_propose_bt.md), [Terminate embargo](../behavior_logic/em_terminate_bt.md)*
 
-`CaseOwnerApprovesEmbargoResponse` gates the answer that a participant other than the Case Owner gives to an embargo proposal.
-The Case Owner's own answer does not ask it.
-A backend can answer it only from the deciding actor's own policy: a decision that only the Case Owner can make is a protocol ask, not a call-out point (BT-18-014).
+A participant's answer to an embargo invitation is its own consent, so `EvaluateEmbargoProposal` decides it from that participant's own policy, and no capability asks the Case Owner to approve it (EMB-15-013).
+A decision that only the Case Owner can make is a protocol ask, not a call-out point (BT-18-014).
+A gate where the Case Owner lets the CASE_MANAGER activate an embargo for it would sit on the CASE_MANAGER's activation path; that idea is open in [#6045](https://github.com/CERTCC/Vultron/issues/6045).
 Whether the active embargo stays acceptable as conditions change (`CurrentEmbargoAcceptable`) is open in [#1943](https://github.com/CERTCC/Vultron/issues/1943).
 The embargo's end time is in the case, so a BT reads it there instead of asking `EmbargoTimerExpired` (BT-18-039; see [Still open](#still-open)).
 

@@ -80,14 +80,9 @@ EXPECTED_CONSERVATIVE_GATES = {
 
 # Look-alike embargo gates that share surface structure with the qualifying set
 # but do NOT qualify, so they intentionally keep a permissive (SUCCESS) default.
-# - CaseOwnerApprovesEmbargoResponse: EMB-15-001 (MUST) requires accept-by-default;
-#   accepting an embargo is the protective direction, not teardown.
 # - EmbargoExitPolicyGuard: trigger-side voluntary exit (self-authorized), gated
 #   behind a fail-closed reason Selector; EMB-14-002 frames it as an optional veto.
-PERMISSIVE_EMBARGO_LOOKALIKE_FIELDS = (
-    "case_owner_approves_embargo_response_factory",
-    "embargo_exit_policy_guard_factory",
-)
+PERMISSIVE_EMBARGO_LOOKALIKE_FIELDS = ("embargo_exit_policy_guard_factory",)
 
 
 def _core_deterministic_singletons() -> dict[str, Any]:

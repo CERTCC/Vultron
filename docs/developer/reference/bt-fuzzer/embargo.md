@@ -267,7 +267,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EvaluateEmbargoProposal`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`evaluate_embargo_proposal_factory` param) — the default-accept Evaluator of the inbound embargo-response decision seam (EMB-15-001).
-  It sits behind the CASE_OWNER-bypass authorization Selector (EMB-15-002).
+  It alone decides whether the accept arm runs: no approval gate sits ahead of it (EMB-15-013).
   On SUCCESS, it delegates to the flow-appropriate accept BT (`accept_embargo_trigger_bt` for a Flow A proposal, `accept_invite_to_embargo_tree` for a Flow B invitation).
 
 ## `OnEmbargoAccept`
@@ -307,30 +307,6 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   It makes notification API calls and case-management state writes for the rejection rationale.
   The seam is the side effects in external systems, not a content artifact on the blackboard.
 - **Factory-fn placement**: Not wired yet: the `on_embargo_reject_factory` slot exists in `EmbargoCallOutBundle`, and `create_manage_embargo_tree` reserves it for the reject arm (EMB-15-004, EMB-15-008).
-
-## `CaseOwnerApprovesEmbargoResponse`
-
-- **Node name**: `CaseOwnerApprovesEmbargoResponse`
-- **btz type**: `AlwaysSucceed` (p=1.00)
-- **Source file**: `vultron/demo/fuzzer/embargo/evaluation.py`
-- **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`).
-  It is the second child of the `AuthorizeSelector` Selector, and the tree reaches it only when the deciding actor is NOT a `CVDRole.CASE_OWNER`
-- **Semantic function**: Condition — a non-CASE_OWNER actor asks the Case Owner for authorization before it accepts or counters.
-  An example is the CASE_MANAGER when it processes an inbound overture on behalf of the owner.
-  Defaults to approval in simulation, because the simulation assumes owner approval.
-- **Input dependency**: Human approval / adjudication.
-  Final authority rests with the Case Owner (a human or a configured policy agent)
-- **Notes**: Gate only.
-  The node places no content artifact on the blackboard.
-  In production, an Evaluator-type Coordination Agent would fulfill this seam and return the decision of the owner.
-  This agent can be a user interface (UI) prompt, a large language model (LLM) adjudicator, or a policy rule.
-- **Automation potential**: **Low** — final authority rests with the Case Owner.
-  By default, approval is not automatic.
-- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
-- **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny).
-  It declares no output keys in its contract, because it is only a pass/fail gate (BT-18-006).
-- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`case_owner_approves_embargo_response_factory` param) — second child of the `AuthorizeSelector`.
-  The tree reaches it when `SenderIsCaseOwnerNode` returns FAILURE (EMB-15-002).
 
 ## `CurrentEmbargoAcceptable`
 

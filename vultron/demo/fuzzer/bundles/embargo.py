@@ -33,7 +33,6 @@ Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 - ``on_embargo_exit_factory``                         — OnEmbargoExit                       (p=1.0) → AlwaysSucceed
 - ``on_embargo_accept_factory``                       — OnEmbargoAccept                     (p=1.0) → AlwaysSucceed
 - ``on_embargo_reject_factory``                       — OnEmbargoReject                     (p=1.0) → AlwaysSucceed
-- ``case_owner_approves_embargo_response_factory``    — CaseOwnerApprovesEmbargoResponse    (p=1.0) → AlwaysSucceed
 - ``embargo_exit_policy_guard_factory``               — EmbargoExitPolicyGuard              (p=1.0) → AlwaysSucceed
 - ``embargo_exit_override_factory``                   — EmbargoExitOverride                 (p=0.0) → AlwaysFail
 """
@@ -47,7 +46,6 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.demo.fuzzer.embargo import (
-    CaseOwnerApprovesEmbargoResponse,
     CurrentEmbargoAcceptable,
     EmbargoExitOverride,
     EmbargoExitPolicyGuard,
@@ -122,12 +120,6 @@ def _stochastic_on_reject(name: str) -> py_trees.behaviour.Behaviour:
     return OnEmbargoReject(name)
 
 
-def _stochastic_case_owner_approves_embargo_response(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return CaseOwnerApprovesEmbargoResponse(name)
-
-
 def _stochastic_embargo_exit_policy_guard(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
@@ -154,7 +146,6 @@ EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     on_embargo_exit_factory=_stochastic_on_exit,  # type: ignore[arg-type]
     on_embargo_accept_factory=_stochastic_on_accept,  # type: ignore[arg-type]
     on_embargo_reject_factory=_stochastic_on_reject,  # type: ignore[arg-type]
-    case_owner_approves_embargo_response_factory=_stochastic_case_owner_approves_embargo_response,  # type: ignore[arg-type]
     embargo_exit_policy_guard_factory=_stochastic_embargo_exit_policy_guard,  # type: ignore[arg-type]
     embargo_exit_override_factory=_stochastic_embargo_exit_override,  # type: ignore[arg-type]
 )
