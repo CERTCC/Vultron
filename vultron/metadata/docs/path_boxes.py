@@ -26,7 +26,8 @@ thread and target in :data:`~vultron.metadata.docs.threads.THREAD_ATTR` and
 :data:`~vultron.metadata.docs.threads.MEMBER_ATTR`, so for every built page
 the check fails when:
 
-* a box of a thread the page is a member of is missing — the message names the ``include-markdown`` line to add;
+* a box of a thread the page is a member of is missing — the message names
+  the ``include-markdown`` line to add;
 * the page renders a box made for another page, or the same box twice;
 * a section member's box does not sit after the element carrying its anchor
   and before the next heading of the same or a higher level (DF-11-045);
