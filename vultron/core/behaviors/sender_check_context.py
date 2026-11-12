@@ -195,7 +195,10 @@ class SenderCheckContext:
             CASE_MANAGER this receiver has trusted for the case: the one its
             bootstrap recorded on a completed ``ReportCaseLink``
             (CBT-02-003), else the replica's, else the trust anchor recorded
-            with the stub Invite (PCR-03-004).
+            with the stub Invite (PCR-03-004).  Only
+            ``Announce(VulnerabilityCase)``, which creates the replica,
+            reaches that last fallback; the full-case Invite is judged only
+            once the replica exists (CM-11-033).
         case_manager_required: A ``CASE_MANAGER`` sender is refused, rather
             than passed through, when this store holds no case or the case
             names no CASE_MANAGER.
