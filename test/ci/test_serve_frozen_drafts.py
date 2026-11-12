@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import tarfile
 from pathlib import Path
 from typing import Any
@@ -574,3 +575,58 @@ def test_no_site_build_renders_a_commit_it_did_not_check_out() -> None:
                     name,
                     step.get("name"),
                 )
+
+
+@pytest.mark.spec("DOCBW-08-033")
+def test_a_download_that_keeps_failing_fails_naming_the_draft_and_release(
+    tmp_path: Path, releases: _FlakyReleases, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive, manifest = _build(tmp_path)
+    _publish_pair(releases, archive, manifest)
+
+    def broken(*args: str, retry: bool = True) -> str:
+        raise subprocess.CalledProcessError(1, ["gh", *args], stderr="502\n")
+
+    monkeypatch.setattr(releases, "_download", broken)
+    site = _built_site(tmp_path)
+    with pytest.raises(_fd.FrozenDraftError) as caught:
+        _serve_into(site, _register(("draft-1", RELEASE)))
+    (fault,) = caught.value.faults
+    assert fault.startswith(
+        f"draft-1 (release {RELEASE}): the download failed"
+    )
+    assert not (site / "spec").exists()
+
+
+def test_a_release_lookup_that_fails_fails_the_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only "release not found" reads as unpublished; any other error is a
+    failure, never a placeholder."""
+
+    def gh(*args: str, retry: bool = True) -> str:
+        raise subprocess.CalledProcessError(
+            1, ["gh", *args], stderr="HTTP 500\n"
+        )
+
+    monkeypatch.setattr(_rel, "gh", gh)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    register = tmp_path / "register.json"
+    register.write_text(
+        json.dumps(
+            {
+                "current": None,
+                "released": [
+                    {
+                        "version": "draft-1",
+                        "date": "2026-11-06",
+                        "release": RELEASE,
+                    }
+                ],
+            }
+        )
+    )
+    site = _built_site(tmp_path)
+    argv = ["--register", str(register), "--repo", "O/R", "--site", str(site)]
+    assert _serve.main(argv) == 1
+    assert not (site / "spec").exists()
