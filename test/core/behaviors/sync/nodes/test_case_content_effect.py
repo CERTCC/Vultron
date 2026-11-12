@@ -47,10 +47,17 @@ MANAGER_ACTOR_ID = "https://example.org/actors/case-manager"
 ITEM_ID = f"{CASE_ID}/items/1"
 REFERENCE_ID = f"{CASE_ID}/references/1"
 
-_ITEM = {"type": "VulnerabilityItem", "id": ITEM_ID, "cve": "CVE-2026-0001"}
+_STAMP = {"published": ACT_AT.isoformat(), "updated": ACT_AT.isoformat()}
+_ITEM = {
+    "type": "VulnerabilityItem",
+    "id": ITEM_ID,
+    "cve": "CVE-2026-0001",
+    **_STAMP,
+}
 _REFERENCE = {
     "type": "CaseReference",
     "id": REFERENCE_ID,
+    **_STAMP,
     "url": {"type": "Link", "href": "https://example.org/a"},
     "name": "Advisory",
 }

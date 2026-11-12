@@ -1086,6 +1086,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
             actor=_ACTOR,
             context_id=_CONTEXT_ID,
             to=[_PEER],
+            at=authored_at(),
         )
 
         body = read_sealed_body_dict(dl, activity_id)
