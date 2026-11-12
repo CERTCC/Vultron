@@ -294,6 +294,50 @@ groups:
       one implementation serves every connector. If a connector holds any of them, two
       connectors can make different decisions for the same case, and a tracker becomes a
       way around the core rules.
+  - id: ARCH-05-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Besides its name, a connector plugin MUST implement at least one direction
+      Protocol. The directions are a polled source, a push source and an event sink.
+    rationale: >-
+      Outside systems differ in direction. The VINCE shadow only reads VINCE and is
+      polled; a webhook tracker pushes in; the later VINCE gateway also writes. A single
+      two-way Protocol forces a read-only connector to carry a write method it must not
+      have. Per-direction Protocols let each connector declare exactly what it does, and
+      let discovery still tell what each plugin can do.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-003
+  - id: ARCH-05-005
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A connector plugin MUST NOT expose a method for a direction it does not
+      implement, including a stub that raises, logs or does nothing.
+    rationale: >-
+      A stub write method is still a write path in the interface: a later change can
+      fill it in without anyone noticing that the connector was meant to be read-only.
+      If the method does not exist, adding a write path is a visible change to the
+      plugin's declared directions.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-004
+  - id: ARCH-05-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The connector loader MUST refuse an entry point that implements no direction
+      Protocol, with an error that names the entry point.
+    rationale: >-
+      A plugin with no direction can do nothing, so loading it hides a packaging
+      mistake. Naming the entry point lets the operator find the bad package.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-004
 - id: ARCH-06
   title: Wire Layer Replaceability
   specs:
