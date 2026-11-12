@@ -107,6 +107,14 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - A connector implements only the direction Protocols it does: polled source,
   push source, event sink. A one-direction connector is complete, because the
   VINCE shadow must be pollable with no write path (ARCH-05-004, ARCH-05-006, #6337).
+- A **polled source** returns the changes since a bookmark the caller holds,
+  plus the new bookmark; the connector stores no bookmark, so the caller owns
+  where reading resumes. A **push source** receives events the outside system
+  sends in. An **event sink** delivers Vultron events out (#6358 AC-1).
+- A connector keeps all its directions in one plugin under
+  `adapters/connectors/`. The driving/driven split above is about adapter
+  categories, not connector directions: never split a two-direction connector
+  across modules (ARCH-05-004).
 - Never stub a direction a connector lacks: a raising write method is still a
   write path a later change can fill in (ARCH-05-005).
 - A connector is plumbing, not a capability shape. Whoever starts the exchange
@@ -174,6 +182,8 @@ enforced by `test/architecture/test_core_no_wire_imports.py` and
 
 - [ ] Plugins translate at boundaries only.
 - [ ] No case/business logic in connector modules.
+- [ ] No method, not even a raising stub, for a direction the connector lacks
+  (ARCH-05-005).
 
 ### Tests
 

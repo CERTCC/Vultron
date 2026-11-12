@@ -310,19 +310,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-05-003
-  - id: ARCH-05-006
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      The connector loader MUST refuse an entry point that implements no direction
-      Protocol, with an error that names the entry point.
-    rationale: >-
-      A plugin with no direction can do nothing, so loading it hides a packaging
-      mistake. Naming the entry point lets the operator find the bad package.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-05-004
   - id: ARCH-05-005
     priority: MUST_NOT
     kind: project
@@ -335,6 +322,19 @@ groups:
       fill it in without anyone noticing that the connector was meant to be read-only.
       If the method does not exist, adding a write path is a visible change to the
       plugin's declared directions.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-004
+  - id: ARCH-05-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The connector loader MUST refuse an entry point that implements no direction
+      Protocol, with an error that names the entry point.
+    rationale: >-
+      A plugin with no direction can do nothing, so loading it hides a packaging
+      mistake. Naming the entry point lets the operator find the bad package.
     relationships:
     - rel_type: refines
       spec_id: ARCH-05-004
