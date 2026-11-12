@@ -39,8 +39,9 @@ the object's ``repr`` and ``str`` show only the public key, so logging one
 does not disclose it (ENC-01-007).
 
 JSON that parsers disagree on is refused rather than signed or verified:
-:func:`load_json` refuses duplicate object keys and non-finite numbers, and
-canonicalization refuses integers outside the I-JSON range ±(2^53 - 1).
+:func:`load_json` refuses duplicate object keys, non-finite numbers and
+nesting deeper than :data:`MAX_JSON_DEPTH`, and canonicalization refuses
+integers outside the I-JSON range ±(2^53 - 1).
 """
 
 import copy
@@ -50,6 +51,7 @@ import logging
 import re
 from collections.abc import Mapping
 from datetime import datetime
+from itertools import accumulate
 from typing import Any, NoReturn
 
 import base58
@@ -84,6 +86,19 @@ CRYPTOSUITE = "eddsa-jcs-2022"
 PROOF_PURPOSE = "assertionMethod"
 #: The fragment that names an actor's signing key in its profile.
 KEY_FRAGMENT = "main-key"
+#: The deepest nesting of arrays and objects :func:`load_json` reads: ``[]``
+#: is depth 1, a scalar depth 0.  The limit is the code's own, so the
+#: refusal is the same on every Python version and stack size: up to 3.13,
+#: ``json.loads`` stopped at the C recursion limit, and on 3.14 it stops only
+#: when the C stack is nearly full, which depends on the host (#6347).
+#: ``load_json`` reads untrusted input at the edge (ADR-0032), so it refuses
+#: here what a later stage could not process: :func:`canonicalize` and the
+#: inbox's unknown-key walk recurse in Python, with the caller's frames
+#: already on the stack, under the default recursion limit of 1000.  256
+#: leaves them that headroom.  Real payloads nest far less: a fully
+#: populated case snapshot carried in an activity stays under a quarter of
+#: it (``test_a_full_case_in_an_activity_nests_far_below_the_limit``).
+MAX_JSON_DEPTH = 256
 
 #: Multicodec prefixes: ``ed25519-pub`` (0xed) and ``ed25519-priv`` (0x1300),
 #: each as an unsigned varint.
@@ -102,6 +117,16 @@ _BASE58_TEXT = re.compile(r"[1-9A-HJ-NP-Za-km-z]+")
 _TIMESTAMP_TEXT = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})"
 )
+#: A backslash escape and the character it escapes.  Valid JSON has these
+#: only inside strings, so dropping them leaves strings with no quote inside.
+_JSON_ESCAPE = re.compile(r"\\[\s\S]")
+#: One JSON string with its escapes dropped; an unterminated one runs to the
+#: end of the text.
+_JSON_STRING = re.compile(r'"[^"]*"?')
+#: A run of characters that are not brackets.
+_NOT_BRACKETS = re.compile(r"[^\[\]{}]+")
+#: How a bracket moves the nesting depth.
+_DEPTH_STEP = {"[": 1, "{": 1, "]": -1, "}": -1}
 #: Domain separation for seeds, versioned so a scheme change changes every key.
 _SEED_LABEL = b"vultron-prototype-seeded-key/v1\n"
 
@@ -254,9 +279,11 @@ def load_json(text: str | bytes) -> Any:
             included) or start with a byte-order mark, or it holds ``NaN``
             or ``Infinity``.
         VultronRefusedJsonError: the text is JSON of one of the refused
-            kinds: a duplicate key, a number too large for a double, an
-            integer with too many digits to read, or nesting too deep to
-            parse.
+            kinds: a duplicate key, a number too large for a double, or an
+            integer with too many digits to read.  Or its arrays and objects
+            nest deeper than :data:`MAX_JSON_DEPTH`: that text is refused
+            before it is parsed, so this is raised for it whether or not it
+            is otherwise JSON.
     """
     try:
         # Bytes are read as UTF-8 only (RFC 8259 section 8.1): json.loads
@@ -265,6 +292,7 @@ def load_json(text: str | bytes) -> Any:
         # refuses.
         if isinstance(text, bytes):
             text = text.decode("utf-8")
+        _refuse_deep_nesting(text)
         return json.loads(
             text,
             object_pairs_hook=_refuse_duplicate_keys,
@@ -274,6 +302,8 @@ def load_json(text: str | bytes) -> Any:
     except VultronUnsignableJsonError:
         raise
     except RecursionError as error:
+        # The depth check refuses first; this catches a stack that runs out
+        # within MAX_JSON_DEPTH, for example in a thread with a small stack.
         raise VultronRefusedJsonError(
             "JSON is nested too deeply to parse"
         ) from error
@@ -284,6 +314,34 @@ def load_json(text: str | bytes) -> Any:
         raise VultronRefusedJsonError(
             f"JSON number cannot be read: {error}"
         ) from error
+
+
+def _refuse_deep_nesting(text: str) -> None:
+    """Refuse *text* if its arrays and objects nest deeper than the limit.
+
+    A linear scan, so the check itself uses no stack, and it runs before
+    ``json.loads`` so a deep text is never parsed.  Brackets inside strings
+    are not nesting.  Whether the brackets match is left to ``json.loads``,
+    so text nested past the limit is refused whether or not it is otherwise
+    JSON.  Text with no more openers than the limit is not scanned at all;
+    other text costs a few regex passes, linear in its length.  The inbox
+    body size limit that bounds that length is IE-03 (#4596).
+
+    Raises:
+        VultronRefusedJsonError: the nesting is deeper than
+            :data:`MAX_JSON_DEPTH`.
+    """
+    if text.count("[") + text.count("{") <= MAX_JSON_DEPTH:
+        return
+    brackets = _NOT_BRACKETS.sub(
+        "", _JSON_STRING.sub("", _JSON_ESCAPE.sub("", text))
+    )
+    depths = accumulate(map(_DEPTH_STEP.__getitem__, brackets))
+    if max(depths, default=0) > MAX_JSON_DEPTH:
+        raise VultronRefusedJsonError(
+            "JSON is nested too deeply to parse: more than "
+            f"{MAX_JSON_DEPTH} levels of arrays and objects"
+        )
 
 
 def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -674,6 +732,7 @@ __all__ = [
     "CRYPTOSUITE",
     "DATA_INTEGRITY_CONTEXT",
     "KEY_FRAGMENT",
+    "MAX_JSON_DEPTH",
     "MULTIKEY_CONTEXT",
     "PROOF_PURPOSE",
     "PROOF_TYPE",

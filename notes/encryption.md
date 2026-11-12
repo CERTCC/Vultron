@@ -16,6 +16,7 @@ related_specs:
   - specs/signing.yaml
   - specs/encryption.yaml
   - specs/message-validation.yaml
+  - specs/inbox-endpoint.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
   - specs/object-ids.yaml
@@ -103,6 +104,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   it makes proofs no other `eddsa-jcs-2022` verifier accepts. Refuse duplicate
   JSON keys and integers above 2^53 rather than sign or verify them, since
   parsers disagree on both.
+- **Bound JSON nesting by the code's own limit, never by the stack.**
+  `load_json` refuses arrays and objects nested deeper than `MAX_JSON_DEPTH`
+  before it parses, since from Python 3.14 `json.loads` stops only when the C
+  stack is nearly full, which depends on the host. The limit leaves the Python
+  walks after it (`canonicalize`, the unknown-key walk) room under the
+  recursion limit; a `RecursionError` catch stays as a second line (#6347).
+  The check runs before the parse, so it cannot tell JSON from not-JSON:
+  text nested past the limit is `VultronRefusedJsonError` (422) either way.
 - **A signed activity's `@context` is a list.** Signing appends
   `https://w3id.org/security/data-integrity/v2` to the activity's own
   `@context`, as FEP-8b32's examples do and other implementers expect, so the
