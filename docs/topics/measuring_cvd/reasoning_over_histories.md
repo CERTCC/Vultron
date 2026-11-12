@@ -4,7 +4,8 @@ level: 500
 page_type: explanation
 subject: neutral
 description: >
-  How often each history and each desired ordering occurs under that baseline.
+  How often each history and each desired ordering occurs under that baseline,
+  and how a case that is still in progress is scored.
 ---
 
 # Reasoning over Possible Histories
@@ -264,3 +265,48 @@ $\mathcal{H}$. Different posets on $\mathbb{D}$ would lead to different
 posets on $\mathcal{H}$. For example, one might construct a different
 poset if certain $d$ were considered to have much higher financial value
 when achieved than others.
+
+## Scoring a Case That Is Still in Progress
+
+The scores above are for complete histories, in which all six events have happened.
+A real case is almost always still in progress: some of its events have not happened yet, so its sequence is a prefix of a history, not a whole one.
+[ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) scores such a case through the histories it can still become.
+
+A history's score is the sum of $1 - f_d$ over the twelve desiderata $d$ the history meets.
+A rare desideratum adds nearly 1, and a common one adds little.
+This differs from the $-log(f_d)$ skill proxy used for the ranking above: both reward a rare desideratum more than a common one, but $1 - f_d$ adds at most 1 for each desideratum.
+The most skillful history, $(\mathbf{V}, \mathbf{F}, \mathbf{D}, \mathbf{P}, \mathbf{X}, \mathbf{A})$, meets all twelve and scores about 7.37.
+A history that meets none scores 0.
+
+!!! note "Scoring a Prefix Through Its Completions"
+
+    A *completion* of a prefix is a valid complete history that starts with that prefix.
+    Every valid prefix has at least one completion.
+    Each completion $h$ is weighted by the probability that the same random walk that gives $f_h$ takes from where the case stands to $h$.
+    That weight is $f_h$ divided by the probability of the prefix, so the weights of a prefix's completions sum to 1.
+    The case then reports three scores:
+
+    - The **expected score** is the weighted mean of the completions' scores.
+      It is what the case would score if every remaining event happened by chance.
+    - The **best score** is the highest score of any completion.
+      It is the most the case can still reach.
+    - The **worst score** is the lowest score of any completion.
+      It is the least the case can still fall to.
+
+    A complete history is its own only completion, so its expected, best and worst scores are all equal to its score.
+
+!!! example "A case in which the vendor has a fix ready"
+
+    The vendor is aware and a fix is ready, but nothing else has happened: the prefix is $(\mathbf{V}, \mathbf{F})$.
+    It has 18 completions.
+    Its worst score is about 3.43, its best about 7.37, and its expected score about 5.30.
+    Once the fix is also deployed, $(\mathbf{V}, \mathbf{F}, \mathbf{D})$ has 5 completions, and the range narrows to 6.04 through 7.37, with an expected score of 6.76.
+
+The range between the worst and the best score shows how much the outcome of the case is still open.
+It shrinks as events happen, and it closes when the history is complete.
+The expected score is a forecast under the chance baseline, not a prediction of what the participants will do.
+
+A sequence that is not a valid prefix gets no score.
+It is refused, with the reason the prefix check gives, such as a fix ready before the vendor is aware.
+A case whose ledger has holes never reaches the scorer: the [event history](../../adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md) refuses it, so a scored sequence is incomplete only because its remaining events have not happened yet.
+A multi-party case is scored once for each vendor, from that vendor's own sequence.

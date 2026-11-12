@@ -260,8 +260,9 @@ It computes no score (CEH-05-008). The existing desiderata scorer is
 name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
 shorter. Every sequence the committed recordings yield is incomplete, so there is no
-score to compute for a typical case. How an incomplete sequence earns a score is
-decided by ADR-0182 and built by #6068; the measures stay out of this layer.
+score to compute for a typical case. The measures stay out of this layer: an
+incomplete sequence is scored by `vultron/measure/scoring/` (`score_sequence`), which
+reads the sequence and never the other way round (ADR-0182).
 
 ### Measures built on these sequences take chance per vendor
 
@@ -280,6 +281,11 @@ case stands, and `frequency` serves any joint-model query. Reason: one walk keep
 the completions and the baselines under the same chance model (ADR-0182). Its joint
 models obey only enforced rules — a SHOULD never constrains them, because the
 desiderata measure exactly those preferences.
+
+Score a complete history with `vultron.measure.scoring.history_score`, never
+`CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original
+desiderata, with exact baselines and no import of `vultron/core/case_states/`. A test
+holds the two equal over the 70 histories.
 
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
