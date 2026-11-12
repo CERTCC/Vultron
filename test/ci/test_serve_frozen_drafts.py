@@ -54,6 +54,7 @@ _serve = load_script("serve_frozen_drafts")
 
 DEPLOY = WORKFLOWS_DIR / "deploy_site.yml"
 REVIEW = WORKFLOWS_DIR / "docs-build-check.yml"
+PROMOTE = WORKFLOWS_DIR / "promote_release.yml"
 SERVE_ACTION = "./.github/actions/serve-frozen-drafts"
 PUBLICATION_CHECKS = "./.github/actions/check-site-publication"
 LATER = "v2026.12.0"
@@ -653,6 +654,32 @@ def test_the_review_serves_the_checked_out_register_before_its_checks() -> (
     paths = triggers(load_workflow(REVIEW))["pull_request"]["paths"]
     assert ".github/actions/serve-frozen-drafts/**" in paths
     assert ".github/scripts/serve_frozen_drafts.py" in paths
+
+
+@pytest.mark.spec("DOCBW-08-039")
+def test_the_promote_archive_job_serves_before_its_checks_and_build() -> None:
+    jobs = load_workflow(PROMOTE)["jobs"]
+    serving = [n for n, j in jobs.items() if SERVE_ACTION in _uses(j)]
+    assert serving == ["frozen-draft"]
+    job = jobs["frozen-draft"]
+    uses = _uses(job)
+    archive = next(
+        i
+        for i, step in enumerate(job["steps"])
+        if "frozen_draft.py build" in str(step.get("run", ""))
+    )
+    assert (
+        uses.index(BUILD_SITE_ACTION)
+        < uses.index(SERVE_ACTION)
+        < uses.index(PUBLICATION_CHECKS)
+        < archive
+    )
+    (serve,) = [s for s in job["steps"] if s.get("uses") == SERVE_ACTION]
+    # No register given: the action reads the promoted commit's, which
+    # build-site checked out.
+    assert "with" not in serve
+    # Serving only reads releases: the job still cannot write (DOCBW-08-019).
+    assert job["permissions"] == {"contents": "read"}
 
 
 def test_the_action_reads_the_checked_out_register_only_when_given_none() -> (
