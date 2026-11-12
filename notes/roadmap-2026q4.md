@@ -76,9 +76,10 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
 3. **The VINCE shadow reads a real VINCE case and prompts a human.** It runs
    Vultron's own case logic on a local copy, held as CERT/CC's Case Manager, and
    raises prompts at call-out points. A Sentinel carries VINCE changes in (#5954).
-   Its prompts wait on the call-out shapes (#1147). VINCE API access and a host
-   (#5957) and the data-handling decision (#5956) need the maintainer, so start
-   them before the Epic reaches Focus.
+   Its prompts wait on the call-out shapes (#1147). Test-instance VINCE API
+   access and a host (#5957) need the maintainer, so start them before the Epic
+   reaches Focus. The test-stage data rules are decided (ADR-0189); live cases
+   wait on a production account (#6338) and their own data rules (#6349).
 
 The VINCE gateway is 2027. Replay of historical VINCE cases moved to the shadow:
 reading live cases through the API covers what a data dump was for.

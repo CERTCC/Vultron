@@ -61,8 +61,8 @@ groups:
     verification: >-
       A shadow run test (#5959) seeds a synthetic VINCE case whose content holds
       a unique marker and asserts no captured record, at any level and including
-      tracebacks, contains it, while records still carry the case and activity
-      ids.
+      tracebacks, contains it. So the test is not vacuous, it also asserts the
+      run logged records carrying the case and activity ids.
   - id: VSD-01-004
     priority: MUST
     kind: project
@@ -76,8 +76,8 @@ groups:
       runtime has no path into a commit.
     verification: >-
       A test (#5960) asserts the connector reads the credential from the
-      environment variable or the secret file, refuses to start with neither,
-      and refuses a configuration file that carries it.
+      environment variable or the secret file, and refuses a configuration file
+      that carries it.
   - id: VSD-01-005
     priority: MUST_NOT
     kind: project
@@ -97,7 +97,7 @@ groups:
   specs:
   - id: VSD-02-001
     priority: MUST_NOT
-    kind: project
+    kind: process
     adr:
     - ADR-0189
     statement: >-
@@ -115,10 +115,12 @@ groups:
     verification: >-
       The committed-data check (#5961) fails on a VINCE-shaped file that is
       neither synthetic nor from a cleared case id, and runs in pre-commit and
-      CI with a non-empty target set.
+      CI with a non-empty target set. Publication outside the repository (an
+      issue, a comment, a talk) has no automated gate: review checks that what
+      it quotes from VINCE is synthetic or from a cleared case id.
   - id: VSD-02-002
     priority: MUST
-    kind: project
+    kind: process
     adr:
     - ADR-0189
     statement: >-
@@ -129,10 +131,11 @@ groups:
       decision clears nothing a reviewer can confirm.
     verification: >-
       A test of the committed-data check (#5961) asserts a well-formed entry
-      clears its case id's files.
+      clears its own case id's files and no other case's, and that an entry
+      naming more than one case id is refused.
   - id: VSD-02-003
     priority: MUST
-    kind: project
+    kind: process
     adr:
     - ADR-0189
     statement: >-
@@ -160,7 +163,7 @@ groups:
       comment the maintainer wrote with no Coding Agent acting.
   - id: VSD-02-005
     priority: MUST
-    kind: project
+    kind: process
     adr:
     - ADR-0189
     statement: >-
