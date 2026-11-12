@@ -763,8 +763,9 @@ def _call_sites(
 
     A name that escapes other than as a callee — loaded as a value,
     imported under another name (:func:`_aliased_import`), or spelled as an
-    attribute-by-name literal (:func:`name_literal_targets`) — is recorded as a :meth:`CallSite.unreadable` site, since it is called
-    somewhere this pass cannot follow.
+    attribute-by-name literal (:func:`name_literal_targets`) — is recorded
+    as a :meth:`CallSite.unreadable` site, since it is called somewhere this
+    pass cannot follow.
 
     Takes bare ``(path, tree)`` pairs rather than a ``_FileScan``: this pass
     needs no definitions, methods or references, and building a full scan for
