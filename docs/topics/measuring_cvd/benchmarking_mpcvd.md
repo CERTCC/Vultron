@@ -261,7 +261,7 @@ That sequence is scored against the baseline of a one-vendor case, as [Reasoning
 No sequence for the whole case is built, because no rule yet says which vendor's events stand for the case.
 
 The vendors' scores are not independent.
-Public awareness, a public exploit, and attacks happen once for the case, and every vendor's sequence holds the same three events.
+Public awareness, a public exploit, and attacks happen once for the case, and every vendor's sequence holds each of those events that has happened.
 So the scores do not form a statistical sample, and a variance or standard deviation across them would describe a sampling distribution that the case does not have.
 
 For each of the expected, best, and worst scores, the case reports the unweighted median across its vendors and the spread.
@@ -274,4 +274,4 @@ A two-party case has one vendor, so its summary is that vendor's score, with a s
 
 A participant with no vendor path, such as a deployer that does not hold the Vendor role, is out of scope.
 The case-state model has no state for a fix path that the participant does not have, so that participant has no sequence to score.
-The summary lists each such participant with the reason it has no score.
+The summary lists every participant that has no sequence, with the reason: no vendor awareness, no case-state events of its own, or events that do not form a valid case history.

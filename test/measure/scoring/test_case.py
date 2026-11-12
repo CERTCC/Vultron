@@ -280,7 +280,18 @@ def test_every_recording_summarizes_each_vendor_once(path):
     assert [v.participant for v in summary.vendors] == [
         s.participant for s in sequences.sequences
     ]
-    assert len(summary.unprojectable) == len(sequences.unprojectable)
-    if summary.vendors:
-        assert summary.expected is not None
-        assert summary.expected.lowest <= summary.expected.median
+    assert summary.unprojectable == tuple(sequences.unprojectable)
+    for which in _SCORES:
+        scores = sorted(getattr(v.score, which) for v in summary.vendors)
+        across = getattr(summary, which)
+        if not scores:
+            assert across is None
+            continue
+        middle = len(scores) // 2
+        median = (
+            scores[middle]
+            if len(scores) % 2
+            else (scores[middle - 1] + scores[middle]) / 2
+        )
+        assert across.median == median
+        assert across.spread == scores[-1] - scores[0]

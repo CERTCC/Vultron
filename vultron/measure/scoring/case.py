@@ -114,8 +114,9 @@ class CaseScoreSummary(BaseModel):
 
     Fields:
         case_id: The case.
-        vendors: Each vendor's score, in vendor-awareness order, as the
-            sequences are.
+        vendors: Each vendor's score, in the order of the sequences it was
+            scored from; :func:`score_case` keeps their vendor-awareness
+            order.
         unprojectable: Every participant with no sequence, with its reason
             (CEH-05-007), unscored.
     """
