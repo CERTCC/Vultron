@@ -25,7 +25,15 @@ file a page loads from elsewhere in the site (a stylesheet, a script, an
 image) is copied below :data:`BUNDLE_DIR`, keeping its site path, so its own
 relative references still resolve.
 
-Standard library only: the scripts run as ``python3 -I``.
+Standard library only: the scripts run as ``python3 -I`` from a sparse
+checkout of ``.github/scripts``, so the reference rules of
+``vultron/metadata/docs/links.py`` (the ``srcset`` candidate grammar, the
+scheme test) are restated here rather than imported.
+
+Material's ``__config`` keeps its ``base``, so a frozen page served at
+``spec/draft-N/`` searches the live site's index, like its other links that
+leave the specification; the search worker it names is bundled, so a later
+change of the live worker does not break the page.
 
 Usage:
   frozen_draft.py build --site DIR --out DIR --draft draft-N --release TAG
@@ -40,10 +48,12 @@ import gzip
 import hashlib
 import html
 import io
+import json
 import posixpath
 import re
 import sys
 import tarfile
+import tempfile
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -71,10 +81,21 @@ _DRAFT = re.compile(r"^draft-[1-9][0-9]*$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64}) [ *](.+)$")
 # One attribute of a start tag as written: name, and a value if it has one.
+# It follows white space or the closing quote of the previous value.
 _ATTRIBUTE = re.compile(
-    r"""(\s)([^\s"'>/=]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'=<>`]+)"""
+    r"""(?<=[\s"'])([^\s"'>/=]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'=<>`]+)"""
 )
-_CSS_URL = re.compile(r"""url\(\s*(["']?)([^"')]+)\1\s*\)""")
+# A stylesheet's references: ``url(...)`` and ``@import "..."``.
+_CSS_REFERENCE = re.compile(
+    r"""url\(\s*(["']?)([^"')]+)\1\s*\)|@import\s+(["'])([^"']+)\3"""
+)
+# One ``srcset`` candidate, as HTML splits them: a URL may hold commas
+# (``data:`` URIs), and descriptors follow it (links.py's rule).
+_SRCSET_CANDIDATE = re.compile(r"[\s,]*(\S*[^\s,])(?:,+|[^,]*,?)")
+_CONFIG = re.compile(
+    r"""(<script id="__config" type="application/json">)(.*?)(</script>)""",
+    re.DOTALL,
+)
 _CANONICAL = re.compile(
     r"""<link\b[^>]*\brel=["']?canonical["']?[^>]*>""", re.IGNORECASE
 )
@@ -128,19 +149,56 @@ def split_reference(reference: str) -> tuple[str, str]:
     return reference[:cut], reference[cut:]
 
 
+def _srcset_spans(value: str) -> list[tuple[int, int]]:
+    """Where each candidate URL of a ``srcset`` value starts and ends."""
+    spans = []
+    position = 0
+    while (candidate := _SRCSET_CANDIDATE.match(value, position)) and (
+        candidate.end() > position
+    ):
+        spans.append(candidate.span(1))
+        position = candidate.end()
+    return spans
+
+
 def srcset_references(value: str) -> list[str]:
     """The URL of each candidate of a ``srcset`` value."""
-    return [part.split()[0] for part in value.split(",") if part.strip()]
+    return [value[start:end] for start, end in _srcset_spans(value)]
 
 
 def _rewrite_srcset(value: str, rewrite: Callable[[str], str]) -> str:
-    candidates = []
-    for part in value.split(","):
-        words = part.split()
-        if not words:
-            continue
-        candidates.append(" ".join([rewrite(words[0]), *words[1:]]))
-    return ", ".join(candidates)
+    pieces = []
+    last = 0
+    for start, end in _srcset_spans(value):
+        pieces += [value[last:start], rewrite(value[start:end])]
+        last = end
+    return "".join([*pieces, value[last:]])
+
+
+def resolve(reference: str, owner: str) -> str | None:
+    """The tree path *reference*, written in the file *owner*, names.
+
+    Both are POSIX paths relative to one root; the query and fragment are
+    dropped and the path is unescaped. ``""`` is the root itself, and
+    ``None`` a path that climbs above it.
+    """
+    path = split_reference(reference)[0]
+    target = posixpath.normpath(
+        posixpath.join(posixpath.dirname(owner), unquote(path))
+    )
+    if target == ".." or target.startswith("../"):
+        return None
+    return "" if target == "." else target
+
+
+def file_of(root: Path, target: str) -> str | None:
+    """The file *target* names below *root*: itself, or its folder's index."""
+    path = root / target if target else root
+    if path.is_dir() and (path / "index.html").is_file():
+        return posixpath.join(target, "index.html") if target else "index.html"
+    if target and path.is_file():
+        return target
+    return None
 
 
 @dataclass
@@ -193,7 +251,7 @@ def _rewrite_tag(raw: str, rewrite: Callable[[str], str]) -> str:
     """*raw* with each reference attribute's value passed through *rewrite*."""
 
     def one(match: re.Match[str]) -> str:
-        space, name, equals, quoted = match.groups()
+        name, equals, quoted = match.groups()
         if name.lower() not in REFERENCE_ATTRIBUTES:
             return match.group(0)
         value = html.unescape(
@@ -205,7 +263,7 @@ def _rewrite_tag(raw: str, rewrite: Callable[[str], str]) -> str:
             new = rewrite(value)
         if new == value:
             return match.group(0)
-        return f'{space}{name}{equals}"{html.escape(new, quote=True)}"'
+        return f'{name}{equals}"{html.escape(new, quote=True)}"'
 
     return _ATTRIBUTE.sub(one, raw)
 
@@ -271,27 +329,8 @@ class _Builder:
             return site_path.removeprefix(SPEC_DIR + "/")
         return f"{BUNDLE_DIR}/{site_path}"
 
-    def _file_of(self, target: str) -> str | None:
-        """The site file *target* names: itself, or its folder's index page."""
-        path = self.site / target
-        if path.is_dir() and (path / "index.html").is_file():
-            return posixpath.join(target, "index.html").removeprefix("./")
-        if path.is_file():
-            return target
-        return None
-
     def _in_spec(self, site_path: str) -> bool:
         return site_path == SPEC_DIR or site_path.startswith(SPEC_DIR + "/")
-
-    def _target(self, reference: str, owner: str) -> str | None:
-        """The site path *reference* in *owner* names, or ``None`` past the root."""
-        path = split_reference(reference)[0]
-        target = posixpath.normpath(
-            posixpath.join(posixpath.dirname(owner), unquote(path))
-        )
-        if target == ".." or target.startswith("../"):
-            return None
-        return "" if target == "." else target
 
     def reference(self, reference: str, owner: str) -> str:
         """*reference*, written in the site file *owner*, for the archive.
@@ -303,11 +342,11 @@ class _Builder:
         """
         if not is_relative(reference):
             return reference
-        target = self._target(reference, owner)
+        target = resolve(reference, owner)
         if target is None:
             self.faults.append(f"{owner}: {reference!r} leaves the site")
             return reference
-        found = self._file_of(target or ".")
+        found = file_of(self.site, target)
         if found is None:
             self.faults.append(
                 f"{owner}: {reference!r} names no file of the site"
@@ -315,8 +354,6 @@ class _Builder:
             return reference
         rest = split_reference(reference)[1]
         folder = found != target  # the reference names a folder's index page
-        if self._in_spec(target) and self._in_spec(owner):
-            return reference
         if found.endswith(".html") and not self._in_spec(target):
             slash = "/" if folder and target else ""
             return (
@@ -328,6 +365,8 @@ class _Builder:
         if folder:
             mapped = posixpath.dirname(mapped)
         start = posixpath.dirname(self.archive_path(owner))
+        if resolve(reference, self.archive_path(owner)) == mapped:
+            return reference  # it already works in the archive's layout
         new = posixpath.relpath(mapped or ".", start or ".")
         if folder:
             new = "./" if new == "." else new + "/"
@@ -346,7 +385,7 @@ class _Builder:
         ):
             return False
         url = attributes.get("content", "").partition("url=")[2].strip()
-        target = self._target(url, site_path) if is_relative(url) else None
+        target = resolve(url, site_path) if is_relative(url) else None
         if target is None or not self._in_spec(target):
             self.faults.append(
                 f"{site_path}: redirects to {url!r}, outside the "
@@ -371,6 +410,13 @@ class _Builder:
                 pieces.append(banner_html(self.draft))
                 body = True
         pieces.append(text[last:])
+        text = _CONFIG.sub(
+            lambda m: (
+                m.group(1) + self._config(site_path, m.group(2)) + m.group(3)
+            ),
+            "".join(pieces),
+        )
+        pieces = [text]
         if not body:
             self.faults.append(f"{site_path}: the page has no <body>")
         if not redirect:  # a redirect stub has no footer
@@ -387,15 +433,34 @@ class _Builder:
                     f"{site_path}: the page footer does not name {tag}"
                 )
 
+    def _config(self, site_path: str, text: str) -> str:
+        """Material's ``__config``, with its search worker bundled."""
+        try:
+            config = json.loads(text)
+        except ValueError:
+            self.faults.append(f"{site_path}: its __config is not JSON")
+            return text
+        worker = config.get("search")
+        if not isinstance(worker, str):
+            return text
+        new = self.reference(worker, site_path)
+        if new == worker:
+            return text
+        config["search"] = new
+        return json.dumps(config).replace("</", "<\\/")
+
     def stylesheet(self, site_path: str, text: str) -> str:
         def one(match: re.Match[str]) -> str:
-            quote_mark, reference = match.groups()
+            url_quote, url, import_quote, imported = match.groups()
+            reference = url if url is not None else imported
             new = self.reference(reference, site_path)
             if new == reference:
                 return match.group(0)
-            return f"url({quote_mark}{new}{quote_mark})"
+            if url is not None:
+                return f"url({url_quote}{new}{url_quote})"
+            return f"@import {import_quote}{new}{import_quote}"
 
-        return _CSS_URL.sub(one, text)
+        return _CSS_REFERENCE.sub(one, text)
 
     def add(self, site_path: str) -> None:
         archive = self.archive_path(site_path)
@@ -530,6 +595,8 @@ def build_archive(
     manifest = out / manifest_name(draft.version)
     archive.write_bytes(archive_bytes(files, when))
     manifest.write_text(manifest_text(files), encoding="utf-8")
+    # The promote job checks it again; failing here fails before its turn.
+    verify_archive(archive, manifest)
     return archive, manifest
 
 
@@ -626,51 +693,63 @@ def manifest_faults(root: Path, digests: dict[str, str]) -> list[str]:
     return faults
 
 
+def stylesheet_references(text: str) -> list[str]:
+    """Every ``url(...)`` and ``@import`` reference of the stylesheet *text*."""
+    return [
+        match.group(2) if match.group(2) is not None else match.group(4)
+        for match in _CSS_REFERENCE.finditer(text)
+    ]
+
+
 def reference_faults(root: Path) -> list[str]:
-    """Every relative reference of a page below *root* that misses the tree.
+    """Every relative reference of a page or stylesheet that misses the tree.
 
     A reference must resolve to a file inside *root*: a folder resolves to
     its ``index.html`` (DOCBW-08-015).
     """
     faults = []
     for name, path in tree_files(root).items():
-        if not name.endswith(".html"):
+        if not name.endswith((".html", ".css")):
             continue
         text = _text(path.read_bytes())
         if text is None:
             faults.append(f"{name}: not UTF-8 text")
             continue
-        for reference in page_references(text):
+        found = (
+            page_references(text)
+            if name.endswith(".html")
+            else stylesheet_references(text)
+        )
+        for reference in found:
             if not is_relative(reference):
                 continue
-            target = posixpath.normpath(
-                posixpath.join(
-                    posixpath.dirname(name),
-                    unquote(split_reference(reference)[0]),
-                )
-            )
-            if target == ".." or target.startswith("../"):
+            target = resolve(reference, name)
+            if target is None:
                 faults.append(f"{name}: {reference!r} leaves the archive")
-                continue
-            found = root / target
-            if found.is_dir():
-                found = found / "index.html"
-            if not found.is_file():
+            elif file_of(root, target) is None:
                 faults.append(
                     f"{name}: {reference!r} names no file of the archive"
                 )
     return faults
 
 
-def verify_archive(archive: Path, manifest: Path, into: Path) -> None:
+def verify_archive(
+    archive: Path, manifest: Path, into: Path | None = None
+) -> None:
     """Unpack *archive* into the empty folder *into* and check it (DOCBW-08-021).
+
+    With no *into*, a temporary folder is used and removed.
 
     Raises:
         FrozenDraftError: Listing every fault: an unsafe member, a file the
             manifest does not list or lists with another digest, a listed
-            file that is missing, and a relative reference of a page that
-            names no file of the tree.
+            file that is missing, and a relative reference of a page or a
+            stylesheet that names no file of the tree.
     """
+    if into is None:
+        with tempfile.TemporaryDirectory() as tmp:
+            verify_archive(archive, manifest, Path(tmp) / "tree")
+        return
     unpack(archive, into)
     text = _text(manifest.read_bytes())
     if text is None:

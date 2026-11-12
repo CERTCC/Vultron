@@ -99,9 +99,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Only loads the local actions, from main: build-site re-checks out the
+      # Only loads build-site, from main. build-site re-checks out the
       # promoted commit, with the history and tags the build needs
-      # (DOCBW-06-004).
+      # (DOCBW-06-004), so every later local action (check-site-publication,
+      # and build-site's own setup) loads from the promoted commit, as in
+      # deploy_site.yml's build job. That is why this job cannot write.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -144,7 +146,8 @@ jobs:
             --commit "$COMMIT" --publish-tag "$PUBLISH_TAG"
 
       # One artifact per run attempt: a re-run must not download an earlier
-      # attempt's archive (notes/ci-workflow-authoring.md).
+      # attempt's archive, and the promote job takes the newest attempt not
+      # later than its own (notes/ci-workflow-authoring.md).
       - name: Upload the archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -166,9 +169,11 @@ jobs:
     # so a hang fails fast instead of holding a runner until GitHub's 6-h
     # limit (TB-14-006).
     timeout-minutes: 10
-    # Pushes the release tag and creates the draft release (DOCBW-07-005).
+    # Pushes the release tag and creates the draft release (DOCBW-07-005);
+    # reads the run's artifact list to find the archive.
     permissions:
       contents: write
+      actions: read
     steps:
       # main, the run's own commit: this job runs no code of the promoted
       # commit (DOCBW-08-020). Full history and every tag: the run reads
@@ -184,11 +189,26 @@ jobs:
         with:
           uv-sync-args: "--no-dev"
 
+      # "Re-run failed jobs" can re-run this job alone, which keeps the
+      # archive job's earlier attempt: take the newest attempt not later than
+      # this one.
+      - name: Find the archive of this attempt
+        id: artifact
+        if: needs.plan.outputs.draft != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 -I .github/scripts/release.py frozen-artifact \
+            --repo "$REPO" --run-id "$RUN_ID" --attempt "$RUN_ATTEMPT"
+
       - name: Download the archive
         if: needs.plan.outputs.draft != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: frozen-draft-attempt-${{ github.run_attempt }}
+          name: ${{ steps.artifact.outputs.name }}
           path: frozen/
 
       # A manual run from another ref is refused: it would run that ref's copy

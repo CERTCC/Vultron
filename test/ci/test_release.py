@@ -560,7 +560,8 @@ def test_promote_workflow() -> None:
     assert {n: j.get("permissions") for n, j in jobs.items()} == {
         "plan": {"contents": "read"},
         "frozen-draft": {"contents": "read"},
-        "promote": {"contents": "write"},
+        # It also reads the run's artifact list, to find the archive.
+        "promote": {"contents": "write", "actions": "read"},
     }
     # Both deciding jobs read main's full history and every tag.
     for name in ("plan", "promote"):

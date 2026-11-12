@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import shutil
 import subprocess
 import tarfile
@@ -91,11 +92,17 @@ _SPEC_PAGES = {
             f'<link rel="canonical" href="{SITE_URL}reference/vultron-spec/">'
             '<link rel="stylesheet" href="../../assets/main.css">'
             '<script src="../../assets/app.js"></script>'
+            '<script id="__config" type="application/json">'
+            '{"base": "../..", "search": "../../assets/worker.js"}</script>'
         ),
     ),
     "layers/index.html": _page(
         '<a href="../">Spec</a> <a href="../../../start/?q=1#s">Start</a>'
-        " <a href='../index.html'>Index</a>",
+        " <a href='../index.html'>Index</a>"
+        ' <a class="tight"href="../../../start/">Tight</a>'
+        ' <a href="../../vultron-spec/">Round</a>'
+        ' <img srcset="data:image/png;base64,AA,BB 1x,'
+        ' ../../../img/logo.png 2x">',
         head='<link rel="stylesheet" href="../../../assets/main.css">',
     ),
     "_old/index.html": (
@@ -113,11 +120,15 @@ _OTHER_FILES = {
     "guide/page.html": _page("Guide"),
     "other/index.html": _page("Never linked"),
     "assets/main.css": (
+        '@import "theme.css";'
         "body{background:url(../img/bg.png)}"
         '@font-face{src:url("../fonts/f.woff2")}'
         ".x{background:url(data:image/png;base64,AA)}"
     ),
     "assets/app.js": "console.log(1)",
+    "assets/worker.js": "onmessage = null",
+    "assets/theme.css": "a{background:url('../img/t.png')}",
+    "img/t.png": "t",
     "img/logo.png": "png",
     "img/logo@2x.png": "png2",
     "img/bg.png": "bg",
@@ -174,7 +185,8 @@ class _References(HTMLParser):
             if value is None:
                 continue
             if name == "srcset":
-                self.found += [c.split()[0] for c in value.split(",")]
+                # Candidates end at a comma followed by white space.
+                self.found += [c.split()[0] for c in re.split(r",\s+", value)]
             elif name in ("href", "src"):
                 self.found.append(value)
 
@@ -211,11 +223,14 @@ def test_the_archive_root_is_the_specification_root(tmp_path: Path) -> None:
     assert bundled == [
         "_site/assets/app.js",
         "_site/assets/main.css",
+        "_site/assets/theme.css",
+        "_site/assets/worker.js",
         "_site/files/data.yaml",
         "_site/fonts/f.woff2",
         "_site/img/bg.png",
         "_site/img/logo.png",
         "_site/img/logo@2x.png",
+        "_site/img/t.png",
     ]
 
 
@@ -279,6 +294,28 @@ def test_references_are_rewritten_to_the_archive_layout(
     layers = _refs(root / "layers/index.html")
     assert "../_site/assets/main.css" in layers
     assert "../" in layers and "../index.html" in layers
+    # A specification link written through the long way round still works.
+    assert "../../vultron-spec/" not in layers and layers.count("../") == 2
+    # A data: candidate keeps its commas; the other candidate is bundled.
+    text = (root / "layers/index.html").read_text(encoding="utf-8")
+    assert (
+        'srcset="data:image/png;base64,AA,BB 1x, ../_site/img/logo.png 2x"'
+        in text
+    )
+    # An attribute right after a quote is rewritten too.
+    assert f'class="tight"href="{SITE_URL}start/"' in text
+
+
+def test_stylesheet_imports_and_the_search_worker_come_along(
+    tmp_path: Path,
+) -> None:
+    root = _unpacked(tmp_path)
+    css = (root / "_site/assets/main.css").read_text(encoding="utf-8")
+    assert '@import "theme.css";' in css
+    assert (root / "_site/assets/theme.css").is_file()
+    config = (root / "index.html").read_text(encoding="utf-8")
+    assert '"search": "_site/assets/worker.js"' in config
+    assert '"base": "../.."' in config  # search still queries the live site
 
 
 @pytest.mark.spec("DOCBW-08-016")
@@ -1095,8 +1132,15 @@ def test_the_attaching_job_runs_only_mains_code() -> None:
         s for s in jobs["frozen-draft"]["steps"]
         if str(s.get("uses", "")).startswith("actions/upload-artifact@")
     ]  # fmt: skip
-    assert download["with"]["name"] == upload["with"]["name"]
-    assert "github.run_attempt" in upload["with"]["name"]
+    # The newest archive attempt not later than this job's own.
+    assert upload["with"]["name"] == (
+        _rel.FROZEN_ARTIFACT_PREFIX + "${{ github.run_attempt }}"
+    )
+    (find,) = [s for s in job["steps"] if s.get("id") == "artifact"]
+    assert "release.py frozen-artifact" in find["run"]
+    assert find["env"]["RUN_ATTEMPT"] == "${{ github.run_attempt }}"
+    assert download["with"]["name"] == "${{ steps.artifact.outputs.name }}"
+    assert job["permissions"] == {"contents": "write", "actions": "read"}
     assert download["with"]["path"] == "frozen/"
     (promote,) = [
         s for s in job["steps"] if "release.py promote" in str(s.get("run"))
@@ -1117,3 +1161,174 @@ def test_the_run_never_publishes_the_release() -> None:
     source = Path(str(_rel.__file__)).read_text(encoding="utf-8")
     assert '"edit"' not in source and "--draft=false" not in source
     assert '"--draft",' in source
+
+
+# --- failure branches -------------------------------------------------------------
+
+
+def test_a_duplicate_member_is_refused(tmp_path: Path) -> None:
+    one = _file("index.html", b"a")
+    two = _file("index.html", b"b")
+    archive = tmp_path / ARCHIVE
+    archive.write_bytes(_tar([one, two], {"index.html": b"a"}))
+    with pytest.raises(_fd.FrozenDraftError, match="listed twice"):
+        _fd.unpack(archive, tmp_path / "into")
+
+
+@pytest.mark.parametrize("damage", ["truncated", "not-gzip"])
+def test_a_damaged_archive_is_refused(tmp_path: Path, damage: str) -> None:
+    archive, manifest = _pair(tmp_path, {"index.html": b"<p>x</p>" * 500})
+    data = archive.read_bytes()
+    archive.write_bytes(
+        data[: len(data) // 2] if damage == "truncated" else b"x"
+    )
+    with pytest.raises(_fd.FrozenDraftError, match=ARCHIVE):
+        _fd.verify_archive(archive, manifest)
+
+
+@pytest.mark.parametrize(
+    ("text", "fault"),
+    [
+        ("not a line\n", "not a sha256sum line"),
+        (f"{'a' * 64}  x\n{'b' * 64}  x\n", "x is listed twice"),
+        ("", "lists no file"),
+    ],
+    ids=["malformed", "twice", "empty"],
+)
+def test_a_malformed_manifest_is_named(text: str, fault: str) -> None:
+    assert fault in " ".join(_fd.read_manifest(text, MANIFEST)[1])
+
+
+def test_a_site_without_a_canonical_link_is_refused(tmp_path: Path) -> None:
+    index = _page("x", head="")
+    with pytest.raises(_fd.FrozenDraftError, match="no canonical link"):
+        _build(tmp_path, **{"index.html": index})
+
+
+def test_a_symlinked_site_file_is_refused(tmp_path: Path) -> None:
+    site = _site(tmp_path)
+    target = site / "assets" / "app.js"
+    target.unlink()
+    target.symlink_to(site / "assets" / "main.css")
+    with pytest.raises(
+        _fd.FrozenDraftError, match=r"app\.js: not a regular file"
+    ):
+        _fd.build_archive(site, tmp_path / "frozen", _draft())
+
+
+def test_a_file_name_the_manifest_cannot_hold_is_refused(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(_fd.FrozenDraftError, match="the manifest cannot hold"):
+        _build(tmp_path, **{"odd\nname.txt": "x"})
+
+
+@pytest.mark.spec("DOCBW-08-022")
+def test_a_built_file_that_was_never_attached_fails_the_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        _rel, "gh", lambda *a, retry=True: ""
+    )  # downloads nothing
+    built = tmp_path / ARCHIVE
+    built.write_bytes(b"x")
+    with pytest.raises(
+        _rel.PromotionRefusedError, match="differ from the files"
+    ):
+        _rel.check_attached("O/R", RELEASE, [built])
+
+
+@pytest.mark.spec("DOCBW-08-024")
+def test_an_extra_asset_does_not_make_a_complete_draft_incomplete(
+    repo: Path,
+    releases: _Releases,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    commit = _publish(repo, RELEASED)
+    assert _promote(_frozen(tmp_path, commit)) == 0
+    releases.releases[RELEASE]["assets"]["notes.txt"] = b"extra"
+    assert _promote(_frozen(tmp_path, commit)) == 1
+    assert "is complete" in capsys.readouterr().err
+    assert "delete" not in releases.verbs()
+    releases.releases[RELEASE]["draft"] = False
+    assert _promote(_frozen(tmp_path, commit)) == 1
+    assert "it is released already" in capsys.readouterr().err
+
+
+@pytest.mark.spec("DOCBW-08-025", "DOCBW-08-037")
+def test_a_failed_delete_of_an_incomplete_draft_says_so(
+    repo: Path,
+    releases: _Releases,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = _left_by_a_stopped_run(repo, releases, tmp_path, "archive-only")
+    releases.fail_delete = True
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    with pytest.raises(_rel.IncompleteDraftReleaseError):
+        _promote(_frozen(tmp_path, commit))
+    assert "Draft release incomplete" in summary.read_text()
+    assert _creates(releases) == []
+
+
+def test_the_failure_summary_says_whether_it_deleted_a_release(
+    repo: Path,
+    releases: _Releases,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A create that fails before landing leaves nothing to delete."""
+    commit = _publish(repo, RELEASED)
+
+    def refused(tag: str, args: tuple[str, ...], retry: bool) -> str:
+        raise subprocess.CalledProcessError(1, ["gh", *args])
+
+    monkeypatch.setattr(releases, "_create", refused)
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    with pytest.raises(subprocess.CalledProcessError):
+        _promote(_frozen(tmp_path, commit))
+    assert f"it left no draft release {RELEASE}" in summary.read_text()
+
+
+@pytest.mark.parametrize(
+    ("names", "attempt", "taken"),
+    [
+        (["frozen-draft-attempt-1", "frozen-draft-attempt-2"], 2, "2"),
+        (["frozen-draft-attempt-1"], 3, "1"),  # the promote job re-run alone
+        (["frozen-draft-attempt-1", "frozen-draft-attempt-3"], 2, "1"),
+    ],
+)
+def test_the_promote_takes_the_newest_archive_not_later_than_its_attempt(
+    names: list[str], attempt: int, taken: str
+) -> None:
+    assert (
+        _rel.frozen_artifact(names, attempt) == f"frozen-draft-attempt-{taken}"
+    )
+
+
+def test_no_archive_artifact_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    with pytest.raises(_rel.PromotionRefusedError, match="attempts 1 to 2"):
+        _rel.frozen_artifact(["other"], 2)
+    monkeypatch.setattr(
+        _rel,
+        "paginated",
+        lambda endpoint, key=None: [{"name": "frozen-draft-attempt-1"}],
+    )
+    out = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    argv = [
+        "frozen-artifact",
+        "--repo",
+        "O/R",
+        "--run-id",
+        "7",
+        "--attempt",
+        "2",
+    ]
+    assert _rel.main(argv) == 0
+    assert out.read_text() == "name=frozen-draft-attempt-1\n"

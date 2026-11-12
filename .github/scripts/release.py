@@ -29,6 +29,7 @@ Usage:
   release.py promote --repo OWNER/NAME --ref REF --actor LOGIN --run-url URL
       [--publish-tag TAG] [--planned-release TAG] [--planned-draft draft-N]
       [--frozen-dir DIR]
+  release.py frozen-artifact --repo OWNER/NAME --run-id ID --attempt N
   release.py check --tag TAG [--details-file PATH]
   release.py staleness [--details-file PATH]
 """
@@ -52,7 +53,7 @@ from frozen_draft import (
     manifest_name,
     verify_archive,
 )
-from gh_cli import gh, run, write_github_file  # see gh_cli
+from gh_cli import gh, paginated, run, write_github_file  # see gh_cli
 from publish_gate import MAIN_REF
 from release_tags import (
     BOT_GIT_IDENTITY,
@@ -71,6 +72,8 @@ from release_tags import (
     workflow_publish_tags_on,
 )
 
+# The archive job's artifact, named per run attempt.
+FROZEN_ARTIFACT_PREFIX = "frozen-draft-attempt-"
 # The site is stale past this many weekdays behind main (DOCBW-07-008).
 STALE_AFTER_WEEKDAYS = 4
 # The statement every release's notes carry (CONTRIBUTING.md).
@@ -334,7 +337,8 @@ def resume_action(
     released = f"{prefix}which is already tagged {name}: "
     if draft is None:
         raise PromotionRefusedError(released + "it is released already")
-    matches = set(state.assets) == set(frozen_pair(draft)) and pair_matches()
+    # A release may carry other assets too; only the pair is judged.
+    matches = set(frozen_pair(draft)) <= set(state.assets) and pair_matches()
     if state.is_draft and matches:
         raise PromotionRefusedError(
             released + f"the draft release {name} is complete, with the "
@@ -466,11 +470,14 @@ def release_state(repo: str, name: str) -> ReleaseState | None:
 def download_assets(
     repo: str, name: str, assets: Sequence[str], into: Path
 ) -> None:
-    """Download the assets *assets* of release *name* into *into*."""
+    """Download the assets *assets* of release *name* into *into*.
+
+    ``--clobber`` lets a retry overwrite what a failed attempt wrote.
+    """
     patterns = [arg for asset in assets for arg in ("--pattern", asset)]
     gh(
         "release", "download", name, "--repo", repo, "--dir", str(into),
-        *patterns,
+        "--clobber", *patterns,
     )  # fmt: skip
 
 
@@ -479,13 +486,9 @@ def attached_pair_matches(repo: str, name: str, draft: str) -> bool:
     archive, manifest = frozen_pair(draft)
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
-        download_assets(repo, name, (archive, manifest), folder / "assets")
+        download_assets(repo, name, (archive, manifest), folder)
         try:
-            verify_archive(
-                folder / "assets" / archive,
-                folder / "assets" / manifest,
-                folder / "tree",
-            )
+            verify_archive(folder / archive, folder / manifest)
         except FrozenDraftError as error:
             print(f"{name}'s attached archive fails its checks:\n{error}")
             return False
@@ -514,13 +517,16 @@ def check_attached(repo: str, name: str, built: Sequence[Path]) -> None:
         )
 
 
-def discard_draft_release(repo: str, name: str) -> None:
+def discard_draft_release(repo: str, name: str) -> bool:
     """Delete the draft release *name*, keeping its tag.
 
     The release is the one this run created, or an incomplete one a stopped
     run left (DOCBW-08-023, DOCBW-08-025). A draft release is not immutable,
     so deleting it costs nothing, and the tag stays (DOCBW-07-009). Nothing
     to delete is no fault: a failed create may have left none.
+
+    Returns:
+        Whether a draft release was deleted.
 
     Raises:
         IncompleteDraftReleaseError: When it cannot be deleted, or is no
@@ -529,10 +535,10 @@ def discard_draft_release(repo: str, name: str) -> None:
     try:
         state = release_state(repo, name)
         if state is None:
-            return
+            return False
         if state.is_draft:
             gh("release", "delete", name, "--repo", repo, "--yes", retry=False)
-            return
+            return True
     except subprocess.CalledProcessError:
         pass
     raise IncompleteDraftReleaseError(
@@ -671,13 +677,12 @@ def _frozen_files(args: argparse.Namespace, draft: str) -> list[Path]:
             f"the release carries {draft}, but its built "
             f"{' and '.join(missing)} is missing"
         )
-    with tempfile.TemporaryDirectory() as tmp:
-        try:
-            verify_archive(files[0], files[1], Path(tmp) / "tree")
-        except FrozenDraftError as error:
-            raise PromotionRefusedError(
-                f"the built archive of {draft} fails its checks: {error}"
-            ) from error
+    try:
+        verify_archive(files[0], files[1])
+    except FrozenDraftError as error:
+        raise PromotionRefusedError(
+            f"the built archive of {draft} fails its checks: {error}"
+        ) from error
     return files
 
 
@@ -718,7 +723,11 @@ def cmd_promote(args: argparse.Namespace) -> int:
             f"Deleting the incomplete draft release {promotion.release}, "
             "which lacks a matching archive and manifest (DOCBW-08-025)."
         )
-        discard_draft_release(args.repo, promotion.release)
+        try:
+            discard_draft_release(args.repo, promotion.release)
+        except IncompleteDraftReleaseError as incomplete:
+            _incomplete(incomplete)
+            raise
     if promotion.create_tag:
         message = release_tag_message(promotion, args.actor, args.run_url)
         push_release_tag(promotion, message)
@@ -731,17 +740,22 @@ def cmd_promote(args: argparse.Namespace) -> int:
             if built
             else ""
         )
+        write_github_file("GITHUB_OUTPUT", f"release={promotion.release}\n")
         _report(
             "Promoted",
             f"`{promotion.source.name}` ({promotion.source.commit}) is "
             f"release `{promotion.release}`.{attached} Edit and publish the "
             f"draft: {url}",
         )
-        write_github_file("GITHUB_OUTPUT", f"release={promotion.release}\n")
     except BaseException as error:
         _discard_after(args.repo, promotion.release, error)
         raise
     return 0
+
+
+def _incomplete(error: IncompleteDraftReleaseError) -> None:
+    print(f"::error::{error}", file=sys.stderr)
+    _report("Draft release incomplete", str(error))
 
 
 def _discard_after(repo: str, name: str, error: BaseException) -> None:
@@ -751,16 +765,57 @@ def _discard_after(repo: str, name: str, error: BaseException) -> None:
         file=sys.stderr,
     )
     try:
-        discard_draft_release(repo, name)
+        deleted = discard_draft_release(repo, name)
     except IncompleteDraftReleaseError as incomplete:
-        print(f"::error::{incomplete}", file=sys.stderr)
-        _report("Draft release incomplete", str(incomplete))
+        _incomplete(incomplete)
         raise incomplete from error
+    what = (
+        f"it deleted the draft release {name}"
+        if deleted
+        else f"it left no draft release {name}"
+    )
     _report(
         "Promotion failed",
-        f"The run failed, so it deleted the draft release {name}; the tag "
-        "stays. Run the promote again.",
+        f"The run failed, and {what}; the tag stays. Run the promote again.",
     )
+
+
+def frozen_artifact(names: Iterable[str], attempt: int) -> str:
+    """The archive artifact the promote job of run attempt *attempt* takes.
+
+    A re-run of the promote job alone keeps the archive job's earlier
+    attempt, so the newest attempt not later than *attempt* is taken
+    (notes/ci-workflow-authoring.md, DEMOCI-04-008).
+
+    Raises:
+        PromotionRefusedError: When no attempt up to *attempt* uploaded one.
+    """
+    present = set(names)
+    for number in range(attempt, 0, -1):
+        name = f"{FROZEN_ARTIFACT_PREFIX}{number}"
+        if name in present:
+            return name
+    raise PromotionRefusedError(
+        f"no {FROZEN_ARTIFACT_PREFIX}N artifact for attempts 1 to {attempt}"
+    )
+
+
+def cmd_frozen_artifact(args: argparse.Namespace) -> int:
+    names = [
+        str(item["name"])
+        for item in paginated(
+            f"repos/{args.repo}/actions/runs/{args.run_id}/artifacts"
+            "?per_page=100",
+            "artifacts",
+        )
+    ]
+    try:
+        name = frozen_artifact(names, int(args.attempt))
+    except ValueError as error:
+        return _refused(error)
+    write_github_file("GITHUB_OUTPUT", f"name={name}\n")
+    print(f"Taking the archive artifact {name}.")
+    return 0
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -829,6 +884,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     promote.add_argument("--planned-draft", default="")
     promote.add_argument("--frozen-dir", default="")
     promote.set_defaults(func=cmd_promote)
+    artifact = sub.add_parser("frozen-artifact")
+    artifact.add_argument("--repo", required=True)
+    artifact.add_argument("--run-id", required=True)
+    artifact.add_argument("--attempt", required=True)
+    artifact.set_defaults(func=cmd_frozen_artifact)
     check = sub.add_parser("check")
     check.add_argument("--tag", required=True)
     check.add_argument("--details-file", default="")
