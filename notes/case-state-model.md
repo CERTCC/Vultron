@@ -54,6 +54,9 @@ rules for changing the code that implements it.
   enums are `CS_vf`, `CS_d`, `CS_pxa` (ADR-0075).
 - **Invariants**: `vultron/core/states/cs_invariants/` (CSB-17). New code
   MUST use it and MUST NOT import `vultron/core/case_states/validations.py`.
+  Nothing under `vultron/core/states/` imports `vultron.core.case_states`, and
+  importing it leaves that package unloaded, so a guard can check
+  `sys.modules` (`test_states_no_legacy_case_state_imports.py`, #6328).
   `vultron/core/case_states/` is a reference model and the test oracle for the
   invariants, not a protocol path.
 - **Cross-dimension combinations**: call `composite_state_violations()` (or,
@@ -73,8 +76,7 @@ rules for changing the code that implements it.
   `CaseStatus` is the forced form, so read case-level P/X/A from the case's
   status, never from a `ParticipantStatus` (#6080).
 
-Do not delete the legacy module (ADR-0060): `cs/` still uses
-`case_states.validations.ensure_valid_state`, and
+Do not delete the legacy module (ADR-0060):
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
 endpoint) still uses `case_states.patterns.potential_actions`. Its potential
 actions are a menu of **possible** actions per CS state, never required ones;

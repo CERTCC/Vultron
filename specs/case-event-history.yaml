@@ -1042,11 +1042,12 @@ groups:
       history are out of this topic's scope in any case. The layer's deliverable is the
       validated sequence.
     verification: >-
-      `test/measure/sequences/test_project.py::test_the_layer_imports_no_scoring_entry_point`
+      `test/measure/sequences/test_project.py::test_the_layer_imports_no_scoring_entry_point`,
+      `test/measure/sequences/test_project.py::test_importing_the_layer_loads_no_scoring_entry_point`
       and
       `test/measure/sequences/test_project.py::test_no_projected_model_exposes_a_score`
-      assert the projection imports no scoring entry point and no projected model
-      exposes a score.
+      assert the projection neither imports nor, through any import, loads a
+      scoring entry point, and no projected model exposes a score.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-004

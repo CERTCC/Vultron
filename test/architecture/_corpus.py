@@ -295,6 +295,82 @@ def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     return ast.parse(source, filename=filename)
 
 
+def package_of(path: Path) -> str:
+    """The dotted package a module at *path* (under the repo root) belongs to.
+
+    ``a/b.py`` and ``a/__init__.py`` both belong to package ``a``, which is
+    what a relative import in either resolves against.
+    """
+    parts = path.relative_to(REPO_ROOT).with_suffix("").parts
+    return ".".join(parts[:-1])
+
+
+def resolve_import(module: str, level: int, package: str) -> str:
+    """The absolute module a ``from`` import names, resolving a relative one.
+
+    *level* is the import's leading-dot count and *package* the importing
+    module's package (:func:`package_of`).
+    """
+    if level == 0:
+        return module
+    base = package.split(".")
+    base = base[: len(base) - (level - 1)] if level > 1 else base
+    return ".".join([*base, module] if module else base)
+
+
+def _string_arg(call: ast.Call, position: int, keyword: str) -> str | None:
+    """A string-literal argument of *call*, by keyword or position."""
+    for kw in call.keywords:
+        if kw.arg == keyword:
+            value = kw.value
+            break
+    else:
+        if len(call.args) <= position:
+            return None
+        value = call.args[position]
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    return None
+
+
+def import_sites(tree: ast.AST, package: str) -> list[tuple[str, int]]:
+    """Every absolute module name an import anywhere in *tree* names, by line.
+
+    Deferred imports inside a function count, relative imports are resolved
+    against *package*, and ``from m import n`` yields both ``m`` and ``m.n``,
+    so ``from vultron.core import case_states`` names the package it imports.
+    Any call whose first argument (or ``name=``) is a string literal counts as
+    an import by name, whatever the callee is called, so ``import_module``
+    and ``__import__``, aliased or not, do not slip through; its ``package``
+    argument anchors a relative name.
+    """
+    sites: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            sites.extend((alias.name, node.lineno) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = resolve_import(node.module or "", node.level, package)
+            sites.append((module, node.lineno))
+            sites.extend(
+                (f"{module}.{alias.name}", node.lineno) for alias in node.names
+            )
+        elif isinstance(node, ast.Call):
+            name = _string_arg(node, 0, "name")
+            if name is None:
+                continue
+            anchor = _string_arg(node, 1, "package") or package
+            level = len(name) - len(name.lstrip("."))
+            sites.append(
+                (resolve_import(name.lstrip("."), level, anchor), node.lineno)
+            )
+    return sites
+
+
+def imported_modules(tree: ast.AST, package: str) -> frozenset[str]:
+    """The names :func:`import_sites` finds in *tree*, without their lines."""
+    return frozenset(name for name, _line in import_sites(tree, package))
+
+
 def callee_name(func: ast.expr) -> str | None:
     """The bare name a call's ``func`` names: ``f`` for ``f()`` and
     ``m.f()``, ``None`` for any other callee."""

@@ -13,14 +13,13 @@
 
 """Scoring a case-state sequence through its valid completions (#6068, ADR-0182)."""
 
-import ast
 from fractions import Fraction
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from test.measure.history.builders import VENDOR, Ledger, publish, seat_vendor
+from test.support.fresh_imports import loaded_under
 from vultron.core.case_states.hypercube import CVDmodel
 from vultron.core.states.cs_invariants import (
     CS_EVENTS,
@@ -360,33 +359,14 @@ def test_some_recording_has_a_vendor_to_score():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "module", [scoring, complete, model, score], ids=lambda m: m.__name__
-)
-def test_the_scorer_imports_no_legacy_case_state_module(module):
+def test_the_scorer_loads_no_legacy_case_state_module():
     """``notes/case-state-model.md``: new code validates through
     ``vultron.core.states.cs_invariants``, never ``vultron.core.case_states``.
 
-    The check reads the scorer's own imports: ``vultron.core.states`` itself
-    still loads the legacy module, which is not the scorer's to change.
+    Indirect imports count too, so ask a fresh interpreter.
     """
-    tree = ast.parse(Path(module.__file__).read_text())
-    imported = {
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-    } | {
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module
-    }
-    assert imported
-    assert not any(
-        name == "vultron.core.case_states"
-        or name.startswith("vultron.core.case_states.")
-        for name in imported
-    )
+    modules = [m.__name__ for m in (scoring, complete, model, score)]
+    assert loaded_under(modules, ["vultron.core.case_states"]) == []
 
 
 @pytest.mark.parametrize(

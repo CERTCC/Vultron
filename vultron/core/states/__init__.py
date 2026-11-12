@@ -25,6 +25,7 @@ from vultron.core.states.cs import (
     VendorAwareness,
     VfState,
     all_states,
+    cs_state,
     is_d_fix_deployed,
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
