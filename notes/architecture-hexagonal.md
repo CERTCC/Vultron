@@ -106,7 +106,7 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 
 - A connector implements only the direction Protocols it does: polled source,
   push source, event sink. A one-direction connector is complete, because the
-  VINCE shadow must be pollable with no write path (ARCH-05-004, #6337).
+  VINCE shadow must be pollable with no write path (ARCH-05-004, ARCH-05-006, #6337).
 - Never stub a direction a connector lacks: a raising write method is still a
   write path a later change can fill in (ARCH-05-005).
 - A connector is plumbing, not a capability shape. Whoever starts the exchange

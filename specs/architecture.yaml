@@ -299,11 +299,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      A connector plugin MUST have a name and MUST implement at least one direction
-      Protocol: a polled source (lists the changes since a caller's bookmark), a push
-      source (receives events the outside system sends), or an event sink (delivers
-      Vultron events to the outside system). The loader MUST refuse an entry point
-      that implements none of them, and its error MUST name the entry point.
+      Besides its name, a connector plugin MUST implement at least one direction
+      Protocol. The directions are a polled source, a push source and an event sink.
     rationale: >-
       Outside systems differ in direction. The VINCE shadow only reads VINCE and is
       polled; a webhook tracker pushes in; the later VINCE gateway also writes. A single
@@ -313,6 +310,19 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-05-003
+  - id: ARCH-05-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The connector loader MUST refuse an entry point that implements no direction
+      Protocol, with an error that names the entry point.
+    rationale: >-
+      A plugin with no direction can do nothing, so loading it hides a packaging
+      mistake. Naming the entry point lets the operator find the bad package.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-004
   - id: ARCH-05-005
     priority: MUST_NOT
     kind: project
