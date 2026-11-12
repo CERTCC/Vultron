@@ -369,10 +369,16 @@ def case_history_report(
         )
     names = label_names({cid: lg.entries for cid, lg in read.cases.items()})
     in_a_case = {
-        row for ledger in read.cases.values() for row in ledger.unusable_rows
+        (row.path, row.line)
+        for ledger in read.cases.values()
+        for row in ledger.unusable_rows
     }
     return render_table(
         ((histories[cid], ledgers[cid]) for cid in histories),
         names,
-        [row for row in read.unusable_rows if row not in in_a_case],
+        [
+            row
+            for row in read.unusable_rows
+            if (row.path, row.line) not in in_a_case
+        ],
     )
