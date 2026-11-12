@@ -32,10 +32,10 @@ Each scenario runs in this process, through its own ``main()``:
   container layout as the Docker demo.  Configuration is process-wide here,
   so the per-container case roles are applied where a proposer states them
   (CP-01-013).
-- **Determinism.**  The run's ids and clock are replaced by
-  :func:`vultron.demo.determinism.deterministic_run`, seeded with the scenario
-  name, and each outbox batch delivers its rows one at a time, so two runs
-  give byte-identical recordings.
+- **Determinism.**  The run's id source and act clock are installed by
+  :func:`vultron.demo.determinism.deterministic_run`, seeded with the
+  tree-wide seed, and each outbox batch delivers its rows one at a time, so
+  two runs give byte-identical recordings.
 
 Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``, with the
 run's step marks in ``steps.json`` beside it: the ledger tail at each declared

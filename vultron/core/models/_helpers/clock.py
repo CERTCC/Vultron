@@ -18,8 +18,10 @@
 :func:`stamp_after`, :func:`deadline_from` and :func:`days_after` read no
 clock: each takes the act's instant as an argument (ADR-0176).
 
-:func:`now_utc` looks up ``datetime`` on this module at call time, so a test or
-a deterministic demo run replaces ``clock.datetime`` to control the clock.
+:func:`now_utc` looks up ``datetime`` on this module at call time, so a test
+replaces ``clock.datetime`` to control the clock.  A recorded demo run does
+not: it installs its recording clock through the act clock port
+(``vultron.demo.determinism``, ADR-0176).
 """
 
 import threading
@@ -42,11 +44,12 @@ _datetime_type = datetime
 class SteppingClock:
     """A ``datetime`` stand-in whose ``now()`` advances *step* on every call.
 
-    Lives beside the clock it replaces because replacing ``clock.datetime`` is
-    the documented way to control time (module docstring), and one stand-in
-    serves every caller that does so: the deterministic demo recordings
-    (``vultron.demo.determinism``, which re-exports this class), the docs
-    example generator, and the tests that pin a stamp.
+    Lives beside the clock it can replace, and one stand-in serves every
+    caller that controls time: the deterministic demo recordings, which
+    install it as the act clock (``vultron.demo.determinism``, which
+    re-exports this class), the docs example generator, and the tests that
+    pin a stamp by replacing ``clock.datetime``.  Its ``now()`` is the act
+    clock port's one operation.
 
     The first call returns ``start + step``; ``step=timedelta(0)`` freezes the
     clock at *start*.  *start* must be timezone-aware, as ``now_utc()``

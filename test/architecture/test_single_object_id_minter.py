@@ -60,10 +60,11 @@ MODULE_SCOPE = "<module>"
 #: source and names no ``uuid`` draw itself (OID-01-011).
 MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "system_id_source")
 
-#: The one place that may name the system id source: the slot that holds it
-#: as the default.  Any other caller would draw past an installed source.
+#: The one place that may name the system id source: the module-scope slot
+#: that holds it as the default (``_SLOT``).  Any other caller would draw past
+#: an installed source.
 SYSTEM_SOURCE_SITES = frozenset(
-    {("vultron/core/models/_helpers/ids.py", "_IdSourceSlot")}
+    {("vultron/core/models/_helpers/ids.py", MODULE_SCOPE)}
 )
 _SYSTEM_SOURCE = frozenset({"system_id_source"})
 

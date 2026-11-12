@@ -64,7 +64,7 @@ from fastapi import Depends, Path, Request
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
-from vultron.adapters.driven.clock import SystemClock
+from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_slug
 from vultron.adapters.driven.http_actor_profile_fetch import (
@@ -296,12 +296,14 @@ def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:
 def get_act_clock() -> ClockPort:
     """FastAPI dependency: the act clock the inbox stamps arrivals with.
 
-    The system clock (ADR-0176).  The inbox route reads it once per message,
-    when the message arrives and before it queues for any lock, and that
-    arrival stamp is the instant of every act that processes the message.
+    The installed act clock (:func:`~vultron.adapters.driven.clock.act_clock`):
+    the system clock, or a recorded run's recording clock (ADR-0176).  The
+    inbox route reads it once per message, when the message arrives and
+    before it queues for any lock, and that arrival stamp is the instant of
+    every act that processes the message.
     ``app.dependency_overrides[get_act_clock]`` pins the stamp in a test.
     """
-    return SystemClock()
+    return act_clock()
 
 
 def get_trigger_dispatcher(
@@ -325,5 +327,5 @@ def get_trigger_dispatcher(
         trigger_activity=TriggerActivityAdapter(cop),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(cop),
-        clock=SystemClock(),
+        clock=act_clock(),
     )

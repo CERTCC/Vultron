@@ -29,8 +29,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from test.support.act_clock import ACT_AT, no_clock
-from vultron.core.models._helpers import now_utc
+from test.support.act_clock import ACT_AT, no_clock, recorded_clock_reads
 from vultron.core.models.pending_assertion import (
     DEFAULT_PENDING_ASSERTION_TIMEOUT,
     PendingAssertion,
@@ -40,7 +39,6 @@ from vultron.core.models.pending_assertion import (
     record_pending_assertion,
     reset_pending_assertion_stores,
 )
-from vultron.demo.determinism import deterministic_run
 
 CASE_ID = "https://example.org/cases/case-001"
 SEMANTIC_TYPE = "submit_report"
@@ -305,41 +303,35 @@ class TestTimeout:
         assert store_short._store[_KEY].status == "timed_out"
 
     def test_a_lookup_reads_no_clock(self):
-        """Every lookup leaves the recording clock where it found it (AC-1).
+        """Every lookup takes the act's instant and reads no clock (AC-1).
 
-        Measured the way the DataLayer read paths are (#5510): a seeded run
-        mints the same next instant whether or not the lookups ran.
+        A read path that read the clock would decide against a time no act
+        stated, and under a recording it would move the clock (#5591).
         """
-        subject_lookups = 5
-
-        def next_instant(lookups: int) -> datetime:
-            with deterministic_run("pending-assertion-lookup"):
-                store = PendingAssertionStore()
-                store.add(
-                    CASE_ID,
-                    SEMANTIC_TYPE,
-                    OBJECT_ID,
-                    subject_id=SUBJECT_ID,
-                    at=_PINNED,
+        store = PendingAssertionStore()
+        store.add(
+            CASE_ID,
+            SEMANTIC_TYPE,
+            OBJECT_ID,
+            subject_id=SUBJECT_ID,
+            at=_PINNED,
+        )
+        at = _PINNED
+        with recorded_clock_reads() as reads:
+            for _ in range(5):
+                assert store.is_suppressed(
+                    CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=at
                 )
-                at = _PINNED
-                for _ in range(lookups):
-                    assert store.is_suppressed(
-                        CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=at
+                assert (
+                    store.pending_for_subject(
+                        CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=at
                     )
-                    assert (
-                        store.pending_for_subject(
-                            CASE_ID, SEMANTIC_TYPE, SUBJECT_ID, at=at
-                        )
-                        is not None
-                    )
-                    assert (
-                        store.clear_activity(CASE_ID, OTHER_OBJECT_ID, at=at)
-                        == []
-                    )
-                return now_utc()
-
-        assert next_instant(subject_lookups) == next_instant(0)
+                    is not None
+                )
+                assert (
+                    store.clear_activity(CASE_ID, OTHER_OBJECT_ID, at=at) == []
+                )
+        assert reads == []
 
     def test_an_unexpired_entry_still_suppresses(self, store_short):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, at=ACT_AT)

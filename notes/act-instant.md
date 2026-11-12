@@ -98,15 +98,18 @@ keeps.
   that reads the instant fails; `test_tests_run_acts_through_the_runner.py`
   refuses one. A nested run takes no `at`; one that passes a different instant
   fails.
-- **Delete your own lines from the ratchet.**
-  `test/architecture/test_clock_reads_at_act_edge.py` lists each read as
-  `(path, scope, read)` under the constant whose `# owner:` is your slice; a read
-  no slice names is under `KNOWN_UNSLICED_CLOCK_READS` (`# owner: #5676`) until
-  the epic routes it. A permitted edge read goes in `CLOCK_EDGE_EXEMPTIONS`, and
-  a new module that holds a clock in `CLOCK_HOLDER_EXEMPTIONS`.
+- **No clock read is left below an act's edge.**
+  `test/architecture/test_clock_reads_at_act_edge.py` lists each permitted
+  read as `(path, scope, read)` in `CLOCK_EDGE_EXEMPTIONS`, a pinned exemption
+  set, and fails on any other; a new module that holds a clock goes in
+  `CLOCK_HOLDER_EXEMPTIONS`, because it is an act's entry point or the
+  composition root that wires one.
 - **A trigger or sweep entry point opens the act with `open_act(clock)`** and
-  takes the `ClockPort` from its composition root (`vultron/core/ports/clock.py`;
-  the system clock is `vultron/adapters/driven/clock.py`). Today's:
+  takes the `ClockPort` from its composition root (`vultron/core/ports/clock.py`),
+  which gets it from `act_clock()` in `vultron/adapters/driven/clock.py`: the
+  system clock, or the clock a recorded run installed with
+  `install_act_clock` (#5760). A demo client's step reads the same clock
+  through `vultron.demo.wall_clock.now`. Today's:
   `SvcBTTriggerBase.execute`, the participant-role trigger,
   `state_ledger_positions_trigger` and the sender-sequence hold sweep. A
   received message's act opens with `open_received_act(arrived_at)` instead:
@@ -126,10 +129,9 @@ keeps.
    past-deadline warning moves to the handler. The pre-bootstrap queue sweep moves
    to the reap trigger (#2887), judging at its own instant; the queue's two clock
    reads already moved to the act's instant (#6191).
-5. **Recordings** (#5760). The recording clock goes through the port and steps
-   once per act; the clock patch in the recording harness is removed; every
-   recording is regenerated once. Update the recording-clock paragraph in
-   `notes/demo-scenario-tree.md` in the same PR.
+5. **Recordings** (#5760). The recording clock goes through the port
+   (`install_act_clock`) and steps once per act; the recording harness
+   patches no clock; every recording is regenerated once.
 
 Generated ids are not part of this plan. ADR-0185 decides them differently: the one
 minter draws from an id-source port, and ids are not threaded to the act's edge

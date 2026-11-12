@@ -3,11 +3,11 @@
 
 Two kinds of test:
 
-- **A read path reads no clock.**  Each runs inside a seeded run
-  (:func:`~vultron.demo.determinism.deterministic_run`), and the next clock
-  read after it must be the one a run that did nothing would make.  A path
-  that read the clock, directly or through a model's clock default, would
-  move the seeded clock and so every time a recording takes after it.
+- **A read path reads no clock.**  Each runs while every read of the wall
+  clock behind ``now_utc`` is recorded
+  (:func:`~test.support.act_clock.recorded_clock_reads`), and none may be.
+  A path that read the clock, directly or through a model's clock default,
+  would decide against a time no act stated (ADR-0176).
 - **A recorder stamps the act's instant, and a check is judged at it.**  The
   rate limits keep their windows: the same verdict for the same instant.
 """
@@ -42,6 +42,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -71,7 +72,6 @@ from vultron.core.behaviors.sync.nodes.reseed import (
     record_reseed,
     should_reseed,
 )
-from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.genesis_reject_record import GenesisRejectRecord
 from vultron.core.models.invite_resend_record import InviteResendRecord
 from vultron.core.models.ledger_position import LedgerPosition
@@ -84,7 +84,6 @@ from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.demo.determinism import deterministic_run
 from vultron.errors import VultronCanonicalEntryError
 
 #: The act's instant every check and record here is judged at.
@@ -94,15 +93,10 @@ _EMBARGO = "https://example.org/embargoes/em-1"
 _POSITION = LedgerPosition(log_index=0, entry_hash="a" * 64)
 
 
-def _clock_after(path: Callable[[], object]) -> datetime:
-    """The seeded run's next clock read after *path* runs inside it."""
-    with deterministic_run("sync-act-instant"):
-        path()
-        return helpers_clock.now_utc()
-
-
 def _assert_reads_no_clock(path: Callable[[], object]) -> None:
-    assert _clock_after(path) == _clock_after(lambda: None)
+    with recorded_clock_reads() as reads:
+        path()
+    assert reads == []
 
 
 @pytest.fixture
