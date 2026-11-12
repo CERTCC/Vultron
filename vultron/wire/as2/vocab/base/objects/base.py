@@ -22,7 +22,11 @@ import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
 from vultron.core.models._helpers import as_utc, format_timestamp
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import (
+    CoreObject,
+    LanguageMap,
+    language_map_field,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import (
@@ -88,6 +92,12 @@ class as_Object(as_Base):
     bcc: "as_ObjectOrLinkValues" = None
     audience: "as_ObjectOrLinkValues" = None
     attributed_to: "as_ObjectOrLinkValues" = None
+    # The natural-language map forms (AS2 Core section 4.7), declared on
+    # ``CoreObject`` too (ARCH-25-008).  Empty by default and left out of a
+    # dump when empty.
+    content_map: LanguageMap = language_map_field()
+    name_map: LanguageMap = language_map_field()
+    summary_map: LanguageMap = language_map_field()
 
     @field_serializer("duration", when_used="json")
     def serialize_duration(self, value: timedelta | None) -> str | None:

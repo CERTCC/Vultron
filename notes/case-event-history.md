@@ -221,10 +221,31 @@ Only a **trailing** event may be missing (CEH-05-005). Many cases never see a pu
 exploit, and an open case has not closed, so a sequence that stops early is normal. A
 *gap* is not: the ephemeral rules forbid it.
 
+### Take each transient state's one way out
+
+Replay the recorded order, and wherever it reaches a transient state whose next
+recorded event is not the one that state forces, place the forced event next: move it
+up when the ledger records it later, and imply it when the ledger records it nowhere
+(CEH-05-009). Mark each with its `Placement` (`MOVED`, `IMPLIED`). A moved event
+keeps its log index and clocks; an implied one carries those of the event that
+reached the transient state. The event history stays as recorded. Reason: `pX` and
+`vP` are transient (CSB-17-003). A published exploit makes the public aware at once,
+and an aware public makes the vendor aware at once, so an event in between is
+independent and the record merely trails. Recorded `P, X, V` is `P, V, X`; `X, V, P`
+is `X, P, V`; `V, X, A` is `V, X, P, A` (decided by the project owner on PR #6283).
+
+Derive the forced event from `required_next_cs_events`; never restate it in a table.
+Reason: one state model, and a test pins that each transient state has exactly one
+way out. With both, every order one vendor's and the case's events can be recorded in
+projects; only an entry a CASE_MANAGER would refuse, such as a fix deployed before it
+is ready, is still reported not a valid prefix (CEH-05-004, CEH-05-007). The code is
+`vultron/measure/sequences/` (`case_state_sequences`, `SequenceEvent.placement`).
+
 ### The prefix check is this layer's, not the CASE_MANAGER's
 
-A sequence that fails the prefix check means the derivation is wrong — but not because
-the CASE_MANAGER already refused the transition. It validates a participant's
+A sequence that fails the prefix check means the derivation is wrong or the recorded
+order holds an entry the CASE_MANAGER would refuse — never that it already refused
+the transition. It validates a participant's
 dimensions and the case's public state *separately*, and skips any rule that reads a
 dimension the participant does not have (`composite_state_violations`, and
 `_compound_violations` returns no violation whenever the participant's `vf` is absent).
@@ -342,8 +363,10 @@ which states only the boundary that nothing in the protocol path imports the lay
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
   subpackage that reads through the one below it: the event history is
   `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
-  a sibling of `ledger/`, never part of it. The chance baselines
-  (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
+  a sibling of `ledger/`, never part of it. The per-vendor case-state sequences are
+  `vultron/measure/sequences/` (`case_state_sequences`), reading only the history.
+  The chance baselines (`vultron/measure/baselines/`) read only
+  `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
   display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`

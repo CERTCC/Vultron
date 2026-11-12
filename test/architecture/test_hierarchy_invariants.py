@@ -65,8 +65,7 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 #: Activity Vocabulary section 4), plus ``id`` and ``type``. Listed here rather
 #: than read off a model so that a property dropped from every model still
 #: fails (ARCH-25-008). The natural-language map forms (``contentMap``,
-#: ``nameMap``, ``summaryMap``) are not listed because neither root declares
-#: them yet (#4471).
+#: ``nameMap``, ``summaryMap``, AS2 Core section 4.7) are included (#4471).
 AS2_OBJECT_PROPERTIES = frozenset(
     {
         "id",
@@ -78,6 +77,7 @@ AS2_OBJECT_PROPERTIES = frozenset(
         "bto",
         "cc",
         "content",
+        "contentMap",
         "context",
         "duration",
         "endTime",
@@ -88,11 +88,13 @@ AS2_OBJECT_PROPERTIES = frozenset(
         "location",
         "mediaType",
         "name",
+        "nameMap",
         "preview",
         "published",
         "replies",
         "startTime",
         "summary",
+        "summaryMap",
         "tag",
         "to",
         "updated",
