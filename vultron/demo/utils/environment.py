@@ -166,7 +166,7 @@ def setup_clean_environment(
 @contextmanager
 def demo_environment(
     client: DataLayerClient,
-) -> Generator[tuple[as_Actor, as_Actor, as_Actor], None, None]:
+) -> Generator[tuple[as_Actor, as_Actor, as_Actor]]:
     """Context manager providing an isolated, clean DataLayer environment.
 
     Sets up a clean environment on entry and tears it down on exit, even

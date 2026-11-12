@@ -415,7 +415,15 @@ def _subclasses(cls: type[BaseModel]) -> list[type[BaseModel]]:
 
 
 def _models_in(annotation: object) -> Iterator[type[BaseModel]]:
-    """The models a field annotation names, through unions and containers."""
+    """The models a field annotation names, through unions and containers.
+
+    Bare ``BaseModel`` names no model: it is the core AS2 slots' branch for an
+    object another layer built (``UnmodelledObject``, #3894), whose classes
+    the walk reaches from the vocabularies instead.  Expanding it would walk
+    every model ``vultron`` defines, CSAF and schema records included.
+    """
+    if annotation is BaseModel:
+        return
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         yield annotation
         return

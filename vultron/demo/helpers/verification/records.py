@@ -51,7 +51,13 @@ def recipient_ids(to: object) -> list[str]:
     AS2 allows ``to`` to be one recipient or a list, and each recipient a bare
     id, an inline wire dict, or a typed object; every shape is read the same.
     """
-    recipients = to if isinstance(to, list) else [] if to is None else [to]
+    recipients = (
+        list(to)
+        if isinstance(to, (list, tuple))
+        else []
+        if to is None
+        else [to]
+    )
     ids = [
         r.get("id") if isinstance(r, dict) else ref_id(r) for r in recipients
     ]

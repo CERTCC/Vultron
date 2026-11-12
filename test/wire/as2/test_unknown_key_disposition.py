@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from test.support.objects import make
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -48,6 +49,9 @@ FOREIGN_KEY = "fooBar"
 # A case invitation carries its invitee inline, as an actor reference
 # (AKM-05-017); only then may its target be a case stub (MV-10-002).
 INVITEE = {"type": "Person", "id": "https://example.org/actors/bob"}
+
+#: The id every inline Note here carries: a received Object has one (OID-01-013).
+NOTE_ID = "https://example.org/notes/inline"
 
 
 def _envelope(**extra: Any) -> dict[str, Any]:
@@ -72,7 +76,9 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     ("envelope", _envelope(**{FOREIGN_KEY: 1}), ""),
     (
         "inline generic AS2 object",
-        _with_inline_object({"type": "Note", "content": "hi", FOREIGN_KEY: 1}),
+        _with_inline_object(
+            {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
+        ),
         "object",
     ),
     (
@@ -116,7 +122,7 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
     ),
     (
         "inline generic AS2 object case variant",
-        _with_inline_object({"type": "Note", "Content": "hi"}),
+        _with_inline_object({"type": "Note", "id": NOTE_ID, "Content": "hi"}),
         "Content",
         "content",
     ),
@@ -546,6 +552,7 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
             "id": "https://example.org/cases/1",
             "caseStatuses": [
                 {
+                    "id": "https://example.org/cases/1/statuses/1",
                     "context": "https://example.org/cases/1",
                     "published": "2026-01-01T00:00:00+00:00",
                     FOREIGN_KEY: 2,
@@ -566,6 +573,104 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
     assert "'object.caseStatuses[0]'" in records[0].getMessage()
 
 
+#: Untyped inline objects in the AS2 reference slots ``as_Object`` declares
+#: (``to``, ``context``, ``attributedTo``, ``tag``, ...).  While those slots were
+#: ``Any`` the partition carried such a dict unexamined, so a foreign key
+#: reached the object silently; typed to AS2's ``Object | Link`` range (#3894)
+#: the slot names its classes, and the dict is judged against them (MV-11-001).
+AS2_SLOT_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
+    (
+        "to list item",
+        _envelope(
+            to=[{"id": "https://example.org/actors/bob", FOREIGN_KEY: 1}]
+        ),
+        "to[0]",
+    ),
+    (
+        "context",
+        _envelope(context={"id": "https://example.org/x", FOREIGN_KEY: 1}),
+        "context",
+    ),
+    (
+        "attributedTo",
+        _envelope(attributedTo={"id": SENDER, FOREIGN_KEY: 1}),
+        "attributedTo",
+    ),
+    (
+        "tag Link",
+        _envelope(tag=[{"href": "https://example.org/x", FOREIGN_KEY: 1}]),
+        "tag[0]",
+    ),
+]
+
+
+@pytest.mark.spec("MV-11-001")
+@pytest.mark.spec("MV-11-003")
+@pytest.mark.parametrize(
+    "body,path",
+    [(b, p) for _, b, p in AS2_SLOT_POSITIONS],
+    ids=[label for label, _, _ in AS2_SLOT_POSITIONS],
+)
+def test_untyped_dict_in_an_as2_reference_slot_is_partitioned_by_the_slot(
+    body: dict[str, Any], path: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A foreign key on an untyped inline object in an AS2 slot is set aside."""
+    caplog.set_level(logging.INFO)
+    activity = parse_activity(body)
+
+    dumped = activity.model_dump(by_alias=True, exclude_none=True)
+    key = path.split("[", maxsplit=1)[0]
+    inline = dumped[key][0] if path.endswith("[0]") else dumped[key]
+    assert isinstance(inline, dict) and FOREIGN_KEY not in inline
+    records = _info_records_naming(caplog, FOREIGN_KEY)
+    assert len(records) == 1, [r.getMessage() for r in caplog.records]
+    assert f"'{path}'" in records[0].getMessage()
+
+
+@pytest.mark.spec("MV-11-002")
+def test_near_miss_in_an_untyped_as2_slot_object_is_refused() -> None:
+    """A near miss on an untyped inline object in ``to`` refuses the activity."""
+    body = _envelope(
+        to=[{"id": "https://example.org/actors/bob", "Name": "B"}]
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "'Name'" in message and "'name'" in message
+    assert "'to[0]'" in message
+
+
+@pytest.mark.spec("MV-11-001")
+def test_typed_dict_in_an_as2_slot_is_judged_by_its_own_type(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A typed inline object in ``to`` is judged by its ``type``, not the slot.
+
+    ``preferredUsername`` is an actor spelling that none of the slot's classes
+    declares: it survives only because the dict's ``type`` resolves to
+    ``Person`` (the core actor class), whose spellings decide its keys.
+    """
+    caplog.set_level(logging.INFO)
+    body = _envelope(
+        to=[
+            {
+                "type": "Person",
+                "id": "https://example.org/actors/bob",
+                "preferredUsername": "bob",
+                FOREIGN_KEY: 1,
+            }
+        ]
+    )
+    activity = parse_activity(body)
+
+    assert isinstance(activity.to, list)
+    recipient = activity.to[0]
+    assert isinstance(recipient, CoreActor)
+    assert recipient.preferred_username == "bob"
+    assert len(_info_records_naming(caplog, FOREIGN_KEY)) == 1
+    assert not _info_records_naming(caplog, "preferredUsername")
+
+
 @pytest.mark.spec("MV-11-003")
 @pytest.mark.spec("SL-03-001")
 def test_foreign_key_is_reported_at_info_only(
@@ -583,7 +688,7 @@ def test_foreign_key_is_reported_at_info_only(
 def test_set_aside_key_survives_only_in_the_received_evidence() -> None:
     """The evidence is the only copy of a set-aside key; the body is untouched."""
     body = _with_inline_object(
-        {"type": "Note", "content": "hi", FOREIGN_KEY: 1}
+        {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
     )
     activity = parse_activity(body)
 
@@ -896,7 +1001,7 @@ JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
 _KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
 _AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
 
-_NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
+_NOTE: dict[str, Any] = {"type": "Note", "id": NOTE_ID, "content": "hi"}
 _CASE: dict[str, Any] = {
     **INBOUND_CASE_OWNERSHIP,
     "type": "VulnerabilityCase",

@@ -91,8 +91,8 @@ def test_announce_log_entry_kwargs_forwarded(sample_log_entry):
 def test_announce_log_entry_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         announce_log_entry_activity(
-            entry="not-a-log-entry",
-            at=authored_at(),  # type: ignore[arg-type]
+            entry="not-a-log-entry",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 

@@ -53,7 +53,7 @@ Small tweaks need no ADR; architectural/protocol changes SHOULD have one before 
 
 ## Technology Stack (Authoritative)
 
-Runtime: Python **3.12+** (CI: 3.13), **FastAPI** (BackgroundTasks for long
+Runtime: Python **3.13+** (CI: 3.13), **FastAPI** (BackgroundTasks for long
 ops), **Pydantic v2**, **pytest**, **mkdocs** (Material). Dev tools: **uv**,
 **ruff** (lint/format), **mypy**, **markdownlint-cli2** (`mdlint.sh`), **pyright** (CI).
 No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104).

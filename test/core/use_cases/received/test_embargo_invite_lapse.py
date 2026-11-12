@@ -89,6 +89,7 @@ from vultron.core.use_cases.received.embargo import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
+    VultronActivityConstructionError,
     VultronProtocolViolationError,
 )
 from vultron.wire.as2.factories import (
@@ -1680,10 +1681,13 @@ class TestInviteeIdProperty:
         assert event.invitee_id == _INVITEE
         assert resolve_invitee_id(event, "invite") == _INVITEE
 
-    def test_falsy_recipients_are_dropped(self, make_payload):
-        event = self._event(make_payload, ["", _INVITEE])
-        assert event.to_recipients == [_INVITEE]
-        assert event.invitee_id == _INVITEE
+    @pytest.mark.spec("CS-08-001")
+    def test_a_blank_recipient_is_refused_when_the_invite_is_built(
+        self, make_payload
+    ):
+        """A blank ``to`` entry names nobody, so the Invite is never built (#3894)."""
+        with pytest.raises(VultronActivityConstructionError):
+            self._event(make_payload, ["", _INVITEE])
 
     @pytest.mark.spec("EP-09-010")
     def test_resolver_returns_the_canonical_sole_recipient(self, make_payload):

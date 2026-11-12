@@ -36,6 +36,7 @@ a new outbound activity cannot be added without being audited here.
 import inspect
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -1135,3 +1136,23 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     assert "published" not in first
     assert "updated" not in first
     assert first == second
+
+
+@pytest.mark.spec("AKM-02-006")
+def test_a_rebuilt_close_leave_carries_no_time(world):
+    """The rejecter's rebuild of the owner's close ``Leave`` carries no time.
+
+    The owner stated the Leave's ``published``, which this actor does not
+    hold (AKM-02-006), so the Reject's own instant is not stamped on the
+    embedded Leave.
+    """
+    at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+    _, blob = world.adapter.reject_close_case(
+        case_id=world.case_id, actor=_ACTOR, close_sender=_PEER, at=at
+    )
+    body = json.loads(blob)
+    leave = body["object"]
+
+    assert datetime.fromisoformat(body["published"]) == at
+    assert "published" not in leave
+    assert "updated" not in leave

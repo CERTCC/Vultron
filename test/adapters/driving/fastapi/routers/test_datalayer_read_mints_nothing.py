@@ -492,7 +492,7 @@ def test_every_offer_read_serves_an_offer_that_does_not_concern_the_actor(
     offer = offer_case_participant_role()
     datalayer.create(offer)
     recipients = offer.to if isinstance(offer.to, list) else [offer.to]
-    assert ACTOR_ID not in {getattr(r, "id_", r) for r in recipients}
+    assert ACTOR_ID not in [getattr(r, "id_", r) for r in recipients]
     assert getattr(offer.actor, "id_", offer.actor) != ACTOR_ID
 
     by_key = client.get(_by_key("Offer", offer.id_))

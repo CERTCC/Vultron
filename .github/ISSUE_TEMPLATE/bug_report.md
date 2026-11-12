@@ -25,7 +25,7 @@ labels: bug
 
 ## Environment
 
-- **Python version**: <!-- e.g. 3.12.3 -->
+- **Python version**: <!-- e.g. 3.13.5 -->
 - **OS**: <!-- e.g. macOS 14, Ubuntu 24.04 -->
 - **Branch / commit**: <!-- e.g. main @ abc1234 -->
 

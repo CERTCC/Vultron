@@ -111,8 +111,9 @@ class WithheldArtifact:
         ``<prefix>/**`` is deliberately **not** used. Before Python 3.13 a
         pattern ending in ``**`` matched directories only, so ``ns/**`` would
         skip ``site/ns/context.jsonld`` — and the whole point of this artifact is
-        the JSON-LD file, not the page beside it. The project supports Python
-        3.12+ (CI runs 3.13), so the pattern has to mean the same thing on both.
+        the JSON-LD file, not the page beside it. ``<prefix>/**/*`` matches the
+        files beneath the prefix on every interpreter, so the check does not
+        depend on which Python runs it.
         """
         return tuple(
             pattern

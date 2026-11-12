@@ -104,7 +104,7 @@ def test_render_case_participant(adapter):
 
 
 def test_render_case_reference(adapter):
-    obj = make(CaseReference, url="https://example.org/ref")
+    obj = make(CaseReference, url={"href": "https://example.org/ref"})
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseReference")
 

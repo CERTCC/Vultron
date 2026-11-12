@@ -12,14 +12,15 @@ description: >
 related_specs:
   - specs/actor-knowledge-model.yaml (AKM-05-007)
   - specs/architecture.yaml (ARCH-01-001, ARCH-12-003, ARCH-20-008, ARCH-21-002,
-    ARCH-22-001, ARCH-22-003, ARCH-23-005, ARCH-23-006, ARCH-25-002 through
-    ARCH-25-008)
+    ARCH-22-001, ARCH-22-003, ARCH-23-004, ARCH-23-005, ARCH-23-006, ARCH-25-002
+    through ARCH-25-008)
   - specs/case-management.yaml (CM-11-013, CM-31-003)
   - specs/code-style.yaml (CS-08-001, CS-14-001)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
   - specs/status-dimension-objects.yaml (SDO-03-003)
-  - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-11-001
-    through MV-11-005, MV-11-012)
+  - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-10-002,
+    MV-11-001 through MV-11-005, MV-11-012)
+  - specs/object-ids.yaml (OID-01-013)
   - specs/vocabulary-model.yaml (VM-06-008, VM-07-005)
 related_notes:
   - notes/vocabulary-registry.md
@@ -119,10 +120,24 @@ dehydration field set comes out empty, and VM-06-009 refuses a reference it shou
 defer. Ratchets: `test/architecture/test_wire_reference_fields_reject_blank.py`,
 `test_core_reference_fields_reject_blank.py`.
 
-The rule reaches only slots whose annotation spells a string branch. The
-`Any | None` AS2 properties on `as_Object` (`to`, `cc`, `attributedTo`,
-`inReplyTo`, `context`, `url`, …) still admit a blank inbound, and neither ratchet
-sees a string leaf in `Any` (#3894).
+The rule reaches only slots whose annotation spells a string branch, so an AS2
+property on either root (`to`, `cc`, `context`, `inReplyTo`, `attributedTo`, `url`,
+…) MUST take its AS2 range, never `Any`: `Any` hides the string leaf from both
+ratchets and a blank passes unseen (#3894, `test_no_object_root_field_is_typed_any`).
+
+- A non-functional property ends in a `Sequence[...]` branch, not `list[...]`:
+  `list` is invariant, so a `list[str]` argument or a subclass narrowing `to` to
+  `list[NonEmptyString]` would not type-check. The list branch also keeps these
+  slots out of the dehydrated `as_ObjectRef` set (ARCH-23-004).
+- Core cannot name the wire `Link`, case stub or case reference (ARCH-01-001), yet
+  the parse edge puts them in core objects' slots before its placement checks run
+  (MV-10-002, AKM-03-004). The core union therefore admits any already-built model
+  (`UnmodelledObject`); a raw mapping must still validate as `CoreObject`. A stored
+  row therefore builds such a value as its own class before the core class reads it
+  (`_build_unmodelled_inline`), or a Link in `tag` would not read back.
+- A received Object without an `id` is refused at any depth, and none is minted for
+  it; a Link needs no id but must name an `href` (OID-01-013). Minting belongs to
+  objects this process builds.
 
 Text fields are held to the same rule: every string field a wire class declares
 (`name`, `summary`, `content`, `mediaType`, …) is `NonEmptyString`, so a blank is
@@ -232,7 +247,11 @@ after the received evidence is sealed and before anything validates:
   its parent field validates it into, reading through unions, `Annotated` and
   sequences. Several model classes: the union of their spellings. A field that
   also admits `Any` or plain `dict`: no class decides and the dict is carried
-  unexamined (its typed children are still partitioned).
+  unexamined (its typed children are still partitioned), which is one more reason
+  an AS2 slot is never `Any`. An untyped object in a wire root's `to` or `context`
+  is judged against `as_Object`, `as_Link` and `CoreObject`; on a core class's slot
+  only `CoreObject` decides, since `UnmodelledObject` strips to a bare `BaseModel`
+  that names no fields (#3894).
 - **The case stub** is chosen by its `type`, `VulnerabilityCaseStub` (CM-11-038),
   never by key-set guessing.
 - **One refusal names every near miss** at every depth, with dotted paths

@@ -158,7 +158,9 @@ def test_ack_still_goes_to_the_reporter_alone_once_a_case_exists(
     read = env.dl.read(queued.pop())
     assert isinstance(read, as_Read)
     assert read.to == [FINDER_ID]
-    assert CASE_ACTOR_ID not in (read.cc or [])
+    cc = read.cc or []
+    assert isinstance(cc, list)
+    assert CASE_ACTOR_ID not in cc
 
 
 @pytest.mark.spec("TRIG-03-003")

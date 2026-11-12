@@ -31,6 +31,7 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
+    refuse_absent_id,
 )
 from vultron.core.models.base import (
     VULTRON_CONTEXT_URI,
@@ -103,6 +104,11 @@ class as_Base(BaseModel):
     #: (VM-01-015, VM-01-016).
     _wire_type_alias: ClassVar[bool] = False
 
+    #: ``False`` on a class whose instances are not ActivityStreams Objects
+    #: (``as_Link`` and its subtypes): a received one may omit its ``id``, and
+    #: keeps none rather than one minted for it (OID-01-013).
+    _inbound_requires_id: ClassVar[bool] = True
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
         if not declares_registrable_type(cls):
@@ -171,6 +177,11 @@ class as_Base(BaseModel):
         the field actually chose.  Each class sees only its own
         ``model_fields``, so a class without timestamps (``as_Link``) is
         untouched rather than handed a key it would refuse.
+
+        The minted ``id`` default is the same fabrication, so it is gated the
+        same way: a received Object without an ``id`` is refused, and a received
+        Link (``_inbound_requires_id`` false) that omits one keeps none
+        (OID-01-013, OID-01-014).
         """
         if not isinstance(data, dict):
             return data
@@ -179,7 +190,13 @@ class as_Base(BaseModel):
             cls.INBOUND_CONTEXT_KEY
         ):
             return data
-        return absent_times_as_none(cls, dict(data))
+        data = dict(data)
+        if cls._inbound_requires_id:
+            refuse_absent_id(cls, data)
+        elif data.get("id") is None and data.get("id_") is None:
+            # A received Link may omit its id; it keeps none (OID-01-013).
+            data["id"] = None
+        return absent_times_as_none(cls, data)
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):

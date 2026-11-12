@@ -30,9 +30,13 @@ only by the seam, so a test injects one of these instead of a raw
 
 from __future__ import annotations
 
+import gc
+import traceback
+from types import TracebackType
 from typing import Protocol
 
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out.actuator import (
@@ -49,6 +53,40 @@ from vultron.core.behaviors.call_out.guard import (
     SynchronousCallOut,
     unwrap_call_out,
 )
+
+
+class refused_class:
+    """Assert the block's class definition is refused, then collect the class.
+
+    A class whose ``__init_subclass__`` raises is already listed in its
+    bases' ``__subclasses__()``, with no ABC cache of its own, so it shares
+    its first base's.  Until it is collected, an ``isinstance`` check that
+    walks it writes a wrong verdict into that base's cache: a bound
+    ``AlwaysSucceed`` default then reads as not an ``AlwaysSucceed``, or as
+    an Actuator, for the rest of the worker (#6303).  The refusal's
+    traceback frames hold the class, so they are cleared before it is
+    collected.
+    """
+
+    def __init__(self, match: str) -> None:
+        self._raises = pytest.raises(TypeError, match=match)
+
+    def __enter__(self) -> None:
+        self._raises.__enter__()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool:
+        suppressed = bool(self._raises.__exit__(exc_type, exc, tb))
+        if tb is not None:
+            traceback.clear_frames(tb)
+        del self._raises
+        gc.collect()
+        return suppressed
+
 
 #: The reason a test backend's *no* carries unless the test gives one.
 TEST_REFUSAL_REASON = "test backend declines"

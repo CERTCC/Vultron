@@ -198,13 +198,13 @@ def test_ontology_tombstone_is_not_itself_withheld():
     assert "reference/ontology" not in ontology.site_globs()
 
 
-def test_site_globs_pattern_is_portable_to_python_3_12():
+def test_site_globs_pattern_matches_files_on_every_interpreter():
     """A prefix derives `<prefix>/**/*`, never a bare `<prefix>/**`.
 
     Before Python 3.13 a pattern ending in `**` matched directories only, so
     `ns/**` skipped `site/ns/context.jsonld` — the exact file that makes the
-    namespace URI resolve. The project supports 3.12+, so the pattern has to
-    mean the same thing on both.
+    namespace URI resolve. `<prefix>/**/*` matches it whichever interpreter
+    runs the check.
     """
     patterns = _artifact(site_prefixes=("ns",)).site_globs()
     assert patterns == ("ns", "ns/**/*")
@@ -235,7 +235,7 @@ def test_main_exits_nonzero_when_a_withheld_artifact_is_published(
     # The operator needs to know what unblocks publication, not only that it failed.
     assert "Gate on publishing:" in err
     # The JSON-LD file is the reason this artifact is withheld, so it must be
-    # named. A bare `ns/**` pattern would report only the directory on 3.12.
+    # named. A bare `ns/**` pattern would report only the directory before 3.13.
     assert "site/ns/context.jsonld" in err
 
 

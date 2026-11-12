@@ -188,8 +188,8 @@ def test_add_report_to_case_target_is_set(sample_report):
 def test_add_report_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_report_to_case_activity(
-            report="not-a-report",
-            at=authored_at(),  # type: ignore[arg-type]
+            report="not-a-report",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -228,8 +228,8 @@ def test_add_status_to_case_target_is_set(sample_status):
 def test_add_status_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         add_status_to_case_activity(
-            status="not-a-status",
-            at=authored_at(),  # type: ignore[arg-type]
+            status="not-a-status",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -1029,8 +1029,8 @@ def test_announce_vulnerability_case_object_is_case(sample_case):
 def test_announce_vulnerability_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         announce_vulnerability_case_activity(
-            case="not-a-case",
-            at=authored_at(),  # type: ignore[arg-type]
+            case="not-a-case",  # type: ignore[arg-type]
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 

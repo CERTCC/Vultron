@@ -85,6 +85,7 @@ from pydantic.fields import FieldInfo
 
 from vultron.core.models._helpers import reads_absent_as_none
 from vultron.core.models.base import CoreObject
+from vultron.core.models.base.core_object import UnmodelledObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -188,7 +189,14 @@ class _Projector:
             nullable = len(rest) < len(args)
             if len(rest) == 1:
                 return self.shape(rest[0], enum_name, probe), nullable
-            union = [self.shape(arg, enum_name, probe) for arg in rest]
+            union: list[dict[str, Any]] = []
+            for arg in rest:
+                # Two members can project to one shape (an embedded core
+                # object and one another layer built are both JSON objects).
+                if (member := self.shape(arg, enum_name, probe)) not in union:
+                    union.append(member)
+            if len(union) == 1:
+                return union[0], nullable
             return {"kind": "union", "of": union}, nullable
         return self.shape(annotation, enum_name, probe), False
 
@@ -199,6 +207,9 @@ class _Projector:
         scalar = _scalar_shape(annotation)
         if scalar is not None:
             return scalar
+        if annotation == UnmodelledObject:
+            # A model another layer built, held as is: a JSON object (#3894).
+            return {"kind": "object"}
         origin = typing.get_origin(annotation)
         args = typing.get_args(annotation)
         if origin is typing.Annotated:
@@ -208,7 +219,7 @@ class _Projector:
             return {"kind": "literal", "value": args[0]}
         if origin is dict and _is_json_object(args):
             return {"kind": "object"}
-        if origin is list and len(args) == 1:
+        if origin in (list, Sequence) and len(args) == 1:
             item_probe: Probe = lambda value: probe([value])[0]  # noqa: E731
             return {
                 "kind": "array",
@@ -238,6 +249,10 @@ class _Projector:
         # the export first keeps an exported model a reference regardless.
         if annotation in self._exported:
             return {"kind": "ref", "type": self._exported[annotation]}  # type: ignore[index]
+        # An embedded AS2 object in an AS2 reference slot (an inline case, a
+        # wire Link) is a JSON object the export does not model (#3894).
+        if annotation is CoreObject:
+            return {"kind": "object"}
         if is_dimension_model(annotation):
             dimension = typing.cast(type[BaseModel], annotation)
             states = dimension.model_fields[DIMENSION_STATE_FIELD].annotation

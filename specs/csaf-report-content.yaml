@@ -451,9 +451,9 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A receiver that fills case inputs from a CSAF document SHOULD give the case a
-      case reference for each entry in `document.references[]`, with the entry's `url`
-      and its `summary` as the reference's `name`.
+      A receiver filling case inputs from a CSAF document SHOULD give the case one case
+      reference per `document.references[]` entry. The entry's `url` is the `href` of
+      the reference's `url` Link, and its `summary` is the reference's `name`.
     rationale: >-
       A document-level reference is about the whole report, so it belongs to the case;
       a vulnerability's own references go on its vulnerability item (CSAF-03-008). The
@@ -463,8 +463,8 @@ groups:
       `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_reference_becomes_a_case_reference`
       holds a strict xfail probe until a behavioral test marked with this ID lands. That
       test replaces the probe: a receive-path test attaches a document with
-      document-level references, and checks that the case gets a case reference with
-      the URL and summary of each.
+      document-level references, and checks that the case gets a case reference whose
+      `url` Link's `href` and whose `name` are the URL and summary of each.
     adr:
     - ADR-0184
     - ADR-0187

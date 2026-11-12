@@ -15,6 +15,9 @@
 Spec coverage:
 - AF-04-001: a ``ValidationError`` becomes ``VultronActivityConstructionError``.
 - AF-04-003: the failure is logged at WARNING before the raise.
+
+``OWN_VALIDATION_HANDLER_EXEMPTIONS`` is a pinned exemption set (ARCH-18):
+the factory-package scopes allowed to catch a validation failure themselves.
 """
 
 import ast
@@ -34,10 +37,12 @@ from vultron.core.models.fault_classes import (
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories import (
     create_processing_fault_activity,
+    offer_case_participant_activity,
     rm_close_report_activity,
     rm_create_report_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
+    rm_invite_to_case_activity,
     rm_read_report_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
@@ -153,48 +158,91 @@ def test_named_case_refusal_reaches_the_caller_as_construction_error() -> None:
         )
 
 
-_REPORT_FACTORIES = (
-    rm_create_report_activity,
-    rm_submit_report_activity,
-    rm_read_report_activity,
-    rm_validate_report_activity,
-    rm_invalidate_report_activity,
-    rm_close_report_activity,
+def _not_a_report_offer() -> tuple[tuple[object, ...], dict[str, object]]:
+    """An Offer of something other than a report."""
+    offer = make(
+        as_Offer,
+        actor="https://example.org/actors/a",
+        object_="https://example.org/notes/1",
+    )
+    return (offer,), {}
+
+
+_Call = Callable[[], tuple[tuple[object, ...], dict[str, object]]]
+
+_REPORT_FACTORY_CALLS: tuple[tuple[Callable[..., object], _Call], ...] = (
+    (rm_create_report_activity, lambda: (("not-a-report",), {})),
+    (
+        rm_submit_report_activity,
+        lambda: (("not-a-report",), {"to": "https://example.org/actors/b"}),
+    ),
+    (rm_read_report_activity, _not_a_report_offer),
+    (rm_validate_report_activity, _not_a_report_offer),
+    (rm_invalidate_report_activity, _not_a_report_offer),
+    (rm_close_report_activity, _not_a_report_offer),
 )
 
 
-@pytest.mark.spec("AF-04-003")
-@pytest.mark.parametrize(
-    "factory", _REPORT_FACTORIES, ids=lambda f: f.__name__
-)
-def test_report_factories_log_before_raising(
-    factory: Callable[..., object], caplog: pytest.LogCaptureFixture
-) -> None:
-    """The report factories log like every other factory (AF-04-003)."""
-    with caplog.at_level(logging.WARNING):
-        with pytest.raises(VultronActivityConstructionError):
-            if factory is rm_submit_report_activity:
-                factory(
-                    cast(Any, "not-a-report"),
-                    to="https://example.org/actors/b",
-                    at=_AT,
-                )
-            elif factory is rm_create_report_activity:
-                factory(cast(Any, "not-a-report"), at=_AT)
-            else:
-                # An Offer of something other than a report.
-                factory(
-                    make(
-                        as_Offer,
-                        actor="https://example.org/actors/a",
-                        object_="https://example.org/notes/1",
-                    ),
-                    at=_AT,
-                )
+def _assert_logged(factory: Callable[..., object], caplog: Any) -> None:
     assert any(
         f"{factory.__name__}: invalid arguments:" in r.getMessage()
         for r in caplog.records
     )
+
+
+@pytest.mark.spec("AF-04-003")
+@pytest.mark.parametrize(
+    ("factory", "call"),
+    _REPORT_FACTORY_CALLS,
+    ids=[f.__name__ for f, _ in _REPORT_FACTORY_CALLS],
+)
+def test_report_factories_log_before_raising(
+    factory: Callable[..., object],
+    call: _Call,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The report factories log like every other factory (AF-04-003)."""
+    args, kwargs = call()
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(VultronActivityConstructionError):
+            factory(*args, **kwargs, at=_AT)
+    _assert_logged(factory, caplog)
+
+
+@pytest.mark.spec("AF-04-001", "AF-04-003")
+@pytest.mark.parametrize(
+    ("factory", "args", "kwargs"),
+    [
+        (
+            offer_case_participant_activity,
+            ("https://example.org/actors/b",),
+            {
+                "target": "https://example.org/cases/1",
+                "roles": [cast(Any, "bogus")],
+            },
+        ),
+        (
+            rm_invite_to_case_activity,
+            (),
+            {"invitee": "https://example.org/actors/b", "target": ""},
+        ),
+    ],
+    ids=["participant", "invite-stub"],
+)
+def test_argument_construction_runs_inside_the_guarded_scope(
+    factory: Callable[..., object],
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The participant an Offer carries and the stub an Invite carries are
+    built inside the factory's scope, so a bad argument is a construction
+    error, not a raw ``ValidationError`` (AF-04-001)."""
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(VultronActivityConstructionError) as info:
+            factory(*args, **kwargs, at=_AT)
+    assert isinstance(info.value.__cause__, ValidationError)
+    _assert_logged(factory, caplog)
 
 
 @pytest.mark.spec("AF-04-001")
@@ -256,9 +304,9 @@ def _may_catch_validation_error(
     """Whether *handler* can catch a ``ValidationError``.
 
     A bare ``except``, ``Exception``, ``BaseException``, ``ValidationError``
-    under any alias or as an attribute (``pydantic.ValidationError``), and a
-    name that is no known exception class (a variable holding a tuple, as
-    ``guarded_build``'s does) all can.
+    under any alias, and a name or attribute that is no known non-validation
+    exception class (``pydantic.ValidationError``, ``mod.ValueError``, a
+    variable holding a tuple as ``guarded_build``'s does) all can.
     """
     if handler.type is None:
         return True
@@ -269,7 +317,7 @@ def _may_catch_validation_error(
     )
     for node in types:
         if isinstance(node, ast.Attribute):
-            if node.attr == "ValidationError":
+            if node.attr not in _OTHER_EXCEPTIONS:
                 return True
             continue
         if not isinstance(node, ast.Name):
@@ -302,11 +350,11 @@ def own_validation_handlers_in(tree: ast.Module) -> set[str]:
     owner: dict[int, str] = {}
     for name, scope in _scopes(tree):
         for node in ast.walk(scope):
-            if isinstance(node, ast.Try):
+            if isinstance(node, (ast.Try, ast.TryStar)):
                 owner[id(node)] = name
     found: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Try) and any(
+        if isinstance(node, (ast.Try, ast.TryStar)) and any(
             _may_catch_validation_error(h, aliases) for h in node.handlers
         ):
             found.add(owner[id(node)])
@@ -356,6 +404,21 @@ def _own_validation_handlers() -> set[tuple[str, str]]:
             "    except VultronParseError:\n        pass\n",
             set(),
         ),
+        (
+            "def f():\n    try:\n        pass\n"
+            "    except* ValidationError:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n"
+            "    except builtins.ValueError:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n"
+            "    except errors.VultronParseError:\n        pass\n",
+            set(),
+        ),
     ],
     ids=[
         "module",
@@ -365,6 +428,9 @@ def _own_validation_handlers() -> set[tuple[str, str]]:
         "exception",
         "variable",
         "other",
+        "except-star",
+        "attribute-other",
+        "attribute-known",
     ],
 )
 def test_the_scan_finds_each_shape_of_handler(
