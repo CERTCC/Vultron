@@ -132,3 +132,24 @@ def test_the_registered_script_dumps_a_committed_recording(tmp_path):
     assert output.read_text(encoding="utf-8").startswith(
         "# Case event history"
     )
+
+
+def test_a_failed_write_leaves_no_partial_file(tmp_path, monkeypatch):
+    output = tmp_path / "history.md"
+
+    def fail(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "replace", fail)
+    assert main([str(RECORDING), "-o", str(output)]) == EXIT_BAD_INPUT
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_failed_write_to_stdout_names_standard_output(monkeypatch, caplog):
+    def fail(_text):
+        raise OSError("broken pipe")
+
+    monkeypatch.setattr("sys.stdout.write", fail)
+    with caplog.at_level("ERROR"):
+        assert main([str(RECORDING)]) == EXIT_BAD_INPUT
+    assert "cannot write standard output: broken pipe" in caplog.text

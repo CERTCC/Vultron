@@ -49,6 +49,7 @@ from vultron.measure.ledger import (
     MISSING_SLOT,
     UNNAMED_ACTOR,
     CaseLedger,
+    UnusableRow,
     actor_uri,
     collect_actor_names,
     collect_participant_actors,
@@ -130,8 +131,17 @@ class EventRow(BaseModel):
 
 
 def _md_cell(text: str) -> str:
-    """Escape a value for use inside a Markdown table cell."""
-    return text.replace("|", "\\|").replace("\n", " ")
+    """Escape a value for one Markdown table cell or one Markdown line.
+
+    A ``|`` would split the cell and a line break would end the row, and both
+    can arrive in a display name taken from a payload.
+    """
+    return (
+        text.replace("|", "\\|")
+        .replace("\r\n", " ")
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
 
 
 def _entries_by_index(ledger: CaseLedger) -> dict[int, dict[str, Any]]:
@@ -249,9 +259,7 @@ def _trust_lines(history: CaseEventHistory) -> list[str]:
         f"{_indices(history.conflicting_log_indices)}",
         f"- Events: {len(history.events)}",
     ]
-    lines.extend(
-        f"- Unusable row: {row.describe()}" for row in history.unusable_rows
-    )
+    lines.extend(_unusable_lines(history.unusable_rows))
     lines.extend(
         f"- Excluded state at entry {item.log_index}: {item.dimension} "
         f"{item.named} is behind {item.reached}"
@@ -261,17 +269,33 @@ def _trust_lines(history: CaseEventHistory) -> list[str]:
         f"- Unreadable entry {item.log_index}: {item.reason}"
         for item in history.unreadable_entries
     )
-    return lines
+    return [_md_cell(line) for line in lines]
+
+
+def _unusable_lines(rows: Iterable[UnusableRow]) -> list[str]:
+    return [f"- Unusable row: {row.describe()}" for row in rows]
 
 
 def render_table(
     cases: Iterable[tuple[CaseEventHistory, CaseLedger]],
     names: Mapping[str, str],
+    unplaced: Sequence[UnusableRow] = (),
 ) -> str:
-    """Render one Markdown section per case, each with its event table."""
+    """Render one Markdown section per case, each with its event table.
+
+    *unplaced* are the rows that name no case the input holds; they are
+    listed first, as the JSON form lists them, so neither form drops one.
+    """
     lines = ["# Case event history", ""]
+    if unplaced:
+        lines += [
+            "## Rows in no case",
+            "",
+            *(_md_cell(line) for line in _unusable_lines(unplaced)),
+            "",
+        ]
     for history, ledger in cases:
-        lines += [f"## Case `{history.case_id}`", ""]
+        lines += [f"## Case `{_md_cell(history.case_id)}`", ""]
         lines += [*_trust_lines(history), ""]
         lines.append("| " + " | ".join(TABLE_HEADERS) + " |")
         lines.append("| " + " | ".join(["---"] * len(TABLE_HEADERS)) + " |")
@@ -328,5 +352,7 @@ def case_history_report(
         )
     names = label_names({cid: lg.entries for cid, lg in read.cases.items()})
     return render_table(
-        ((histories[cid], ledgers[cid]) for cid in sorted(histories)), names
+        ((histories[cid], ledgers[cid]) for cid in histories),
+        names,
+        read.unusable_rows,
     )

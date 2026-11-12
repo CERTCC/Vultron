@@ -2,8 +2,9 @@
 
 Two tools that read the same ledger and name the same actor differently are hard
 to read side by side, so the demo report and the measure layer resolve an actor
-URI, and label an entry's object, through this one resolver. It lives beside the ledger reader so the demo
-layer imports both from here and the two packages never import each other
+URI, and label an entry's object, through this one resolver. It lives beside the
+ledger reader so the demo layer imports both from here and the two packages never
+import each other
 (``notes/case-event-history.md`` § "Reuse the One JSONL Walker").
 """
 

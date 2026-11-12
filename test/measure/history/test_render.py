@@ -294,3 +294,61 @@ def test_without_a_named_case_every_case_gets_its_own_section(tmp_path):
         "## Case `urn:uuid:case-0`",
         f"## Case `{CASE}`",
     ]
+
+
+def test_a_pipe_or_line_break_in_a_name_cannot_break_the_table():
+    entry = _accept(
+        {"id": VENDOR, "type": "Organization", "name": "Acme | Co\r\nLtd"},
+        {"id": INVITEE, "type": "Organization", "name": "Invitee\rInc"},
+    )
+    history = CaseEventHistory(
+        case_id=CASE,
+        source=LedgerSource.COMPLETE_COPY,
+        end_confirmed=True,
+        events=[_event()],
+    )
+    ledger = CaseLedger(
+        case_id=CASE,
+        source=LedgerSource.COMPLETE_COPY,
+        rows=[],
+        copies=[],
+    )
+    names = label_names({"f": [entry]})
+    row = event_row(_event(), entry, names, CASE)
+    assert row.actor == "Acme | Co\r\nLtd"
+    text = render_table([(history, ledger)], names)
+    assert "\r" not in text
+    rows = _table_rows(text)
+    assert all(len(r) == len(TABLE_HEADERS) for r in rows)
+
+
+def test_a_row_in_no_case_is_listed_in_the_table_as_in_the_json(tmp_path):
+    path = _write(_small_ledger(), tmp_path / "ledger.jsonl")
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write("{not json\n")
+    text = case_history_report([path], fmt=HistoryFormat.TABLE)
+    data = json.loads(case_history_report([path], fmt=HistoryFormat.JSON))
+    assert len(data["unusable_rows"]) == 1
+    lines = text.splitlines()
+    at = lines.index("## Rows in no case")
+    assert lines[at + 2].startswith(f"- Unusable row: {path}")
+
+
+def test_the_table_and_the_json_list_cases_in_one_order(tmp_path):
+    first = _small_ledger()
+    second = _small_ledger()
+    for entry in second.entries:
+        entry["caseId"] = "urn:uuid:case-0"
+    path = tmp_path / "two.jsonl"
+    path.write_text(
+        "\n".join(json.dumps(e) for e in first.entries + second.entries),
+        encoding="utf-8",
+    )
+    text = case_history_report([path], fmt=HistoryFormat.TABLE)
+    data = json.loads(case_history_report([path], fmt=HistoryFormat.JSON))
+    headings = [
+        line.removeprefix("## Case `").removesuffix("`")
+        for line in text.splitlines()
+        if line.startswith("## Case ")
+    ]
+    assert headings == list(data["histories"])

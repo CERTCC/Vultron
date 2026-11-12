@@ -81,11 +81,20 @@ def _refuse(message: str) -> int:
 
 
 def _write_output(text: str, output: Path | None) -> None:
-    """Write the dump to *output*, or to standard output when it is ``None``."""
+    """Write the dump to *output*, or to standard output when it is ``None``.
+
+    The file is written beside *output* and then moved into place, so a write
+    that fails partway leaves no truncated dump behind.
+    """
     if output is None:
         sys.stdout.write(text)
         return
-    output.write_text(text, encoding="utf-8")
+    partial = output.with_name(f".{output.name}.partial")
+    try:
+        partial.write_text(text, encoding="utf-8")
+        partial.replace(output)
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,7 +113,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _write_output(text, args.output)
     except OSError as exc:
-        return _refuse(f"cannot write {args.output}: {exc}")
+        target = args.output or "standard output"
+        return _refuse(f"cannot write {target}: {exc}")
     if args.output is not None:
         logger.info(
             "Wrote %s case event history → %s", args.format, args.output
