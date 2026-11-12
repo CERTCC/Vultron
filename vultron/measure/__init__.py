@@ -12,7 +12,7 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
   field-spelling helpers, the display-name resolver, and the complete-copy
   selection that every measure reads through (CEH-02).
 * :mod:`vultron.measure.history` — the case event history derived from one
-  case's ledger (CEH-03, CEH-04).
+  case's ledger (CEH-03, CEH-04), and the ``vultron-case-history`` command.
 * :mod:`vultron.measure.sequences` — one case-state sequence per vendor,
   projected from the event history and validated as a history prefix
   (CEH-05).

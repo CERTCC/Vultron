@@ -389,6 +389,9 @@ which states only the boundary that nothing in the protocol path imports the lay
 - The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moved down
   with it. Left in the demo layer, it would make the two packages import each other.
   Its URI fallback is `vultron.core.display.friendly_name`, not a second copy.
+  The object labels and the registry phrase render (`phrases.py`) moved with it, so
+  `vultron-case-history` (`vultron/measure/history/cli.py`) words an event as the
+  report does.
 - `discover_replicas` stays in `vultron/demo/report/timeline.py` with its glob.
 - Two architecture tests in `test/architecture/test_measure_layer_boundaries.py`
   hold the layer's boundaries: no protocol-path import (CEH-01-001) and no write

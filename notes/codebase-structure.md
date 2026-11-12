@@ -257,8 +257,9 @@ never re-serializing what the ledger recorded (VM-08-003).
 
 Rendering a phrase with `format_map(defaultdict(...))` fills every slot, so it passes a
 phrase referencing a slot the real renderer never fills. The real pipeline
-(`CaseTimelineEvent.summary` in `vultron/demo/report/timeline.py`) fills only `actor` and,
-when `target_label` resolves, `object`/`target`. A phrase regression test builds a
+(`render_event_phrase` in `vultron/measure/ledger/phrases.py`, which
+`CaseTimelineEvent.summary` and `vultron-case-history` call) fills only `actor` and,
+when an object label resolves, `object`/`target`. A phrase regression test builds a
 representative `CaseTimelineEvent` and asserts its `summary` has no trailing `—`
 and no unsubstituted `{slot}` (SE-07). `event_phrase()` fills every slot with `—`,
 so a test through it is the vacuous kind this section warns against.
