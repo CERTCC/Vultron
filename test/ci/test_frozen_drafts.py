@@ -165,7 +165,11 @@ def _build(
 
 
 def _unpacked(tmp_path: Path) -> Path:
-    archive, manifest = _build(tmp_path)
+    return _unpacked_with(tmp_path)
+
+
+def _unpacked_with(tmp_path: Path, **overrides: str) -> Path:
+    archive, manifest = _build(tmp_path, **overrides)
     into = tmp_path / "unpacked"
     _fd.verify_archive(archive, manifest, into)
     return into
@@ -323,13 +327,18 @@ def test_links_that_leave_the_specification_name_the_live_site(
     tmp_path: Path,
 ) -> None:
     root = _unpacked(tmp_path)
-    index = _refs(root / "index.html")
-    assert f"{SITE_URL}start/" in index
-    assert f"{SITE_URL}guide/page.html#x" in index
-    assert SITE_URL in index  # the site's home page
-    assert "https://elsewhere.example/" in index
-    assert "mailto:x@example.org" in index
-    assert f"{SITE_URL}start/?q=1#s" in _refs(root / "layers/index.html")
+    # Whole references, compared as set members: none is a URL substring.
+    expected = {
+        f"{SITE_URL}start/",
+        f"{SITE_URL}guide/page.html#x",
+        SITE_URL,  # the site's home page
+        "https://elsewhere.example/",
+        "mailto:x@example.org",
+    }
+    assert expected <= set(_refs(root / "index.html"))
+    assert {f"{SITE_URL}start/?q=1#s"} <= set(
+        _refs(root / "layers/index.html")
+    )
 
 
 @pytest.mark.spec("DOCBW-08-017")
@@ -439,6 +448,71 @@ def test_a_reference_that_leaves_the_archive_fails_the_check(
 
 
 @pytest.mark.spec("DOCBW-08-021")
+def test_a_search_worker_missing_from_the_archive_fails_the_check(
+    tmp_path: Path,
+) -> None:
+    config = (
+        '<script id="__config" type="application/json">'
+        '{"search": "_site/gone.js"}</script>'
+    )
+    archive, manifest = _pair(tmp_path, {"index.html": config.encode()})
+    with pytest.raises(
+        _fd.FrozenDraftError, match=r"'_site/gone\.js' names no"
+    ):
+        _fd.verify_archive(archive, manifest, tmp_path / "into")
+
+
+def test_a_config_that_is_json_but_no_object_is_left_alone(
+    tmp_path: Path,
+) -> None:
+    page = _SPEC_PAGES["layers/index.html"].replace(
+        "</head>",
+        '<script id="__config" type="application/json">[1]</script></head>',
+    )
+    root = _unpacked_with(tmp_path, **{"layers/index.html": page})
+    assert "[1]</script>" in (root / "layers/index.html").read_text()
+
+
+def test_stylesheet_references_follow_css_quoting_and_skip_comments(
+    tmp_path: Path,
+) -> None:
+    css = (
+        'a{b:url("img(1).png")} /* url(gone.png) */ c{d:url( bare.png )}'
+        ' e{f:url("it\'s.png")} @import url(\'y.css\'); g{h:url("")}'
+    )
+    assert _fd.stylesheet_references(css) == [
+        "img(1).png", "bare.png", "it's.png", "y.css",
+    ]  # fmt: skip
+    files = {
+        "a.css": css.encode(),
+        "img(1).png": b"p", "bare.png": b"b", "it's.png": b"i", "y.css": b"",
+    }  # fmt: skip
+    archive, manifest = _pair(tmp_path, files)
+    _fd.verify_archive(archive, manifest, tmp_path / "into")
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["0; URL=../layers/", "0;url='../layers/'", "0; Url = '../layers/'"],
+)
+def test_a_redirect_stub_is_read_in_any_spelling(
+    tmp_path: Path, content: str
+) -> None:
+    stub = _SPEC_PAGES["_old/index.html"].replace("0; url=../layers/", content)
+    root = _unpacked_with(tmp_path, **{"_old/index.html": stub})
+    assert (root / "_old/index.html").is_file()
+
+
+def test_a_name_holding_a_line_separator_other_than_newline_is_listed(
+    tmp_path: Path,
+) -> None:
+    """sha256sum lines end at a newline only (DOCBW-08-018)."""
+    files = {"a\x85b.svg": b"<svg/>", "c\u2028d.svg": b"<svg/>"}
+    archive, manifest = _pair(tmp_path, files)
+    _fd.verify_archive(archive, manifest, tmp_path / "into")
+
+
+@pytest.mark.spec("DOCBW-08-021")
 @pytest.mark.parametrize("fault", ["changed", "missing", "extra"])
 def test_a_tree_that_is_not_its_manifest_fails_the_check(
     tmp_path: Path, fault: str
@@ -544,7 +618,8 @@ class _Releases:
     ``fail_upload`` makes ``release create`` fail after the release exists
     and before its second asset lands; ``tamper`` makes a download return
     bytes other than the stored ones; ``fail_delete`` makes ``release
-    delete`` fail.
+    delete`` fail, every time when ``True`` or that many times when a count;
+    ``delete_lands`` makes a failing delete remove the release anyway.
     """
 
     def __init__(self) -> None:
@@ -552,7 +627,8 @@ class _Releases:
         self.calls: list[tuple[str, ...]] = []
         self.fail_upload = False
         self.tamper = False
-        self.fail_delete = False
+        self.fail_delete: bool | int = False
+        self.delete_lands = False
 
     def add(self, tag: str, *, draft: bool, assets: dict[str, bytes]) -> None:
         self.releases[tag] = {"draft": draft, "assets": dict(assets)}
@@ -606,6 +682,10 @@ class _Releases:
     def _delete(self, tag: str, args: tuple[str, ...], retry: bool) -> str:
         assert "--cleanup-tag" not in args
         if self.fail_delete:
+            if self.fail_delete is not True:
+                self.fail_delete -= 1
+            if self.delete_lands:
+                del self.releases[tag]
             raise subprocess.CalledProcessError(1, ["gh", *args])
         del self.releases[tag]
         return ""
@@ -677,6 +757,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def releases(monkeypatch: pytest.MonkeyPatch) -> _Releases:
     fake = _Releases()
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_rel.time, "sleep", lambda _seconds: None)
     return fake
 
 
@@ -697,11 +778,14 @@ def _frozen(tmp_path: Path, commit: str) -> Path:
 
 
 def _promote(
-    frozen: Path | None, draft: str = "draft-1", release: str = RELEASE
+    frozen: Path | None,
+    draft: str = "draft-1",
+    release: str = RELEASE,
+    commit: str = "",
 ) -> int:
     argv = [
         "promote", "--repo", "O/R", "--ref", MAIN, "--actor", "octocat",
-        "--run-url", RUN_URL, "--publish-tag", "",
+        "--run-url", RUN_URL, "--publish-tag", "", "--planned-commit", commit,
         "--planned-release", release, "--planned-draft", draft,
         "--frozen-dir", str(frozen or ""),
     ]  # fmt: skip
@@ -729,7 +813,7 @@ def test_a_release_that_carries_a_draft_is_created_with_both_files(
         original(*args)
 
     monkeypatch.setattr(_rel, "verify_archive", spy)
-    assert _promote(frozen) == 0
+    assert _promote(frozen, commit=commit) == 0
     assert checked_before_the_tag == [True]
     assert RELEASE in _remote_tags(repo)
     (create,) = _creates(releases)
@@ -907,6 +991,23 @@ def test_a_failed_delete_says_the_draft_release_must_not_be_published(
     assert RELEASE in releases.releases
 
 
+@pytest.mark.spec("DOCBW-08-023")
+@pytest.mark.parametrize("lands", [False, True])
+def test_a_delete_that_fails_once_is_tried_again(
+    repo: Path, releases: _Releases, tmp_path: Path, lands: bool
+) -> None:
+    """A transient failure is no incomplete release; a landed delete is not repeated."""
+    commit = _publish(repo, RELEASED)
+    releases.fail_upload = True
+    releases.fail_delete = 1
+    releases.delete_lands = lands
+    with pytest.raises(subprocess.CalledProcessError):
+        _promote(_frozen(tmp_path, commit))
+    assert RELEASE not in releases.releases
+    assert releases.verbs().count("delete") == (1 if lands else 2)
+    assert RELEASE in _remote_tags(repo)  # the tag stays
+
+
 @pytest.mark.spec("DOCBW-08-024", "DOCBW-07-016")
 def test_a_rerun_finding_a_complete_draft_release_leaves_it_alone(
     repo: Path,
@@ -1004,6 +1105,9 @@ def test_a_plan_that_changed_is_refused(
     frozen = _frozen(tmp_path, commit)
     assert _promote(frozen, release="v2026.11.1") == 1
     assert _promote(frozen, draft="") == 1
+    # A publish that landed after the plan: the archive is of the planned
+    # commit, so the newer one is not tagged with it.
+    assert _promote(frozen, commit=SHA) == 1
     assert releases.calls == []
     assert RELEASE not in _remote_tags(repo)
 
@@ -1151,6 +1255,16 @@ def test_the_attaching_job_runs_only_mains_code() -> None:
         == "${{ needs.plan.outputs.release }}"
     )
     assert promote["env"]["PLANNED_DRAFT"] == "${{ needs.plan.outputs.draft }}"
+    # The plan's publish and commit, never the raw input: a publish landing
+    # between the jobs must not be tagged with the planned commit's archive.
+    assert (
+        promote["env"]["PUBLISH_TAG"]
+        == "${{ needs.plan.outputs.publish-tag }}"
+    )
+    assert (
+        promote["env"]["PLANNED_COMMIT"] == "${{ needs.plan.outputs.commit }}"
+    )
+    assert '--planned-commit "$PLANNED_COMMIT"' in promote["run"]
     # It runs for a release with no draft, whose archive job is skipped.
     assert "needs.frozen-draft.result == 'skipped'" in job["if"]
 

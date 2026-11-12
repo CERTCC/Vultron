@@ -41,6 +41,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -53,7 +54,13 @@ from frozen_draft import (
     manifest_name,
     verify_archive,
 )
-from gh_cli import gh, paginated, run, write_github_file  # see gh_cli
+from gh_cli import (  # see gh_cli
+    gh,
+    paginated,
+    retry_delays,
+    run,
+    write_github_file,
+)
 from publish_gate import MAIN_REF
 from release_tags import (
     BOT_GIT_IDENTITY,
@@ -525,6 +532,10 @@ def discard_draft_release(repo: str, name: str) -> bool:
     so deleting it costs nothing, and the tag stays (DOCBW-07-009). Nothing
     to delete is no fault: a failed create may have left none.
 
+    A failed look-up or delete is tried again within ``retry.sh``'s bounds,
+    the release read afresh each time: a delete that landed but reported a
+    failure then reads as no release, so it is never repeated blindly.
+
     Returns:
         Whether a draft release was deleted.
 
@@ -532,15 +543,20 @@ def discard_draft_release(repo: str, name: str) -> bool:
         IncompleteDraftReleaseError: When it cannot be deleted, or is no
             longer a draft (DOCBW-08-037).
     """
-    try:
-        state = release_state(repo, name)
-        if state is None:
-            return False
-        if state.is_draft:
+    tried = False
+    for delay in [*retry_delays(), None]:
+        try:
+            state = release_state(repo, name)
+            if state is None:
+                return tried
+            if not state.is_draft:
+                break
+            tried = True
             gh("release", "delete", name, "--repo", repo, "--yes", retry=False)
             return True
-    except subprocess.CalledProcessError:
-        pass
+        except subprocess.CalledProcessError:
+            if delay is not None:
+                time.sleep(delay)
     raise IncompleteDraftReleaseError(
         f"The draft release {name} is incomplete and must not be published: "
         "the run could not delete it. Delete the draft release by hand (keep "
@@ -689,7 +705,16 @@ def _frozen_files(args: argparse.Namespace, draft: str) -> list[Path]:
 def _check_plan(
     args: argparse.Namespace, promotion: Promotion, draft: str | None
 ) -> None:
-    """Refuse when the plan job named another release or draft."""
+    """Refuse when the plan job named another commit, release or draft.
+
+    The archive was built from the plan's commit, so a newer publish that
+    landed between the jobs must not be tagged with it (DOCBW-08-009).
+    """
+    if args.planned_commit and args.planned_commit != promotion.source.commit:
+        raise PromotionRefusedError(
+            f"the plan named commit {args.planned_commit}, but this job "
+            f"names {promotion.source.commit}: start a new run"
+        )
     if args.planned_release and args.planned_release != promotion.release:
         raise PromotionRefusedError(
             f"the plan named release {args.planned_release}, but this job "
@@ -880,6 +905,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     promote.add_argument("--actor", required=True)
     promote.add_argument("--run-url", required=True)
     promote.add_argument("--publish-tag", default="")
+    promote.add_argument("--planned-commit", default="")
     promote.add_argument("--planned-release", default="")
     promote.add_argument("--planned-draft", default="")
     promote.add_argument("--frozen-dir", default="")

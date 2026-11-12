@@ -212,14 +212,18 @@ jobs:
           path: frozen/
 
       # A manual run from another ref is refused: it would run that ref's copy
-      # of this workflow with write access (DOCBW-07-004).
+      # of this workflow with write access (DOCBW-07-004). The publish tag is
+      # the plan's, not the input, so a publish that lands after the plan
+      # cannot be tagged with an archive built from the planned commit; the
+      # script refuses a plan whose commit, release or draft has changed.
       - name: Promote the publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           REF: ${{ github.ref }}
           ACTOR: ${{ github.actor }}
-          PUBLISH_TAG: ${{ inputs.publish-tag }}
+          PUBLISH_TAG: ${{ needs.plan.outputs.publish-tag }}
+          PLANNED_COMMIT: ${{ needs.plan.outputs.commit }}
           PLANNED_RELEASE: ${{ needs.plan.outputs.release }}
           PLANNED_DRAFT: ${{ needs.plan.outputs.draft }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -227,5 +231,6 @@ jobs:
           python3 -I .github/scripts/release.py promote \
             --repo "$REPO" --ref "$REF" --actor "$ACTOR" \
             --run-url "$RUN_URL" --publish-tag "$PUBLISH_TAG" \
+            --planned-commit "$PLANNED_COMMIT" \
             --planned-release "$PLANNED_RELEASE" \
             --planned-draft "$PLANNED_DRAFT" --frozen-dir frozen

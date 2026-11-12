@@ -85,13 +85,23 @@ _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64}) [ *](.+)$")
 _ATTRIBUTE = re.compile(
     r"""(?<=[\s"'])([^\s"'>/=]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'=<>`]+)"""
 )
-# A stylesheet's references: ``url(...)`` and ``@import "..."``.
+# A stylesheet's references: ``url(...)`` and ``@import "..."``. A quoted
+# URL may hold any other character, ``(`` and ``)`` included; an unquoted one
+# holds no quote, parenthesis or white space. A comment is matched so that
+# what it holds is skipped, never read as a reference.
 _CSS_REFERENCE = re.compile(
-    r"""url\(\s*(["']?)([^"')]+)\1\s*\)|@import\s+(["'])([^"']+)\3"""
+    r"""/\*.*?\*/"""
+    r"""|(?P<url>url)\(\s*(?:(?P<q>["'])(?P<quoted>.*?)(?P=q)"""
+    r"""|(?P<bare>[^"'()\s]+))\s*\)"""
+    r"""|@import\s+(?P<iq>["'])(?P<imported>.*?)(?P=iq)""",
+    re.DOTALL,
 )
 # One ``srcset`` candidate, as HTML splits them: a URL may hold commas
 # (``data:`` URIs), and descriptors follow it (links.py's rule).
 _SRCSET_CANDIDATE = re.compile(r"[\s,]*(\S*[^\s,])(?:,+|[^,]*,?)")
+# The target of a ``<meta http-equiv="refresh">`` ``content``: ``URL=`` in
+# any case, its value quoted or not.
+_REFRESH_URL = re.compile(r"""url\s*=\s*['"]?([^'"]*)""", re.IGNORECASE)
 _CONFIG = re.compile(
     r"""(<script id="__config" type="application/json">)(.*?)(</script>)""",
     re.DOTALL,
@@ -233,9 +243,43 @@ class _TagScanner(HTMLParser):
     handle_startendtag = handle_starttag
 
 
+def _css_reference(match: re.Match[str]) -> str | None:
+    """The reference a ``_CSS_REFERENCE`` match holds.
+
+    ``None`` for a comment, and for an empty ``url("")``, which loads nothing.
+    """
+    if match.group("url") is not None:
+        quoted = match.group("quoted")
+        found = quoted if quoted is not None else match.group("bare")
+    else:
+        found = match.group("imported")
+    return found or None
+
+
+def search_worker(config_text: str) -> str | None:
+    """The ``search`` worker path of Material's ``__config`` JSON, or ``None``.
+
+    Raises:
+        ValueError: When *config_text* is not JSON.
+    """
+    config = json.loads(config_text)
+    worker = config.get("search") if isinstance(config, dict) else None
+    return worker if isinstance(worker, str) else None
+
+
 def page_references(text: str) -> list[str]:
-    """Every ``href``, ``src`` and ``srcset`` URL of the page *text*."""
+    """Every ``href``, ``src`` and ``srcset`` URL of the page *text*.
+
+    The search worker its ``__config`` names counts too: a page loads it.
+    """
     found: list[str] = []
+    for match in _CONFIG.finditer(text):
+        try:
+            worker = search_worker(match.group(2))
+        except ValueError:
+            continue  # the builder refuses a page whose __config is not JSON
+        if worker is not None:
+            found.append(worker)
     for tag in _TagScanner(text).tags:
         for name, value in tag.attributes:
             if value is None or name not in REFERENCE_ATTRIBUTES:
@@ -384,7 +428,8 @@ class _Builder:
             "refresh"
         ):
             return False
-        url = attributes.get("content", "").partition("url=")[2].strip()
+        found = _REFRESH_URL.search(attributes.get("content", ""))
+        url = found.group(1).strip() if found else ""
         target = resolve(url, site_path) if is_relative(url) else None
         if target is None or not self._in_spec(target):
             self.faults.append(
@@ -416,12 +461,11 @@ class _Builder:
             ),
             "".join(pieces),
         )
-        pieces = [text]
         if not body:
             self.faults.append(f"{site_path}: the page has no <body>")
         if not redirect:  # a redirect stub has no footer
             self._check_footer(site_path, text)
-        return "".join(pieces)
+        return text
 
     def _check_footer(self, site_path: str, text: str) -> None:
         """Each page names the publish and the release (DOCBW-08-014)."""
@@ -436,29 +480,32 @@ class _Builder:
     def _config(self, site_path: str, text: str) -> str:
         """Material's ``__config``, with its search worker bundled."""
         try:
-            config = json.loads(text)
+            worker = search_worker(text)
         except ValueError:
             self.faults.append(f"{site_path}: its __config is not JSON")
             return text
-        worker = config.get("search")
-        if not isinstance(worker, str):
+        if worker is None:
             return text
         new = self.reference(worker, site_path)
         if new == worker:
             return text
+        config = json.loads(text)
         config["search"] = new
         return json.dumps(config).replace("</", "<\\/")
 
     def stylesheet(self, site_path: str, text: str) -> str:
         def one(match: re.Match[str]) -> str:
-            url_quote, url, import_quote, imported = match.groups()
-            reference = url if url is not None else imported
+            reference = _css_reference(match)
+            if reference is None:
+                return match.group(0)  # a comment
             new = self.reference(reference, site_path)
             if new == reference:
                 return match.group(0)
-            if url is not None:
-                return f"url({url_quote}{new}{url_quote})"
-            return f"@import {import_quote}{new}{import_quote}"
+            if match.group("url") is not None:
+                quote = match.group("q") or ""
+                return f"url({quote}{new}{quote})"
+            quote = match.group("iq")
+            return f"@import {quote}{new}{quote}"
 
         return _CSS_REFERENCE.sub(one, text)
 
@@ -652,7 +699,12 @@ def read_manifest(text: str, shown: str) -> tuple[dict[str, str], list[str]]:
     """``(digests by path, faults)`` of a ``sha256sum`` manifest."""
     digests: dict[str, str] = {}
     faults = []
-    for number, line in enumerate(text.splitlines(), start=1):
+    # sha256sum's lines end at "\n" only: a name may hold any other
+    # character splitlines() would also break at.
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    for number, line in enumerate(lines, start=1):
         found = _MANIFEST_LINE.match(line)
         if found is None:
             faults.append(f"{shown}:{number}: not a sha256sum line")
@@ -696,8 +748,9 @@ def manifest_faults(root: Path, digests: dict[str, str]) -> list[str]:
 def stylesheet_references(text: str) -> list[str]:
     """Every ``url(...)`` and ``@import`` reference of the stylesheet *text*."""
     return [
-        match.group(2) if match.group(2) is not None else match.group(4)
+        reference
         for match in _CSS_REFERENCE.finditer(text)
+        if (reference := _css_reference(match)) is not None
     ]
 
 
