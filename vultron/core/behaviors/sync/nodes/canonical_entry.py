@@ -86,6 +86,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
+    # CASE_MANAGER-authored records of a vulnerability item or case reference
+    # it brought into the case, each one Add carrying it in full (CLP-07-021).
+    ("Add", "VulnerabilityItem"),
+    ("Add", "CaseReference"),
     ("Add", "ParticipantStatus"),
     # The Case Owner's activation of a proposed embargo (ADR-0180), the pair
     # of the Remove that ends one.

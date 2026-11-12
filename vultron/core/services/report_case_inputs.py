@@ -41,13 +41,23 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models._helpers import timestamp_serializer
+from vultron.core.models.case_reference import (
+    CaseReference,
+    CaseReferenceLink,
+)
 from vultron.core.models.report_claims import (
     CandidatePartiesSignal,
     CaseSplitDifference,
     CaseSplitSignal,
+    ClaimedReference,
     ClaimOutcome,
     ReportClaims,
     VulnerabilityClaims,
+)
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItem,
+    VulnerabilityItemId,
+    VulnerabilityItemNote,
 )
 from vultron.core.scoring.ssvc_2 import SSVC_2_Exploitation
 from vultron.primitives import NonEmptyString
@@ -104,6 +114,14 @@ class ReportCaseInputs(BaseModel):
     (CSAF-04-004).  ``filled_from_document`` is ``False`` when the document
     may fill nothing (CSAF-02-002): the stated fields then pass through and
     no outcome is given.
+
+    ``item_vulnerabilities`` are the document's vulnerabilities that become
+    the case's vulnerability items, those with a ``cve`` or an ``ids`` entry
+    (CSAF-03-008), and ``references`` its document-level references, which
+    become the case's references (CSAF-03-009).  They are claims, not case
+    objects: the case's creator builds the objects
+    (:func:`vulnerability_item_from_claims`, :func:`case_reference_from_claim`),
+    so this mapping mints no id.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -114,6 +132,10 @@ class ReportCaseInputs(BaseModel):
     public: bool = False
     exploit_public: bool = False
     attacks_observed: bool = False
+    item_vulnerabilities: list[VulnerabilityClaims] = Field(
+        default_factory=list
+    )
+    references: list[ClaimedReference] = Field(default_factory=list)
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
     filled_from_document: bool = False
 
@@ -204,6 +226,109 @@ def _vul_state(
     )
 
 
+def makes_vulnerability_item(vul: VulnerabilityClaims) -> bool:
+    """Whether *vul* names its vulnerability, so it becomes an item.
+
+    A vulnerability item is what later messages and projections refer to
+    (CM-05-003), so an entry with neither a ``cve`` nor an ``ids`` entry
+    makes none (CSAF-03-008).
+    """
+    return vul.cve is not None or bool(vul.ids)
+
+
+def case_reference_from_claim(
+    claim: ClaimedReference, *, published: datetime
+) -> CaseReference:
+    """The case reference a claimed reference becomes (CSAF-03-009).
+
+    The claim's ``url`` is the ``href`` of the reference's ``url`` Link and
+    its ``summary`` the reference's ``name``.  The Link carries no ``rel``:
+    a CSAF reference says nothing of what kind of resource it names, and
+    its ``category`` (``self`` or ``external``) is about the document, not
+    the resource.  *published* is the instant of the act that creates it
+    (ADR-0176).
+    """
+    return CaseReference(
+        url=CaseReferenceLink(href=claim.url),
+        name=claim.summary,
+        published=published,
+        updated=published,
+    )
+
+
+def vulnerability_item_from_claims(
+    vul: VulnerabilityClaims, *, published: datetime
+) -> VulnerabilityItem:
+    """The vulnerability item *vul* becomes, field for field (CSAF-03-008).
+
+    Its ``cve``, ``ids``, ``title`` and ``notes`` are copied as claimed, and
+    no identifier is interpreted (CM-05-008); each of its references becomes
+    a case reference held inline on the item.  The item and its references
+    are stamped *published*, the instant of the act that creates them
+    (ADR-0176).
+
+    Raises:
+        ValueError: when *vul* names no vulnerability
+            (:func:`makes_vulnerability_item`).
+    """
+    if not makes_vulnerability_item(vul):
+        raise ValueError(
+            "a CSAF vulnerability with no cve and no ids names no"
+            " vulnerability, so it makes no vulnerability item (CSAF-03-008)"
+        )
+    return VulnerabilityItem(
+        cve=vul.cve,
+        ids=[
+            VulnerabilityItemId(system_name=i.system_name, text=i.text)
+            for i in vul.ids
+        ],
+        title=vul.title,
+        notes=[
+            VulnerabilityItemNote(
+                category=note.category,
+                text=note.text,
+                title=note.title,
+                audience=note.audience,
+            )
+            for note in vul.notes
+        ],
+        references=[
+            case_reference_from_claim(r, published=published)
+            for r in vul.references
+        ],
+        published=published,
+        updated=published,
+    )
+
+
+def _item_outcomes(
+    claims: ReportClaims, outcomes: dict[str, ClaimOutcome]
+) -> list[VulnerabilityClaims]:
+    """Mark the values the case's items and references take ``APPLIED``.
+
+    Returns the vulnerabilities that make items.  The document-level
+    references all become case references (CSAF-03-009); a vulnerability's
+    identity fields become its item's only when it names the vulnerability
+    (CSAF-03-008), and otherwise stay display only.
+    """
+    for index in range(len(claims.references)):
+        outcomes[f"references[{index}]"] = ClaimOutcome.APPLIED
+    items: list[VulnerabilityClaims] = []
+    for index, vul in enumerate(claims.vulnerabilities):
+        if not makes_vulnerability_item(vul):
+            continue
+        items.append(vul)
+        prefix = f"vulnerabilities[{index}]."
+        if vul.cve is not None:
+            outcomes[f"{prefix}cve"] = ClaimOutcome.APPLIED
+        if vul.title is not None:
+            outcomes[f"{prefix}title"] = ClaimOutcome.APPLIED
+        for name in ("ids", "notes", "references"):
+            for i in range(len(getattr(vul, name))):
+                outcomes[f"{prefix}{name}[{i}]"] = ClaimOutcome.APPLIED
+    return items
+
+
 def _stated_or_claimed(
     path: str,
     stated: str | None,
@@ -239,7 +364,10 @@ def case_inputs_from_claims(
       (CSAF-03-003);
     - SSVC Exploitation ``PoC`` sets X and ``Active`` sets A, and ``None``
       sets nothing (CSAF-03-004);
-    - an entry in ``first_known_exploitation_dates`` sets A (CSAF-03-005).
+    - an entry in ``first_known_exploitation_dates`` sets A (CSAF-03-005);
+    - each vulnerability with a ``cve`` or an ``ids`` entry becomes a
+      vulnerability item (CSAF-03-008), and each document-level reference a
+      case reference (CSAF-03-009).
 
     A value *stated* gives beats the document's, which is then recorded
     ``OVERRIDDEN`` (CSAF-02-003); a past ``disclosure_date`` still sets P,
@@ -303,6 +431,7 @@ def case_inputs_from_claims(
             outcomes[f"{prefix}first_known_exploitation_dates[{i}]"] = (
                 ClaimOutcome.APPLIED
             )
+    item_vulnerabilities = _item_outcomes(claims, outcomes)
     return ReportCaseInputs(
         name=name,
         summary=summary,
@@ -316,6 +445,8 @@ def case_inputs_from_claims(
         public=any(s.public for s in states),
         exploit_public=any(s.exploit_public for s in states),
         attacks_observed=any(s.attacks_observed for s in states),
+        item_vulnerabilities=item_vulnerabilities,
+        references=list(claims.references),
         outcomes=outcomes,
         filled_from_document=True,
     )
@@ -394,6 +525,9 @@ __all__ = [
     "SSVC_EXPLOITATION_KEYS",
     "StatedReportFields",
     "case_inputs_from_claims",
+    "case_reference_from_claim",
     "claims_signals",
     "fills_case_inputs",
+    "makes_vulnerability_item",
+    "vulnerability_item_from_claims",
 ]

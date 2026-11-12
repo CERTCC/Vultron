@@ -61,8 +61,8 @@ def vulnerability_report_document() -> dict[str, Any]:
     an acknowledgment,
     a reference with no ``category`` (which the schema defaults to
     ``external``), one vendor's known-affected product, and one vulnerability
-    with a CVE, a disclosure date, an SSVC Exploitation selection and a first
-    known exploitation date.
+    with a CVE, another tracking ID, a note, a reference, a disclosure date,
+    an SSVC Exploitation selection and a first known exploitation date.
     """
     data: dict[str, Any] = minimal_csaf_document()
     document = section(data, "document")
@@ -102,7 +102,21 @@ def vulnerability_report_document() -> dict[str, Any]:
     data["vulnerabilities"] = [
         {
             "cve": "CVE-2026-0001",
+            "ids": [{"system_name": "Example tracker", "text": "EX-17"}],
             "title": "Widget overflow",
+            "notes": [
+                {
+                    "category": "description",
+                    "text": "The widget overflows its buffer.",
+                    "title": "What goes wrong",
+                }
+            ],
+            "references": [
+                {
+                    "summary": "The vendor's bulletin",
+                    "url": "https://vendor.example.org/bulletins/17",
+                }
+            ],
             "disclosure_date": "2026-12-01T00:00:00Z",
             "first_known_exploitation_dates": [
                 {

@@ -24,9 +24,11 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from vultron.wire.as2.factories.case.content import (
+    add_case_reference_to_case_activity,
     add_note_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
+    add_vulnerability_item_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     update_case_activity,
@@ -70,7 +72,9 @@ __all__ = [
     "accept_case_ownership_transfer_activity",
     "accept_case_participant_role_activity",
     "accept_case_proposal_activity",
+    "add_case_reference_to_case_activity",
     "add_note_to_case_activity",
+    "add_vulnerability_item_to_case_activity",
     "add_report_to_case_activity",
     "add_status_to_case_activity",
     "announce_vulnerability_case_activity",

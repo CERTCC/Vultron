@@ -11,11 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models.case_reference import CaseReferenceLink
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_role_activity,
+    add_case_reference_to_case_activity,
     add_report_to_case_activity,
+    add_vulnerability_item_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
@@ -58,8 +61,12 @@ from vultron.wire.as2.vocab.examples.participant import (
     vendor_participant,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_item import (
+    as_VulnerabilityItem,
 )
 
 
@@ -277,6 +284,58 @@ def update_case() -> as_Update:
         at=EXAMPLE_TIMESTAMP,
     )
     return _activity
+
+
+def add_vulnerability_item_to_case() -> as_Add:
+    """The CASE_MANAGER's ``Add(VulnerabilityItem)`` of an item to the case.
+
+    A case created from a CSAF report takes an item for each vulnerability
+    the report names (CSAF-03-008), and the CASE_MANAGER commits each in full
+    as its own ``add_vulnerability_item_to_case`` entry after the genesis
+    entry (CLP-07-021).  It is addressed to nobody: each participant takes
+    the item from the ledger.
+    """
+    _case = case()
+    item = as_VulnerabilityItem(
+        id_=f"{_case.id_}/items/1",
+        cve="CVE-2026-0001",
+        title="Buffer overflow in the widget parser",
+        context=_case.id_,
+        **_example_stamp(),
+    )
+    return add_vulnerability_item_to_case_activity(
+        item,
+        target=_case.id_,
+        id_=f"{item.id_}/add",
+        actor=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
+    )
+
+
+def add_case_reference_to_case() -> as_Add:
+    """The CASE_MANAGER's ``Add(CaseReference)`` of a reference to the case.
+
+    A case created from a CSAF report takes a reference for each of the
+    report's document-level references (CSAF-03-009), committed in full as
+    its own ``add_case_reference_to_case`` entry (CLP-07-021).
+    """
+    _case = case()
+    reference = as_CaseReference(
+        id_=f"{_case.id_}/references/1",
+        url=CaseReferenceLink(
+            href="https://example.org/advisories/widget-overflow"
+        ),
+        name="Vendor advisory",
+        context=_case.id_,
+        **_example_stamp(),
+    )
+    return add_case_reference_to_case_activity(
+        reference,
+        target=_case.id_,
+        id_=f"{reference.id_}/add",
+        actor=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
+    )
 
 
 def announce_case() -> as_Announce:

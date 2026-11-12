@@ -58,11 +58,13 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
@@ -488,6 +490,22 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         cause_id=_CAUSE_ID,
+        at=authored_at(),
+    ),
+    "record_vulnerability_item_added": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_vulnerability_item_added(
+        item=make(VulnerabilityItem, cve="CVE-2026-0001"),
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        at=authored_at(),
+    ),
+    "record_case_reference_added": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_reference_added(
+        reference=make(CaseReference, url={"href": "https://example.org/a"}),
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
         at=authored_at(),
     ),
     "record_case_owner_updated": lambda w: w.adapter_as(

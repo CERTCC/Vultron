@@ -52,7 +52,7 @@ The [proposals](proposals.md) page gives two changes that would close this gap.
 
 The largest gap on the Vultron side is depth in the object model.
 CSAF describes each vulnerability, each product, and the status of each product.
-Vultron does not yet hold vulnerability records on the case, and it tracks the fix path once for each participant.
+Vultron holds the identity of each vulnerability on the case, but not the status of each product, and it tracks the fix path once for each participant.
 The Vultron object model has not reached that depth yet.
 These gaps are recognized, and they are not decisions to leave the detail out.
 

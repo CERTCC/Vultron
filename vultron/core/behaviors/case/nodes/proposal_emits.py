@@ -38,8 +38,11 @@ from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
+from vultron.core.services.case_inline import inline_owned
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronError,
@@ -179,8 +182,9 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
     writes ``create_case_activity_id``: ``CommitNativeLedgerEntriesNode``
     commits this activity as the case's genesis entry, so the case's
     creation is one activity, delivered and ledgered (CLP-07-011).  The
-    activity carries the full inline case (participants, active embargo and
-    reports materialised, ADR-0041 AC-5), ``context`` = the case URI and
+    activity carries the full inline case (participants, active embargo,
+    reports, vulnerability items and case references materialised, ADR-0041
+    AC-5), ``context`` = the case URI and
     ``in_reply_to`` = the ``Accept`` URI (CP-05-003, ADR-0045).  Its id is
     derived from the proposal (``create_case_activity_id``), so a redelivered
     proposal names the activity its first delivery queued (CP-05-005, #4146).
@@ -293,6 +297,22 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             self._inline_report(raw_case.id_, ref)
             for ref in raw_case.vulnerability_reports
         ]
+        # Carry the items and references the creation filled inline too
+        # (CSAF-03-008, CSAF-03-009): the owner seeds from this Create, and
+        # no recipient holds them yet (AKM-02-004).  Each is also its own
+        # Add entry after the genesis entry (CLP-07-021).
+        updates["vulnerability_items"] = inline_owned(
+            self.datalayer,
+            raw_case.id_,
+            raw_case.vulnerability_items,
+            VulnerabilityItem,
+        )
+        updates["case_references"] = inline_owned(
+            self.datalayer,
+            raw_case.id_,
+            raw_case.case_references,
+            CaseReference,
+        )
         return raw_case.model_copy(update=updates)
 
     def _inline_report(

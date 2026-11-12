@@ -183,6 +183,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseParticipantUpdateFromLedgerNode",
+            "ApplyCaseReferenceFromLedgerNode",
             "ApplyCaseStatusFromLedgerNode",
             "ApplyEmbargoAbandonmentFromLedgerNode",
             "ApplyEmbargoAcceptanceFromLedgerNode",
@@ -205,6 +206,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyReinstateCaseParticipantFromLedgerNode",
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
+            "ApplyVulnerabilityItemFromLedgerNode",
             "StoreRecordsReflectedEntryCarriesNode",
         )
     },

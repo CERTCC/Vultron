@@ -29,9 +29,12 @@ from test.wire.csaf._documents import (
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.report_claims import (
     ClaimedAcknowledgment,
+    ClaimedNote,
     ClaimedReference,
+    ClaimedVulnerabilityId,
     SchemaVerdict,
 )
+from vultron.core.models.vulnerability_item import NoteCategory
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 from vultron.wire.csaf.reader import (
     CSAF_21_FORMAT,
@@ -196,8 +199,24 @@ def test_a_schema_valid_document_reads_every_claim_field() -> None:
         )
     ]
     [vul] = claims.vulnerabilities
-    assert vul.ids == ["CVE-2026-0001"]
+    assert vul.cve == "CVE-2026-0001"
+    assert vul.ids == [
+        ClaimedVulnerabilityId(system_name="Example tracker", text="EX-17")
+    ]
     assert vul.title == "Widget overflow"
+    assert vul.notes == [
+        ClaimedNote(
+            category=NoteCategory.DESCRIPTION,
+            text="The widget overflows its buffer.",
+            title="What goes wrong",
+        )
+    ]
+    assert vul.references == [
+        ClaimedReference(
+            url="https://vendor.example.org/bulletins/17",
+            summary="The vendor's bulletin",
+        )
+    ]
     assert vul.disclosure_date == datetime(2026, 12, 1, tzinfo=UTC)
     assert vul.exploitation == "P"
     assert vul.first_known_exploitation_dates == [
@@ -351,6 +370,30 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
             ),
             "$.document.distribution.tlp",
         ),
+        (
+            lambda d: _vul(d).update({"cve": "CVE-26-1"}),
+            "$.vulnerabilities[0].cve",
+        ),
+        (
+            lambda d: _vul(d).update({"ids": [{"text": "EX-17"}]}),
+            "$.vulnerabilities[0].ids[0]",
+        ),
+        (
+            lambda d: _vul(d).update(
+                {"ids": [{"system_name": "Example tracker", "text": 17}]}
+            ),
+            "$.vulnerabilities[0].ids[0].text",
+        ),
+        (
+            lambda d: _vul(d).update({"notes": [{"category": "summary"}]}),
+            "$.vulnerabilities[0].notes[0]",
+        ),
+        (
+            lambda d: _vul(d).update(
+                {"notes": [{"category": "rumour", "text": "t"}]}
+            ),
+            "$.vulnerabilities[0].notes[0].category",
+        ),
     ],
     ids=[
         "title-not-string",
@@ -366,6 +409,11 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
         "known-affected-not-list",
         "acknowledgment-naming-no-one",
         "tlp-not-object",
+        "cve-not-a-cve-id",
+        "id-without-system-name",
+        "id-text-not-string",
+        "note-without-text",
+        "note-of-unknown-category",
     ],
 )
 def test_each_unreadable_field_is_skipped_and_named(
@@ -376,7 +424,9 @@ def test_each_unreadable_field_is_skipped_and_named(
 
     reading = read_csaf_document(_DOCUMENT_ID, data)
 
-    assert skipped_path in [s.path for s in reading.skipped]
+    # Named once: a key that is present but unreadable is not named again
+    # for the entry that lacks it.
+    assert [s.path for s in reading.skipped].count(skipped_path) == 1
     assert all(s.reason for s in reading.skipped)
 
 
@@ -406,16 +456,21 @@ def test_a_selection_other_than_ssvc_exploitation_is_not_read() -> None:
     assert reading.claims.vulnerabilities[0].exploitation is None
 
 
-def test_the_cve_comes_first_among_the_vulnerability_ids() -> None:
+@pytest.mark.spec("CM-05-008")
+def test_the_tracking_ids_are_read_as_written_each_once() -> None:
     data = vulnerability_report_document()
     _vul(data)["ids"] = [
         {"system_name": "Example tracker", "text": "EX-17"},
-        {"system_name": "CVE", "text": "CVE-2026-0001"},
+        {"system_name": "CVE", "text": "not a cve at all"},
+        {"system_name": "Example tracker", "text": "EX-17"},
     ]
 
     [vul] = read_csaf_document(_DOCUMENT_ID, data).claims.vulnerabilities
 
-    assert vul.ids == ["CVE-2026-0001", "EX-17"]
+    assert [(i.system_name, i.text) for i in vul.ids] == [
+        ("Example tracker", "EX-17"),
+        ("CVE", "not a cve at all"),
+    ]
 
 
 def test_each_known_affected_vendor_is_named_once() -> None:

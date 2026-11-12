@@ -41,16 +41,20 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import (
+    add_case_reference_to_case_activity,
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
+    add_vulnerability_item_to_case_activity,
     create_embargo_consent_activity,
     create_embargo_event_activity,
     create_participant_activity,
@@ -86,6 +90,7 @@ class _LedgerRecordsMixin:
         carrying its participants, reports and active embargo inline.  Each
         of them is also carried in full by an entry of its own
         (``create_embargo_event``, ``add_report_to_case``,
+        ``add_vulnerability_item_to_case``, ``add_case_reference_to_case``,
         ``create_case_participant``), so a replica that builds its case from
         the ledger copies each record from its own entry (ADR-0124).
         """
@@ -137,6 +142,46 @@ class _LedgerRecordsMixin:
             offer_actor_id=offer_actor_id or None,
             id_=derived_activity_id(
                 "report-added-to-case", actor, case_id, report_id
+            ),
+            at=at,
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_vulnerability_item_added(
+        self,
+        item: VulnerabilityItem,
+        case_id: str,
+        actor: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """Build and seal ``Add(VulnerabilityItem)``, the item in full."""
+        activity = add_vulnerability_item_to_case_activity(
+            item,
+            target=case_id,
+            actor=actor,
+            id_=derived_activity_id(
+                "vulnerability-item-added-to-case", actor, case_id, item.id_
+            ),
+            at=at,
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_case_reference_added(
+        self,
+        reference: CaseReference,
+        case_id: str,
+        actor: str,
+        *,
+        at: datetime,
+    ) -> tuple[str, str]:
+        """Build and seal ``Add(CaseReference)``, the reference in full."""
+        activity = add_case_reference_to_case_activity(
+            reference,
+            target=case_id,
+            actor=actor,
+            id_=derived_activity_id(
+                "case-reference-added-to-case", actor, case_id, reference.id_
             ),
             at=at,
         )

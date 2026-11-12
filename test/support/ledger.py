@@ -280,7 +280,8 @@ def creation_entry_sequence(
 
     One rule for every creation path, read off the resulting case file: the
     genesis ``create_case``, each embargo the register names (#5122), each
-    linked report, each participant's record
+    linked report, each vulnerability item and case reference (CLP-07-021),
+    each participant's record
     created with its first status and then its later statuses, in roster
     order, then each case status (CLP-07-013, CM-23-007).  Two paths that
     produce the same case therefore commit the same sequence.
@@ -293,6 +294,14 @@ def creation_entry_sequence(
     sequence += [
         ("add_report_to_case", str(_as_id(report)))
         for report in case.vulnerability_reports
+    ]
+    sequence += [
+        ("add_vulnerability_item_to_case", str(_as_id(item)))
+        for item in case.vulnerability_items
+    ]
+    sequence += [
+        ("add_case_reference_to_case", str(_as_id(reference)))
+        for reference in case.case_references
     ]
     for participant_ref in case.case_participants:
         participant = dl.read(str(_as_id(participant_ref)))
