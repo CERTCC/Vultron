@@ -89,6 +89,8 @@ _UNHANDLED = frozenset(
         "create_embargo_event",
         "create_embargo_consent",
         "update_embargo_consent",
+        "add_vulnerability_item_to_case",
+        "add_case_reference_to_case",
     }
 )
 

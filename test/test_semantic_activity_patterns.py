@@ -1423,6 +1423,16 @@ def test_refusal_notice_pattern_matches_the_notice_example():
     [
         ("case", "update_case", MessageSemantics.UPDATE_CASE_OWNER),
         (
+            "case",
+            "add_vulnerability_item_to_case",
+            MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE,
+        ),
+        (
+            "case",
+            "add_case_reference_to_case",
+            MessageSemantics.ADD_CASE_REFERENCE_TO_CASE,
+        ),
+        (
             "participant",
             "create_participant",
             MessageSemantics.CREATE_CASE_PARTICIPANT,
