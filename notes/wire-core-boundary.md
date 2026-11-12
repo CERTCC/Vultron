@@ -135,6 +135,12 @@ ratchets and a blank passes unseen (#3894, `test_no_object_root_field_is_typed_a
   (`UnmodelledObject`); a raw mapping must still validate as `CoreObject`. A stored
   row therefore builds such a value as its own class before the core class reads it
   (`_build_unmodelled_inline`), or a Link in `tag` would not read back.
+- A slot that names `CoreObject` refuses a subclass's dump, because the root
+  forbids every field the subclass adds (ARCH-12-003). A model that must read its
+  own dump back (ARCH-23-005) builds each embedded mapping as the class its `type`
+  names first, through `core_class_for_type`, the lookup stored rows use too.
+  Core activities share `type` values, so a mapping with an `actor` reads back as
+  `VultronActivity` (#6305, `VultronActivity._read_embedded_dumps`).
 - A received Object without an `id` is refused at any depth, and none is minted for
   it; a Link needs no id but must name an `href` (OID-01-013). Minting belongs to
   objects this process builds.

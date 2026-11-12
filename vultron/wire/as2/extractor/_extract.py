@@ -13,6 +13,8 @@ import logging
 from datetime import timedelta
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 from vultron.core.models.events import (
     AnyReceivedEvent,
     MessageSemantics,
@@ -70,7 +72,9 @@ _ACTS_NAMING_THEIR_CASE: frozenset[MessageSemantics] = frozenset(
 )
 
 
-def _as_case_reference(value: object) -> object:
+def _as_case_reference(
+    value: BaseModel | str | None,
+) -> BaseModel | str | None:
     """*value* reduced to its case reference when it is a case, else as is."""
     if isinstance(value, (as_VulnerabilityCaseReference, str)):
         return value
@@ -80,7 +84,9 @@ def _as_case_reference(value: object) -> object:
     return case_reference(case_id) if case_id is not None else value
 
 
-def _named_case_only(semantics: MessageSemantics, obj: object) -> object:
+def _named_case_only(
+    semantics: MessageSemantics, obj: BaseModel | str | None
+) -> BaseModel | str | None:
     """The object an act that names its case is read with (ADR-0165).
 
     For one of :data:`_ACTS_NAMING_THEIR_CASE` the case is its typed

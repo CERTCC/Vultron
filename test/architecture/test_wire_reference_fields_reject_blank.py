@@ -47,6 +47,7 @@ from test.support.blank_strings import (
     rejects_blank,
 )
 from vultron.core.models._helpers import strip_annotated
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.subclasses import all_subclasses
@@ -186,7 +187,7 @@ def test_the_derived_reference_set_covers_the_activity_slots() -> None:
 @pytest.mark.spec("ARCH-23-004")
 @pytest.mark.parametrize(
     "root",
-    [as_Object, CoreObject, as_Actor, CoreActor],
+    [as_Object, CoreObject, as_Actor, CoreActor, VultronActivity],
     ids=lambda c: c.__name__,
 )
 def test_no_object_root_field_is_typed_any(root: type[BaseModel]) -> None:
@@ -196,7 +197,9 @@ def test_no_object_root_field_is_typed_any(root: type[BaseModel]) -> None:
     an ``Any`` slot is never examined.  The object roots declare every AS2
     property every object inherits, and the actor roots every actor property
     (``endpoints`` was ``Any`` too), so a new property spelled ``Any`` here
-    would reopen #3894 for all of them.
+    would reopen #3894 for all of them.  ``VultronActivity`` declares the
+    AS2 Activity slots (``object``, ``target``, ``result``, …) every core
+    activity inherits, and they were ``Any`` until #6305.
     """
     offenders = [
         name

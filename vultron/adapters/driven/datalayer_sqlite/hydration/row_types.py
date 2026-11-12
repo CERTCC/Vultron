@@ -21,101 +21,25 @@ projecting it onto core.
 import logging
 from typing import cast
 
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import (
     Record,
     record_to_object,
 )
-from vultron.core.models import find_in_core_vocabulary
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.models.type_lookup import core_class_for_type
 from vultron.errors import VultronValidationError
-from vultron.wire.as2.vocab.base.registry import (
-    declared_wire_type,
-)
 
 from ..schema import VultronObjectRecord
 
 logger = logging.getLogger(__name__)
 
 
-def core_class_for_row_type(type_: str) -> type[BaseModel]:
-    """Return the core class a row stored under *type_* reconstructs as.
-
-    ``CORE_VOCABULARY`` is keyed by class name, but a row stores the object's
-    ``type`` value, and the two differ for a type such as ``VultronNote``
-    (stored as ``"Note"``). So after the class-name lookup this falls back to
-    the DataLayer's own match on declared ``type`` values over
-    ``CORE_VOCABULARY`` (DL-05-006) — without it a stored note read back as the
-    unpaired wire ``as_Note`` (ISSUE-3647). The row does not record which
-    branch wrote it, so an inbound wire ``as_Note`` persisted verbatim — and
-    the note embedded in a stored ``Add(Note)`` — reads back as
-    ``VultronNote`` too.
-
-    The match leaves two kinds of class out, and both are deliberate:
-
-    - A core *activity* (``VultronOffer`` stores as ``"Offer"``). Persisted
-      activities stay on the wire path, which the DL-05-004 ratchet exempts;
-      moving them is the activity read-back migration (#1506), not this lookup.
-    - A class whose ``type`` value another core class also presents. The row
-      cannot say which it was, so neither is guessed.
-
-    Raises:
-        KeyError: If no core class reconstructs rows of *type_*.
-    """
-    try:
-        return find_in_core_vocabulary(type_)
-    except KeyError:
-        pass
-    cls = _core_classes_by_type_value().get(type_)
-    if cls is None:
-        raise KeyError(f"No unique core class for stored type {type_!r}")
-    return cls
-
-
-class _TypeValueIndexCache:
-    """The ``type``-value → core class index, with the registry it was built from.
-
-    Rebuilt when a core class registers or replaces another after the first
-    read, since registration happens at class definition. Keyed on the
-    classes, not the count: re-registering a name swaps the class without
-    changing the size.
-    """
-
-    __slots__ = ("index", "registered")
-
-    def __init__(self) -> None:
-        self.registered: tuple[type[BaseModel], ...] = ()
-        self.index: dict[str, type[BaseModel] | None] = {}
-
-
-_TYPE_VALUE_INDEX = _TypeValueIndexCache()
-
-
-def _core_classes_by_type_value() -> dict[str, type[BaseModel] | None]:
-    """Map each declared ``type`` value to its core class, ``None`` if shared.
-
-    Built once per registry state rather than per read: every activity row
-    misses the class-name lookup and would otherwise rescan the registry.
-    """
-    registered = tuple(CORE_VOCABULARY.values())
-    if _TYPE_VALUE_INDEX.registered == registered:
-        return _TYPE_VALUE_INDEX.index
-    index: dict[str, type[BaseModel] | None] = {}
-    for cls in registered:
-        if issubclass(cls, VultronActivity):
-            continue
-        value = declared_wire_type(cls)
-        if value is None:
-            continue
-        index[value] = None if value in index else cls
-    # Index before key, so a reader that matches the new key never gets the
-    # stale index.
-    _TYPE_VALUE_INDEX.index = index
-    _TYPE_VALUE_INDEX.registered = registered
-    return index
+#: The stored-row name of the core lookup: a row stores the object's ``type``
+#: value, which the core reads back with the same lookup an embedded object
+#: does (DL-05-006, #6305).
+core_class_for_row_type = core_class_for_type
 
 
 WIRE_ROW_FAILURES: tuple[type[Exception], ...] = (

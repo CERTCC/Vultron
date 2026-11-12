@@ -50,7 +50,7 @@ def _view() -> ReceivedActivityView:
                 id_="https://example.org/notes/n-1",
                 content="as received",
             ),
-            instrument={"keys": ["a", "b"], "flags": {"x"}},
+            content_map={"en": "as received", "fr": "tel que reçu"},
         )
     )
 
@@ -98,12 +98,26 @@ def test_collections_are_read_only_copies():
     view = _view()
 
     assert view.to == ("https://example.org/actors/receiver",)
-    instrument = view.instrument
-    assert isinstance(instrument, MappingProxyType)
-    assert instrument["keys"] == ("a", "b")
-    assert instrument["flags"] == frozenset({"x"})
+    content_map = view.content_map
+    assert isinstance(content_map, MappingProxyType)
+    assert content_map["en"] == "as received"
     with pytest.raises(TypeError):
-        instrument["keys"] = ()  # type: ignore[index]
+        content_map["en"] = "changed"  # type: ignore[index]
+
+
+def test_nested_collections_are_read_only_copies():
+    """A list, set or mapping inside a mapping is made read-only too.
+
+    No core activity field holds an arbitrary nested mapping since its AS2
+    slots were typed (#6305), so :func:`read_only` is asked directly.
+    """
+    nested = read_only({"keys": ["a", "b"], "flags": {"x"}})
+
+    assert isinstance(nested, MappingProxyType)
+    assert nested["keys"] == ("a", "b")
+    assert nested["flags"] == frozenset({"x"})
+    with pytest.raises(TypeError):
+        nested["keys"] = ()  # type: ignore[index]
 
 
 def test_read_only_leaves_an_immutable_value_as_it_is():

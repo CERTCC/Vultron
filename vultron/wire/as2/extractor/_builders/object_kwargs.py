@@ -9,6 +9,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
+
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
@@ -45,8 +47,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 def _build_activity_snapshot(
     activity: as_Activity,
     actor_id: str,
-    obj: object,
-    target: object,
+    obj: BaseModel | str | None,
+    target: BaseModel | str | None,
     origin: object,
     context: object,
     end_time: datetime | None = None,
@@ -137,10 +139,10 @@ _OBJ_BUILDERS: dict[str, Callable[[object], dict[str, Any]]] = {
 
 
 def _build_object_kwargs(
-    obj: object,
+    obj: BaseModel | str | None,
     _obj_type: str,
     context: object,
-    target: object,
+    target: BaseModel | str | None,
     include_activity: bool,
     activity: as_Activity,
     actor_id: str,

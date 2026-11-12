@@ -51,6 +51,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes import ThreatTerminationBranchNode
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -398,7 +399,9 @@ def _assert_ek_discharged_by_commit(
     ]
     assert len(committed) == 1, "the received proposal is committed once"
     announced = [
-        a.object_ if isinstance(a.object_, str) else a.object_.id_
+        a.object_
+        if isinstance(a.object_, str)
+        else cast(CoreObject, a.object_).id_
         for a in _outbox_of_type(dl, "Announce")
         if a.object_ is not None
     ]

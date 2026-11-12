@@ -17,14 +17,43 @@
 
 # pyright: reportGeneralTypeIssues=false
 
-from typing import Any, Literal
+import re
+from collections.abc import Mapping
+from datetime import datetime
+from typing import Annotated, ClassVar, Literal
 
-from pydantic import Field
+from pydantic import (
+    Field,
+    SerializerFunctionWrapHandler,
+    Strict,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+)
 
+from vultron.core.models._helpers import as_utc, format_timestamp
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base.core_object import (
+    CoreObjectOrIri,
+    CoreObjectOrIriValues,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.sender_sequence import SenderSequence
+from vultron.core.models.type_lookup import core_class_for_type
+
+#: The ``closed`` time and flag branches, strict so that no string or number
+#: is coerced to a time or a flag.
+_StrictTime = Annotated[datetime, Strict()]
+_StrictFlag = Annotated[bool, Strict()]
+#: An RFC 3339 date-time, the form a dumped ``closed`` time takes, in
+#: either letter case (RFC 3339 §5.6).  The offset may be missing: a time
+#: without one is read as UTC, as every core time is (CS-13-001).
+_RFC3339 = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?"
+    r"([Zz]|[+-][0-9]{2}:[0-9]{2})?"
+)
 
 
 class VultronActivity(CoreObject):
@@ -53,22 +82,33 @@ class VultronActivity(CoreObject):
     type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
         validation_alias="type", serialization_alias="type"
     )
+    #: Core activity classes share their ``type`` values (``"Create"``), so a
+    #: dumped activity's ``type`` names none of them, and the type lookup
+    #: leaves them all out (:func:`core_class_for_type`).
+    type_names_no_class: ClassVar[bool] = True
     actor: NonEmptyString  # non-optional because every activity must have an actor
-    object_: Any | None = Field(
+    # The AS2 Activity slots hold one embedded object or one non-blank IRI,
+    # as their wire declarations on ``as_Activity`` do: a core object, an
+    # object core does not model (a Link, a case stub) as the wire layer
+    # built it, or the id a stored row collapsed it to.  A blank IRI is
+    # refused when the activity is built (CS-08-001, #6305).
+    object_: CoreObjectOrIri | None = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",
     )
-    target: Any | None = None
+    target: CoreObjectOrIri | None = None
     origin: NonEmptyString | None = None
     # AS2 Activity fields no Vultron activity uses yet.  They stay declared
     # (ARCH-25-008, ADR-0099): ``CoreObject`` forbids extras, and a stored wire
     # activity dumps them, even when null.
-    instrument: Any | None = None
-    result: Any | None = None
+    instrument: CoreObjectOrIri | None = None
+    result: CoreObjectOrIri | None = None
     # A Reporter's proposed embargo terms on Offer(VulnerabilityReport)
-    # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.
-    proposed_embargo: Any | None = None
+    # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.  The
+    # parse edge expands it to the core event, and only the event states
+    # terms, so an IRI or another object is refused here.
+    proposed_embargo: EmbargoEvent | None = None
     # A termination Remove(EmbargoEvent)'s why (EMB-13-005); the wire dump
     # carries it as ``terminationCause``, and the ledger entry that records
     # the Remove carries it with it.
@@ -86,9 +126,15 @@ class VultronActivity(CoreObject):
     # ``Question`` fields (AS2 §4.1).  Vultron sends no ``Question``, but a
     # received one is stored as this model, so every key its wire class dumps
     # must be a field here (ARCH-25-008).
-    any_of: Any | None = None
-    one_of: Any | None = None
-    closed: Any | None = None
+    # ``anyOf``/``oneOf`` are non-functional (one option or many), as on
+    # ``as_Question``.  ``closed`` is an object, a link, a time or a boolean
+    # (AS2 §4.1).  The time and flag branches are strict, so a string such
+    # as ``"1"`` or ``"yes"`` is never coerced to one; only an RFC 3339 time
+    # string, the form a stored row holds a time in, is read as a time
+    # (``_read_closed_time``).
+    any_of: CoreObjectOrIriValues = None
+    one_of: CoreObjectOrIriValues = None
+    closed: _StrictTime | _StrictFlag | CoreObjectOrIri | None = None
     # Addressing carries actor references; a blank one names nobody
     # (CS-08-001).  Only ``to`` is modelled: Vultron addresses every direct
     # message with it (OX-08-001), and ``cc``/``bto``/``bcc`` have no handler
@@ -108,6 +154,99 @@ class VultronActivity(CoreObject):
     # needed; stated explicitly because the neighbouring field shows what the
     # omission costs when the names do differ.
     roles: list[NonEmptyString] | None = None
+
+    @field_validator(
+        "object_",
+        "target",
+        "instrument",
+        "result",
+        "any_of",
+        "one_of",
+        "closed",
+        mode="before",
+    )
+    @classmethod
+    def _read_embedded_dumps(
+        cls, value: object, info: ValidationInfo
+    ) -> object:
+        """Read an embedded object's dump back as the class that wrote it.
+
+        A dumped activity holds its embedded objects as mappings, and the
+        slot's ``CoreObject`` branch forbids every field a subclass adds, so
+        the activity would refuse its own dump (ARCH-23-005).  Each mapping
+        is built as the class its ``type`` names first.
+
+        An object core does not model (a Link, a case reference) is held as
+        the wire layer built it, and its dump names no core class, so an
+        activity holding one does not read its own dump back in core: only
+        the stored-row reader, which can name wire classes, rebuilds it.
+        """
+        if isinstance(value, list):
+            return [_read_embedded_dump(item, info) for item in value]
+        return _read_embedded_dump(value, info)
+
+    @field_validator("closed", mode="before")
+    @classmethod
+    def _read_closed_time(cls, value: object) -> object:
+        """Read an RFC 3339 time string as the time it states.
+
+        A stored row and a JSON dump hold ``closed`` as a string; the strict
+        time branch takes only a ``datetime``, so the string is parsed here.
+        Only a string with a ``T`` (or ``t``) between date and time is a
+        time, which no IRI and no flag spelling is.  A string of that shape
+        that names no real time (month 13, second 60) is refused, not kept
+        as an IRI.  A time with no offset is read as UTC.
+        """
+        if isinstance(value, str) and _RFC3339.fullmatch(value):
+            return datetime.fromisoformat(value.upper())
+        return value
+
+    @field_validator("closed")
+    @classmethod
+    def _read_naive_closed_as_utc(
+        cls, value: datetime | bool | CoreObjectOrIri | None
+    ) -> datetime | bool | CoreObjectOrIri | None:
+        """Read a naive ``closed`` time as UTC, as every core time is (CS-13-001)."""
+        return as_utc(value) if isinstance(value, datetime) else value
+
+    @field_serializer("closed", mode="wrap", when_used="json")
+    def _serialize_closed(
+        self,
+        value: datetime | bool | CoreObjectOrIri | None,
+        handler: SerializerFunctionWrapHandler,
+    ) -> object:
+        """Write a ``closed`` time in the fixed form every timestamp uses.
+
+        ``CoreObject`` formats its own time fields (CS-13-007); ``closed`` is
+        one too when it holds a time, and any other value dumps as declared.
+        """
+        if isinstance(value, datetime):
+            return format_timestamp(value)
+        return handler(value)
+
+
+def _read_embedded_dump(value: object, info: ValidationInfo) -> object:
+    """Build *value* as the core class its ``type`` names, when it is a dump.
+
+    A mapping with an ``actor`` is an embedded activity, which reads back as
+    a :class:`VultronActivity`: core activity classes share their ``type``
+    values (``"Create"``), so the value cannot name one.  Any other mapping
+    is built as the one core class that presents its ``type``.  A mapping
+    no core class presents is left for the slot to judge, which refuses it:
+    an object core does not model reaches core already built (ADR-0032).
+    """
+    if not isinstance(value, Mapping):
+        return value
+    if "actor" in value:
+        return VultronActivity.model_validate(value, context=info.context)
+    type_value = value.get("type", value.get("type_"))
+    if not isinstance(type_value, str):
+        return value
+    try:
+        target = core_class_for_type(type_value)
+    except KeyError:
+        return value
+    return target.model_validate(value, context=info.context)
 
 
 class VultronOffer(VultronActivity):

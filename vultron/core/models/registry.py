@@ -68,3 +68,24 @@ def find_in_core_vocabulary(item_name: str) -> type[BaseModel]:
     if item_name not in CORE_VOCABULARY:
         raise KeyError(f"Unknown core vocabulary type: {item_name!r}")
     return CORE_VOCABULARY[item_name]
+
+
+def type_value_of(declared: object) -> str | None:
+    """Return the ``type`` value a ``type_`` declaration states, or ``None``.
+
+    *declared* is a ``Field(...)``, which carries the value as its default,
+    or the plain value a ``type_: Literal["Foo"] = "Foo"`` assignment gives;
+    an enum member states its ``value``.
+    """
+    default = getattr(declared, "default", declared)
+    value = getattr(default, "value", default)
+    return value if isinstance(value, str) and value else None
+
+
+def declared_type_value(cls: type) -> str | None:
+    """Return the ``type`` value built class *cls* declares, or ``None``.
+
+    ``None`` marks an abstract or intermediate base, which declares no
+    concrete ``type_`` default.
+    """
+    return type_value_of(getattr(cls, "model_fields", {}).get("type_"))

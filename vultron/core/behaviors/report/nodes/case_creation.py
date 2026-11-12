@@ -243,7 +243,11 @@ class CreateCaseActivity(DataLayerActionWithPorts):
             case_obj = self.datalayer.read(case_id)
             create_case_activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
-                object_=case_obj if case_obj is not None else case_id,
+                object_=(
+                    case_obj
+                    if isinstance(case_obj, VulnerabilityCase)
+                    else case_id
+                ),
                 context=case_id,
                 to=addressees if addressees else None,
                 **authored_times(self._require_act_instant()),

@@ -113,8 +113,8 @@ def _FakeActivity(
     """A received event for CommitCaseLedgerEntryNode's blackboard input.
 
     The body uses ``("Create", "VulnerabilityCase")`` — a canonical
-    signature per ``_CANONICAL_PAYLOAD_SIGNATURES`` — with an inline object
-    dict (not a bare URI string) and a non-empty ``actor`` URI.
+    signature per ``_CANONICAL_PAYLOAD_SIGNATURES`` — with an inline case
+    (not a bare URI string) and a non-empty ``actor`` URI.
     """
     return with_evidence(
         VultronEvent(
@@ -129,7 +129,12 @@ def _FakeActivity(
                 # CLP-07-011: the commit boundary requires a claimed
                 # timestamp on every recorded snapshot.
                 published=now_utc(),
-                object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+                object_=make(
+                    VulnerabilityCase,
+                    id_=CASE_ID,
+                    name="Test Case",
+                    attributed_to=MANAGER_ACTOR_ID,
+                ),
             ),
         )
     )
