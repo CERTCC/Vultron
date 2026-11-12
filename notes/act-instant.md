@@ -1,20 +1,16 @@
 ---
-title: One Clock Read per Act — Migration Plan
+title: One Clock Read per Act
 status: active
 kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
-  - "#5651"   # slice 3: sync rate-limit checks and the replication-state key
-  - "#5760"   # slice 5: recordings through the port
-  - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
-  - "#6191"   # a received message's instant is its arrival stamp
 description: >
-  The remaining migration to ADR-0176: acts already read the clock once at
-  their edge, a received message at its arrival, and carry it
-  as /at; tree nodes still to move read that instant from
-  the tree run, and core code takes time as an argument and never reads or
-  defaults it.
+  The rules of ADR-0176, now that no code below an act's edge reads the
+  clock: an act reads it once at its edge, a received message at its
+  arrival, and carries it as /at; tree nodes read that instant from the tree
+  run, core code takes time as an argument, and a recording supplies its
+  clock through the port. Follow-on: the drift limit.
 related_specs:
   - specs/code-style.yaml
   - specs/case-ledger-processing.yaml
@@ -22,16 +18,16 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
 ---
 
-# One Clock Read per Act — Migration Plan
+# One Clock Read per Act
 
 ADR-0176 decides that an act (a trigger, the processing of one inbound delivery, or
 a sweep) reads the clock once, at its entry point, and that everything below that
 point takes the instant instead of reading the clock. The act entry points, the
-clock port and the tree-run instant exist (#5757); the reads below the edge do
-not use them yet. This note holds the order of the work and the rules each slice
-keeps.
+clock port and the tree-run instant exist, and no code below an act's edge reads
+the clock. This note holds the rules new code keeps and the follow-ons the epic
+(#5676) still tracks.
 
-## Rules every slice keeps
+## Rules new code keeps
 
 - **Lock, then read — except a received message.** A trigger or sweep takes the
   tree lock before it reads its instant and holds the lock until it commits, so
@@ -75,13 +71,13 @@ keeps.
   its instant, so the smallest step past the previous stamp is what orders them
   (ADR-0167, CM-29-005).
 - **A verdict does not change.** Each migrated decision gives the same answer for
-  the same instant as before; a slice that changes a verdict is a behavior change
+  the same instant as before; a change that moves a verdict is a behavior change
   and needs its own issue.
-- **A CS-13 rule is restated with the slice that meets it.** CS-13-004 and
+- **A CS-13 rule is restated with the change that meets it.** CS-13-004 and
   CS-13-008 name the current clock helpers; each is rewritten in the PR whose test
   verifies the new form, not before, as CS-13-002 was with the port (#5757).
 
-## What the later slices build on
+## How to build on it
 
 - **Read the instant in a node with `self._require_act_instant()`**, in
   `update()`, never at build. Both ports bases declare the optional `at` port
@@ -115,23 +111,11 @@ keeps.
   received message's act opens with `open_received_act(arrived_at)` instead:
   `process_payload` and `handle_inbox_item`.
 
-## Slices, in order
+## Follow-ons
 
-1. **Foundation** (#5757). The clock and bookkeeping-clock ports, the act entry
-   points, the tree-run instant, and the architecture test with today's clock
-   reads recorded item by item as the list to burn down.
-2. **Tree builders and guard nodes** (#5649). Mostly deletions of time parameters
-   and their fallbacks.
-3. **Sync checks** (#5651). Cooldown and resend predicates take the instant; the
-   replication-state key is derived without building a stamped model.
-4. **Parse edge** (#5652). The RSVP computation takes `published` as required
-   (CLP-15-008 already refuses an inbound activity without it), and the
-   past-deadline warning moves to the handler. The pre-bootstrap queue sweep moves
-   to the reap trigger (#2887), judging at its own instant; the queue's two clock
-   reads already moved to the act's instant (#6191).
-5. **Recordings** (#5760). The recording clock goes through the port
-   (`install_act_clock`) and steps once per act; the recording harness
-   patches no clock; every recording is regenerated once.
+- **Drift limit** (#5848, after the call-out budget #3423): an act whose
+  stopwatch time since it took the lock exceeds a budget aborts before it
+  commits and reruns, so a long call-out cannot leave a stale instant.
 
 Generated ids are not part of this plan. ADR-0185 decides them differently: the one
 minter draws from an id-source port, and ids are not threaded to the act's edge

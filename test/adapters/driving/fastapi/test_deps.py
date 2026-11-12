@@ -46,6 +46,8 @@ import pytest
 from fastapi import Request
 from fastapi.params import Depends as params_Depends
 
+from test.support.act_clock import ACT_AT
+from test.support.act_runner import FixedClock
 from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -372,11 +374,46 @@ def test_trigger_dispatcher_is_given_a_wire_render_port():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    dispatcher = get_trigger_dispatcher(dl)
+    dispatcher = get_trigger_dispatcher(dl, clock=FixedClock(ACT_AT))
 
     assert isinstance(
         getattr(dispatcher, "_wire_render_port", None), As2WireRenderAdapter
     )
+
+
+@pytest.mark.spec("CS-13-002")
+def test_trigger_dispatcher_takes_the_act_clock_through_depends() -> None:
+    """An override of ``get_act_clock`` must reach every trigger's act too.
+
+    A plain ``act_clock()`` call inside the dependency would bypass FastAPI's
+    override table, so a test that pins the inbox's arrival stamp would leave
+    the triggers on the installed clock.
+    """
+    import inspect
+
+    from vultron.adapters.driving.fastapi.deps import (
+        get_act_clock,
+        get_trigger_dispatcher,
+    )
+
+    default = (
+        inspect.signature(get_trigger_dispatcher).parameters["clock"].default
+    )
+    assert isinstance(default, params_Depends)
+    assert default.dependency is get_act_clock
+
+
+def test_trigger_dispatcher_hands_its_clock_to_each_trigger() -> None:
+    from vultron.adapters.driving.fastapi.deps import get_trigger_dispatcher
+
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    clock = FixedClock(ACT_AT)
+    dispatcher = get_trigger_dispatcher(dl, clock=clock)
+
+    assert getattr(dispatcher, "_clock", None) is clock
 
 
 # ---------------------------------------------------------------------------

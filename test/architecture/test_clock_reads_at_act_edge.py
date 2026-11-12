@@ -129,9 +129,9 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     ),
 )
 
-# Pinned exemption set: the modules that may name a clock port or a system
-# clock — the ports, their adapters, the act entry points and the
-# composition roots that wire them.
+# Pinned exemption set: the modules that may name a clock port, a system
+# clock or the installed act clock (act_clock) — the ports, their adapters,
+# the act entry points and the composition roots that wire them.
 # permanent: ADR-0176 (only an act's entry point holds the act clock; only an
 # adapter holds the bookkeeping clock)
 CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(

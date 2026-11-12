@@ -232,6 +232,21 @@ class TestDeterministicRun:
             assert act_clock() is clock
         assert isinstance(act_clock(), SystemClock)
 
+    def test_a_run_inside_an_installed_act_clock_is_refused_whole(self):
+        # The id source is installed first, so the refused clock install
+        # must hand it back: the seeded stream does not outlive the refusal.
+        clock = SteppingClock(_START)
+        with install_act_clock(clock):
+            with (
+                pytest.raises(VultronActClockInstalledError),
+                deterministic_run("rv"),
+            ):
+                pass
+            assert act_clock() is clock
+            assert new_object_id() != _seeded_ids("rv", 1)[0]
+            with install_id_source(SeededUuid4("after")):
+                assert new_object_id() == _seeded_ids("after", 1)[0]
+
     def test_a_nested_act_clock_install_is_refused(self):
         clock = SteppingClock(_START)
         with install_act_clock(clock):

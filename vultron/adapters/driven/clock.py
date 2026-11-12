@@ -22,8 +22,9 @@ CS-13-001 form.
 :func:`act_clock` is the one place a composition root gets the act clock
 from: the system clock, except inside :func:`install_act_clock`, which a
 recorded run uses to supply its recording clock through the port
-(``vultron.demo.determinism``, ADR-0176).  No run replaces the clock by
-patching ``now_utc``'s module.
+(``vultron.demo.determinism``, ADR-0176).  A recorded run replaces no clock
+by patching ``now_utc``'s module; only tests and the docs-example generator,
+which runs no act, still do.
 
 :class:`SystemBookkeepingClock` reads the wall clock directly, never through
 ``now_utc``, so no recording clock ever sees a bookkeeping read and a

@@ -80,8 +80,9 @@ def recorded_clock_reads() -> Iterator[list[datetime]]:
     """Record every read of the wall clock behind ``now_utc``, in order.
 
     Yields the list the reads are appended to; it starts empty.  A test that
-    asserts it is still empty after a call shows the call moved no
-    recording clock (ADR-0176).
+    asserts it is still empty after a call shows the call read no wall clock
+    through ``now_utc``, the system act clock included; a read of an
+    installed act clock is not seen here (ADR-0176).
     """
     reads: list[datetime] = []
     real = helpers_clock.datetime

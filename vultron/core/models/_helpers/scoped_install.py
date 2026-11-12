@@ -17,7 +17,8 @@
 
 A scenario recording and the docs-example generator need repeatable ids and
 times, so each replaces the source the application draws from, for the
-length of one block (ADR-0185, ADR-0176).  :class:`ScopedInstall` is that
+length of one block (ADR-0185, ADR-0176); a recording also installs the
+capture of its check tree.  :class:`ScopedInstall` is that
 replacement, written once: it holds a default, lets one install replace it,
 refuses a second install while the first is active, and puts back what it
 held when the block ends, also when the block raises.
@@ -32,8 +33,6 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-
-from vultron.errors import VultronWiringError
 
 
 @dataclass
@@ -53,7 +52,7 @@ class ScopedInstall[T]:
     """
 
     value: T
-    refusal: Callable[[], VultronWiringError]
+    refusal: Callable[[], Exception]
     installed: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -65,8 +64,8 @@ class ScopedInstall[T]:
         *value*.  Yields *value*, so a caller may bind it with ``as``.
 
         Raises:
-            VultronWiringError: another install is active (the subtype
-                :attr:`refusal` builds).
+            Exception: another install is active; the error
+                :attr:`refusal` builds.
         """
         with self.lock:
             if self.installed:

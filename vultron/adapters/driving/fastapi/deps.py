@@ -308,6 +308,7 @@ def get_act_clock() -> ClockPort:
 
 def get_trigger_dispatcher(
     dl: DataLayer = Depends(get_trigger_dl),
+    clock: ClockPort = Depends(get_act_clock),
 ) -> TriggerDispatcher:
     """FastAPI dependency: the registry-backed ``TriggerDispatcher``.
 
@@ -315,7 +316,10 @@ def get_trigger_dispatcher(
     injects — ``TriggerActivityAdapter`` and ``SyncActivityAdapter`` persist
     into that actor's outbox — belong to the actor the path names
     (TRIG-06-001).  Resolves the store through ``Depends(get_trigger_dl)`` so
-    ``app.dependency_overrides`` on that seam reaches this one (TRIG-06-002).
+    ``app.dependency_overrides`` on that seam reaches this one (TRIG-06-002),
+    and the act clock through ``Depends(get_act_clock)``, so an override that
+    pins the inbox's arrival stamp pins every trigger's act clock too
+    (ADR-0176).
 
     Tests of the routes in front of this port run the real dispatcher over an
     in-memory store; never ``Mock(spec=TriggerDispatcher)``
@@ -327,5 +331,5 @@ def get_trigger_dispatcher(
         trigger_activity=TriggerActivityAdapter(cop),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(cop),
-        clock=act_clock(),
+        clock=clock,
     )

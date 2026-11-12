@@ -17,7 +17,6 @@ tracks:
   - "#6026"
   - "#6028"
   - "#6194"
-  - "#5760"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,

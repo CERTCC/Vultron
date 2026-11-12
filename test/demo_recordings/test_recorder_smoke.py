@@ -36,6 +36,7 @@ from functools import partial
 
 import pytest
 
+from test.support.act_clock import recorded_clock_reads
 from test.support.objects import with_times
 from vultron.core.behaviors.bridge import act_instant
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -163,8 +164,13 @@ def test_each_act_reads_the_recording_clock_once(monkeypatch):
     )
     spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
 
-    record_scenario(spec)
+    with recorded_clock_reads() as wall:
+        record_scenario(spec)
 
+    # A composition root that built its own system clock instead of taking
+    # the installed one (act_clock) would read the wall clock behind now_utc,
+    # which the recording clock never sees.
+    assert wall == [], f"the run read the wall clock {len(wall)} time(s)"
     readers = set(clock.readers)
     assert readers <= _ACT_EDGES, (
         "the recording clock was read below an act's edge:"

@@ -144,7 +144,7 @@ def deterministic_run(
     """
     with (
         install_id_source(SeededUuid4(seed)),
-        install_act_clock(clock or recording_clock()),
+        install_act_clock(recording_clock() if clock is None else clock),
     ):
         yield
 
