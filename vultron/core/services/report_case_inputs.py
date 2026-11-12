@@ -252,6 +252,7 @@ def case_reference_from_claim(
         url=CaseReferenceLink(href=claim.url),
         name=claim.summary,
         published=published,
+        updated=published,
     )
 
 
@@ -296,6 +297,7 @@ def vulnerability_item_from_claims(
             for r in vul.references
         ],
         published=published,
+        updated=published,
     )
 
 

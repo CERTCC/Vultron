@@ -55,6 +55,31 @@ def find_offer_for_report(
     return None, None
 
 
+def offer_for_report_or(
+    datalayer: "CasePersistence",
+    report_id: str,
+    fallback: tuple[str | None, str | None],
+) -> tuple[str | None, str | None]:
+    """Return ``(offer_id, offer_actor_id)`` for *report_id*, else *fallback*.
+
+    Its own store first, then what the proposal carried (CP-01-019). The
+    store answers only when this CaseActor received the
+    ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
+    because the ``OfferRecord`` belongs to the sibling that did and there is
+    no read across that line (ADR-0073, PCR-01-003).
+
+    The fallback is not a nicety. The ledger entry is the only place the
+    report's Offer provenance (``offerId``, ``offerActorId``) survives for
+    the case's participants, who were never sent the Offer and read it from
+    there (CP-01-007). Without it the omission surfaces nowhere near the
+    commit (#2548).
+    """
+    offer_id, offer_actor_id = find_offer_for_report(datalayer, report_id)
+    if offer_id:
+        return offer_id, offer_actor_id
+    return fallback
+
+
 def offer_provenance_from_proposal(
     proposal_dict: dict | None,
 ) -> tuple[str | None, str | None]:

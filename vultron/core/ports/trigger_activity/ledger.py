@@ -100,6 +100,8 @@ class TriggerLedgerRecordsPort(Protocol):
         item: VulnerabilityItem,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Add(VulnerabilityItem)[target=VulnerabilityCase]`` (``add_vulnerability_item_to_case``).
 
@@ -114,6 +116,8 @@ class TriggerLedgerRecordsPort(Protocol):
         reference: CaseReference,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """``Add(CaseReference)[target=VulnerabilityCase]`` (``add_case_reference_to_case``).
 

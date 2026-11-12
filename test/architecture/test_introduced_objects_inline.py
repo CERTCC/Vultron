@@ -153,13 +153,13 @@ INTRODUCES: dict[
     ),
     "add_vulnerability_item_to_case_activity": (
         lambda o: add_vulnerability_item_to_case_activity(
-            o, target=_CASE, actor=_ACTOR
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_vulnerability_item_to_case"),
     ),
     "add_case_reference_to_case_activity": (
         lambda o: add_case_reference_to_case_activity(
-            o, target=_CASE, actor=_ACTOR
+            o, target=_CASE, actor=_ACTOR, at=authored_at()
         ),
         _example_object("add_case_reference_to_case"),
     ),

@@ -152,6 +152,8 @@ class _LedgerRecordsMixin:
         item: VulnerabilityItem,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Add(VulnerabilityItem)``, the item in full."""
         activity = add_vulnerability_item_to_case_activity(
@@ -161,6 +163,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "vulnerability-item-added-to-case", actor, case_id, item.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 
@@ -169,6 +172,8 @@ class _LedgerRecordsMixin:
         reference: CaseReference,
         case_id: str,
         actor: str,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build and seal ``Add(CaseReference)``, the reference in full."""
         activity = add_case_reference_to_case_activity(
@@ -178,6 +183,7 @@ class _LedgerRecordsMixin:
             id_=derived_activity_id(
                 "case-reference-added-to-case", actor, case_id, reference.id_
             ),
+            at=at,
         )
         return _seal_record(self._dl, activity)
 

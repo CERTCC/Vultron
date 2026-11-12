@@ -498,6 +498,7 @@ RECIPES: dict[str, Recipe] = {
         item=make(VulnerabilityItem, cve="CVE-2026-0001"),
         case_id=w.case_id,
         actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_case_reference_added": lambda w: w.adapter_as(
         _CASE_ACTOR
@@ -505,6 +506,7 @@ RECIPES: dict[str, Recipe] = {
         reference=make(CaseReference, url={"href": "https://example.org/a"}),
         case_id=w.case_id,
         actor=_CASE_ACTOR,
+        at=authored_at(),
     ),
     "record_case_owner_updated": lambda w: w.adapter_as(
         _CASE_ACTOR

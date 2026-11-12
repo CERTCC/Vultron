@@ -301,12 +301,14 @@ def add_vulnerability_item_to_case() -> as_Add:
         cve="CVE-2026-0001",
         title="Buffer overflow in the widget parser",
         context=_case.id_,
+        **_example_stamp(),
     )
     return add_vulnerability_item_to_case_activity(
         item,
         target=_case.id_,
         id_=f"{item.id_}/add",
         actor=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -325,12 +327,14 @@ def add_case_reference_to_case() -> as_Add:
         ),
         name="Vendor advisory",
         context=_case.id_,
+        **_example_stamp(),
     )
     return add_case_reference_to_case_activity(
         reference,
         target=_case.id_,
         id_=f"{reference.id_}/add",
         actor=case_actor().id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 

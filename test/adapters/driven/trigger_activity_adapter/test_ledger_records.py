@@ -224,6 +224,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 ),
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
+                at=authored_at(),
             )
         ),
         "record_case_reference_added": lambda a: a.record_case_reference_added(
@@ -234,6 +235,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             ),
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
+            at=authored_at(),
         ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
