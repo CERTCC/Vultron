@@ -57,54 +57,21 @@ def _names_measure(name: str) -> bool:
     return name == _MEASURE or name.startswith(_MEASURE + ".")
 
 
-def _string_arg(call: ast.Call, position: int, keyword: str) -> str | None:
-    """A string-literal argument of *call*, by keyword or position."""
-    for kw in call.keywords:
-        if kw.arg == keyword:
-            value = kw.value
-            break
-    else:
-        if len(call.args) <= position:
-            return None
-        value = call.args[position]
-    if isinstance(value, ast.Constant) and isinstance(value.value, str):
-        return value.value
-    return None
-
-
 def _measure_imports(tree: ast.AST, package: str) -> list[int]:
     """Return the line of every import of the measure layer in *tree*.
 
     *package* is the dotted package of the scanned module, used to resolve
     relative imports.  Any call passed a module name that resolves to the
     layer counts, whatever the callee is called, so an aliased
-    ``import_module`` does not slip through.
+    ``import_module`` does not slip through (:func:`_corpus.import_sites`).
     """
-    lines: list[int] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            module = _corpus.resolve_import(
-                node.module or "", node.level, package
-            )
-            if _names_measure(module) or any(
-                _names_measure(f"{module}.{alias.name}")
-                for alias in node.names
-            ):
-                lines.append(node.lineno)
-        elif isinstance(node, ast.Import):
-            if any(_names_measure(alias.name) for alias in node.names):
-                lines.append(node.lineno)
-        elif isinstance(node, ast.Call):
-            name = _string_arg(node, 0, "name")
-            if name is None:
-                continue
-            anchor = _string_arg(node, 1, "package") or package
-            level = len(name) - len(name.lstrip("."))
-            if _names_measure(
-                _corpus.resolve_import(name.lstrip("."), level, anchor)
-            ):
-                lines.append(node.lineno)
-    return lines
+    return list(
+        dict.fromkeys(
+            line
+            for name, line in _corpus.import_sites(tree, package)
+            if _names_measure(name)
+        )
+    )
 
 
 #: The package an inline sample is scanned as, so a relative import resolves.

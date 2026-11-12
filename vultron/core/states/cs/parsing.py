@@ -30,6 +30,7 @@ from vultron.core.states.cs.states import (
     CS_d,
     CS_pxa,
     CS_vf,
+    PxaState,
 )
 from vultron.errors import StateValidationError
 
@@ -63,14 +64,24 @@ def _first3(s):
     return s[:3]
 
 
-def vfd(state):
+def vfd(state: str) -> tuple[CS_vf, CS_d]:
+    """Return the ``(CS_vf, CS_d)`` parts of the state *state* names.
+
+    Raises:
+        StateValidationError: if *state* does not name a valid CS state
+    """
     vf, d, _pxa = state_string_to_enums(state)
     return (vf, d)
 
 
-def pxa(state):
+def pxa(state: str) -> PxaState:
+    """Return the ``PxaState`` of the state *state* names.
+
+    Raises:
+        StateValidationError: if *state* does not name a valid CS state
+    """
     _vf, _d, pxa = state_string_to_enums(state)
-    value = pxa.value
+    value: PxaState = pxa.value
     return value
 
 

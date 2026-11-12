@@ -67,6 +67,18 @@ _IN_STATES = "vultron.core.states"
         ("from ... import case_states", _IN_CS),
         ("from ..case_states import validations", _IN_STATES),
         ("from .. import case_states", _IN_STATES),
+        (
+            "import importlib\n"
+            "importlib.import_module('vultron.core.case_states.patterns')",
+            _IN_CS,
+        ),
+        ("__import__('vultron.core.case_states')", _IN_CS),
+        (
+            "def f():\n"
+            "    from importlib import import_module as im\n"
+            "    return im('...case_states', 'vultron.core.states.cs')\n",
+            _IN_CS,
+        ),
     ],
 )
 def test_the_detector_catches_each_import_shape(source, package):
@@ -81,6 +93,10 @@ def test_the_detector_catches_each_import_shape(source, package):
         ("x = 'vultron.core.case_states'", _IN_CS),
         ("from .. import case_states", _IN_CS),
         ("from . import case_states", _IN_STATES),
+        (
+            "import importlib\nimportlib.import_module('vultron.core.states')",
+            _IN_CS,
+        ),
     ],
 )
 def test_the_detector_ignores_near_misses(source, package):

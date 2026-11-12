@@ -15,8 +15,13 @@
 
 They validate against the authoritative ``CS`` enum, not the legacy
 ``case_states.validations`` rules, and refuse a string that names no state
-with the ``StateValidationError`` the legacy decorator raised.  The legacy
-model is the oracle for which strings are states (ADR-0060).
+with the ``StateValidationError`` the legacy decorator raised for every
+string it refused.  Two inputs changed: a wildcard pattern such as ``V.d...``
+passed the legacy check and then raised ``KeyError``, and a non-string raised
+``TypeError``; both now raise ``StateValidationError`` too.  The legacy model
+is the oracle for which strings are states (ADR-0060), and the success tests
+spell each state's parts from its name, independently of the ``CS`` member
+values the parsers now read.
 """
 
 from itertools import product
@@ -25,7 +30,7 @@ import pytest
 
 from vultron.core.case_states.validations import valid_states
 from vultron.core.states.cs import parsing
-from vultron.core.states.cs.states import CS
+from vultron.core.states.cs.states import CS, CS_d, CS_pxa, CS_vf
 from vultron.errors import StateValidationError
 
 _PARSERS = [
@@ -80,22 +85,27 @@ def test_every_parser_refuses_a_string_naming_no_state(parser, bad):
         parser(bad)
 
 
-@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
-def test_state_string_to_enums_returns_the_members_parts(member):
-    assert parsing.state_string_to_enums(member.name) == tuple(member.value)
+def _spelled_parts(name: str) -> tuple[CS_vf, CS_d, CS_pxa]:
+    """The parts a state name spells, read from its letters alone."""
+    return (CS_vf[name[:2]], CS_d[name[2]], CS_pxa[name[3:]])
 
 
-@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
-def test_vfd_returns_the_members_vf_and_d_parts(member):
-    assert parsing.vfd(member.name) == (
-        member.value.vf_state,
-        member.value.d_state,
-    )
+_NAMES = [member.name for member in CS]
 
 
-@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
-def test_pxa_returns_the_members_pxa_value(member):
-    assert parsing.pxa(member.name) == member.value.pxa_state.value
+@pytest.mark.parametrize("name", _NAMES)
+def test_state_string_to_enums_returns_the_spelled_parts(name):
+    assert parsing.state_string_to_enums(name) == _spelled_parts(name)
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_vfd_returns_the_spelled_vf_and_d_parts(name):
+    assert parsing.vfd(name) == _spelled_parts(name)[:2]
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_pxa_returns_the_spelled_pxa_value(name):
+    assert parsing.pxa(name) == _spelled_parts(name)[2].value
 
 
 @pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
