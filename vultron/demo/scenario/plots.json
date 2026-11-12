@@ -398,6 +398,10 @@
       },
       {
         "kind": "fragment",
+        "name": "vultron.demo.scenario.rcvcv_demo.fragments.c2_asks_who_else_belongs"
+      },
+      {
+        "kind": "fragment",
         "name": "vultron.demo.scenario.rcvcv_demo.fragments.c2_suggests_the_vendor_deployer"
       },
       {

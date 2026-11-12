@@ -159,6 +159,7 @@ class TestRcvcvStoryShape:
             fragments.seed_the_second_coordinator_and_vendor,
             fragments.c1_invites_the_second_coordinator,
             fragments.required_participants_are_present,
+            fragments.c2_asks_who_else_belongs,
             fragments.c2_suggests_the_vendor_deployer,
             fragments.every_replica_converges,
             fragments.the_joiners_add_their_notes,

@@ -56,7 +56,8 @@ Workflow:
   2. Reporter submits a report to C1; C1 validates and engages.
   3. C1 invites V1 (VENDOR); the Reporter asks, V1 and C1 answer in case
      notes; then C1 invites C2 (COORDINATOR).
-  4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
+  4. C2 asks its participant suggester, which names V2 from the scenario's
+     table; C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
   5. Verify LedgerFanout replication across all five replicas.
   6. C2 and V2 add their notes to the thread.
   7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
