@@ -25,7 +25,8 @@ submodule that looks the patched name up
 (``test/demo_unit/test_story_patch_targets.py``).
 """
 
-from unittest.mock import patch
+from typing import cast
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -268,8 +269,8 @@ class TestC2AsksWhoElseBelongs:
         # The case was read on C2's own container, not on C1's or the
         # CaseActor's: C2 asks about the replica it holds.
         assert client.paths
-        state.client(fragments.C1).get.assert_not_called()
-        state.case_actor_client.get.assert_not_called()
+        cast(MagicMock, state.client(fragments.C1).get).assert_not_called()
+        cast(MagicMock, state.case_actor_client.get).assert_not_called()
 
     @pytest.mark.spec("DEMOMA-19-009")
     def test_c2_suggests_the_actor_the_adapter_answered(self):

@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -99,7 +99,7 @@ class SuggestedActor:
 @contextmanager
 def replica_copy(
     client: DataLayerClient, case_id: str
-) -> Iterator[SqliteDataLayer]:
+) -> Generator[SqliteDataLayer]:
     """A private in-memory copy of *client*'s replica of *case_id*.
 
     Copies the case, and each participant and report it references, from
