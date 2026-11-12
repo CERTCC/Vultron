@@ -283,6 +283,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
 - [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
+- [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md)
 
 ## Proposed ADRs
 
