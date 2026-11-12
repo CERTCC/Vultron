@@ -337,6 +337,11 @@ EXCLUSIONS: Mapping[str, str] = {
         "locally against 2.7 min there. The build-docs skill still runs it "
         "when a docs/ page changes (PAD-18-023)"
     ),
+    _DOCS + "Serve frozen drafts > Serve the frozen drafts into site/spec/": (
+        "CI's docs-build-check job owns it: it writes into the built site, "
+        "which the mirror no longer builds, and downloads each published "
+        "draft release (PAD-18-023, DOCBW-08-035)"
+    ),
     **{
         _SITE + label: (
             "CI's docs-build-check job owns it: it reads the built site, "

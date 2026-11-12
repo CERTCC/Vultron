@@ -91,10 +91,13 @@ PENDING_STATUSES = frozenset(
 _ROLLBACK_TAG_RE = re.compile(r"^(publish-\d{4}-\d{2}-\d{2}\.\d+|v\d\S*)$")
 # The local actions the build job loads from the commit it builds, not from
 # main: a commit without them cannot be built the way every publish is built
-# (DOCBW-06-004), so a rollback to it is refused before anything runs.
+# (DOCBW-06-004), so a rollback to it is refused before anything runs
+# (DOCBW-06-030). The frozen-draft serving step is one of them: a commit
+# older than it cannot serve the released drafts (DOCBW-08-038).
 BUILD_ACTIONS = (
     ".github/actions/setup-python-uv/action.yml",
     ".github/actions/check-site-publication/action.yml",
+    ".github/actions/serve-frozen-drafts/action.yml",
 )
 
 

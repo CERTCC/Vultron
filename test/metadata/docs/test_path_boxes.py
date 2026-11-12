@@ -170,6 +170,23 @@ class TestBuiltSiteCheck:
         assert report.boxes == 6
         assert report.pages == 6
 
+    @pytest.mark.spec("DOCBW-08-036")
+    def test_frozen_draft_pages_are_not_judged(self, site):
+        """A frozen copy of ``a.md`` with no box, and one of ``off.md``
+        rendering another page's box, sit below ``site/spec/`` and break
+        reading-path rules; the check judges only the pages ``docs/``
+        builds, so it still passes, over the same pages."""
+        boxes = _fragments(site)
+        _write(site, "site/spec/draft-1/a/index.html", "<h1>a.md</h1>")
+        _write(
+            site,
+            "site/spec/draft-1/off/index.html",
+            "<h1>off.md</h1>" + boxes[("practice", "a.md")][1],
+        )
+        report = check_boxes(site)
+        assert report.faults == []
+        assert report.pages == 6
+
     def test_a_member_page_with_no_box_names_the_line_to_add(self, site):
         _build(site, {"a.md": []})
         (fault,) = _faults(site)

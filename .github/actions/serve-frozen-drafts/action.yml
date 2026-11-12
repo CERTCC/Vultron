@@ -1,0 +1,45 @@
+name: Serve frozen drafts
+description: >
+  Unpacks each released Protocol Specification draft's frozen archive, taken
+  from its published GitHub Release, into `site/spec/draft-N/`, and writes a
+  placeholder page there for a released draft whose release is not published
+  yet (ADR-0188, DOCBW-08-028 to DOCBW-08-034). Shared by every workflow that
+  serves the frozen drafts (deploy_site.yml, docs-build-check.yml), so the pull
+  request check sees the tree the deploy publishes (DOCBW-08-035). Run it after
+  the shared build and before the publication checks (DOCBW-08-028). The
+  publish workflow's rollback gate refuses a target commit without this action
+  (DOCBW-08-038). The logic lives in .github/scripts/serve_frozen_drafts.py.
+
+inputs:
+  register-json:
+    description: >-
+      The drafts register, as `uv run drafts-register show` prints it. The
+      publish workflow passes main's register (DOCBW-08-027). Empty reads the
+      register of the checked-out commit, as the pull request check does.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # The script only reads releases: both callers give the job a read-only
+    # token. A published release's assets never change, so a mismatch is
+    # taken for a corrupt download and retried once, then fails the step,
+    # and so the run (CISEC-05).
+    - name: Serve the frozen drafts into site/spec/
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        REGISTER_JSON: ${{ inputs.register-json }}
+      run: |
+        register="$RUNNER_TEMP/drafts-register.json"
+        if [ -n "$REGISTER_JSON" ]; then
+          printf '%s\n' "$REGISTER_JSON" > "$register"
+        else
+          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+          # distinguishable by shellcheck, which flags the bare form as SC1007.
+          PYTHONPATH='' uv run drafts-register show > "$register"
+        fi
+        python3 -I .github/scripts/serve_frozen_drafts.py \
+          --register "$register" --site site --repo "$REPO"
