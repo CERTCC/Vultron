@@ -444,9 +444,16 @@ groups:
       A resolution backend can supply a peer's inbox and profile, so a minimal record
       minted without asking it holds less than is available.
     note: >-
-      The bundle is injected, and it is a Retriever call-out (ADR-0024, ADR-0025).
+      The bundle is injected, and it is a Retriever call-out (ADR-0024, ADR-0025). Its
+      sources answer through `ActorResolutionPort`.
     scope:
     - production
+    verification: >-
+      `test/core/use_cases/triggers/test_record_named_peer.py::test_a_resolved_record_of_the_peer_is_stored`
+      checks that a peer the bundle resolves is stored with the resolved record, and
+      `test_real_backend_has_its_ports_when_record_named_peer_ticks_it` in the same file
+      checks the backend finds no peer record in the store when it answers, so the
+      bundle is asked before the record is minted.
   - id: AKM-05-016
     priority: SHOULD
     kind: architecture

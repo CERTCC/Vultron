@@ -12,11 +12,10 @@ tracks:
   - "#2450"
   - "#5415"
   - "#6078"
-  - "#6152"
 description: >
   Design for the capability layer's unbuilt work: the participant-suggestion
-  port's static demo adapter (#6152) and its Sentinel caller (#5415), and the
-  Sentinel call-in pattern (#2450). Also states the
+  port's Sentinel caller (#5415) and the Sentinel call-in pattern (#2450).
+  Also says where the demos' static suggestion adapter runs. Also states the
   call-out time budget rule, routes a design question to a capability, an
   ask, or a call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
   call-out surfaces themselves are defined in call-out-configuration.md.
@@ -245,3 +244,12 @@ models are in `vultron/core/models/participant_suggestion.py`.
   memory are implementation choices behind the port, not part of its contract.
   Affinity memory is the adapter's own store, under the same rule as a
   Retriever cache (BT-18-029), and never enters the case ledger.
+- **The demo's adapter runs in the demo runner, not in an actor container.**
+  `ask_who_else_belongs` (`vultron/demo/helpers/participant_suggestion.py`)
+  copies the asker's replica into a private store, asks the core service with
+  `StaticParticipantSuggester`, then fires the asker's `suggest-actor-to-case`
+  trigger, as an operator-side Sentinel would. Reason: a table configured per
+  container is per-actor config, which runs green in-process and red under
+  Docker (`notes/testing-pitfalls.md`); in the runner both harnesses ask the
+  same adapter (#6152). A scenario names its rows by cast member, one row per
+  role, since actor ids are known only once the cast is seated.

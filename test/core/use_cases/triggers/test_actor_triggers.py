@@ -2673,13 +2673,13 @@ class TestActorResolutionCallOut:
     """Tests for the ActorResolutionCallOutBundle seam (ADR-0024, ADR-0025, AKM-05).
 
     Verifies that the injectable call-out factory:
-    - fires no WARNING with the DETERMINISTIC (AlwaysSucceed) default
+    - fires no WARNING with the DETERMINISTIC default (the bound ceiling)
     - fires a WARNING when a FAILURE backend is injected
     - proceeds in both cases (annotating, not blocking — AC-4)
     """
 
     def test_default_bundle_no_warning_on_missing_invitee(self, caplog):
-        """DETERMINISTIC (AlwaysSucceed) logs at DEBUG; no WARNING emitted."""
+        """The DETERMINISTIC default records the minimal peer; no WARNING."""
         from vultron.core.behaviors.call_out.bundles.actor_resolution import (
             ACTOR_RESOLUTION_DETERMINISTIC,
         )

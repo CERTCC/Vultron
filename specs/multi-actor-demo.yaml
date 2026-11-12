@@ -4170,9 +4170,11 @@ groups:
     - order: 2
       actor: c2
       action: >-
-        c2_suggests_v2 phase — drive the ADR-0026 suggest-actor flow for V2's
-        onboarding (DEMOMA-19-009)
+        c2_suggests_v2 phase — C2 asks its static participant-suggestion
+        adapter who else belongs (BT-24-007), then drives the ADR-0026
+        suggest-actor flow for the V2 it names (DEMOMA-19-009)
       expected: >-
+        the adapter names V2 as VENDOR and DEPLOYER from the scenario's table;
         C2 posts suggest-actor-to-case; C1 posts accept-actor-recommendation;
         CaseActor invites V2; V2 posts accept-case-invite
     - order: 3

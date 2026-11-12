@@ -35,6 +35,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
 | know who else belongs in the case | a participant suggester, asked by [SuggestParticipants](#participant-and-actor-discovery) inside a behavior tree or by a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
+| look up a peer named only by its URI | [ResolveActorDetails](#participant-and-actor-discovery) | Retriever |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -401,7 +402,7 @@ print(
 
 ### Participant and Actor Discovery
 
-*See also: [ADR-0186](../../adr/0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md), [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
+*See also: [ADR-0186](../../adr/0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md), [#1142](https://github.com/CERTCC/Vultron/issues/1142), [Actor Knowledge Model](../actor-knowledge-model.md)*
 
 #### Participant suggestion
 
@@ -430,6 +431,22 @@ With no adapter wired, the default answers with no suggestions, so nobody is sug
 from vultron.metadata.docs.capability_catalog import render_capability_table
 
 print(render_capability_table("participant_suggestion"))
+```
+
+#### Actor resolution
+
+`ResolveActorDetails` looks up a peer that a request names by URI and that the actor holds no record of.
+It answers through one port: give it the peer's id, and it returns the peer's profile as a `CoreActor`.
+A static adapter returns a profile declared up front, for demos and tests.
+A live adapter fetches the profile with a `GET` of the actor URL and validates it.
+The actor records the profile only when its id is the peer's.
+On *no*, on *error*, or with no source wired, it records the peer's URI alone, which is enough to address it (AKM-05-001).
+Resolution never blocks the request that named the peer.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("actor_resolution"))
 ```
 
 ### Threat Monitoring
