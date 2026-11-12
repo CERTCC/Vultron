@@ -346,6 +346,31 @@ class TestAFetchedObjectsUnknownKeys:
         assert "'name'" in message
         assert _FETCHED_ID in message
 
+    @pytest.mark.spec("ARCH-25-008", "MV-11-003")
+    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    def test_a_language_map_is_read_not_set_aside(
+        self,
+        body: dict[str, Any],
+        branch: type,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """``contentMap``, ``nameMap`` and ``summaryMap`` are declared (#4471)."""
+        caplog.set_level(logging.INFO)
+        maps = {
+            "contentMap": {"en": "c"},
+            "nameMap": {"en": "n"},
+            "summaryMap": {"en": "s"},
+        }
+
+        parsed = parse_fetched_object({**body, **maps}, _FETCHED_ID, _HOST)
+
+        assert isinstance(parsed, branch)
+        assert parsed.model_dump(mode="json", by_alias=True).items() >= (
+            maps.items()
+        )
+        for key in maps:
+            assert not _set_aside_records(caplog, key)
+
     @pytest.mark.spec("MV-11-002", "MV-11-003")
     def test_a_nested_object_is_partitioned_too(
         self, caplog: pytest.LogCaptureFixture

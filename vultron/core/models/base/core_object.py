@@ -67,6 +67,10 @@ from vultron.core.models.base.context import (
     is_default_jsonld_context,
     serialize_with_top_level_context,
 )
+from vultron.core.models.base.language_map import (
+    LanguageMap,
+    language_map_field,
+)
 from vultron.core.models.base.record import (
     CoreRecord,
     concrete_type_annotation,
@@ -178,6 +182,13 @@ class CoreObject(CoreRecord):
     bcc: "CoreObjectOrIriValues" = None
     audience: "CoreObjectOrIriValues" = None
     attributed_to: NonEmptyString | None = None
+    # The natural-language map forms of ``content``, ``name`` and ``summary``
+    # (AS2 Core section 4.7), declared so the parse edge reads them rather
+    # than setting them aside (ARCH-25-008).  Empty by default; an empty map
+    # is left out of every dump.
+    content_map: LanguageMap = language_map_field()
+    name_map: LanguageMap = language_map_field()
+    summary_map: LanguageMap = language_map_field()
 
     context_: JsonLdContext | None = Field(
         default=None,

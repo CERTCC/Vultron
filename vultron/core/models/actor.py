@@ -21,6 +21,7 @@ from typing import Any, Literal, Self, TypeAlias, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from vultron.core.models._helpers import is_empty
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
@@ -50,11 +51,6 @@ def endpoint_uri(endpoint: Any) -> str | None:
         return None
     raw = getattr(endpoint, "id_", None) or getattr(endpoint, "id", None) or ""
     return str(raw).strip() or None
-
-
-def _no_keys(keys: list[Multikey]) -> bool:
-    """Leave ``assertionMethod`` out of a dump that would carry no key."""
-    return not keys
 
 
 #: An ActivityPub actor's ``endpoints``: the IRI of an endpoints object, or the
@@ -117,7 +113,7 @@ class CoreActor(CoreObject):
 
     assertion_method: list[Multikey] = Field(
         default_factory=list,
-        exclude_if=_no_keys,
+        exclude_if=is_empty,
         description=(
             "The public keys that verify this actor's proofs, each a"
             " Multikey whose controller is this actor (ENC-01-002). The"

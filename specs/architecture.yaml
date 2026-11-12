@@ -2809,13 +2809,15 @@ groups:
     verification: >-
       `test_as2_vocabulary_properties_are_declared_on_both_roots` in
       `test/architecture/test_hierarchy_invariants.py` asserts a fixed list of the AS2 Object
-      and Activity properties, `bto`, `bcc`, `icon` and `image` included, is declared on
+      and Activity properties, `bto`, `bcc`, `icon`, `image` and the natural-language maps
+      `contentMap`, `nameMap` and `summaryMap` included, is declared on
       `CoreObject`, `as_Object`, `VultronActivity` and `as_TransitiveActivity`;
       `test_core_object_declares_every_as2_object_field` in the same file asserts every key
       the wire `as_Object` dumps is a declared `CoreObject` field;
       `test_vultron_activity_accepts_every_wire_activity_key` in
       `test/adapters/driving/fastapi/test_outbox_helpers.py` asserts the same of every wire
-      activity against `VultronActivity`.
+      activity against `VultronActivity`; `test/wire/as2/test_language_maps.py` asserts a
+      received language map is read, not set aside, and round-trips through the DataLayer.
     adr:
     - ADR-0099
     relationships:
