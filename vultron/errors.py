@@ -533,7 +533,8 @@ class VultronActClockInstalledError(VultronWiringError):
     """Raised when an act clock is installed while another install is active.
 
     The scoped install of the act clock does not nest: two recorded runs in
-    one block would read one clock and move each other's times (ADR-0176).  A composition fault, never a protocol outcome.
+    one block would read one clock and move each other's times (ADR-0176).
+    A composition fault, never a protocol outcome.
     """
 
 

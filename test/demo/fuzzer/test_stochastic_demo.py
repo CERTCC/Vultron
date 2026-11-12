@@ -98,13 +98,13 @@ def test_each_embargo_tree_tick_is_one_act(monkeypatch):
     from datetime import UTC, datetime
 
     from test.support.act_clock import CountingClock
+    from vultron.adapters.driven.clock import install_act_clock
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.demo.fuzzer import stochastic_demo
 
     first = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
     second = datetime(2026, 3, 1, 12, 1, tzinfo=UTC)
     clock = CountingClock(first, second)
-    monkeypatch.setattr(stochastic_demo, "SystemClock", lambda: clock)
 
     seen: list[object] = []
     original = BTBridge.execute_with_setup
@@ -115,7 +115,8 @@ def test_each_embargo_tree_tick_is_one_act(monkeypatch):
 
     monkeypatch.setattr(BTBridge, "execute_with_setup", recording)
 
-    stochastic_demo._run_embargo_full_tree(n_ticks=2)
+    with install_act_clock(clock):
+        stochastic_demo._run_embargo_full_tree(n_ticks=2)
 
     assert clock.reads == 2
     assert clock.locked_at_read == [True, True]
