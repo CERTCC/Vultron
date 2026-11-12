@@ -326,7 +326,7 @@ class TestScan:
         assert list(scan.ids) == ["y"]
 
     def test_a_class_merely_containing_the_name_is_not_a_box(self):
-        scan = scan_page('<article><table class="reading-path-table">')
+        scan = scan_page('<article><div class="reading-path-tile">')
         assert scan.boxes == []
 
 

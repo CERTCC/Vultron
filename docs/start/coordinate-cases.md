@@ -91,9 +91,6 @@ Each section builds on the ones before it; read a numbered list in order and a b
 
 {% include-markdown "../includes/lookup_link.md" %}
 
-[Read What Is Vultron?](../topics/background/what-is-vultron.md){ .md-button .md-button--primary }
-[Adopt Vultron in your program](../howto/adopt_vultron.md){ .md-button }
-
 {% include-markdown "./_paths/coordinate-cases/start__coordinate-cases.md" %}
 
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
