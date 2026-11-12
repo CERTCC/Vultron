@@ -1553,10 +1553,10 @@ groups:
         kind: project
         statement: >-
           Each draft of the Protocol Specification MUST have exactly one entry
-          in the drafts register `docs/reference/vultron-spec/drafts.yaml`,
-          which gives its version `draft-N`, its status (unreleased or
-          released), its date and, once released, the `v*` tag of the release
-          that carries it.
+          in the drafts register `docs/reference/vultron-spec/drafts.yaml`.
+          The entry gives the draft's version `draft-N`, its status
+          (unreleased or released) and its date. A released entry also gives
+          the `v*` tag of the release that carries the draft.
         rationale: >-
           The promote workflow, the deploy and the pages must agree on which
           drafts are released and by which release. Facts that are written in
@@ -1652,12 +1652,12 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          When the drafts register at the chosen publish's commit names the
-          release tag that a promote run creates, or whose draft release it
-          opens under DOCBW-07-010, as the release of `draft-N`, the promote workflow MUST attach
-          the archive `vultron-spec-draft-N.tar.gz` and its manifest
-          `vultron-spec-draft-N.sha256` to that release while the release is a
-          draft.
+          The promote workflow MUST attach the archive
+          `vultron-spec-draft-N.tar.gz` and its manifest
+          `vultron-spec-draft-N.sha256` to the release while it is a draft,
+          when the drafts register at the chosen publish's commit names that
+          release as the release of `draft-N`. The release is the one the run
+          creates, or the one it opens under DOCBW-07-010.
         rationale: >-
           A published release is immutable, so the archive must be attached
           before the maintainer publishes it. The promote is the one step that
@@ -1702,9 +1702,9 @@ groups:
         kind: project
         statement: >-
           The promote workflow MUST refuse the run, and create no tag, when the
-          drafts register at the chosen publish's commit names as a draft's
-          release a tag that does not exist and is not the tag that the run
-          would create.
+          drafts register at the chosen publish's commit names an unmade tag
+          as a draft's release. An unmade tag is one that does not exist and
+          is not the tag that the run would create.
         rationale: >-
           The register is edited before the promote and predicts the tag name.
           When the prediction is wrong, for example because the promote moved
@@ -1792,10 +1792,10 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Every page of the DOCBW-08-006 archive MUST carry a banner that names
-          the draft version, the release tag, the full commit SHA and the UTC
-          build date, and that says its links outside the specification go to
-          the live site, which changes.
+          Every page of the DOCBW-08-006 archive MUST carry a banner. The
+          banner names the draft version, the release tag, the full commit SHA
+          and the UTC build date. It also says that the page's links outside
+          the specification go to the live site, which changes.
         rationale: >-
           A reader who opens a frozen page must see which text it is and how to
           cite it, and must not take a linked page of the live site for part of
@@ -2020,8 +2020,8 @@ groups:
         statement: >-
           For each released draft whose release is still a draft, the
           DOCBW-08-020 step MUST write a placeholder page at
-          `site/spec/draft-N/index.html` that names the release, and MUST name
-          the draft in the run summary.
+          `site/spec/draft-N/index.html` that names the release, and name the
+          draft in the run summary.
         rationale: >-
           The register marks a draft released before its release is published,
           and the pages link the frozen copy from then on. The placeholder
