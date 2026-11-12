@@ -2545,18 +2545,15 @@ groups:
     kind: project
     statement: >-
       The decision seam MUST NOT make the deciding actor's answer wait on
-      another actor's approval. `EvaluateEmbargoProposal` alone decides
-      whether the accept arm runs, whether or not the deciding actor holds
-      `CVDRole.CASE_OWNER`.
+      another actor's approval. Only `EvaluateEmbargoProposal` decides whether
+      the accept arm runs, whether or not the deciding actor is the Case Owner.
     rationale: >-
-      The answer is the deciding actor's own. A participant's Accept or Reject
-      of an embargo Invite records only its own consent row (CM-18, ADR-0122),
-      so the Case Owner has nothing to approve. A gate that asks another actor
-      for a decision is a protocol ask, not a call-out point (BT-18-014). The
-      CASE_MANAGER never runs this seam for its own consent, which
-      `record_manager_embargo_consent_tree` records. A gate where the Case
-      Owner delegates embargo activation to the CASE_MANAGER belongs on the
-      CASE_MANAGER's activation path (#6045), not in this seam.
+      A participant's answer to an embargo Invite records only its own consent
+      row (CM-18, ADR-0122), so the Case Owner has nothing to approve. A gate
+      that asks another actor for a decision is a protocol ask, not a call-out
+      point (BT-18-014). The CASE_MANAGER never runs this seam for its own
+      consent. A gate where the Case Owner delegates activation to the
+      CASE_MANAGER belongs on the CASE_MANAGER's activation path (#6045).
     verification: >-
       In `test/core/behaviors/embargo/test_response_decision_tree.py`,
       `TestAcceptArm::test_accept_arm_has_two_children` and
