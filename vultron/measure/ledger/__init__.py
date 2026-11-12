@@ -72,6 +72,7 @@ from vultron.measure.ledger.names import (
     friendly_actor_name,
     friendly_object_label,
     friendly_target_noun,
+    label_names,
 )
 from vultron.measure.ledger.phrases import (
     MISSING_SLOT,
@@ -114,6 +115,7 @@ __all__ = [
     "friendly_actor_name",
     "friendly_object_label",
     "friendly_target_noun",
+    "label_names",
     "log_index_of",
     "payload_of",
     "read_case_ledgers",

@@ -298,6 +298,27 @@ def display_label(
     return friendly_actor_name(ref)
 
 
+def label_names(
+    replicas: Mapping[str, Iterable[Mapping[str, Any]]],
+) -> dict[str, str]:
+    """The display name of every id a row may name (DRPT-03-003).
+
+    An actor's ``name`` from the payloads (:func:`collect_actor_names`), and
+    for each ``CaseParticipant`` id the label of the actor it stands for
+    (:func:`collect_participant_actors`), so a reader that labels a
+    reference through :func:`display_label` with this map names a
+    participant by its actor.  The case-history dump and the demo report
+    both label through it (CEH-01-006, DRPT-03-009).
+    """
+    actor_names = collect_actor_names(replicas)
+    participants = {
+        participant: display_label(actor, "Actor", actor_names)
+        or UNNAMED_ACTOR
+        for participant, actor in collect_participant_actors(replicas).items()
+    }
+    return participants | actor_names
+
+
 @dataclass(frozen=True)
 class EntryReferences:
     """The object and destination one ledger entry's activity names.

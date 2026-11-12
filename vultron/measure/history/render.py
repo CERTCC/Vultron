@@ -48,14 +48,12 @@ from vultron.measure.history.model import (
 )
 from vultron.measure.ledger import (
     MISSING_SLOT,
-    UNNAMED_ACTOR,
     CaseLedger,
     UnusableRow,
     actor_uri,
-    collect_actor_names,
-    collect_participant_actors,
     display_label,
     entry_references,
+    label_names,
     payload_of,
     read_case_ledgers,
     render_event_phrase,
@@ -188,24 +186,6 @@ def _gaps_cell(timed: Mapping[str, Any], event: CaseEvent) -> str:
     if event.deadline is not None:
         parts.append(f"deadline {timed['deadline']}")
     return ", ".join(parts) or MISSING_SLOT
-
-
-def label_names(
-    replicas: Mapping[str, Iterable[Mapping[str, Any]]],
-) -> dict[str, str]:
-    """The display name of every id a row may name (DRPT-03-003).
-
-    An actor's ``name`` from the payloads, through the shared resolver
-    (:func:`~vultron.measure.ledger.collect_actor_names`), and for each
-    ``CaseParticipant`` id the label of the actor it stands for.
-    """
-    actor_names = collect_actor_names(replicas)
-    participants = {
-        participant: display_label(actor, "Actor", actor_names)
-        or UNNAMED_ACTOR
-        for participant, actor in collect_participant_actors(replicas).items()
-    }
-    return participants | actor_names
 
 
 def event_row(
