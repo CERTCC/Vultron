@@ -2481,8 +2481,8 @@ groups:
       revisions separately rather than block coordination. A deterministic
       accept-by-default keeps actors runnable without a human in the loop, and
       the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
-      acceptance as an Evaluator call-out point preserves the seam for later
-      owner/agent adjudication without changing the tree.
+      acceptance as an Evaluator call-out point lets the deciding actor's own UI
+      or agent policy decide later without changing the tree.
     note: >-
       The seam's default is accept; it does not decide whether the seam runs. For a
       relayed revision Invite the Case Owner's answer is its own (EP-09-005, EP-09-006),
