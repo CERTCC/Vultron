@@ -31,6 +31,9 @@ How does each released draft stay readable, unchanged, at one permanent address 
 - A draft's number, status, date and release must be stated in one place, so the pages and the release automation never disagree.
 - Immutable releases are enabled on the repository: once a GitHub Release is published, nothing can add, change or remove its assets.
   A published release therefore holds an asset that never changes, and an asset can be attached only while the release is still a draft.
+  The lock covers only the tag and the assets: GitHub still lets a maintainer edit the title and notes of a published immutable release.
+  A draft release is not yet immutable and can be deleted; a deleted published immutable release's tag name can never be used again.
+- The maintainer reviews a release's notes before anyone sees the release, and publishes it by hand.
 - A workflow that pushes a commit or opens a pull request with the default token starts no other workflow, so the change it makes would merge with no CI run, or would need a new credential.
 - The site tooling changes over time, and a later toolchain can render the same source differently.
 - Frozen per-release documentation on Zensical's native versioning (#3559) waits on a Zensical release that is not expected before the review.
@@ -42,9 +45,18 @@ How does each released draft stay readable, unchanged, at one permanent address 
 3. **Rebuild each released draft from its tag at every deploy.** The deploy checks out each release tag that carries a draft and builds its specification pages again.
 4. **A frozen copy of the whole site for each release.** Each release keeps its own copy of the entire site, under a versioned path, as #3559 proposes.
 
+Within the first option, three ways to keep a release from being published without its archive were weighed:
+
+1. **Order the promote's steps.** The promote builds and checks the archive before any draft release exists, creates the draft release with the archive attached, and deletes it again if the upload fails; the maintainer publishes by hand, as today.
+2. **The promote publishes the release itself.** The run attaches the archive and then publishes, and the maintainer edits the notes afterwards.
+3. **An environment approval gate.** The run waits for a maintainer's approval in a protected environment, then publishes.
+
 ## Decision Outcome
 
 Chosen option: "Archive attached at promote, unpacked at every deploy", because it is the only option that renders each draft once, keeps the result where nothing can change it, and needs no new credential.
+Within it, "Order the promote's steps" is chosen, because the maintainer must review the notes before the release is published, and the ordering alone closes the window in which a draft release exists without its archive.
+"The promote publishes the release itself" would publish notes that no one had reviewed.
+"An environment approval gate" adds a second approval surface and an environment to maintain, and still needs the same ordering to keep the draft complete.
 
 The decision has these parts:
 
@@ -62,13 +74,15 @@ The decision has these parts:
   Links inside the specification stay relative and work offline.
   Links that leave the specification point to the live site, and the banner says so: the frozen copy does not freeze the rest of the site.
   The job that builds the archive cannot write to the repository, and the job that can write runs no code from the promoted commit.
-  Before it attaches anything, the promote unpacks the real archive and checks its links and its manifest, because a defect found after publication can never be fixed.
-  It attaches the archive and a SHA-256 manifest of its files to the release while the release is still a draft, and checks that what was attached is what it built.
   A release that carries no draft gets neither file.
-- **Attached once, before publication.** A promote that is run again on a release that is still a draft finishes its assets, where today's promote would refuse a tag that already has a release.
-  It keeps a complete pair, and replaces an incomplete one as a whole.
-  Once the release is published, its assets are immutable, so the promote refuses, and says that a re-run cannot help.
-  The maintainer publishes the draft release only after the promote run has succeeded.
+- **Ordered so that a draft release always carries its archive.** The promote builds the archive and a SHA-256 manifest of its files, unpacks the real archive and checks its links and its manifest, all before it pushes the tag or creates any release.
+  It then creates the draft release with the archive and the manifest attached, in the same step, and checks that what was attached is what it built.
+  If the upload or that check fails, the run deletes the draft release it created; the tag stays, because tags are never deleted, and a draft release is not immutable, so its deletion costs nothing.
+  A run that fails at any point therefore leaves no draft release for the maintainer to publish.
+  A re-run finds either a complete draft release, and says it is waiting to be published, or none, and does everything again for the tag it finds.
+  A draft release left incomplete by a run stopped from outside is deleted by the next run; no path completes the assets of an existing draft.
+  The maintainer then reviews and edits the generated notes and publishes the draft release by hand, as before.
+  A published release whose archive is missing can arise only if the maintainer publishes a draft that a stopped run left behind; the promote then refuses and says that a re-run cannot help.
 - **Served by every deploy, never rebuilt.** Every deploy reads the register as `main` holds it and, for each released draft whose release is published, downloads the archive, checks it against its manifest and unpacks it into `spec/draft-N/`.
   The unpack refuses any member that could write outside that folder, and runs in the job that holds no token to write or deploy.
   No build ever builds a commit other than the one it checked out, so a toolchain change cannot alter a frozen draft.
@@ -84,7 +98,7 @@ The decision has these parts:
 ### Relation to ADR-0171 and #3559
 
 This decision builds on ADR-0171 and changes none of its parts: the schedule, the CI gate, the tags and the rollback stay as they are.
-The promote that ADR-0171 introduced gains the archive step and a wider resume for a release that is still a draft, and every publish gains the unpack step.
+The promote that ADR-0171 introduced gains the archive step, ordered before its draft release exists, and every publish gains the unpack step.
 
 Issue #3559 is about the whole site, versioned for each release.
 This decision covers only the Protocol Specification, one frozen copy for each released draft.
@@ -97,18 +111,19 @@ If #3559 later versions the whole site, the `spec/draft-N/` addresses must keep 
 - Good, because the draft status is written once, and the pages, the promote and the deploy all read it from the register.
 - Good, because a toolchain change, a new site rule or a rollback cannot alter or drop a frozen draft.
 - Good, because the archive is also a download that a reviewer can read offline.
+- Good, because every draft release a maintainer can publish already carries its archive, so the manual publish step needs no new rule.
 - Bad, because a published release whose archive is missing or broken cannot be repaired in place: an immutable release refuses a new asset.
-  Every deploy fails until a maintainer acts.
-  The promote prevents the case, but the maintainer can still publish a draft release before its promote run has succeeded.
+  The ordering prevents the case, but if a maintainer publishes a draft release that a stopped run left behind, every deploy fails loudly until the case is resolved.
+  The recovery would be a reviewed change decided at that time.
 - Bad, because the pull-request check and every deploy download the frozen drafts, so a GitHub outage can fail a build that changed nothing.
 - Bad, because the frozen pages keep the look of their release day, and their links to the live site can reach pages that have since changed or moved.
 - Bad, because the link check still judges the frozen pages, so a stricter link checker added later can fail a page that can never change.
   Such a change must then exempt the frozen pages, or keep their old rule.
-- Neutral, because a release that carries no draft is promoted exactly as before.
+- Neutral, because a release that carries no draft is promoted and published exactly as before.
 
 ## Validation
 
-Tests of the promote run it against a fixture repository and check that a release the register names for a draft gets the archive and the manifest, that any other release gets neither, that every frozen page carries the banner, that its relative links resolve inside the archive and its other links name the live site, that a re-run on a draft release finishes or keeps the pair, and that a register naming the wrong tag is refused.
+Tests of the promote run it against a fixture repository and check that a release the register names for a draft gets the archive and the manifest, that any other release gets neither, that every frozen page carries the banner, that its relative links resolve inside the archive and its other links name the live site, that no draft release ever exists without its archive, that a failed upload deletes the draft release and keeps the tag, that a re-run finds a complete draft release or rebuilds it, and that a register naming the wrong tag is refused.
 Tests of the deploy unpack fixture archives and check that a published draft is served byte for byte as its manifest lists it, that an unpublished one gets a placeholder and a notice, that an unsafe or mismatched archive is refused, and that a missing archive fails the run.
 The specs that this decision generated name each test.
 
@@ -135,6 +150,23 @@ The specs that this decision generated name each test.
 - Bad, because a tag whose build no longer works, as for releases that lack the build's local actions, drops its draft from the site.
 - Bad, because each released draft adds a full build to every deploy.
 
+### Order the promote's steps
+
+- Good, because the maintainer still reviews the notes before the release is published.
+- Good, because no draft release exists without its archive, so nothing new depends on the maintainer's timing.
+- Bad, because a run stopped from outside can still leave an incomplete draft release until the next run deletes it.
+
+### The promote publishes the release itself
+
+- Good, because no manual step remains, so no draft release waits to be published.
+- Bad, because the release and its notes become public before a human has reviewed the notes; editing them afterwards does not undo what readers and watchers already saw.
+
+### An environment approval gate
+
+- Good, because a maintainer approves before anything is published.
+- Bad, because it adds a protected environment and a second place to approve, while the release notes are still reviewed on the release itself.
+- Bad, because the run still needs the same ordering to keep the draft release complete, so the gate adds nothing that the ordering does not already give.
+
 ### A frozen copy of the whole site for each release
 
 - Good, because a reader of a release sees every page as it was, not only the specification.
@@ -146,5 +178,5 @@ The specs that this decision generated name each test.
 
 Generated spec requirements: `docs-build-workflow.yaml` DOCBW-08-001 through DOCBW-08-036.
 
-Open question: how the site recovers when a published release lacks its archive, or holds one that fails its manifest, is not decided yet.
-Until it is, every deploy fails in that case.
+The ordering of the promote's steps was decided by the maintainer on 2026-11-12 (#6284).
+The facts about immutable releases are from GitHub's documentation of immutable releases: only the assets and the tag are locked, the title and notes of a published immutable release stay editable, and a deleted immutable release's tag name cannot be reused.

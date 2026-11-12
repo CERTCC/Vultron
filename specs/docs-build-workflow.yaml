@@ -1546,7 +1546,10 @@ groups:
       publication workflow and the review workflow serve the released drafts
       from those archives. Immutable releases are enabled on the repository,
       so a published release's assets never change, and an asset can be
-      attached only while the release is a draft. A release is published when
+      attached only while the release is a draft. The promote builds and checks
+      the archive before any draft release exists, and creates the draft
+      release with its assets attached, so every draft release a maintainer
+      can publish already carries them. A release is published when
       GitHub reports a release for its tag that is not a draft.
     specs:
       - id: DOCBW-08-001
@@ -1719,20 +1722,22 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The promote workflow MUST attach the archive
+          When the drafts register at the chosen publish's commit names the
+          run's release as the release of `draft-N`, the promote workflow MUST
+          create that draft release with the archive
           `vultron-spec-draft-N.tar.gz` and its manifest
-          `vultron-spec-draft-N.sha256` to the run's release while it is a
-          draft, when the drafts register at the chosen publish's commit names
-          that release as the release of `draft-N`.
+          `vultron-spec-draft-N.sha256` attached, in the step that creates it.
         rationale: >-
-          A published release is immutable, so the archive must be attached
-          before the maintainer publishes it. The promote is the one step that
-          knows both the release and its commit, so the frozen copy needs no
-          manual step.
+          A published release is immutable, and the maintainer publishes the
+          draft by hand after reviewing its notes. A draft release that existed
+          without its assets could be published in that state, and could then
+          never get them. The promote is the one step that knows both the
+          release and its commit, so the frozen copy needs no manual step.
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` promote a fixture publish
           whose register names the new tag as a draft's release, and check that
-          the draft release has both files.
+          the release is created as a draft with both files, and that no state
+          is observed in which the draft release exists without them.
         lint_suppress:
           - phantom_path_ref
         adr:
@@ -1973,17 +1978,19 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Before it attaches the DOCBW-08-009 assets, the promote workflow MUST
-          unpack the built archive into an empty folder and fail the run when
-          that tree breaks DOCBW-08-015 or does not match the manifest.
+          Before it pushes the release tag or creates the release, the promote
+          workflow MUST unpack the built DOCBW-08-009 archive into an empty
+          folder and fail the run when that tree breaks DOCBW-08-015 or does not
+          match the manifest.
         rationale: >-
-          Tests cover the archive builder on fixtures, not the real archive.
-          Once the maintainer publishes the release its assets cannot change,
-          so a defect must stop the run while the release is still a draft.
+          Tests cover the archive builder on fixtures, not the real archive. A
+          defect found before anything exists leaves nothing behind, and a
+          defect found after publication can never be fixed.
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` give the promote an archive
           with a relative reference that leaves it, and one that does not match
-          its manifest, and check that each fails before any asset is attached.
+          its manifest, and check that each fails with no new tag and no
+          release.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -1995,10 +2002,11 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Before the run succeeds, the promote workflow MUST check that the
-          attached DOCBW-08-009 assets are byte-identical to the built ones.
+          After it creates the DOCBW-08-009 draft release, the promote workflow
+          MUST check that the attached assets are byte-identical to the built
+          ones.
         rationale: >-
-          The maintainer publishes the release once the run is green, and a
+          The maintainer publishes a draft release once its run is green, and a
           published asset can never be replaced, so a truncated upload must
           fail the run while the release is still a draft.
         verification: >-
@@ -2014,19 +2022,66 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          When the chosen publish's commit carries the latest `v*` tag, made by
-          the promote workflow, whose release is still a draft and which the
-          drafts register names as a draft's release, the promote workflow
-          MUST complete that release's DOCBW-08-009 assets instead of refusing.
+          When the upload of a DOCBW-08-009 asset or the DOCBW-08-022 check
+          fails, the promote workflow MUST delete the draft release it created
+          before the run ends.
         rationale: >-
-          A run that pushed the tag and opened the draft release can fail
-          before the assets are attached. DOCBW-07-010 resumes only a tag with
-          no release, so without this rule every re-run would be refused and
-          the release would never get its archive.
+          A draft release left without its matching assets could be published
+          by hand and then never repaired. A draft release is not yet
+          immutable, so deleting it is safe, and the tag stays: DOCBW-07-009
+          forbids deleting it, and a re-run then resumes it under DOCBW-07-010.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` start the promote on a
-          fixture repository whose latest tag has a draft release with no
-          assets, and check that the run attaches the pair and creates no tag.
+          Tests in `test/ci/test_frozen_drafts.py` make the upload fail, and
+          make the check fail, and check that afterwards the tag exists and no
+          release does.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-022
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-024
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register names the run's release as a draft's release
+          and that release is a draft with a matching DOCBW-08-009 pair, the
+          refusal of DOCBW-07-016 MUST say that the draft release is complete
+          and waiting for the maintainer to publish it.
+        rationale: >-
+          A re-run after a green run has nothing to do. The message tells the
+          maintainer to publish rather than to look for a failure.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` run the promote twice on a
+          fixture repository and check that the second run refuses with that
+          message and leaves the release and its assets unchanged.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-016
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
+      - id: DOCBW-08-025
+        priority: MUST
+        kind: project
+        statement: >-
+          When the chosen publish's commit carries the latest `v*` tag, made by
+          the promote workflow, whose release is a draft that the drafts
+          register names as a draft's release and that lacks a matching
+          DOCBW-08-009 pair, the promote workflow MUST delete that draft
+          release and continue as DOCBW-07-010 states.
+        rationale: >-
+          A run stopped from outside, for example by a cancelled runner, can
+          leave a draft release before DOCBW-08-023 deletes it. The re-run
+          removes it, so the draft release a maintainer sees again carries its
+          assets, and no path ever completes the assets of an existing draft.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` start the promote with a
+          draft release that has only the archive, and with a mismatched pair,
+          and check that the run deletes it and creates a new draft release
+          with a matching pair, and creates no tag.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2034,49 +2089,9 @@ groups:
             spec_id: DOCBW-07-016
           - rel_type: uses_definition
             spec_id: DOCBW-08-009
-      - id: DOCBW-08-024
-        priority: MUST_NOT
-        kind: project
-        statement: >-
-          A DOCBW-08-023 run that finds both DOCBW-08-009 files attached, and
-          the archive matching the manifest, MUST NOT replace either file.
-        rationale: >-
-          A re-run resumes the earlier run, it does not rebuild. A rebuilt
-          archive would carry another build date, so it would differ from the
-          pair a reviewer may already have downloaded.
-        verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` run the promote twice on a
-          fixture repository and check that the second run leaves the assets
-          unchanged.
-        lint_suppress:
-          - phantom_path_ref
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-08-023
-          - rel_type: uses_definition
-            spec_id: DOCBW-08-009
-      - id: DOCBW-08-025
-        priority: MUST
-        kind: project
-        statement: >-
-          A DOCBW-08-023 run that finds only one DOCBW-08-009 file attached, or
-          an archive that does not match the attached manifest, MUST replace
-          both files with a newly built pair.
-        rationale: >-
-          A run that failed between the two uploads leaves a pair that the
-          deploy would refuse. While the release is a draft, its assets can
-          still change, so the re-run repairs the pair as a whole.
-        verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` start the promote with only
-          the archive attached, and with a mismatched pair, and check that a
-          matching pair is attached afterwards.
-        lint_suppress:
-          - phantom_path_ref
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-08-023
-          - rel_type: uses_definition
-            spec_id: DOCBW-08-009
+        see_also:
+          - spec_id: DOCBW-07-010
+            reason: 'the resume of a tag with no release that the run continues as'
       - id: DOCBW-08-026
         priority: MUST
         kind: project
@@ -2086,8 +2101,10 @@ groups:
           the refusal of DOCBW-07-016 MUST say that the published release
           cannot take the archive.
         rationale: >-
-          An immutable release refuses a new asset, so the maintainer must
-          learn that a re-run cannot help, rather than read a generic refusal.
+          The ordering of DOCBW-08-021 to DOCBW-08-025 prevents this case, but a
+          maintainer can still publish a draft release that a stopped run had
+          not yet deleted. An immutable release refuses a new asset, so the
+          maintainer must learn that a re-run cannot help.
           The rule is limited to the run's own release, so an older release
           never blocks the promote of a newer one.
         verification: >-
