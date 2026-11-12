@@ -5,10 +5,11 @@ kind: guidance
 description: >
   Rules for the shared source/markdown corpus behind test/architecture/
   ratchets, for ratchets that start from a live object, for applying the
-  prefilter per definition rather than per file, for stating whether each
-  loose reading can miss a violation or invent one, for the two meta-ratchets
-  that police the gates themselves — one corpus, and every `xfail` strict —
-  and for baselines: owner markers and the
+  prefilter per definition rather than per file, for the two TB-13-004 time
+  tiers, for stating whether each loose reading can miss a violation or
+  invent one (and trading an inventing reading for a missing one), for the
+  two meta-ratchets that police the gates themselves — one corpus, and every
+  `xfail` strict — and for baselines: owner markers and the
   ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
@@ -100,11 +101,11 @@ rather than from a file scan. Two rules keep them inside TB-13:
 - **Pause the collector around an AST-heavy derivation.** Each allocation
   threshold during a large parse triggers a collection that walks the whole
   pytest heap. `@_corpus.gc_paused()` on the derivation, plus a per-process
-  `functools.cache`, leaves every test after the first at nil cost. It does
-  not bring the first one under the TB-13-004 budget: a derivation that parses
-  a few hundred modules costs seconds, and the heaviest ratchets are already
-  over the SHOULD. State the measured figure in the module docstring rather
-  than implying the budget is met (`_guard_reachability.py`).
+  `functools.cache`, leaves every test after the first at nil cost, which is
+  what TB-13-004's 0.5 s tier measures. The first reader pays the derivation,
+  which TB-13-004 holds to its 10 s tier instead: one that parses a few hundred
+  modules costs seconds. State the measured figure in the module docstring
+  (`_guard_reachability.py`).
 
 To find the names that *may* reach a target without parsing, use
 `_corpus.names_reaching(seeds, under=...)`: a text-only fixed point that follows
@@ -158,10 +159,12 @@ claims one-sidedness for all of them stops anyone looking.
 Where a reading cannot be narrowed without resolving bindings or intent, say so
 rather than dropping it from the list, and say whether the package holds an
 instance today: a reader meeting a red arm needs to know which of its subjects
-were never the thing the arm names. Arm B of the guard-reachability derivation
-reads "refuses" more widely than "refuses the caller's input", and some of its
-live subjects are optional steps that raise for another reason
-(`_guard_reachability.py`, #3156).
+were never the thing the arm names. Where a reading that invents can be traded
+for one that misses, trade it: arm B of the guard-reachability derivation counts
+a delegated refusal only when the branch hands the gating parameter itself to a
+callee that tests it, so a refuser handed a derived value now reads as refusing
+nothing rather than an optional step reading as a gate
+(`_guard_reachability.py`, #5896).
 
 ## Key a Ratchet on the Act, Not on the Name of What Performs It
 

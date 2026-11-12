@@ -39,8 +39,8 @@ happening:
    (:func:`~vultron.wire.as2.factories.sender_sequence_case_ids`), so a new
    semantic is covered without an edit here.  The use case runs up to its
    one tree execution (ADR-0135), which is captured, not run.  Building the
-   39 use cases costs about a second, over TB-13-004's 0.5 s SHOULD; the
-   builds are cached so the checks share one.
+   39 use cases costs about a second, inside TB-13-004's 10 s tier for a
+   cached derivation; the builds are cached so the checks share one.
 """
 
 import ast
