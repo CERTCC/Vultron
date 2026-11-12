@@ -83,3 +83,22 @@ def test_every_parser_refuses_a_string_naming_no_state(parser, bad):
 @pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
 def test_state_string_to_enums_returns_the_members_parts(member):
     assert parsing.state_string_to_enums(member.name) == tuple(member.value)
+
+
+@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
+def test_vfd_returns_the_members_vf_and_d_parts(member):
+    assert parsing.vfd(member.name) == (
+        member.value.vf_state,
+        member.value.d_state,
+    )
+
+
+@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
+def test_pxa_returns_the_members_pxa_value(member):
+    assert parsing.pxa(member.name) == member.value.pxa_state.value
+
+
+@pytest.mark.parametrize("member", list(CS), ids=lambda m: m.name)
+def test_state_string_to_enum2_spells_the_state(member):
+    parts = parsing.state_string_to_enum2(member.name)
+    assert "".join(str(p) for p in parts) == member.name

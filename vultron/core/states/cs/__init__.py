@@ -41,6 +41,7 @@ from vultron.core.states.cs.machine import (
 )
 from vultron.core.states.cs.parsing import (
     all_states,
+    cs_state,
     pxa,
     state_string_to_enum2,
     state_string_to_enums,
@@ -116,6 +117,7 @@ __all__ = [
     "VfState",
     "VfTransition",
     "all_states",
+    "cs_state",
     "create_pxa_machine",
     "is_d_fix_deployed",
     "is_monotonic_d_forward",

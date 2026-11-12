@@ -26,6 +26,8 @@ catches an indirect import through a module outside ``vultron/core/states/``.
 
 import ast
 
+import pytest
+
 from test.architecture import _corpus
 from test.support.fresh_imports import loaded_under
 
@@ -34,37 +36,55 @@ _LEGACY = "vultron.core.case_states"
 _STATES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "states"
 
 
-def _module_name(path) -> str:
-    relative = path.relative_to(_corpus.REPO_ROOT).with_suffix("")
-    parts = list(relative.parts)
-    if parts[-1] == "__init__":
-        parts.pop()
-    return ".".join(parts)
+def _imports_legacy(tree: ast.AST, package: str) -> bool:
+    return any(
+        name == _LEGACY or name.startswith(f"{_LEGACY}.")
+        for name in _corpus.imported_modules(tree, package)
+    )
 
 
-def _imported_names(path, tree: ast.AST) -> set[str]:
-    """Every module *tree* imports, relative imports resolved against *path*."""
-    package = _module_name(path).split(".")
-    if path.name != "__init__.py":
-        package.pop()
-    found: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            found.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            base = (
-                package[: len(package) - node.level + 1] if node.level else []
-            )
-            module = ".".join([*base, *(node.module or "").split(".")]).strip(
-                "."
-            )
-            found.add(module)
-            found.update(f"{module}.{alias.name}" for alias in node.names)
-    return found
+#: A module inside ``vultron/core/states/cs/`` and the package's own
+#: ``__init__``, the two places a relative import resolves from.
+_IN_CS = "vultron.core.states.cs"
+_IN_STATES = "vultron.core.states"
 
 
-def _is_legacy(name: str) -> bool:
-    return name == _LEGACY or name.startswith(f"{_LEGACY}.")
+@pytest.mark.parametrize(
+    ("source", "package"),
+    [
+        ("import vultron.core.case_states", _IN_CS),
+        ("import vultron.core.case_states.validations as v", _IN_CS),
+        (
+            "from vultron.core.case_states.validations import is_valid_state",
+            _IN_CS,
+        ),
+        ("from vultron.core import case_states", _IN_CS),
+        (
+            "def f():\n    from vultron.core.case_states import patterns\n",
+            _IN_CS,
+        ),
+        ("from ...case_states.validations import ensure_valid_state", _IN_CS),
+        ("from ... import case_states", _IN_CS),
+        ("from ..case_states import validations", _IN_STATES),
+        ("from .. import case_states", _IN_STATES),
+    ],
+)
+def test_the_detector_catches_each_import_shape(source, package):
+    assert _imports_legacy(_corpus.parse_inline(source), package)
+
+
+@pytest.mark.parametrize(
+    ("source", "package"),
+    [
+        ("import vultron.core.case_states_other", _IN_CS),
+        ("from vultron.core import case_statesx", _IN_CS),
+        ("x = 'vultron.core.case_states'", _IN_CS),
+        ("from .. import case_states", _IN_CS),
+        ("from . import case_states", _IN_STATES),
+    ],
+)
+def test_the_detector_ignores_near_misses(source, package):
+    assert not _imports_legacy(_corpus.parse_inline(source), package)
 
 
 def test_no_states_module_imports_the_legacy_case_state_package():
@@ -73,18 +93,9 @@ def test_no_states_module_imports_the_legacy_case_state_package():
     offending = sorted(
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         for path, tree in trees
-        if any(_is_legacy(name) for name in _imported_names(path, tree))
+        if _imports_legacy(tree, _corpus.package_of(path))
     )
     assert offending == []
-
-
-def test_relative_imports_resolve_to_the_legacy_package():
-    """The check above sees a relative import of the legacy package too."""
-    path = _STATES_ROOT / "cs" / "parsing.py"
-    tree = ast.parse(
-        "from ...case_states.validations import ensure_valid_state"
-    )
-    assert any(_is_legacy(name) for name in _imported_names(path, tree))
 
 
 def test_importing_states_loads_no_legacy_case_state_module():

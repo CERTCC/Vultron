@@ -295,6 +295,47 @@ def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     return ast.parse(source, filename=filename)
 
 
+def package_of(path: Path) -> str:
+    """The dotted package a module at *path* (under the repo root) belongs to.
+
+    ``a/b.py`` and ``a/__init__.py`` both belong to package ``a``, which is
+    what a relative import in either resolves against.
+    """
+    parts = path.relative_to(REPO_ROOT).with_suffix("").parts
+    return ".".join(parts[:-1])
+
+
+def resolve_import(module: str, level: int, package: str) -> str:
+    """The absolute module a ``from`` import names, resolving a relative one.
+
+    *level* is the import's leading-dot count and *package* the importing
+    module's package (:func:`package_of`).
+    """
+    if level == 0:
+        return module
+    base = package.split(".")
+    base = base[: len(base) - (level - 1)] if level > 1 else base
+    return ".".join([*base, module] if module else base)
+
+
+def imported_modules(tree: ast.AST, package: str) -> frozenset[str]:
+    """Every absolute name an ``import`` statement anywhere in *tree* names.
+
+    Deferred imports inside a function count, relative imports are resolved
+    against *package*, and ``from m import n`` yields both ``m`` and ``m.n``,
+    so ``from vultron.core import case_states`` names the package it imports.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = resolve_import(node.module or "", node.level, package)
+            found.add(module)
+            found.update(f"{module}.{alias.name}" for alias in node.names)
+    return frozenset(found)
+
+
 def callee_name(func: ast.expr) -> str | None:
     """The bare name a call's ``func`` names: ``f`` for ``f()`` and
     ``m.f()``, ``None`` for any other callee."""

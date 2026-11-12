@@ -22,9 +22,16 @@ loads (CEH-05-008, #6328) share this one probe.
 """
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterable
+from pathlib import Path
+
+#: The checkout this helper lives in; the probe runs from its root, so the
+#: ``vultron`` it imports is this checkout's, never another on the caller's
+#: working directory or ``PYTHONPATH``.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def loaded_under(imports: Iterable[str], packages: Iterable[str]) -> list[str]:
@@ -52,6 +59,8 @@ def loaded_under(imports: Iterable[str], packages: Iterable[str]) -> list[str]:
     )
     out = subprocess.run(
         [sys.executable, "-c", probe],
+        cwd=_REPO_ROOT,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
         check=True,
         capture_output=True,
         text=True,

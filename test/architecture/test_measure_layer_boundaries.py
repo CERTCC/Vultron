@@ -57,22 +57,6 @@ def _names_measure(name: str) -> bool:
     return name == _MEASURE or name.startswith(_MEASURE + ".")
 
 
-def _package_of(path: Path) -> str:
-    """The dotted package a module at *path* (under the repo root) belongs to."""
-    parts = path.relative_to(_corpus.REPO_ROOT).with_suffix("").parts
-    # ``a/b.py`` and ``a/__init__.py`` both belong to package ``a``.
-    return ".".join(parts[:-1])
-
-
-def _resolve(module: str, level: int, package: str) -> str:
-    """The absolute module a ``from`` import names, resolving a relative one."""
-    if level == 0:
-        return module
-    base = package.split(".")
-    base = base[: len(base) - (level - 1)] if level > 1 else base
-    return ".".join([*base, module] if module else base)
-
-
 def _string_arg(call: ast.Call, position: int, keyword: str) -> str | None:
     """A string-literal argument of *call*, by keyword or position."""
     for kw in call.keywords:
@@ -99,7 +83,9 @@ def _measure_imports(tree: ast.AST, package: str) -> list[int]:
     lines: list[int] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            module = _resolve(node.module or "", node.level, package)
+            module = _corpus.resolve_import(
+                node.module or "", node.level, package
+            )
             if _names_measure(module) or any(
                 _names_measure(f"{module}.{alias.name}")
                 for alias in node.names
@@ -114,7 +100,9 @@ def _measure_imports(tree: ast.AST, package: str) -> list[int]:
                 continue
             anchor = _string_arg(node, 1, "package") or package
             level = len(name) - len(name.lstrip("."))
-            if _names_measure(_resolve(name.lstrip("."), level, anchor)):
+            if _names_measure(
+                _corpus.resolve_import(name.lstrip("."), level, anchor)
+            ):
                 lines.append(node.lineno)
     return lines
 
@@ -162,8 +150,11 @@ def test_the_import_detector_ignores_near_misses(source):
 
 def test_a_module_package_is_its_directory():
     root = _corpus.REPO_ROOT
-    assert _package_of(root / "vultron/core/a/b.py") == "vultron.core.a"
-    assert _package_of(root / "vultron/core/a/__init__.py") == "vultron.core.a"
+    assert _corpus.package_of(root / "vultron/core/a/b.py") == "vultron.core.a"
+    assert (
+        _corpus.package_of(root / "vultron/core/a/__init__.py")
+        == "vultron.core.a"
+    )
 
 
 @pytest.mark.spec("CEH-01-001")
@@ -172,7 +163,7 @@ def test_no_protocol_path_module_imports_the_measure_layer():
         f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}:{line}"
         for root in _PROTOCOL_ROOTS
         for path, tree in _corpus.files_mentioning("measure", under=root)
-        for line in _measure_imports(tree, _package_of(path))
+        for line in _measure_imports(tree, _corpus.package_of(path))
     )
     assert not violations, (
         "The protocol path must not import the measurement layer "
