@@ -23,6 +23,15 @@ on:
       # The shared build (DOCBW-06-004) and the environment it installs.
       - '.github/actions/build-site/**'
       - '.github/actions/setup-python-uv/**'
+      # Serves the released drafts' frozen pages into the built site
+      # (DOCBW-08-035), and the scripts it runs.
+      - '.github/actions/serve-frozen-drafts/**'
+      - '.github/scripts/serve_frozen_drafts.py'
+      - '.github/scripts/frozen_draft.py'
+      - '.github/scripts/release.py'
+      - '.github/scripts/release_tags.py'
+      - '.github/scripts/publish_gate.py'
+      - '.github/scripts/gh_cli.py'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
       - 'LICENSE.md'
@@ -51,6 +60,13 @@ jobs:
       # DOCBW-03-009, DOCBW-03-010).
       - name: Build Site
         uses: ./.github/actions/build-site
+
+      # The tree the deploy publishes: each released draft's frozen pages at
+      # spec/draft-N/, or its placeholder, from the drafts register of the
+      # checked-out commit (DOCBW-08-035). Before the publication checks, so
+      # the link check covers the frozen pages (DOCBW-08-028).
+      - name: Serve frozen drafts
+        uses: ./.github/actions/serve-frozen-drafts
 
       # Runs against the built site above, so it must follow that step: no
       # withheld artifact was built, every internal reference resolves, and

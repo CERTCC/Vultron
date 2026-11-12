@@ -47,7 +47,7 @@ class _ActivityEventNode(DataLayerConditionWithPorts):
         super().initialise()
         try:
             self.activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.activity = None
 
 

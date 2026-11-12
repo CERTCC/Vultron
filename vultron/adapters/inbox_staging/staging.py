@@ -151,7 +151,7 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
                 if isinstance(entry, (str, dict))
             ]
         store.create(record)
-    except (VultronValidationError, ValidationError):
+    except VultronValidationError, ValidationError:
         # A shape/projection failure, NOT an "already exists" collision — the
         # object cannot be held in the canonical core shape at all (#2232).
         # Under ``extra="forbid"`` (#2940) that can surface as a bare Pydantic

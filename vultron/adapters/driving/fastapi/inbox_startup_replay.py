@@ -263,7 +263,7 @@ async def replay_hosted_inbox_queues(
 
 def start_startup_inbox_replay(
     emitter: ActivityEmitter | None,
-) -> "asyncio.Task[int]":
+) -> asyncio.Task[int]:
     """Start the startup replay as a task beside the server (IE-06-006).
 
     A task, not an await before the lifespan yields: the replay runs every
@@ -275,7 +275,7 @@ def start_startup_inbox_replay(
 
 
 async def finish_startup_inbox_replay(
-    task: "asyncio.Task[int] | None",
+    task: asyncio.Task[int] | None,
 ) -> None:
     """Wait for the startup replay at shutdown, if one was started.
 

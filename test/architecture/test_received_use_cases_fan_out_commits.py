@@ -33,12 +33,12 @@ dispatcher-side link (every semantic's factory supplies the port) is pinned in
 """
 
 import ast
-import inspect
 from collections.abc import Callable
 
 import pytest
 
 from test.architecture import _corpus
+from test.support.signatures import signature_of
 from vultron.semantic_registry import use_case_map
 
 _RECEIVED_ROOT = (
@@ -96,7 +96,7 @@ def test_every_received_use_case_accepts_sync_port():
     missing = sorted(
         uc.__name__
         for uc in set(use_case_map().values())
-        if "sync_port" not in inspect.signature(uc).parameters
+        if "sync_port" not in signature_of(uc).parameters
     )
     assert missing == [], (
         f"received use cases that do not accept sync_port: {missing}"

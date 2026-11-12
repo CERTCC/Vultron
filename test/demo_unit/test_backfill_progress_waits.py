@@ -33,6 +33,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
+from test.support.signatures import signature_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.routers.datalayer import (
     get_datalayer_contents,
@@ -121,7 +122,7 @@ class _Store:
             datalayer=self.dl, types=list(received._RECEIVED_ACTIVITY_TYPES)
         )
 
-    def invite_poll(self) -> "_PollReads":
+    def invite_poll(self) -> _PollReads:
         """Both reads one Invite poll makes, as of now."""
         return _PollReads(self.invite_dump(), self.ledger_collection())
 
@@ -403,9 +404,8 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         )
 
     def test_the_ceiling_defaults_to_the_backfill_ceiling(self):
-        import inspect
 
-        params = inspect.signature(find_full_case_invite_for_actor).parameters
+        params = signature_of(find_full_case_invite_for_actor).parameters
         assert params["progress_ceiling"].default == BACKFILL_PROGRESS_CEILING
 
 

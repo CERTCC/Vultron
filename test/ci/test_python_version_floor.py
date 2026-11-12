@@ -118,4 +118,4 @@ def test_docker_base_image_runs_the_floor_or_later() -> None:
 
 @pytest.mark.spec("IMPLTS-01-001")
 def test_floor_meets_the_minimum_the_spec_names() -> None:
-    assert _as_tuple(_requires_python_floor()) >= (3, 13)
+    assert _as_tuple(_requires_python_floor()) >= (3, 14)

@@ -91,7 +91,7 @@ def _rekey_wire_identity(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dehydrate_data(
-    data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
+    data: dict[str, Any], obj: PersistableModel | BaseModel | None = None
 ) -> dict[str, Any]:
     """Replace generic object-reference fields with their ID string.
 
@@ -179,7 +179,7 @@ def _dehydrate_data(
     return result
 
 
-def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
+def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
     """Return a specific-typed instance for one inline ref field, or ``None``.
 
     Returns ``None`` when *raw* is not an inline typed dict, the type is a base
@@ -220,8 +220,8 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
 
 
 def _retype_inline_object_refs(
-    obj: "BaseModel", data: dict[str, Any]
-) -> "BaseModel":
+    obj: BaseModel, data: dict[str, Any]
+) -> BaseModel:
     """Re-type inline object-reference fields to their specific vocab class.
 
     Base-vocabulary reconstruction (``find_in_vocabulary(type_).model_validate``)
@@ -254,7 +254,7 @@ def _retype_inline_object_refs(
         return obj
     try:
         return obj.model_copy(update=updates)
-    except (ValidationError, TypeError):
+    except ValidationError, TypeError:
         return obj
 
 

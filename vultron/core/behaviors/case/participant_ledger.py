@@ -53,7 +53,7 @@ def commit_case_participant_created(
     actor_id: str,
     case_id: str,
     participant: CaseParticipant,
-    trigger_activity: "TriggerActivityPort",
+    trigger_activity: TriggerActivityPort,
     at: datetime,
 ) -> None:
     """Commit ``Create(CaseParticipant)`` for the record just created."""
@@ -77,7 +77,7 @@ def commit_participant_status_added(
     case_id: str,
     participant: CaseParticipant,
     status: ParticipantStatus,
-    trigger_activity: "TriggerActivityPort",
+    trigger_activity: TriggerActivityPort,
     at: datetime,
 ) -> None:
     """Commit ``Add(ParticipantStatus)`` for the status just appended."""

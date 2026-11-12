@@ -201,7 +201,7 @@ class RelayEmbargoInviteToEachNode(
         embargo_id: str,
         proposer_id: str,
         name: str | None = None,
-        actor_config: "ActorConfig | None" = None,
+        actor_config: ActorConfig | None = None,
         *,
         answers: str | None = None,
     ) -> None:
@@ -234,7 +234,7 @@ class RelayEmbargoInviteToEachNode(
             self._sync_port = cast(
                 "SyncActivityPort | None", self.get_input("sync_port")
             )
-        except (py_trees.ports.NoDataAvailable, NotImplementedError):
+        except py_trees.ports.NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def _load_relay_inputs(self) -> None:

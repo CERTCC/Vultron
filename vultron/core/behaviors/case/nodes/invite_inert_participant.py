@@ -89,7 +89,7 @@ def validated_invitee_roles(raw: list | tuple | None) -> list[CVDRole]:
         return list(raw)
     try:
         return validate_roles(list(raw))
-    except (TypeError, ValueError, KeyError):
+    except TypeError, ValueError, KeyError:
         return []
 
 
@@ -339,7 +339,7 @@ class CreateInertInviteeParticipantNode(_SeatInertInviteeBase):
             return
         try:
             self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def _invitee(self) -> str:

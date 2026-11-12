@@ -197,7 +197,7 @@ class ParticipantStatus(CoreObject):
         return data
 
     @model_validator(mode="after")
-    def _validate_rm_backward_step(self) -> "ParticipantStatus":
+    def _validate_rm_backward_step(self) -> ParticipantStatus:
         """Refuse invalid RM transitions at construction time (AC-1, ISSUE-3199).
 
         Fires only when the caller supplies ``previous_rm_state``; the check is
@@ -229,7 +229,7 @@ class ParticipantStatus(CoreObject):
         return coerce_cvd_roles(v)
 
     @model_validator(mode="after")
-    def _set_name(self) -> "ParticipantStatus":
+    def _set_name(self) -> ParticipantStatus:
         """Derive the human-readable ``name`` label from the dimension states.
 
         ``name`` is an optional AS2 property carrying a display label, not

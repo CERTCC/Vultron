@@ -254,7 +254,7 @@ class CallSite:
     positional_count: int
 
     @classmethod
-    def unreadable(cls, path: str, lineno: int) -> "CallSite":
+    def unreadable(cls, path: str, lineno: int) -> CallSite:
         """A reference through which the name is called somewhere unseen.
 
         ``functools.partial(_check, limit=5)``, ``check = _check``,

@@ -6,8 +6,6 @@ dispatch entries. This is the primitive building block imported by both
 (ordering guard and registry entries).
 """
 
-from typing import Union
-
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
@@ -52,13 +50,13 @@ class ActivityPattern(BaseModel):
     strict: bool = False
     accepts_bare_object: bool = False
 
-    to_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
-    object_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
-    target_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
-    context_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
+    to_: AOtype | VOtype | ActivityPattern | None = None
+    object_: AOtype | VOtype | ActivityPattern | None = None
+    target_: AOtype | VOtype | ActivityPattern | None = None
+    context_: AOtype | VOtype | ActivityPattern | None = None
 
     @model_validator(mode="after")
-    def _strict_needs_target(self) -> "ActivityPattern":
+    def _strict_needs_target(self) -> ActivityPattern:
         """Refuse ``strict`` on a pattern with no ``target_`` to govern."""
         if self.strict and self.target_ is None:
             raise ValueError(
@@ -119,7 +117,7 @@ class InlineActivityObjectPattern(ActivityPattern):
     after every pattern that nests a specific activity (SE-03-002).
     """
 
-    object_: Union[AOtype, VOtype, "ActivityPattern"] | None = AOtype.ACTIVITY
+    object_: AOtype | VOtype | ActivityPattern | None = AOtype.ACTIVITY
     excluded_object_verbs: frozenset[TAtype | IAtype] = Field(
         default_factory=frozenset
     )

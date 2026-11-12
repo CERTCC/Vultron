@@ -69,8 +69,8 @@ class InviteActorToFullCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: InviteActorToFullCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -137,8 +137,8 @@ class _FullCaseInviteReplyReceivedUseCase:
             | RejectInviteActorToFullCaseReceivedEvent
         ),
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -228,8 +228,8 @@ class AcceptInviteActorToFullCaseReceivedUseCase(
         dl: CaseOutboxPersistence,
         request: AcceptInviteActorToFullCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(
             dl, request, sync_port, trigger_activity, wire_render_port
@@ -249,8 +249,8 @@ class TentativeRejectInviteActorToFullCaseReceivedUseCase(
         dl: CaseOutboxPersistence,
         request: TentativeRejectInviteActorToFullCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(
             dl, request, sync_port, trigger_activity, wire_render_port
@@ -270,8 +270,8 @@ class RejectInviteActorToFullCaseReceivedUseCase(
         dl: CaseOutboxPersistence,
         request: RejectInviteActorToFullCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(
             dl, request, sync_port, trigger_activity, wire_render_port

@@ -456,6 +456,6 @@ def test_a_deployer_only_participant_gets_no_actions_for_an_invalid_cs_state():
 
     try:
         result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
-    except (VultronValidationError, StateValidationError):
+    except VultronValidationError, StateValidationError:
         return
     assert result.cs_state[:3] in _VALID_VFD

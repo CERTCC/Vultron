@@ -68,9 +68,9 @@ class AddReportToCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AddReportToCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._trigger_activity = trigger_activity
@@ -162,9 +162,9 @@ class CloseCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: CloseCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
         actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl

@@ -106,7 +106,7 @@ class ActorHoldsRoleInCaseNode(DataLayerConditionWithPorts):
         self._case_id_bb = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def update(self) -> Status:

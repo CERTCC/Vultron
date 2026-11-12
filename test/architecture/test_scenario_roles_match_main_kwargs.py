@@ -40,12 +40,12 @@ consolidation this one follows.
 """
 
 import importlib
-import inspect
 from collections.abc import Sequence
 from typing import cast
 
 import pytest
 
+from test.support.signatures import signature_of
 from vultron.demo.helpers.actor_roles import ActorRole, role_kwarg_names
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
@@ -57,7 +57,7 @@ def _scenario_main_kwargs(main) -> tuple[str, ...]:
     """Role-contributed keyword parameters of a scenario ``main()``, in order."""
     return tuple(
         name
-        for name, param in inspect.signature(main).parameters.items()
+        for name, param in signature_of(main).parameters.items()
         if name not in _NON_ROLE_KWARGS
         and param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
     )
@@ -98,7 +98,7 @@ def test_scenario_main_takes_skip_health_check(spec: ScenarioSpec) -> None:
     ``TypeError``.
     """
     module = importlib.import_module(spec.module_name)
-    params = inspect.signature(module.main).parameters
+    params = signature_of(module.main).parameters
     assert "skip_health_check" in params, (
         f"{spec.module_name}.main() takes no skip_health_check parameter, but "
         "the CLI factory generates a --skip-health-check option for every "

@@ -224,7 +224,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
         super().initialise()
         try:
             self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._suggested_roles_bb = None
 
     def _read_suggested_roles(self) -> list[CVDRole]:

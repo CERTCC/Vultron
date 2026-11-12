@@ -116,7 +116,7 @@ def create_validate_report_subtree(
     offer_id: str,
     *,
     sender_actor_id: str | None = None,
-    call_out: "ValidationCallOutBundle | None" = None,
+    call_out: ValidationCallOutBundle | None = None,
     captured: dict | None = None,
     emit: bool = True,
     name: str = "ValidateReportBT",
@@ -237,7 +237,7 @@ def create_validate_report_tree(
     report_id: str,
     offer_id: str,
     captured: dict | None = None,
-    call_out: "ValidationCallOutBundle | None" = None,
+    call_out: ValidationCallOutBundle | None = None,
     sender_actor_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the trigger-side behavior tree for the report validation workflow.

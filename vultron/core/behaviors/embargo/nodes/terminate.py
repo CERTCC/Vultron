@@ -172,7 +172,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+    def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
         if self.actor_id == self.case_manager_id:
             raise VultronWiringError(
                 f"{self.name}: the CASE_MANAGER '{self.actor_id}' reached the"

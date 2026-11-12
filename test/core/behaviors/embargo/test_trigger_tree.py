@@ -87,7 +87,7 @@ def _top_level_children(
 
 
 @pytest.fixture
-def dummy_embargo() -> "as_EmbargoEvent":
+def dummy_embargo() -> as_EmbargoEvent:
     return make(
         as_EmbargoEvent,
         id_=EMBARGO_ID,

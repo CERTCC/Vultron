@@ -100,7 +100,7 @@ class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
         super().initialise()
         try:
             self.activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.activity = None
 
     def _get_entry(self):  # type: ignore[return]

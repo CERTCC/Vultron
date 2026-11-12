@@ -27,7 +27,7 @@ class AddCaseParticipantToCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def participant(self) -> "CaseParticipant | None":
+    def participant(self) -> CaseParticipant | None:
         return cast("CaseParticipant | None", self.object_)
 
     @property
@@ -35,7 +35,7 @@ class AddCaseParticipantToCaseReceivedEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)
 
 
@@ -51,7 +51,7 @@ class RemoveCaseParticipantFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def participant(self) -> "CaseParticipant | None":
+    def participant(self) -> CaseParticipant | None:
         return cast("CaseParticipant | None", self.object_)
 
     @property
@@ -59,7 +59,7 @@ class RemoveCaseParticipantFromCaseReceivedEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)
 
 

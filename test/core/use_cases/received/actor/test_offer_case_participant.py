@@ -1349,7 +1349,7 @@ class TestRolesFromStoredOffer:
 
     def _seed_and_store_offer(
         self, roles: list
-    ) -> tuple[SqliteDataLayer, "AcceptOfferCaseParticipantReceivedEvent"]:
+    ) -> tuple[SqliteDataLayer, AcceptOfferCaseParticipantReceivedEvent]:
         """Seed a DataLayer as the CaseActor would: store the Offer that was sent."""
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,

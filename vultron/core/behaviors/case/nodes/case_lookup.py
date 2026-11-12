@@ -97,7 +97,7 @@ class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {"case_id": "/case_id"}
 
-    def _find_case(self, report_id: str) -> "VulnerabilityCase | None":
+    def _find_case(self, report_id: str) -> VulnerabilityCase | None:
         """The lookup subclasses narrow; the rest of ``update`` is shared."""
         assert self.datalayer is not None
         return self.datalayer.find_case_by_report_id(report_id)

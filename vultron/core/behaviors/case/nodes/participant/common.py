@@ -170,7 +170,7 @@ def resolve_participant_pxa_state(
             return pxa_state
     try:
         current_status = case.current_status
-    except (AttributeError, ValueError):
+    except AttributeError, ValueError:
         return CS_pxa.pxa
     case_pxa = getattr(getattr(current_status, "pxa", None), "state", None)
     return case_pxa if isinstance(case_pxa, CS_pxa) else CS_pxa.pxa
@@ -268,7 +268,7 @@ def resolve_transition_context_or_report(
     dl: CasePersistence,
     case: VulnerabilityCase,
     participant_id: str,
-) -> "ParticipantTransitionContext | Status":
+) -> ParticipantTransitionContext | Status:
     """Resolve the transition context, or report a shape mismatch as FAILURE.
 
     ``resolve_participant_state_from_dl`` raises when the participant's latest
@@ -310,14 +310,14 @@ def validate_participant_status_write(
     *,
     case_id: str,
     actor_id: str,
-    rm_state: "RM | None",
-    vf_state: "CS_vf | None",
-    d_state: "CS_d | None",
-    pxa_state: "CS_pxa | None",
+    rm_state: RM | None,
+    vf_state: CS_vf | None,
+    d_state: CS_d | None,
+    pxa_state: CS_pxa | None,
     result_out: dict | None,
     validate_rm_transition: bool = True,
     rm_rule: RMRule = RMRule.TRANSITION,
-) -> "Status | None":
+) -> Status | None:
     """Validate a proposed ``ParticipantStatus`` write and report every failure.
 
     The single entry point every node that validates such a write goes through

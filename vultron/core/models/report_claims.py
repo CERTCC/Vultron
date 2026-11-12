@@ -134,7 +134,7 @@ class ClaimedAcknowledgment(_ClaimsModel):
     summary: NonEmptyString | None = None
 
     @model_validator(mode="after")
-    def _states_something(self) -> "ClaimedAcknowledgment":
+    def _states_something(self) -> ClaimedAcknowledgment:
         if not (self.names or self.organization or self.summary):
             raise ValueError("an acknowledgment names no one and says nothing")
         return self
@@ -317,7 +317,7 @@ class ClaimsReading(_ClaimsModel):
     skipped: list[SkippedClaim] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _verdict_matches_errors(self) -> "ClaimsReading":
+    def _verdict_matches_errors(self) -> ClaimsReading:
         if (self.schema_verdict is SchemaVerdict.SCHEMA_VALID) == bool(
             self.schema_errors
         ):
@@ -389,7 +389,7 @@ class SubmittedCsafDocument(_ClaimsModel):
     reading: ClaimsReading
 
     @model_validator(mode="after")
-    def _reading_is_of_the_attachment(self) -> "SubmittedCsafDocument":
+    def _reading_is_of_the_attachment(self) -> SubmittedCsafDocument:
         if self.reading.document_id != self.attachment.id_:
             raise ValueError(
                 f"the reading names document {self.reading.document_id!r},"
@@ -519,13 +519,13 @@ class ReportClaimsRecord(CoreRecord):
 
     def with_outcome(
         self, path: str, outcome: ClaimOutcome
-    ) -> "ReportClaimsRecord":
+    ) -> ReportClaimsRecord:
         """Return a copy recording *outcome* for the value at *path*."""
         return self.with_outcomes({path: outcome})
 
     def with_outcomes(
         self, outcomes: Mapping[str, ClaimOutcome]
-    ) -> "ReportClaimsRecord":
+    ) -> ReportClaimsRecord:
         """Return a copy recording each outcome of *outcomes* at its path.
 
         Raises:
@@ -542,14 +542,14 @@ class ReportClaimsRecord(CoreRecord):
         self,
         case_split: CaseSplitSignal | None,
         candidate_parties: CandidatePartiesSignal | None,
-    ) -> "ReportClaimsRecord":
+    ) -> ReportClaimsRecord:
         """Return a copy holding *case_split* and *candidate_parties*."""
         return self._copy_with(
             case_split_signal=case_split,
             candidate_parties_signal=candidate_parties,
         )
 
-    def _copy_with(self, **changes: object) -> "ReportClaimsRecord":
+    def _copy_with(self, **changes: object) -> ReportClaimsRecord:
         """A validated copy with *changes*, so no assignment skips validation."""
         return type(self)(**{**self.model_dump(), **changes})
 

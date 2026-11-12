@@ -167,7 +167,7 @@ def _has_attributed_to_with_save_in_update(source_path: Path) -> bool:
     try:
         source = source_path.read_text(encoding="utf-8")
         tree = _corpus.parse_inline(source, filename=str(source_path))
-    except (OSError, SyntaxError):
+    except OSError, SyntaxError:
         return False
     return _has_attributed_to_with_save_in_update_tree(tree)
 
