@@ -15,10 +15,7 @@ Fans out the newly committed ledger entry to each active participant.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        announce_case_ledger_entry,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(announce_case_ledger_entry()))
+    print(render_example("announce_case_ledger_entry"))
     ```

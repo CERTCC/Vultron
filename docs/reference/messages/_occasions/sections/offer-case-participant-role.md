@@ -16,10 +16,7 @@ Offers one role on the case to the participant named by the target. The CASE_MAN
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        offer_case_participant_role,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(offer_case_participant_role()))
+    print(render_example("offer_case_participant_role"))
     ```

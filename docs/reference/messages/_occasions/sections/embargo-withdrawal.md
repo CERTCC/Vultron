@@ -16,10 +16,7 @@ Ends the sender's own consent to the embargo in force, and to any revision it ha
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        withdraw_from_embargo,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(withdraw_from_embargo()))
+    print(render_example("withdraw_from_embargo"))
     ```

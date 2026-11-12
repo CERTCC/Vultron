@@ -16,10 +16,7 @@ Adds a vulnerability report to the case named by the target.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        add_report_to_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(add_report_to_case()))
+    print(render_example("add_report_to_case"))
     ```

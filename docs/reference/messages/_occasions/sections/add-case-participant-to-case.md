@@ -16,10 +16,7 @@ Asks the CASE_MANAGER to reinstate the participant record named by the object. T
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        add_coordinator_participant_to_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(add_coordinator_participant_to_case()))
+    print(render_example("add_coordinator_participant_to_case"))
     ```

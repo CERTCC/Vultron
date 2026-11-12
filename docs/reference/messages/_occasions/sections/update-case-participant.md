@@ -17,10 +17,7 @@ Carries the changed participant record in full, as the CASE_MANAGER stored it.
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        update_participant,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(update_participant()))
+    print(render_example("update_participant"))
     ```

@@ -17,10 +17,7 @@ Records the sender's own refusal of the proposed terms. The proposal is rejected
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        reject_embargo,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(reject_embargo()))
+    print(render_example("reject_embargo"))
     ```

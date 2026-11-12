@@ -17,10 +17,7 @@ Closes the report, moving the sender's RM state to Closed. Once a case holds the
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        close_report,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(close_report()))
+    print(render_example("close_report"))
     ```

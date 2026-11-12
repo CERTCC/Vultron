@@ -13,10 +13,7 @@
     ??? example "Example activity"
 
         ```python exec="true" idprefix=""
-        from vultron.wire.as2.vocab.examples.vocab_examples import (
-            relay_embargo_proposal,
-            json2md,
-        )
+        from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-        print(json2md(relay_embargo_proposal()))
+        print(render_example("relay_embargo_proposal"))
         ```

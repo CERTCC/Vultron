@@ -17,10 +17,7 @@ Asks the CASE_MANAGER to invite the actor named by the object to the case named 
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        request_invite_actor_to_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(request_invite_actor_to_case()))
+    print(render_example("request_invite_actor_to_case"))
     ```

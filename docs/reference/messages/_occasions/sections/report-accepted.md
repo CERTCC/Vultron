@@ -17,10 +17,7 @@ Joins the case, moving the sender's RM state to Accepted. Engaging is a case-par
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        engage_case,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(engage_case()))
+    print(render_example("engage_case"))
     ```

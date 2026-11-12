@@ -19,10 +19,7 @@ Tells the active participants other than the CASE_MANAGER and any Closed Partici
 === "Example activity"
 
     ```python exec="true" idprefix=""
-    from vultron.wire.as2.vocab.examples.vocab_examples import (
-        announce_embargo_termination,
-        json2md,
-    )
+    from vultron.wire.as2.vocab.examples.vocab_examples import render_example
 
-    print(json2md(announce_embargo_termination()))
+    print(render_example("announce_embargo_termination"))
     ```
