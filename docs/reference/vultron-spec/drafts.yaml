@@ -19,5 +19,6 @@
 # (DOCBW-08-003). Open the next draft as a new unreleased entry.
 drafts:
   - version: draft-1
-    status: unreleased
+    status: released
     date: 2026-11-06
+    release: v2026.11.0
