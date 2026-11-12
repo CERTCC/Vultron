@@ -238,23 +238,6 @@ def friendly_target_noun(target_type: str | None) -> str | None:
     return " ".join(w.lower() for w in words) if words else target_type.lower()
 
 
-def friendly_object_label(
-    obj_type: str | None, obj_ref: str | None
-) -> str | None:
-    """Return a friendly label for a target object.
-
-    Actor-like types (Organization, Actor, …) are resolved via
-    :func:`friendly_actor_name` using their URI so the label reads "Vendor"
-    rather than "organization".  All other types fall back to
-    :func:`friendly_target_noun`.
-    """
-    if not obj_type:
-        return friendly_actor_name(obj_ref) if obj_ref else None
-    if obj_type in ACTOR_LIKE_TYPES:
-        return friendly_actor_name(obj_ref)
-    return friendly_target_noun(obj_type)
-
-
 def _is_opaque(ref: str) -> bool:
     """Whether *ref* holds no readable word: a URN, or a UUID last segment."""
     if ref.lower().startswith("urn:"):
