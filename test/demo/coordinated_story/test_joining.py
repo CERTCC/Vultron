@@ -247,6 +247,12 @@ class TestInviteeJoinsTheCase:
             )
             stubs.chain.call_args.kwargs["then"]()
 
+        # The roster's timeout, and nothing else, is what the gate recorded.
+        assert demo_failures() == (
+            f"GATE FAILED: {COORDINATOR_LABEL} case reflects 3 participants"
+            " after Joiner joined — roster never filled",
+        )
+        stubs.roster.assert_called_once()
         with pytest.raises(
             DemoStoryError, match="no case the test joiner joined yet"
         ):

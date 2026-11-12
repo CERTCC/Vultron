@@ -26,6 +26,7 @@ import pytest
 
 from test.demo._helpers import (
     mock_case,
+    recorded_labels,
     recorded_milestone_reads,
     story_state,
 )
@@ -47,11 +48,7 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
 )
-from vultron.demo.utils.check_tree import (
-    CheckKind,
-    recording_checks,
-    walk,
-)
+from vultron.demo.utils.check_tree import CheckKind
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
@@ -180,15 +177,11 @@ class TestCoordinatedMilestones:
             recorded_milestone_reads(
                 state, coordinated_continuations, _FIX_READY_READS
             ) as reads,
-            recording_checks() as recorder,
+            recorded_labels(CheckKind.CHECK) as checks,
         ):
             vendor_reports_the_fix_ready(state)
 
-        labels = [
-            node.label
-            for node in walk(recorder.tree())
-            if node.kind is CheckKind.CHECK and node.label.startswith("M")
-        ]
+        labels = [label for label in checks if label.startswith("M")]
         assert len(labels) == 2, labels
         assert labels[0].startswith("M4: "), labels
         assert labels[1].startswith("M5: "), labels

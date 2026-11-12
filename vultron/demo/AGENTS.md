@@ -105,9 +105,9 @@ sub-issues were this one defect in different scenarios.
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the
    effect can be *lost* rather than delayed, in which case the protocol must
    buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
-8. **Test gates against the real context manager**, reading labels through
-   `test.demo._helpers.recorded_labels(kind)` (`recording_checks()`, #6127, #6155).
-   A `contextlib.nullcontext` stub makes the assertion propagate and the test
+8. **Test gates against the real context manager**: `walk()` what `recording_checks()`
+   recorded (`utils/check_tree.py`), labels via `test.demo._helpers.recorded_labels`
+   (#6127, #6155). A `nullcontext` stub makes the assertion propagate and the test
    pass while proving nothing — how the missing `engage-case` gate escaped.
 9. **Two milestones in a row assert two different things**, each label describing
    only its own block, and the holding test compares the halves' reads *each way*,
