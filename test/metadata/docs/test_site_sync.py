@@ -100,15 +100,18 @@ def _repo(
     *,
     lookup: bool = True,
     stories: bool = True,
+    drafts: bool = True,
 ) -> Path:
     """A :func:`site_tree` checkout taking ``docs/``-prefixed *files*. Pass
-    ``lookup=False, stories=False`` for a tree that must resolve no pages at
-    all."""
+    ``lookup=False, stories=False, drafts=False`` for a tree that must resolve
+    no pages at all."""
     docs = {}
     for rel, text in files.items():
         assert rel.startswith("docs/"), rel
         docs[rel.removeprefix("docs/")] = text
-    return site_tree(tmp_path, docs, nav, lookup=lookup, stories=stories)
+    return site_tree(
+        tmp_path, docs, nav, lookup=lookup, stories=stories, drafts=drafts
+    )
 
 
 def _guides_repo(tmp_path: Path, **pages: str) -> Path:
@@ -347,7 +350,7 @@ class TestEmptyTargetSet:
 
     def test_matrix_over_an_empty_tree_fails(self, tmp_path):
         (tmp_path / "docs").mkdir()
-        _repo(tmp_path, {}, [], lookup=False, stories=False)
+        _repo(tmp_path, {}, [], lookup=False, stories=False, drafts=False)
         with pytest.raises(MetadataLoadError, match="DF-09-009"):
             measure_coverage(tmp_path)
 

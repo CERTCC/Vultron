@@ -159,6 +159,27 @@ class TestYamlAttribution:
         assert (err.line, err.column) == (2, 21)
         assert str(err).startswith("specs/x.yaml:2:21 — YAML parse error:")
 
+    @pytest.mark.spec("MS-17-002")
+    @pytest.mark.parametrize(
+        "loader", [None, yaml.SafeLoader], ids=["default", "python"]
+    )
+    def test_an_impossible_date_is_attributed_not_raised_raw(
+        self, tmp_path, loader
+    ):
+        """PyYAML builds ``2026-13-45`` as a date and raises a bare ValueError."""
+        path = _write(tmp_path / "specs" / "x.yaml", "when: 2026-13-45\n")
+
+        with pytest.raises(MetadataLoadError) as from_file:
+            load_yaml(path, root=tmp_path, loader=loader)
+        with pytest.raises(MetadataLoadError) as from_text:
+            loads_yaml("when: 2026-13-45\n", Path("v1:x.yaml"), loader=loader)
+
+        assert str(from_file.value).startswith(
+            "specs/x.yaml — YAML parse error"
+        )
+        assert "month must be in 1..12" in str(from_file.value)
+        assert from_text.value.path == "v1:x.yaml"
+
     def test_no_unicode_string_marker(self, tmp_path):
         path = _write(tmp_path / "x.yaml", "a: 1\n" + _UNQUOTED_COLON)
 

@@ -146,13 +146,15 @@ repos:
         # the nav, the schema and generators, the spec corpus and its loader (the
         # story table and matrix are rendered from the stories: fields), the test
         # tree and the coverage reader (the known-gaps fragment is rendered from
-        # each requirement's coverage state), and the artifacts themselves so a
+        # each requirement's coverage state), the drafts register (the status
+        # box and the Revision Log status tables are rendered from it,
+        # DOCBW-08-005), and the artifacts themselves so a
         # hand-edit is caught. In CI, docs-build-check.yml runs it tree-wide on
         # a pull request that changes docs/ (DOCBW-03-013), so a deleted page is
         # caught there, and test_committed_site_artifacts_are_in_sync on one
         # that changes vultron/ or test/; locally, no staged-file pattern matches a
         # deletion.
-        files: ^(docs/.*\.md|mkdocs\.yml|specs/.*\.yaml|test/.*\.py|vultron/metadata/docs/.*\.py|vultron/metadata/specs/(registry|coverage|marked_tests)\.py|vultron/metadata/specs/schema/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        files: ^(docs/.*\.md|docs/reference/vultron-spec/drafts\.yaml|mkdocs\.yml|specs/.*\.yaml|test/.*\.py|vultron/metadata/docs/.*\.py|vultron/metadata/specs/(registry|coverage|marked_tests)\.py|vultron/metadata/specs/schema/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
       - id: docs-threads

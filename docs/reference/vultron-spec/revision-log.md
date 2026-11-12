@@ -34,11 +34,7 @@ The date of a draft is the day its entry was added to this page, in the `YYYY-MM
 
 ## Draft 1
 
-| Property | Value |
-|----------|-------|
-| Version | `draft-1` |
-| Status | Draft, not yet released |
-| Date | 2026-11-06 |
+{% include-markdown "./_drafts/draft-1.md" rewrite-relative-urls=false %}
 
 Draft 1 is the first draft of the specification.
 It has no earlier draft, so this entry lists what the draft holds, not what changed.
