@@ -639,6 +639,21 @@ def _received_into_records(record: ReceivedActivityRecord) -> bool:
     return record.stage is ReceivedStage.HELD and not record.replay_owed
 
 
+def refused_received(dl: CasePersistence) -> dict[str, str | None]:
+    """The refusal reason of every activity *dl* refused, by activity id.
+
+    A refusal leaves a receipt stub at ``REFUSED`` (CLP-10-073), so a setup
+    that means every step to apply asserts this is empty in each store its
+    steps deliver to.
+    """
+    return {
+        record.activity_id: record.refusal_reason
+        for record in dl.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(record, ReceivedActivityRecord)
+        and record.stage is ReceivedStage.REFUSED
+    }
+
+
 def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
     """Every *activity_type* activity *dl* holds as received, as received."""
     return [
