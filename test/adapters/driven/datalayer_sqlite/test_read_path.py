@@ -21,12 +21,10 @@ read must still do, on an in-memory and a file-backed store, and that it
 opens no ``Session``.
 """
 
-from collections.abc import Iterator
-from pathlib import Path
-
 import pytest
 
 from test.support.objects import make
+from test.support.pool_kind_stores import example_note
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     datalayer as dl_module,
@@ -36,31 +34,9 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 pytestmark = pytest.mark.spec("DL-01-001", "DL-02-008")
 
-_ACTOR = "https://example.org/actors/read-path-actor"
-
-
-@pytest.fixture(params=["memory", "file"])
-def dl(
-    request: pytest.FixtureRequest, tmp_path: Path
-) -> Iterator[SqliteDataLayer]:
-    url = (
-        "sqlite:///:memory:"
-        if request.param == "memory"
-        else f"sqlite:///{tmp_path / 'read.db'}"
-    )
-    store = SqliteDataLayer(url, actor_id=_ACTOR)
-    try:
-        yield store
-    finally:
-        store.close()
-
-
-def _note(name: str) -> as_Note:
-    return make(as_Note, id_=f"https://example.org/notes/{name}", content=name)
-
 
 def test_a_read_returns_the_stored_object(dl: SqliteDataLayer):
-    note = _note("stored")
+    note = example_note("stored")
     dl.save(note)
 
     got = dl.read(note.id_)
@@ -81,12 +57,12 @@ def test_a_missing_id_reads_none_or_raises(dl: SqliteDataLayer):
 def test_a_read_inside_the_block_sees_a_write_made_earlier_in_it(
     dl: SqliteDataLayer,
 ):
-    note = _note("in-block")
+    note = example_note("in-block")
     with dl.transaction():
         dl.save(note)
         got = dl.read(note.id_)
         assert got is not None and got.id_ == note.id_
-        dl.save(_note("after-read"))
+        dl.save(example_note("after-read"))
 
     assert dl.read(note.id_) is not None
     assert dl.read("https://example.org/notes/after-read") is not None
@@ -95,7 +71,7 @@ def test_a_read_inside_the_block_sees_a_write_made_earlier_in_it(
 def test_a_read_inside_the_block_sees_an_overwrite_made_earlier_in_it(
     dl: SqliteDataLayer,
 ):
-    dl.save(_note("rewritten"))
+    dl.save(example_note("rewritten"))
     with dl.transaction():
         dl.save(
             make(
@@ -112,7 +88,7 @@ def test_a_read_inside_the_block_sees_an_overwrite_made_earlier_in_it(
 def test_a_read_opens_no_session(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ):
-    note = _note("no-session")
+    note = example_note("no-session")
     dl.save(note)
 
     def _refuse(*_args: object, **_kwargs: object) -> None:

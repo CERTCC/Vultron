@@ -138,9 +138,10 @@ class SqliteDataLayer:
         """Yield a connection for one read, with no ``Session`` around it.
 
         A read through a ``Session`` paid for the session, its identity map
-        and a pool checkout on every call, most of a read's cost (#4969).
-        This yields the connection a read runs a Core statement on instead,
-        under the same lock :meth:`_session` takes.
+        and the ORM's statement execution on every call, most of a read's cost
+        (#4969).  This yields the connection a read runs a Core statement on
+        instead, under the same lock :meth:`_session` takes.  Outside a
+        transaction it still checks out a pool connection per read.
 
         Inside :meth:`transaction`, on the thread that opened it, this is the
         transaction's own connection, so a read sees the block's writes: every

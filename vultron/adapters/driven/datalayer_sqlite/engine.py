@@ -401,8 +401,10 @@ def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
     pipeline re-read it, while the CaseActor's outbox drain was reading the
     store on the event loop (#3602, ADR-0112).  Two concurrent fairies on the
     single record also confuse the pool's own checkin bookkeeping, so the lock
-    cannot hang off pool events; it wraps the ``Session`` block itself, which is
-    the one seam every adapter session passes through (``SqliteDataLayer._session``).
+    cannot hang off pool events; it wraps the ``Session`` block itself, at the
+    two seams every adapter connection passes through: ``SqliteDataLayer._session``
+    for a ``Session``, and ``SqliteDataLayer._connection`` for a read's bare
+    connection.
 
     The lock is per *engine* — engines are shared per actor by
     :func:`get_actor_engine` — and re-entrant, so a ``Session`` opened inside
