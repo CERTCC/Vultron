@@ -8,8 +8,9 @@ description: >
   promote_release.yml's archive job), so the pull request check and the
   promote see the tree the deploy publishes (DOCBW-08-035, DOCBW-08-039).
   Run it after the shared build and before the publication checks
-  (DOCBW-08-028). The publish workflow's rollback gate refuses a target commit without this action
-  (DOCBW-08-038). The logic lives in .github/scripts/serve_frozen_drafts.py.
+  (DOCBW-08-028). The publish workflow's rollback gate refuses a target
+  commit without this action (DOCBW-08-038). The logic lives in
+  .github/scripts/serve_frozen_drafts.py.
 
 inputs:
   register-json:
