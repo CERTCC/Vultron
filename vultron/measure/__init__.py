@@ -19,6 +19,8 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
 * :mod:`vultron.measure.baselines` — the exact chance baselines of the
   desiderata, from the indifference walk over the smallest model holding each
   (ADR-0182).  It reads only the state tables, never a ledger.
+* :mod:`vultron.measure.scoring` — the desiderata score of a vendor's
+  sequence, complete or not, through its valid completions (ADR-0182).
 
 A later layer that reads a ledger is a sibling subpackage that reads it
 through :mod:`vultron.measure.ledger`.
