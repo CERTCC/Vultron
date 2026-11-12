@@ -332,6 +332,10 @@ For embargo times, the measure connects the embargo register and the consent row
     Each event also names the semantic type and log index of the entry that recorded it, the commit stamp, and the claimed time in a separate field.
     Each event carries the labels of the data gaps on this page that affect its time, and a deadline when the ledger records one that bounds the time.
     The history lists every entry that named a state behind the state already reached, and it records no event for that state.
+    `vultron-case-history` (`vultron/measure/history/cli.py`) writes the event history of a case from the ledger files it is given, as JSON for a program or as a Markdown table for a person.
+    The table names each actor and object by a display name, never by a bare identifier.
+    It words each event with the phrase that the semantic registry gives its semantic type.
+    The command fails with an error when a file is missing, holds no ledger entry, or does not hold the case it is asked for.
     From the history, the measure layer builds one case-state sequence for each participant that has a vendor-awareness event (`vultron/measure/sequences/`).
     Each sequence holds that vendor's fix-path and deployment events and the case's public-state events, in log order, and must replay as a valid start of a case history.
     The model counts the public as aware once an exploit is published, and the vendor as aware once the public is.
