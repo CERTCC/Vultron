@@ -37,8 +37,9 @@ keyed on the shape, never on a class name:
    tick order, is a door node.  A ``CaseIdScope`` seeds ``/case_id`` for its
    own subtree, so a read inside one is the scope's.
 
-The one reference pinned is the path answer, with its ground and its owner
-(:data:`PATH_ANSWER_READS`), held to equality, so a new one is a decision.
+The one reference admitted is the path answer (:data:`PATH_ANSWER_READS`),
+the input the door stage hands the handling tree (CLP-10-084), held to
+equality, so a new one is a decision.
 
 Two boundaries outside the handling tree are not asked here, because their
 reads are their sanctioned inputs: a door reads the delivery itself (the
@@ -73,16 +74,14 @@ _STRUCTURE = frozenset(
     {"parent", "children", "decorated", "current_child", "_current_child"}
 )
 
-# owner: #6003 (whether ADR-0154's rule admits this read)
-#: The one door-to-handling read pinned, and why it differs from the retired
-#: ``rerun`` flag.  ``rerun`` recorded history ("this run is a re-run") that
-#: only memory knew and a restart lost.  The path answer is derived: the path
-#: stage computes it again from the store on every run, so a restart loses
-#: nothing.  The read is load-bearing too: the path is decided once, at the
-#: door, before the act's own writes, and an act that changes who the
-#: CASE_MANAGER is would make a branch that asked again diverge from the door
-#: (HP-01-036, ADR-0153).  #6003 puts the conflict with ADR-0154 to the
-#: maintainer.
+#: The one door-to-handling read admitted: the receiver's path, the input the
+#: door stage hands the handling tree (CLP-10-084, ADR-0154).  The path is
+#: decided once, at the door, before the act's own writes, and an act that
+#: changes who the CASE_MANAGER is would make a branch that asked again
+#: diverge from the door (HP-01-036, ADR-0153).  Every run starts at the doors
+#: and never resumes partway (CLP-10-083), so the path the branch reads always
+#: comes from the same run, unlike the retired ``rerun`` flag, which recorded
+#: history that only memory knew and a restart lost.
 PATH_ANSWER_READS: frozenset[_Finding] = frozenset(
     {("CheckReceivedPathNode", "stage", "ReceivedPathNode")}
 )
@@ -214,6 +213,7 @@ def set_up_trees() -> dict[tuple[str, str], py_trees.behaviour.Behaviour]:
     return trees
 
 
+@pytest.mark.spec("CLP-10-084")
 @pytest.mark.spec("CLP-10-082")
 @pytest.mark.spec("CLP-10-073")
 @pytest.mark.spec("CLP-10-074")
