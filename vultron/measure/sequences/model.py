@@ -30,6 +30,7 @@ Nothing here is a score (CEH-05-008).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -280,6 +281,30 @@ class UnprojectableParticipant(BaseModel):
     detail: NonEmptyString
 
 
+def one_answer_problems(
+    verb: str, answered: Sequence[str], unprojectable: Sequence[str]
+) -> list[str]:
+    """Each participant answered twice, or both answered and unprojectable.
+
+    *verb* names how *answered* was answered, such as ``"projected"``.  Every
+    violation is named (EH-07-001); no problem yields an empty list.
+    """
+    problems: list[str] = []
+    for label, names in (
+        (verb, answered),
+        ("reported unprojectable", unprojectable),
+    ):
+        twice = sorted({n for n in names if names.count(n) > 1})
+        if twice:
+            problems.append(f"{', '.join(twice)} {label} twice")
+    both = sorted(set(answered) & set(unprojectable))
+    if both:
+        problems.append(
+            f"{', '.join(both)} both {verb} and reported unprojectable"
+        )
+    return problems
+
+
 class CaseStateSequences(BaseModel):
     """One case's per-vendor case-state sequences (CEH-05).
 
@@ -304,21 +329,11 @@ class CaseStateSequences(BaseModel):
     @model_validator(mode="after")
     def _one_answer_per_participant(self) -> CaseStateSequences:
         """Refuse a participant answered twice, or sequences out of order."""
-        problems: list[str] = []
-        projected = [s.participant for s in self.sequences]
-        reported = [u.participant for u in self.unprojectable]
-        for label, names in (
-            ("projected", projected),
-            ("reported unprojectable", reported),
-        ):
-            twice = sorted({n for n in names if names.count(n) > 1})
-            if twice:
-                problems.append(f"{', '.join(twice)} {label} twice")
-        both = sorted(set(projected) & set(reported))
-        if both:
-            problems.append(
-                f"{', '.join(both)} both projected and reported unprojectable"
-            )
+        problems = one_answer_problems(
+            "projected",
+            [s.participant for s in self.sequences],
+            [u.participant for u in self.unprojectable],
+        )
         order = [s.awareness_index for s in self.sequences]
         if order != sorted(order):
             problems.append("the sequences are not in vendor-awareness order")

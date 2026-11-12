@@ -27,8 +27,15 @@ never from a second walk, and validates through
 * :mod:`~vultron.measure.scoring.score` — :func:`score_prefix` and
   :func:`score_sequence`, and the refusal of a sequence that is not a
   prefix.
+* :mod:`~vultron.measure.scoring.case` — :func:`score_case`, a multi-party
+  case's per-vendor scores with their unweighted median and spread.
 """
 
+from vultron.measure.scoring.case import (
+    AcrossVendors,
+    CaseScoreSummary,
+    score_case,
+)
 from vultron.measure.scoring.complete import history_score, met_desiderata
 from vultron.measure.scoring.model import (
     Completion,
@@ -42,12 +49,15 @@ from vultron.measure.scoring.score import (
 )
 
 __all__ = [
+    "AcrossVendors",
+    "CaseScoreSummary",
     "Completion",
     "NotAHistoryPrefixError",
     "SequenceScore",
     "VendorScore",
     "history_score",
     "met_desiderata",
+    "score_case",
     "score_prefix",
     "score_sequence",
 ]

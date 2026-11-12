@@ -309,4 +309,4 @@ The expected score is a forecast under the chance baseline, not a prediction of 
 A sequence that is not a valid prefix gets no score.
 It is refused, with the reason the prefix check gives, such as a fix ready before the vendor is aware.
 A case whose ledger has holes never reaches the scorer: the [event history](../../adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md) refuses it, so a scored sequence is incomplete only because its remaining events have not happened yet.
-A multi-party case is scored once for each vendor, from that vendor's own sequence.
+A multi-party case is scored once for each vendor, from that vendor's own sequence, and [Benchmarking MPCVD](benchmarking_mpcvd.md#scoring-a-multi-party-case) describes how the case summarizes those scores.
