@@ -25,17 +25,17 @@ Spec: TB-13-001 (``specs/testability.yaml``).
 import ast
 from pathlib import Path
 
-import pytest
-
 from test.architecture import _corpus
 
 
-@pytest.mark.parametrize("name", ["module.py", "page.md", "spec.yaml"])
-def test_a_non_utf8_file_is_skipped_not_raised(
-    tmp_path: Path, name: str
-) -> None:
-    """A file that is not UTF-8 is left out of the cache, and nothing raises."""
-    bad = tmp_path / name
+def test_a_non_utf8_file_is_skipped_not_raised(tmp_path: Path) -> None:
+    """A file that is not UTF-8 is left out of the cache, and nothing raises.
+
+    One case covers all three caches: ``_read_into`` ignores the extension,
+    and ``test_every_corpus_read_goes_through_the_shared_helper`` pins that
+    each cache reads through it.
+    """
+    bad = tmp_path / "module.py"
     bad.write_bytes(b"x = '\xff\xfe'\n")
     cache: dict[Path, str] = {}
     _corpus._read_into(cache, bad)

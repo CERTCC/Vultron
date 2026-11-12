@@ -50,8 +50,8 @@ most of its imprecision lets a violation through rather than inventing one:
   the derivation cannot read, so it is given the benefit of the doubt.
 * **An indirect reference supplies everything.** A gate whose name escapes
   other than as a callee — bound through ``functools.partial(_check,
-  limit=5)``, an alias assignment, a dispatch table, a ``getattr(obj,
-  "_check")`` — is called somewhere the derivation cannot follow, so
+  limit=5)``, an alias assignment or ``import ... as``, a dispatch table, a
+  ``getattr(obj, "_check")`` — is called somewhere the derivation cannot follow, so
   :func:`_call_sites` gives it the same benefit of the doubt as a splat.
   Reading those as supplying nothing would fail reachable code; arm A already
   accepts a bare reference as reaching a guard.  The match is by bare name,
@@ -89,8 +89,9 @@ It Can Miss or Invent").  Four are narrowed:
   leaves no name load, so :func:`_walk_module` also collects the literal
   attribute names an attribute-by-name call spells: ``getattr``,
   ``inspect.getattr_static``, ``operator.attrgetter`` and
-  ``operator.methodcaller`` (:func:`name_literal_targets`).  Only those
-  arguments count, not every string constant, so a guard named only in a
+  ``operator.methodcaller`` (:func:`name_literal_targets`), and
+  :func:`_call_sites` counts the same literals as unreadable sites for arm
+  B.  Only those arguments count, not every string constant, so a guard named only in a
   docstring or comment still reads as unreached.
 
 The rest cannot be narrowed without resolving bindings or intent, so they are
@@ -215,12 +216,12 @@ class CallSite:
     path: str
     lineno: int
     keywords: frozenset[str]
-    #: A ``*args`` or ``**kwargs`` splat, or an indirect reference (see
-    #: :meth:`unreadable`): the call may carry anything, so it counts as
-    #: supplying every parameter.  Failing a call the derivation cannot read
-    #: would make the ratchet untrustworthy, and an untrusted ratchet gets
-    #: switched off.
-    splatted: bool
+    #: The site's arguments cannot be read: a ``*args`` or ``**kwargs``
+    #: splat, or an indirect reference (see :meth:`unreadable`).  The call
+    #: may carry anything, so it counts as supplying every parameter.
+    #: Failing a call the derivation cannot read would make the ratchet
+    #: untrustworthy, and an untrusted ratchet gets switched off.
+    opaque: bool
     positional_count: int
 
     @classmethod
@@ -228,7 +229,8 @@ class CallSite:
         """A reference through which the name is called somewhere unseen.
 
         ``functools.partial(_check, limit=5)``, ``check = _check``,
-        ``{"a": _check}`` and ``getattr(obj, "_check")`` each hand the gate
+        ``{"a": _check}``, ``from m import _check as check`` and
+        ``getattr(obj, "_check")`` each hand the gate
         to code that calls it later with arguments the derivation cannot
         read — exactly a splat's situation, so it gets a splat's benefit of
         the doubt.
@@ -237,13 +239,13 @@ class CallSite:
             path=path,
             lineno=lineno,
             keywords=frozenset(),
-            splatted=True,
+            opaque=True,
             positional_count=0,
         )
 
     def supplies(self, parameter: str, index: int | None) -> bool:
         """Whether this call passes *parameter*."""
-        if parameter in self.keywords or self.splatted:
+        if parameter in self.keywords or self.opaque:
             return True
         return index is not None and self.positional_count > index
 
@@ -321,8 +323,10 @@ def name_literal_targets(call: ast.Call) -> tuple[str, ...]:
     """The attribute names an attribute-by-name *call* spells as literals.
 
     Empty for any call not in :data:`_NAME_ARGUMENTS`, and for a name that is
-    not a string literal.  A dotted ``attrgetter`` path gives its last
-    component, the attribute finally reached.  These are the only string
+    not a string literal.  A dotted name gives its last component, the
+    attribute finally reached by ``attrgetter("a.b")``; the split is applied
+    to every listed call, so ``getattr(obj, "a.b")`` also gives ``b``, which
+    can only widen what counts as a reference.  These are the only string
     constants both arms read as a reference: they are how code reaches an
     attribute by name, where a string anywhere else — a docstring, a log
     message — only talks about it.
@@ -757,9 +761,9 @@ def _call_sites(
 ) -> Mapping[str, tuple[CallSite, ...]]:
     """Every call of a name in *wanted* across *trees*, and what it passes.
 
-    A name that escapes other than as a callee — loaded as a value, or
-    spelled as an attribute-by-name literal (:func:`name_literal_targets`) —
-    is recorded as a :meth:`CallSite.unreadable` site, since it is called
+    A name that escapes other than as a callee — loaded as a value,
+    imported under another name (:func:`_aliased_import`), or spelled as an
+    attribute-by-name literal (:func:`name_literal_targets`) — is recorded as a :meth:`CallSite.unreadable` site, since it is called
     somewhere this pass cannot follow.
 
     Takes bare ``(path, tree)`` pairs rather than a ``_FileScan``: this pass
@@ -769,16 +773,16 @@ def _call_sites(
     """
     sites: dict[str, list[CallSite]] = {}
     for path, tree in trees:
-        # Value loads are judged only after the walk, once every callee
+        # Escapes are judged only after the walk, once every callee
         # expression is known: ``ast.walk`` promises no order, so marking
         # callees as it goes would rely on parents coming first.
         callees: set[int] = set()
         loads: list[tuple[str, ast.AST]] = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
-                loaded = _loaded_name(node)
-                if loaded in wanted:
-                    loads.append((loaded, node))
+                escaped = _escaped_name(node)
+                if escaped in wanted:
+                    loads.append((escaped, node))
                 continue
             callees.add(id(node.func))
             for target in name_literal_targets(node):
@@ -789,31 +793,39 @@ def _call_sites(
             callee = _corpus.callee_name(node.func)
             if callee not in wanted:
                 continue
-            sites.setdefault(callee, []).append(
-                CallSite(
-                    path=path,
-                    lineno=_corpus.node_line(node),
-                    keywords=frozenset(
-                        keyword.arg
-                        for keyword in node.keywords
-                        if keyword.arg is not None
-                    ),
-                    splatted=any(
-                        keyword.arg is None for keyword in node.keywords
-                    )
-                    or any(
-                        isinstance(argument, ast.Starred)
-                        for argument in node.args
-                    ),
-                    positional_count=len(node.args),
-                )
-            )
+            sites.setdefault(callee, []).append(_direct_call_site(path, node))
         for loaded, node in loads:
             if id(node) not in callees:
                 sites.setdefault(loaded, []).append(
                     CallSite.unreadable(path, _corpus.node_line(node))
                 )
     return {name: tuple(found) for name, found in sorted(sites.items())}
+
+
+def _direct_call_site(path: str, node: ast.Call) -> CallSite:
+    """What a literal call of a wanted name passes."""
+    return CallSite(
+        path=path,
+        lineno=_corpus.node_line(node),
+        keywords=frozenset(
+            keyword.arg for keyword in node.keywords if keyword.arg is not None
+        ),
+        opaque=any(keyword.arg is None for keyword in node.keywords)
+        or any(isinstance(argument, ast.Starred) for argument in node.args),
+        positional_count=len(node.args),
+    )
+
+
+def _escaped_name(node: ast.AST) -> str | None:
+    """The name *node* hands on other than by calling it, or ``None``.
+
+    A value load (:func:`_loaded_name`) or an ``import ... as`` under another
+    name (:func:`_aliased_import`).  A load that turns out to be a call's
+    ``func`` is dropped by :func:`_call_sites` after the walk.
+    """
+    if isinstance(node, ast.alias):
+        return _aliased_import(node)
+    return _loaded_name(node)
 
 
 def _loaded_name(node: ast.AST) -> str | None:
@@ -829,6 +841,21 @@ def _loaded_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
         return node.attr
     return None
+
+
+def _aliased_import(node: ast.alias) -> str | None:
+    """The name an ``import ... as`` binds under another spelling, or ``None``.
+
+    ``from m import _check as check`` gives ``_check``: every later call is
+    spelled ``check(...)``, which this pass does not match, so the import is
+    itself the escape.  An import without ``as``, or one re-binding the same
+    name, gives ``None``, since its calls keep the original name and are read
+    as calls.
+    """
+    name = node.name.rpartition(".")[2]
+    if node.asname is None or node.asname == name:
+        return None
+    return name
 
 
 def _sites_for(

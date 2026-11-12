@@ -384,6 +384,10 @@ def _check(*, limit=None):
             id="methodcaller",
         ),
         pytest.param("register(callback=RULES._check)", id="bound-callback"),
+        pytest.param(
+            "from inline import _check as check\ncheck(limit=5)",
+            id="import-alias",
+        ),
     ],
 )
 def test_detector_counts_an_indirect_reference_as_supplying_the_gate(
@@ -420,6 +424,34 @@ def run():
     return _check()
 '''
     )
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:5 _check() [limit]"
+    }
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        pytest.param("RULES._check = None", id="attribute-store"),
+        pytest.param("_check = None", id="name-store"),
+        pytest.param("del RULES._check", id="attribute-delete"),
+        pytest.param("from inline import _check", id="import-unaliased"),
+        pytest.param(
+            "from inline import _check as _check", id="import-same-name"
+        ),
+    ],
+)
+def test_detector_does_not_count_a_binding_as_supplying_the_gate(
+    binding: str,
+) -> None:
+    """A store, a delete or a same-name import hands the gate to nobody.
+
+    The counter-case to the indirect-reference test's load and alias cases:
+    only a *value load* of the name, or an import that rebinds it under
+    another name, is an escape.  Without it, that test would pass if every
+    occurrence of the name counted as a site.
+    """
+    source = _UNOPENED_GATE + binding + "\n"
     assert _reach.findings_in_source(source).unsupplied == {
         "inline.py:5 _check() [limit]"
     }
