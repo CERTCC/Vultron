@@ -3,35 +3,26 @@
 <div class="admonition abstract reading-path" data-thread="coordinate-cases" data-member="reference/ssvc_crosswalk.md" markdown>
 <p class="admonition-title">Reading path: You handle vulnerability reports and coordinate cases with other organizations</p>
 
+<div class="reading-path-where" markdown>
 This page is part of *Map it onto what you already do*.
 
-<table class="reading-path-table" markdown>
-<thead><tr><th>Start</th><th>Previous</th><th>Current</th><th>Next</th></tr></thead>
-<tbody markdown>
-<tr markdown>
-<td markdown="block">
+<p class="reading-path-start" markdown>[Path overview](../../coordinate-cases.md)</p>
+</div>
 
-- [You handle vulnerability reports and coordinate cases with other organizations](../../coordinate-cases.md)
-
-</td>
-<td markdown="block">
+<div class="reading-path-tiles" markdown>
+<div class="reading-path-tile reading-path-previous" markdown>
+<p class="reading-path-direction">Previous</p>
 
 - [How to Adopt Vultron in Your CVD Program](../../../howto/adopt_vultron.md)
 
-</td>
-<td markdown="block">
-
-- Interactions Between the Vultron Protocol and SSVC
-
-</td>
-<td markdown="block">
+</div>
+<div class="reading-path-tile reading-path-next" markdown>
+<p class="reading-path-direction">Next — pick one</p>
 
 - [Tutorial: Run the Receive-Report Demo](../../../tutorials/receive_report_demo.md)
 - [Tutorial: Run the `rv` Demo](../../../tutorials/rv-demo.md)
 
-</td>
-</tr>
-</tbody>
-</table>
+</div>
+</div>
 
 </div>

@@ -61,11 +61,13 @@ def create_invite_actor_to_full_case_received_tree(
     archive that intake writes (CLP-10-017); the tree logs the receipt
     (SL-04-006).
 
-    The sender must be the CASE_MANAGER this receiver has trusted for the
-    case: the one its bootstrap recorded on a completed ``ReportCaseLink``
-    (CBT-02-003), else the replica's, else the one recorded as the trust
-    anchor from the stub Invite, else the Invite is refused (``anchored``,
-    PCR-03-004, HP-01-006, ADR-0115)::
+    The receiver judges the Invite only once it holds the replica: the
+    Invite is case-scoped, so with no replica the inbox's defer check holds
+    it until the Announce's replay delivers it (CM-11-033, HP-01-041).  The
+    sender must be the CASE_MANAGER this receiver has trusted for the case:
+    the one its bootstrap recorded on a completed ``ReportCaseLink``
+    (CBT-02-003), else the replica's, else the Invite is refused
+    (``anchored``, CM-11-032, HP-01-006, ADR-0115)::
 
         InviteActorToFullCaseReceivedBT (Sequence)
         ├── Intake
@@ -77,12 +79,10 @@ def create_invite_actor_to_full_case_received_tree(
     return create_receive_activity_tree(
         name="InviteActorToFullCaseReceivedBT",
         case_id=case_id,
-        # The invitee usually holds the case from the Announce, so it is on
-        # the participant-replica path; with no replica yet it is on the
-        # no-case path, which CM-11-032 requires this type to handle
-        # (whether the inbox should defer such a delivery instead is
-        # #5793) — the
-        # stub Invite's trust anchor decides the sender there (PCR-03-004).
+        # The invitee holds the case from the Announce, so it is on the
+        # participant-replica path.  It never takes the no-case path: the
+        # Invite is case-scoped, so the inbox holds it until the Announce
+        # creates the replica (CM-11-033, HP-01-041).
         # The CASE_MANAGER commits the Invite in the tree that emits it and
         # its own copy takes the manager path, where intake records it and
         # the branch below keeps the invitee-only log off it (ADR-0109,
@@ -90,7 +90,6 @@ def create_invite_actor_to_full_case_received_tree(
         paths={
             ReceivedPath.CASE_MANAGER,
             ReceivedPath.PARTICIPANT_REPLICA,
-            ReceivedPath.NO_CASE,
         },
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -98,9 +97,10 @@ def create_invite_actor_to_full_case_received_tree(
         ),
         precondition_guards=[],
         replica_effects=[
-            # The invitee's own record of the Invite, on every declared
-            # path but the manager's; the branch reads the path the stage
-            # resolved (HP-01-036, RSH-08-003).
+            # The invitee's own record of the Invite, on the
+            # participant-replica path, the one declared path but the
+            # manager's; the branch reads the path the stage resolved
+            # (HP-01-036, RSH-08-003).
             OnPaths.off_case_manager(
                 "InviteeRecordsFullCaseInvite",
                 LogFullCaseInviteReceivedNode(
@@ -111,7 +111,6 @@ def create_invite_actor_to_full_case_received_tree(
                 ),
             ),
         ],
-        case_may_be_absent=True,
     )
 
 

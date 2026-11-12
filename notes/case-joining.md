@@ -296,12 +296,11 @@ distinction in new messages: we accept offers and invitations, never bare object
   case-scoped, so the defer check holds it until the Announce creates the replica
   and the inbox replays the held messages, or until the hold expires (CBT-03-003);
   the CASE_MANAGER then resends it (SYNC-20-001). So its tree must not declare the
-  no-case path (CM-11-033, HP-01-041); #6309 removes today's declaration. The
-  stub-Invite trust anchor decides only whether the Announce may create the
-  replica (PCR-03-004). Do not exempt a message from deferral to let the anchor
-  judge its sender: it is the stub Invite's alone (#5793). Only the Announce
-  creates the replica: a full-case Invite never does, whatever its `object`
-  carries once Invites use AS2's slots (#6244).
+  no-case path (CM-11-033, HP-01-041). The stub-Invite trust anchor decides only
+  whether the Announce may create the replica (PCR-03-004). Do not exempt a message
+  from deferral to let the anchor judge its sender: it is the stub Invite's alone
+  (#5793). Only the Announce creates the replica: a full-case Invite never does,
+  whatever its `object` carries once Invites use AS2's slots (#6244).
 - **The full-case Invite's ledger position is a floor, not a pin.** The reply carries
   the participant's own position, at or beyond it; pinning would make every reply on a
   busy case stale. The CASE_MANAGER reads the floor from its own stored Invite.
