@@ -13,7 +13,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -176,6 +176,7 @@ def _make_event(
         actor=PEER_ID,
         to=recipients,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -1057,6 +1058,7 @@ def test_reject_from_stranger_halts_before_any_write(
                 actor=stranger,
                 to=[OWNER_ACTOR_ID],
                 in_reply_to="https://example.org/activities/prompting-announce",
+                at=authored_at(),
             ),
             at=datalayer,
         ),

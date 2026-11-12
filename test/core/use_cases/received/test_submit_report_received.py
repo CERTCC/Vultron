@@ -19,7 +19,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal)
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -598,6 +598,7 @@ class TestOfferAddressingSemantics:
             actor=self.FINDER_ID,
             cc=cc,
             id_=self.OFFER_ID,
+            at=authored_at(),
         )
         assert offer.cc == cc  # the wire model still parses it
         event = received_event(offer)

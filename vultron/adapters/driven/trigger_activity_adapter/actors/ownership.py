@@ -62,6 +62,8 @@ class _OwnershipMixin:
         content: str | None = None,
         to: list[str] | None = None,
         end_time: datetime | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the owner's ``Offer(Offer(VulnerabilityCase))``.
 
@@ -79,6 +81,7 @@ class _OwnershipMixin:
             target=_held_actor(self._dl, transferee_id),
             end_time=end_time,
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "propose_case_ownership_transfer"
@@ -94,6 +97,8 @@ class _OwnershipMixin:
         attributed_to: str | None = None,
         end_time: datetime | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
@@ -122,6 +127,7 @@ class _OwnershipMixin:
             target=_held_actor(self._dl, transferee_id),
             context=case_id,
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "offer_case_ownership_transfer"
@@ -132,6 +138,8 @@ class _OwnershipMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership transfer.
 
@@ -143,6 +151,7 @@ class _OwnershipMixin:
             offer_id=offer_id,
             actor=actor,
             to=to,
+            at=at,
         )
 
     def reject_case_ownership_transfer(
@@ -150,6 +159,8 @@ class _OwnershipMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership transfer.
 
@@ -161,6 +172,7 @@ class _OwnershipMixin:
             offer_id=offer_id,
             actor=actor,
             to=to,
+            at=at,
         )
 
     def withdraw_case_ownership_transfer(
@@ -168,6 +180,8 @@ class _OwnershipMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the owner's ``Undo`` of its own proposal.
 
@@ -180,7 +194,7 @@ class _OwnershipMixin:
             self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
         )
         activity = undo_case_ownership_transfer_activity(
-            proposal=cast(as_Offer, proposal), actor=actor, to=to
+            proposal=cast(as_Offer, proposal), actor=actor, to=to, at=at
         )
         return _create_and_seal(
             self._dl, activity, "withdraw_case_ownership_transfer"
@@ -193,6 +207,8 @@ class _OwnershipMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
@@ -215,5 +231,5 @@ class _OwnershipMixin:
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]
-        activity = factory(offer=offer, actor=actor, to=to)
+        activity = factory(offer=offer, actor=actor, to=to, at=at)
         return _create_and_seal(self._dl, activity, label)

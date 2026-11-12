@@ -276,6 +276,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
                 case_id=self.case_id,
                 participant=stored,
                 trigger_activity=self._require_trigger_activity_port(),
+                at=self._require_act_instant(),
             )
         except RuntimeError as exc:
             self.feedback_message = f"{self.name}: {exc}"

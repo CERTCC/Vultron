@@ -45,7 +45,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -2855,6 +2855,8 @@ class TestADR0041GenesisCommitFailure:
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
         node._create_activity_id_bb = _CREATE_ID
+        # Updated by hand, outside a tree run: the act's instant is stated here.
+        node._require_act_instant = authored_at  # type: ignore[method-assign]
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
@@ -3658,12 +3660,13 @@ class TestEP04SenderProposalAtCaseCreation:
                 to=_VENDOR_URI,
                 actor=_REPORTER_URI,
                 proposed_embargo=terms,
+                at=authored_at(),
             )
         else:
             # The factory refuses terms about another subject on the sending
             # side (EP-04-009); a non-conforming sender is simulated past it.
             offer = rm_submit_report_activity(
-                report, to=_VENDOR_URI, actor=_REPORTER_URI
+                report, to=_VENDOR_URI, actor=_REPORTER_URI, at=authored_at()
             ).model_copy(update={"proposed_embargo": terms})
         proposal = make(
             as_CaseProposal,

@@ -8,7 +8,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     assert_held_only_as_received,
     hold_deferred,
@@ -347,6 +347,7 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
         actor="https://example.org/actors/case-actor",
         to=[to],
         id_=activity_id,
+        at=authored_at(),
     )
 
 

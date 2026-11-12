@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import resigned
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -57,7 +57,11 @@ def _signed_add_note() -> dict[str, Any]:
         context=CASE_ID,
     )
     activity = add_note_to_case_activity(
-        note, target=CASE_ID, actor=ACTOR, to=["https://example.org/a/cm"]
+        note,
+        target=CASE_ID,
+        actor=ACTOR,
+        to=["https://example.org/a/cm"],
+        at=authored_at(),
     )
 
     def list_the_note_context(body: dict[str, Any]) -> None:

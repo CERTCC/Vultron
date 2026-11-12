@@ -32,7 +32,7 @@ from test.support.inbox_replay import (
     ledger_announce_event,
     replayed_event,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event, received_record
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -208,7 +208,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             entry.model_dump(mode="json")
         )
         activity = announce_log_entry_activity(
-            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI], at=authored_at()
         )
         event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         # The inbox adapter always sets receiving_actor_id in production; set

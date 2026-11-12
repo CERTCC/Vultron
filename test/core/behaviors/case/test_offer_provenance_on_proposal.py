@@ -40,7 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_in_act, run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -346,6 +346,7 @@ class TestProposalCarriesTheOfferItself:
             to=_VENDOR_URI,
             actor=_REPORTER_URI,
             proposed_embargo=terms,
+            at=authored_at(),
         )
         archive_received(datalayer, offer)
         assert datalayer.read(offer.id_) is None

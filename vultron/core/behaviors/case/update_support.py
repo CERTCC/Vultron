@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
 from vultron.core.models.case import VulnerabilityCase
@@ -69,6 +70,8 @@ def broadcast_case_update(
     actor_id: str,
     trigger_activity: TriggerActivityPort,
     excluded_actor_ids: set[str] | None = None,
+    *,
+    at: datetime,
 ) -> None:
     """Create and queue an ``Announce`` for a case update (CM-06-001).
 
@@ -113,6 +116,7 @@ def broadcast_case_update(
         actor=actor_id,
         context_id=case_id,
         to=participant_ids,
+        at=at,
     )
     cast(CaseOutboxPersistence, dl).outbox_append(broadcast_id)
     logger.info(

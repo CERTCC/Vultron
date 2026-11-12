@@ -44,6 +44,7 @@ from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples._base import (
+    EXAMPLE_TIMESTAMP,
     _strip_published_udpated,
     _to_json,
 )
@@ -210,6 +211,7 @@ def create_report_activity() -> as_Create:
         id_=ACTIVITY_ID,
         actor=FINDER_ID,
         to=[VENDOR_ID],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 

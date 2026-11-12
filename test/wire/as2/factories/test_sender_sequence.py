@@ -17,7 +17,7 @@ import json
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
@@ -49,6 +49,7 @@ def _note(*, positioned: bool = True):
         make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
+        at=authored_at(),
     )
     return stamp_ledger_position(note, _TAIL) if positioned else note
 
@@ -99,7 +100,7 @@ def test_only_a_positive_integer_is_a_number(number: int) -> None:
 def test_a_positioned_case_activity_may_take_a_number() -> None:
     assert next(sender_sequence_case_ids(_note())) == _CASE
     engage = stamp_ledger_position(
-        rm_engage_case_activity(_CASE, actor=_ACTOR), _TAIL
+        rm_engage_case_activity(_CASE, actor=_ACTOR, at=authored_at()), _TAIL
     )
     assert _CASE in list(sender_sequence_case_ids(engage))
 
@@ -120,12 +121,15 @@ def test_a_numbered_activity_still_names_its_cases() -> None:
 
 @pytest.mark.spec("SYNC-21-001")
 def test_the_ledger_requests_take_no_number() -> None:
-    read = read_ledger_position_activity(_CASE, _TAIL, actor=_ACTOR)
+    read = read_ledger_position_activity(
+        _CASE, _TAIL, actor=_ACTOR, at=authored_at()
+    )
     reject = stamp_ledger_position(
         reject_log_entry_activity(
             _entry(),
             actor=_ACTOR,
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         ),
         _TAIL,
     )
@@ -134,6 +138,7 @@ def test_the_ledger_requests_take_no_number() -> None:
         _EMPTY,
         actor=_ACTOR,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     for request in (read, reject, genesis):
@@ -145,7 +150,9 @@ def test_the_ledger_requests_take_no_number() -> None:
 @pytest.mark.spec("SYNC-21-001")
 def test_a_parsed_ledger_request_takes_no_number() -> None:
     """A ``Read`` posted by a client parses to a plain ``as_Read``."""
-    read = read_ledger_position_activity(_CASE, _TAIL, actor=_ACTOR)
+    read = read_ledger_position_activity(
+        _CASE, _TAIL, actor=_ACTOR, at=authored_at()
+    )
     parsed = parse_activity(json.loads(read.model_dump_json(by_alias=True)))
 
     assert is_ledger_request(parsed)

@@ -110,6 +110,7 @@ def send_ledger_suffix(
     actor_id: str,
     peer_id: str,
     through_index: int | None = None,
+    at: datetime,
 ) -> LedgerSuffixSend:
     """Send each entry with ``after_index < log_index <= through_index`` to *peer_id*.
 
@@ -140,6 +141,7 @@ def send_ledger_suffix(
                 log_entry,
                 actor_id=actor_id,
                 to=[peer_id],
+                at=at,
             )
         except VultronUnverifiedLedgerEntryError as exc:
             logger.error(  # noqa: TRY400 -- the hold-back is the report, no trace
@@ -301,6 +303,7 @@ def backfill_admitted_peers(
     sync_port: SyncActivityPort,
     actor_id: str,
     through_index: int | None = None,
+    at: datetime,
 ) -> AdmissionBackfill:
     """Backfill every paused peer the gate now admits, then clear its pause.
 
@@ -354,6 +357,7 @@ def backfill_admitted_peers(
             through_index=through_index,
             actor_id=actor_id,
             peer_id=peer_id,
+            at=at,
         )
         if held_back is not None:
             # SYNC-03-009: the pause stays, since the peer still lacks the

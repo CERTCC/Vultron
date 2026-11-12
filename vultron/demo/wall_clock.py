@@ -17,8 +17,9 @@
 The core deadline helpers take an act's instant and read no clock (ADR-0176,
 CS-13-004).  A demo client stating a deadline before it calls a trigger, or a
 test building data outside an act, has no act's instant to pass: it reads the
-clock here, once, and measures from it.  ``test/support/future_dates.py``
-re-exports both helpers, so demos and tests share the one composition
+clock here, once, and measures from it.  A demo client authoring an activity
+takes :func:`now` as the activity's instant.  ``test/support/future_dates.py``
+re-exports the two deadline helpers, so demos and tests share the one composition
 (CS-22-001).
 """
 
@@ -27,9 +28,18 @@ from datetime import datetime, timedelta
 from vultron.core.models._helpers.clock import deadline_from, now_utc
 
 
+def now() -> datetime:
+    """One wall-clock read: the instant a demo client authors an activity at.
+
+    A demo client that builds an activity outside any act (an exchange demo
+    posting to an inbox) states its ``published`` with this (ADR-0176).
+    """
+    return now_utc()
+
+
 def from_now(delta: timedelta) -> datetime:
     """Return the UTC instant *delta* after one wall-clock read."""
-    return deadline_from(now_utc(), delta)
+    return deadline_from(now(), delta)
 
 
 def days_from_now(days: int) -> datetime:

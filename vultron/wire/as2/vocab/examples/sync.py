@@ -28,7 +28,12 @@ from vultron.wire.as2.factories.sync import (
     read_ledger_entry_activity,
     reject_log_entry_activity,
 )
-from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, _VENDOR, case
+from vultron.wire.as2.vocab.examples._base import (
+    _CASE_ACTOR,
+    _VENDOR,
+    EXAMPLE_TIMESTAMP,
+    case,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 # Fixed values keep the example entries' own fields stable across generator
@@ -75,7 +80,9 @@ def announce_case_ledger_entry():
     committed to the case event log (SYNC-09-002).
     """
     entry = _example_ledger_entry()
-    return announce_log_entry_activity(entry, actor=_CASE_ACTOR.id_)
+    return announce_log_entry_activity(
+        entry, actor=_CASE_ACTOR.id_, at=EXAMPLE_TIMESTAMP
+    )
 
 
 def reject_case_ledger_entry():
@@ -93,7 +100,9 @@ def reject_case_ledger_entry():
     names the ``Announce`` that carried the third entry (RF-08-004).
     """
     entry = _ENTRY_2.to_ledger_entry()
-    announce = announce_log_entry_activity(entry, actor=_CASE_ACTOR.id_)
+    announce = announce_log_entry_activity(
+        entry, actor=_CASE_ACTOR.id_, at=EXAMPLE_TIMESTAMP
+    )
     return reject_log_entry_activity(
         entry,
         in_reply_to=announce.id_,
@@ -101,6 +110,7 @@ def reject_case_ledger_entry():
             log_index=_ENTRY_0.log_index, entry_hash=_ENTRY_0.entry_hash
         ),
         actor=_VENDOR.id_,
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -114,5 +124,5 @@ def read_case_ledger_entry():
     """
     entry = _ENTRY_1.to_ledger_entry()
     return read_ledger_entry_activity(
-        entry, actor=_VENDOR.id_, to=[_CASE_ACTOR.id_]
+        entry, actor=_VENDOR.id_, to=[_CASE_ACTOR.id_], at=EXAMPLE_TIMESTAMP
     )

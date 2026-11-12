@@ -31,7 +31,7 @@ from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received, intake_received
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -201,6 +201,7 @@ def _announce_entry_body() -> dict[str, Any]:
             id_="https://example.org/activities/announce-entry-1",
             actor=CASE_ACTOR,
             to=[ACTOR],
+            at=authored_at(),
         ).model_dump(mode="json", by_alias=True, exclude_none=True)
     )
 
@@ -227,7 +228,9 @@ class _RecordingDispatch:
         self.dispatched.append(event)
         return HandlerResult.applied()
 
-    def emit_processing_fault(self, event: Any, failure_class: str) -> None:
+    def emit_processing_fault(
+        self, event: Any, failure_class: str, *, at: object = None
+    ) -> None:
         raise AssertionError("a refused delivery is never dispatched")
 
 

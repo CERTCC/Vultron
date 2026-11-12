@@ -185,6 +185,7 @@ class CommitAndApplyEmbargoActivationNode(
             case_id=self._case_id,
             change=change,
             cause_id=self._cause_id(),
+            at=self._require_act_instant(),
         ).commit
         assert commit is not None  # a consent-row entry always commits
         commit()

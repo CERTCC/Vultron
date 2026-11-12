@@ -25,6 +25,7 @@ CASE_MANAGER-written object, so it has its own entry.
 """
 
 import logging
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -60,6 +61,7 @@ def _commit_latest_status(
     *,
     case_id: str,
     actor_id: str | None,
+    at: datetime,
 ) -> Status | None:
     """Commit the participant's newest status as its own entry; None on success.
 
@@ -75,6 +77,7 @@ def _commit_latest_status(
             participant=participant,
             status=participant.participant_statuses[-1],
             trigger_activity=node._require_trigger_activity_port(),
+            at=at,
         )
     except RuntimeError as exc:
         node.feedback_message = f"{node.name}: {exc}"
@@ -205,6 +208,7 @@ class ApplyInviteRejectToParticipantNode(
                 participant,
                 case_id=self.case_id,
                 actor_id=self.actor_id,
+                at=self._require_act_instant(),
             )
         ) is not None:
             return failure

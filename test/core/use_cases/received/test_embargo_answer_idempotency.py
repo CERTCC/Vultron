@@ -31,6 +31,7 @@ from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import refusal_notices_since
 from test.support.act_runner import run_tree
+from test.support.objects import authored_at
 from test.support.owner_decision import owner_decision_body
 from test.support.received import extract_stamped, received_activity
 from test.support.signing import signed_body
@@ -113,6 +114,7 @@ def _answer_body(
         actor=actor,
         to=sorted({MANAGER, receiver}),
         id_=f"{actor}/answers/{tag}",
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(dump_outbound_body(activity)))
 
@@ -144,6 +146,7 @@ def _withdraw(
         actor=actor,
         to=[MANAGER],
         id_=f"{actor}/withdrawals/{tag}",
+        at=authored_at(),
     )
     body = cast(dict[str, Any], json.loads(dump_outbound_body(activity)))
     return cast(HandlerResult, net.receive(MANAGER, body))

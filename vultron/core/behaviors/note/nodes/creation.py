@@ -60,6 +60,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
                 context_id=self.case_id,
                 attributed_to=self.actor_id,
                 in_reply_to=self.in_reply_to,
+                at=self._require_act_instant(),
             )
             self.result_out["note_id"] = note_id
             self.result_out["note_dict"] = json.loads(note_blob)

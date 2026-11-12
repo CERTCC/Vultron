@@ -29,6 +29,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_case,
     seed_ledger,
 )
+from test.support.objects import authored_at
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import ledger_position_statements as lps
@@ -126,10 +127,10 @@ def test_each_statement_is_a_new_activity(participant_dl) -> None:
     )
 
     adapter.send_read_ledger_entry(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID]
+        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
     adapter.send_read_ledger_entry(
-        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID]
+        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID], at=authored_at()
     )
 
     reads = _queued_reads(participant_dl)

@@ -20,7 +20,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -107,7 +107,11 @@ def test_parse_edge_refuses_a_remove_without_a_termination_reason(
         "https://example.org/cases/tr-parse", ended=False
     )
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+        embargo,
+        origin=case.id_,
+        actor=OWNER,
+        reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
     # Bypass the factory's validation to model a sender that got it wrong.
     tampered = activity.model_copy(update={"content": content})
@@ -129,7 +133,11 @@ def test_parse_edge_refuses_a_remove_with_a_blank_content() -> None:
         "https://example.org/cases/tr-parse-blank", ended=False
     )
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+        embargo,
+        origin=case.id_,
+        actor=OWNER,
+        reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
     body = json.loads(
         activity.model_dump_json(by_alias=True, exclude_none=True)
@@ -149,7 +157,7 @@ def test_parse_edge_promotes_the_reason_onto_the_event(
         "https://example.org/cases/tr-promote", ended=False
     )
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=reason
+        embargo, origin=case.id_, actor=OWNER, reason=reason, at=authored_at()
     )
 
     event = make_payload(activity)
@@ -170,7 +178,11 @@ def test_case_manager_records_an_early_remove_as_early(make_payload) -> None:
         "https://example.org/cases/tr-early", ended=False
     )
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+        embargo,
+        origin=case.id_,
+        actor=OWNER,
+        reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
 
     result = _receive(
@@ -195,6 +207,7 @@ def test_case_manager_records_an_end_time_remove_after_the_end_time(
         origin=case.id_,
         actor=OWNER,
         reason=TerminationReason.END_TIME_REACHED,
+        at=authored_at(),
     )
 
     result = _receive(
@@ -219,6 +232,7 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
         origin=case.id_,
         actor=OWNER,
         reason=TerminationReason.END_TIME_REACHED,
+        at=authored_at(),
     )
 
     result = _receive(
@@ -256,6 +270,7 @@ def test_case_manager_judges_an_end_time_remove_by_the_embargo_in_force(
         origin=case.id_,
         actor=OWNER,
         reason=TerminationReason.END_TIME_REACHED,
+        at=authored_at(),
     )
 
     result = _receive(
@@ -420,7 +435,11 @@ def test_an_owner_remove_after_the_end_time_termination_changes_nothing(
     before = {e.id_ for e in _ledger(dl, case.id_)}
     assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.EXITED
     activity = remove_embargo_from_case_activity(
-        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+        embargo,
+        origin=case.id_,
+        actor=OWNER,
+        reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
 
     result = _receive(

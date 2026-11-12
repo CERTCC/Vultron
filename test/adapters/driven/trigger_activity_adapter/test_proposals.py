@@ -18,7 +18,7 @@ from datetime import timedelta
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -75,7 +75,10 @@ class TestCreateCaseProposal:
         dl.save(_vendor_profile(timedelta(days=30)))
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+            actor=_VENDOR,
+            report_id=report.id_,
+            case_actor_id=_CASE_ACTOR,
+            at=authored_at(),
         )
 
         actor = json.loads(blob)["actor"]
@@ -95,7 +98,10 @@ class TestCreateCaseProposal:
 
         with pytest.raises(ValueError, match="CP-01-010"):
             adapter.create_case_proposal(
-                actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+                actor=_VENDOR,
+                report_id=report.id_,
+                case_actor_id=_CASE_ACTOR,
+                at=authored_at(),
             )
 
         assert list(dl.list_objects("CaseProposal")) == []
@@ -113,7 +119,10 @@ class TestCreateCaseProposal:
 
         with pytest.raises(TypeError, match="CP-01-010"):
             adapter.create_case_proposal(
-                actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+                actor=_VENDOR,
+                report_id=report.id_,
+                case_actor_id=_CASE_ACTOR,
+                at=authored_at(),
             )
 
         assert list(dl.list_objects("CaseProposal")) == []
@@ -128,7 +137,10 @@ class TestCreateCaseProposal:
         dl.save(_vendor_profile(timedelta(days=30)))
 
         _, blob = adapter.create_case_proposal(
-            actor=_VENDOR, report_id=report.id_, case_actor_id=_CASE_ACTOR
+            actor=_VENDOR,
+            report_id=report.id_,
+            case_actor_id=_CASE_ACTOR,
+            at=authored_at(),
         )
         event = extract_event(parse_activity(json.loads(blob)))
 
@@ -151,7 +163,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         report = _make_report(dl)
         dl.save(_vendor_profile(timedelta(days=30)))
         offer = rm_submit_report_activity(
-            report, to=_VENDOR, actor=self._FINDER
+            report, to=_VENDOR, actor=self._FINDER, at=authored_at()
         )
         archive_received(dl, offer)
         assert dl.read(offer.id_) is None
@@ -162,6 +174,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
             case_actor_id=_CASE_ACTOR,
             offer_id=offer.id_,
             offer_actor_id=self._FINDER,
+            at=authored_at(),
         )
 
         carried = json.loads(blob)["object"]["inReplyTo"]
@@ -179,7 +192,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         report = _make_report(dl)
         dl.save(_vendor_profile(timedelta(days=30)))
         offer = rm_submit_report_activity(
-            report, to=_VENDOR, actor=self._FINDER
+            report, to=_VENDOR, actor=self._FINDER, at=authored_at()
         )
         body = signed_body(
             {
@@ -202,6 +215,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
             case_actor_id=_CASE_ACTOR,
             offer_id=offer.id_,
             offer_actor_id=self._FINDER,
+            at=authored_at(),
         )
 
         assert json.loads(blob)["object"]["inReplyTo"] == body
@@ -219,6 +233,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
             _VENDOR,
             target=case_stub("https://example.org/cases/other"),
             actor=self._FINDER,
+            at=authored_at(),
         )
         archive_received(dl, other)
 
@@ -229,6 +244,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
                 case_actor_id=_CASE_ACTOR,
                 offer_id=other.id_,
                 offer_actor_id=self._FINDER,
+                at=authored_at(),
             )
 
         proposal = json.loads(blob)["object"]
@@ -254,6 +270,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
                 case_actor_id=_CASE_ACTOR,
                 offer_id=offer_id,
                 offer_actor_id=self._FINDER,
+                at=authored_at(),
             )
 
         proposal = json.loads(blob)["object"]

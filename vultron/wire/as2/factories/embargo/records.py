@@ -17,6 +17,8 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
+
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.vocab.activities.embargo import (
     _CreateEmbargoConsentActivity,
@@ -37,6 +39,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 
 def create_embargo_event_activity(
     embargo: as_EmbargoEvent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(EmbargoEvent): the case's creation wrote an embargo.
@@ -56,12 +60,15 @@ def create_embargo_event_activity(
     return build_activity(
         "create_embargo_event_activity",
         _CreateEmbargoEventActivity,
+        at,
         lambda: {"object_": embargo, **kwargs},
     )
 
 
 def create_embargo_consent_activity(
     row: as_EmbargoConsent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(EmbargoConsent): the CASE_MANAGER created a row.
@@ -80,12 +87,15 @@ def create_embargo_consent_activity(
     return build_activity(
         "create_embargo_consent_activity",
         _CreateEmbargoConsentActivity,
+        at,
         lambda: {"object_": row, **kwargs},
     )
 
 
 def update_embargo_consent_activity(
     row: as_EmbargoConsent,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Update:
     """Build an Update(EmbargoConsent): the CASE_MANAGER changed a row.
@@ -105,5 +115,6 @@ def update_embargo_consent_activity(
     return build_activity(
         "update_embargo_consent_activity",
         _UpdateEmbargoConsentActivity,
+        at,
         lambda: {"object_": row, **kwargs},
     )

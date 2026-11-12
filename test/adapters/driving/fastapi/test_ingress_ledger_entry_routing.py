@@ -30,7 +30,7 @@ ran.  See issues #1324, #1447, #1472.
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -83,6 +83,7 @@ def _make_announce_body() -> dict:
         id_="https://example.org/activities/announce-entry-1",
         actor="https://example.org/actors/case-actor",
         to=["https://example.org/actors/finder"],
+        at=authored_at(),
     )
     return signed_body(
         announce.model_dump(mode="json", by_alias=True, exclude_none=True)

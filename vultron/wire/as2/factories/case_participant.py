@@ -22,6 +22,8 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
+
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -53,6 +55,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 def create_participant_activity(
     participant: as_CaseParticipant,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(CaseParticipant).
@@ -76,6 +80,7 @@ def create_participant_activity(
     return build_activity(
         "create_participant_activity",
         _CreateParticipantActivity,
+        at,
         lambda: {
             "object_": participant,
             "target": case_target_ref(target),
@@ -86,6 +91,8 @@ def create_participant_activity(
 
 def update_participant_activity(
     participant: as_CaseParticipant,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Update:
     """Build an Update(CaseParticipant).
@@ -109,6 +116,7 @@ def update_participant_activity(
     return build_activity(
         "update_participant_activity",
         _UpdateParticipantActivity,
+        at,
         lambda: {"object_": participant, **kwargs},
     )
 
@@ -116,6 +124,8 @@ def update_participant_activity(
 def add_status_to_participant_activity(
     status: as_ParticipantStatus,
     target: as_CaseParticipantRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(ParticipantStatus)[target=CaseParticipant].
@@ -136,6 +146,7 @@ def add_status_to_participant_activity(
     return build_activity(
         "add_status_to_participant_activity",
         _AddStatusToParticipantActivity,
+        at,
         lambda: {
             "object_": status,
             "target": case_target_ref(target),
@@ -147,6 +158,8 @@ def add_status_to_participant_activity(
 def add_participant_to_case_activity(
     participant: as_CaseParticipant,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(CaseParticipant)[target=VulnerabilityCase].
@@ -167,6 +180,7 @@ def add_participant_to_case_activity(
     return build_activity(
         "add_participant_to_case_activity",
         _AddParticipantToCaseActivity,
+        at,
         lambda: {
             "object_": participant,
             "target": case_target_ref(target),
@@ -178,6 +192,8 @@ def add_participant_to_case_activity(
 def remove_participant_from_case_activity(
     participant: as_CaseParticipant,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(CaseParticipant)[target=VulnerabilityCase].
@@ -200,6 +216,7 @@ def remove_participant_from_case_activity(
     return build_activity(
         "remove_participant_from_case_activity",
         _RemoveParticipantFromCaseActivity,
+        at,
         lambda: {
             "object_": participant,
             "target": case_target_ref(target),

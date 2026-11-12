@@ -24,7 +24,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -102,6 +102,7 @@ def _make_reject_event(
         actor=actor,
         to=to or [CASE_ACTOR_URI],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
@@ -119,6 +120,7 @@ class TestRejectLogEntryPattern:
             ledger_position=peer_position("a" * 64),
             actor=PARTICIPANT_URI,
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
         event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -156,6 +158,7 @@ class TestRejectLogEntryPattern:
             wire_entry,
             actor=PARTICIPANT_URI,
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
         event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)

@@ -6,7 +6,7 @@ from typing import cast
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -93,6 +93,9 @@ def _make_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=actor_id, **({"to": to} if to else {})
+        entry=wire_entry,
+        actor=actor_id,
+        **({"to": to} if to else {}),
+        at=authored_at(),
     )
     return cast(AnnounceLogEntryReceivedEvent, received_event(activity))

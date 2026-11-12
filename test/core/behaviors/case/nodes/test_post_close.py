@@ -27,7 +27,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import commit_case_manager_closure
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import extract_stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -69,6 +69,7 @@ def _late_note_event():
             as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
         ),
         actor=OTHER,
+        at=authored_at(),
     )
     return extract_stamped(activity)
 

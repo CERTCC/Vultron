@@ -144,6 +144,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 reason=self._termination.reason,
                 cause=self._termination.cause,
                 to=to,
+                at=self._at,
             )
             self._captured["activity"] = json.loads(remove_blob)
             return remove_id, remove_blob

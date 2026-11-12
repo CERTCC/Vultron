@@ -195,6 +195,7 @@ class _RecordReceivedConsentNode(DataLayerActionWithPorts, StateWriteCapable):
             trigger_activity=self._require_trigger_activity_port(),
             actor_id=self.actor_id,
             cause_id=self._received_id(),
+            at=self._require_act_instant(),
         )
         return decision
 

@@ -16,6 +16,7 @@
 import logging
 from typing import Literal
 
+from vultron.demo import wall_clock
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.invite_chain import (
     DEMO_STUB_SUMMARY,
@@ -283,7 +284,7 @@ def submit_validate_and_create_case(
     )
 
     add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
+        report, actor=vendor.id_, target=case.id_, at=wall_clock.now()
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
     verify_reporter_trusts_introduction(client, reporter, vendor, report)

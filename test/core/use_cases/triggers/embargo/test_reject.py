@@ -8,6 +8,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types, ledger_entries
+from test.support.objects import authored_at
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -154,6 +155,7 @@ def test_each_deliberate_reject_is_a_new_activity(
         case_id=case.id_,
         actor=finder.id_,
         derived_id=True,
+        at=authored_at(),
     )
 
     assert activity_of(result)["id"] != derived_id

@@ -32,7 +32,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -121,9 +121,12 @@ def _close_report(
         make(as_VulnerabilityReport, id_=_REPORT, name="r"),
         to=_OWNER,
         actor=_STRANGER,
+        at=authored_at(),
     )
     event = received_event(
-        rm_close_report_activity(offer, actor=sender, to=[receiver])
+        rm_close_report_activity(
+            offer, actor=sender, to=[receiver], at=authored_at()
+        )
     )
     return cast(
         CloseReportReceivedEvent,

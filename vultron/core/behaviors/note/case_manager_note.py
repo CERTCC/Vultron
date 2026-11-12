@@ -200,11 +200,16 @@ class _CommitCaseManagerNoteBase(
             attributed_to=self.actor_id,
             in_reply_to=self._composed.in_reply_to,
             note_id=self._derived_note_id(actor_id),
+            at=self._require_act_instant(),
         )
         self._note_id = note_id
         self._note_blob = note_blob
         return self.trigger_activity_factory.add_note_to_case(
-            note_id=note_id, case_id=self._case_id, actor=actor_id, to=to
+            note_id=note_id,
+            case_id=self._case_id,
+            actor=actor_id,
+            to=to,
+            at=self._require_act_instant(),
         )
 
     def _record(

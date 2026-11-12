@@ -350,7 +350,10 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         # persisted: it is stored only once the commit succeeds (below).
         _, blob = (
             self._require_trigger_activity_port().record_case_status_added(
-                status=new_status, case_id=self.case_id, actor=self.actor_id
+                status=new_status,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                at=self._require_act_instant(),
             )
         )
         payload: dict[str, Any] = json.loads(blob)

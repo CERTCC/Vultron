@@ -20,6 +20,7 @@
 VulnerabilityCase creation, engagement, closure and announcement.
 """
 
+from datetime import datetime
 from typing import Protocol
 
 from vultron.core.models.events.base import MessageSemantics
@@ -34,6 +35,8 @@ class TriggerCasesPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
@@ -48,6 +51,8 @@ class TriggerCasesPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
 
@@ -62,6 +67,8 @@ class TriggerCasesPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(VulnerabilityCase)`` engage activity.
 
@@ -74,6 +81,8 @@ class TriggerCasesPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(VulnerabilityCase)`` activity.
 
@@ -85,6 +94,8 @@ class TriggerCasesPort(Protocol):
         self,
         object_id: str,
         case_id: str,
+        *,
+        at: datetime,
     ) -> MessageSemantics:
         """Return what a receiver would read ``Add(object)[target=VulnerabilityCase]`` as.
 
@@ -113,6 +124,8 @@ class TriggerCasesPort(Protocol):
         object_id: str,
         case_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(object)[target=VulnerabilityCase]`` activity
         addressed to *to*.
@@ -130,6 +143,8 @@ class TriggerCasesPort(Protocol):
         actor: str,
         close_sender: str,
         in_reply_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
 
@@ -149,6 +164,8 @@ class TriggerCasesPort(Protocol):
         actor: str,
         context_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist an ``Announce(VulnerabilityCase)`` activity.
 

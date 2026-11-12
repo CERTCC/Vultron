@@ -106,6 +106,7 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
                 case_obj,
                 sync_port=self._sync_port,
                 actor_id=self.actor_id,
+                at=self._require_act_instant(),
             )
         except VultronError as exc:
             self.feedback_message = str(exc)

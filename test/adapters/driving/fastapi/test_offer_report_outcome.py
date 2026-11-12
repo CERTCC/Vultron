@@ -29,7 +29,7 @@
 import pytest
 
 import vultron.adapters.driving.fastapi.inbox_port_factories as port_factories
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.clock import SystemClock
@@ -108,6 +108,7 @@ def _deliver(dl: SqliteDataLayer, *, to: str, cc: list[str]) -> InboxOutcome:
         actor=_FINDER,
         cc=cc,
         id_=_OFFER_ID,
+        at=authored_at(),
     )
     return process_payload(
         delivered_body(offer),

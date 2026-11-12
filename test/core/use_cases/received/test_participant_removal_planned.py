@@ -63,7 +63,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -165,6 +165,7 @@ class _RemovalCase:
                 target=CASE_ID,
                 actor=by,
                 to=[MANAGER],
+                at=authored_at(),
             )
         )
 
@@ -367,7 +368,11 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
 
     result = removal_case.route(
         remove_participant_from_case_activity(
-            removed_record, target=CASE_ID, actor=sender, to=[MANAGER]
+            removed_record,
+            target=CASE_ID,
+            actor=sender,
+            to=[MANAGER],
+            at=authored_at(),
         )
     )
 
@@ -385,7 +390,11 @@ def test_removal_naming_no_participant_of_the_case_is_refused(
 
     result = removal_case.route(
         remove_participant_from_case_activity(
-            stranger, target=CASE_ID, actor=OWNER, to=[MANAGER]
+            stranger,
+            target=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         )
     )
 
@@ -528,6 +537,7 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
             actor=OWNER,
             to=[MANAGER],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
     )
     assert result.disposition is HandlerDisposition.APPLIED
@@ -559,6 +569,7 @@ def _paused_replica_receives_ending_notice(
             actor=sender,
             to=[VENDOR],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
         receiving_actor_id=VENDOR,
     )
@@ -598,7 +609,11 @@ def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
 
     result = removal_case.route(
         add_participant_to_case_activity(
-            participant, target=CASE_ID, actor=OWNER, to=[MANAGER]
+            participant,
+            target=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         )
     )
 
@@ -617,6 +632,7 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
             target=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
+            at=authored_at(),
         )
     )
 

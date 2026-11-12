@@ -58,9 +58,11 @@ def invite_rsvp_deadline(invite: Mapping[str, Any]) -> datetime | None:
 class InviteRsvpStamp(ValidatedAssignmentMixin):
     """The instants an outgoing embargo Invite is stamped with.
 
+    The Invite's ``published``, which the window is measured from
+    (EP-07-001, EP-07-002), is the sending act's instant the caller passes
+    the factory as ``at``; the stamp does not carry it again.
+
     Attributes:
-        published: The Invite's ``published`` — the instant every RSVP window
-            is measured from (EP-07-001, EP-07-002).
         rsvp_deadline: The Invite's ``endTime`` (CM-28-012).
         min_rsvp_window: The configured floor the activity factory checks
             ``rsvp_deadline`` against, so sender and receiver measure the
@@ -69,11 +71,8 @@ class InviteRsvpStamp(ValidatedAssignmentMixin):
 
     model_config = ConfigDict(frozen=True)
 
-    published: datetime
     rsvp_deadline: datetime
-    _serialize_rsvp_stamp_times = timestamp_serializer(
-        "published", "rsvp_deadline"
-    )
+    _serialize_rsvp_stamp_times = timestamp_serializer("rsvp_deadline")
     min_rsvp_window: timedelta
 
 
@@ -134,7 +133,6 @@ def stamp_rsvp_deadline(
         default_window=config.default_rsvp_window,
     )
     return InviteRsvpStamp(
-        published=published,
         rsvp_deadline=deadline.effective,
         min_rsvp_window=config.min_rsvp_window,
     )

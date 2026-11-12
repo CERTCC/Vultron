@@ -73,6 +73,7 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
             actor=self.actor_id,
             close_sender=self._close_sender_id,
             in_reply_to=self._close_activity_id,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

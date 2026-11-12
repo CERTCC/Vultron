@@ -27,7 +27,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.clock import SystemClock
@@ -116,6 +116,7 @@ class TestEmbargoProposalLifecycle:
             actor=case_manager_id,
             to=["https://example.org/users/vendor"],
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
+            at=authored_at(),
         )
 
         event = make_payload(
@@ -168,6 +169,7 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             to=[coordinator_id],
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
+            at=authored_at(),
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         propose(case, embargo.id_)
@@ -181,6 +183,7 @@ class TestEmbargoProposalLifecycle:
             proposal,
             context=case.id_,
             actor=coordinator_id,
+            at=authored_at(),
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
@@ -248,6 +251,7 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             to=[coordinator_id],
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
+            at=authored_at(),
         )
         # The register is empty (EM NONE): the proposal was never recorded.
         # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
@@ -260,6 +264,7 @@ class TestEmbargoProposalLifecycle:
             proposal,
             context=case,
             actor=coordinator_id,
+            at=authored_at(),
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
@@ -332,6 +337,7 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             to=[coordinator_id],
             id_="https://example.org/cases/case_em5/embargo_proposals/1",
+            at=authored_at(),
         )
         propose(case, embargo.id_)
         # Attached after the proposal, so it holds the proposal's row.
@@ -345,6 +351,7 @@ class TestEmbargoProposalLifecycle:
             proposal,
             context=case.id_,
             actor=coordinator_id,
+            at=authored_at(),
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
@@ -405,6 +412,7 @@ class TestEmbargoProposalLifecycle:
             target=case.id_,
             actor=owner_id,
             to=[coordinator_id],
+            at=authored_at(),
         )
         event = make_payload(
             activation, receiving_actor_id=coordinator_id, at=dl
@@ -447,11 +455,13 @@ class TestEmbargoProposalLifecycle:
             context="https://example.org/cases/case_em4",
             actor="https://example.org/users/vendor",
             id_="https://example.org/cases/case_em4/embargo_proposals/1",
+            at=authored_at(),
         )
         reject = em_reject_embargo_activity(
             proposal,
             context="https://example.org/cases/case_em4",
             actor="https://example.org/users/coordinator",
+            at=authored_at(),
         )
 
         event = make_payload(reject)
@@ -508,6 +518,7 @@ class TestEmbargoProposalLifecycle:
             context=case.id_,
             actor=actor.id_,
             id_="https://example.org/cases/case_eval_invalid/proposals/p1",
+            at=authored_at(),
         )
         # EM state is NONE — ACCEPT transition is not valid from NONE.
         dl.create(
@@ -613,6 +624,7 @@ def _make_pxa_case(
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
         to=to if to is not None else [coordinator_id],
+        at=authored_at(),
     )
     # The case's CASE_MANAGER is the coordinator: the role is never unfilled
     # (CM-02-014), and a participant's Reject goes to it (PCR-08-001).
@@ -836,6 +848,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             actor=coordinator_id,
             to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
 
         event = make_payload(
@@ -890,7 +903,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
 
         accept = em_accept_embargo_activity(
-            proposal, context=case.id_, actor=self.COORD_ID
+            proposal, context=case.id_, actor=self.COORD_ID, at=authored_at()
         )
         event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
         result = run_in_act(
@@ -930,7 +943,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
 
         accept = em_accept_embargo_activity(
-            proposal, context=case.id_, actor=self.COORD_ID
+            proposal, context=case.id_, actor=self.COORD_ID, at=authored_at()
         )
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
@@ -985,11 +998,12 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             actor=coordinator_id,
             to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
+            at=authored_at(),
         )
         dl.create(proposal)
 
         accept = em_accept_embargo_activity(
-            proposal, context=case.id_, actor=coordinator_id
+            proposal, context=case.id_, actor=coordinator_id, at=authored_at()
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
         result = run_in_act(
@@ -1133,6 +1147,7 @@ class TestPxaRejectionAttribution:
             context=case.id_,
             actor=self.INVITEE_ID,
             to=[self.RECEIVER_ID],
+            at=authored_at(),
         )
 
         event = make_payload(
@@ -1203,6 +1218,7 @@ class _AnsweredInvite:
             actor=self.COORDINATOR_ID,
             to=[self.VENDOR_ID],
             id_="https://example.org/cases/case_em_dup/embargo_proposals/1",
+            at=authored_at(),
         )
         propose(case, embargo.id_)
         # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005); the
@@ -1230,6 +1246,7 @@ class _AnsweredInvite:
             context=self._case_id,
             actor=self.VENDOR_ID,
             to=[self.COORDINATOR_ID],
+            at=authored_at(),
         )
 
     def deliver(self, activity: Any) -> None:
@@ -1356,6 +1373,7 @@ def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
         actor=_CLOSED_MANAGER,
         to=[_CLOSED_VENDOR],
         id_=f"{_CLOSED_CASE}/embargo_proposals/1",
+        at=authored_at(),
     )
     propose(case, embargo.id_)
     case.add_participant(manager)
@@ -1398,6 +1416,7 @@ def test_a_closed_invitees_embargo_answer_is_refused(
             context=_CLOSED_CASE,
             actor=_CLOSED_VENDOR,
             to=[_CLOSED_MANAGER],
+            at=authored_at(),
         ),
         receiving_actor_id=_CLOSED_MANAGER,
         at=dl,
@@ -1447,6 +1466,7 @@ def test_an_open_invitees_embargo_answer_is_not_refused(
             context=_CLOSED_CASE,
             actor=_CLOSED_VENDOR,
             to=[_CLOSED_MANAGER],
+            at=authored_at(),
         ),
         receiving_actor_id=_CLOSED_MANAGER,
         at=dl,

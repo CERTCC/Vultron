@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -38,6 +38,7 @@ def test_fault_event_carries_failed_activity_id(make_payload):
         actor=_EMITTER,
         fault=fault,
         to=[_RECEIVER],
+        at=authored_at(),
     )
     event = make_payload(activity)
 
@@ -57,6 +58,7 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
         actor=_EMITTER,
         fault=make(as_ProcessingFault, failure_class=_STATUS_REFUSED),
         to=[_RECEIVER],
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
 
@@ -89,6 +91,7 @@ def test_fault_event_carries_failure_class(make_payload):
             in_reply_to=_FAILED_ACTIVITY,
         ),
         to=[_RECEIVER],
+        at=authored_at(),
     )
 
     assert make_payload(activity).failure_class == _CASE_DIVERGED
@@ -106,6 +109,7 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
         actor=_EMITTER,
         fault=make(as_ProcessingFault, failure_class=_CASE_DIVERGED),
         to=[_RECEIVER],
+        at=authored_at(),
     )
 
     result = run_in_act(
@@ -136,6 +140,7 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
             in_reply_to=_FAILED_ACTIVITY,
         ),
         to=[_RECEIVER],
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
 
@@ -169,6 +174,7 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
         actor=_EMITTER,
         fault=fault,
         to=[_RECEIVER],
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
 
@@ -246,6 +252,7 @@ def test_a_fault_about_a_report_not_held_is_answered_with_nothing(
             in_reply_to=_UNKNOWN_REPORT_OFFER,
         ),
         to=[_RECEIVER],
+        at=authored_at(),
     )
 
     run_in_act(

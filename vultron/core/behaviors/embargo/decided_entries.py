@@ -56,6 +56,7 @@ Call both from a BT node's ``update()``, never from a use case's
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.behaviors.embargo.copy_commit import (
@@ -322,6 +323,7 @@ def commit_and_apply_decision(
     cause_id: str,
     act_commit: Callable[[], Any] | None = None,
     on_row_commit: Callable[[dict[str, Any]], None] | None = None,
+    at: datetime,
 ) -> EmbargoCaseFile:
     """Commit the act's entry, then each consent-row entry; apply by copying.
 
@@ -354,6 +356,7 @@ def commit_and_apply_decision(
             change=row,
             cause_id=cause_id,
             on_commit=on_row_commit,
+            at=at,
         )
         for row in decision.rows
     )
@@ -373,6 +376,7 @@ def decide_commit_and_apply(
     step: RegisterStep | None = None,
     answer: ConsentRowChange | None = None,
     act_commit: Callable[[], Any] | None = None,
+    at: datetime,
 ) -> EmbargoDecision:
     """Decide on a staged copy, then commit and apply; return the decision.
 
@@ -389,6 +393,7 @@ def decide_commit_and_apply(
         actor_id=actor_id,
         cause_id=cause_id,
         act_commit=act_commit,
+        at=at,
     )
     return decision
 

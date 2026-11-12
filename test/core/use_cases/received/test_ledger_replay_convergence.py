@@ -42,7 +42,7 @@ from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -535,12 +535,17 @@ def test_the_owners_accept_of_an_invite_is_only_its_own_consent():
         actor=MANAGER,
         to=[OWNER],
         id_=f"{net.case_id}/embargo_invites/owner",
+        at=authored_at(),
     )
     net.stores[MANAGER].create(invite)
     _send(
         net,
         em_accept_embargo_activity(
-            invite, context=net.case_id, actor=OWNER, to=[MANAGER]
+            invite,
+            context=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -567,6 +572,7 @@ def test_a_replica_follows_the_owners_embargo_removal():
             actor=OWNER,
             to=[MANAGER],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
     )
 
@@ -623,7 +629,15 @@ def test_a_replica_follows_a_participants_engagement_decision(
     )
     _set_rm(net, BYSTANDER, RM.VALID)
     owner_before = {s: _rm(net, s, OWNER) for s in (MANAGER, OWNER)}
-    _send(net, factory(net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]))
+    _send(
+        net,
+        factory(
+            net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
+        ),
+    )
 
     assert semantic_type in _replay(net, OWNER)
     for store_of in (MANAGER, OWNER):
@@ -877,7 +891,11 @@ def test_an_add_naming_a_note_the_manager_already_holds_is_refused():
         json.loads(
             dump_outbound_body(
                 add_note_to_case_activity(
-                    note, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+                    note,
+                    target=net.case_id,
+                    actor=BYSTANDER,
+                    to=[MANAGER],
+                    at=authored_at(),
                 )
             )
         ),
@@ -955,6 +973,7 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
             actor=MANAGER,
             to=[BYSTANDER],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         ),
     )
 
@@ -982,7 +1001,7 @@ def test_case_status_writes_nothing_at_a_replica():
         pxa=PxaDimension(state=CS_pxa.Pxa),
     )
     activity = add_status_to_case_activity(
-        status, target=net.case_id, actor=MANAGER, to=[OWNER]
+        status, target=net.case_id, actor=MANAGER, to=[OWNER], at=authored_at()
     )
     verdict = net.receive(OWNER, json.loads(dump_outbound_body(activity)))
 

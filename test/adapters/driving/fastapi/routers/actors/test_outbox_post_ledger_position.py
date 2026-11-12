@@ -18,7 +18,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
@@ -100,6 +100,7 @@ def _note_to_manager(case: VulnerabilityCase, actor: as_Service, tag: str):
         target=case.id_,
         actor=actor.id_,
         to=[_MANAGER],
+        at=authored_at(),
     )
 
 
@@ -191,6 +192,7 @@ def test_a_posted_case_activity_is_sealed_with_the_actors_tail(
         target=case.id_,
         actor=actor.id_,
         to=["https://example.org/users/manager"],
+        at=authored_at(),
     )
     # The outbox drain is not this test's subject.
     monkeypatch.setattr(

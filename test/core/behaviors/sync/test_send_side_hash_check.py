@@ -27,6 +27,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.broken_ledger_entry import BreakEntry, broken_entries
+from test.support.objects import authored_at
 from vultron.core.behaviors.sync.nodes.embargo_pause import send_ledger_suffix
 from vultron.core.behaviors.sync.nodes.verified_send import (
     send_verified_log_entry,
@@ -51,7 +52,12 @@ class _RecordingSyncPort:
         self.sent: list[int] = []
 
     def send_announce_log_entry(
-        self, entry: CaseLedgerEntry, actor_id: str, to: list[str]
+        self,
+        entry: CaseLedgerEntry,
+        actor_id: str,
+        to: list[str],
+        *,
+        at: object = None,
     ) -> bool:
         self.sent.append(entry.log_index)
         return True
@@ -98,6 +104,7 @@ def test_replay_stops_at_an_entry_that_does_not_verify(
             after_index=-1,
             actor_id=_CASE_ACTOR_ID,
             peer_id=_PEER_ID,
+            at=authored_at(),
         )
 
     assert port.sent == [0, 1]
@@ -123,6 +130,7 @@ def test_an_intact_suffix_is_sent_unchanged() -> None:
         after_index=-1,
         actor_id=_CASE_ACTOR_ID,
         peer_id=_PEER_ID,
+        at=authored_at(),
     )
 
     assert port.sent == [0, 1, 2, 3]
@@ -137,7 +145,12 @@ class _PendingAboveSyncPort(_RecordingSyncPort):
         self.pending_from = pending_from
 
     def send_announce_log_entry(
-        self, entry: CaseLedgerEntry, actor_id: str, to: list[str]
+        self,
+        entry: CaseLedgerEntry,
+        actor_id: str,
+        to: list[str],
+        *,
+        at: object = None,
     ) -> bool:
         if entry.log_index >= self.pending_from:
             return False
@@ -155,6 +168,7 @@ def test_already_pending_entries_count_toward_the_covered_index() -> None:
         after_index=-1,
         actor_id=_CASE_ACTOR_ID,
         peer_id=_PEER_ID,
+        at=authored_at(),
     )
 
     assert port.sent == [0, 1]
@@ -170,6 +184,7 @@ def test_a_send_that_offers_nothing_covers_no_index() -> None:
         after_index=3,
         actor_id=_CASE_ACTOR_ID,
         peer_id=_PEER_ID,
+        at=authored_at(),
     )
 
     assert result == (0, 0, None, None)
@@ -192,6 +207,7 @@ def test_the_verified_send_raises_and_queues_nothing(
             entry,
             actor_id=_CASE_ACTOR_ID,
             to=[_PEER_ID],
+            at=authored_at(),
         )
 
     assert port.sent == []
@@ -216,5 +232,6 @@ def test_the_verified_send_passes_an_intact_entry_through() -> None:
         entry,
         actor_id=_CASE_ACTOR_ID,
         to=[_PEER_ID],
+        at=authored_at(),
     )
     assert port.sent == [0]

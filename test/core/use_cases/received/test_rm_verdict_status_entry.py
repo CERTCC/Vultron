@@ -29,6 +29,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger import fail_commits, ledger_entries
+from test.support.objects import authored_at
 from test.support.received import received_event
 from vultron.core.behaviors.case.nodes.participant import status_entries
 from vultron.core.models._helpers import project_wire_snapshot_to_core
@@ -60,7 +61,7 @@ def _invalidate(dl):
         InvalidateReportReceivedEvent,
         received_event(
             rm_invalidate_report_activity(
-                _offer(), actor=FINDER_ID, to=[MANAGER_ID]
+                _offer(), actor=FINDER_ID, to=[MANAGER_ID], at=authored_at()
             ),
             at=dl,
         ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
@@ -141,7 +142,7 @@ def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
         InvalidateReportReceivedEvent,
         received_event(
             rm_invalidate_report_activity(
-                _offer(), actor=FINDER_ID, to=[MANAGER_ID]
+                _offer(), actor=FINDER_ID, to=[MANAGER_ID], at=authored_at()
             ),
             at=dl,
         ).model_copy(update={"receiving_actor_id": MANAGER_ID}),

@@ -17,7 +17,7 @@ import json
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.errors import VultronAlreadyExistsError
@@ -48,6 +48,7 @@ def _make_offer(adapter, dl):
         actor=_ACTOR,
         to=_COORDINATOR,
         target=_CASE_ID,
+        at=authored_at(),
     )
     return offer_id
 
@@ -61,6 +62,7 @@ class TestSubmitReport:
             actor=_ACTOR,
             to=_COORDINATOR,
             target=_CASE_ID,
+            at=authored_at(),
         )
 
         assert offer_id
@@ -75,6 +77,7 @@ class TestSubmitReport:
             actor=_ACTOR,
             to=_COORDINATOR,
             target=_CASE_ID,
+            at=authored_at(),
         )
 
         assert dl.read(offer_id) is not None
@@ -87,6 +90,7 @@ class TestSubmitReport:
             actor=_ACTOR,
             to=_COORDINATOR,
             target=_CASE_ID,
+            at=authored_at(),
         )
 
         record_id = VultronOfferRecord.build_id(offer_id)
@@ -117,6 +121,7 @@ class TestSubmitReport:
                 actor=_ACTOR,
                 to=_COORDINATOR,
                 target=_CASE_ID,
+                at=authored_at(),
             )
 
         # The Offer activity must have been rolled back — list_objects("Offer")
@@ -156,6 +161,7 @@ class TestSubmitReport:
             actor=_ACTOR,
             to=_COORDINATOR,
             target=_CASE_ID,
+            at=authored_at(),
         )
 
         # The Offer activity MUST still be present — no compensating delete.
@@ -187,6 +193,7 @@ class TestSubmitReport:
                 actor=_ACTOR,
                 to=_COORDINATOR,
                 target=_CASE_ID,
+                at=authored_at(),
             )
 
         dl.delete = original_delete
@@ -202,6 +209,7 @@ class TestCloseReport:
             report_id="unused",
             actor=_COORDINATOR,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert reject_id
@@ -214,6 +222,7 @@ class TestCloseReport:
             offer_id=offer_id,
             report_id="unused",
             actor=_COORDINATOR,
+            at=authored_at(),
         )
 
         assert dl.read(reject_id) is not None
@@ -228,6 +237,7 @@ class TestInvalidateReport:
             offer_id=offer_id,
             actor=_COORDINATOR,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -239,6 +249,7 @@ class TestInvalidateReport:
         activity_id, _ = adapter.invalidate_report(
             offer_id=offer_id,
             actor=_COORDINATOR,
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -267,6 +278,7 @@ class TestSubmitReportProposedEmbargo:
             to=_COORDINATOR,
             target=_CASE_ID,
             proposed_embargo_id=terms.id_,
+            at=authored_at(),
         )
 
         proposed = json.loads(offer_json)["proposedEmbargo"]
@@ -281,6 +293,7 @@ class TestSubmitReportProposedEmbargo:
             actor=_ACTOR,
             to=_COORDINATOR,
             target=_CASE_ID,
+            at=authored_at(),
         )
 
         assert "proposedEmbargo" not in json.loads(offer_json)
@@ -299,6 +312,7 @@ class TestSubmitReportProposedEmbargo:
                 to=_COORDINATOR,
                 target=_CASE_ID,
                 proposed_embargo_id="urn:uuid:00000000-0000-0000-0000-000000000000",
+                at=authored_at(),
             )
         assert list(dl.list_objects("Offer")) == []
 
@@ -323,6 +337,7 @@ class TestSubmitReportProposedEmbargo:
                 to=_COORDINATOR,
                 target=_CASE_ID,
                 proposed_embargo_id=foreign.id_,
+                at=authored_at(),
             )
 
 
@@ -335,7 +350,7 @@ def _received_offer(dl) -> tuple[str, str]:
     """
     report = make(as_VulnerabilityReport, name="CVE-2025-002", content="PoC")
     offer = rm_submit_report_activity(
-        report=report, to=_COORDINATOR, actor=_ACTOR
+        report=report, to=_COORDINATOR, actor=_ACTOR, at=authored_at()
     )
     archive_received(dl, offer)
     assert dl.read(offer.id_) is None
@@ -344,22 +359,32 @@ def _received_offer(dl) -> tuple[str, str]:
 
 def _validate(adapter, offer_id, report_id):
     return adapter.validate_report(
-        offer_id=offer_id, report_id=report_id, actor=_COORDINATOR
+        offer_id=offer_id,
+        report_id=report_id,
+        actor=_COORDINATOR,
+        at=authored_at(),
     )
 
 
 def _close(adapter, offer_id, report_id):
     return adapter.close_report(
-        offer_id=offer_id, report_id=report_id, actor=_COORDINATOR
+        offer_id=offer_id,
+        report_id=report_id,
+        actor=_COORDINATOR,
+        at=authored_at(),
     )
 
 
 def _invalidate(adapter, offer_id, report_id):
-    return adapter.invalidate_report(offer_id=offer_id, actor=_COORDINATOR)
+    return adapter.invalidate_report(
+        offer_id=offer_id, actor=_COORDINATOR, at=authored_at()
+    )
 
 
 def _ack(adapter, offer_id, report_id):
-    return adapter.ack_report(offer_id=offer_id, actor=_COORDINATOR)
+    return adapter.ack_report(
+        offer_id=offer_id, actor=_COORDINATOR, at=authored_at()
+    )
 
 
 _REPLIES = [

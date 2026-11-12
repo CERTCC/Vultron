@@ -48,6 +48,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.states.cs import CS_pxa
+from vultron.demo import wall_clock
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_participant_status_appended,
@@ -145,7 +146,7 @@ def demo_notes_workflow(
             attributed_to=vendor.id_,
         )
         add_note_activity = add_note_to_case_activity(
-            note, actor=vendor.id_, target=case.id_
+            note, actor=vendor.id_, target=case.id_, at=wall_clock.now()
         )
         post_to_inbox_and_wait(client, vendor.id_, add_note_activity)
         with demo_check("Note stored in data layer"):
@@ -252,6 +253,7 @@ def demo_status_workflow(
             participant_status,
             actor=vendor.id_,
             target=vendor_participant.id_,
+            at=wall_clock.now(),
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
 

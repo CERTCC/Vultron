@@ -104,6 +104,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
                 case_id=self._case_id,
                 actor=self._actor_id,
                 to=[case_manager_id],
+                at=self._at,
             )
             self._captured["activity"] = json.loads(add_body)
             self._result_out[ASSERTED_ACTIVITY_KEY] = add_id

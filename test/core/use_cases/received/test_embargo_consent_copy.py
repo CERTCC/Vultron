@@ -27,6 +27,7 @@ import pytest
 
 from test.support.inbox_replay import held_depth
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import authored_at
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -529,6 +530,7 @@ class TestReplicaCopies:
             actor=MANAGER,
             context_id=net.case_id,
             to=[BYSTANDER],
+            at=authored_at(),
         )
         seed = read_sealed_body_dict(net.stores[MANAGER], seed_id)
         assert seed is not None

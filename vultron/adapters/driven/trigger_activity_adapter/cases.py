@@ -16,6 +16,7 @@
 """Case-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -91,6 +92,8 @@ class _CasesMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
@@ -115,7 +118,9 @@ class _CasesMixin:
         case = _case_for_wire(self._dl, case_id)
         _require_bootstrap_inline(case, case_id)
         extra = _addressing(actor, to, id_)
-        activity = create_case_activity(case=case, context=case_id, **extra)
+        activity = create_case_activity(
+            case=case, context=case_id, **extra, at=at
+        )
         return _create_and_seal(self._dl, activity, "create_case")
 
     def engage_case(
@@ -123,13 +128,17 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the RA ``Join(VulnerabilityCase)``, naming the case.
 
         The case travels as its typed reference (ADR-0165): the CASE_MANAGER
         it goes to holds the canonical case, so no copy is carried.
         """
-        activity = rm_engage_case_activity(case=case_id, actor=actor, to=to)
+        activity = rm_engage_case_activity(
+            case=case_id, actor=actor, to=to, at=at
+        )
         return _create_and_seal(self._dl, activity, "engage_case")
 
     def defer_case(
@@ -137,12 +146,16 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the RD ``Ignore(VulnerabilityCase)``, naming the case.
 
         The case travels as its typed reference (ADR-0165).
         """
-        activity = rm_defer_case_activity(case=case_id, actor=actor, to=to)
+        activity = rm_defer_case_activity(
+            case=case_id, actor=actor, to=to, at=at
+        )
         return _create_and_seal(self._dl, activity, "defer_case")
 
     def close_case(
@@ -150,12 +163,16 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the RC ``Leave(VulnerabilityCase)``, naming the case.
 
         The case travels as its typed reference (ADR-0165).
         """
-        activity = rm_close_case_activity(case=case_id, actor=actor, to=to)
+        activity = rm_close_case_activity(
+            case=case_id, actor=actor, to=to, at=at
+        )
         return _create_and_seal(self._dl, activity, "close_case")
 
     def reject_close_case(
@@ -164,6 +181,8 @@ class _CasesMixin:
         actor: str,
         close_sender: str,
         in_reply_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
 
@@ -178,15 +197,21 @@ class _CasesMixin:
         threaded to it via ``in_reply_to`` rather than read back from the
         DataLayer.
         """
-        leave = rm_close_case_activity(case=case_id, actor=close_sender)
+        # Rebuilt from what this actor knows, with no time: the owner stated
+        # the Leave's ``published``, and this actor does not hold it, so the
+        # rejecter's instant is not stamped on it (AKM-02-006).  Embedding the
+        # received Leave instead of a rebuild is #6259.
+        leave = rm_close_case_activity(
+            case=case_id, actor=close_sender, at=at
+        ).model_copy(update={"published": None, "updated": None})
         kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
         if in_reply_to is not None:
             kwargs["in_reply_to"] = in_reply_to
-        activity = reject_close_case_activity(leave=leave, **kwargs)
+        activity = reject_close_case_activity(leave=leave, **kwargs, at=at)
         return _create_and_seal(self._dl, activity, "reject_close_case")
 
     def add_object_to_case_semantics(
-        self, object_id: str, case_id: str
+        self, object_id: str, case_id: str, *, at: datetime
     ) -> MessageSemantics:
         """Return what a receiver would read ``Add(object)[target=VulnerabilityCase]`` as.
 
@@ -206,7 +231,7 @@ class _CasesMixin:
                 Case Owner's activation, ADR-0180).
         """
         activity = self._build_add_object_to_case(
-            actor=None, object_id=object_id, case_id=case_id, to=None
+            actor=None, object_id=object_id, case_id=case_id, to=None, at=at
         )
         semantics = find_matching_semantics(activity)
         if semantics not in _ADD_OBJECT_TO_CASE_SEMANTICS:
@@ -225,6 +250,8 @@ class _CasesMixin:
         object_id: str,
         case_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(object)[target=VulnerabilityCase]`` activity
         addressed to *to*.
@@ -239,7 +266,7 @@ class _CasesMixin:
                 representation or the ``Add`` cannot be constructed with it.
         """
         activity = self._build_add_object_to_case(
-            actor=actor, object_id=object_id, case_id=case_id, to=to
+            actor=actor, object_id=object_id, case_id=case_id, to=to, at=at
         )
         return _create_and_seal(self._dl, activity, "add_object_to_case")
 
@@ -249,6 +276,8 @@ class _CasesMixin:
         object_id: str,
         case_id: str,
         to: list[str] | None,
+        *,
+        at: datetime,
     ) -> as_Add:
         """Build, without persisting, the ``Add(object)[target=VulnerabilityCase]`` activity."""
         # The case is addressed by its URI: every recipient of an Add to a
@@ -265,6 +294,8 @@ class _CasesMixin:
                 target=case_id,
                 context=case_id,
                 to=to,
+                published=at,
+                updated=at,
             )
         except ValidationError as exc:
             raise VultronActivityConstructionError(
@@ -278,6 +309,8 @@ class _CasesMixin:
         actor: str,
         context_id: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist an ``Announce(VulnerabilityCase)`` activity.
 
@@ -320,6 +353,7 @@ class _CasesMixin:
             actor=actor,
             context=context_id,
             to=to,
+            at=at,
         )
         # One transaction, so a body that cannot be signed leaves no stored,
         # unsealed Announce behind (SIG-01-001).

@@ -23,7 +23,7 @@ So the factory, not the emitting node, fills ``context`` in.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
@@ -99,13 +99,16 @@ def _participant() -> as_CaseParticipant:
 
 def _recommendation():
     return recommend_actor_activity(
-        recommended=make(as_Actor, id_=_VENDOR), target=_CASE_ID, actor=_ACTOR
+        recommended=make(as_Actor, id_=_VENDOR),
+        target=_CASE_ID,
+        actor=_ACTOR,
+        at=authored_at(),
     )
 
 
 def _cp_offer():
     return offer_case_participant_activity(
-        recommended=_VENDOR, target=_CASE_ID, actor=_ACTOR
+        recommended=_VENDOR, target=_CASE_ID, actor=_ACTOR, at=authored_at()
     )
 
 
@@ -120,6 +123,7 @@ def _role_offer():
             name="x",
         ),
         actor=_ACTOR,
+        at=authored_at(),
     )
 
 
@@ -139,12 +143,16 @@ def _role_offer():
                     stub_summary="Security issue — details shared after acceptance",
                 ),
                 actor=_ACTOR,
+                at=authored_at(),
             ),
             id="invite_actor_to_case",
         ),
         pytest.param(
             lambda: rm_invite_to_case_activity(
-                invitee=_VENDOR, target=_CASE_ID, actor=_ACTOR
+                invitee=_VENDOR,
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="invite_actor_to_case-bare-target",
         ),
@@ -157,38 +165,54 @@ def _role_offer():
                     name="x",
                 ),
                 actor=_ACTOR,
+                at=authored_at(),
             ),
             id="update_case",
         ),
         pytest.param(_recommendation, id="recommend_actor"),
         pytest.param(
             lambda: accept_actor_recommendation_activity(
-                offer=_recommendation(), target=_CASE_ID, actor=_ACTOR
+                offer=_recommendation(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="accept_actor_recommendation",
         ),
         pytest.param(
             lambda: reject_actor_recommendation_activity(
-                offer=_recommendation(), target=_CASE_ID, actor=_ACTOR
+                offer=_recommendation(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="reject_actor_recommendation",
         ),
         pytest.param(_cp_offer, id="offer_case_participant"),
         pytest.param(
             lambda: accept_case_participant_offer_activity(
-                offer=_cp_offer(), target=_CASE_ID, actor=_ACTOR
+                offer=_cp_offer(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="accept_case_participant_offer",
         ),
         pytest.param(
             lambda: reject_case_participant_offer_activity(
-                offer=_cp_offer(), target=_CASE_ID, actor=_ACTOR
+                offer=_cp_offer(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="reject_case_participant_offer",
         ),
         pytest.param(
             lambda: add_participant_to_case_activity(
-                participant=_participant(), target=_CASE_ID, actor=_ACTOR
+                participant=_participant(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="add_participant_to_case",
         ),
@@ -197,24 +221,28 @@ def _role_offer():
                 note=make(as_Note, content="x", context=_CASE_ID),
                 target=_CASE_ID,
                 actor=_ACTOR,
+                at=authored_at(),
             ),
             id="add_note_to_case",
         ),
         pytest.param(
             lambda: remove_participant_from_case_activity(
-                participant=_participant(), target=_CASE_ID, actor=_ACTOR
+                participant=_participant(),
+                target=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             ),
             id="remove_participant_from_case",
         ),
         pytest.param(
             lambda: accept_case_participant_role_activity(
-                offer=_role_offer(), actor=_VENDOR
+                offer=_role_offer(), actor=_VENDOR, at=authored_at()
             ),
             id="accept_case_participant_role",
         ),
         pytest.param(
             lambda: reject_case_participant_role_activity(
-                offer=_role_offer(), actor=_VENDOR
+                offer=_role_offer(), actor=_VENDOR, at=authored_at()
             ),
             id="reject_case_participant_role",
         ),
@@ -231,13 +259,14 @@ def test_an_explicit_context_is_left_alone():
         target=_CASE_ID,
         actor=_ACTOR,
         context="https://example.org/cases/explicit",
+        at=authored_at(),
     )
     assert activity.context == "https://example.org/cases/explicit"
 
 
 def test_no_case_means_no_context():
     activity = offer_case_participant_activity(
-        recommended=_VENDOR, actor=_ACTOR
+        recommended=_VENDOR, actor=_ACTOR, at=authored_at()
     )
     assert activity.context is None
 
@@ -275,7 +304,7 @@ def test_factories_given_a_full_case_target_send_its_uri():
         name="full",
     )
     activity = add_participant_to_case_activity(
-        participant=_participant(), target=case, actor=_ACTOR
+        participant=_participant(), target=case, actor=_ACTOR, at=authored_at()
     )
     dumped = activity.model_dump(by_alias=True, exclude_none=True)
     assert dumped["target"] == _CASE_ID
@@ -295,10 +324,11 @@ def test_role_offer_context_is_the_case_uri_not_the_case():
             as_VulnerabilityCase, id_=_CASE_ID, name="x", attributed_to=_ACTOR
         ),
         actor=_ACTOR,
+        at=authored_at(),
     )
     assert activity.context == _CASE_ID
     accept = accept_case_participant_role_activity(
-        offer=activity, actor=_VENDOR
+        offer=activity, actor=_VENDOR, at=authored_at()
     )
     assert accept.model_dump(by_alias=True)["object"]["context"] == _CASE_ID
 
@@ -309,5 +339,6 @@ def test_role_offer_accepts_the_case_uri_directly():
         target_actor=make(as_Actor, id_=_VENDOR),
         case=_CASE_ID,
         actor=_ACTOR,
+        at=authored_at(),
     )
     assert activity.context == _CASE_ID

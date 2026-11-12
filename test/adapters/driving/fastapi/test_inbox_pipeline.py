@@ -8,7 +8,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.inbox_replay import hold_activity
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
@@ -104,6 +104,7 @@ def _store_note_activity_whole(
         context=case.id_,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
     for obj in (case, note):
         dl.save(obj)
@@ -140,7 +141,7 @@ def test_routing_safety_net_report_domain(test_pipeline, monkeypatch):
         content="report content",
     )
     activity = rm_create_report_activity(
-        report, actor=SENDER_ID, to=[RECEIVER_ID]
+        report, actor=SENDER_ID, to=[RECEIVER_ID], at=authored_at()
     )
 
     event, dl = _save_and_process(
@@ -158,7 +159,9 @@ def test_routing_safety_net_case_domain(test_pipeline, monkeypatch):
         monkeypatch, CreateCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    activity = create_case_activity(case, actor=SENDER_ID, to=[RECEIVER_ID])
+    activity = create_case_activity(
+        case, actor=SENDER_ID, to=[RECEIVER_ID], at=authored_at()
+    )
 
     event, dl = _save_and_process(
         test_pipeline, activity=activity, objects=[case]
@@ -182,7 +185,11 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
         end_time=days_from_now(45),
     )
     activity = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=SENDER_ID, to=[RECEIVER_ID]
+        embargo,
+        context=case.id_,
+        actor=SENDER_ID,
+        to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     event, dl = _save_and_process(
@@ -209,6 +216,7 @@ def test_routing_safety_net_note_domain(test_pipeline, monkeypatch):
         context=case.id_,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     event, dl = _save_and_process(
@@ -230,6 +238,7 @@ def test_routing_safety_net_actor_domain(test_pipeline, monkeypatch):
         case,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     event, dl = _save_and_process(
@@ -260,6 +269,7 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
         context=case.id_,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     event, dl = _save_and_process(
@@ -293,6 +303,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
         context=CASE_ID,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     event, dl = _save_and_process(
@@ -315,6 +326,7 @@ def test_process_defers_unknown_case_activity(test_pipeline):
         context=UNKNOWN_CASE_ID,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
 
     dl.save(note)
@@ -357,6 +369,7 @@ def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
         target=case,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
+        at=authored_at(),
     )
     pipeline, dl = test_pipeline
     hold_activity(dl, activity)
@@ -404,6 +417,7 @@ def test_create_case_with_correct_context_not_deferred(
         actor=SENDER_ID,
         to=[RECEIVER_ID],
         context=new_case_id,
+        at=authored_at(),
     )
 
     pipeline, dl = test_pipeline

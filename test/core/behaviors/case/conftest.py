@@ -13,7 +13,7 @@ that multiple tree test files can reuse them without redefinition.
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.actor import VultronService
@@ -89,6 +89,7 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
         report=report,
         actor=reporter_actor_id,
         to=actor_id,
+        at=authored_at(),
     )
     datalayer.create(obj)
     return obj

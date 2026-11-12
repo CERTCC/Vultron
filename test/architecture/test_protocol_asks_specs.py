@@ -42,7 +42,7 @@ import pytest
 from test.architecture import _corpus
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
@@ -665,6 +665,7 @@ def test_a_processing_fault_is_never_recorded_in_the_ledger() -> None:
                 in_reply_to=case_activities[-1][0],
             ),
             to=[manager],
+            at=authored_at(),
         )
         event = received_event(activity, at=dl)
         assert isinstance(event, CreateProcessingFaultReceivedEvent)

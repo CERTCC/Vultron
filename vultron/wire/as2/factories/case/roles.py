@@ -17,6 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
 from typing import cast
 
 from vultron.core.models.actor import CoreActor
@@ -50,6 +51,8 @@ def offer_case_participant_role_activity(
     role: CVDRole,
     target_actor: as_Actor | CoreActor | str,
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build Offer(CaseParticipantRole)[context=VulnerabilityCase].
@@ -87,6 +90,7 @@ def offer_case_participant_role_activity(
     return build_activity(
         "offer_case_participant_role_activity",
         _OfferCaseParticipantRoleActivity,
+        at,
         lambda: {
             "object_": as_CaseParticipantRole(role=role),
             "target": carried_actor(target_actor),
@@ -98,6 +102,8 @@ def offer_case_participant_role_activity(
 
 def accept_case_participant_role_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_OfferCaseParticipantRoleActivity) (ADR-0039).
@@ -118,6 +124,7 @@ def accept_case_participant_role_activity(
     return build_activity(
         "accept_case_participant_role_activity",
         _AcceptCaseParticipantRoleActivity,
+        at,
         lambda: {
             "object_": cast(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),
@@ -127,6 +134,8 @@ def accept_case_participant_role_activity(
 
 def reject_case_participant_role_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_OfferCaseParticipantRoleActivity) (ADR-0039).
@@ -147,6 +156,7 @@ def reject_case_participant_role_activity(
     return build_activity(
         "reject_case_participant_role_activity",
         _RejectCaseParticipantRoleActivity,
+        at,
         lambda: {
             "object_": cast(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),

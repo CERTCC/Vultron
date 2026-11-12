@@ -29,6 +29,8 @@ No other code in ``vultron/core/`` calls ``send_announce_log_entry``
 send path can skip the check.
 """
 
+from datetime import datetime
+
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -63,6 +65,7 @@ def send_verified_log_entry(
     *,
     actor_id: str,
     to: list[str],
+    at: datetime,
 ) -> bool:
     """Queue ``Announce(entry)`` to *to* once *entry*'s hash verifies.
 
@@ -78,5 +81,5 @@ def send_verified_log_entry(
     """
     check_log_entry_verifies(entry, to)
     return sync_port.send_announce_log_entry(
-        entry=entry, actor_id=actor_id, to=to
+        entry=entry, actor_id=actor_id, to=to, at=at
     )

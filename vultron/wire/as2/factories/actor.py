@@ -22,6 +22,7 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
 from typing import cast
 
 from vultron.core.models.actor import CoreActor
@@ -60,6 +61,8 @@ def recommend_actor_activity(
     recommended: as_Actor | CoreActor | str,
     target: as_VulnerabilityCaseRef | None = None,
     suggested_roles: list[str] | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(Actor)[target=VulnerabilityCase] — actor recommendation.
@@ -87,6 +90,7 @@ def recommend_actor_activity(
     return build_activity(
         "recommend_actor_activity",
         _RecommendActorActivity,
+        at,
         lambda: {
             "object_": carried_actor(recommended),
             "target": case_target_ref(target),
@@ -99,6 +103,8 @@ def recommend_actor_activity(
 def accept_actor_recommendation_activity(
     offer: as_Offer,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_RecommendActorActivity).
@@ -126,6 +132,7 @@ def accept_actor_recommendation_activity(
     return build_activity(
         "accept_actor_recommendation_activity",
         _AcceptActorRecommendationActivity,
+        at,
         lambda: {
             "object_": cast(_RecommendActorActivity, offer),
             "target": case_target_ref(target),
@@ -137,6 +144,8 @@ def accept_actor_recommendation_activity(
 def reject_actor_recommendation_activity(
     offer: as_Offer,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RecommendActorActivity).
@@ -162,6 +171,7 @@ def reject_actor_recommendation_activity(
     return build_activity(
         "reject_actor_recommendation_activity",
         _RejectActorRecommendationActivity,
+        at,
         lambda: {
             "object_": cast(_RecommendActorActivity, offer),
             "target": case_target_ref(target),
@@ -174,6 +184,8 @@ def offer_case_participant_activity(
     recommended: as_Actor | str,
     target: as_VulnerabilityCaseRef | None = None,
     roles: list[CVDRole] | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(CaseParticipant)[target=VulnerabilityCase] for the Case Owner.
@@ -204,6 +216,7 @@ def offer_case_participant_activity(
     return build_activity(
         "offer_case_participant_activity",
         _OfferCaseParticipantActivity,
+        at,
         lambda: {
             "object_": as_CaseParticipant(
                 id_=f"{actor_id}#participant",
@@ -219,6 +232,8 @@ def offer_case_participant_activity(
 def accept_case_participant_offer_activity(
     offer: as_Offer,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_OfferCaseParticipantActivity) from the Case Owner.
@@ -241,6 +256,7 @@ def accept_case_participant_offer_activity(
     return build_activity(
         "accept_case_participant_offer_activity",
         _AcceptCaseParticipantOfferActivity,
+        at,
         lambda: {
             # Embedded as the Case Owner received it (DL-06-004).
             "object_": embedded_as_received(
@@ -255,6 +271,8 @@ def accept_case_participant_offer_activity(
 def reject_case_participant_offer_activity(
     offer: as_Offer,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_OfferCaseParticipantActivity) from the Case Owner.
@@ -275,6 +293,7 @@ def reject_case_participant_offer_activity(
     return build_activity(
         "reject_case_participant_offer_activity",
         _RejectCaseParticipantOfferActivity,
+        at,
         lambda: {
             "object_": embedded_as_received(
                 validated_as(_OfferCaseParticipantActivity, offer), offer

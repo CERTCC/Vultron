@@ -36,7 +36,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_received,
     delivered_body,
@@ -90,6 +90,7 @@ def activity():
         ),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
 
 

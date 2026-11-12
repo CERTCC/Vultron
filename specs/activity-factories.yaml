@@ -50,8 +50,9 @@ groups:
     statement: Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant, forwarding
       them to the underlying AS2 constructor
     rationale: >-
-      Fields such as `published` and `summary` apply to many activities and do not
-      change what the activity means. When the factory passes them through `**kwargs`,
+      Fields such as `summary` and `in_reply_to` apply to many activities and do not
+      change what the activity means. The time is not one of them: `published` is the
+      required `at`, set in one place (ADR-0176). When the factory passes them through `**kwargs`,
       each signature stays short, and no factory needs one parameter for each optional
       AS2 field.
   - id: AF-01-005

@@ -17,6 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
 from typing import cast
 
 from vultron.wire.as2.factories._construct import build_activity
@@ -40,6 +41,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def rm_engage_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Join:
     """Build a Join(VulnerabilityCase) — the RA message.
@@ -62,12 +65,15 @@ def rm_engage_case_activity(
     return build_activity(
         "rm_engage_case_activity",
         _RmEngageCaseActivity,
+        at,
         lambda: {"object_": _named_case(case), **kwargs},
     )
 
 
 def rm_defer_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Ignore:
     """Build an Ignore(VulnerabilityCase) — the RD message.
@@ -90,12 +96,15 @@ def rm_defer_case_activity(
     return build_activity(
         "rm_defer_case_activity",
         _RmDeferCaseActivity,
+        at,
         lambda: {"object_": _named_case(case), **kwargs},
     )
 
 
 def rm_close_case_activity(
     case: as_VulnerabilityCase | str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Leave:
     """Build a Leave(VulnerabilityCase) — the RC message.
@@ -117,12 +126,15 @@ def rm_close_case_activity(
     return build_activity(
         "rm_close_case_activity",
         _RmCloseCaseActivity,
+        at,
         lambda: {"object_": _named_case(case), **kwargs},
     )
 
 
 def reject_close_case_activity(
     leave: as_Leave,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RmCloseCaseActivity) — declines an owner close (CM-23-011).
@@ -146,5 +158,6 @@ def reject_close_case_activity(
     return build_activity(
         "reject_close_case_activity",
         _RmRejectCloseCaseActivity,
+        at,
         lambda: {"object_": cast(_RmCloseCaseActivity, leave), **kwargs},
     )

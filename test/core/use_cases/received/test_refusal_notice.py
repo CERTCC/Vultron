@@ -36,7 +36,7 @@ from pydantic import ValidationError
 from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     delivered_body,
     extract_stamped,
@@ -155,6 +155,7 @@ def _accept_event(
         actor=sender,
         to=sorted({MANAGER, receiver}),
         id_=f"{sender}/answers/{tag}",
+        at=authored_at(),
     )
     body = signed_body(json.loads(dump_outbound_body(activity)))
     return extract_stamped(parse_activity(body)).model_copy(
@@ -238,6 +239,7 @@ def test_the_refusal_notice_embeds_the_refused_activity_as_received():
         actor=BYSTANDER,
         to=[MANAGER],
         id_=f"{BYSTANDER}/answers/verbatim",
+        at=authored_at(),
     )
     # The extra keys change the signed body, so its author signs it again.
     body = resigned(
@@ -372,6 +374,7 @@ def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
                     target=participant,
                     actor=BYSTANDER,
                     to=[MANAGER],
+                    at=authored_at(),
                 )
             )
         ),
@@ -726,6 +729,7 @@ def test_a_declined_leave_closes_the_owners_pending_leave():
         actor=MANAGER,
         close_sender=OWNER,
         in_reply_to=leave_id,
+        at=authored_at(),
     )
     body = json.loads(blob)
 
@@ -835,6 +839,7 @@ def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
             actor=BYSTANDER,
             to=[MANAGER],
             id_=f"{BYSTANDER}/adds/{tag}",
+            at=authored_at(),
         )
         return activity, net.receive(
             MANAGER, json.loads(dump_outbound_body(activity))
@@ -872,7 +877,11 @@ def test_a_participants_case_status_gets_no_notice_and_no_fault():
         em=EmDimension(state=EM.ACTIVE),
     )
     activity = add_status_to_case_activity(
-        status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        status,
+        target=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+        at=authored_at(),
     )
 
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(activity)))

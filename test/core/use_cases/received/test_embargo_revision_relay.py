@@ -41,7 +41,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -213,6 +213,7 @@ def test_case_manager_moves_canonical_case_to_revise(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
@@ -239,6 +240,7 @@ def test_case_manager_invites_every_participant_except_the_proposer(
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
@@ -275,6 +277,7 @@ def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
         attributed_to=PROPOSER,
         to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/other-a",
+        at=authored_at(),
     )
 
     verdict = _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
@@ -316,6 +319,7 @@ def test_revision_invite_to_a_signatory_succeeds_and_changes_nothing(
         attributed_to=PROPOSER,
         to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/other-a",
+        at=authored_at(),
     )
 
     verdict = _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
@@ -423,6 +427,7 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/first",
+        at=authored_at(),
     )
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
@@ -445,6 +450,7 @@ def test_relayed_invites_carry_the_managers_rsvp_deadline(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
@@ -471,6 +477,7 @@ def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
@@ -499,6 +506,7 @@ def test_participant_stores_no_deadline_on_receipt(make_payload):
         attributed_to=PROPOSER,
         to=[OTHER_A],
         id_=f"{case_id}/embargo_invites/other-a",
+        at=authored_at(),
     )
 
     _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
@@ -521,6 +529,7 @@ def test_invite_with_several_recipients_is_refused(make_payload):
         attributed_to=PROPOSER,
         to=[OTHER_A, OTHER_B],
         id_=f"{case_id}/embargo_invites/pair",
+        at=authored_at(),
     )
 
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
@@ -545,6 +554,7 @@ def test_invite_with_no_recipient_is_refused(make_payload):
         attributed_to=PROPOSER,
         to=[],
         id_=f"{case_id}/embargo_invites/nobody",
+        at=authored_at(),
     )
 
     result = _deliver(dl, invite, make_payload, receiving_actor_id=OTHER_A)
@@ -606,6 +616,7 @@ def _proposal(revision, case_id: str, *, actor: str = PROPOSER, **kwargs):
         to=[MANAGER],
         id_=kwargs.pop("id_", f"{case_id}/embargo_proposals/revision"),
         **kwargs,
+        at=authored_at(),
     )
 
 
@@ -1519,6 +1530,7 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/first",
+        at=authored_at(),
     )
     _deliver(dl, first, make_payload, receiving_actor_id=MANAGER)
     case = cast(VulnerabilityCase, dl.read(case_id))
@@ -1540,6 +1552,7 @@ def test_a_proposal_repeating_pending_terms_registers_nothing(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/repeat",
+        at=authored_at(),
     )
     verdict = _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
 
@@ -1584,6 +1597,7 @@ def test_a_revision_repeating_the_embargo_in_force_registers_nothing(
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/repeat",
+        at=authored_at(),
     )
     verdict = _deliver(dl, repeat, make_payload, receiving_actor_id=MANAGER)
 

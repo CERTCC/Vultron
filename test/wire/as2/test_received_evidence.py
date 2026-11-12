@@ -27,7 +27,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.base import CoreObject
 from vultron.errors import VultronWiringError
 from vultron.wire.as2 import parser
@@ -225,6 +225,7 @@ def test_an_event_from_an_activity_without_evidence_carries_none():
         make(as_VulnerabilityReport, id_=REPORT_ID, name="r", content="c"),
         to="https://example.org/actors/vendor",
         actor=ACTOR,
+        at=authored_at(),
     )
 
     event = extract_event(activity)

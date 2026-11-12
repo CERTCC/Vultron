@@ -17,6 +17,8 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
+
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -50,6 +52,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 def add_report_to_case_activity(
     report: as_VulnerabilityReport,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(VulnerabilityReport)[target=VulnerabilityCase].
@@ -71,6 +75,7 @@ def add_report_to_case_activity(
     return build_activity(
         "add_report_to_case_activity",
         _AddReportToCaseActivity,
+        at,
         lambda: {
             "object_": report,
             "target": case_target_ref(target),
@@ -82,6 +87,8 @@ def add_report_to_case_activity(
 def add_status_to_case_activity(
     status: as_CaseStatus,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(CaseStatus)[target=VulnerabilityCase].
@@ -102,6 +109,7 @@ def add_status_to_case_activity(
     return build_activity(
         "add_status_to_case_activity",
         _AddStatusToCaseActivity,
+        at,
         lambda: {
             "object_": status,
             "target": case_target_ref(target),
@@ -112,6 +120,8 @@ def add_status_to_case_activity(
 
 def create_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(VulnerabilityCase).
@@ -130,6 +140,7 @@ def create_case_activity(
     return build_activity(
         "create_case_activity",
         _CreateCaseActivity,
+        at,
         lambda: {"object_": case, **kwargs},
     )
 
@@ -137,6 +148,8 @@ def create_case_activity(
 def add_note_to_case_activity(
     note: as_Note,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(Note)[target=VulnerabilityCase].
@@ -164,6 +177,7 @@ def add_note_to_case_activity(
     return build_activity(
         "add_note_to_case_activity",
         _AddNoteToCaseActivity,
+        at,
         lambda: {
             "object_": note,
             "target": case_target_ref(target),
@@ -174,6 +188,8 @@ def add_note_to_case_activity(
 
 def update_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Update:
     """Build an Update(VulnerabilityCase).
@@ -196,12 +212,15 @@ def update_case_activity(
     return build_activity(
         "update_case_activity",
         _UpdateCaseActivity,
+        at,
         lambda: {"object_": case, **with_case_context(kwargs, case)},
     )
 
 
 def announce_vulnerability_case_activity(
     case: as_VulnerabilityCase,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(VulnerabilityCase) — sent by the case owner.
@@ -224,5 +243,6 @@ def announce_vulnerability_case_activity(
     return build_activity(
         "announce_vulnerability_case_activity",
         _AnnounceVulnerabilityCaseActivity,
+        at,
         lambda: {"object_": case, **kwargs},
     )

@@ -36,7 +36,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -151,6 +151,7 @@ def test_the_wire_vocabulary_carries_the_case_diverged_class() -> None:
         failed_activity_id=f"{_CASE_ID}/ledger/entries/7/announce",
         failure_class=_CASE_DIVERGED,
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
     body = read_sealed_body_dict(dl, fault_id)
     assert body is not None
@@ -188,6 +189,7 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
             in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
         ),
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
 
     run_in_act(
@@ -221,6 +223,7 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
             in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
         ),
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
 
     result = run_in_act(
@@ -347,6 +350,7 @@ def _announce(
         to=[receiver],
         context=_CASE_ID,
         **({"id_": announce_id} if announce_id else {}),
+        at=authored_at(),
     )
     return run_in_act(
         AnnounceVulnerabilityCaseReceivedUseCase(
@@ -373,7 +377,7 @@ def test_a_case_copy_names_the_position_of_the_last_commit() -> None:
     stored = dl.read_case(_CASE_ID)
     assert stored is not None
     activity = announce_vulnerability_case_activity(
-        stored, actor=_CASE_ACTOR_ID, context=_CASE_ID
+        stored, actor=_CASE_ACTOR_ID, context=_CASE_ID, at=authored_at()
     )
 
     sent = activity.model_dump(by_alias=True, exclude_none=True, mode="json")
@@ -398,7 +402,11 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
     stale = case.model_copy(update={"name": "stale copy"})
     _commit(dl, case, 0, case.genesis_hash)
     activity = announce_vulnerability_case_activity(
-        stale, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+        stale,
+        actor=_CASE_ACTOR_ID,
+        to=[_REPLICA_ID],
+        context=_CASE_ID,
+        at=authored_at(),
     )
 
     result = run_in_act(
@@ -635,6 +643,7 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         actor=_REPLICA_ID,
         to=[_CASE_ACTOR_ID],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
     named = {"logIndex": 0, "entryHash": "ab" * 32}
@@ -767,7 +776,11 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
 
     def deliver(copy: Any) -> InboxOutcome:
         activity = announce_vulnerability_case_activity(
-            copy, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+            copy,
+            actor=_CASE_ACTOR_ID,
+            to=[_REPLICA_ID],
+            context=_CASE_ID,
+            at=authored_at(),
         )
         staging = InlineObjectStaging(dl)
         return process_payload(
@@ -1017,6 +1030,7 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
             actor=_STRANGER_ID,
             to=[_CASE_ACTOR_ID],
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         ).model_dump(mode="json", by_alias=True, exclude_none=True)
     )
     staging = InlineObjectStaging(dl)
@@ -1259,6 +1273,7 @@ def test_the_extracted_copy_keeps_the_position_it_names() -> None:
         actor=_CASE_ACTOR_ID,
         to=[_REPLICA_ID],
         context=_CASE_ID,
+        at=authored_at(),
     )
 
     event = cast(
@@ -1287,7 +1302,11 @@ def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
 
     def deliver(copy: Any) -> InboxOutcome:
         activity = announce_vulnerability_case_activity(
-            copy, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+            copy,
+            actor=_CASE_ACTOR_ID,
+            to=[_REPLICA_ID],
+            context=_CASE_ID,
+            at=authored_at(),
         )
         staging = InlineObjectStaging(dl)
         return process_payload(

@@ -27,7 +27,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned, signed_body
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -83,6 +83,7 @@ def _offer(report: as_VulnerabilityReport | None = None) -> as_Offer:
         to=_VENDOR,
         actor=_FINDER,
         proposed_embargo=_proposal_for(report),
+        at=authored_at(),
     )
 
 
@@ -122,7 +123,11 @@ def test_factory_refuses_a_proposal_about_something_else() -> None:
     other = make(EmbargoEvent, context=_CASE, end_time=_END)
     with pytest.raises(VultronActivityConstructionError, match="EP-04-009"):
         rm_submit_report_activity(
-            report, to=_VENDOR, actor=_FINDER, proposed_embargo=other
+            report,
+            to=_VENDOR,
+            actor=_FINDER,
+            proposed_embargo=other,
+            at=authored_at(),
         )
 
 
@@ -170,7 +175,9 @@ def test_the_archived_offer_keeps_its_proposal() -> None:
 
 
 def test_an_offer_without_a_proposal_extracts_none() -> None:
-    offer = rm_submit_report_activity(_report(), to=_VENDOR, actor=_FINDER)
+    offer = rm_submit_report_activity(
+        _report(), to=_VENDOR, actor=_FINDER, at=authored_at()
+    )
     event = extract_event(parse_activity(_wire(offer)))
     assert isinstance(event, SubmitReportReceivedEvent)
     assert event.proposed_embargo is None
@@ -279,7 +286,9 @@ def test_extraction_surfaces_the_proposal_on_the_case_proposal_event():
 
 
 def test_case_proposal_without_terms_extracts_none():
-    offer = rm_submit_report_activity(_report(), to=_VENDOR, actor=_FINDER)
+    offer = rm_submit_report_activity(
+        _report(), to=_VENDOR, actor=_FINDER, at=authored_at()
+    )
     activity = make(
         as_Create,
         actor=make(VultronOrganization, id_=_VENDOR),

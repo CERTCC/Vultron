@@ -46,7 +46,7 @@ from test.support import embargo_register
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -235,7 +235,11 @@ class _Manager:
         assert isinstance(record, CaseParticipant)
         removal = self.route(
             remove_participant_from_case_activity(
-                record, target=CASE_ID, actor=OWNER, to=[MANAGER]
+                record,
+                target=CASE_ID,
+                actor=OWNER,
+                to=[MANAGER],
+                at=authored_at(),
             )
         )
         assert removal.disposition is HandlerDisposition.APPLIED
@@ -276,6 +280,7 @@ class _Manager:
                 actor=OWNER,
                 to=[MANAGER],
                 reason=TerminationReason.EARLY,
+                at=authored_at(),
             )
         )
         assert result.disposition is HandlerDisposition.APPLIED
@@ -347,6 +352,7 @@ def test_the_ending_notice_carries_the_cause_the_manager_records() -> None:
             to=[MANAGER],
             reason=TerminationReason.EARLY,
             cause=cause,
+            at=authored_at(),
         )
     )
 
@@ -417,6 +423,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
         actor=MANAGER,
         to=[OWNER],
         id_=f"{CASE_ID}/embargo_invites/owner-revision-ej",
+        at=authored_at(),
     )
     manager.dl.create(invite)
 
@@ -430,6 +437,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
             context=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
+            at=authored_at(),
         )
     )
 
@@ -611,6 +619,7 @@ def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
         actor=MANAGER,
         to=[OWNER],
         id_=f"{CASE_ID}/embargo_invites/owner-revision",
+        at=authored_at(),
     )
     manager.dl.create(invite)
     result = manager.route(
@@ -621,6 +630,7 @@ def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
             context=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
+            at=authored_at(),
         )
     )
     assert result.disposition is HandlerDisposition.APPLIED
@@ -877,6 +887,7 @@ def _termination_from(sender: str, dl: SqliteDataLayer, to: str) -> Any:
         actor=sender,
         to=[to],
         reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
 
 
@@ -963,7 +974,11 @@ def _shorter_revision_announced_by(
     # node stores the inline embargo when it is still missing (EMB-18-003).
     return replica.receive(
         announce_embargo_activity(
-            revision, context=CASE_ID, actor=sender, to=[replica.actor_id]
+            revision,
+            context=CASE_ID,
+            actor=sender,
+            to=[replica.actor_id],
+            at=authored_at(),
         )
     )
 
@@ -1023,6 +1038,7 @@ def _remove_of(embargo: Any, *, to: str) -> Any:
         actor=MANAGER,
         to=[to],
         reason=TerminationReason.EARLY,
+        at=authored_at(),
     )
 
 
@@ -1078,6 +1094,7 @@ def _removed_revision(
         actor=MANAGER,
         to=[to],
         reason=reason,
+        at=authored_at(),
     )
 
 
@@ -1175,6 +1192,7 @@ def test_paused_replica_refuses_an_expiry_remove_of_another_case() -> None:
             actor=MANAGER,
             to=[REMOVED],
             reason=TerminationReason.END_TIME_REACHED,
+            at=authored_at(),
         )
     )
 
@@ -1288,7 +1306,7 @@ def _entry_event(
         entry.model_dump(mode="json")
     )
     announce = announce_log_entry_activity(
-        entry=wire_entry, actor=MANAGER, to=[to]
+        entry=wire_entry, actor=MANAGER, to=[to], at=authored_at()
     )
     event = cast(AnnounceLogEntryReceivedEvent, received_event(announce))
     event.activity = make(
@@ -1333,7 +1351,11 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     assert notice.disposition is HandlerDisposition.APPLIED
     reinstatement, reinstatement_entry = _entry_event(
         add_participant_to_case_activity(
-            replica.record(), target=CASE_ID, actor=OWNER, context=CASE_ID
+            replica.record(),
+            target=CASE_ID,
+            actor=OWNER,
+            context=CASE_ID,
+            at=authored_at(),
         ),
         semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         log_index=0,
@@ -1380,7 +1402,11 @@ def test_paused_replica_refuses_an_announced_embargo_of_another_case() -> None:
 
     result = replica.receive(
         announce_embargo_activity(
-            foreign, context=CASE_ID, actor=MANAGER, to=[REMOVED]
+            foreign,
+            context=CASE_ID,
+            actor=MANAGER,
+            to=[REMOVED],
+            at=authored_at(),
         )
     )
 
@@ -1493,6 +1519,7 @@ def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
                 actor=OWNER,
                 to=[MANAGER],
                 reason=TerminationReason.EARLY,
+                at=authored_at(),
             ),
             receiving_actor_id=MANAGER,
             sync_port=SyncActivityAdapter(manager.dl),

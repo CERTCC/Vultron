@@ -28,6 +28,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import authored_at
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import (
     SyncActivityAdapter,
@@ -72,8 +73,18 @@ def test_same_entry_same_peer_is_queued_once_while_pending(dl):
     adapter = SyncActivityAdapter(dl)
     entry = _entry(1)
 
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_A]) is True
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_A]) is False
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_A], at=authored_at()
+        )
+        is True
+    )
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_A], at=authored_at()
+        )
+        is False
+    )
 
     assert len(dl.outbox_list()) == 1
 
@@ -83,8 +94,18 @@ def test_same_entry_to_another_peer_is_still_queued(dl):
     adapter = SyncActivityAdapter(dl)
     entry = _entry(1)
 
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_A]) is True
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_B]) is True
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_A], at=authored_at()
+        )
+        is True
+    )
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_B], at=authored_at()
+        )
+        is True
+    )
 
     assert len(dl.outbox_list()) == 2
 
@@ -93,10 +114,15 @@ def test_same_entry_to_another_peer_is_still_queued(dl):
 def test_once_popped_for_delivery_the_pair_can_be_queued_again(dl):
     adapter = SyncActivityAdapter(dl)
     entry = _entry(1)
-    adapter.send_announce_log_entry(entry, OWNER, [PEER_A])
+    adapter.send_announce_log_entry(entry, OWNER, [PEER_A], at=authored_at())
     assert dl.outbox_pop() is not None  # the drain took it
 
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_A]) is True
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_A], at=authored_at()
+        )
+        is True
+    )
     assert len(dl.outbox_list()) == 1
 
 
@@ -111,6 +137,7 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     (first,) = dl.outbox_list()
     assert dl.outbox_pop() == first  # the drain took it
@@ -120,6 +147,7 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     adapter.send_reject_log_entry(
         entry,
@@ -127,6 +155,7 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     # Queued again under the same id (the receiver deduplicates), once.
@@ -144,7 +173,12 @@ def test_a_repeat_prompted_by_a_later_announce_names_the_first(dl):
     first_announce = "https://example.org/activities/first-announce"
 
     adapter.send_reject_log_entry(
-        entry, "a" * 64, OWNER, [PEER_A], in_reply_to=first_announce
+        entry,
+        "a" * 64,
+        OWNER,
+        [PEER_A],
+        in_reply_to=first_announce,
+        at=authored_at(),
     )
     (first,) = dl.outbox_list()
     assert dl.outbox_pop() == first  # the drain took it
@@ -154,6 +188,7 @@ def test_a_repeat_prompted_by_a_later_announce_names_the_first(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/later-announce",
+        at=authored_at(),
     )
 
     assert dl.outbox_list() == [first]
@@ -175,6 +210,7 @@ def test_a_sealed_reject_that_was_never_queued_is_queued_on_redelivery(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     (reject_id,) = dl.outbox_list()
     assert reject_id == derived_activity_id(
@@ -190,6 +226,7 @@ def test_a_sealed_reject_that_was_never_queued_is_queued_on_redelivery(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     assert dl.outbox_list() == [reject_id]
@@ -206,6 +243,7 @@ def test_a_different_tail_hash_is_a_new_rejection(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     adapter.send_reject_log_entry(
         entry,
@@ -213,6 +251,7 @@ def test_a_different_tail_hash_is_a_new_rejection(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     assert len(dl.outbox_list()) == 2
@@ -234,6 +273,7 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
         [PEER_A],
         asked_at=first_ask,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     adapter.send_reject_log_entry(
         entry,
@@ -242,6 +282,7 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
         [PEER_A],
         asked_at=first_ask,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     adapter.send_reject_log_entry(
         entry,
@@ -250,6 +291,7 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
         [PEER_A],
         asked_at=later_ask,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     adapter.send_reject_log_entry(
         entry,
@@ -257,6 +299,7 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
         OWNER,
         [PEER_A],
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
 
     queued = dl.outbox_list()
@@ -266,7 +309,9 @@ def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
 
 def _queue_announce(dl: SqliteDataLayer, entry: CaseLedgerEntry, to: str):
     """Queue an ``Announce`` of *entry* to *to*, as a fresh adapter would."""
-    assert SyncActivityAdapter(dl).send_announce_log_entry(entry, OWNER, [to])
+    assert SyncActivityAdapter(dl).send_announce_log_entry(
+        entry, OWNER, [to], at=authored_at()
+    )
 
 
 @pytest.mark.spec("SYNC-15-012")
@@ -293,7 +338,12 @@ def test_the_pending_index_reads_sealed_bodies_not_activity_records(
     monkeypatch.setattr(dl, "read", _spy)
 
     adapter = SyncActivityAdapter(dl)
-    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is False
+    assert (
+        adapter.send_announce_log_entry(
+            _entry(1), OWNER, [PEER_A], at=authored_at()
+        )
+        is False
+    )
 
     assert queued.isdisjoint(read_ids), sorted(queued & set(read_ids))
 
@@ -305,8 +355,18 @@ def test_a_fresh_adapter_sees_the_rows_another_adapter_queued(dl):
 
     adapter = SyncActivityAdapter(dl)
 
-    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is False
-    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_B]) is True
+    assert (
+        adapter.send_announce_log_entry(
+            _entry(1), OWNER, [PEER_A], at=authored_at()
+        )
+        is False
+    )
+    assert (
+        adapter.send_announce_log_entry(
+            _entry(1), OWNER, [PEER_B], at=authored_at()
+        )
+        is True
+    )
     assert len(dl.outbox_list()) == 2
 
 
@@ -322,7 +382,12 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
 
     adapter = SyncActivityAdapter(dl)
 
-    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is True
+    assert (
+        adapter.send_announce_log_entry(
+            _entry(1), OWNER, [PEER_A], at=authored_at()
+        )
+        is True
+    )
 
 
 @pytest.mark.spec("SYNC-15-012")
@@ -335,7 +400,9 @@ def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
     """
     adapter = SyncActivityAdapter(dl)
     for index in range(4):
-        assert adapter.send_announce_log_entry(_entry(index), OWNER, [PEER_A])
+        assert adapter.send_announce_log_entry(
+            _entry(index), OWNER, [PEER_A], at=authored_at()
+        )
     read_ids: list[str] = []
     original_read = dl.read
 
@@ -346,7 +413,9 @@ def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
     monkeypatch.setattr(dl, "read", _spy)
     newest = dl.outbox_list()[-1]
 
-    assert adapter.send_announce_log_entry(_entry(9), OWNER, [PEER_A])
+    assert adapter.send_announce_log_entry(
+        _entry(9), OWNER, [PEER_A], at=authored_at()
+    )
 
     queued_reads = [
         object_id
@@ -434,7 +503,9 @@ def test_a_row_sealed_after_it_was_read_is_indexed_then(dl):
     entry = _entry(1)
     dl.outbox_append("urn:test:late-seal")
     adapter = SyncActivityAdapter(dl)
-    assert adapter.send_announce_log_entry(_entry(2), OWNER, [PEER_A])
+    assert adapter.send_announce_log_entry(
+        _entry(2), OWNER, [PEER_A], at=authored_at()
+    )
 
     _seal_raw(
         dl,
@@ -446,4 +517,9 @@ def test_a_row_sealed_after_it_was_read_is_indexed_then(dl):
         },
     )
 
-    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_B]) is False
+    assert (
+        adapter.send_announce_log_entry(
+            entry, OWNER, [PEER_B], at=authored_at()
+        )
+        is False
+    )

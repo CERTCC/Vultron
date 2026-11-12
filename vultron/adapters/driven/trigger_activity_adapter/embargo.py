@@ -84,8 +84,9 @@ class _EmbargoMixin:
         attributed_to: str | None = None,
         activity_id: str | None = None,
         rsvp_deadline: datetime | None = None,
-        published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
 
@@ -94,8 +95,8 @@ class _EmbargoMixin:
         the factory's default of no attribution.  ``activity_id`` likewise:
         given, it is the Invite's id (EP-04-011); absent, the factory mints one.
         So are ``rsvp_deadline`` (the Invite's ``endTime``, CM-28-012) and the
-        ``published`` instant and ``min_rsvp_window`` floor the factory
-        validates it against (EP-07-002, EP-07-006).
+        ``min_rsvp_window`` floor the factory validates it against, measured
+        from *at*, the Invite's ``published`` (EP-07-002, EP-07-006).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         optional: dict[str, Any] = {
@@ -104,13 +105,17 @@ class _EmbargoMixin:
                 ("attributed_to", attributed_to),
                 ("id_", activity_id),
                 ("rsvp_deadline", rsvp_deadline),
-                ("published", published),
                 ("min_rsvp_window", min_rsvp_window),
             )
             if value is not None
         }
         activity = em_propose_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to, **optional
+            embargo=embargo,
+            context=case_id,
+            actor=actor,
+            to=to,
+            **optional,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "propose_embargo")
 
@@ -122,6 +127,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         *,
         derived_id: bool = False,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
@@ -150,7 +156,12 @@ class _EmbargoMixin:
             {"id_": _accept_id(actor, proposal_id)} if derived_id else {}
         )
         activity = em_accept_embargo_activity(
-            proposal=proposal, context=case_id, actor=actor, to=to, **optional
+            proposal=proposal,
+            context=case_id,
+            actor=actor,
+            to=to,
+            **optional,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "accept_embargo")
 
@@ -162,6 +173,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         *,
         derived_id: bool = False,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
@@ -204,6 +216,7 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
             **optional,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "reject_embargo")
 
@@ -213,6 +226,8 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
 
@@ -230,6 +245,7 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
             id_=_undo_id(actor, invite_id),
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "undo_embargo_invite")
 
@@ -240,6 +256,8 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
 
@@ -255,6 +273,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "activate_embargo")
 
@@ -265,6 +284,8 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
@@ -280,6 +301,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "reject_embargo_proposal")
 
@@ -289,6 +311,8 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(EmbargoEvent)[context=VulnerabilityCase]``.
 
@@ -302,6 +326,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "withdraw_from_embargo")
 
@@ -341,6 +366,8 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
@@ -350,6 +377,7 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
             **_attribution(attributed_to),
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "announce_embargo")
 
@@ -363,6 +391,7 @@ class _EmbargoMixin:
         cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent)`` ET activity (case in ``origin``).
 
@@ -380,5 +409,6 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
             **_attribution(attributed_to),
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "terminate_embargo")

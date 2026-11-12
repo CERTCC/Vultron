@@ -39,8 +39,9 @@ class TriggerEmbargoPort(Protocol):
         attributed_to: str | None = None,
         activity_id: str | None = None,
         rsvp_deadline: datetime | None = None,
-        published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
 
@@ -55,9 +56,9 @@ class TriggerEmbargoPort(Protocol):
         Invite's id at registration and relayed only after the initialization
         sequence completes (EP-04-011, CM-14-014).  ``None`` mints a fresh id.
         ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
-        ASK-03-004); ``published`` is the instant it was measured from and
-        ``min_rsvp_window`` the configured floor the factory checks it against
-        (EP-07-002).  Each is forwarded only when given.
+        ASK-03-004), measured from *at*, the act's instant and the Invite's
+        ``published``; ``min_rsvp_window`` is the configured floor the factory
+        checks it against (EP-07-002).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -70,6 +71,7 @@ class TriggerEmbargoPort(Protocol):
         to: list[str] | None = None,
         *,
         derived_id: bool = False,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
@@ -90,6 +92,7 @@ class TriggerEmbargoPort(Protocol):
         to: list[str] | None = None,
         *,
         derived_id: bool = False,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
@@ -109,6 +112,8 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
 
@@ -126,6 +131,8 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
 
@@ -145,6 +152,8 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the case owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
@@ -162,6 +171,8 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(EmbargoEvent)[context=VulnerabilityCase]``
         activity.
@@ -203,6 +214,8 @@ class TriggerEmbargoPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
 
@@ -224,6 +237,7 @@ class TriggerEmbargoPort(Protocol):
         cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent)`` ET activity.
 

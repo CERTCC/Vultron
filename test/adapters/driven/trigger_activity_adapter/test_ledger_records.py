@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.ledger_labels import registry_label
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -131,7 +131,7 @@ GENESIS_ID = f"{CASE_ID}/activities/create"
 def _built_create(adapter: TriggerActivityAdapter) -> str:
     """Build the creation's ``Create`` as the create-case trigger does."""
     activity_id, _ = adapter.create_case(
-        case_id=CASE_ID, actor=CASE_ACTOR_ID, id_=GENESIS_ID
+        case_id=CASE_ID, actor=CASE_ACTOR_ID, id_=GENESIS_ID, at=authored_at()
     )
     return activity_id
 
@@ -151,6 +151,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             actor=CASE_ACTOR_ID,
             offer_id=OFFER_ID,
             offer_actor_id=VENDOR_ID,
+            at=authored_at(),
         ),
         "record_participant_status_added": lambda a: (
             a.record_participant_status_added(
@@ -158,14 +159,21 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 participant=participant,
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
+                at=authored_at(),
             )
         ),
         "record_case_status_added": lambda a: a.record_case_status_added(
-            status=status, case_id=CASE_ID, actor=CASE_ACTOR_ID
+            status=status,
+            case_id=CASE_ID,
+            actor=CASE_ACTOR_ID,
+            at=authored_at(),
         ),
         "record_case_participant_created": lambda a: (
             a.record_case_participant_created(
-                participant=participant, case_id=CASE_ID, actor=CASE_ACTOR_ID
+                participant=participant,
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+                at=authored_at(),
             )
         ),
         "record_case_participant_updated": lambda a: (
@@ -174,11 +182,15 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
                 cause_id=OFFER_ID,
+                at=authored_at(),
             )
         ),
         "record_embargo_event_created": lambda a: (
             a.record_embargo_event_created(
-                embargo=_EMBARGO, case_id=CASE_ID, actor=CASE_ACTOR_ID
+                embargo=_EMBARGO,
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+                at=authored_at(),
             )
         ),
         "record_embargo_consent_created": lambda a: (
@@ -186,6 +198,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 row=_consent_row(EmbargoConsentState.UNINVITED),
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
+                at=authored_at(),
             )
         ),
         "record_embargo_consent_updated": lambda a: (
@@ -194,15 +207,17 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 case_id=CASE_ID,
                 actor=CASE_ACTOR_ID,
                 cause_id=OFFER_ID,
+                at=authored_at(),
             )
         ),
         "record_case_owner_updated": lambda a: a.record_case_owner_updated(
-            case=case, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
+            case=case, actor=CASE_ACTOR_ID, cause_id=OFFER_ID, at=authored_at()
         ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
             object_id=CASE_ID,
+            at=authored_at(),
         ),
     }
 
@@ -371,7 +386,10 @@ def test_the_report_record_carries_its_offer_provenance(adapter, recipes):
 
 def test_the_report_record_omits_absent_offer_provenance(adapter, case):
     _, blob = adapter.record_report_added_to_case(
-        report_id=REPORT_ID, case_id=CASE_ID, actor=CASE_ACTOR_ID
+        report_id=REPORT_ID,
+        case_id=CASE_ID,
+        actor=CASE_ACTOR_ID,
+        at=authored_at(),
     )
     assert not {"offerId", "offerActorId"} & set(json.loads(blob))
 
@@ -399,7 +417,11 @@ def test_the_genesis_record_is_the_built_create(adapter, case):
     """The genesis entry is the ``Create`` the creation built and sealed,
     verbatim: one activity, delivered and ledgered (ADR-0157)."""
     built_id, built = adapter.create_case(
-        case_id=CASE_ID, actor=CASE_ACTOR_ID, id_=GENESIS_ID, to=[VENDOR_ID]
+        case_id=CASE_ID,
+        actor=CASE_ACTOR_ID,
+        id_=GENESIS_ID,
+        to=[VENDOR_ID],
+        at=authored_at(),
     )
 
     assert adapter.record_case_created(create_activity_id=built_id) == (

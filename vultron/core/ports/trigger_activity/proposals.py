@@ -21,6 +21,7 @@ Case proposals: create, reject, accept, and the prepared Create.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 
 from vultron.enums.roles import CVDRole
@@ -39,6 +40,8 @@ class TriggerProposalsPort(Protocol):
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(CaseProposal)`` activity.
 
@@ -76,6 +79,8 @@ class TriggerProposalsPort(Protocol):
         proposal: dict,
         to: list[str] | None = None,
         summary: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(CaseProposal)`` activity.
 
@@ -100,6 +105,8 @@ class TriggerProposalsPort(Protocol):
         proposal: dict,
         to: list[str],
         result: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(CaseProposal)`` activity.
 

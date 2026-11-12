@@ -18,7 +18,7 @@ typed-object return (not raw dicts), and semantic-class coercion for activities.
 Fixtures (dl) come from conftest.
 """
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 
@@ -106,6 +106,7 @@ class TestListMethod:
             invitee,
             target=stub,
             actor=actor.id_,
+            at=authored_at(),
         )
         dl.save(actor)
         dl.save(invitee)

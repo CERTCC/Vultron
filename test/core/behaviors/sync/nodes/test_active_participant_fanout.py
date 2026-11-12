@@ -25,7 +25,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
 )
@@ -148,6 +148,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         actor=MANAGER_ID,
         roles=[CVDRole.VENDOR],
         embargo_obj=embargo,
+        at=authored_at(),
     )
     scenario.seed(embargo, *participants.values(), case, stub_invite)
 

@@ -139,6 +139,7 @@ class CommitAndApplyEmbargoTerminationNode(
             reason=recorded.reason,
             cause=recorded.cause,
             to=to,
+            at=self._require_act_instant(),
         )
 
     def _audience_case(self, case: VulnerabilityCase) -> VulnerabilityCase:

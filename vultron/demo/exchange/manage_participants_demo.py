@@ -52,6 +52,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.states.rm import RM
+from vultron.demo import wall_clock
 from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
@@ -223,6 +224,7 @@ def demo_manage_participants_accept(
                 actor=coordinator.id_,
                 target=coordinator_participant.id_,
                 to=[vendor.id_],
+                at=wall_clock.now(),
             )
             # A participant sends its status to the CASE_MANAGER alone
             # (PCR-08-001); the vendor holds that role here, and a replica
@@ -241,7 +243,10 @@ def demo_manage_participants_accept(
             # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
             # vendor holds both roles here, so it posts to its own inbox.
             remove_participant = remove_participant_from_case_activity(
-                coordinator_participant, actor=vendor.id_, target=case.id_
+                coordinator_participant,
+                actor=vendor.id_,
+                target=case.id_,
+                at=wall_clock.now(),
             )
             post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
@@ -326,7 +331,10 @@ def demo_manage_participants_accept(
             # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
             # removed coordinator is reinstated without accepting again.
             reinstate_participant = add_participant_to_case_activity(
-                coordinator_participant, actor=vendor.id_, target=case.id_
+                coordinator_participant,
+                actor=vendor.id_,
+                target=case.id_,
+                at=wall_clock.now(),
             )
             post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
 

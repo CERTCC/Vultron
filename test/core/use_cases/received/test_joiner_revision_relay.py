@@ -42,7 +42,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -120,6 +120,7 @@ def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{case_id}/invitations/joiner",
+        at=authored_at(),
     )
     dl.create(invite)
     # The stub Invite left the joiner's inert record; the Accept activates it
@@ -129,7 +130,9 @@ def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
     seed_inert_invitee(dl, case, JOINER)
     dl.save(case)
     return make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER]),
+        rm_accept_invite_to_case_activity(
+            invite, actor=JOINER, to=[MANAGER], at=authored_at()
+        ),
         at=dl,
     )
 
@@ -144,6 +147,7 @@ def _open_revision(case_id: str, make_payload, proposer: str = PROPOSER):
         actor=proposer,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
     return dl, revision
@@ -240,6 +244,7 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
         context=case_id,
         actor=JOINER,
         to=[MANAGER],
+        at=authored_at(),
     )
     run_in_act(
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -369,6 +374,7 @@ def test_every_open_proposal_is_relayed_to_the_joiner(make_payload):
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/second",
+        at=authored_at(),
     )
     _deliver(dl, counter, make_payload, receiving_actor_id=MANAGER)
 
@@ -521,6 +527,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
         ledger_tail_position(case_id, dl),
         actor=JOINER,
         to=[MANAGER],
+        at=authored_at(),
     )
     event = received_event(reply, at=dl).model_copy(
         update={"receiving_actor_id": MANAGER}
@@ -602,6 +609,7 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
     case = cast(VulnerabilityCase, dl.read_case(case_id))

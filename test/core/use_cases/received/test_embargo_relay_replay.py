@@ -27,7 +27,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
@@ -103,6 +103,7 @@ def _propose(net: _Network, suffix: str, days: int) -> str:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/{suffix}",
+        at=authored_at(),
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(proposal)))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
@@ -233,6 +234,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
         case_id=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
+        at=authored_at(),
     )
     verdict = net.receive(MANAGER, json.loads(sealed))
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
@@ -297,6 +299,7 @@ def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject(
         case_id=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
+        at=authored_at(),
     )
     verdict1 = net.receive(MANAGER, json.loads(sealed_reject1))
     assert verdict1.disposition is HandlerDisposition.APPLIED, verdict1.reason
@@ -307,6 +310,7 @@ def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject(
         case_id=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
+        at=authored_at(),
     )
     verdict2 = net.receive(MANAGER, json.loads(sealed_accept))
     assert verdict2.disposition is HandlerDisposition.APPLIED, verdict2.reason
@@ -317,6 +321,7 @@ def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject(
         case_id=net.case_id,
         actor=BYSTANDER,
         to=[MANAGER],
+        at=authored_at(),
     )
     verdict3 = net.receive(MANAGER, json.loads(sealed_reject2))
     assert verdict3.disposition is HandlerDisposition.APPLIED, verdict3.reason
@@ -600,6 +605,7 @@ def _pxa_invite_body(
         to=[to],
         cc=cc,
         id_=f"{net.case_id}/embargo_proposals/{suffix}",
+        at=authored_at(),
     )
     return proposal.id_, json.loads(dump_outbound_body(proposal))
 

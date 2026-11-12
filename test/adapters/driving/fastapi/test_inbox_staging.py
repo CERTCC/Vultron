@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import (
@@ -95,6 +95,7 @@ def _add_note_body(content: str = "staged") -> dict[str, Any]:
         context=_CASE_ID,
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
     return signed_body(
         activity.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -627,6 +628,7 @@ def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
         context=_CASE_ID,
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
+        at=authored_at(),
     )
     body = signed_body(
         {

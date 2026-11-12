@@ -24,7 +24,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered, peer_position, received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -356,6 +356,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         entry=wire_entry2,
         actor=case_actor_id,
         to=[peer_actor_id],
+        at=authored_at(),
     )
     try:
         handle_inbox_item(
@@ -386,6 +387,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
                     actor=peer_actor_id,
                     to=[case_actor_id],
                     in_reply_to="https://example.org/activities/prompting-announce",
+                    at=authored_at(),
                 )
             ),
         )
@@ -511,6 +513,7 @@ def test_sync_duplicate_delivery_idempotency(
         entry=wire_entry,
         actor=case_actor_id,
         to=[peer_actor_id],
+        at=authored_at(),
     )
 
     # Deliver the same Announce(CaseLedgerEntry) twice.
@@ -827,6 +830,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
                     ),
                     cause_id=f"{case.id_}/activities/invite",
                     sync_port=SyncActivityAdapter(case_actor_dl),
+                    at=authored_at(),
                 )
             ],
         )

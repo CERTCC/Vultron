@@ -30,6 +30,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import authored_at
 from test.support.received import delivered_body, received_event
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models._helpers import now_utc
@@ -62,6 +63,7 @@ def ledger_announce_event(
         as_CaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
         actor=actor,
         to=[to],
+        at=authored_at(),
     )
     return cast(
         AnnounceLogEntryReceivedEvent,

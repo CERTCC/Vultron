@@ -31,7 +31,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -114,6 +114,7 @@ class _GateScenario:
             actor=MANAGER_ID,
             to=[actor_id],
             id_=f"{CASE_ID}/embargo_invites/{actor_id.rsplit('/', 1)[-1]}",
+            at=authored_at(),
         )
         if self.dl.read(invite.id_) is None:
             self.dl.create(invite)
@@ -125,6 +126,7 @@ class _GateScenario:
             context=CASE_ID,
             actor=actor_id,
             to=[MANAGER_ID],
+            at=authored_at(),
         )
         run_in_act(
             AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -143,6 +145,7 @@ class _GateScenario:
             origin=CASE_ID,
             actor=MANAGER_ID,
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         run_in_act(
             RemoveEmbargoEventFromCaseReceivedUseCase(
@@ -194,6 +197,7 @@ class _GateScenario:
             in_reply_to=SEEDED_PROPOSAL_ID,
             target=CASE_ID,
             actor=MANAGER_ID,
+            at=authored_at(),
         )
         run_in_act(
             ActivateEmbargoOnCaseReceivedUseCase(

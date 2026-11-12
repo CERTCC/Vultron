@@ -22,7 +22,7 @@ import json
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
@@ -36,7 +36,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -99,6 +99,7 @@ class TestOwnershipTransferUseCases:
             target=_COORDINATOR_ID,
             actor=_CASE_ACTOR_ID,
             to=[_COORDINATOR_ID],
+            at=authored_at(),
         )
         event = make_payload(
             activity, receiving_actor_id=_COORDINATOR_ID, at=dl
@@ -153,6 +154,7 @@ class TestOwnershipTransferUseCases:
             case,
             target="https://example.org/users/coordinator",
             actor="https://example.org/users/vendor",
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=None)
 
@@ -217,10 +219,11 @@ class TestOwnershipTransferUseCases:
             target=coordinator_id,
             actor="https://example.org/users/vendor",
             id_="https://example.org/activities/offer_ot_missing",
+            at=authored_at(),
         )
         event = make_payload(
             accept_case_ownership_transfer_activity(
-                offer, actor=coordinator_id
+                offer, actor=coordinator_id, at=authored_at()
             ),
             receiving_actor_id=coordinator_id,
             at=dl,
@@ -302,6 +305,7 @@ class TestOwnershipTransferUseCases:
             # The proposal named no deadline, so the Offer carries none.
             end_time=None,
             id_=made_id,
+            at=ANY,
         )
         assert offer.id_ == made_id != proposal_id
         assert offer.actor == _CASE_ACTOR_ID
@@ -364,6 +368,7 @@ class TestOwnershipTransferUseCases:
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
             id_=proposal_id,
+            at=authored_at(),
         )
         # The inner Offer claims the case's own id, another actor and
         # another recipient.
@@ -429,6 +434,7 @@ class TestOwnershipTransferUseCases:
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
             id_=f"https://example.org/activities/proposal_inner_{label}",
+            at=authored_at(),
         )
         if label == "another_case":
             another = make(
@@ -527,6 +533,7 @@ class TestOwnershipTransferUseCases:
                 actor=sender,
                 to=[_CASE_ACTOR_ID],
                 attributed_to=_VENDOR_ID,
+                at=authored_at(),
             )
 
             result = run_in_act(
@@ -712,7 +719,7 @@ class TestOwnershipTransferUseCases:
             _COORDINATOR_ID, "https://example.org/activities/offer_ot_nostamp"
         )
         accept = accept_case_ownership_transfer_activity(
-            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
 
         run_in_act(
@@ -756,6 +763,7 @@ class TestOwnershipOfferAtNonRecipient:
             target="https://example.org/users/coordinator",
             actor="https://example.org/users/vendor",
             to=["https://example.org/actors/case-actor"],
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=bystander_id, at=dl)
 
@@ -835,6 +843,7 @@ class TestOwnershipOfferNamingNoCase:
             target="https://example.org/users/coordinator",
             actor="https://example.org/users/vendor",
             to=[receiver],
+            at=authored_at(),
         )
         event = make_payload(offer, receiving_actor_id=receiver, at=dl)
         # The Offer arrives naming no case.
@@ -932,6 +941,7 @@ def _proposal(
         to=[_CASE_ACTOR_ID],
         id_=proposal_id,
         **extra,
+        at=authored_at(),
     )
 
 
@@ -1032,7 +1042,7 @@ def _accept(
     """Deliver the transferee's (or *sender*'s) Accept of *offer* to *dl*."""
     if accept is None:
         accept = accept_case_ownership_transfer_activity(
-            offer, actor=sender, to=to or [_CASE_ACTOR_ID]
+            offer, actor=sender, to=to or [_CASE_ACTOR_ID], at=authored_at()
         )
     return run_in_act(
         AcceptCaseOwnershipTransferReceivedUseCase(
@@ -1103,8 +1113,9 @@ def _reply_naming_no_case(dl, make_payload, build, sender: str) -> Any:
         target=_COORDINATOR_ID,
         actor=_CASE_ACTOR_ID,
         to=[_COORDINATOR_ID],
+        at=authored_at(),
     )
-    reply = build(offer, actor=sender, to=[_CASE_ACTOR_ID])
+    reply = build(offer, actor=sender, to=[_CASE_ACTOR_ID], at=authored_at())
     event = make_payload(reply, receiving_actor_id=dl.actor_id, at=dl)
     event = event.model_copy(update={"inner_object": None})
     assert event.case_id is None
@@ -1415,6 +1426,7 @@ def _plant_offer(
         actor=_CASE_ACTOR_ID,
         id_=offer_id,
         **({} if in_reply_to is None else {"in_reply_to": in_reply_to}),
+        at=authored_at(),
     )
     dl.create(planted)
     return planted
@@ -1480,6 +1492,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             target=make(as_Service, id_=_COORDINATOR_ID, name="Transferee"),
             actor=_VENDOR_ID,
             id_=proposal_id,
+            at=authored_at(),
         )
         roles_before = _owner_roles(dl, case_id)
         entries_before = _semantic_types(dl)
@@ -1504,6 +1517,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             target=make(as_Service, id_=_COORDINATOR_ID, name="Transferee"),
             actor=_VENDOR_ID,
             id_="https://example.org/activities/offer_unrecorded",
+            at=authored_at(),
         )
         dl.create(offer)
         roles_before = _owner_roles(dl, case_id)
@@ -1545,7 +1559,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             _COORDINATOR_ID, "https://example.org/activities/offer_redeliver"
         )
         accept = accept_case_ownership_transfer_activity(
-            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
         first = _accept(dl, make_payload, offer, accept=accept)
         entries_after_first = _semantic_types(dl)
@@ -1576,7 +1590,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             _COORDINATOR_ID, "https://example.org/activities/offer_replay_1"
         )
         old_accept = accept_case_ownership_transfer_activity(
-            first, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+            first, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
         assert (
             _accept(dl, make_payload, first, accept=old_accept).disposition
@@ -1854,6 +1868,7 @@ def _offer_at_transferee(dl, make_payload, case, sender, offer_id):
         actor=sender,
         to=[_COORDINATOR_ID],
         id_=offer_id,
+        at=authored_at(),
     )
     result = run_in_act(
         OfferCaseOwnershipTransferReceivedUseCase(
@@ -1958,6 +1973,7 @@ def _vendor_replica(case_id: str):
         target=_COORDINATOR_ID,
         actor=_CASE_ACTOR_ID,
         id_=f"{case_id}/offer",
+        at=authored_at(),
     )
     # The vendor's own proposal behind it, which a withdrawal names.
     _PROPOSAL_OF[offer.id_] = _proposal(
@@ -2021,7 +2037,7 @@ def _reject(
     """Deliver the transferee's (or *sender*'s) Reject of *offer* to *dl*."""
     if reject is None:
         reject = reject_case_ownership_transfer_activity(
-            offer, actor=sender, to=to or [_CASE_ACTOR_ID]
+            offer, actor=sender, to=to or [_CASE_ACTOR_ID], at=authored_at()
         )
     return run_in_act(
         RejectCaseOwnershipTransferReceivedUseCase(
@@ -2106,7 +2122,7 @@ class TestRejectOfOwnershipTransfer:
             _COORDINATOR_ID, "https://example.org/activities/offer_rj_again"
         )
         reject = reject_case_ownership_transfer_activity(
-            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
         first = _reject(dl, make_payload, offer, reject=reject)
         entries_after_first = _semantic_types(dl)
@@ -2324,6 +2340,7 @@ def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
             _PROPOSAL_OF.get(offer.id_, offer),
             actor=sender,
             to=to or [_CASE_ACTOR_ID],
+            at=authored_at(),
         )
     return run_in_act(
         UndoCaseOwnershipTransferReceivedUseCase(
@@ -2498,7 +2515,10 @@ class TestWithdrawalOfOwnershipTransfer:
         )
 
         undo = undo_case_ownership_transfer_activity(
-            _PROPOSAL_OF[offer.id_], actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+            _PROPOSAL_OF[offer.id_],
+            actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         assert cast(Any, undo.object_).id_ != offer.id_
         result = _undo(dl, make_payload, offer, undo=undo)
@@ -2518,7 +2538,10 @@ class TestWithdrawalOfOwnershipTransfer:
             _COORDINATOR_ID, "https://example.org/activities/offer_undo_again"
         )
         undo = undo_case_ownership_transfer_activity(
-            _PROPOSAL_OF[offer.id_], actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+            _PROPOSAL_OF[offer.id_],
+            actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         first = _undo(dl, make_payload, offer, undo=undo)
         entries_after_first = _semantic_types(dl)
@@ -2546,6 +2569,7 @@ class TestWithdrawalOfOwnershipTransfer:
             _PROPOSAL_OF[first_offer.id_],
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         assert (
             _undo(dl, make_payload, first_offer, undo=undo).disposition
@@ -2714,7 +2738,7 @@ class TestWithdrawalOfOwnershipTransfer:
             "https://example.org/activities/proposal_undo_nocase",
         )
         undo = undo_case_ownership_transfer_activity(
-            proposal, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+            proposal, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
         )
         event = make_payload(undo, receiving_actor_id=dl.actor_id, at=dl)
         event = event.model_copy(update={"inner_context": None})
@@ -3031,7 +3055,7 @@ def test_a_redelivered_accept_is_skipped_after_the_new_owner_lapses(
     dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
     _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
     accept = accept_case_ownership_transfer_activity(
-        offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+        offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID], at=authored_at()
     )
     assert (
         _accept(dl, make_payload, offer, accept=accept).disposition
@@ -3087,6 +3111,7 @@ def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
         to=[_COORDINATOR_ID],
         attributed_to=_VENDOR_ID + "/",
         id_=f"{case_id}/offer",
+        at=authored_at(),
     )
 
     result = run_in_act(

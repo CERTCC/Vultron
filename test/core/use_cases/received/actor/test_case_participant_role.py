@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.case_participant_role import (
@@ -65,6 +65,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             case=self._CASE_URI,
             actor=self._VENDOR_URI,
             to=[self._CASE_ACTOR_URI],
+            at=authored_at(),
         )
 
     def _make_forward(self):
@@ -79,6 +80,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             attributed_to=self._VENDOR_URI,
             to=[self._TARGET_URI],
             in_reply_to="https://example.org/activities/the-recorded-offer",
+            at=authored_at(),
         )
 
     def _store(self, actor_id: str) -> SqliteDataLayer:
@@ -251,6 +253,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             case=self._CASE_URI,
             actor=self._VENDOR_URI,
             to=[self._CASE_ACTOR_URI],
+            at=authored_at(),
         )
         event = make_payload(
             offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl

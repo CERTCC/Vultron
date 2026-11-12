@@ -34,7 +34,7 @@ from fastapi import FastAPI, Path as FastAPIPath
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -904,6 +904,7 @@ def _archived_invite_entry(
         ),
         actor=_MANAGER,
         id_=_INVITE_ID,
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     record = archive_received(dl, invite)
@@ -994,6 +995,7 @@ def _archived_full_case_invite_entry() -> tuple[str, dict]:
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=_MANAGER,
         id_="http://example.com/activities/full-invite-1",
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
     record = archive_received(dl, invite)
@@ -1076,6 +1078,7 @@ class TestFindCpOfferForCase:
             recommended=make(as_Service, id_=ACTOR_B),
             target=CASE_ID,
             actor=_MANAGER,
+            at=authored_at(),
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
         record = archive_received(dl, offer)
@@ -1158,6 +1161,7 @@ def _relayed_embargo_invite(
         actor=_MANAGER,
         to=[invitee_id],
         id_=_RELAYED_ID,
+        at=authored_at(),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     record = archive_received(dl, invite)
