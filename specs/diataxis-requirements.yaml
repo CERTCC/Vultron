@@ -1348,16 +1348,16 @@ groups:
     adr:
       - ADR-0150
     statement: >-
-      A thread box (DF-11-015) MUST hold a link back to the thread's start page,
-      labelled "Path overview", then a previous tile and a next tile, each a list of
-      links. Previous holds the set of thread pages immediately before the page. Next
-      holds the set immediately after it. A tile whose set holds more than one page
-      says so in its label. An empty set gives an empty tile. On a start page there is
-      no start link, previous is empty, and next is the first stage's entry pages. The
-      set before a member page is the preceding member of its chain, or else the
-      previous stage's exit pages. The set after it is the next member of its chain, or
-      else the next stage's entry pages. A set stage's entry and exit pages are all its
-      members. A chain's entry page is its first member, and its exit page is its last.
+      A thread box (DF-11-015) MUST hold a "Path overview" link to the thread's start
+      page, then a previous tile and a next tile. Each tile is a list of links. Previous
+      holds the set of thread pages immediately before the page. Next holds the set
+      immediately after it. A tile whose set holds more than one page says so in its
+      label. An empty set gives an empty tile. On a start page there is no start link,
+      previous is empty, and next is the first stage's entry pages. The set before a
+      member page is the preceding member of its chain, or else the previous stage's
+      exit pages. The set after it is the next member of its chain, or else the next
+      stage's entry pages. A set stage's entry and exit pages are all its members. A
+      chain's entry page is its first member, and its exit page is its last.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
       forced down one next page, so predecessors and successors are sets. The start
