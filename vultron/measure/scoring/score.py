@@ -60,20 +60,23 @@ class NotAHistoryPrefixError(ValueError):
         )
 
 
-def _accepted_prefix(prefix: Sequence[CSEvent | str]) -> tuple[CSEvent, ...]:
+def _accepted_prefix(
+    prefix: Sequence[CSEvent | str],
+) -> tuple[CSEvent, ...]:
     """*prefix* as case-state events, once the prefix check accepts it.
 
     Raises:
         NotAHistoryPrefixError: the check refuses *prefix* (CSB-17-005).
     """
+    given = tuple(prefix)
     try:
-        replay_cs_history(prefix)
+        replay_cs_history(given)
     except (
         VultronValidationError,
         VultronInvalidStateTransitionError,
     ) as exc:
-        raise NotAHistoryPrefixError(prefix, str(exc)) from exc
-    return tuple(CSEvent(event) for event in prefix)
+        raise NotAHistoryPrefixError(given, str(exc)) from exc
+    return tuple(CSEvent(event) for event in given)
 
 
 def score_prefix(prefix: Sequence[CSEvent | str]) -> SequenceScore:

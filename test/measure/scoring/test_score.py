@@ -207,7 +207,7 @@ def test_the_scores_serialize_exactly():
     ("events", "why"),
     [
         ("FV", "'F' cannot fire"),
-        ("XA", "'A'"),
+        ("XA", "ephemeral"),
         ("VV", "more than once"),
         ("VQ", "not a CS event"),
         ((CSEvent.V, 3), "not a CS event"),
@@ -221,6 +221,22 @@ def test_a_sequence_that_is_not_a_prefix_is_refused_with_its_reason(
     assert why in caught.value.reason
     assert caught.value.events == tuple(events)
     assert caught.value.reason in str(caught.value)
+
+
+def test_a_one_shot_iterable_is_read_once():
+    assert score_prefix(iter("VF")) == score_prefix("VF")
+
+
+def test_a_sequence_score_names_every_problem_at_once():
+    """EH-07-001: a missing completion and a short total both reported."""
+    with pytest.raises(ValidationError) as caught:
+        SequenceScore(
+            prefix=(CSEvent.V, CSEvent.F, CSEvent.D, CSEvent.P),
+            completions=(_completion("VFDPAX", Fraction(1, 2)),),
+        )
+    message = str(caught.value)
+    assert "sum to 1/2" in message
+    assert "VFDPXA is missing" in message
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +288,16 @@ def _completion(history, probability=Fraction(1)) -> Completion:
             "not ordered",
         ),
         ("VFDP", [_completion("VFDPAX", Fraction(1, 2))], "sum to 1/2"),
+        ("VFDP", [_completion("VFDPXA")], "VFDPAX is missing"),
+        (
+            "VFDP",
+            [
+                _completion("VFDPAX", Fraction(1, 4)),
+                _completion("VFDPXA", Fraction(3, 4)),
+            ],
+            "the walk gives 1/2",
+        ),
+        ("FV", [_completion("VFDPXA")], "FV is not a valid prefix"),
     ],
 )
 def test_a_sequence_score_refuses_inconsistent_completions(

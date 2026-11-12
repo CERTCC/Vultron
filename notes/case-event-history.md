@@ -259,8 +259,8 @@ It computes no score (CEH-05-008). The existing desiderata scorer is
 `CVDmodel.score_hist` in `vultron/core/case_states/hypercube/_scoring.py` — note the
 name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
-shorter. Every sequence the committed recordings yield is incomplete, so there is no
-score to compute for a typical case. The measures stay out of this layer: an
+shorter. Every sequence the committed recordings yield is incomplete, so that scorer
+has nothing to score for a typical case. The measures stay out of this layer: an
 incomplete sequence is scored by `vultron/measure/scoring/` (`score_sequence`), which
 reads the sequence and never the other way round (ADR-0182).
 

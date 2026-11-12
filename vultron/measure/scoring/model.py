@@ -42,6 +42,7 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
+from vultron.measure.baselines import completion_probabilities
 from vultron.measure.scoring.complete import history_score
 from vultron.primitives import NonEmptyString
 
@@ -94,7 +95,8 @@ class SequenceScore(BaseModel):
         prefix: The accepted prefix scored; complete when it holds all six
             events.
         completions: Every valid completion of *prefix*, each once, ordered
-            by history; their probabilities sum to 1.  A complete prefix has
+            by history, each with the walk's probability of it from *prefix*;
+            their probabilities sum to 1.  A complete prefix has
             itself as its only completion.
     """
 
@@ -123,9 +125,36 @@ class SequenceScore(BaseModel):
         total = sum((c.probability for c in self.completions), Fraction(0))
         if total != 1:
             problems.append(f"the completion probabilities sum to {total}")
+        problems.extend(self._walk_problems())
         if problems:
             raise ValueError("; ".join(problems))
         return self
+
+    def _walk_problems(self) -> list[str]:
+        """Where the completions differ from the walk's from *prefix*.
+
+        Every valid completion must be listed, each with the probability the
+        walk gives it from the prefix (ADR-0182).
+        """
+        try:
+            walk = completion_probabilities(self.prefix)
+        except (
+            VultronValidationError,
+            VultronInvalidStateTransitionError,
+        ) as exc:
+            return [f"{''.join(self.prefix)} is not a valid prefix: {exc}"]
+        listed = {c.history: c.probability for c in self.completions}
+        problems = [
+            f"the valid completion {''.join(h)} is missing"
+            for h in sorted(walk)
+            if h not in listed
+        ]
+        problems.extend(
+            f"{''.join(h)} has probability {p}, but the walk gives {walk[h]}"
+            for h, p in listed.items()
+            if h in walk and walk[h] != p
+        )
+        return problems
 
     @property
     def is_complete(self) -> bool:

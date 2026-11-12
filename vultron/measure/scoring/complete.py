@@ -57,7 +57,9 @@ def met_desiderata(
 
 
 def history_score(history: Sequence[CSEvent | str]) -> Fraction:
-    """The desiderata score of the complete *history*: ``Σ (1 - f_d)`` over the desiderata it meets.
+    """The desiderata score of the complete *history*.
+
+    It is ``Σ (1 - f_d)`` over the original desiderata *history* meets.
 
     Raises:
         VultronValidationError, VultronInvalidStateTransitionError: *history*
