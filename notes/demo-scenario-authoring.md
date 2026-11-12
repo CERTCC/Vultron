@@ -232,9 +232,10 @@ test that is false for a placeholder: `is None`, `is not None`, `== ""`,
 rebinding. The first guard in evaluation order defends every read after it, so
 the `if x is None: raise` shape this section asks for satisfies the check
 without enclosing the reads. That holds only for a guard at the reads' own
-statement level: one inside an `if`, a loop or a demo block may not run, so it
-defends nothing past that branch (#5904). Dropping the guard means nesting the
-reader.
+statement level: one inside a branch that may not run — an `if` or loop body, a
+`try` arm other than `finally`, a `match` case, a demo block's body — defends
+nothing past that branch, unless every arm of an `if`/`else` or exhaustive
+`match` decides it (#5904). Dropping the guard means nesting the reader.
 
 ---
 

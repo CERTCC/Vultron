@@ -70,10 +70,16 @@ deliberate, because ``if x is None: raise`` is the shape the authoring note
 asks for.  That holds at the statement level only: a guard or rebinding inside
 a branch that may not run — an ``if`` or loop body, a ``try`` arm other than
 ``finally``, a ``match`` case, a guarded block's body — decides nothing past
-the branch, though a read inside it still counts (#5904).  Nested function and class bodies are a separate scope and are not
-followed, nor is a ``lambda`` or a comprehension that binds the name itself:
-there the name is a different variable, and a rebinding — ``:=`` included —
-ends the sentinel rather than reading it.
+the branch unless every arm of an exhaustive ``if``/``else`` or ``match``
+decides it, though a read inside it still counts (#5904).  The arm a guard
+proves holds the placeholder — the ``else`` of ``if x:``, the body of
+``if x is None:`` — is not defended by it.  A ``for`` target counts as a
+rebinding although the loop may run zero times: a deliberate leniency, since
+every demo loop over a sentinel name binds it as its target.  Nested function
+and class bodies are a separate scope and are not followed, nor is a
+``lambda`` or a comprehension that binds the name itself: there the name is a
+different variable, and a rebinding — ``:=`` included — ends the sentinel
+rather than reading it.
 
 Both checks key on the act — the pre-initialisation, the guarded ``with``, the
 read — and not on the name of the function that performs it, so neither loses
@@ -254,8 +260,10 @@ class SentinelSite(NamedTuple):
 
     *block* is the line of the guarded ``with``, so two blocks writing the
     same sentinel are told apart rather than producing identical records.
-    *read* is the line of the first read of *name* after that block which no
-    guard defends, or ``None`` when every later read is defended.  A site with
+    *read* is the line of the first read of *name* that the block's failure
+    can reach and no guard defends — after the block, in the rest of an
+    enclosing block, a later ``try`` arm or the next pass of a loop — or
+    ``None`` when every such read is defended.  A site with
     no unguarded read is the legitimate ``Optional[T]`` shape
     (``notes/demo-scenario-authoring.md``); a site with one is a #3038 defect.
     """
@@ -317,6 +325,12 @@ def _rebound_names(node: ast.AST) -> set[str]:
     names: set[str] = set()
     for target in _rebound_targets(node):
         names |= _store_names(target)
+    # ``except E as x`` and a capture pattern bind a bare identifier, not a
+    # target expression.
+    if isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+        names |= {node.name} if node.name else set()
+    if isinstance(node, ast.MatchMapping) and node.rest:
+        names.add(node.rest)
     return names
 
 
@@ -353,36 +367,21 @@ def _assigned_by_block_itself(stmts: list[ast.stmt]) -> set[str]:
     return names
 
 
-def _truthiness_test(test: ast.expr, name: str) -> bool:
-    """True when *test* tests *name* for truthiness, ``and``/``or``/``not``
-    included."""
-    if isinstance(test, ast.Name):
-        return test.id == name
-    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-        return _truthiness_test(test.operand, name)
-    if isinstance(test, ast.BoolOp):
-        tested = [_truthiness_test(value, name) for value in test.values]
-        # ``a and x`` is true only when ``x`` is, so one operand testing the
-        # name is enough; ``a or x`` is true when ``a`` alone is, so every
-        # operand must test it or the body can still see the placeholder.
-        return any(tested) if isinstance(test.op, ast.And) else all(tested)
-    return False
+#: ``is``/``==`` against a non-placeholder constant, and ``is not``/``!=``
+#: against a placeholder, are true only for a real value; ``is``/``==``
+#: against a placeholder is false only for one.  ``name != "ok"`` holds for
+#: ``None`` too and proves nothing either way.
+_EQUALITY_OPS = (ast.Is, ast.Eq)
+_INEQUALITY_OPS = (ast.IsNot, ast.NotEq)
 
 
-#: ``is``/``==`` decides the name is not a placeholder whatever constant it is
-#: compared against; ``is not``/``!=`` decides it only against a placeholder,
-#: since ``name != "ok"`` holds for ``None`` too.
-_EQUALITY_GUARD_OPS = (ast.Is, ast.Eq)
-_COMPARISON_GUARD_OPS = (*_EQUALITY_GUARD_OPS, ast.IsNot, ast.NotEq)
+def _comparison_polarity(node: ast.AST, name: str) -> bool | None:
+    """What a comparison of *name* against constants proves about it.
 
-
-def _is_placeholder_comparison(node: ast.AST, name: str) -> bool:
-    """True for a comparison of *name* that decides it is not a placeholder.
-
-    ``name is None``, ``name is not None`` and ``name != ""`` compare against
-    a placeholder under any of the four operators; ``name == "ok"`` and
-    ``name is True`` prove the same thing by equality with a non-placeholder
-    constant.  ``name != "ok"`` proves nothing and is not a guard.
+    ``True`` when the comparison being true proves *name* is not a
+    placeholder (``name is not None``, ``name != ""``, ``name == "ok"``,
+    ``name is True``), ``False`` when its being false proves it
+    (``name is None``, ``name == ""``), ``None`` for any other node.
     """
     if not (
         isinstance(node, ast.Compare)
@@ -390,21 +389,84 @@ def _is_placeholder_comparison(node: ast.AST, name: str) -> bool:
         and node.left.id == name
         and all(isinstance(c, ast.Constant) for c in node.comparators)
     ):
+        return None
+    if not all(_is_placeholder(right) for right in node.comparators):
+        if all(isinstance(op, _EQUALITY_OPS) for op in node.ops):
+            return True
+        return None
+    if all(isinstance(op, _INEQUALITY_OPS) for op in node.ops):
+        return True
+    if all(isinstance(op, _EQUALITY_OPS) for op in node.ops):
         return False
-    if all(_is_placeholder(right) for right in node.comparators):
-        return all(isinstance(op, _COMPARISON_GUARD_OPS) for op in node.ops)
-    return all(isinstance(op, _EQUALITY_GUARD_OPS) for op in node.ops)
+    return None
+
+
+def _truth_proves_real(test: ast.expr, name: str) -> bool:
+    """True when *test* can be true only if *name* is not a placeholder."""
+    if isinstance(test, ast.Name):
+        return test.id == name
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        return _falsity_proves_real(test.operand, name)
+    if isinstance(test, ast.BoolOp):
+        proved = [_truth_proves_real(value, name) for value in test.values]
+        # ``a and x`` is true only when ``x`` is, so one operand testing the
+        # name is enough; ``a or x`` is true when ``a`` alone is, so every
+        # operand must test it or the body can still see the placeholder.
+        return any(proved) if isinstance(test.op, ast.And) else all(proved)
+    return _comparison_polarity(test, name) is True
+
+
+def _falsity_proves_real(test: ast.expr, name: str) -> bool:
+    """True when *test* can be false only if *name* is not a placeholder."""
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        return _truth_proves_real(test.operand, name)
+    if isinstance(test, ast.BoolOp):
+        proved = [_falsity_proves_real(value, name) for value in test.values]
+        # ``a or x`` is false only when ``x`` is; ``a and x`` is false when
+        # ``a`` alone is.
+        return any(proved) if isinstance(test.op, ast.Or) else all(proved)
+    return _comparison_polarity(test, name) is False
+
+
+def _is_guard_test(test: ast.expr, name: str) -> bool:
+    """True when either outcome of *test* proves *name* is not a placeholder."""
+    return _truth_proves_real(test, name) or _falsity_proves_real(test, name)
 
 
 def _guards_name(node: ast.AST, name: str) -> bool:
-    """True when *node* defends every read of *name* that follows it."""
-    if _is_placeholder_comparison(node, name):
+    """True when *node* defends every read of *name* that follows it.
+
+    ``if``, ``while`` and the conditional expression are decided by
+    :func:`_guarded_arms` instead, since one of their arms is not defended.
+    """
+    if _comparison_polarity(node, name) is not None:
         return True
-    if isinstance(node, (ast.If, ast.While, ast.IfExp, ast.Assert)):
-        return _truthiness_test(node.test, name)
+    if isinstance(node, ast.Assert):
+        return _truth_proves_real(node.test, name)
     if isinstance(node, ast.comprehension):
-        return any(_truthiness_test(test, name) for test in node.ifs)
+        return any(_truth_proves_real(test, name) for test in node.ifs)
+    if isinstance(node, ast.match_case) and node.guard is not None:
+        return _truth_proves_real(node.guard, name)
     return False
+
+
+def _guarded_arms(node: ast.AST, name: str) -> Sequence[ast.AST] | None:
+    """The arm a guarding ``if``/``while``/ternary leaves undefended.
+
+    ``None`` when *node* is not one of them or its test does not guard
+    *name*.  ``if x:`` defends its body and leaves the ``else`` — where *x*
+    is falsy, maybe the placeholder — undefended; ``if x is None:`` the
+    reverse.  Either way the statement guards the reads after it.
+    """
+    if not isinstance(node, (ast.If, ast.While, ast.IfExp)):
+        return None
+    body = node.body if isinstance(node.body, list) else [node.body]
+    orelse = node.orelse if isinstance(node.orelse, list) else [node.orelse]
+    if _truth_proves_real(node.test, name):
+        return orelse
+    if _falsity_proves_real(node.test, name):
+        return body
+    return None
 
 
 #: Expressions that carry a name into a call argument without being one.
@@ -545,6 +607,12 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
         return None
     if _guards_name(node, name):
         return "safe", _corpus.node_line(node)
+    undefended = _guarded_arms(node, name)
+    if undefended is not None:
+        event = _first_event_in(undefended, name)
+        if event is not None and event[0] == "read":
+            return event
+        return "safe", _corpus.node_line(node)
     if name in _rebound_names(node):
         # What the statement evaluates before binding still reads the old
         # value; everything after the binding reads the new one.
@@ -557,31 +625,33 @@ def _first_event(node: ast.AST, name: str) -> tuple[str, int] | None:
         return "read", _corpus.node_line(node)
     split = _control_flow_split(node)
     if split is not None:
-        return _first_event_across_branches(*split, name=name)
+        return _first_event_across_branches(split, name)
     return _first_event_in(_in_evaluation_order(node), name)
 
 
 def _first_event_across_branches(
-    head: Sequence[ast.AST],
-    branches: Sequence[Sequence[ast.AST]],
-    tail: Sequence[ast.AST],
-    *,
-    name: str,
+    split: "_Split", name: str
 ) -> tuple[str, int] | None:
     """:func:`_first_event` for a statement split by
     :func:`_control_flow_split`.
 
     A branch may not run: its read counts, but its guard or rebinding cannot
-    decide for what follows the statement.
+    decide for what follows the statement — unless the branches are
+    exhaustive and every one of them decides it.
     """
-    event = _first_event_in(head, name)
+    event = _first_event_in(split.head, name)
     if event is not None:
         return event
-    for branch in branches:
+    decided: list[tuple[str, int]] = []
+    for branch in split.branches:
         event = _first_event_in(branch, name)
         if event is not None and event[0] == "read":
             return event
-    return _first_event_in(tail, name)
+        if event is not None:
+            decided.append(event)
+    if split.exhaustive and len(decided) == len(split.branches):
+        return decided[0]
+    return _first_event_in(split.tail, name)
 
 
 def _first_event_in(
@@ -595,45 +665,75 @@ def _first_event_in(
     return None
 
 
-#: ``(head, branches, tail)`` of :func:`_control_flow_split`.
-_Split = tuple[
-    Sequence[ast.AST], Sequence[Sequence[ast.AST]], Sequence[ast.AST]
-]
+class _Split(NamedTuple):
+    """A compound statement split by :func:`_control_flow_split`.
+
+    *head* is evaluated before any branch and *tail* after every one — both
+    always run — while each *branch* may not run at all.  *exhaustive* holds
+    when one branch always runs to its end or nothing after the statement
+    runs: an ``if`` with an ``else``, a ``match`` ending in an irrefutable
+    case, a ``try`` and its handlers.
+    """
+
+    head: Sequence[ast.AST]
+    branches: Sequence[Sequence[ast.AST]]
+    tail: Sequence[ast.AST] = ()
+    exhaustive: bool = False
+
+
+def _is_irrefutable(case: ast.match_case) -> bool:
+    """True for ``case _:`` or a bare capture, with no guard."""
+    pattern = case.pattern
+    return (
+        case.guard is None
+        and isinstance(pattern, ast.MatchAs)
+        and pattern.pattern is None
+    )
 
 
 def _control_flow_split(node: ast.AST) -> _Split | None:
     """Split a compound statement into what always runs and what may not.
 
-    ``(head, branches, tail)``: *head* is evaluated before any branch and
-    *tail* after every one — both always run — while each *branch* may not
-    run at all.  ``None`` for a node whose children all run, such as an
-    unguarded ``with``, whose body's exception propagates past every later
-    read anyway.  A guarded block's body is a branch: the block swallows the
-    failure that skips the rest of it (#5904).
+    ``None`` for a node whose children all run, such as an unguarded
+    ``with``, whose body's exception propagates past every later read anyway.
+    A guarded block's body is a branch: the block swallows the failure that
+    skips the rest of it (#5904).  So is a ``try`` body with a handler, which
+    may catch a failure halfway through it; with only a ``finally`` the
+    failure propagates, so the body always runs to its end or past every
+    later read.  An ``except`` arm and a ``match`` case are split whole, so
+    their ``as`` binding, capture pattern and case guard are seen.
     """
-    if isinstance(node, (ast.If, ast.While)):
-        return [node.test], [node.body, node.orelse], []
+    if isinstance(node, ast.If):
+        return _Split(
+            [node.test], [node.body, node.orelse], (), bool(node.orelse)
+        )
+    if isinstance(node, ast.While):
+        return _Split([node.test], [node.body, node.orelse])
     if isinstance(node, (ast.For, ast.AsyncFor)):
-        return [node.iter, node.target], [node.body, node.orelse], []
+        return _Split([node.iter, node.target], [node.body, node.orelse])
     if _is_guarded_block(node):
-        return node.items, [node.body], []
+        return _Split(node.items, [node.body])
     if isinstance(node, (ast.Try, ast.TryStar)):
-        handlers = [h.body for h in node.handlers]
-        return [], [node.body, *handlers, node.orelse], node.finalbody
+        if not node.handlers:
+            return _Split([*node.body, *node.orelse], [], node.finalbody)
+        # ``else`` runs only after the body completes, so the two are one
+        # path; a failure partway through takes a handler's path instead, or
+        # propagates past every later read.
+        handlers = [[handler] for handler in node.handlers]
+        happy_path = [*node.body, *node.orelse]
+        return _Split([], [happy_path, *handlers], node.finalbody, True)
     if isinstance(node, ast.Match):
-        cases = [
-            [case.pattern, *([case.guard] if case.guard else []), *case.body]
-            for case in node.cases
-        ]
-        return [node.subject], cases, []
+        cases = [[case] for case in node.cases]
+        exhaustive = bool(node.cases) and _is_irrefutable(node.cases[-1])
+        return _Split([node.subject], cases, (), exhaustive)
     return None
 
 
 def _first_unguarded_read(stmts: list[ast.stmt], name: str) -> int | None:
     """Line of the first unguarded read of *name* in *stmts*, else ``None``.
 
-    The first guard, rebinding or read in source order decides: a guard that
-    does not itself enclose a later read still defends it.  That leniency is
+    The first guard, rebinding or read in evaluation order decides: a guard
+    that does not itself enclose a later read still defends it.  That leniency is
     deliberate — it keeps the check free of false positives on the
     early-return shape ``if x is None: return`` — and
     :func:`test_a_guard_defends_reads_it_does_not_enclose` pins it.  It holds
@@ -1407,6 +1507,28 @@ def example(flag):
     assert _sentinel_leaks(src) == [("offer", 7)]
 
 
+#: A guarded block producing ``offer``, indented to sit in a ``try`` arm.
+_TRY_ARM_PRODUCER = (
+    '        with demo_step("Step 1: produce"):\n'
+    "            offer = submit_report()\n"
+)
+
+
+def _try_with_producer_in(arm: str) -> str:
+    """A ``try`` statement with :data:`_TRY_ARM_PRODUCER` in *arm*.
+
+    *arm* is ``try``, ``except`` or ``else``; the statement has no
+    ``finally``, so a caller may append one.
+    """
+    empty_arm = "        pass\n"
+    body = _TRY_ARM_PRODUCER if arm == "try" else empty_arm
+    handler = _TRY_ARM_PRODUCER if arm == "except" else empty_arm
+    src = f"    try:\n{body}    except ValueError:\n{handler}"
+    if arm == "else":
+        src += "    else:\n" + _TRY_ARM_PRODUCER
+    return src
+
+
 @pytest.mark.parametrize("arm", ["try", "except", "else", "finally"])
 def test_producer_nested_in_try_except_else_finally_is_found(arm: str):
     """Each of the four arms is its own statement list in ``_nested_blocks``.
@@ -1414,25 +1536,14 @@ def test_producer_nested_in_try_except_else_finally_is_found(arm: str):
     Parametrised because a producer in ``try`` alone leaves the other three
     yields unexercised: deleting them would keep such a test green.
     """
-    producer = (
-        '        with demo_step("Step 1: produce"):\n'
-        "            offer = submit_report()\n"
+    statement = (
+        "    try:\n        pass\n    finally:\n" + _TRY_ARM_PRODUCER
+        if arm == "finally"
+        else _try_with_producer_in(arm)
     )
-    arms = {
-        "try": "    try:\n"
-        + producer
-        + "    except ValueError:\n        pass\n",
-        "except": "    try:\n        pass\n    except ValueError:\n"
-        + producer,
-        "else": (
-            "    try:\n        pass\n    except ValueError:\n        pass\n"
-            "    else:\n" + producer
-        ),
-        "finally": "    try:\n        pass\n    finally:\n" + producer,
-    }
     src = (
         "def example():\n    offer = None\n"
-        + arms[arm]
+        + statement
         + "\n    acknowledge(offer)\n"
     )
     leaks = _sentinel_leaks(src)
@@ -1859,24 +1970,9 @@ def example():
 @pytest.mark.parametrize("arm", ["try", "except", "else"])
 def test_read_in_a_sibling_finally_is_a_leak(arm: str):
     """``finally`` runs after every other arm (#5904 gap 3)."""
-    producer = (
-        '        with demo_step("Step 1: produce"):\n'
-        "            offer = submit_report()\n"
-    )
-    arms = {
-        "try": "    try:\n"
-        + producer
-        + "    except ValueError:\n        pass\n",
-        "except": "    try:\n        pass\n    except ValueError:\n"
-        + producer,
-        "else": (
-            "    try:\n        pass\n    except ValueError:\n        pass\n"
-            "    else:\n" + producer
-        ),
-    }
     src = (
         "def example():\n    offer = None\n"
-        + arms[arm]
+        + _try_with_producer_in(arm)
         + "    finally:\n        acknowledge(offer)\n"
     )
     line = src.splitlines().index("        acknowledge(offer)") + 1
@@ -2024,6 +2120,182 @@ def example(flag):
     acknowledge(offer)
 """
     assert _sentinel_sites(src) == []
+
+
+@pytest.mark.parametrize(
+    "arms",
+    [
+        pytest.param(
+            "if flag:\n        offer = a()\n    else:\n        offer = b()",
+            id="if-else",
+        ),
+        pytest.param(
+            "if flag:\n        offer = a()\n    elif other:\n"
+            "        offer = b()\n    else:\n        offer = c()",
+            id="if-elif-else",
+        ),
+        pytest.param(
+            "match flag:\n        case 1:\n            offer = a()\n"
+            "        case _:\n            offer = b()",
+            id="match-with-wildcard",
+        ),
+        pytest.param(
+            "try:\n        offer = a()\n    except ValueError:\n"
+            "        offer = b()",
+            id="try-and-every-handler",
+        ),
+        pytest.param(
+            "try:\n        offer = a()\n    finally:\n        pass",
+            id="try-finally-no-handler",
+        ),
+        pytest.param(
+            "if flag:\n        offer = a()\n    else:\n"
+            "        if offer is None:\n            raise SystemExit",
+            id="rebinding-and-guard",
+        ),
+    ],
+)
+def test_every_arm_deciding_the_name_ends_the_sentinel(arms: str):
+    """A statement whose every path rebinds or guards the name decides it,
+    as one statement-level rebinding would."""
+    src = f"""\
+def example(flag, other):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {arms}
+    acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == [], src
+
+
+@pytest.mark.parametrize(
+    "arms",
+    [
+        pytest.param(
+            "if flag:\n        offer = a()\n    elif other:\n        offer = b()",
+            id="if-elif-no-else",
+        ),
+        pytest.param(
+            "match flag:\n        case 1:\n            offer = a()\n"
+            "        case 2:\n            offer = b()",
+            id="match-without-wildcard",
+        ),
+        pytest.param(
+            "match flag:\n        case 1:\n            offer = a()\n"
+            "        case _ if other:\n            offer = b()",
+            id="match-guarded-wildcard",
+        ),
+    ],
+)
+def test_arms_that_can_all_be_skipped_do_not_end_the_sentinel(arms: str):
+    src = f"""\
+def example(flag, other):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {arms}
+    acknowledge(offer)
+"""
+    assert [name for name, _ in _sentinel_leaks(src)] == ["offer"], src
+
+
+@pytest.mark.parametrize(
+    ("statement", "leaks"),
+    [
+        pytest.param(
+            "if offer:\n        pass\n    else:\n        acknowledge(offer)",
+            True,
+            id="else-of-a-truthiness-test",
+        ),
+        pytest.param(
+            "if offer is None:\n        log(offer)", True, id="body-of-is-none"
+        ),
+        pytest.param(
+            "if not offer:\n        log(offer)", True, id="body-of-not"
+        ),
+        pytest.param(
+            "if offer is None:\n        log(flag)\n    else:\n"
+            "        acknowledge(offer)",
+            False,
+            id="else-of-is-none",
+        ),
+        pytest.param(
+            "while not offer:\n        offer = poll()", False, id="while-not"
+        ),
+        pytest.param(
+            "ident = offer.id_ if not offer else None",
+            True,
+            id="ternary-else",
+        ),
+    ],
+)
+def test_the_arm_a_guard_proves_placeholder_is_undefended(
+    statement: str, leaks: bool
+):
+    """``if x:`` leaves *x* falsy — maybe the placeholder — in its ``else``,
+    and ``if x is None:`` leaves it so in its body."""
+    src = f"""\
+def example(flag):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {statement}
+"""
+    assert bool(_sentinel_leaks(src)) is leaks, src
+
+
+def test_a_match_case_guard_defends_its_own_body():
+    src = """\
+def example(kind):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    match kind:
+        case 1 if offer:
+            acknowledge(offer)
+"""
+    assert _sentinel_leaks(src) == []
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        pytest.param(
+            "try:\n        pass\n    except ValueError as offer:\n"
+            "        acknowledge(offer)",
+            id="except-as",
+        ),
+        pytest.param(
+            "match kind:\n        case Offer() as offer:\n"
+            "            acknowledge(offer)",
+            id="case-as",
+        ),
+        pytest.param(
+            "match kind:\n        case [*offer]:\n            acknowledge(offer)",
+            id="case-star",
+        ),
+        pytest.param(
+            "match kind:\n        case {**offer}:\n            acknowledge(offer)",
+            id="case-mapping-rest",
+        ),
+    ],
+)
+def test_except_and_capture_bindings_are_rebindings(binding: str):
+    """``except E as x`` and a capture pattern bind *x* before the arm runs."""
+    src = f"""\
+def example(kind):
+    offer = None
+    with demo_step("Step 1: produce"):
+        offer = submit_report()
+
+    {binding}
+"""
+    assert _sentinel_leaks(src) == [], src
 
 
 @pytest.mark.spec("EDF-06-005")
