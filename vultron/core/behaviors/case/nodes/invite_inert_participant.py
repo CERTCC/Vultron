@@ -64,6 +64,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -148,6 +149,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
             rm=RmDimension(state=RM.RECEIVED),
             vf=vf,
             cvd_role=roles,
+            **authored_times(self._require_act_instant()),
         )
 
     def _existing_record_outcome(
@@ -226,6 +228,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
             case_roles=roles,
             participant_statuses=[status],
             joined=False,
+            **authored_times(self._require_act_instant()),
         )
 
         # The record gets an UNINVITED row for every register entry (ADR-0122)

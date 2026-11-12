@@ -11,14 +11,14 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT
-from test.support.act_runner import run_in_act, run_tree
+from test.support.act_runner import in_act, run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     propose,
     terminate,
     write_consent_rows,
 )
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -180,7 +180,7 @@ def _make_event(
     """
     recipients = [PARTICIPANT_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
         entry=wire_entry, actor=actor_id, to=recipients, at=authored_at()
@@ -1770,7 +1770,8 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
             )
             node.datalayer = datalayer
             node.setup()
-            node.update()
+            with in_act():
+                node.update()
             return steps
 
         assert _run_advance(), "the first run writes the closure"

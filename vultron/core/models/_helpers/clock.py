@@ -25,6 +25,7 @@ a deterministic demo run replaces ``clock.datetime`` to control the clock.
 import threading
 from datetime import UTC, datetime, timedelta, timezone
 from typing import (
+    TypedDict,
     overload,
 )
 
@@ -77,6 +78,37 @@ class SteppingClock:
 def now_utc() -> datetime:
     """Return the current UTC instant, microseconds kept (CS-13-007)."""
     return datetime.now(UTC)
+
+
+class AuthoredTimes(TypedDict):
+    """The ``published``/``updated`` pair, typed for ``**`` unpacking."""
+
+    published: datetime
+    updated: datetime
+
+
+def authored_times(at: datetime) -> AuthoredTimes:
+    """``published`` and ``updated`` for an object authored at *at*.
+
+    *at* is the instant of the act that makes the object (ADR-0176): pass
+    ``**authored_times(at)`` where the object is built, so the two author
+    times are stated once and no model reads the clock.
+    """
+    return AuthoredTimes(published=at, updated=at)
+
+
+class EmbargoAuthoredTimes(AuthoredTimes):
+    """:class:`AuthoredTimes` plus an embargo's ``start_time``."""
+
+    start_time: datetime
+
+
+def embargo_authored_times(at: datetime) -> EmbargoAuthoredTimes:
+    """The times of an embargo authored at *at*: it starts when it is made.
+
+    Pass as ``**embargo_authored_times(at)`` (ADR-0176).
+    """
+    return EmbargoAuthoredTimes(published=at, updated=at, start_time=at)
 
 
 def is_aware(value: datetime) -> bool:

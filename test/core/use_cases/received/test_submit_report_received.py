@@ -19,7 +19,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal)
 import pytest
 
 from test.support.act_runner import run_in_act
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -221,7 +221,9 @@ class TestSubmitReportCreatesCase:
         )
 
         statuses = [
-            ParticipantStatus.model_validate(row["data_"])
+            ParticipantStatus.model_validate(
+                with_times(ParticipantStatus, row["data_"])
+            )
             for row in dl.get_all("ParticipantStatus")
         ]
         finder_accepted = [

@@ -31,7 +31,7 @@ from pydantic import Field
 from sqlmodel import Session
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
@@ -528,7 +528,9 @@ def test_mixed_spelling_row_now_validates_directly():
     into an empty participant would be the #2232 defect wearing a passing test.
     """
     case_id = "urn:uuid:case-2232-premise"
-    case = VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+    case = VulnerabilityCase.model_validate(
+        with_times(VulnerabilityCase, _mixed_spelling_case_row(case_id))
+    )
 
     assert len(case.case_participants) == 1
     participant = case.case_participants[0]
@@ -660,6 +662,8 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
             "preview": None,
             "media_type": None,
             "to": None,
+            "published": None,
+            "updated": None,
             "outbox": {"items": ["https://test.example/activities/1"]},
         },
     )

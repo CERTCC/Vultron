@@ -44,7 +44,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import archive_received, case_stub
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -2158,11 +2158,14 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
 
         case_wire = _VC.model_validate(
-            {
-                "id": case.id_,
-                "name": case.name or "Test",
-                "attributed_to": case.attributed_to,
-            }
+            with_times(
+                _VC,
+                {
+                    "id": case.id_,
+                    "name": case.name or "Test",
+                    "attributed_to": case.attributed_to,
+                },
+            )
         )
         offer = offer_case_ownership_transfer_activity(
             case=case_wire,
@@ -2354,11 +2357,14 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
         offer = offer_case_ownership_transfer_activity(
             case=as_VulnerabilityCase.model_validate(
-                {
-                    "attributed_to": CASE_OWNER_ID,
-                    "id": case.id_,
-                    "name": case.name or "Test",
-                }
+                with_times(
+                    as_VulnerabilityCase,
+                    {
+                        "attributed_to": CASE_OWNER_ID,
+                        "id": case.id_,
+                        "name": case.name or "Test",
+                    },
+                )
             ),
             target=transferee.id_,
             actor=case_actor.id_,

@@ -32,7 +32,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -87,7 +87,10 @@ def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
     """The owner's proposal, as the offer trigger builds it (ADR-0148)."""
     return propose_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
-            {"attributed_to": CASE_OWNER_ID, "id": case_id, "name": name}
+            with_times(
+                as_VulnerabilityCase,
+                {"attributed_to": CASE_OWNER_ID, "id": case_id, "name": name},
+            )
         ),
         target="https://example.org/actors/coordinator",
         actor=owner_id,
@@ -102,7 +105,14 @@ def _owners_offer(
     """The proposal as the offer trigger stored it in the owner's store."""
     proposal = propose_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
-            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    "attributed_to": CASE_OWNER_ID,
+                    "id": case.id_,
+                    "name": case.name,
+                },
+            )
         ),
         target=transferee_id,
         actor=owner_id,
@@ -247,7 +257,14 @@ def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
     dl, owner, case_manager, case, _ = owner_world
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
-            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
+            with_times(
+                as_VulnerabilityCase,
+                {
+                    "attributed_to": CASE_OWNER_ID,
+                    "id": case.id_,
+                    "name": case.name,
+                },
+            )
         ),
         target="https://example.org/actors/coordinator",
         actor=case_manager.id_,

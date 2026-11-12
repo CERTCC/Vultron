@@ -180,14 +180,15 @@ def created_actors(actor_classes):
         # CoreActor stores inbox/outbox as URI strings; provide them explicitly
         # so profile-discovery tests can assert inbox/outbox are present.
         if issubclass(actor_cls, CoreActor):
-            actor = actor_cls(
+            actor = make(
+                actor_cls,
                 id_=actor_id,
                 name="Test Actor for List",
                 inbox=f"{actor_id}/inbox",
                 outbox=f"{actor_id}/outbox",
             )
         else:
-            actor = actor_cls(id_=actor_id, name="Test Actor for List")
+            actor = make(actor_cls, id_=actor_id, name="Test Actor for List")
         dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
         dl.create(object_to_record(actor))
         actors.append(actor)

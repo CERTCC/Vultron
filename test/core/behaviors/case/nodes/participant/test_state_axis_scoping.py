@@ -30,7 +30,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -191,10 +191,15 @@ class TestParticipantAxesNeverWriteCaseStatus:
             # Positive control: the value is valid on its owning model, so
             # the refusal below comes from the missing field.
             ParticipantStatus.model_validate(
-                {"context": CASE_ID, "cvdRole": ["VENDOR"], key: value}
+                with_times(
+                    ParticipantStatus,
+                    {"context": CASE_ID, "cvdRole": ["VENDOR"], key: value},
+                )
             )
             with pytest.raises(ValidationError):
-                CaseStatus.model_validate({"context": CASE_ID, key: value})
+                CaseStatus.model_validate(
+                    with_times(CaseStatus, {"context": CASE_ID, key: value})
+                )
 
     @pytest.mark.spec("SM-10-003")
     @pytest.mark.parametrize(
@@ -254,7 +259,9 @@ class TestCaseAxesNeverWriteParticipantProgress:
         for key, value in (("emState", "ACTIVE"), ("pxaState", "PXA")):
             with pytest.raises(ValidationError):
                 ParticipantStatus.model_validate(
-                    {"context": CASE_ID, key: value}
+                    with_times(
+                        ParticipantStatus, {"context": CASE_ID, key: value}
+                    )
                 )
 
     @pytest.mark.spec("SM-10-004")

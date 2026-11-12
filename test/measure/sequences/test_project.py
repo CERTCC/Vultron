@@ -39,8 +39,9 @@ from test.measure.history.builders import (
     VENDOR,
     VENDOR_2,
     Ledger,
-    case_status,
     participant,
+    publish,
+    seat_vendor,
     status,
 )
 from vultron.core.models.events.base import MessageSemantics
@@ -79,53 +80,24 @@ from vultron.measure.sequences import (
 _RECORDINGS = sorted(RECORDINGS_DIR.glob("*/case-actor.jsonl"))
 
 
-def _seat_vendor(
-    ledger: Ledger, actor: str, vf: str, *, deployer: bool = False
-) -> int:
-    roles = ("VENDOR", "DEPLOYER") if deployer else ("VENDOR",)
-    return ledger.seat(
-        participant(
-            actor,
-            [
-                status(
-                    f"{actor}-r",
-                    actor,
-                    "RECEIVED",
-                    vf=vf,
-                    d="d" if deployer else None,
-                    roles=roles,
-                )
-            ],
-            roles=roles,
-        )
-    )
-
-
-def _publish(ledger: Ledger, pxa: str) -> int:
-    """The CASE_MANAGER adopts public state *pxa*."""
-    return ledger.add(
-        "add_case_status_to_case", "Add", CM, case_status(f"cs-{pxa}", pxa)
-    )
-
-
 def _two_vendor_ledger() -> Ledger:
     """A vendor that also deploys, then a second vendor holding no Deployer
     role, then the case goes public; no exploit is ever published."""
     ledger = Ledger()
     ledger.standard_genesis()
     ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
-    _seat_vendor(ledger, VENDOR, "vf", deployer=True)
+    seat_vendor(ledger, VENDOR, "vf", deployer=True)
     ledger.add_status(
         VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf", d="d")
     )
-    _seat_vendor(ledger, VENDOR_2, "Vf")
+    seat_vendor(ledger, VENDOR_2, "Vf")
     ledger.add_status(
         VENDOR, status("v-F", VENDOR, "RECEIVED", vf="VF", d="d")
     )
     ledger.add_status(
         VENDOR, status("v-D", VENDOR, "RECEIVED", vf="VF", d="D")
     )
-    _publish(ledger, "Pxa")
+    publish(ledger, "Pxa")
     return ledger
 
 
@@ -182,8 +154,8 @@ def test_sequences_are_ordered_by_vendor_awareness_not_first_event():
     """The vendor seated first becomes aware second."""
     ledger = Ledger()
     ledger.standard_genesis()
-    _seat_vendor(ledger, VENDOR, "vf")
-    _seat_vendor(ledger, VENDOR_2, "Vf")
+    seat_vendor(ledger, VENDOR, "vf")
+    seat_vendor(ledger, VENDOR_2, "Vf")
     ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
     history, projected = _projected(ledger)
     first_events = [
@@ -269,9 +241,9 @@ def _late_vendor_ledger() -> Ledger:
     """
     ledger = Ledger()
     ledger.standard_genesis()
-    _publish(ledger, "Pxa")
-    _publish(ledger, "PXa")
-    _seat_vendor(ledger, VENDOR, "vf")
+    publish(ledger, "Pxa")
+    publish(ledger, "PXa")
+    seat_vendor(ledger, VENDOR, "vf")
     ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
     return ledger
 
@@ -314,10 +286,10 @@ def test_awareness_recorded_after_publication_is_placed_at_public_awareness():
 def test_awareness_right_after_publication_is_not_marked_placed():
     ledger = Ledger()
     ledger.standard_genesis()
-    _publish(ledger, "Pxa")
-    _seat_vendor(ledger, VENDOR, "vf")
+    publish(ledger, "Pxa")
+    seat_vendor(ledger, VENDOR, "vf")
     ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
-    _publish(ledger, "PXa")
+    publish(ledger, "PXa")
     _, projected = _projected(ledger)
     sequence = projected.for_participant(VENDOR)
     assert _kinds(sequence) == "PVX"
@@ -335,10 +307,10 @@ def _exploit_first_ledger() -> Ledger:
     """
     ledger = Ledger()
     ledger.standard_genesis()
-    _publish(ledger, "pXa")
-    _seat_vendor(ledger, VENDOR, "vf")
+    publish(ledger, "pXa")
+    seat_vendor(ledger, VENDOR, "vf")
     ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
-    _publish(ledger, "PXa")
+    publish(ledger, "PXa")
     return ledger
 
 
@@ -374,14 +346,14 @@ def test_public_awareness_recorded_after_publication_is_placed_at_the_exploit():
 def test_both_placements_compose(steps, expected, placements):
     ledger = Ledger()
     ledger.standard_genesis()
-    _seat_vendor(ledger, VENDOR, "vf")
+    seat_vendor(ledger, VENDOR, "vf")
     for step in steps:
         if step == "V":
             ledger.add_status(
                 VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf")
             )
         else:
-            _publish(ledger, step)
+            publish(ledger, step)
     _, projected = _projected(ledger)
     sequence = projected.for_participant(VENDOR)
     assert _kinds(sequence) == expected
@@ -462,9 +434,9 @@ def _attacks_before_public_awareness_ledger() -> Ledger:
     """
     ledger = Ledger()
     ledger.standard_genesis()
-    _seat_vendor(ledger, VENDOR, "Vf")
-    _publish(ledger, "pXa")
-    _publish(ledger, "pXA")
+    seat_vendor(ledger, VENDOR, "Vf")
+    publish(ledger, "pXa")
+    publish(ledger, "pXA")
     return ledger
 
 
@@ -498,8 +470,8 @@ def test_an_exploit_recorded_last_implies_nothing():
     wrong (CEH-05-005)."""
     ledger = Ledger()
     ledger.standard_genesis()
-    _seat_vendor(ledger, VENDOR, "Vf")
-    _publish(ledger, "pXa")
+    seat_vendor(ledger, VENDOR, "Vf")
+    publish(ledger, "pXa")
     _, projected = _projected(ledger)
     sequence = projected.for_participant(VENDOR)
     assert _kinds(sequence) == "VX"
@@ -630,7 +602,11 @@ def _imported_modules(module) -> set[str]:
 )
 def test_the_layer_imports_no_scoring_entry_point(module):
     imported = _imported_modules(module)
-    for scoring in ("vultron.core.case_states", "vultron.measure.baselines"):
+    for scoring in (
+        "vultron.core.case_states",
+        "vultron.measure.baselines",
+        "vultron.measure.scoring",
+    ):
         assert not any(
             name == scoring or name.startswith(f"{scoring}.")
             for name in imported
@@ -639,10 +615,12 @@ def test_the_layer_imports_no_scoring_entry_point(module):
 
 
 #: The scoring entry points: the legacy desiderata scorer
-#: (``CVDmodel.score_hist``) and the chance baselines #6068 scores through.
+#: (``CVDmodel.score_hist``), the chance baselines, and the scorer that reads
+#: the sequences (``vultron.measure.scoring``).
 _SCORING_PACKAGES = (
     "vultron.core.case_states.hypercube",
     "vultron.measure.baselines",
+    "vultron.measure.scoring",
 )
 
 

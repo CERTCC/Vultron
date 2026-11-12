@@ -21,6 +21,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.demo.utils.client import DataLayerClient, logfmt
 from vultron.demo.utils.inbox import read_stored_of_types
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -265,10 +266,11 @@ def get_offer_from_datalayer(
     Raises:
         AssertionError: If the vendor holds no received Offer *offer_id*.
     """
-    raw = as_Offer.model_validate(
+    raw = from_server(
+        as_Offer,
         require_received_activity(
             client, offer_id, actor_id=vendor_id, what="Offer"
-        )
+        ),
     )
     logger.info("Retrieved Offer: %s", logfmt(raw))
     return raw
@@ -292,7 +294,7 @@ def log_case_state(
     """
     try:
         case_data = client.get(client.dl_path(case_id, actor_id=actor_id))
-        case = as_VulnerabilityCase(**case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         logger.info(
             "Case state [%s]: reports=%s, participants=%s",
             label,

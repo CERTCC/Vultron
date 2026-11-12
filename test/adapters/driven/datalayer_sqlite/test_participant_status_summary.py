@@ -25,7 +25,7 @@ moment a shape migration made it most useful.
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.datalayer_sqlite.schema import (
     _dimension_state,
     participant_status_summary,
@@ -175,7 +175,10 @@ class TestParticipantStatusSummary:
         from vultron.core.states.rm import RM
 
         status = ParticipantStatus.model_validate(
-            {"context": "urn:uuid:case-1", "rmState": RM.ACCEPTED}
+            with_times(
+                ParticipantStatus,
+                {"context": "urn:uuid:case-1", "rmState": RM.ACCEPTED},
+            )
         )
         participant = make(
             CaseParticipant,

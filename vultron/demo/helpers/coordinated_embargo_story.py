@@ -64,6 +64,7 @@ from vultron.demo.helpers.story import (
     story,
 )
 from vultron.demo.utils import demo_check, demo_gate
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -89,8 +90,9 @@ def canonical_case(state: StoryState) -> as_VulnerabilityCase:
     client, dl_actor_id = case_manager_store(
         state.client(COORDINATOR), state.case.id_, state.case_actor_client
     )
-    return as_VulnerabilityCase.model_validate(
-        client.get(client.dl_path(state.case.id_, actor_id=dl_actor_id))
+    return from_server(
+        as_VulnerabilityCase,
+        client.get(client.dl_path(state.case.id_, actor_id=dl_actor_id)),
     )
 
 

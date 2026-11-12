@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.metadata._adr_stubs import write_adr_stub as _adr
+from test.support.objects import with_times
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import SUPERSESSION_FIELDS, AdrFrontmatter
 from vultron.metadata.docs.page_schema import StakeholderType
@@ -17,7 +18,9 @@ _LC = {"created": "2020-01-01", "updated": "2020-01-01", "revision": 1}
 
 class TestAdrFrontmatterSchema:
     def test_minimal_valid(self):
-        fm = AdrFrontmatter.model_validate({**_LC, "status": "accepted"})
+        fm = AdrFrontmatter.model_validate(
+            with_times(AdrFrontmatter, {**_LC, "status": "accepted"})
+        )
         assert fm.status is AdrStatus.ACCEPTED
 
     def test_all_status_values_accepted(self):
@@ -27,41 +30,65 @@ class TestAdrFrontmatterSchema:
             "accepted-provisional",
             "rejected",
         ):
-            fm = AdrFrontmatter.model_validate({**_LC, "status": status})
+            fm = AdrFrontmatter.model_validate(
+                with_times(AdrFrontmatter, {**_LC, "status": status})
+            )
             assert fm.status.value == status
 
     def test_invalid_status_rejected(self):
         with pytest.raises(ValidationError):
-            AdrFrontmatter.model_validate({**_LC, "status": "kinda-accepted"})
+            AdrFrontmatter.model_validate(
+                with_times(AdrFrontmatter, {**_LC, "status": "kinda-accepted"})
+            )
 
     def test_deciders_accepts_string_or_list(self):
         assert (
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "accepted", "deciders": "adh"}
+                with_times(
+                    AdrFrontmatter,
+                    {**_LC, "status": "accepted", "deciders": "adh"},
+                )
             ).deciders
             == "adh"
         )
         assert AdrFrontmatter.model_validate(
-            {**_LC, "status": "accepted", "deciders": ["adh", "Copilot"]}
+            with_times(
+                AdrFrontmatter,
+                {**_LC, "status": "accepted", "deciders": ["adh", "Copilot"]},
+            )
         ).deciders == ["adh", "Copilot"]
 
     def test_date_parsed(self):
         fm = AdrFrontmatter.model_validate(
-            {**_LC, "status": "accepted", "date": "2026-07-29"}
+            with_times(
+                AdrFrontmatter,
+                {**_LC, "status": "accepted", "date": "2026-07-29"},
+            )
         )
         assert fm.date is not None and fm.date.year == 2026
 
     def test_superseded_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):
-            AdrFrontmatter.model_validate({**_LC, "status": "superseded"})
+            AdrFrontmatter.model_validate(
+                with_times(AdrFrontmatter, {**_LC, "status": "superseded"})
+            )
 
     def test_deprecated_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):
-            AdrFrontmatter.model_validate({**_LC, "status": "deprecated"})
+            AdrFrontmatter.model_validate(
+                with_times(AdrFrontmatter, {**_LC, "status": "deprecated"})
+            )
 
     def test_superseded_with_target_valid(self):
         fm = AdrFrontmatter.model_validate(
-            {**_LC, "status": "superseded", "superseded_by": "0041-next.md"}
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "superseded",
+                    "superseded_by": "0041-next.md",
+                },
+            )
         )
         assert fm.status is AdrStatus.SUPERSEDED
         assert fm.superseded_by == ["0041-next.md"]
@@ -69,7 +96,9 @@ class TestAdrFrontmatterSchema:
     def test_inline_superseded_form_normalised(self):
         """'superseded by <link>' collapses to superseded + superseded_by."""
         fm = AdrFrontmatter.model_validate(
-            {**_LC, "status": "superseded by 0041-next.md"}
+            with_times(
+                AdrFrontmatter, {**_LC, "status": "superseded by 0041-next.md"}
+            )
         )
         assert fm.status is AdrStatus.SUPERSEDED
         assert fm.superseded_by == ["0041-next.md"]
@@ -82,11 +111,14 @@ class TestAdrFrontmatterSchema:
         and the loader never checked the target resolved.
         """
         fm = AdrFrontmatter.model_validate(
-            {
-                **_LC,
-                "status": "accepted",
-                "partially_superseded_by": "0072-per-actor-storage.md",
-            }
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "accepted",
+                    "partially_superseded_by": "0072-per-actor-storage.md",
+                },
+            )
         )
         assert fm.partially_superseded_by == ["0072-per-actor-storage.md"]
 
@@ -98,35 +130,51 @@ class TestAdrFrontmatterSchema:
         archiving it would hide them.
         """
         fm = AdrFrontmatter.model_validate(
-            {
-                **_LC,
-                "status": "accepted",
-                "partially_superseded_by": "0072-per-actor-storage.md",
-            }
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "accepted",
+                    "partially_superseded_by": "0072-per-actor-storage.md",
+                },
+            )
         )
         assert fm.status is AdrStatus.ACCEPTED
         assert fm.superseded_by == []
 
     def test_lint_suppress_valid_code(self):
         fm = AdrFrontmatter.model_validate(
-            {
-                **_LC,
-                "status": "accepted",
-                "lint_suppress": ["status_prose_contradiction"],
-            }
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "accepted",
+                    "lint_suppress": ["status_prose_contradiction"],
+                },
+            )
         )
         assert fm.lint_suppress is not None
 
     def test_lint_suppress_unknown_code_rejected(self):
         with pytest.raises(ValidationError):
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "accepted", "lint_suppress": ["bogus_code"]}
+                with_times(
+                    AdrFrontmatter,
+                    {
+                        **_LC,
+                        "status": "accepted",
+                        "lint_suppress": ["bogus_code"],
+                    },
+                )
             )
 
     def test_lint_suppress_empty_list_rejected(self):
         with pytest.raises(ValidationError, match="non-empty"):
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "accepted", "lint_suppress": []}
+                with_times(
+                    AdrFrontmatter,
+                    {**_LC, "status": "accepted", "lint_suppress": []},
+                )
             )
 
 
@@ -136,20 +184,32 @@ class TestSupersessionFieldsAreLists:
 
     @pytest.mark.parametrize("field", SUPERSESSION_FIELDS)
     def test_defaults_to_empty(self, field):
-        fm = AdrFrontmatter.model_validate({**_LC, "status": "accepted"})
+        fm = AdrFrontmatter.model_validate(
+            with_times(AdrFrontmatter, {**_LC, "status": "accepted"})
+        )
         assert getattr(fm, field) == []
 
     @pytest.mark.parametrize("field", SUPERSESSION_FIELDS)
     def test_scalar_is_coerced_to_one_item_list(self, field):
         fm = AdrFrontmatter.model_validate(
-            {**_LC, "status": "accepted", field: "0041-next.md"}
+            with_times(
+                AdrFrontmatter,
+                {**_LC, "status": "accepted", field: "0041-next.md"},
+            )
         )
         assert getattr(fm, field) == ["0041-next.md"]
 
     @pytest.mark.parametrize("field", SUPERSESSION_FIELDS)
     def test_list_is_kept(self, field):
         fm = AdrFrontmatter.model_validate(
-            {**_LC, "status": "accepted", field: ["0041-a.md", "ADR-0042"]}
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "accepted",
+                    field: ["0041-a.md", "ADR-0042"],
+                },
+            )
         )
         assert getattr(fm, field) == ["0041-a.md", "ADR-0042"]
 
@@ -157,13 +217,19 @@ class TestSupersessionFieldsAreLists:
     def test_empty_entry_is_rejected(self, field):
         with pytest.raises(ValidationError, match=field):
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "accepted", field: ["0041-a.md", ""]}
+                with_times(
+                    AdrFrontmatter,
+                    {**_LC, "status": "accepted", field: ["0041-a.md", ""]},
+                )
             )
 
     def test_retired_with_empty_list_still_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "superseded", "superseded_by": []}
+                with_times(
+                    AdrFrontmatter,
+                    {**_LC, "status": "superseded", "superseded_by": []},
+                )
             )
 
 
@@ -177,11 +243,14 @@ class TestAdrStakeholderType:
 
     def test_project_contributor_is_kept(self):
         fm = AdrFrontmatter.model_validate(
-            {
-                **_LC,
-                "status": "accepted",
-                "stakeholder_type": ["project-contributor"],
-            }
+            with_times(
+                AdrFrontmatter,
+                {
+                    **_LC,
+                    "status": "accepted",
+                    "stakeholder_type": ["project-contributor"],
+                },
+            )
         )
         assert fm.stakeholder_type == [StakeholderType.PROJECT_CONTRIBUTOR]
 
@@ -199,7 +268,10 @@ class TestAdrStakeholderType:
     def test_any_other_value_is_rejected(self, value):
         with pytest.raises(ValidationError, match="stakeholder_type"):
             AdrFrontmatter.model_validate(
-                {**_LC, "status": "accepted", "stakeholder_type": value}
+                with_times(
+                    AdrFrontmatter,
+                    {**_LC, "status": "accepted", "stakeholder_type": value},
+                )
             )
 
     def test_every_committed_adr_declares_it(self):

@@ -63,7 +63,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import days_from_now
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -339,9 +339,16 @@ def test_case_publishes_active_participants_and_round_trips(
     assert "activeParticipants" in dumped
     active = removal_case.active_ids()
     assert {_participant_id(VENDOR), _participant_id(OTHER)} <= active
-    assert as_VulnerabilityCase.model_validate(dumped) == case
     assert (
-        as_VulnerabilityCase.model_validate(case.model_dump(by_alias=True))
+        as_VulnerabilityCase.model_validate(
+            with_times(as_VulnerabilityCase, dumped)
+        )
+        == case
+    )
+    assert (
+        as_VulnerabilityCase.model_validate(
+            with_times(as_VulnerabilityCase, case.model_dump(by_alias=True))
+        )
         == case
     )
 

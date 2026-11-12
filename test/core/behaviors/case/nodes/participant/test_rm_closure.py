@@ -20,11 +20,14 @@ transition (no override hides it) and the refusal for a status that is not
 core-shaped.
 """
 
+from typing import Any
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import in_act
 from test.support.objects import make
 from vultron.core.behaviors.case.nodes.participant import rm_closure
 from vultron.core.behaviors.case.nodes.participant.rm_closure import (
@@ -81,6 +84,12 @@ def _rm_history(bt_scenario: BTTestScenario, participant_id: str) -> list[RM]:
     ]
 
 
+def _close(writer: RMClosureWriter, *args: Any, **kwargs: Any) -> Status:
+    """``writer.close(...)`` inside one act: each step's status takes its time."""
+    with in_act():
+        return writer.close(*args, **kwargs)
+
+
 def _probe() -> py_trees.behaviour.Behaviour:
     return py_trees.behaviours.Success(name="ClosureProbe")
 
@@ -107,7 +116,8 @@ def test_close_writes_the_closure_path(
     participant_id = participants[ACTOR_A].id_
     before = _rm_history(bt_scenario, participant_id)
 
-    status = RMClosureWriter(name="Close").close(
+    status = _close(
+        RMClosureWriter(name="Close"),
         _probe(),
         bt_scenario.dl,
         participant_id,
@@ -137,7 +147,8 @@ def test_close_reports_each_step_it_writes(
     before = len(_rm_history(bt_scenario, participant_id))
     steps: list[str] = []
 
-    status = RMClosureWriter(name="Close").close(
+    status = _close(
+        RMClosureWriter(name="Close"),
         _probe(),
         bt_scenario.dl,
         participant_id,
@@ -163,7 +174,8 @@ def test_one_writer_closes_each_actor_it_is_given(
     writer = RMClosureWriter(name="Close")
 
     for actor_id in (ACTOR_A, ACTOR_B):
-        status = writer.close(
+        status = _close(
+            writer,
             _probe(),
             bt_scenario.dl,
             participants[actor_id].id_,
@@ -200,7 +212,8 @@ def test_a_step_off_the_rm_table_is_refused_not_forced(
     monkeypatch.setattr(rm_closure, "rm_closure_path", lambda _s: (RM.CLOSED,))
     probe = _probe()
 
-    status = RMClosureWriter(name="Close").close(
+    status = _close(
+        RMClosureWriter(name="Close"),
         probe,
         bt_scenario.dl,
         participant_id,
@@ -233,7 +246,8 @@ def test_a_failed_step_keeps_the_rungs_written_and_a_retry_resumes(
 
     with monkeypatch.context() as patch:
         patch.setattr(closed_step, "update", lambda: Status.FAILURE)
-        status = writer.close(
+        status = _close(
+            writer,
             probe,
             bt_scenario.dl,
             participant_id,
@@ -246,7 +260,8 @@ def test_a_failed_step_keeps_the_rungs_written_and_a_retry_resumes(
     assert "DEFERRED -> CLOSED refused" in probe.feedback_message
     assert _rm_history(bt_scenario, participant_id) == [*before, RM.DEFERRED]
 
-    status = writer.close(
+    status = _close(
+        writer,
         _probe(),
         bt_scenario.dl,
         participant_id,
@@ -280,7 +295,8 @@ def test_unreadable_status_is_reported_as_failure(
     )
     probe = _probe()
 
-    status = RMClosureWriter(name="Close").close(
+    status = _close(
+        RMClosureWriter(name="Close"),
         probe,
         bt_scenario.dl,
         participant_id,
@@ -312,7 +328,8 @@ def test_a_step_that_reports_no_status_id_fails_the_closure(
     probe = _probe()
     steps: list[str] = []
 
-    status = writer.close(
+    status = _close(
+        writer,
         probe,
         bt_scenario.dl,
         participant_id,

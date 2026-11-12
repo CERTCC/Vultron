@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import httpx2 as httpx
 
 from vultron.demo.utils.client import DataLayerClient, logfmt, reset_datalayer
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 # One logger for the whole package, so log records keep its name.
@@ -55,7 +56,7 @@ def discover_actors(
     actors = client.get("/actors/")
 
     for actor_json in actors:
-        actor = as_Actor(**actor_json)
+        actor = from_server(as_Actor, actor_json)
         if actor.name and actor.name.startswith("Finn"):
             reporter = actor
             _log_discovered_actor("reporter", reporter)
@@ -211,7 +212,7 @@ def seed_actor(
         payload["id"] = actor_id
 
     response_data = client.post("/actors/", json=payload)
-    return as_Actor.model_validate(response_data)
+    return from_server(as_Actor, response_data)
 
 
 def seed_peer(
@@ -242,7 +243,7 @@ def seed_peer(
     slug = urlsplit(local_actor_id).path.rstrip("/").rsplit("/", 1)[-1]
     payload: dict = {"id": peer_id, "name": name, "actor_type": actor_type}
     response_data = client.post(f"/actors/{slug}/peers/", json=payload)
-    return as_Actor.model_validate(response_data)
+    return from_server(as_Actor, response_data)
 
 
 def check_server_availability(

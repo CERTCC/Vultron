@@ -75,10 +75,10 @@
         ],
         "id": "urn:uuid:<minted>",
         "name": "START",
-        "published": "<clock>",
+        "published": "2026-01-02T03:04:05.000000+00:00",
         "rmState": "START",
         "type": "ParticipantStatus",
-        "updated": "<clock>"
+        "updated": "2026-01-02T03:04:05.000000+00:00"
       }
     ],
     "published": "2026-01-02T03:04:05.000000+00:00",
@@ -134,9 +134,9 @@
     "context": "urn:test:context:1",
     "endTime": "2026-01-02T03:04:05.000000+00:00",
     "id": "urn:test:embargoevent:golden",
-    "name": "Embargo for urn:test:context:1 start: <clock> end: 2026-01-02T03:04:05+00:00",
+    "name": "Embargo for urn:test:context:1 start: 2026-01-02T03:04:05+00:00 end: 2026-01-02T03:04:05+00:00",
     "published": "2026-01-02T03:04:05.000000+00:00",
-    "startTime": "<clock>",
+    "startTime": "2026-01-02T03:04:05.000000+00:00",
     "type": "EmbargoEvent",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
@@ -188,7 +188,7 @@
         "emState": "NONE",
         "id": "urn:uuid:<minted>",
         "name": "NONE pxa",
-        "published": "<clock>",
+        "published": "2026-01-02T03:04:05.000000+00:00",
         "pxaState": "pxa",
         "type": "CaseStatus"
       }

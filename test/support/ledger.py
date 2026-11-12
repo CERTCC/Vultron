@@ -23,6 +23,7 @@ import py_trees
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import with_times
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -183,14 +184,17 @@ def with_genesis(
     (CLP-08-004), so both move together, validated.
     """
     return VulnerabilityCase.model_validate(
-        {
-            **case.model_dump(),
-            "genesis_hash": genesis_hash,
-            "ledger_position": {
-                "log_index": EMPTY_LEDGER_LOG_INDEX,
-                "entry_hash": genesis_hash,
+        with_times(
+            VulnerabilityCase,
+            {
+                **case.model_dump(),
+                "genesis_hash": genesis_hash,
+                "ledger_position": {
+                    "log_index": EMPTY_LEDGER_LOG_INDEX,
+                    "entry_hash": genesis_hash,
+                },
             },
-        }
+        )
     )
 
 

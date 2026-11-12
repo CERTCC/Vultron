@@ -1037,9 +1037,10 @@ groups:
       The existing desiderata scorer admits only a complete six-event history and
       raises on anything shorter, while CEH-05-005 makes an incomplete sequence the
       normal result, so there is no score this layer could compute for a typical case.
-      How an incomplete sequence earns a score is an open research question, and the
-      measures computed from a history are out of this topic's scope in any case. The
-      layer's deliverable is the validated sequence.
+      An incomplete sequence is scored through its valid completions by a separate
+      measure that reads the sequence (ADR-0182), and the measures computed from a
+      history are out of this topic's scope in any case. The layer's deliverable is the
+      validated sequence.
     verification: >-
       `test/measure/sequences/test_project.py::test_the_layer_imports_no_scoring_entry_point`
       and

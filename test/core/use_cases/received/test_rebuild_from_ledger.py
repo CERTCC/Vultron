@@ -38,7 +38,7 @@ from test.support.ledger_rebuild import (
     creation_records,
     rebuild_from_ledger,
 )
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -207,7 +207,7 @@ def test_the_default_embargo_follows_the_genesis_entry_in_full(make_payload):
         "create_embargo_event",
     ]
     carried = EmbargoEvent.model_validate(
-        entries[1].payload_snapshot["object"]
+        with_times(EmbargoEvent, entries[1].payload_snapshot["object"])
     )
     assert carried == held
     assert entries[1].payload_snapshot["actor"] == _CASE_ACTOR_URI
@@ -237,18 +237,21 @@ def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
             "signals": ["P"],
         }
     return VulnerabilityCase.model_validate(
-        {
-            "attributed_to": CASE_OWNER_ID,
-            "id_": "https://example.org/cases/rebuild-register",
-            "name": "Register",
-            "embargo_register": [
-                {
-                    "embargo": "https://example.org/embargo_events/e1",
-                    "status": EmbargoRegisterStatus.TERMINATED,
-                    "termination": termination,
-                }
-            ],
-        }
+        with_times(
+            VulnerabilityCase,
+            {
+                "attributed_to": CASE_OWNER_ID,
+                "id_": "https://example.org/cases/rebuild-register",
+                "name": "Register",
+                "embargo_register": [
+                    {
+                        "embargo": "https://example.org/embargo_events/e1",
+                        "status": EmbargoRegisterStatus.TERMINATED,
+                        "termination": termination,
+                    }
+                ],
+            },
+        )
     )
 
 

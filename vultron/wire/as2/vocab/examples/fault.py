@@ -26,6 +26,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     EXAMPLE_TIMESTAMP,
+    _example_stamp,
     vendor,
 )
 from vultron.wire.as2.vocab.examples.status import (
@@ -47,6 +48,7 @@ def create_processing_fault() -> as_Create:
     fault = as_ProcessingFault(
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
         in_reply_to=f"{_CASE_ACTOR.id_}/announce/9",
+        **_example_stamp(),
     )
     return create_processing_fault_activity(
         actor=vendor().id_,

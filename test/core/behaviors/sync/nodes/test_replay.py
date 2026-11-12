@@ -17,7 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
 )
 from test.support.act_runner import run_tree
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
@@ -58,7 +58,7 @@ def _make_reject_event(
     prev_hash = _ZERO_HASH if entry_log_index == 0 else "deadbeef" * 8
     entry = _make_entry(entry_log_index, prev_hash)
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = reject_log_entry_activity(
         entry=wire_entry,

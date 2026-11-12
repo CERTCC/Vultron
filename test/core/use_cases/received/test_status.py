@@ -28,7 +28,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -753,7 +753,10 @@ class TestStatusUseCases:
         activity = add_status_to_participant_activity(
             make(as_ParticipantStatus, id_=status_id, context=case_b.id_),
             target=as_CaseParticipant.model_validate(
-                target.model_dump(by_alias=True, mode="json")
+                with_times(
+                    as_CaseParticipant,
+                    target.model_dump(by_alias=True, mode="json"),
+                )
             ),
             actor=sender,
             to=[dl.actor_id],
@@ -891,7 +894,10 @@ class TestStatusUseCases:
                             context=case.id_,
                         ),
                         target=as_CaseParticipant.model_validate(
-                            target.model_dump(by_alias=True, mode="json")
+                            with_times(
+                                as_CaseParticipant,
+                                target.model_dump(by_alias=True, mode="json"),
+                            )
                         ),
                         actor=sender,
                         to=[dl.actor_id],
@@ -1730,7 +1736,10 @@ class TestParticipantStatusSubjectIsTheSender:
         activity = add_status_to_participant_activity(
             status,
             target=as_CaseParticipant.model_validate(
-                target.model_dump(by_alias=True, mode="json")
+                with_times(
+                    as_CaseParticipant,
+                    target.model_dump(by_alias=True, mode="json"),
+                )
             ),
             actor=sender,
             to=[cast(str, dl.actor_id)],

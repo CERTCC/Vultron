@@ -42,7 +42,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -519,7 +519,10 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
     dl, revision = _open_revision(case_id, make_payload)
     _join(dl, case_id, make_payload)
     invite = as_Invite.model_validate(
-        _full_case_invite_to_joiner(dl).model_dump(by_alias=True)
+        with_times(
+            as_Invite,
+            _full_case_invite_to_joiner(dl).model_dump(by_alias=True),
+        )
     )
 
     reply = rm_accept_full_case_invite_activity(

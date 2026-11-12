@@ -48,6 +48,7 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -166,6 +167,7 @@ def demo_manage_participants_accept(
     This follows the accept branch in
     docs/howto/activitypub/activities/manage_participants.md.
     """
+    at = wall_clock.now()  # one read for this step (ADR-0176)
     logger.info("=" * 80)
     logger.info("DEMO: Manage Participants — Accept + Status + Remove Path")
     logger.info("=" * 80)
@@ -218,13 +220,14 @@ def demo_manage_participants_accept(
                 rm=RmDimension(state=RM.ACCEPTED),
                 attributed_to=coordinator.id_,
                 cvd_role=[CVDRole.COORDINATOR],
+                **authored_times(at),
             )
             add_status = add_status_to_participant_activity(
                 participant_status,
                 actor=coordinator.id_,
                 target=coordinator_participant.id_,
                 to=[vendor.id_],
-                at=wall_clock.now(),
+                at=at,
             )
             # A participant sends its status to the CASE_MANAGER alone
             # (PCR-08-001); the vendor holds that role here, and a replica
@@ -246,7 +249,7 @@ def demo_manage_participants_accept(
                 coordinator_participant,
                 actor=vendor.id_,
                 target=case.id_,
-                at=wall_clock.now(),
+                at=at,
             )
             post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
@@ -334,7 +337,7 @@ def demo_manage_participants_accept(
                 coordinator_participant,
                 actor=vendor.id_,
                 target=case.id_,
-                at=wall_clock.now(),
+                at=at,
             )
             post_to_inbox_and_wait(client, vendor.id_, reinstate_participant)
 

@@ -53,7 +53,6 @@ from vultron.core.models._helpers import (
     as_utc,
     blank_times_as_none,
     format_timestamp,
-    now_utc,
     refuse_absent_id,
     refuse_absent_published,
 )
@@ -159,13 +158,14 @@ class CoreObject(CoreRecord):
     start_time: datetime | None = None
     end_time: datetime | None = None
 
-    # An object this process authors takes the local clock (default_factory);
-    # an object it *receives* carries the sender's time, which AS2 lets the
-    # sender omit, so an explicit ``None`` stays ``None`` rather than becoming
-    # the receiver's clock (ISSUE-3257).  Decisions that need the time refuse
-    # its absence at the wire edge, not here.
-    published: datetime | None = Field(default_factory=now_utc)
-    updated: datetime | None = Field(default_factory=now_utc)
+    # Required, with no default: an object this process authors states the
+    # instant of the act that made it (ADR-0176), and an object it *receives*
+    # carries the sender's time, which AS2 lets the sender omit, so a received
+    # omission is read as ``None`` (``_carry_absent_times_on_inbound``) rather
+    # than becoming the receiver's clock (ISSUE-3257).  Decisions that need
+    # the time refuse its absence at the wire edge, not here.
+    published: datetime | None
+    updated: datetime | None
     #: Set by a subclass whose received ``published`` a decision reads, so
     #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-010).
     _inbound_requires_published: ClassVar[bool] = False
@@ -280,9 +280,9 @@ class CoreObject(CoreRecord):
         """Read an absent or blank timestamp as ``None`` when inbound.
 
         The core-class twin of ``as_Base.carry_absent_times_on_inbound``, and
-        needed for the same reason (ISSUE-3257, ADR-0103): ``default_factory=
-        now_utc`` correctly stamps an object this process authors, but on
-        inbound data it would fabricate a time the sender never claimed.  Under
+        needed for the same reason (ISSUE-3257, ADR-0103): an object this
+        process authors states its time (ADR-0176), and a received one that
+        omits it claimed none, so the omission must read as ``None``.  Under
         ARCH-25-003 (ADR-0099) an inbound ``CaseParticipant``, ``EmbargoEvent`` or
         ``VulnerabilityCase`` validates straight into this class rather than a
         wire subclass of ``as_Base``, so without this the rule silently stops

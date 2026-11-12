@@ -30,6 +30,7 @@ from vultron.demo.helpers.verification.states import (
 from vultron.demo.utils import (
     DataLayerClient,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -314,7 +315,7 @@ def wait_for_all_participants_rm_closed(
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
+        case = from_server(as_VulnerabilityCase, case_data)
         return _all_fetchable_participants_rm_closed(client, case)
 
     _poll_until(

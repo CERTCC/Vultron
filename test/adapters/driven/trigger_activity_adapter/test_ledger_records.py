@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.ledger_labels import registry_label
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -429,7 +429,12 @@ def test_the_genesis_record_is_the_built_create(adapter, case):
         built,
     )
     obj = json.loads(built)["object"]
-    assert VulnerabilityCase.model_validate(obj).id_ == case.id_
+    assert (
+        VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, obj)
+        ).id_
+        == case.id_
+    )
 
 
 @pytest.mark.spec("CLP-07-011")

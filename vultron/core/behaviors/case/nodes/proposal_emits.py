@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import carry_embargo_inline
@@ -384,6 +385,7 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             context=case.id_,
             in_reply_to=accept_activity_id,
             to=[self._owner_uri],
+            **authored_times(self._require_act_instant()),
         )
         # ``create_activity`` is a core-branch object, so its wire shape comes
         # from the port (ARCH-20-001).

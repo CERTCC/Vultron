@@ -17,7 +17,7 @@ import json
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
@@ -67,7 +67,9 @@ def _entry() -> as_CaseLedgerEntry:
         received_at=ACT_AT,
         published=ACT_AT,
     )
-    return as_CaseLedgerEntry.model_validate(core.model_dump(by_alias=True))
+    return as_CaseLedgerEntry.model_validate(
+        with_times(as_CaseLedgerEntry, core.model_dump(by_alias=True))
+    )
 
 
 @pytest.mark.spec("SYNC-21-004")

@@ -44,7 +44,7 @@ The remaining pages use the measure or extend the model.
 - [Possible Histories](../possible_histories.md) — The 70 histories a case can have, derived from the six CS events and their ordering constraints.
 - [Desirable Histories](../desirable_histories.md) — The twelve desired orderings and the partial order they induce over the histories.
 - [Random Walks](../random_walk.md) — A baseline in which every allowed transition is equally likely, from the principle of indifference.
-- [Reasoning Over Histories](../reasoning_over_histories.md) — How often each history and each desired ordering occurs under that baseline.
+- [Reasoning Over Histories](../reasoning_over_histories.md) — How often each history and each desired ordering occurs under that baseline, and how a case that is still in progress is scored.
 - [Discriminating Skill from Luck](../discriminating_skill_and_luck.md) — The skill coefficient, which normalizes an observed frequency against the baseline.
 - [Observing Skill](../observing_skill.md) — The skill coefficient applied to Microsoft security updates and to commodity exploit data.
 - [Benchmarking CVD](../benchmarking.md) — What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.

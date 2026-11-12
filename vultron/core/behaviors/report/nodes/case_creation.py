@@ -22,6 +22,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -134,6 +135,7 @@ class CreateCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 name=f"Case for Report {self.report_id}",
                 vulnerability_reports=[report_id_ref],
                 attributed_to=self.actor_id,
+                **authored_times(self._require_act_instant()),
             )
 
             try:
@@ -244,6 +246,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
                 object_=case_obj if case_obj is not None else case_id,
                 context=case_id,
                 to=addressees if addressees else None,
+                **authored_times(self._require_act_instant()),
             )
 
             try:

@@ -16,7 +16,7 @@
 from typing import Any, cast
 
 from test.support.ledger import ledger_entries
-from test.support.objects import authored_at
+from test.support.objects import authored_at, with_times
 from test.support.received import received_event
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
@@ -63,7 +63,9 @@ def _engaged(slug: str) -> LedgerNetwork:
 
 
 def _wire(entry: CaseLedgerEntry) -> as_CaseLedgerEntry:
-    return as_CaseLedgerEntry.model_validate(entry.model_dump(mode="json"))
+    return as_CaseLedgerEntry.model_validate(
+        with_times(as_CaseLedgerEntry, entry.model_dump(mode="json"))
+    )
 
 
 def _entries(net: LedgerNetwork) -> list[CaseLedgerEntry]:

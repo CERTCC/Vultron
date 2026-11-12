@@ -36,6 +36,7 @@ See `notes/protocol-asks.md` and ADR-0080.
 """
 
 import importlib
+from typing import Any
 
 import pytest
 
@@ -514,7 +515,8 @@ def test_processing_fault_validates_without_an_inline_failed_activity() -> (
     """
     fault = _processing_fault()
     assert fault is not None, "No ProcessingFault type is importable."
-    built = fault(
+    built: Any = make(
+        fault,
         failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
         in_reply_to="urn:uuid:failed-activity",
     )

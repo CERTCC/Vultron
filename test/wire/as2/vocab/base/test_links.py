@@ -20,6 +20,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.blank_strings import BLANKS
+from test.support.objects import with_times
 from vultron.wire.as2.vocab.base.links import as_Link
 
 
@@ -35,7 +36,9 @@ def test_link_rejects_blank_href(blank: str) -> None:
 @pytest.mark.parametrize("blank", BLANKS)
 def test_link_rejects_blank_href_from_wire(blank: str) -> None:
     with pytest.raises(ValidationError):
-        as_Link.model_validate({"type": "Link", "href": blank})
+        as_Link.model_validate(
+            with_times(as_Link, {"type": "Link", "href": blank})
+        )
 
 
 def test_link_keeps_a_non_blank_href() -> None:

@@ -21,9 +21,11 @@ from datetime import timedelta
 from fastapi import APIRouter
 
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.core.models._helpers import authored_times
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.examples._base import EXAMPLE_TIMESTAMP
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -47,6 +49,9 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
 
 _ACTORS_BASE = "https://example.org/actors"
 _PREFERRED_DURATION = timedelta(days=90)
+#: The fixed author time every example states, so an example never reads the
+#: clock and is the same on every request (ADR-0176).
+_EXAMPLE_TIMES = authored_times(EXAMPLE_TIMESTAMP)
 
 
 def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
@@ -55,6 +60,7 @@ def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
         actor_id=actor_id,
         inbox=f"{actor_id}/inbox",
         preferred_duration=_PREFERRED_DURATION,
+        **_EXAMPLE_TIMES,
     )
 
 
@@ -110,6 +116,7 @@ def get_example_actor_person() -> AS2JSONResponse:
             id_=actor_id,
             name="Alice (Example Person)",
             embargo_policy=_embargo_policy(actor_id),
+            **_EXAMPLE_TIMES,
         )
     )
 
@@ -128,6 +135,7 @@ def get_example_actor_organization() -> AS2JSONResponse:
             id_=actor_id,
             name="ACME Inc. (Example Organization)",
             embargo_policy=_embargo_policy(actor_id),
+            **_EXAMPLE_TIMES,
         )
     )
 
@@ -146,6 +154,7 @@ def get_example_actor_service() -> AS2JSONResponse:
             id_=actor_id,
             name="Vultron Bot (Example Service)",
             embargo_policy=_embargo_policy(actor_id),
+            **_EXAMPLE_TIMES,
         )
     )
 
@@ -164,6 +173,7 @@ def get_example_actor_application() -> AS2JSONResponse:
             id_=actor_id,
             name="Vultron App (Example Application)",
             embargo_policy=_embargo_policy(actor_id),
+            **_EXAMPLE_TIMES,
         )
     )
 
@@ -182,6 +192,7 @@ def get_example_actor_group() -> AS2JSONResponse:
             id_=actor_id,
             name="Security Team (Example Group)",
             embargo_policy=_embargo_policy(actor_id),
+            **_EXAMPLE_TIMES,
         )
     )
 

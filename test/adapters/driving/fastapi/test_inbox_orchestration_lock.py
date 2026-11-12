@@ -34,7 +34,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -157,7 +157,7 @@ def seeded_dl(dl):
 
 def _make_announce_body(entry: CaseLedgerEntry) -> dict[str, Any]:
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
         entry=wire_entry,

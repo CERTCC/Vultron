@@ -62,6 +62,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 def _project_case_to_stub(
     case: VulnerabilityCase,
     embargo_obj: Any,
+    at: datetime,
 ) -> as_VulnerabilityCaseStub:
     """Project a ``VulnerabilityCase`` to a ``as_VulnerabilityCaseStub``.
 
@@ -84,6 +85,7 @@ def _project_case_to_stub(
             is the same class, ARCH-25-003).
         embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``
             when the case holds its active embargo inline.
+        at: The authoring act's instant, the stub status's ``published``.
 
     Raises:
         VultronActivityConstructionError: When the case carries no
@@ -112,7 +114,7 @@ def _project_case_to_stub(
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
     wire_status = as_CaseStatus(
-        context=case_id, em=EmDimension(state=em_state)
+        context=case_id, em=EmDimension(state=em_state), published=at
     )
     return as_VulnerabilityCaseStub(
         case_id=case_id,
@@ -217,7 +219,7 @@ def rm_invite_to_case_activity(
         kwargs["roles"] = roles
 
     def fields() -> dict[str, Any]:
-        stub = _stub_target(target, embargo_obj)
+        stub = _stub_target(target, embargo_obj, at)
         return {
             "object_": carried_actor(invitee),
             "target": stub,
@@ -229,7 +231,7 @@ def rm_invite_to_case_activity(
     )
 
 
-def _stub_target(target: Any, embargo_obj: Any) -> Any:
+def _stub_target(target: Any, embargo_obj: Any, at: datetime) -> Any:
     """The stub an Invite carries for *target*.
 
     A case is projected to its enriched stub.  A case named by URI alone
@@ -239,7 +241,7 @@ def _stub_target(target: Any, embargo_obj: Any) -> Any:
     is a construction error.
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
-        return _project_case_to_stub(target, embargo_obj)
+        return _project_case_to_stub(target, embargo_obj, at)
     if isinstance(target, str):
         return as_VulnerabilityCaseStub(case_id=target)
     return target
