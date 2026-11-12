@@ -68,6 +68,9 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     Invite (#4185).  A sender with no anchor to match is refused.  The
     full-case Invite and ``Announce(VulnerabilityCase)`` use it: their
     sender is the one actor the bootstrap or the stub Invite introduced.
+    Only the Announce reaches the stub-Invite fallback, since it is what
+    creates the replica; the full-case Invite is judged only once the
+    replica exists (CM-11-033), so the replica's CASE_MANAGER decides it.
 
     With ``required=True`` there is no pass-through either: a case this store
     does not hold, or one that names no CASE_MANAGER, leaves nothing to
