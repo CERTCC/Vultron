@@ -552,8 +552,8 @@ def fresh_demo_failures() -> Iterator[None]:
 
     ``vultron.demo._demo_failures`` is process-global, and a fragment
     that records a failure leaves it there for the next test — where it
-    changes what ``demo_gate`` does (a gate skips its body once anything is
-    recorded).  Opt-in, by ``pytestmark =
+    fails that test's ``assert_demo_success()`` and leaks into any assertion
+    on ``demo_failures()``.  Opt-in, by ``pytestmark =
     pytest.mark.usefixtures("fresh_demo_failures")``, rather than autouse for
     the directory: a test that asserts on failures a module-scoped run
     recorded must not have them wiped at its own setup.
