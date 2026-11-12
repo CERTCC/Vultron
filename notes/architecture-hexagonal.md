@@ -102,6 +102,18 @@ adapter patterns and boundary invariants.
 Do not mix driving and driven concerns in one module: a feature that needs both
 directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 
+### Connector Directions
+
+- A connector implements only the direction Protocols it does: polled source,
+  push source, event sink. A one-direction connector is complete, because the
+  VINCE shadow must be pollable with no write path (ARCH-05-004, #6337).
+- Never stub a direction a connector lacks: a raising write method is still a
+  write path a later change can fill in (ARCH-05-005).
+- A connector is plumbing, not a capability shape. Whoever starts the exchange
+  names its user: a Sentinel polls a polled source or receives from a push
+  source; an Actuator writes through an event sink; a Retriever may read a
+  polled source (BT-18-013, `CONTEXT.md` § Outside Systems).
+
 ---
 
 ## File Layout

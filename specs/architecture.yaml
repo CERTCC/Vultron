@@ -294,6 +294,40 @@ groups:
       one implementation serves every connector. If a connector holds any of them, two
       connectors can make different decisions for the same case, and a tracker becomes a
       way around the core rules.
+  - id: ARCH-05-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A connector plugin MUST have a name and MUST implement at least one direction
+      Protocol: a polled source (lists the changes since a caller's bookmark), a push
+      source (receives events the outside system sends), or an event sink (delivers
+      Vultron events to the outside system). The loader MUST refuse an entry point
+      that implements none of them, and its error MUST name the entry point.
+    rationale: >-
+      Outside systems differ in direction. The VINCE shadow only reads VINCE and is
+      polled; a webhook tracker pushes in; the later VINCE gateway also writes. A single
+      two-way Protocol forces a read-only connector to carry a write method it must not
+      have. Per-direction Protocols let each connector declare exactly what it does, and
+      let discovery still tell what each plugin can do.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-003
+  - id: ARCH-05-005
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A connector plugin MUST NOT expose a method for a direction it does not
+      implement, including a stub that raises, logs or does nothing.
+    rationale: >-
+      A stub write method is still a write path in the interface: a later change can
+      fill it in without anyone noticing that the connector was meant to be read-only.
+      If the method does not exist, adding a write path is a visible change to the
+      plugin's declared directions.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-05-004
 - id: ARCH-06
   title: Wire Layer Replaceability
   specs:
