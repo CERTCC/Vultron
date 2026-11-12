@@ -35,7 +35,7 @@ harness and the Docker demo ask the same adapter in the same process.
 from __future__ import annotations
 
 import logging
-import uuid
+import secrets
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -120,8 +120,10 @@ def replica_copy(
             "name the actor (ADR-0073)"
         )
     actor_id = str(client.actor_id)
+    # A random name, not an object id: drawn from ``secrets`` so it takes
+    # nothing from the id source a seeded demo run mints from (OID-01-012).
     db_url = (
-        f"sqlite:///file:suggest-{uuid.uuid4().hex}"
+        f"sqlite:///file:suggest-{secrets.token_hex(16)}"
         "?mode=memory&cache=shared&uri=true"
     )
     # The context manager disposes the copy's engine on exit, whether the
