@@ -67,8 +67,8 @@ Markers Has No Subjects Here", so nobody has to rebuild it to find out.
 
 Resolution lives in ``_guard_reachability.py``; that module's docstring says
 where the derivation reads loosely in each direction — the readings that let a
-violation through, and the two that could invent one and are narrowed because
-of it.  Its judgements are driven over inline source by the detector tests
+violation through, and those that could invent one, narrowed where they can
+be.  Its judgements are driven over inline source by the detector tests
 below, so a detector change cannot pass its own tests while reading the
 package differently.
 
@@ -352,6 +352,140 @@ def run(**options):
     assert _reach.findings_in_source(source).unsupplied == frozenset()
 
 
+_UNOPENED_GATE = """
+import functools
+
+
+def _check(*, limit=None):
+    if limit is not None:
+        raise ValueError("over")
+
+"""
+
+
+@pytest.mark.parametrize(
+    "escape",
+    [
+        pytest.param(
+            "check_five = functools.partial(_check, limit=5)", id="partial"
+        ),
+        pytest.param("check = _check", id="alias"),
+        pytest.param('CHECKS = {"limit": _check}', id="dispatch-table"),
+        pytest.param('check = getattr(RULES, "_check")', id="getattr"),
+        pytest.param(
+            'check = inspect.getattr_static(RULES, "_check")',
+            id="getattr-static",
+        ),
+        pytest.param(
+            'check = operator.attrgetter("rules._check")', id="attrgetter"
+        ),
+        pytest.param(
+            'check = operator.methodcaller("_check", limit=5)',
+            id="methodcaller",
+        ),
+        pytest.param("register(callback=RULES._check)", id="bound-callback"),
+        pytest.param(
+            "from inline import _check as check\ncheck(limit=5)",
+            id="import-alias",
+        ),
+    ],
+)
+def test_detector_counts_an_indirect_reference_as_supplying_the_gate(
+    escape: str,
+) -> None:
+    """A gate handed on by reference gets the benefit of the doubt a splat does.
+
+    Each shape passes ``_check`` to code that calls it later with arguments
+    no call site here spells, so reading it as supplying nothing would fail
+    reachable code.
+    """
+    findings = _reach.findings_in_source(_UNOPENED_GATE + escape + "\n")
+    assert [gate.parameter for gate in findings.gates] == ["limit"], (
+        "the gate must stay a subject; only its supply changes"
+    )
+    assert findings.unsupplied == frozenset()
+
+
+def test_detector_does_not_count_a_mention_in_prose_as_supplying_the_gate() -> (
+    None
+):
+    """A gate named only in prose or a non-``getattr`` string is still shut.
+
+    The counter-case to the indirect-reference test: without it, that test
+    would pass if every string constant naming the gate counted as a site.
+    """
+    source = (
+        _UNOPENED_GATE
+        + '''
+def run():
+    """Delegates to _check."""
+    log("calling _check")
+    # _check(limit=5)
+    return _check()
+'''
+    )
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:5 _check() [limit]"
+    }
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        pytest.param("RULES._check = None", id="attribute-store"),
+        pytest.param("_check = None", id="name-store"),
+        pytest.param("del RULES._check", id="attribute-delete"),
+        pytest.param("from inline import _check", id="import-unaliased"),
+        pytest.param(
+            "from inline import _check as _check", id="import-same-name"
+        ),
+    ],
+)
+def test_detector_does_not_count_a_binding_as_supplying_the_gate(
+    binding: str,
+) -> None:
+    """A store, a delete or a same-name import hands the gate to nobody.
+
+    The counter-case to the indirect-reference test's load and alias cases:
+    only a *value load* of the name, or an import that rebinds it under
+    another name, is an escape.  Without it, that test would pass if every
+    occurrence of the name counted as a site.
+    """
+    source = _UNOPENED_GATE + binding + "\n"
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:5 _check() [limit]"
+    }
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        pytest.param('getattr(RULES, prefix + "check")', id="run-time-name"),
+        pytest.param("getattr(RULES)", id="one-argument"),
+        pytest.param("getattr(RULES, 5)", id="non-string-constant"),
+        pytest.param('vars(RULES)["_check"]', id="mapping-lookup"),
+    ],
+)
+def test_detector_does_not_read_a_lookup_without_a_literal_name(
+    lookup: str,
+) -> None:
+    """A lookup that spells no readable attribute name supplies nothing.
+
+    The disclosed loose reading, pinned for arm B: only an attribute-by-name
+    call's string literal counts, so none of these opens the gate.
+    """
+    source = (
+        _UNOPENED_GATE
+        + f"""
+def run(prefix):
+    return {lookup}
+"""
+    )
+    assert _reach.findings_in_source(source).unsupplied == {
+        "inline.py:5 _check() [limit]"
+    }
+
+
 def test_detector_ignores_the_recursive_call_inside_the_definition() -> None:
     """A call on the guard's own ``def`` line cannot supply its parameter.
 
@@ -527,6 +661,67 @@ def validate(value):
     )
     assert {"refuse_empty", "_require_case_id"} <= referenced
     assert "_never_imported_here" not in referenced
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        pytest.param(
+            'getattr(self, "_refuse_unless_open")(state)', id="getattr"
+        ),
+        pytest.param(
+            'inspect.getattr_static(self, "_refuse_unless_open")(self, state)',
+            id="getattr-static",
+        ),
+        pytest.param(
+            'operator.attrgetter("node._refuse_unless_open")(self)(state)',
+            id="attrgetter",
+        ),
+        pytest.param(
+            'operator.methodcaller("_refuse_unless_open", state)(self)',
+            id="methodcaller",
+        ),
+    ],
+)
+def test_detector_counts_an_attribute_name_literal_as_a_reference(
+    lookup: str,
+) -> None:
+    """A guard reached only by an attribute-by-name call is reached.
+
+    The call leaves no name load, so only reading its literal sees it; the
+    prose test above holds that no other string counts.
+    """
+    source = f"""
+class Node:
+    def _refuse_unless_open(self, state):
+        if state != "open":
+            raise ValueError("closed")
+
+    def update(self, state):
+        return {lookup}
+"""
+    assert _reach.findings_in_source(source).unreached == frozenset()
+
+
+def test_detector_does_not_resolve_a_getattr_name_built_at_run_time() -> None:
+    """A ``getattr`` whose name is not a literal names nothing it can read.
+
+    The counter-case to the test above, and the loose reading the
+    derivation's docstring discloses: a guard reached only this way is
+    reported, so the arm is not quietly reading every ``getattr`` as a hit.
+    """
+    source = """
+class Node:
+    def _refuse_unless_open(self, state):
+        if state != "open":
+            raise ValueError("closed")
+
+    def update(self, state, prefix):
+        return getattr(self, prefix + "unless_open")(state)
+"""
+    assert _reach.findings_in_source(source).unreached == {
+        "inline.py:3 _refuse_unless_open()"
+    }
 
 
 def test_detector_does_not_require_a_caller_for_a_decorated_validator() -> (

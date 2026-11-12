@@ -48,6 +48,19 @@ most of its imprecision lets a violation through rather than inventing one:
   own recursive call reads as reached.
 * **A splat supplies everything.** A ``*args`` or ``**kwargs`` call is a call
   the derivation cannot read, so it is given the benefit of the doubt.
+* **An indirect reference supplies everything.** A gate whose name escapes
+  other than as a callee — bound through ``functools.partial(_check,
+  limit=5)``, an alias assignment or ``import ... as``, a dispatch table, a
+  ``getattr(obj, "_check")`` — is called somewhere the derivation cannot follow, so
+  :func:`_call_sites` gives it the same benefit of the doubt as a splat.
+  Reading those as supplying nothing would fail reachable code; arm A already
+  accepts a bare reference as reaching a guard.  The match is by bare name,
+  so *any* value load of it counts: a local variable that shares the gate's
+  name, an unrelated attribute, ``_check.cache_clear()``.  That is live: the
+  ``wire_key()`` gate in ``vultron/core/models/wire_keys.py`` is also supplied
+  by local variables named ``wire_key`` in
+  ``vultron/adapters/driven/db_record/codec.py``, though real calls supply it
+  too.  Narrowing would mean tracking every scope's bindings.
 * **A framework-invoked definition is out of both arms.** A decorator outside
   :data:`TRANSPARENT_DECORATORS` means something other than a call site runs
   the definition, so neither "no caller" nor "no caller supplied it" would be
@@ -61,7 +74,7 @@ most of its imprecision lets a violation through rather than inventing one:
 Some readings go the other way and **invent** a violation, which is the
 direction that fails correct code and gets a ratchet switched off
 (``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
-It Can Miss or Invent").  Three are narrowed:
+It Can Miss or Invent").  Four are narrowed:
 
 * A parameter the body **rebinds** before testing it is no longer a gate on
   what the caller passed, so :func:`reassigned_names` drops it.
@@ -72,6 +85,14 @@ It Can Miss or Invent").  Three are narrowed:
   spells it, so :func:`_walk_module` collects ``import`` aliases as well as
   loads.  Without that, a guard reached only through
   ``from x import _guard as guard`` reads as unreached.
+* A guard reached only by **name string** — ``getattr(self, "_guard")()`` —
+  leaves no name load, so :func:`_walk_module` also collects the literal
+  attribute names an attribute-by-name call spells: ``getattr``,
+  ``inspect.getattr_static``, ``operator.attrgetter`` and
+  ``operator.methodcaller`` (:func:`name_literal_targets`), and
+  :func:`_call_sites` counts the same literals as unreadable sites for arm
+  B.  Only those arguments count, not every string constant, so a guard named only in a
+  docstring or comment still reads as unreached.
 
 The rest cannot be narrowed without resolving bindings or intent, so they are
 stated here instead.  Each would surface as a *failure*, so the first reader
@@ -93,20 +114,16 @@ of a red arm needs to know they exist:
   corpus.** A gated branch that calls some *other* binding of a name that a
   spec-citing raiser elsewhere happens to share reads as refusing, which
   invents a gate and, if no caller supplies the parameter, a violation.
-* **A gate opened through an indirect reference is not read.**
-  :func:`_call_sites` wants a literal call of the gate's own name, so
-  ``functools.partial(_check, limit=5)``, an alias assignment, or a dispatch
-  table supplies nothing as far as arm B can see — the opposite of the
-  benefit of the doubt a splat gets, and of arm A, which accepts a bare
-  reference.
-* **A guard reached only by a string** — ``getattr(self, "_guard")()`` — has
-  no name load to find, so it reads as unreached.  Collecting every string
-  constant instead would make a guard named in prose read as reached, which
-  the detector tests' prose case deliberately refuses.
+* **Only an attribute-by-name call's literal is read.** ``getattr(self,
+  prefix + "guard")`` names no literal, and a mapping lookup such as
+  ``vars(self)["_guard"]`` or ``type(self).__dict__["_guard"]`` is not one of
+  the calls :func:`name_literal_targets` reads, so a guard reached only that
+  way reads as unreached, and a gate reached only that way as unsupplied.  No
+  instance exists in the package today.
 
 Only the first has an instance in the package today, and it is green; the
-other three have none — measured, not assumed, since both arms' baselines
-are empty.  All four are tracked for narrowing in #5896; read them before
+other two have none — measured, not assumed, since both arms' baselines are
+empty.  The first two are tracked for narrowing in #5896; read them before
 reading a red arm as a real dead guard.
 
 Where arm B's call-site scope is production only, that is not imprecision: a
@@ -199,16 +216,36 @@ class CallSite:
     path: str
     lineno: int
     keywords: frozenset[str]
-    #: A ``*args`` or ``**kwargs`` splat: the call may carry anything, so it
-    #: counts as supplying every parameter.  Failing a call the derivation
-    #: cannot read would make the ratchet untrustworthy, and an untrusted
-    #: ratchet gets switched off.
-    splatted: bool
+    #: The site's arguments cannot be read: a ``*args`` or ``**kwargs``
+    #: splat, or an indirect reference (see :meth:`unreadable`).  The call
+    #: may carry anything, so it counts as supplying every parameter.
+    #: Failing a call the derivation cannot read would make the ratchet
+    #: untrustworthy, and an untrusted ratchet gets switched off.
+    opaque: bool
     positional_count: int
+
+    @classmethod
+    def unreadable(cls, path: str, lineno: int) -> "CallSite":
+        """A reference through which the name is called somewhere unseen.
+
+        ``functools.partial(_check, limit=5)``, ``check = _check``,
+        ``{"a": _check}``, ``from m import _check as check`` and
+        ``getattr(obj, "_check")`` each hand the gate
+        to code that calls it later with arguments the derivation cannot
+        read — exactly a splat's situation, so it gets a splat's benefit of
+        the doubt.
+        """
+        return cls(
+            path=path,
+            lineno=lineno,
+            keywords=frozenset(),
+            opaque=True,
+            positional_count=0,
+        )
 
     def supplies(self, parameter: str, index: int | None) -> bool:
         """Whether this call passes *parameter*."""
-        if parameter in self.keywords or self.splatted:
+        if parameter in self.keywords or self.opaque:
             return True
         return index is not None and self.positional_count > index
 
@@ -267,6 +304,42 @@ def raises_in(fn: ast.AST) -> Iterator[ast.Raise]:
 def is_private(name: str) -> bool:
     """Whether *name* is single-underscore private and not a dunder."""
     return name.startswith("_") and not name.startswith("__")
+
+
+#: Calls that reach an attribute by a name given as a string, mapped to which
+#: positional arguments carry that name: ``getattr(obj, "n")`` and
+#: ``inspect.getattr_static(obj, "n")`` take it second, ``methodcaller("n")``
+#: first, and ``attrgetter("a", "b.n")`` in every argument.  ``hasattr``,
+#: ``setattr`` and ``delattr`` call nothing, so they are not listed.
+_NAME_ARGUMENTS: Mapping[str, slice] = {
+    "getattr": slice(1, 2),
+    "getattr_static": slice(1, 2),
+    "methodcaller": slice(0, 1),
+    "attrgetter": slice(0, None),
+}
+
+
+def name_literal_targets(call: ast.Call) -> tuple[str, ...]:
+    """The attribute names an attribute-by-name *call* spells as literals.
+
+    Empty for any call not in :data:`_NAME_ARGUMENTS`, and for a name that is
+    not a string literal.  A dotted name gives its last component, the
+    attribute finally reached by ``attrgetter("a.b")``; the split is applied
+    to every listed call, so ``getattr(obj, "a.b")`` also gives ``b``, which
+    can only widen what counts as a reference.  These are the only string
+    constants both arms read as a reference: they are how code reaches an
+    attribute by name, where a string anywhere else — a docstring, a log
+    message — only talks about it.
+    """
+    positions = _NAME_ARGUMENTS.get(_corpus.callee_name(call.func) or "")
+    if positions is None:
+        return ()
+    return tuple(
+        argument.value.rpartition(".")[2]
+        for argument in call.args[positions]
+        if isinstance(argument, ast.Constant)
+        and isinstance(argument.value, str)
+    )
 
 
 #: Decorators that leave a definition callable by its own name at a call
@@ -546,7 +619,8 @@ class _FileScan:
     #: every name an ``import`` binds.  Importing a guard is a reference to
     #: it even where the module then spells only the alias, so without the
     #: import names a guard reached through ``from x import _g as g`` would
-    #: read as unreached.
+    #: read as unreached.  The literal name a ``getattr`` call spells is a
+    #: reference for the same reason (:func:`name_literal_targets`).
     referenced: frozenset[str]
 
 
@@ -570,6 +644,8 @@ def _walk_module(path: str, source: str, tree: ast.AST) -> _FileScan:
             referenced.add(node.name.rpartition(".")[2])
             if node.asname is not None:
                 referenced.add(node.asname)
+        elif isinstance(node, ast.Call):
+            referenced.update(name_literal_targets(node))
         elif isinstance(node, ast.ClassDef):
             methods.update(
                 id(member)
@@ -685,6 +761,12 @@ def _call_sites(
 ) -> Mapping[str, tuple[CallSite, ...]]:
     """Every call of a name in *wanted* across *trees*, and what it passes.
 
+    A name that escapes other than as a callee — loaded as a value,
+    imported under another name (:func:`_aliased_import`), or spelled as an
+    attribute-by-name literal (:func:`name_literal_targets`) — is recorded
+    as a :meth:`CallSite.unreadable` site, since it is called somewhere this
+    pass cannot follow.
+
     Takes bare ``(path, tree)`` pairs rather than a ``_FileScan``: this pass
     needs no definitions, methods or references, and building a full scan for
     each of the ~100 files naming a gated name was a second of duplicate
@@ -692,32 +774,89 @@ def _call_sites(
     """
     sites: dict[str, list[CallSite]] = {}
     for path, tree in trees:
+        # Escapes are judged only after the walk, once every callee
+        # expression is known: ``ast.walk`` promises no order, so marking
+        # callees as it goes would rely on parents coming first.
+        callees: set[int] = set()
+        loads: list[tuple[str, ast.AST]] = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
+                escaped = _escaped_name(node)
+                if escaped in wanted:
+                    loads.append((escaped, node))
                 continue
+            callees.add(id(node.func))
+            for target in name_literal_targets(node):
+                if target in wanted:
+                    sites.setdefault(target, []).append(
+                        CallSite.unreadable(path, _corpus.node_line(node))
+                    )
             callee = _corpus.callee_name(node.func)
             if callee not in wanted:
                 continue
-            sites.setdefault(callee, []).append(
-                CallSite(
-                    path=path,
-                    lineno=_corpus.node_line(node),
-                    keywords=frozenset(
-                        keyword.arg
-                        for keyword in node.keywords
-                        if keyword.arg is not None
-                    ),
-                    splatted=any(
-                        keyword.arg is None for keyword in node.keywords
-                    )
-                    or any(
-                        isinstance(argument, ast.Starred)
-                        for argument in node.args
-                    ),
-                    positional_count=len(node.args),
+            sites.setdefault(callee, []).append(_direct_call_site(path, node))
+        for loaded, node in loads:
+            if id(node) not in callees:
+                sites.setdefault(loaded, []).append(
+                    CallSite.unreadable(path, _corpus.node_line(node))
                 )
-            )
     return {name: tuple(found) for name, found in sorted(sites.items())}
+
+
+def _direct_call_site(path: str, node: ast.Call) -> CallSite:
+    """What a literal call of a wanted name passes."""
+    return CallSite(
+        path=path,
+        lineno=_corpus.node_line(node),
+        keywords=frozenset(
+            keyword.arg for keyword in node.keywords if keyword.arg is not None
+        ),
+        opaque=any(keyword.arg is None for keyword in node.keywords)
+        or any(isinstance(argument, ast.Starred) for argument in node.args),
+        positional_count=len(node.args),
+    )
+
+
+def _escaped_name(node: ast.AST) -> str | None:
+    """The name *node* hands on other than by calling it, or ``None``.
+
+    A value load (:func:`_loaded_name`) or an ``import ... as`` under another
+    name (:func:`_aliased_import`).  A load that turns out to be a call's
+    ``func`` is dropped by :func:`_call_sites` after the walk.
+    """
+    if isinstance(node, ast.alias):
+        return _aliased_import(node)
+    return _loaded_name(node)
+
+
+def _loaded_name(node: ast.AST) -> str | None:
+    """The name *node* loads as a value, or ``None`` for any other node.
+
+    ``_check`` in ``partial(_check)``, ``check = _check`` or ``{"a":
+    _check}``, and ``self._check`` passed as a callback, each give the name;
+    a store gives ``None``.  The ``func`` of a call also loads its name, so
+    :func:`_call_sites` drops those by id before counting an escape.
+    """
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+        return node.id
+    if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+        return node.attr
+    return None
+
+
+def _aliased_import(node: ast.alias) -> str | None:
+    """The name an ``import ... as`` binds under another spelling, or ``None``.
+
+    ``from m import _check as check`` gives ``_check``: every later call is
+    spelled ``check(...)``, which this pass does not match, so the import is
+    itself the escape.  An import without ``as``, or one re-binding the same
+    name, gives ``None``, since its calls keep the original name and are read
+    as calls.
+    """
+    name = node.name.rpartition(".")[2]
+    if node.asname is None or node.asname == name:
+        return None
+    return name
 
 
 def _sites_for(
