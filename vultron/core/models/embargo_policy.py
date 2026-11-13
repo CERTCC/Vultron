@@ -21,7 +21,12 @@ from typing import Any, Literal, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import Field, field_serializer, field_validator
 
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
 
 
 def parse_duration(value: Any) -> timedelta | None:
@@ -109,14 +114,32 @@ class EmbargoPolicy(CoreObject):
     preferred_duration: timedelta = Field(
         ...,
         description="Preferred embargo duration",
+        json_schema_extra=vultron_property(
+            ("The embargo duration an actor prefers, as an ISO 8601 duration"),
+            PropertyValueKind.PLAIN,
+        ),
     )
     minimum_duration: timedelta | None = Field(
         default=None,
         description="Minimum acceptable embargo duration",
+        json_schema_extra=vultron_property(
+            (
+                "The shortest embargo duration an actor accepts, as an ISO "
+                "8601 duration"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     maximum_duration: timedelta | None = Field(
         default=None,
         description="Maximum acceptable embargo duration",
+        json_schema_extra=vultron_property(
+            (
+                "The longest embargo duration an actor accepts, as an ISO "
+                "8601 duration"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     notes: NonEmptyString | None = Field(
         default=None,

@@ -357,7 +357,7 @@ ARCH-18-012.
 **Decision.**
 
 1. **Declared, never inferred.** Every Vultron wire field carries the property
-   marker (`VULTRON_PROPERTY_EXTRA`, extended) with a one-line definition and a
+   marker (`vultron_property(definition, kind)`) with a one-line definition and a
    value kind. A field without it must be a term that a cited context defines: AS2,
    data-integrity v2, Multikey v1, or Controlled Identifiers v1. A test fails on a
    field that is neither. Nested models count; `exclude=True` fields do not.
@@ -384,13 +384,15 @@ ARCH-18-012.
 the AS2 context maps unknown terms to blank nodes (`"@vocab": "_:"`). Signing is not
 the risk: `eddsa-jcs-2022` signs the JSON text and expands nothing.
 
-**Today.** `docs/ns/context.jsonld` maps the type names and four marked properties.
-The generator (`vultron/metadata/wire_context/sync.py`) walks only registered
-classes, so nested models are invisible, and it takes AS2 terms from field names on
-this codebase's own AS2 base classes, so the unmarked `proposedEmbargo`,
-`suggestedRoles` and `roles` pass as AS2. About eighty wire names have no term. The
-actor profile cites Multikey v1, which does not define `assertionMethod` at top
-level, so the published key is undefined to a JSON-LD reader.
+**Today.** Every field this review leaves a Vultron term carries the marker, and
+`docs/ns/context.jsonld` maps each one, typed by its value kind; the generator
+(`vultron/metadata/wire_context/sync.py`) walks the nested models too. The fields in
+the table below are still unmarked, and no check refuses a field without a term
+until #6422. Most have no term; the item `title` is the exception: a note's `title`
+is a Vultron term, so until #6413 renames the item's field to `name`, the item's
+`title` resolves to the note's meaning. The actor profile cites Multikey v1, which
+does not define `assertionMethod` at top level, so the published key is undefined
+to a JSON-LD reader.
 
 **Field review.** Each row names the Task that fixes it; every row but
 `caseActivity` is a ratchet entry in #6422.
@@ -411,10 +413,11 @@ level, so the published key is undefined to a JSON-LD reader.
 | stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `state`, `status` and `kind` are each used once
-on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
-none of them is a clash. `caseActivity` is dead, but once #6409 marks it a Vultron
-term no rule refuses it, so #6415 deletes it without a ratchet entry.
+Every other field is a Vultron term. `title` is a clash only until #6413 renames the
+item's. `state`, `status` and `kind` are each used once on the wire, and
+`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
+a clash. `caseActivity` is dead, but it is marked a Vultron term,
+so no rule refuses it, and #6415 deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context

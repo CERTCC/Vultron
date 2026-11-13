@@ -18,10 +18,186 @@
       "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityItem": "vultron:VulnerabilityItem",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
+      "activeEmbargo": {
+        "@id": "vultron:activeEmbargo",
+        "@type": "@id"
+      },
+      "actorParticipantIndex": {
+        "@id": "vultron:actorParticipantIndex",
+        "@type": "@id",
+        "@container": "@index"
+      },
+      "caseActivity": {
+        "@id": "vultron:caseActivity",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "caseEngagement": "vultron:caseEngagement",
+      "caseParticipants": {
+        "@id": "vultron:caseParticipants",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "caseReferences": {
+        "@id": "vultron:caseReferences",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "caseRoles": {
+        "@id": "vultron:caseRoles",
+        "@container": "@set"
+      },
+      "caseStatus": {
+        "@id": "vultron:caseStatus",
+        "@type": "@id"
+      },
+      "caseStatuses": {
+        "@id": "vultron:caseStatuses",
+        "@type": "@id",
+        "@container": "@list"
+      },
+      "category": "vultron:category",
+      "cause": "vultron:cause",
+      "childCases": {
+        "@id": "vultron:childCases",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "cvdRole": {
+        "@id": "vultron:cvdRole",
+        "@container": "@set"
+      },
+      "cve": "vultron:cve",
+      "dState": "vultron:dState",
+      "emState": "vultron:emState",
+      "embargo": {
+        "@id": "vultron:embargo",
+        "@type": "@id"
+      },
+      "embargoConsents": {
+        "@id": "vultron:embargoConsents",
+        "@container": "@set"
+      },
+      "embargoId": {
+        "@id": "vultron:embargoId",
+        "@type": "@id"
+      },
+      "embargoPolicy": "vultron:embargoPolicy",
+      "embargoRegister": {
+        "@id": "vultron:embargoRegister",
+        "@container": "@list"
+      },
+      "entryHash": "vultron:entryHash",
       "expectedSenderSequence": "vultron:expectedSenderSequence",
+      "failureClass": {
+        "@id": "vultron:failureClass",
+        "@type": "@id"
+      },
+      "genesisHash": "vultron:genesisHash",
+      "ids": {
+        "@id": "vultron:ids",
+        "@container": "@set"
+      },
+      "joined": "vultron:joined",
+      "kind": "vultron:kind",
       "ledgerPosition": "vultron:ledgerPosition",
+      "logIndex": "vultron:logIndex",
+      "logObjectId": {
+        "@id": "vultron:logObjectId",
+        "@type": "@id"
+      },
+      "maximumDuration": "vultron:maximumDuration",
+      "minimumDuration": "vultron:minimumDuration",
+      "parentCases": {
+        "@id": "vultron:parentCases",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "participantStatuses": {
+        "@id": "vultron:participantStatuses",
+        "@container": "@list"
+      },
+      "payloadSnapshot": {
+        "@id": "vultron:payloadSnapshot",
+        "@type": "@json"
+      },
+      "pendingEmbargoProposalIndex": {
+        "@id": "vultron:pendingEmbargoProposalIndex",
+        "@type": "@id",
+        "@container": "@index"
+      },
+      "preferredDuration": "vultron:preferredDuration",
+      "prevLogHash": "vultron:prevLogHash",
+      "proposedEmbargo": {
+        "@id": "vultron:proposedEmbargo",
+        "@type": "@id"
+      },
+      "proposerCaseRoles": {
+        "@id": "vultron:proposerCaseRoles",
+        "@container": "@set"
+      },
+      "pxaState": "vultron:pxaState",
+      "receivedAt": "vultron:receivedAt",
+      "references": {
+        "@id": "vultron:references",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "removalActivity": {
+        "@id": "vultron:removalActivity",
+        "@type": "@id"
+      },
+      "replaces": {
+        "@id": "vultron:replaces",
+        "@type": "@id"
+      },
+      "rmState": "vultron:rmState",
+      "role": "vultron:role",
+      "roles": {
+        "@id": "vultron:roles",
+        "@container": "@set"
+      },
+      "rsvpDeadline": "vultron:rsvpDeadline",
+      "semanticType": "vultron:semanticType",
       "senderSequence": "vultron:senderSequence",
-      "terminationCause": "vultron:terminationCause"
+      "siblingCases": {
+        "@id": "vultron:siblingCases",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "signals": {
+        "@id": "vultron:signals",
+        "@container": "@set"
+      },
+      "state": "vultron:state",
+      "status": "vultron:status",
+      "stubSummary": "vultron:stubSummary",
+      "suggestedRoles": {
+        "@id": "vultron:suggestedRoles",
+        "@container": "@set"
+      },
+      "systemName": "vultron:systemName",
+      "term": "vultron:term",
+      "termination": "vultron:termination",
+      "terminationCause": "vultron:terminationCause",
+      "title": "vultron:title",
+      "trackingId": "vultron:trackingId",
+      "vendors": {
+        "@id": "vultron:vendors",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "vfState": "vultron:vfState",
+      "vulnerabilityItems": {
+        "@id": "vultron:vulnerabilityItems",
+        "@type": "@id",
+        "@container": "@set"
+      },
+      "vulnerabilityReports": {
+        "@id": "vultron:vulnerabilityReports",
+        "@type": "@id",
+        "@container": "@set"
+      }
     }
   ]
 }

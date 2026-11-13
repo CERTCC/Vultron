@@ -27,11 +27,17 @@ from pydantic import (
 )
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    LEDGER_POSITION_PROPERTY,
+    LedgerPosition,
+)
 from vultron.core.models.sender_sequence import SenderSequence
 from vultron.core.models.verified_proof import VerifiedProof
 from vultron.wire.as2.enums import as_ObjectType as O_type
-from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
+from vultron.wire.as2.vocab.base.base import (
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
@@ -93,7 +99,7 @@ class as_Activity(as_Object):
         default=None,
         validation_alias="ledgerPosition",
         serialization_alias="ledgerPosition",
-        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+        json_schema_extra=LEDGER_POSITION_PROPERTY,
     )
 
     # SYNC-21-001 (ADR-0178): a participant numbers each case activity it
@@ -107,7 +113,12 @@ class as_Activity(as_Object):
         default=None,
         validation_alias="senderSequence",
         serialization_alias="senderSequence",
-        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+        json_schema_extra=vultron_property(
+            "A participant's number for a case activity it sends the "
+            "CASE_MANAGER: a positive integer, 1 for its first on the case "
+            "and one more for each next one, kept by a resend",
+            PropertyValueKind.PLAIN,
+        ),
     )
 
     #: The JSON body as received, decoded and re-serialized to text by

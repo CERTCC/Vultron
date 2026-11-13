@@ -63,7 +63,7 @@ A message is therefore readable as ordinary JSON while remaining unambiguous abo
 
 An outbound message sets its top-level `@context` to a list of two URIs, in this order: the AS2 namespace, `https://www.w3.org/ns/activitystreams`, then the Vultron JSON-LD context document, `https://certcc.github.io/Vultron/ns/context.jsonld`.
 The AS2 URI comes first so that an AS2 receiver that does not process JSON-LD still finds it, as AS2 requires producers to provide.
-The Vultron context document declares every Vultron type name.
+The Vultron context document declares every Vultron type name and the Vultron properties, each typed by its value kind as the AS2 context types its own: a link as `"@type": "@id"`, a received document kept verbatim as `"@type": "@json"`, and an ordered array, unordered array or IRI-keyed map with `"@container"` set to `"@list"`, `"@set"` or `"@index"`.
 It also imports the AS2 namespace, but a receiver is not required to fetch it, so citing it alone would hide the AS2 reference from such a receiver.
 An object nested in an activity does not restate the `@context`, because a JSON-LD context applies to every object inside the document that declares it.
 An object a sender received from a peer and embeds as received keeps the `@context` it arrived with.

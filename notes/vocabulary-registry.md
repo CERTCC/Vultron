@@ -30,6 +30,7 @@ related_notes:
   - notes/demo-scenario-registry.md
 relevant_packages:
   - vultron/wire/as2/vocab
+  - vultron/core/models/base
   - vultron/metadata/wire_context
   - vultron/adapters/driven/wire_render
   - vultron/adapters/driven/trigger_activity_adapter
@@ -88,11 +89,11 @@ one home:
 |---|---|---|---|
 | New type `X` | `type_: Literal["X"]` on a core class registered in `WIRE_TYPE_MAP`, or on a wire class annotated `_vocab_ns = VULTRON` | `"X": "vultron:X"` in `context.jsonld`; `schema/types/X.json` (VM-10-006, #6064) | a row under "Declared types" |
 | Subtype `X` of AS2 type `T` | as a new type, plus `_as2_core_supertype = as_T` on a wire class (§ 5a) | as a new type, plus `vultron:X` `rdfs:subClassOf` `as:T` in the document's `@graph` (#6434) | the row, naming `as:T` in a "Subtype of" column (#6434) |
-| New property `p` | the property marker on each field sent as `p` | `"p": "vultron:p"`, typed by its value kind (VM-10-010) | a row under "Declared properties" |
-| Retired term | the class, or the marked field, deleted | the term and any schema removed | the row deleted |
+| New property `p` | `vultron_property(definition, kind)` on each field sent as `p` | `"p"` → `vultron:p`, typed by its value kind (VM-10-010); its row in `index.md`'s "Declared properties" table | nothing |
+| Retired term | the class, or the marked field, deleted | the term, any schema and a property's row removed | a type's row deleted |
 
 `test_namespace_index_page_lists_exactly_the_generated_terms` holds the
-hand-written rows to the generated terms.
+hand-written type rows to the generated terms.
 
 **New type.** A domain type is a core class with a `Literal` `type_`, registered
 by one line in its wire module (`WIRE_TYPE_MAP["VulnerabilityReport"] =
@@ -136,17 +137,31 @@ full IRI because neither the AS2 context nor Vultron's defines an `rdfs` prefix,
 and adding one would add a term to every message.
 
 **New property.** Mark each field the property travels on, after checking that no
-cited context has a term with its meaning (VM-10-007, VM-10-009). The marker is
-`json_schema_extra=VULTRON_PROPERTY_EXTRA` (from `vultron.core.models.base`,
-re-exported by the wire base). A declaration carries a one-line definition and the
-value kind the term is typed from (VM-10-008, VM-10-010), and two declarations of
-one wire name agree on both (VM-10-012). The marker is still a bare flag, and
-these three rules are strict `xfail` tests until #6409 extends it. The generator
-keys the term by the field's wire name (`vultron_property_terms`). It walks core
-classes too, because a paired type's wire class is its core class (ARCH-25-003):
-a case's `ledgerPosition` is marked on `VulnerabilityCase` (SYNC-16-005). An
-unmarked Vultron property has no term, so a receiver cannot resolve it;
-EMB-13-005's `terminationCause` is marked for that reason.
+cited context has a term with its meaning (VM-10-007, VM-10-009). Every Vultron
+wire field carries the marker; a field without it must be a term a cited context
+defines. The marker is `json_schema_extra=vultron_property(definition, kind)`
+(from `vultron.core.models.base`, re-exported by the wire base). The definition
+is the property's meaning in one line, and the kind is its value's shape, which
+the term is typed from (VM-10-008, VM-10-010):
+
+| `PropertyValueKind` | Value | Term |
+|---|---|---|
+| `PLAIN` | a literal or an embedded object | `"vultron:p"` |
+| `IRI` | an IRI, or an object that has one | `"@type": "@id"` |
+| `JSON` | a received document kept verbatim | `"@type": "@json"` |
+| `LIST` | an array whose order matters | `"@container": "@list"` |
+| `SET` | an array whose order does not | `"@container": "@set"` |
+| `INDEX` | a map keyed by IRIs | `"@container": "@index"` |
+
+A container kind takes `items=PropertyValueKind.IRI` when its values are links,
+which adds `"@type": "@id"`. Two declarations of one wire name agree on both
+(VM-10-012), so a name declared on several classes is one shared constant
+(`LEDGER_POSITION_PROPERTY`, `CASE_STATUS_PROPERTY`), and the generator refuses
+two that disagree. The generator keys the term by the field's wire name
+(`vultron_property_terms`). It walks core classes too, because a paired type's
+wire class is its core class (ARCH-25-003): a case's `ledgerPosition` is marked
+on `VulnerabilityCase` (SYNC-16-005). An unmarked Vultron property has no term,
+so a receiver cannot resolve it.
 
 **Retired term.** Delete the class, or the field that carries the marker, and
 regenerate: the term leaves `context.jsonld`, a type's schema leaves
@@ -163,11 +178,14 @@ versioned URL, a retirement is an incompatible change and bumps the wire version
 class whose `_vocab_ns` is `VULTRON` and every core class `WIRE_TYPE_MAP`
 registers whose `type` is not an AS2 term, keyed by the emitted `type` value, so a
 class sharing another's `type` needs no term of its own. It writes its property
-terms from the marked fields of the same classes. When adding, renaming or retiring a
+terms from the marked fields of the same classes and of every model nested in them
+(`wire_field_classes`), skipping `exclude=True` fields and a model that serializes
+as one value (a status dimension). It also writes the "Declared properties" table
+of `docs/ns/index.md` from the definitions. When adding, renaming or retiring a
 term:
 
-- Regenerate and commit the artifact. `uv run wire-context --check` (pre-commit)
-  and `test_committed_context_is_not_stale` (CI) enforce it.
+- Regenerate and commit both artifacts. `uv run wire-context --check`
+  (pre-commit) and `test_committed_context_is_not_stale` (CI) enforce it.
 - Annotate a Vultron-specific type `VULTRON`.
   `test_non_as2_wire_types_are_annotated_vultron` checks against the AS2 term set
   from the *defining module*, never from `_vocab_ns` itself, which would blind

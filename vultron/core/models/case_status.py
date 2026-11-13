@@ -20,9 +20,23 @@ from typing import ClassVar, Literal
 
 from pydantic import AliasChoices, Field, model_validator
 
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.states.em import EM
+
+#: The Vultron property ``caseStatus``, declared once because a participant
+#: status and a case stub carry it with one meaning in two shapes, an object
+#: or a link (VM-10-012).
+CASE_STATUS_PROPERTY = vultron_property(
+    "The case status a participant status or a case stub reports: a "
+    "CaseStatus object or its id",
+    PropertyValueKind.IRI,
+)
 
 
 class CaseStatus(CoreObject):
@@ -90,11 +104,25 @@ class CaseStatus(CoreObject):
         validation_alias=AliasChoices("emState", "em"),
         serialization_alias="emState",
         frozen=True,
+        json_schema_extra=vultron_property(
+            (
+                "The Embargo Management (EM) state of a case: NONE, PROPOSED,"
+                " ACTIVE, REVISE or EXITED"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     pxa: PxaDimension = Field(
         default_factory=PxaDimension,
         validation_alias=AliasChoices("pxaState", "pxa"),
         serialization_alias="pxaState",
+        json_schema_extra=vultron_property(
+            (
+                "The public-awareness, exploit and attack (P, X, A) "
+                "dimensions of a case's Case State (CS), as one state name"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
 
     # There is deliberately no ``_migrate_flat_fields`` before-validator and no

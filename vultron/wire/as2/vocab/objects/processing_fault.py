@@ -26,7 +26,11 @@ Spec: ``specs/protocol-asks.yaml`` ASK-07-001 through ASK-07-006.
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString
+from vultron.core.models.base import (
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
@@ -59,6 +63,13 @@ class as_ProcessingFault(as_VultronObject):
         validation_alias="failureClass",
         serialization_alias="failureClass",
         description="URI identifying the failure class (ASK-07-003).",
+        json_schema_extra=vultron_property(
+            (
+                "The URI of the class of failure that stopped a received "
+                "activity from being processed"
+            ),
+            PropertyValueKind.IRI,
+        ),
     )
 
     in_reply_to: NonEmptyString | None = Field(

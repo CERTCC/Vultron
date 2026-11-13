@@ -14,27 +14,52 @@
 
 import json
 import re
+from pathlib import Path
 
 import pytest
+from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
+from vultron.core.models.base import (
+    PropertyValueKind,
+    VultronPropertyDeclaration,
+    vultron_property,
+)
 from vultron.core.models.case_reference import (
     CASE_REFERENCE_REL_VOCABULARY,
     CVE_REFERENCE_TAG_RELS,
 )
+from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_register.entry import EmbargoRegisterEntry
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    FixReadyCause,
+    ThreatSignalCause,
+)
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.vulnerability_item import (
+    VulnerabilityItemId,
+    VulnerabilityItemNote,
+)
 from vultron.metadata.base import repo_root
+from vultron.metadata.wire_context import sync
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
+    NS_INDEX_PATH,
     WRITE_COMMAND,
     _all_object_subclasses,
     _concrete_type_value,
+    _term_definition,
     _wire_name,
     as2_term_values,
     build_context_document,
     is_stale,
     render_context_json,
+    render_property_table,
     vultron_context_terms,
     vultron_property_terms,
+    wire_field_classes,
+    write_context,
 )
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -329,3 +354,255 @@ def test_namespace_index_page_lists_exactly_the_reference_rel_values() -> None:
         rel: tag for tag, rel in CVE_REFERENCE_TAG_RELS.items()
     }
     assert {rel for rel, _ in rows} == CASE_REFERENCE_REL_VOCABULARY
+
+
+# --- Typed property terms and the nested-model walk (VM-10-007, VM-10-010) ---
+
+
+@pytest.mark.spec("VM-10-010")
+@pytest.mark.parametrize(
+    ("kind", "items", "expected"),
+    [
+        (PropertyValueKind.PLAIN, PropertyValueKind.PLAIN, "vultron:p"),
+        (
+            PropertyValueKind.IRI,
+            PropertyValueKind.PLAIN,
+            {"@id": "vultron:p", "@type": "@id"},
+        ),
+        (
+            PropertyValueKind.JSON,
+            PropertyValueKind.PLAIN,
+            {"@id": "vultron:p", "@type": "@json"},
+        ),
+        (
+            PropertyValueKind.LIST,
+            PropertyValueKind.PLAIN,
+            {"@id": "vultron:p", "@container": "@list"},
+        ),
+        (
+            PropertyValueKind.SET,
+            PropertyValueKind.IRI,
+            {"@id": "vultron:p", "@type": "@id", "@container": "@set"},
+        ),
+        (
+            PropertyValueKind.INDEX,
+            PropertyValueKind.IRI,
+            {"@id": "vultron:p", "@type": "@id", "@container": "@index"},
+        ),
+    ],
+    ids=["plain", "iri", "json", "list", "set-of-iri", "index-of-iri"],
+)
+def test_a_property_term_is_typed_by_its_value_kind(
+    kind: PropertyValueKind, items: PropertyValueKind, expected: object
+) -> None:
+    declaration = VultronPropertyDeclaration(
+        definition="A property", kind=kind, items=items
+    )
+    assert _term_definition("p", declaration) == expected
+
+
+@pytest.mark.spec("VM-10-007")
+def test_the_walk_reaches_nested_models() -> None:
+    """Nested models count: their fields reach the wire inside a wire class."""
+    reached = set(wire_field_classes())
+    nested = {
+        EmbargoRegisterEntry,
+        EmbargoTermination,
+        ThreatSignalCause,
+        FixReadyCause,
+        LedgerPosition,
+        VulnerabilityItemId,
+        VulnerabilityItemNote,
+    }
+    assert nested <= reached, sorted(c.__name__ for c in nested - reached)
+
+
+def test_the_walk_leaves_out_a_model_that_serializes_as_one_value() -> None:
+    """A dimension serializes as its bare state, so ``state`` is no wire key."""
+    assert EmDimension not in wire_field_classes()
+
+
+@pytest.mark.spec("VM-10-010")
+@pytest.mark.parametrize(
+    "term",
+    ["proposedEmbargo", "suggestedRoles", "roles", "logIndex", "kind"],
+)
+def test_review_table_terms_are_declared(term: str) -> None:
+    """Fields the #6253 review left Vultron terms carry the marker,
+    including those on the AS2 base ``as_Offer`` and ``as_Invite``."""
+    assert term in vultron_property_terms()
+    assert term in _term_block(_committed_context())
+
+
+class _ProbeNested(BaseModel):
+    shown: int = Field(
+        default=0,
+        json_schema_extra=vultron_property(
+            "A shown value", PropertyValueKind.PLAIN
+        ),
+    )
+    hidden: int = Field(
+        default=0,
+        exclude=True,
+        json_schema_extra=vultron_property(
+            "A hidden value", PropertyValueKind.PLAIN
+        ),
+    )
+
+
+class _ProbeOnlyBehindExcluded(BaseModel):
+    unsent: int = Field(
+        default=0,
+        json_schema_extra=vultron_property(
+            "A value under an excluded field", PropertyValueKind.PLAIN
+        ),
+    )
+
+
+class _ProbeRoot(BaseModel):
+    nested: list[_ProbeNested] = Field(default_factory=list)
+    skipped: _ProbeOnlyBehindExcluded | None = Field(
+        default=None, exclude=True
+    )
+
+
+class _ProbeDisagrees(BaseModel):
+    shown: int = Field(
+        default=0,
+        json_schema_extra=vultron_property(
+            "Another meaning", PropertyValueKind.PLAIN
+        ),
+    )
+
+
+@pytest.mark.spec("VM-10-007")
+def test_an_excluded_field_has_no_term(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested model's fields count; an ``exclude=True`` field does not, and
+    neither do the fields of a model only an excluded field holds."""
+    monkeypatch.setattr(sync, "_wire_object_classes", lambda: [_ProbeRoot])
+    assert sync.vultron_property_terms() == {"shown": "vultron:shown"}
+    assert _ProbeOnlyBehindExcluded not in sync.wire_field_classes()
+
+
+class _ProbeBadMarker(BaseModel):
+    flagged: int = Field(
+        default=0, json_schema_extra={"vultron_property": True}
+    )
+
+
+def test_a_malformed_marker_is_named_by_its_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sync, "_wire_object_classes", lambda: [_ProbeBadMarker]
+    )
+    with pytest.raises(TypeError, match=r"_ProbeBadMarker\.flagged"):
+        sync.vultron_property_declarations()
+
+
+class _ProbeUnknownKind(BaseModel):
+    counted: int = Field(
+        default=0,
+        json_schema_extra={
+            "vultron_property": {"definition": "A count", "kind": "number"}
+        },
+    )
+
+
+class _ProbePaddedDefinition(BaseModel):
+    padded: int = Field(
+        default=0,
+        json_schema_extra={
+            "vultron_property": {"definition": " A value", "kind": "plain"}
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "probe, field",
+    [
+        (_ProbeUnknownKind, "counted"),
+        (_ProbePaddedDefinition, "padded"),
+    ],
+)
+def test_a_refused_declaration_is_named_by_its_field(
+    monkeypatch: pytest.MonkeyPatch, probe: type[BaseModel], field: str
+) -> None:
+    """A marker the declaration refuses, an unknown kind or a padded
+    definition (a ``pydantic.ValidationError``), names its field."""
+    monkeypatch.setattr(sync, "_wire_object_classes", lambda: [probe])
+    with pytest.raises(ValueError, match=rf"{probe.__name__}\.{field}"):
+        sync.vultron_property_declarations()
+
+
+type _ProbeAliased = list[_ProbeNested]
+
+
+class _ProbeAliasRoot(BaseModel):
+    aliased: _ProbeAliased = Field(default_factory=list)
+
+
+def test_a_type_alias_is_followed_to_its_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sync, "_wire_object_classes", lambda: [_ProbeAliasRoot]
+    )
+    assert _ProbeNested in sync.wire_field_classes()
+    assert sync.vultron_property_terms() == {"shown": "vultron:shown"}
+
+
+@pytest.mark.parametrize("name", ["VulnerabilityCase", "vultron"])
+def test_a_property_term_never_replaces_a_type_or_prefix_term(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A property spelled like a type, or like the namespace prefix, would
+    silently overwrite that term."""
+    monkeypatch.setattr(
+        sync, "vultron_property_terms", lambda: {name: f"vultron:{name}"}
+    )
+    with pytest.raises(ValueError, match=rf"\['{name}'\]"):
+        sync.build_context_document()
+
+
+@pytest.mark.spec("VM-10-012")
+def test_two_disagreeing_declarations_of_one_name_are_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sync, "_wire_object_classes", lambda: [_ProbeRoot, _ProbeDisagrees]
+    )
+    with pytest.raises(ValueError, match="'shown'") as refused:
+        sync.vultron_property_declarations()
+    # Each side is named by its field and shown as the marker it stores.
+    message = str(refused.value)
+    assert "_ProbeNested.shown" in message
+    assert "_ProbeDisagrees.shown" in message
+    assert "'definition': 'Another meaning'" in message
+
+
+def test_the_namespace_page_property_table_is_generated(
+    tmp_path: Path,
+) -> None:
+    """``--write`` regenerates the page's property table from the definitions
+    and leaves the page's prose alone."""
+    page = repo_root() / NS_INDEX_PATH
+    stale = page.read_text(encoding="utf-8").replace(
+        render_property_table(), "| `stale` | plain | A stale row |"
+    )
+    target = tmp_path / NS_INDEX_PATH
+    target.parent.mkdir(parents=True)
+    target.write_text(stale, encoding="utf-8")
+
+    assert is_stale(tmp_path)
+    assert write_context(tmp_path)
+    assert target.read_text(encoding="utf-8") == page.read_text(
+        encoding="utf-8"
+    )
+    assert (tmp_path / CONTEXT_JSONLD_PATH).read_text(
+        encoding="utf-8"
+    ) == render_context_json()
+    assert not is_stale(tmp_path)
+    assert not write_context(tmp_path)

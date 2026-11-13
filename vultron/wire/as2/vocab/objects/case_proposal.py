@@ -31,6 +31,7 @@ from typing import ClassVar, TypeAlias
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from vultron.core.models.base import PropertyValueKind, vultron_property
 from vultron.enums.object_types import VultronObjectType as VO_type
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.primitives import NonEmptyString
@@ -186,6 +187,10 @@ class as_CaseProposal(as_VultronObject):
         description=(
             "CVD roles the proposer holds in a case it owns, from its own"
             " default_case_roles (CP-01-011, CP-01-013)."
+        ),
+        json_schema_extra=vultron_property(
+            "The CVD roles a case proposer holds in a case it owns",
+            PropertyValueKind.SET,
         ),
     )
 

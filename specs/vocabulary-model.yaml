@@ -1388,9 +1388,11 @@ groups:
       term (ADR-0194).
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
-      fails while a field a `CaseLedgerEntry` declares has no term in the context
-      document; it is a strict `xfail` until #6409 writes the terms, and #6422 replaces
-      it with a check over every wire field.
+      fails when a field a `CaseLedgerEntry` declares has no term in the context
+      document, and tests marked `VM-10-007` in
+      `test/wire/as2/vocab/test_context_jsonld.py` assert that the generator reaches
+      nested models and skips an excluded field. #6422 replaces the sampled fields
+      with a check over every wire field.
     adr:
     - ADR-0194
     relationships:
@@ -1408,8 +1410,11 @@ groups:
       (VM-10-010).
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_a_vultron_property_declaration_carries_a_definition_and_kind`
-      fails while the property marker is a bare flag; it is a strict `xfail` until
-      #6409 makes the marker carry a definition and a value kind.
+      asserts that a case's `ledgerPosition` marker carries a one-line definition and
+      a value kind, and tests marked `VM-10-008` in
+      `test/core/models/test_vultron_property_declaration.py` assert that the marker
+      refuses a bare flag, a missing definition or kind, and a blank or multi-line
+      definition.
     adr:
     - ADR-0194
     relationships:
@@ -1452,7 +1457,9 @@ groups:
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_the_context_types_each_term_by_its_value_kind`
       requires `payloadSnapshot` to be typed `@json` and `actorParticipantIndex` to be
-      an `@index` container; it is a strict `xfail` until #6409 writes typed terms.
+      an `@index` container of IRIs, and tests marked `VM-10-010` in
+      `test/wire/as2/vocab/test_context_jsonld.py` assert the term each value kind
+      is written as.
     adr:
     - ADR-0194
     relationships:
