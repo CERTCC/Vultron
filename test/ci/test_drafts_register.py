@@ -1011,11 +1011,13 @@ def test_predict_freeze_runs_the_real_script():
     """The isolated (``-I``) run of ``next-freeze`` imports and predicts."""
     before = datetime.now(UTC)
     freeze = dr.predict_freeze(repo_root())
+    starts = freeze.publish_starts
+    assert starts is not None
     assert re.fullmatch(r"v\d{4}\.\d{1,2}\.\d+", freeze.release)
-    assert freeze.publish_starts > before
-    assert freeze.publish_starts.date() == freeze.day
+    assert starts > before
+    assert starts.date() == freeze.day
     assert freeze.day.weekday() < 5
-    assert (freeze.publish_starts.hour, freeze.publish_starts.minute) == (6, 7)
+    assert (starts.hour, starts.minute) == (6, 7)
 
 
 def test_release_script_is_the_promotes_script():
