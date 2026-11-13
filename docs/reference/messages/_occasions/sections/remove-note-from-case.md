@@ -2,7 +2,7 @@
 
 ## Remove note from case { #remove-note-from-case }
 
-Removes the note from the case named by the target.
+Asks to remove the note from the case named by the target. This implementation does not support it: the case ledger is append-only and removing ledgered content has no defined meaning yet, so every receiver refuses it and the note stays in the case (CM-30-003).
 
 === "Details"
 

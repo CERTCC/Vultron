@@ -73,9 +73,6 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     add_status_to_participant_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Remove,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -121,8 +118,9 @@ def demo_notes_workflow(
     Demonstrate the notes workflow:
     1. Add a note, carried inline, to a case
     2. Verify the note is stored and the case has the note
-    3. Remove the note from the case
-    4. Verify the case no longer has the note
+
+    It shows no removal: removing ledgered content is not supported, so every
+    receiver refuses a Remove(Note) (CM-30-003, #6430).
 
     The note travels inline on the single ``Add(Note)`` that attaches it;
     this implementation does not send a separate ``Create(Note)`` ahead of
@@ -135,8 +133,6 @@ def demo_notes_workflow(
 
     case, _participant = _setup_initialized_case(client, reporter, vendor)
 
-    # Step 2 removes the note step 1 added, so it nests inside that step
-    # rather than reading a None sentinel after it (ADR-0058, #3038).
     with demo_step("Step 1: Vendor adds a note, carried inline, to the case"):
         note = as_Note(
             name="Initial Triage Note",
@@ -164,32 +160,6 @@ def demo_notes_workflow(
                     raise ValueError(
                         f"Note '{note.id_}' not found in case after AddNoteToCaseActivity"
                     )
-
-        with demo_step("Step 2: Vendor removes note from case"):
-            # The vendor is this case's CASE_OWNER and its CASE_MANAGER
-            # (setup_initialized_case), so its inbox is the manager's inbox
-            # and the sender is the note's author: the Remove(Note) is
-            # entitled (CM-30-001).
-            remove_note_activity = as_Remove(
-                actor=vendor.id_,
-                object_=note,
-                target=case.id_,
-                **authored_times(at),
-            )
-            post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
-            with demo_check("Note absent from case"):
-                updated_case = log_case_state(
-                    client, case.id_, "after RemoveNoteFromCase"
-                )
-                if updated_case:
-                    note_ids = [
-                        (ref_id(n) or str(n)) for n in updated_case.notes
-                    ]
-                    if note.id_ in note_ids:
-                        raise ValueError(
-                            f"Note '{note.id_}' still in case after"
-                            " RemoveNoteFromCase"
-                        )
 
     logger.info("✅ DEMO COMPLETE: Notes workflow finished.")
 

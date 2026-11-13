@@ -104,10 +104,9 @@ lookup table is mostly links.
   "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,
   or a receiver holding no replica of the case), and the factory builds the guard
   from it alone; the received path picks which side applies (HP-01-036).
-  No part of the rule is left to the tree: `Remove(Note)` admits the note's
-  author or the Case Owner at the CASE_MANAGER, and the embargo
-  `Invite(EmbargoEvent)` admits the CASE_MANAGER or an active participant there;
-  at a participant both admit only the CASE_MANAGER.
+  No part of the rule is left to the tree: the embargo `Invite(EmbargoEvent)`
+  admits the CASE_MANAGER or an active participant at the CASE_MANAGER, and only
+  the CASE_MANAGER at a participant.
 - **Each occasion names its addressee; "Sent by" and "Send to" are derived**
   (MSM-08-009). One wire activity can carry occasions with different senders: a
   participant's `Invite(EmbargoEvent)` to the CASE_MANAGER and the CASE_MANAGER's

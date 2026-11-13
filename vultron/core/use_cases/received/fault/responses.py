@@ -54,7 +54,6 @@ from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
 )
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.core.use_cases.received._bt_verdict import not_case_manager
 from vultron.errors import VultronBTInternalError
 
 #: Builds the one tree a fault's delivery runs, from the entry the fault
@@ -76,15 +75,14 @@ class FaultReading:
 
     ``reader`` receives only the finished run (ADR-0195).  ``judges`` is
     ``False`` for a tree that judges nothing, whose failure past its doors is
-    a local fault.  ``manager_case_id`` names the case whose CASE_MANAGER
-    alone may act on the fault: the use case applies the CASE_MANAGER
-    refusal for it to the runner's verdict (HP-01-005).
+    a local fault.  A fault about a ledger is the case's CASE_MANAGER's alone
+    to act on: its tree declares the manager path only, so the path stage
+    refuses any other receiver (HP-01-005, HP-01-039).
     """
 
     label: str
     reader: OutcomeReader
     judges: bool = True
-    manager_case_id: str | None = None
 
 
 #: The reading of a response's run, given the entry the tree was built from.
@@ -190,9 +188,9 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         tree = outcome.tree
-        if not outcome.succeeded or not_case_manager(tree):
-            # A failure is the runner's to read, and a receiver the gate
-            # turned away is refused by the use case (HP-01-005).
+        if not outcome.succeeded:
+            # A failure is the runner's to read; a receiver that is not the
+            # CASE_MANAGER was refused by the path stage (HP-01-005).
             return None
         # The re-seed this fault asks for sits in the tree's own CASE_MANAGER
         # gate; the factory's answer to a stamped ledger position holds
@@ -216,7 +214,7 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
             " within the cooldown; no case copy sent (SYNC-16-004)"
         )
 
-    return FaultReading(label=label, reader=read, manager_case_id=case_id)
+    return FaultReading(label=label, reader=read)
 
 
 def _hash_mismatch_tree(
@@ -260,9 +258,9 @@ def _hash_mismatch_verdict(
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         tree = outcome.tree
-        if not outcome.succeeded or not_case_manager(tree):
-            # A failure is the runner's to read, and a receiver the gate
-            # turned away is refused by the use case (HP-01-005).
+        if not outcome.succeeded:
+            # A failure is the runner's to read; a receiver that is not the
+            # CASE_MANAGER was refused by the path stage (HP-01-005).
             return None
         report = find_node(tree, ReportHashMismatchNode)
         if report is None or report.own_copy is None:
@@ -275,9 +273,7 @@ def _hash_mismatch_verdict(
             " recorded for it (SYNC-03-008)"
         )
 
-    return FaultReading(
-        label=label, reader=read, manager_case_id=refused_entry.case_id
-    )
+    return FaultReading(label=label, reader=read)
 
 
 #: A failure class with no entry in a use case's ``responses``.

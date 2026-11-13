@@ -24,7 +24,6 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_ask,
 )
@@ -138,6 +137,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             )
             close_refused_embargo_ask(self._dl, request, at=at)
 
-        # Only the CASE_MANAGER records an answer; a replica learns it
-        # from the ledger broadcast (BT-17-001, HP-01-005).
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
+        # Only the CASE_MANAGER records an answer; the tree refuses at a
+        # replica, which learns it from the ledger broadcast (BT-17-001,
+        # HP-01-005).
+        return verdict

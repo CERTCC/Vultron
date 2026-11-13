@@ -35,9 +35,6 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -172,7 +169,7 @@ class _FullCaseInviteReplyReceivedUseCase:
         # recorded) changes nothing but the receipt, so its repeat guard
         # says so and the runner reads it SKIPPED, like every other RM
         # declaration (RSH-08-002).
-        verdict = run_received_tree(
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -183,7 +180,6 @@ class _FullCaseInviteReplyReceivedUseCase:
             reader=closed_sender_reader(closes=self.rm_state is RM.CLOSED),
             case_id=case_id,
         )
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class AcceptInviteActorToFullCaseReceivedUseCase(

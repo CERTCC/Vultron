@@ -74,7 +74,7 @@ def create_add_note_to_case_received_tree(
         GuardedAttachAndCommitBT (Sequence)
         ├── ActivityAddressedToReceiverNode            # addressee door
         ├── ActivityNotSeenBeforeNode                  # seen-before door
-        ├── ReceivedPathNode                           # manager or replica
+        ├── ReceivedPathNode                           # manager path only
         ├── CaseOpenToExternalWrites                   # post-close boundary
         ├── SenderRuleGuard (Sequence)                 # sender guard
         ├── IntakeReceivedActivityNode                 # intake
@@ -114,12 +114,10 @@ def create_add_note_to_case_received_tree(
     attach failed" (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
     The factory composes the sender guard from *sender_rule* (HP-01-025):
-    at the CASE_MANAGER the sender must be an active participant whose
-    closure the case does not record (CM-23-018), and a replica takes the
-    attachment from the CASE_MANAGER alone (PCR-03-001).  Those are the two
-    non-empty sides of the rule, so they are the two paths the tree declares
-    (HP-01-038); the path stage then answers the role question once and the
-    guard's arms read its answer rather than asking again (HP-01-036).
+    the sender must be an active participant whose closure the case does
+    not record (CM-23-018).  That is the rule's one side, so the manager
+    path is the one the tree declares (HP-01-038), and the path stage
+    refuses any other receiver before the guard runs (HP-01-039).
 
     Args:
         note_obj: The note the ``Add`` carries inline.
@@ -133,18 +131,13 @@ def create_add_note_to_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
-        # An active participant asks the CASE_MANAGER to attach the note, and
-        # a replica takes the attachment from the CASE_MANAGER alone
-        # (PCR-03-001, PCR-08-001): the two non-empty sides of the sender
-        # rule, so the two declared paths (HP-01-038).  The replica path
-        # carries no effect of its own — RSH-08-003 keeps every write at the
-        # CASE_MANAGER, so the note reaches a replica as the entry's Announce
-        # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
-        # refused (HP-01-005).  It is declared all the same: the act is the
-        # CASE_MANAGER's to relay (PCR-03-001), and naming fewer paths than
-        # the type works on would refuse at the door a delivery the sender
-        # guard admits (HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # An active participant asks the CASE_MANAGER alone to attach the
+        # note (PCR-08-001), and no one relays the Add: RSH-08-003 keeps
+        # every write at the CASE_MANAGER, so the note reaches a replica as
+        # the entry's Announce fan-out (SYNC-02-001, SYNC-02-003).  The tree
+        # declares the manager path alone, so the path stage refuses a copy
+        # at any other receiver (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

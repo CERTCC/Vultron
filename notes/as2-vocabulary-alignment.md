@@ -627,7 +627,7 @@ server-to-server a full replacement), so the meaning is Vultron's rule, not AS2'
 
 **Today.** `Update` is sent only by the CASE_MANAGER (case owner, participant records,
 consent rows) and nothing receives it. `REMOVE_NOTE_FROM_CASE` has a received use case
-but no factory or trigger; only a demo sends it.
+but no factory or trigger, and every receiver refuses it (CM-30-003, #6430).
 
 **Open for planning.** A revised report is an authored statement others may have
 relied on; decide whether a report revision is an `Update` or a new report. Signing:

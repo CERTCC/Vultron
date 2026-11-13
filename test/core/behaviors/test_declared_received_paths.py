@@ -203,19 +203,16 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_recommendation_answer_received_tree",
         0,
     ): frozenset({PR}),
-    # Offer(Actor)[target=VulnerabilityCase] reaches two stores: the
-    # recommending participant addresses it to the case's CASE_MANAGER
-    # (PCR-08-001), which admits, commits and forwards an
-    # Offer(CaseParticipant) to the Case Owner, and the CASE_MANAGER's copy
-    # reaches a participant replica, which takes it from the CASE_MANAGER
-    # alone and acts on nothing (PCR-03-001, #4646).  The replica path is
-    # not derivable from the one emit site, and dropping it broke
-    # test_replica_sender_rule.py.
+    # Offer(Actor)[target=VulnerabilityCase]: the recommending participant
+    # addresses it to the case's CASE_MANAGER alone (PCR-08-001), which
+    # admits, commits and forwards an Offer(CaseParticipant) to the Case
+    # Owner.  A replica acts on no copy, so it is refused at the path stage
+    # (HP-01-005, #6394).
     (
         f"{_C}/suggest_actor_tree/recommend.py",
         "create_recommend_actor_to_case_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     # --- case: ownership transfer ---------------------------------------
     (
         f"{_C}/ownership_transfer_tree/proposal.py",
@@ -227,21 +224,23 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_offer_ownership_transfer_tree",
         0,
     ): frozenset({PR}),
+    # Each reply goes to the CASE_MANAGER alone (TRIG-11-002/005, CM-21-015);
+    # a replica takes the change from the ledger (#6394).
     (
         f"{_C}/ownership_transfer_tree/replies.py",
         "create_accept_ownership_transfer_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/ownership_transfer_tree/replies.py",
         "create_reject_ownership_transfer_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/ownership_transfer_tree/replies.py",
         "create_undo_ownership_transfer_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     # --- case: lifecycle ------------------------------------------------
     (
         f"{_C}/announce_case_received_tree.py",
@@ -268,16 +267,18 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "create_reject_case_proposal_received_tree",
         0,
     ): frozenset({NC}),
+    # Add(VulnerabilityReport) and the Leave go to the CASE_MANAGER alone
+    # (PCR-08-001); a replica takes each from the ledger (#6394).
     (
         f"{_C}/add_report_received_tree.py",
         "create_add_report_to_case_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/receive_close_case_tree/factory.py",
         "create_close_case_received_tree",
         2,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_C}/refusal_notice_received_tree.py",
         "refusal_notice_received_tree",
@@ -298,22 +299,22 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({NC}),
     # --- report ---------------------------------------------------------
+    # A participant declares each RM move to the CASE_MANAGER alone
+    # (PCR-08-001, RSH-06-006); a replica takes it from the ledger (#6394).
     (f"{_R}/prioritize_tree.py", "create_engage_case_tree", 0): frozenset(
-        {CM, PR}
+        {CM}
     ),
-    (f"{_R}/prioritize_tree.py", "create_defer_case_tree", 0): frozenset(
-        {CM, PR}
-    ),
+    (f"{_R}/prioritize_tree.py", "create_defer_case_tree", 0): frozenset({CM}),
     (
         f"{_R}/received_report_trees/validate.py",
         "create_validate_report_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_R}/received_report_trees/verdicts.py",
         "create_invalidate_report_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_R}/received_report_trees/receipt.py",
         "create_report_received_tree",
@@ -398,28 +399,22 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         0,
     ): frozenset({CM, PR}),
     # --- note (#5785) ----------------------------------------------------
-    # Both are directed types: the trigger side resolves the CASE_MANAGER and
-    # addresses the one activity to it (PCR-08-001), and no roster-derived
-    # selection sends either.  Neither is narrowed below its sender rule —
-    # each declares exactly the two non-empty sides of ``to_case_manager`` —
-    # so neither declaration refuses a delivery the guard would admit.  The
-    # replica path carries no effect: RSH-08-003 keeps every write at the
-    # CASE_MANAGER, so a note reaches a replica as the entry's Announce
-    # fan-out (SYNC-02-001, SYNC-02-003) and a direct Add(Note) there is
-    # refused (HP-01-005).  It is declared because the act is the
-    # CASE_MANAGER's to relay (PCR-03-001), the same reading the
-    # Add(VulnerabilityReport) twin above takes from the same rule shape
-    # (CM-30-003, CM-30-005).
+    # A directed type: the trigger side resolves the CASE_MANAGER and
+    # addresses the one activity to it (PCR-08-001), and no one relays it, so
+    # a note reaches a replica only as the entry's Announce fan-out
+    # (SYNC-02-001, SYNC-02-003).  The manager path alone (#6394).
+    # Remove(Note) is addressed the same way; its tree then refuses every
+    # one at the CASE_MANAGER (CM-30-003, #6430).
     (
         f"{_N}/add_note_received_tree.py",
         "create_add_note_to_case_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     (
         f"{_N}/remove_note_received_tree.py",
         "create_remove_note_from_case_received_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     # --- sync: the ledger replication envelopes (#5044) ------------------
     # Announce(CaseLedgerEntry) is the one replication message every
     # receiver takes: the CASE_MANAGER gets its own announcement echoed

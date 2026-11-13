@@ -61,7 +61,12 @@ from vultron.core.models.case_participant import (
     ReporterParticipant,
     VendorParticipant,
 )
-from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+    RmDimension,
+)
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -69,6 +74,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.invite import (
     InviteActorToCaseReceivedUseCase,
 )
@@ -324,7 +330,7 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             CloseCaseReceivedUseCase,
-            SenderRule.to_case_manager(
+            SenderRule.at_case_manager_only(
                 SenderEntitlementKind.CASE_OWNER,
                 SenderEntitlementKind.PARTICIPANT,
             ),
@@ -371,10 +377,13 @@ def test_use_case_with_nothing_to_gate_declares_no_sender_check(
 @pytest.mark.spec("SYNC-16-003")
 def test_the_fault_declares_its_sender_rule_once() -> None:
     """At the CASE_MANAGER a case-diverged fault needs an active participant
-    (CM-10-004); at a participant a fault comes from the CASE_MANAGER."""
+    (CM-10-004); each response tree declares the manager path alone, so the
+    rule states no other side (HP-01-038)."""
     assert (
         CreateProcessingFaultReceivedUseCase.sender_entitlement
-        == SenderRule.to_case_manager(SenderEntitlementKind.ACTIVE_PARTICIPANT)
+        == SenderRule.at_case_manager_only(
+            SenderEntitlementKind.ACTIVE_PARTICIPANT
+        )
     )
 
 
@@ -503,15 +512,55 @@ def test_leave_from_a_stranger_is_refused_and_changes_nothing() -> None:
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("PCR-03-001")
 def test_leave_at_a_replica_from_a_non_manager_is_refused() -> None:
-    """A replica takes a closure from the CASE_MANAGER alone."""
+    """A replica takes a closure from the ledger, so the path stage refuses
+    a Leave there whoever sent it (HP-01-005, PCR-08-001)."""
     world = _World(store_owner="finder")
     before = world.ledger_size()
 
     result = world.leave_from(world.stranger.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "CASE_MANAGER" in (result.reason or "")
+    assert result.reason == f"not the CASE_MANAGER of case '{world.case_id}'"
     assert not world.finder_closed()
+    assert world.ledger_size() == before
+    assert world.outbox() == []
+
+
+@pytest.mark.spec("HP-01-005", "HP-01-035", "CM-23-049", "CLP-05-006")
+def test_a_closed_senders_repeat_leave_at_a_replica_is_refused() -> None:
+    """A repeat Leave is the CASE_MANAGER's to report ``SKIPPED``
+    (CM-23-049); at a replica the path stage, which runs before the
+    closed-sender door (HP-01-035), refuses it as the not-CASE_MANAGER the
+    replica is, and nothing is committed or sent (CLP-05-006)."""
+    world = _World(store_owner="finder")
+    case = world.case()
+    deployer_record_id = case.actor_participant_index[world.deployer.id_]
+    record = world.dl.read(deployer_record_id)
+    assert isinstance(record, CaseParticipant)
+    world.dl.save(
+        record.model_copy(
+            update={
+                "participant_statuses": [
+                    *record.participant_statuses,
+                    make(
+                        ParticipantStatus,
+                        context=world.case_id,
+                        attributed_to=world.deployer.id_,
+                        rm=RmDimension(state=RM.CLOSED),
+                        cvd_role=[CVDRole.DEPLOYER],
+                    ),
+                ]
+            }
+        )
+    )
+    closed = world.dl.read(deployer_record_id)
+    assert isinstance(closed, CaseParticipant) and closed.rm_closed
+    before = world.ledger_size()
+
+    result = world.leave_from(world.deployer.id_, suffix="again")
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == f"not the CASE_MANAGER of case '{world.case_id}'"
     assert world.ledger_size() == before
     assert world.outbox() == []
 
