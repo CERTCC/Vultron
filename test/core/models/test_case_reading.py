@@ -117,6 +117,15 @@ def test_a_repeated_entry_is_refused():
         )
 
 
+def test_a_ledger_out_of_log_index_order_is_refused():
+    reading = _reading()
+    with pytest.raises(ValidationError, match="not in log-index order"):
+        CaseReading(
+            ledger=tuple(reversed(reading.ledger)),
+            citations=reading.citations,
+        )
+
+
 def test_every_problem_is_reported_at_once():
     reading = _reading()
     stray = EntryCitation(entry_id="urn:uuid:nowhere", source_record="rec-x")

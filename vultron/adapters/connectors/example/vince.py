@@ -20,7 +20,7 @@ caveats and their times are in ``docs/reference/vince_crosswalk.md``
   CERT/CC's RM; a vendor's listing and its per-vul ``status`` set that
   vendor's RM.
 - Embargo (``VINCE-EM``): ``due_date`` becomes an active embargo, which each
-  vendor on the case is inferred to accept.
+  vendor at RM Received or later is inferred to accept.
 - Case state (``VINCE-CS``): the report form's answers and the published
   vulnerability note set P, X and A.
 - Content (``VINCE-CT``): vuls become vulnerability items, posts become case

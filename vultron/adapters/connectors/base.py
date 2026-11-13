@@ -23,8 +23,9 @@ plugin carries only its :attr:`ConnectorPlugin.name`.
 
 A plugin implements only the ports it serves, and carries no method, not
 even a raising stub, of a port it does not (ARCH-05-005).  The loader
-(``loader.py``) asks :func:`ports_implemented_by` which ports a discovered
-plugin implements and refuses one that implements none (ARCH-05-006).
+(``loader.py``, still a stub until #5610) is to ask
+:func:`ports_implemented_by` which ports a discovered plugin implements and
+to refuse one that implements none (ARCH-05-006).
 """
 
 from __future__ import annotations
@@ -56,7 +57,7 @@ def ports_implemented_by(plugin: object) -> tuple[type, ...]:
 
     A port counts as implemented when *plugin* has every member the port
     declares.  An empty tuple means the plugin implements no port, which the
-    loader refuses (ARCH-05-006).
+    loader is to refuse (ARCH-05-006, #5610).
     """
     return tuple(port for port in CONNECTOR_PORTS if isinstance(plugin, port))
 

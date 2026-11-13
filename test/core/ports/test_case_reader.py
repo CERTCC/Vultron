@@ -31,6 +31,7 @@ import pytest
 from test.measure.history.builders import (
     CM,
     VENDOR,
+    VENDOR_2,
     Ledger,
     participant,
     status,
@@ -72,10 +73,10 @@ def _genesis_case() -> dict[str, Any]:
     return case
 
 
-def _vendor_participant() -> dict[str, Any]:
+def _vendor_participant(actor: str = VENDOR) -> dict[str, Any]:
     return participant(
-        VENDOR,
-        [status("vendor-r", VENDOR, "RECEIVED", vf="vf", roles=("VENDOR",))],
+        actor,
+        [status(f"{actor}-r", actor, "RECEIVED", vf="vf", roles=("VENDOR",))],
         roles=("VENDOR",),
     )
 
@@ -93,9 +94,29 @@ def _records() -> list[OutsideRecord]:
             _at(2),
             status("vendor-v", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
         ),
+        OutsideRecord(
+            "rec-undated",
+            "vendor_listed",
+            CM,
+            None,
+            _vendor_participant(VENDOR_2),
+        ),
         OutsideRecord("rec-odd", "vendor_mood", VENDOR, _at(3)),
+        OutsideRecord("rec-pinned", "pinned_post", CM, _at(4)),
+        OutsideRecord(
+            "rec-early",
+            "vendor_status",
+            VENDOR,
+            _at(0),
+            status("vendor-x", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
+        ),
         OutsideRecord("rec-untimed", "vendor_status", VENDOR, None),
     ]
+
+
+def _entry_of(reading: CaseReading, record_id: str):
+    by_record = {c.source_record: c.entry_id for c in reading.citations}
+    return next(e for e in reading.ledger if e.id_ == by_record[record_id])
 
 
 @pytest.fixture
@@ -145,9 +166,7 @@ def test_the_fake_readers_ledger_is_one_the_projection_accepts(reading):
 
 @pytest.mark.spec("CRD-01-006")
 def test_an_entry_names_the_participant_who_acted_as_its_actor(reading):
-    by_record = {c.source_record: c.entry_id for c in reading.citations}
-    entry = next(e for e in reading.ledger if e.id_ == by_record["rec-status"])
-    assert entry.payload_snapshot["actor"] == VENDOR
+    assert _entry_of(reading, "rec-status").payload_snapshot["actor"] == VENDOR
 
 
 @pytest.mark.spec("CRD-02-001")
@@ -159,7 +178,7 @@ def test_a_reading_carries_all_five_parts(reading):
         "untranslated",
         "unobservable",
     }
-    assert len(reading.ledger) == 3
+    assert len(reading.ledger) == 4
     assert reading.citations
     assert reading.inferences
     assert reading.untranslated
@@ -176,10 +195,16 @@ def test_every_entry_cites_a_source_record_present_in_the_input(reading):
 
 @pytest.mark.spec("CRD-02-002")
 def test_an_inference_names_its_entry_rule_and_caveat(reading):
-    (inference,) = reading.inferences
-    assert inference.entry_id in {entry.id_ for entry in reading.ledger}
-    assert inference.rule_id == "FAKE-RM-01"
-    assert inference.caveat
+    entry_ids = {entry.id_ for entry in reading.ledger}
+    named = {(i.entry_id, i.rule_id) for i in reading.inferences}
+    assert named == {
+        (_entry_of(reading, "rec-vendor").id_, "FAKE-RM-01"),
+        (_entry_of(reading, "rec-undated").id_, "FAKE-RM-01"),
+        (_entry_of(reading, "rec-undated").id_, "FAKE-TIME-01"),
+    }
+    assert all(
+        i.entry_id in entry_ids and i.caveat for i in reading.inferences
+    )
 
 
 @pytest.mark.spec("CRD-01-005")
@@ -188,6 +213,8 @@ def test_each_untranslated_fact_carries_its_reason(reading):
     reasons = {f.source_record: f.reason for f in reading.untranslated}
     assert reasons == {
         "rec-odd": UntranslatedReason.UNKNOWN_VALUE,
+        "rec-pinned": UntranslatedReason.NO_COUNTERPART,
+        "rec-early": UntranslatedReason.RULE_CONFLICT,
         "rec-untimed": UntranslatedReason.NO_TIME,
     }
 
@@ -201,11 +228,18 @@ def test_a_reading_copies_the_readers_unobservable_declaration(reading):
 
 @pytest.mark.spec("CRD-02-006")
 def test_an_entrys_times_are_its_source_records_time(reading):
+    """A dated record keeps its time; an undated one takes the time its
+    rule names, the case's opening, and is listed as an inference."""
     times = {r.record_id: r.at for r in _records()}
+    times["rec-undated"] = times["rec-open"]
     for citation in reading.citations:
         entry = next(e for e in reading.ledger if e.id_ == citation.entry_id)
         assert entry.published == times[citation.source_record]
         assert entry.received_at == times[citation.source_record]
+    undated = _entry_of(reading, "rec-undated").id_
+    assert ("FAKE-TIME-01", undated) in {
+        (i.rule_id, i.entry_id) for i in reading.inferences
+    }
 
 
 def test_a_case_the_source_does_not_hold_raises_a_domain_error():

@@ -19,8 +19,13 @@ The fake "outside system" holds each case as a list of
 :class:`OutsideRecord` values.  The fake reader translates a record by its
 ``kind`` through :data:`FAKE_RULES`, into one core ledger entry whose actor is
 the record's actor and whose times are the record's own (CRD-01-006,
-CRD-02-006).  A record of a kind no rule names, or with no time, comes back
-untranslated with the matching reason (CRD-01-005, CRD-02-003).
+CRD-02-006).  A record whose rule names an undated fallback, and that states
+no time, takes the case's opening time and is listed as an inference
+(CRD-02-006).  Every other record comes back untranslated with one reason
+each (CRD-01-005, CRD-02-003): a kind no rule names (unknown value), a kind
+in :data:`FAKE_NO_COUNTERPART` (no counterpart), a vendor status dated before
+the vendor's listing (rule conflict), and a timeless record with no fallback
+(no time).
 
 The payload objects come from the measures' hand-built ledger builders, so
 the fake's ledger is one the event-history projection reads.
@@ -41,7 +46,7 @@ from vultron.core.models.case_reading import (
     Inference,
     UnobservableFact,
     UntranslatedFact,
-    UntranslatedReason,
+    UntranslatedReason as Reason,
 )
 from vultron.errors import VultronNotFoundError
 
@@ -68,17 +73,26 @@ class OutsideRecord:
 
 
 @dataclass(frozen=True)
+class FakeInference:
+    """A mapping rule's identifier and the caveat it states."""
+
+    rule_id: str
+    caveat: str
+
+
+@dataclass(frozen=True)
 class FakeRule:
     """How the fake reader translates one record kind.
 
-    ``rule_id`` and ``caveat`` are set when the rule infers rather than
-    states the entry's state.
+    ``inferred`` is set when the rule infers rather than states the entry's
+    state; ``undated`` when a record with no time of its own takes the
+    case's opening time.
     """
 
     semantic_type: str
     activity_type: str
-    rule_id: str | None = None
-    caveat: str | None = None
+    inferred: FakeInference | None = None
+    undated: FakeInference | None = None
 
 
 #: The fake reader's mapping, keyed by record kind.
@@ -87,11 +101,21 @@ FAKE_RULES: Mapping[str, FakeRule] = {
     "vendor_listed": FakeRule(
         "create_case_participant",
         "Create",
-        rule_id="FAKE-RM-01",
-        caveat="The source lists the vendor; it does not record the notice.",
+        inferred=FakeInference(
+            "FAKE-RM-01",
+            "The source lists the vendor; it does not record the notice.",
+        ),
+        undated=FakeInference(
+            "FAKE-TIME-01",
+            "The source does not date the listing; the case's opening time"
+            " stands in for it.",
+        ),
     ),
     "vendor_status": FakeRule("add_participant_status_to_participant", "Add"),
 }
+
+#: Record kinds the fake source holds that have no Vultron counterpart.
+FAKE_NO_COUNTERPART: frozenset[str] = frozenset({"pinned_post"})
 
 #: What the fake source can never observe.
 FAKE_UNOBSERVABLE: tuple[UnobservableFact, ...] = (
@@ -128,6 +152,32 @@ def _entry(
     )
 
 
+def _refusal(
+    record: OutsideRecord,
+    rule: FakeRule | None,
+    at: datetime | None,
+    listed_at: Mapping[str, datetime],
+) -> UntranslatedFact | None:
+    """*record* as an untranslated fact, or ``None`` when it translates."""
+    fact, reason = f"kind = {record.kind}", None
+    if record.kind in FAKE_NO_COUNTERPART:
+        reason = Reason.NO_COUNTERPART
+    elif rule is None:
+        reason = Reason.UNKNOWN_VALUE
+    elif at is None:
+        fact, reason = f"{record.kind} with no time", Reason.NO_TIME
+    elif record.kind == "vendor_status" and at < listed_at.get(
+        record.actor, at
+    ):
+        fact = f"{record.kind} dated before the vendor's listing"
+        reason = Reason.RULE_CONFLICT
+    if reason is None:
+        return None
+    return UntranslatedFact(
+        source_record=record.record_id, fact=fact, reason=reason
+    )
+
+
 class FakeCaseReader:
     """A ``CaseReader`` over an in-memory fake outside system."""
 
@@ -145,41 +195,42 @@ class FakeCaseReader:
         citations: list[EntryCitation] = []
         inferences: list[Inference] = []
         untranslated: list[UntranslatedFact] = []
+        opened_at: datetime | None = None
+        listed_at: dict[str, datetime] = {}
+
         for record in self._cases[case_id]:
             rule = FAKE_RULES.get(record.kind)
-            if rule is None:
-                untranslated.append(
-                    UntranslatedFact(
-                        source_record=record.record_id,
-                        fact=f"kind = {record.kind}",
-                        reason=UntranslatedReason.UNKNOWN_VALUE,
-                    )
-                )
+            at = record.at
+            implied: list[FakeInference] = []
+            if rule and at is None and rule.undated and opened_at:
+                at = opened_at
+                implied.append(rule.undated)
+            refusal = _refusal(record, rule, at, listed_at)
+            if refusal is not None:
+                untranslated.append(refusal)
                 continue
-            if record.at is None:
-                untranslated.append(
-                    UntranslatedFact(
-                        source_record=record.record_id,
-                        fact=f"{record.kind} with no time",
-                        reason=UntranslatedReason.NO_TIME,
-                    )
-                )
-                continue
-            entry = _entry(case_id, len(ledger), record, rule, record.at)
+            assert rule is not None and at is not None
+            if record.kind == "case_opened":
+                opened_at = at
+            if record.kind == "vendor_listed":
+                listed_at[str(record.value.get("attributedTo"))] = at
+            entry = _entry(case_id, len(ledger), record, rule, at)
             ledger.append(entry)
             citations.append(
                 EntryCitation(
                     entry_id=entry.id_, source_record=record.record_id
                 )
             )
-            if rule.rule_id is not None and rule.caveat is not None:
-                inferences.append(
-                    Inference(
-                        entry_id=entry.id_,
-                        rule_id=rule.rule_id,
-                        caveat=rule.caveat,
-                    )
+            if rule.inferred is not None:
+                implied.insert(0, rule.inferred)
+            inferences.extend(
+                Inference(
+                    entry_id=entry.id_,
+                    rule_id=rule_.rule_id,
+                    caveat=rule_.caveat,
                 )
+                for rule_ in implied
+            )
         return CaseReading(
             ledger=tuple(ledger),
             citations=tuple(citations),
