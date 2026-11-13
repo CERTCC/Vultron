@@ -197,12 +197,15 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     # Participant status is self-declared: the participant the target record
     # names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
     # v→V or d→D for it, whose shape the tree checks (RSH-08-014,
-    # PRM-06-003/004).  A replica takes it from the CASE_MANAGER alone
-    # (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.CASE_MANAGER,
-        SenderEntitlementKind.CASE_OWNER,
-        SenderEntitlementKind.AUTHOR,
+    # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
+    # takes participant status from the ledger, never from an Add
+    # (PCR-03-001, RSH-08-003), so the rule names the CASE_MANAGER side only.
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(
+            SenderEntitlementKind.CASE_MANAGER,
+            SenderEntitlementKind.CASE_OWNER,
+            SenderEntitlementKind.AUTHOR,
+        )
     )
 
     def __init__(
@@ -239,8 +242,12 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
         # The case is the target participant's own (HP-08-008); the tree
         # refuses a status of any other case before the commit (HP-08-007).
+        # A target the receiver holds no record of leaves the activity's own
+        # case, so the tree's path stage judges the receiver there and its
+        # HP-08-014 door refuses the delivery.
         target = self._stored_target_participant()
-        case_id = _as_id(target.context) if target is not None else None
+        target_case_id = _as_id(target.context) if target is not None else None
+        case_id = target_case_id or request.context_id
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -309,7 +316,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         while the status is appended to whichever case owns the participant.
         Its ``attributed_to`` is whose status it is (RSH-08-007).  A
         participant the receiver does not hold, or whose record names no
-        case, leaves no case, and the sender guard refuses (HP-01-008).
+        case, leaves no case to act on: the tree refuses it before the
+        commit (HP-08-014).
         """
         participant_id = self._request.participant_id
         stored = self._dl.read(participant_id) if participant_id else None

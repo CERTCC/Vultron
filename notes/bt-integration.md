@@ -419,7 +419,10 @@ nothing is written before the last one admits the message (ADR-0154).
    or proceeds: a case-scoped type is held by the inbox's defer check until
    its case is known, so only a type that precedes or establishes its case
    declares the no-case branch (HP-01-041; `CASE_PRECEDING_SEMANTICS`,
-   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`).
+   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`). A
+   report-scoped verdict built with no case for its report declares it alone,
+   with an empty `outside_case` side, since the inbox cannot hold it for a
+   case it does not name.
    Every received-side site that still asks the role question another way is
    listed in `test/architecture/test_received_path_role_question.py`, and
    every site that still derives the authority *boolean* from an ingredient in

@@ -139,8 +139,8 @@ def compose_sender_guard(
 
     A context that names no case, in a tree declaring only in-case paths,
     composes its in-case checks with no case at build time: such a check
-    reads ``/case_id`` or the activity at run time, and one that cannot
-    (an ``AUTHOR`` check on a participant record, say) raises here.  The
+    reads ``/case_id``, the activity or its own record at run time, and one
+    that cannot (an ``AUTHOR`` check on a note, say) raises here.  The
     combination is not refused outright, because each such tree's stage
     reads its case from the activity, which names none, so the stage
     refuses the delivery first; making those case-scoped types declare the

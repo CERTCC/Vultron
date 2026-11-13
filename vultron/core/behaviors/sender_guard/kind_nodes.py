@@ -102,10 +102,12 @@ def _author_node(
     """The ``AUTHOR`` check for the object *ctx* names (HP-01-009)."""
     authored = ctx.authored_object
     if isinstance(authored, AuthoredParticipantRecord):
+        # The record names its own case (HP-08-008), so the check reads it
+        # from there when the context names none.
         return SenderIsParticipantRecordSubjectNode(
             participant_id=authored.participant_id,
             sender_actor_id=ctx.sender_id,
-            case_id=_case_of(ctx, "the participant a record names"),
+            case_id=ctx.case_id,
         )
     if isinstance(authored, AuthoredNote):
         return SenderIsNoteAuthorNode(

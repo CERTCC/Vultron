@@ -946,7 +946,10 @@ groups:
     statement: >-
       A tree MUST declare the no-case path only for a message type the inbox
       delivers without its case being known, so every case-scoped type waits at the
-      inbox's defer check instead of being refused at the HP-01-035 stage.
+      inbox's defer check instead of being refused at the HP-01-035 stage. A
+      report-scoped verdict built with no case for its report is such a type, and
+      its tree declares the no-case path alone, with a sender rule whose
+      `outside_case` side admits no sender.
     rationale: >-
       A case-scoped message that arrives before its case is not an error: the inbox
       holds it until the case is known (IO-02-001). Declaring the no-case branch for
@@ -960,6 +963,12 @@ groups:
       `::test_the_type_that_precedes_its_case_declares_the_no_case_branch` asserts
       the Invite tree declares the no-case path and resolves it at an invitee with
       no replica.
+      `test/core/behaviors/test_declared_received_paths.py::test_a_conditional_site_with_no_case_judges_the_outside_case_side`
+      asserts the InvalidateReport tree with no case declares the no-case path
+      alone and composes the empty side, and
+      `test/core/behaviors/case/test_received_path_stage.py::test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender`
+      asserts the factory refuses that declaration with a side that admits a
+      sender.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-038

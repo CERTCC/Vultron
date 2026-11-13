@@ -192,6 +192,9 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
     - the record is not at RM ``CLOSED``: a participant that has left the
       case may act on nothing further (CM-23-018).
 
+    The record is read first, so the case is the tree's when it names one,
+    else the record's own (HP-08-008).
+
     A pure read.  FAILURE names the record and the sender.
 
     Spec: RSH-08-007, HP-01-006, HP-01-009, CM-23-018.
@@ -205,7 +208,7 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         self,
         participant_id: str,
         sender_actor_id: str,
-        case_id: str,
+        case_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -231,7 +234,11 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        case, failure = self._require_case(self.case_id)
+        record = self.datalayer.read(self.participant_id)
+        if not isinstance(record, CaseParticipant):
+            return self._refuse_citing("the receiver holds no such record")
+        case_id = self.case_id or _as_id(record.context)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1: the index check needs the case
         assert case is not None
@@ -239,17 +246,16 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         own_id = case.actor_participant_index.get(self.sender_actor_id)
         if own_id != self.participant_id:
             return self._refuse_citing(
-                f"case '{self.case_id}' lists '{own_id}' as the sender's"
+                f"case '{case_id}' lists '{own_id}' as the sender's"
                 " record; a participant asserts only its own status"
             )
-        record = self.datalayer.read(self.participant_id)
-        if not isinstance(record, CaseParticipant) or not same_actor_id(
+        if not same_actor_id(
             _as_id(record.attributed_to) or "", self.sender_actor_id
         ):
             return self._refuse_citing("the record does not name the sender")
         if record.rm_closed:
             return self._refuse_citing(
-                f"the sender has left case '{self.case_id}' (RM CLOSED) and"
+                f"the sender has left case '{case_id}' (RM CLOSED) and"
                 " may act on nothing further (CM-23-018)"
             )
         return Status.SUCCESS

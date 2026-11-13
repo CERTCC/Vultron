@@ -48,14 +48,14 @@ away only where the type is addressed to one role and the tree does no
 protocol work on the other — a participant sends only to the CASE_MANAGER
 (PCR-08-001), so an ``in_case`` rule whose kinds exclude ``CASE_MANAGER``
 names a participant side no sender may legitimately use.  The no-case path
-is added where the type precedes its case (HP-01-041).
+is added where the type precedes its case, and alone for an InvalidateReport
+tree built with no case for its report (HP-01-041).
 """
 
 import ast
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -337,7 +337,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         f"{_S}/add_participant_status_tree.py",
         "add_participant_status_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     # --- embargo: the proposal, its answers and the teardown (#5042) -----
     # Each of these four is a directed type with one production emit site,
     # addressed to the CASE_MANAGER alone (PCR-08-001), and every step of
@@ -469,11 +469,6 @@ CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
         (
             f"{_R}/received_report_trees/verdicts.py",
             "create_invalidate_report_received_tree",
-            0,
-        ),
-        (
-            f"{_S}/add_participant_status_tree.py",
-            "add_participant_status_tree",
             0,
         ),
     }
@@ -796,49 +791,50 @@ def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
     )
 
 
-def _no_case_trees() -> dict[str, py_trees.behaviour.Behaviour]:
-    """The conditional sites, built as their use cases build them with no
-    case: the real request shape and the use case's own declared rule."""
+@pytest.mark.spec("HP-01-036", "HP-01-041")
+def test_a_conditional_site_with_no_case_judges_the_outside_case_side() -> (
+    None
+):
+    """InvalidateReport with no case declares the no-case path alone, and its
+    guard is the rule's empty ``outside_case`` side, which admits no
+    sender."""
     report_event = MagicMock(name="request")
     report_event.report_id = "https://example.org/reports/no-case"
     report_event.actor_id = "https://example.org/actors/sender"
-    status_event = MagicMock(name="request")
-    status_event.participant_id = "https://example.org/participants/unknown"
-    status_event.actor_id = "https://example.org/actors/sender"
-    status_event.status_id = "https://example.org/statuses/no-case"
-    return {
-        "invalidate-report": create_invalidate_report_received_tree(
-            report_event,
-            case_id=None,
-            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
-        ),
-        "add-participant-status": add_participant_status_tree(
-            request=status_event,
-            case_id=None,
-            sender_rule=(
-                AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
-            ),
-            target_actor_id=None,
-        ),
-    }
-
-
-@pytest.mark.spec("HP-01-036")
-@pytest.mark.parametrize(
-    "label", ["invalidate-report", "add-participant-status"]
-)
-def test_a_conditional_site_with_no_case_judges_the_outside_case_side(
-    label: str,
-) -> None:
-    """With no case the tree declares the no-case path alone, and its guard
-    is the rule's empty ``outside_case`` side, which admits no sender."""
-    tree = _no_case_trees()[label]
+    tree = create_invalidate_report_received_tree(
+        report_event,
+        case_id=None,
+        sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+    )
     assert isinstance(tree, ReceivedActivityTree)
     stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
     guard = next(n for n in tree.door_guards if is_composed_sender_guard(n))
 
     assert stage.declared == frozenset({NC})
     assert isinstance(guard, NoSenderAdmittedNode)
+
+
+@pytest.mark.spec("HP-08-014", "HP-01-038")
+def test_an_add_participant_status_with_no_case_keeps_its_one_declaration() -> (
+    None
+):
+    """An Add(ParticipantStatus) whose target and activity name no case still
+    builds with the manager path alone: the stage reads the no-case path
+    and refuses it, so no conditional declaration is needed (HP-01-038)."""
+    status_event = MagicMock(name="request")
+    status_event.participant_id = "https://example.org/participants/unknown"
+    status_event.actor_id = "https://example.org/actors/sender"
+    status_event.status_id = "https://example.org/statuses/no-case"
+    tree = add_participant_status_tree(
+        request=status_event,
+        case_id=None,
+        sender_rule=(
+            AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+        ),
+        target_actor_id=None,
+    )
+    stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
+    assert stage.declared == frozenset({CM})
 
 
 CASE_ID = "https://example.org/cases/declared-paths"
