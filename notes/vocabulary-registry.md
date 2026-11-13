@@ -195,7 +195,7 @@ A received `type` may be an AS2 list. Read it only through `resolve_wire_type()`
 `isinstance(type_, str)` and a bare `find_in_vocabulary()`: the resolver narrows
 a list to its most specific known class, ignores unknown terms, and raises
 `AmbiguousWireTypeError` (a `KeyError`) on two unrelated known types
-(VM-03-006). Validate a dict whose `type` may be a list through
+(VM-03-006, VM-03-007). Validate a dict whose `type` may be a list through
 `narrow_type_list()` first, because a core class's `type_` holds one string. An
 extension class that refines an AS2 core class declares
 `_as2_core_supertype = <AS2 class>` with `_vocab_ns = VocabNamespace.VULTRON`;

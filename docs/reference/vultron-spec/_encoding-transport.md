@@ -32,7 +32,7 @@ A receiver reads a `type` list, in any order, as the most specific type it knows
 It refuses a list that names two known types when neither is a subtype of the other, because it cannot tell which one the sender meant.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-03-005", "VM-03-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-03-005", "VM-03-006", "VM-03-007"))
 ```
 
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.

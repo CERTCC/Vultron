@@ -520,8 +520,9 @@ core type MUST carry the core type too (the spec's example is `["Resign","Leave"
 activity inline>)` with `inReplyTo` and `summary` (ADR-0141). A refusal of an
 `Invite` or `Offer` has the decline's shape and is read by the decline use case;
 `Reject(Leave(Case))` falls into `REFUSAL_NOTICE` only because no decline pattern
-matches it. The list mechanism exists (#6433, VM-03-005/006): `resolve_wire_type`
-in `vultron/wire/as2/vocab/base/registry.py` resolves a received list, and a wire
+matches it. The list mechanism exists (#6433, VM-03-005 to VM-03-007):
+`resolve_wire_type` in `vultron/wire/as2/vocab/base/registry.py` resolves a
+received list, and a wire
 class declares its core type with `_as2_core_supertype = as_Reject` plus
 `_vocab_ns = VocabNamespace.VULTRON`. Reason: `Refuse` (#6434) needs only that
 declaration.

@@ -294,6 +294,7 @@ class TestInboundTypeList:
     def test_a_non_string_term_is_ignored(self):
         assert resolve_wire_type([7, None, "Reject"]) is as_Reject
 
+    @pytest.mark.spec("VM-03-007")
     def test_two_unrelated_known_types_are_refused(self):
         with pytest.raises(AmbiguousWireTypeError):
             resolve_wire_type(["Reject", "Accept"])
@@ -316,6 +317,7 @@ class TestInboundTypeList:
         assert type(parsed.object_) is as_Object
         assert parsed.object_.type_ == "Foo"
 
+    @pytest.mark.spec("VM-03-007")
     def test_two_unrelated_known_types_are_refused_inline(self):
         body = _activity_body(
             "Create",

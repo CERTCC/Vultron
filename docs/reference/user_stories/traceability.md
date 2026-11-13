@@ -1350,7 +1350,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 |---|---|
 | CBT — Case Bootstrap Trust | [CBT-05-008](../vultron-spec/requirements/ledger-replication.md#cbt-05-008) |
 | MV — Message Validation | [MV-03-001](../vultron-spec/requirements/messages.md#mv-03-001), [MV-03-002](../vultron-spec/requirements/messages.md#mv-03-002), [MV-04-001](../vultron-spec/requirements/messages.md#mv-04-001), [MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002) |
-| VM — Vocabulary Model | [VM-03-006](../vultron-spec/requirements/messages.md#vm-03-006), [VM-09-001](../vultron-spec/requirements/messages.md#vm-09-001) |
+| VM — Vocabulary Model | [VM-03-006](../vultron-spec/requirements/messages.md#vm-03-006), [VM-03-007](../vultron-spec/requirements/messages.md#vm-03-007), [VM-09-001](../vultron-spec/requirements/messages.md#vm-09-001) |
 
 ## [story_2026_014](story_2026_014.md)
 
