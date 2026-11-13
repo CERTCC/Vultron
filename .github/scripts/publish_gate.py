@@ -7,15 +7,16 @@ workflow only wires jobs together. Every run starts from ``main``, so the
 workflow and this script are always ``main``'s reviewed copies:
 
 - ``gate`` classifies the run (scheduled, manual, manual with the CI gate
-  skipped, rollback), picks the commit to publish, applies the skip rule and
-  the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
+  skipped, rollback, release), picks the commit to publish, applies the skip
+  rule and the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
   ``tag-message`` to ``$GITHUB_OUTPUT`` and its reason to
   ``$GITHUB_STEP_SUMMARY``. A run that publishes also decides the name of its
   ``publish-*`` tag and writes it, its date and the commit's newest ``v*``
   release tag as ``publish-tag``, ``publish-date`` and ``release-tag``, so the
   build can print them in every page's footer (DOCBW-06-031). A skip is a
   green run, never a failure; a run it cannot serve (an unknown rollback
-  target, a manual run off ``main``) fails.
+  target, a manual run off ``main``, a ``release`` input that the dispatcher
+  did not set or that names no published release) fails.
 - ``tag`` creates the annotated ``publish-*`` tag the gate named on the
   deployed commit and pushes it. It never renumbers: a name taken in between
   fails the job, since the deployed footer names the gate's tag. It only ever
@@ -34,6 +35,7 @@ the staleness alarm share.
 Usage:
   publish_gate.py gate --repo OWNER/NAME --sha SHA --event EVENT --ref REF
       --actor LOGIN --run-id ID [--skip-ci-gate true|false] [--rollback-to TAG]
+      [--release TAG]
   publish_gate.py tag --sha SHA --name TAG --message TEXT --run-url URL
 """
 
@@ -59,6 +61,7 @@ from gh_cli import (  # see gh_cli
     run,
     write_github_file,
 )
+from github_releases import ReleaseState, release_state
 from release_tags import (
     BOT_GIT_IDENTITY,
     BOT_NAME,
@@ -71,6 +74,7 @@ from release_tags import (
     publish_tags_on,
     read_tag_message,
     release_tags_on,
+    release_version,
     split_publish_tags,
     tag_commit,
     tag_object,
@@ -106,6 +110,9 @@ class Trigger(StrEnum):
     MANUAL = "manual"
     MANUAL_UNGATED = "manual-ungated"
     ROLLBACK = "rollback"
+    # Dispatched by publish_after_release.yml once a release is published
+    # (DOCBW-06-032).
+    RELEASE = "release"
 
 
 class UnsupportedRunError(ValueError):
@@ -129,7 +136,8 @@ class RunContext:
     """What one run of the publish workflow was asked to do.
 
     ``sha`` is the commit to publish: the tip of ``main`` the run started on,
-    or a rollback's target.
+    or a rollback's target. ``source_tag`` is a rollback's target tag, or the
+    release a release run publishes after.
     """
 
     trigger: Trigger
@@ -151,14 +159,27 @@ class Decision:
 
 
 def classify_trigger(
-    event: str, ref: str, skip_ci_gate: bool, rollback_to: str = ""
+    event: str,
+    ref: str,
+    skip_ci_gate: bool,
+    rollback_to: str = "",
+    *,
+    release: str = "",
+    actor: str = "",
 ) -> Trigger:
-    """What kind of run this is, from its event, ref and inputs.
+    """What kind of run this is, from its event, ref, inputs and actor.
 
     A scheduled run publishes ``main``. A manual run must start from ``main``,
     so the workflow that runs is ``main``'s reviewed copy, never one stored at
     a tag (ADR-0171); it rolls back when it names a ``rollback-to`` tag, and
     publishes ``main`` otherwise. Anything else is refused.
+
+    A ``release`` input marks the publish that ``publish_after_release.yml``
+    dispatches once a release is published. It only labels the run, but a
+    false label is a false record in the tag message, so only that workflow's
+    token (``github-actions[bot]``) may set it, never with another input
+    (DOCBW-06-034). Whether the release is published is checked separately,
+    by ``require_published_release``.
     """
     if event == "schedule":
         return Trigger.SCHEDULED
@@ -169,6 +190,8 @@ def classify_trigger(
             f"a manual run starts from main, not {ref!r}; to roll back, "
             "start from main and name the tag in rollback-to"
         )
+    if release:
+        return _release_trigger(release, actor, skip_ci_gate, rollback_to)
     if rollback_to:
         if not _ROLLBACK_TAG_RE.match(rollback_to):
             raise UnsupportedRunError(
@@ -176,6 +199,45 @@ def classify_trigger(
             )
         return Trigger.ROLLBACK
     return Trigger.MANUAL_UNGATED if skip_ci_gate else Trigger.MANUAL
+
+
+def _release_trigger(
+    release: str, actor: str, skip_ci_gate: bool, rollback_to: str
+) -> Trigger:
+    if actor != BOT_NAME:
+        raise UnsupportedRunError(
+            f"only {BOT_NAME}, for publish_after_release.yml, sets the release "
+            f"input, not @{actor}; start a manual publish without it"
+        )
+    if rollback_to or skip_ci_gate:
+        raise UnsupportedRunError(
+            "a release run publishes main's tip through the CI gate, so it "
+            "takes neither rollback-to nor skip-ci-gate"
+        )
+    if release_version(release) is None:
+        raise UnsupportedRunError(f"release {release!r} is not a v* tag")
+    return Trigger.RELEASE
+
+
+def require_published_release(
+    release: str, state: Callable[[str], ReleaseState | None]
+) -> None:
+    """Refuse a release run whose *release* is not a published GitHub Release.
+
+    The gate's token can read only published releases, so a draft arrives
+    as ``None``; a token that can push sees ``is_draft`` (DOCBW-06-034).
+    """
+    found = state(release)
+    if found is None:
+        raise UnsupportedRunError(
+            f"{release} names no published release, so this is no publish "
+            "after a release"
+        )
+    if found.is_draft:
+        raise UnsupportedRunError(
+            f"the release {release} is still a draft, so this is no publish "
+            "after a release"
+        )
 
 
 def resolve_rollback(
@@ -295,6 +357,10 @@ def tag_message(ctx: RunContext, run_url: str) -> str:
             f"manual publish with the CI gate skipped, by @{ctx.actor}."
         ),
         Trigger.ROLLBACK: f"rollback to {ctx.source_tag}, by @{ctx.actor}.",
+        # Only the bot starts a release run (DOCBW-06-034).
+        Trigger.RELEASE: (
+            f"publish after release {ctx.source_tag}, by {BOT_NAME}."
+        ),
     }[ctx.trigger]
     return f"{first}\n\nCommit: {ctx.sha}\n{_run_line(run_url)}\n"
 
@@ -334,8 +400,11 @@ def decide(
     """Apply the skip rule and the CI gate to one run (ADR-0171, DOCBW-06).
 
     A rollback skips both. Only a scheduled run applies the skip rule; a
-    manual run is a deliberate request to publish. The CI gate runs for
-    scheduled and manual runs unless the run asked to skip it. Issues are read
+    manual run is a deliberate request to publish, and a release run must
+    publish even when the morning's publish already took ``main``'s tip,
+    because only now is the release's frozen draft served (DOCBW-06-035).
+    The CI gate runs for scheduled, manual and release runs unless a manual
+    run asked to skip it. Issues are read
     before and after the wait, since a run that finishes during the wait may
     file one.
     """
@@ -578,8 +647,18 @@ def _run_url(repo: str, run_id: int) -> str:
 def cmd_gate(args: argparse.Namespace) -> int:
     try:
         trigger = classify_trigger(
-            args.event, args.ref, args.skip_ci_gate == "true", args.rollback_to
+            args.event,
+            args.ref,
+            args.skip_ci_gate == "true",
+            args.rollback_to,
+            release=args.release,
+            actor=args.actor,
         )
+        if trigger is Trigger.RELEASE:
+            require_published_release(
+                args.release,
+                lambda name: release_state(args.repo, name, retry=True),
+            )
         commit = (
             resolve_rollback(
                 args.rollback_to,
@@ -602,7 +681,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
         trigger=trigger,
         sha=commit,
         actor=args.actor,
-        source_tag=args.rollback_to if trigger is Trigger.ROLLBACK else "",
+        source_tag={
+            Trigger.ROLLBACK: args.rollback_to,
+            Trigger.RELEASE: args.release,
+        }.get(trigger, ""),
     )
     decision = decide(
         ctx,
@@ -668,6 +750,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate.add_argument("--run-id", required=True, type=int)
     gate.add_argument("--skip-ci-gate", default="false")
     gate.add_argument("--rollback-to", default="")
+    gate.add_argument("--release", default="")
     gate.set_defaults(func=cmd_gate)
     tag = sub.add_parser("tag")
     tag.add_argument("--sha", required=True)

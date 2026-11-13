@@ -51,12 +51,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from frozen_draft import DRAFT_VERSION, FrozenDraftError, unpack_matching
 from gh_cli import write_github_file  # see gh_cli
+from github_releases import release_state
 from release import (
     DraftEntry,
     Register,
     download_assets,
     frozen_pair,
-    release_state,
 )
 
 #: Where the frozen drafts are served, below the site root. The Revision Log

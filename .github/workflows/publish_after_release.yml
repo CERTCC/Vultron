@@ -1,0 +1,65 @@
+# Publishes the site once a GitHub Release is published (DOCBW-06-032), so a
+# released draft's frozen pages replace their placeholder at spec/draft-N/ at
+# once, not at the next weekday publish (#6393). It only dispatches the
+# publish workflow from main: a release event runs from the release's tag,
+# whose copy of the publish workflow is not main's reviewed one (ADR-0171)
+# and which the github-pages environment does not let deploy. A dispatch
+# made with GITHUB_TOKEN still starts a run, unlike the token's other events.
+# The dispatched run is a gated publish of main's tip that names the release
+# in its `release` input; the gate checks that this workflow's bot set it and
+# that the release is published (DOCBW-06-033 to DOCBW-06-035).
+name: Publish site after a release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Start a publish of main
+    runs-on: ubuntu-latest
+    # A checkout and one API call. Cap at 10 min so a hang fails fast instead
+    # of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+    steps:
+      # main's copy, not the tag's: only the notify-failure action is loaded
+      # from it, and no code from the release runs.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Dispatch the publish workflow from main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE: ${{ github.event.release.tag_name }}
+        run: |
+          gh workflow run deploy_site.yml --repo "$REPO" --ref main \
+            --field release="$RELEASE"
+          echo "Dispatched a publish of main after release $RELEASE." \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      # A failed dispatch leaves the released draft on its placeholder until
+      # the next weekday publish, so it is reported (DOCBW-06-032).
+      - name: Notify CI failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-publish-after-release
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-publish-after-release
+          token: ${{ secrets.GITHUB_TOKEN }}
