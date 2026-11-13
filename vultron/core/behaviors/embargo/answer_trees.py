@@ -282,11 +282,11 @@ def reject_invite_to_embargo_tree(
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode         # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
+        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
         ├─ EmbargoAnswerApplies (manager path)  # the row can be written
-        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
         └─ RejectInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
            └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
