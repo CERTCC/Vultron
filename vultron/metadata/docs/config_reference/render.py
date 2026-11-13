@@ -64,10 +64,16 @@ def render_settings_tables(settings: list[ConfigSetting] | None = None) -> str:
 
 
 def default_config_yaml(settings: list[ConfigSetting] | None = None) -> str:
-    """Return a ``config.yaml`` that sets every setting to its default."""
+    """Return a ``config.yaml`` that sets every setting to its default.
+
+    A secret setting is left out: it is read only from the environment, and
+    a file that names it is refused at load (VSD-01-004).
+    """
     settings = iter_settings() if settings is None else settings
     document: dict[str, Any] = {}
     for setting in settings:
+        if setting.environment_only:
+            continue
         node = document
         for key in setting.path[:-1]:
             node = node.setdefault(key, {})

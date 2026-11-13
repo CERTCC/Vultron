@@ -42,6 +42,12 @@ Environment variables
     Override :attr:`LedgerConfig.future_tolerance_seconds` (CLP-14-009).
 ``VULTRON_LEDGER__STALENESS_WINDOW_DAYS``
     Override :attr:`LedgerConfig.staleness_window_days` (CLP-14-009).
+``VULTRON_VINCE__BASE_URL``
+    Override :attr:`VinceConfig.base_url`.
+``VULTRON_VINCE__API_TOKEN``
+    The VINCE API credential, :attr:`VinceConfig.api_token`.  A secret, read
+    only from the environment: a config file that names it is refused
+    (VSD-01-004, VSD-01-005).
 """
 
 from vultron.config.actor import ActorConfig
@@ -58,6 +64,7 @@ from vultron.config.app import (
     reload_config,
 )
 from vultron.config.ledger import LedgerConfig
+from vultron.config.vince import VinceConfig
 
 __all__ = [
     "ActorConfig",
@@ -66,6 +73,7 @@ __all__ = [
     "LedgerConfig",
     "RunMode",
     "ServerConfig",
+    "VinceConfig",
     "YamlConfigSource",
     "clear_config_cache",
     "config_override",
