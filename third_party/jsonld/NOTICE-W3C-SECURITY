@@ -1,0 +1,11 @@
+W3C Security Vocabulary Contexts
+Sources:
+  - https://w3id.org/security/data-integrity/v2
+  - https://w3id.org/security/multikey/v1
+Publisher: World Wide Web Consortium (W3C) / W3C Credentials Community Group
+
+These contexts are maintained by the W3C Credentials Community Group and are
+available under the W3C Software and Document License:
+https://www.w3.org/copyright/software-license-2023/
+
+The security vocabulary is defined at: https://w3id.org/security

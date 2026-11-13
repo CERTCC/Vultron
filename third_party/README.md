@@ -34,3 +34,26 @@ The CSAF 2.1 draft's JSON schemas and every schema they reference (CSAF-05-002).
   (CSAF-05-003). Nothing reads these files at runtime.
 - The scheduled `CSAF Draft Watch` workflow opens one issue when the draft's
   head changes what the models depend on (CSAF-05-005). It never moves the pin.
+
+## `jsonld/`
+
+The JSON-LD context documents that Vultron wire messages and actor profiles cite
+(VM-10-011).
+
+- `pin.json` is the pin record: each context's URL mapped to its filename, and
+  each file's SHA-256 digest. `vultron.metadata.wire_context.pin.load_pin()`
+  reads it.
+- The four context files sit directly under `jsonld/`, with one NOTICE file per
+  source:
+
+  | Source | Files | Notice file |
+  |---|---|---|
+  | W3C ActivityStreams 2.0 | `activitystreams.jsonld` | `NOTICE-W3C` (W3C Software and Document License) |
+  | W3C Security Vocabulary | `data-integrity-v2.jsonld`, `multikey-v1.jsonld` | `NOTICE-W3C-SECURITY` (W3C Software and Document License) |
+  | W3C Controlled Identifiers | `cid-v1.jsonld` | `NOTICE-W3C-CID` (W3C Software and Document License) |
+
+- `vultron/metadata/wire_context/pin.py` provides the loader that extracts terms
+  from these contexts, both top-level and type-scoped. Nothing reads these files
+  at runtime; they supply the term list for the VM-10-007 check.
+- No watch job: the versioned contexts never change at their URLs, and AS2
+  changes rarely and only by addition.
