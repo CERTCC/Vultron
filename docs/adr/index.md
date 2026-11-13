@@ -204,7 +204,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
 - [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
-- [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md) — partially superseded by 0176-an-act-reads-the-clock-once-at-its-edge.md
+- [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md) — partially superseded by 0176-an-act-reads-the-clock-once-at-its-edge.md, 0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)* — partially supersedes 0069-vultron-namespace-uri.md
@@ -258,7 +258,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0155 A Participant States Its Ledger Position, and the Case Manager Answers a Lag](0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md) *(provisional)*
 - [ADR-0157 A Case's Creation Is One `Create`, Delivered and Ledgered](0157-a-cases-creation-is-one-create-delivered-and-ledgered.md) *(provisional)*
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md) *(provisional)*
-- [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
+- [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)* — partially superseded by 0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
 - [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md) *(provisional)*
@@ -290,6 +290,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
 - [ADR-0194 Every Wire Field Has a Typed JSON-LD Term, With One Meaning per Name](0194-every-wire-field-has-a-typed-json-ld-term-with-one-meaning-per-name.md) *(provisional)*
 - [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md) *(revision 2)*
+- [ADR-0198 An Object Slot Holds a Whole Object, a Typed Reference or a URI, and a Received Whole Object Carries Its Time](0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md) *(provisional)* — partially supersedes 0103-object-time-is-carried-never-minted.md, 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
 
 ## Proposed ADRs
 

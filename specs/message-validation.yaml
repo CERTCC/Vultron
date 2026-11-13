@@ -506,17 +506,16 @@ groups:
     kind: protocol
     statement: >-
       This rule covers an object type other than a case, when the sender does not inline
-      the full object. The sender MUST reference the object by URI or by an
-      ActivityStreams `Link`, not by a partial inline object. The one exception is an
-      actor the sender knows only by URI, which travels as an actor reference
-      (AKM-05-017).
+      the full object. The sender MUST reference the object by URI, by an
+      ActivityStreams `Link` or by a typed reference (MV-10-011), not by a partial
+      inline object.
     rationale: >-
       Only a case has a stub form (MV-10-008). A partial inline object of another type
       claims to be the object while it lacks fields, so the receiver cannot tell what
-      the sender left out. An actor reference is the one partial inline object of
-      another type that is allowed. It claims only the `id` and `type` the sender
+      the sender left out. A typed reference claims only the `id` and `type` the sender
       knows, and its `type` lets a receiver route the activity. A receiver that needs
-      the actor's profile fetches it from the actor (AKM-05-007).
+      the object fetches it from its holder (AKM-05-007). The actor reference
+      (AKM-05-017) is the typed reference of an actor (ADR-0198).
     verification: >-
       `test_parse_activity_refuses_malformed_nested_object_of_known_type` in
       `test/wire/as2/test_parser.py` confirms that an inline object of another
@@ -534,6 +533,62 @@ groups:
     adr:
     - ADR-0090
     - ADR-0159
+    - ADR-0198
+    stories:
+    - story_2022_039
+  - id: MV-10-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST read an inline object with exactly an `id`, a `type` and an
+      optional `preview` as a typed reference of that type. It
+      routes the activity by the reference's `type`. It never reads the reference as
+      the object: a handler uses the object the receiver holds, or fetches it
+      (AKM-05-007).
+    rationale: >-
+      A bare URI carries no type, so a receiver must fetch the object before it can
+      classify the activity. A typed reference lets it classify first and fetch only
+      when a handler needs the content. The shape alone tells a reference from a
+      whole object: any other key makes the object a whole object, which is refused
+      when it fails its class (MV-04-003), so a broken object is never read as a
+      reference (ADR-0198).
+    verification: >-
+      `test_a_typed_reference_is_not_read_as_the_object` in
+      `test/wire/as2/test_typed_references.py` parses activities whose object is a
+      typed reference of several types and asserts the parsed object is not a whole
+      object of that class. It is a strict xfail until #6455 lands.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-10-009
+    see_also:
+    - spec_id: AKM-05-007
+      reason: the fetch a handler relies on when the receiver lacks the object
+    adr:
+    - ADR-0198
+    stories:
+    - story_2022_039
+  - id: MV-10-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a typed reference (MV-10-011) that carries a `preview`,
+      naming its position, unless the protocol defines a preview for the reference's
+      type.
+    rationale: >-
+      A preview is a limited view of an object for a recipient that may not hold it
+      (ADR-0193), and what it may carry depends on the type. A preview of a type with
+      no defined preview would be read by no rule, so it is refused rather than
+      carried unchecked (ADR-0198).
+    verification: >-
+      `test_a_typed_reference_with_an_undefined_preview_is_refused` in
+      `test/wire/as2/test_typed_references.py` asserts `parse_activity` refuses a
+      typed reference carrying a `preview` for a type with no defined preview. It is
+      a strict xfail until #6455 lands.
+    relationships:
+    - rel_type: extends
+      spec_id: MV-10-011
+    adr:
+    - ADR-0198
     stories:
     - story_2022_039
   - id: MV-10-002
