@@ -82,10 +82,6 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before any read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         report_id = request.report_id
         case_id = request.case_id
         if report_id is None or case_id is None:
@@ -94,6 +90,10 @@ class AddReportToCaseReceivedUseCase:
                 "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
                 "missing its report id or case id"
             )
+        # Resolved before the read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         if self._dl.read_case(case_id) is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return HandlerResult.refused(f"unknown case '{case_id}'")
