@@ -81,7 +81,7 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
    sides of the `CaseReader` port at once, so the two meet at the case ledger:
    - The dashboard (#6366) and its port (#6358), under Epic #6440, built first on a
      Vultron case-ledger file (#6441), which leaves nothing untranslated. It shows
-     the insight levels (#6368, #6369; Epic #6367).
+     the scored standing and the best moves (#6368, #6369; Epic #6367).
    - The VINCE case reader, under Epic #5954: the translation experiment first
      (#6365), then the mapping (#5964) and the reader (#5963). What VINCE cannot
      map shows as untranslated facts, not as a dashboard change.
