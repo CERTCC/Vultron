@@ -40,6 +40,7 @@ from html import escape
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+from mkdocs.plugins import event_priority
 from packaging.version import InvalidVersion, Version
 
 from vultron import __version__
@@ -239,12 +240,21 @@ def on_config(config: MkDocsConfig) -> MkDocsConfig:
     return config
 
 
+#: The ``on_page_content`` priority: above the default 0, so the date is in
+#: the page's HTML before any plugin copies it. MkDocs runs ``hooks:`` after
+#: ``plugins:`` at equal priority, and print-site saves each page's HTML for
+#: the print page in its own ``on_page_content``.
+PAGE_CONTENT_PRIORITY = 50
+
+
+@event_priority(PAGE_CONTENT_PRIORITY)
 def on_page_content(
     html: str, page: Page, config: MkDocsConfig, files: Files
 ) -> str:
     """MkDocs hook: write the publish's date into each date slot of *page*.
 
-    The slot is raw HTML in the Markdown, so it reaches here as written;
-    the search index, built later from the page's content, reads the date.
+    The slot is raw HTML in the Markdown, so it reaches here as written. It
+    runs before every plugin's ``on_page_content`` (:data:`PAGE_CONTENT_PRIORITY`),
+    so the print page and the search index read the date.
     """
     return fill_publish_date(html, str(config.extra[PUBLISH_DATE_KEY]))

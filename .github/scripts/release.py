@@ -260,41 +260,39 @@ class Register:
         return next((e for e in self.released if e.release == tag), None)
 
 
-def publish_day(tag: Tag) -> str:
-    """The ``YYYY-MM-DD`` date in the name of the publish tag *tag*."""
-    match = PUBLISH_TAG_RE.match(tag.name)
-    if match is None:
-        raise PromotionRefusedError(f"{tag.name!r} names no publish")
-    return match.group(1)
-
-
 def freeze_publish(
     newest: Tag,
-    release: str,
     tags: Iterable[Tag],
     register_at: Callable[[str], Register | None],
 ) -> Tag:
     """The publish an empty input promotes: *newest*, or the one that froze a draft.
 
-    When the register at *newest* names *release* for a draft whose date is
-    not *newest*'s publish date, the run promotes the newest publish of that
+    When the register at *newest* holds no open draft and its newest released
+    draft is dated another day, the run promotes the newest publish of that
     date whose register holds the same entry: the publish that froze the
     draft (DOCBW-08-042). A promote run later than that publish thus still
-    carries the draft with its date. With no such publish, *newest* is kept,
-    and :func:`carried_draft` refuses it with the date it needs.
+    carries the draft with its date, and a run after one that tagged that
+    publish's commit and then failed resumes that release (DOCBW-07-012).
+    The choice is made before the release is named, so it does not depend on
+    which tags exist. With no such publish, *newest* is kept, and
+    :func:`carried_draft` refuses it if the draft is this run's.
     """
     register = register_at(newest.commit)
-    carried = None if register is None else register.released_by(release)
-    if carried is None or carried.date == publish_day(newest):
+    if (
+        register is None
+        or register.current is not None
+        or not register.released
+    ):
+        return newest
+    entry = register.released[-1]
+    if entry.date == newest.publish_day:
         return newest
     same_day = [
-        tag
-        for tag in tags
-        if tag.is_publish and publish_day(tag) == carried.date
+        tag for tag in tags if tag.is_publish and tag.publish_day == entry.date
     ]
     while (tag := newest_publish_tag(same_day)) is not None:
         theirs = register_at(tag.commit)
-        if theirs is not None and theirs.entry(carried.version) == carried:
+        if theirs is not None and theirs.entry(entry.version) == entry:
             return tag
         same_day.remove(tag)
     return newest
@@ -344,18 +342,17 @@ def carried_draft(
             f"{promotion.release}, but {register.current.version} is still "
             "open: mark it released or remove it before promoting"
         )
-    day = publish_day(promotion.source)
+    day = promotion.source.publish_day
     if carried is not None and carried.date != day:
         faults.append(
             f"{carried.version} names this run's release, "
             f"{promotion.release}, with the date {carried.date}, but "
             f"{promotion.source.name} was published on {day}, and a released "
-            "draft's date is the date of the publish that freezes it. No "
-            "publish of that date carries the entry, or the input named "
-            "another publish: leave the input empty to promote the publish "
-            f"of {carried.date}, or run `uv run drafts-register release` again "
-            "to date the entry anew, merge that, and promote after its "
-            "publish"
+            "draft's date is the date of the publish that freezes it. If a "
+            f"publish of {carried.date} carries the entry, promote that one "
+            "(an empty input does); if none does, that publish never ran: "
+            "run `uv run drafts-register release` again to date the entry "
+            "anew, merge that, and promote after its publish"
         )
     if faults:
         raise PromotionRefusedError(
@@ -668,19 +665,17 @@ def _decide(args: argparse.Namespace) -> tuple[Promotion, str | None]:
         )
     tags = list(publish_tags())
     source = choose_publish_tag(args.publish_tag, tags)
+    if not args.publish_tag:
+        source = freeze_publish(source, tags, register_at)
     releases = release_tags()
     promotion = plan_promotion(source, releases, _today())
-    if not args.publish_tag:
-        frozen = freeze_publish(source, promotion.release, tags, register_at)
-        if frozen != source:
-            promotion = plan_promotion(frozen, releases, _today())
     draft = carried_draft(promotion, (t.name for t in releases), register_at)
     return promotion, draft
 
 
-def _refused(error: Exception) -> int:
+def _refused(error: Exception, title: str = "Promotion refused") -> int:
     print(f"::error::{error}", file=sys.stderr)
-    _report("Promotion refused", str(error))
+    _report(title, str(error))
     return 1
 
 
@@ -694,13 +689,11 @@ def cmd_plan(args: argparse.Namespace) -> int:
         promotion, draft = _decide(args)
     except ValueError as error:
         return _refused(error)
-    day = PUBLISH_TAG_RE.match(promotion.source.name)
-    assert day is not None
     write_github_file(
         "GITHUB_OUTPUT",
         f"commit={promotion.source.commit}\n"
         f"publish-tag={promotion.source.name}\n"
-        f"publish-date={day.group(1)}\n"
+        f"publish-date={promotion.source.publish_day}\n"
         f"release={promotion.release}\n"
         f"draft={draft or ''}\n",
     )
@@ -912,13 +905,24 @@ def cmd_next_freeze(args: argparse.Namespace) -> int:
     the day it runs, so a promote in a later month refuses the entry
     (DOCBW-08-011).
     """
-    now = datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
     try:
-        day = next_scheduled_publish(now)
+        now = (
+            datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
+        )
+        start = next_scheduled_publish(now)
     except ValueError as error:
-        return _refused(error)
+        return _refused(error, "No freeze predicted")
+    day = start.date()
     release = next_release_name(day, (t.name for t in release_tags()))
-    print(json.dumps({"release": release, "date": day.isoformat()}))
+    print(
+        json.dumps(
+            {
+                "release": release,
+                "date": day.isoformat(),
+                "publish_starts": start.isoformat(),
+            }
+        )
+    )
     return 0
 
 

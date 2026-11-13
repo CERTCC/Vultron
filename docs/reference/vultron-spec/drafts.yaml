@@ -20,9 +20,9 @@
 # To freeze the current draft, run `uv run drafts-register release`. It marks
 # the entry released with the next release tag and the date of the next
 # scheduled publish, and regenerates the fragments (DOCBW-08-043). Merge that
-# before the publish, then run the promote with an empty input on or after
-# that day: it promotes the publish of that date (DOCBW-08-041/042). The tag
-# then carries the register that names it. A released entry never changes
+# before the time it prints, then run the promote with an empty input on or
+# after that day: it promotes the publish of that date (DOCBW-08-041/042). The
+# tag then carries the register that names it. A released entry never changes
 # afterwards: CI compares it with the entry at its release tag (DOCBW-08-003).
 # Open the next draft as a new unreleased entry.
 #

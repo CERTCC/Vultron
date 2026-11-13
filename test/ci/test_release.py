@@ -360,14 +360,30 @@ def test_next_freeze_names_the_next_publish_and_its_release(
     assert json.loads(capsys.readouterr().out) == {
         "release": release,
         "date": day,
+        "publish_starts": f"{day}T06:07:00+00:00",
     }
 
 
-def test_next_freeze_refuses_a_time_with_no_zone(
-    repo: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("now", "words"),
+    [("2026-11-13T15:00:00", "no time zone"), ("Friday", "Invalid isoformat")],
+    ids=["naive", "malformed"],
+)
+def test_next_freeze_refuses_a_bad_time(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    now: str,
+    words: str,
 ) -> None:
-    assert _rel.main(["next-freeze", "--now", "2026-11-13T15:00:00"]) == 1
-    assert "no time zone" in capsys.readouterr().err
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert _rel.main(["next-freeze", "--now", now]) == 1
+    assert words in capsys.readouterr().err
+    text = summary.read_text(encoding="utf-8")
+    assert "No freeze predicted" in text and "Promotion" not in text
 
 
 def _promote(publish_tag: str = "", ref: str = MAIN) -> int:

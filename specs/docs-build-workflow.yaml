@@ -1384,10 +1384,12 @@ groups:
         kind: project
         statement: >-
           A promote run with an empty input MUST promote the newest DOCBW-07-013
-          publish.
+          publish, unless DOCBW-08-042 names the publish that froze a draft.
         rationale: >-
           The newest publish names what the site shows now, which is what a
-          maintainer most often means to release.
+          maintainer most often means to release. A release that freezes a
+          draft is the exception: its draft keeps the date of the publish that
+          froze it, so that publish is promoted even after later ones.
         verification: >-
           `test_an_empty_input_promotes_the_newest_publish` in
           `test/ci/test_release.py`.
@@ -1951,24 +1953,27 @@ groups:
         kind: project
         statement: >-
           When the promote workflow's input is empty and the drafts register at
-          the newest publish's commit names the run's release for a draft
-          whose date is not that publish's date, the run MUST promote the
-          newest publish of the draft's date whose register holds the same
-          entry, when one exists.
+          the newest publish's commit holds no unreleased entry and its newest
+          released entry's date is not that publish's date, the run MUST
+          promote the newest publish of that date whose register holds the
+          same entry, when one exists. The run chooses that publish before it
+          names its release.
         rationale: >-
           A maintainer may run the promote days after the publish that froze
           the draft, once later publishes exist. Promoting the publish of the
           draft's date makes that run succeed without naming a tag, and its
           pages are the frozen text: the commits after it hold the same entry,
-          and every change to the text goes into the next draft.
+          and every change to the text goes into the next draft. Choosing it
+          before naming the release lets a run after one that tagged that
+          publish's commit and failed resume that release (DOCBW-07-012).
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` promote from an empty input
-          after a later publish, and with a same-day publish whose register
-          lacks the entry, and check that the release tag names the commit of
-          the publish that froze the draft.
+          after a later publish, with a same-day publish whose register lacks
+          the entry, after a failed run that left the release tag, and with a
+          draft open, and check which commit the release tag names.
         relationships:
-          - rel_type: extends
-            spec_id: DOCBW-07-001
+          - rel_type: refines
+            spec_id: DOCBW-07-012
           - rel_type: uses_definition
             spec_id: DOCBW-08-001
       - id: DOCBW-08-043

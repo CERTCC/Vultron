@@ -830,23 +830,23 @@ class ReleaseCommandError(ValueError):
 
 @dataclass(frozen=True)
 class Freeze:
-    """The release that will carry a draft, and the date of the publish that freezes it."""
+    """The release that will carry a draft, and the date of the publish that freezes it.
+
+    ``publish_starts`` is when that publish is scheduled to start, the time
+    the change must merge by; ``None`` when the date was given, not predicted.
+    """
 
     release: str
     day: date
+    publish_starts: datetime | None = None
 
 
 def predict_freeze(root: Path) -> Freeze:
     """The release and date ``release.py next-freeze`` predicts for *root*.
 
-    The tags are fetched first: the next release tag is numbered from every
-    ``v*`` tag, and a clone that lacks the newest would name a taken one.
-
     Raises:
-        GitError: When the tags cannot be fetched.
         ReleaseCommandError: When the script fails or prints no prediction.
     """
-    git_runner(root)(["fetch", "--quiet", "--tags", "origin"])
     script = root / RELEASE_SCRIPT
     proc = subprocess.run(  # nosec B603 - fixed argv, the repository's script
         [sys.executable, "-I", str(script), "next-freeze"],
@@ -861,7 +861,11 @@ def predict_freeze(root: Path) -> Freeze:
         )
     try:
         data = json.loads(proc.stdout)
-        return Freeze(str(data["release"]), date.fromisoformat(data["date"]))
+        return Freeze(
+            str(data["release"]),
+            date.fromisoformat(data["date"]),
+            datetime.fromisoformat(data["publish_starts"]),
+        )
     except (KeyError, TypeError, ValueError) as error:
         raise ReleaseCommandError(
             f"{RELEASE_SCRIPT} next-freeze printed no prediction: "
@@ -921,34 +925,55 @@ def register_entries_text(register: DraftsRegister) -> str:
 
 
 def release_open_draft(
-    root: Path, predict: Callable[[Path], Freeze] = predict_freeze
-) -> ReleasedDraft:
-    """Mark the open draft of *root*'s register released; return its entry.
+    root: Path,
+    given: Freeze | None = None,
+    predict: Callable[[Path], Freeze] = predict_freeze,
+) -> tuple[ReleasedDraft, Freeze]:
+    """Mark the open draft of *root*'s register released by *given*, or by *predict*.
+
+    Returns the released entry and the freeze it was marked with.
+
+    The tags are fetched first, a given freeze or not: the next release
+    tag is numbered from every ``v*`` tag, and whether a released entry may
+    be dated again depends on whether its tag exists, so a clone that lacks
+    the newest would name a taken tag or change a released entry
+    (DOCBW-08-003).
 
     The register keeps its comment header and has its ``drafts:`` list
     written again, and the status box and status tables are generated from
-    the result (DOCBW-08-004), so the change is one commit.
+    the result (DOCBW-08-004), so the change is one commit. Every text is
+    built and checked before anything is written, and the register is
+    written last: a failure part-way leaves the register as it was, so the
+    command can simply run again.
 
     Raises:
-        MetadataLoadError, MetadataLoadErrors: When the register is malformed.
-        ReleaseCommandError: When no draft can be marked released.
-        GitError: When git cannot read or fetch the tags.
+        MetadataLoadError, MetadataLoadErrors: When the register, or the one
+            the command would write, is malformed.
+        ReleaseCommandError: When no draft can be marked released, or the
+            register's ``drafts:`` list is not in the block form it writes.
+        GitError: When git cannot fetch or read the tags.
     """
     path = root / REGISTER_PATH
     shown = display_path(path, root)
     text = read_utf8(path, shown)
     register = parse_register(text, shown)
-    start = re.search(r"^drafts:", text, re.MULTILINE)
-    if start is None:  # parse_register admitted it, so it has the key
-        raise ReleaseCommandError(f"{shown} has no top-level drafts: line")
-    existing = set(release_tags(git_runner(root)))
-    updated, entry = mark_released(register, predict(root), existing)
+    start = re.search(r"^drafts:\s*$", text, re.MULTILINE)
+    if start is None:
+        raise ReleaseCommandError(
+            f"{shown} has no 'drafts:' line opening a block list, so the "
+            "command cannot tell its header from its entries"
+        )
+    git = git_runner(root)
+    git(["fetch", "--quiet", "--tags", "origin"])
+    existing = set(release_tags(git))
+    freeze = given or predict(root)
+    updated, entry = mark_released(register, freeze, existing)
     text = text[: start.start()] + register_entries_text(updated)
     parse_register(text, shown)  # the written file must load
-    write_generated(path, text)
     for relative, contents in desired_fragments(updated).items():
         write_generated(root / relative, contents)
-    return entry
+    write_generated(path, text)
+    return entry, freeze
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1034,19 +1059,26 @@ def _release(root: Path, tag: str | None, day: date | None) -> None:
     """Run ``drafts-register release`` and say what to do next."""
     if (tag is None) != (day is None):
         raise ReleaseCommandError("--release and --date go together")
-    if tag is None or day is None:
-        entry = release_open_draft(root)
-    else:
-        given = Freeze(tag, day)
-        entry = release_open_draft(root, lambda _root: given)
-    print(
-        f"Marked {entry.version} released in {entry.release}, dated "
-        f"{entry.date.isoformat()}, in {REGISTER_PATH} and its generated "
-        "fragments.\n"
-        f"Merge the change before the publish of {entry.date.isoformat()} "
-        "(06:07 UTC), then run the promote workflow with an empty input on "
-        "or after that day, in the same month. If that publish does not run, "
-        "run this command again."
+    given = None if tag is None or day is None else Freeze(tag, day)
+    entry, freeze = release_open_draft(root, given, predict_freeze)
+    print(_next_steps(entry, freeze.publish_starts))
+
+
+def _next_steps(entry: ReleasedDraft, publish_starts: datetime | None) -> str:
+    """What the maintainer does after ``drafts-register release``."""
+    day = entry.date.isoformat()
+    deadline = (
+        f"before {publish_starts.strftime('%Y-%m-%d %H:%M')} UTC, when the "
+        f"publish of {day} is scheduled to start"
+        if publish_starts is not None
+        else f"before the publish of {day}"
+    )
+    return (
+        f"Marked {entry.version} released in {entry.release}, dated {day}, "
+        f"in {REGISTER_PATH} and its generated fragments.\n"
+        f"Merge the change {deadline}. Then run the promote workflow with an "
+        "empty input on or after that day, in the same month. If that "
+        "publish does not run, run this command again."
     )
 
 

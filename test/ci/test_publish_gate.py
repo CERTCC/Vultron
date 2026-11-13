@@ -15,7 +15,7 @@ import os
 import re
 import subprocess
 from collections.abc import Callable, Iterator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -1260,7 +1260,10 @@ def test_publication_workflow_triggers() -> None:
     ],
 )
 def test_next_scheduled_publish(now: str, publish: date) -> None:
-    assert _gate.next_scheduled_publish(datetime.fromisoformat(now)) == publish
+    start = _gate.next_scheduled_publish(datetime.fromisoformat(now))
+    assert start == datetime(
+        publish.year, publish.month, publish.day, 6, 7, tzinfo=UTC
+    )
 
 
 def test_next_scheduled_publish_refuses_a_naive_time() -> None:

@@ -50,7 +50,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
@@ -113,14 +113,14 @@ BUILD_ACTIONS = (
 )
 
 
-def next_scheduled_publish(now: datetime) -> date:
-    """The UTC date of the first scheduled publish after *now*.
+def next_scheduled_publish(now: datetime) -> datetime:
+    """When, in UTC, the first scheduled publish after *now* starts.
 
     A weekday before 06:07 UTC is that day's publish; any later time, and a
     weekend, is the next weekday's. The draft release command predicts a
     released draft's date with it (DOCBW-08-043): the publish of the commit
     that marks the draft released is the next scheduled one after that
-    commit merges.
+    commit merges, so the merge must land before this time.
 
     Raises:
         ValueError: If *now* has no time zone, so it names no UTC instant.
@@ -128,19 +128,17 @@ def next_scheduled_publish(now: datetime) -> date:
     if now.tzinfo is None:
         raise ValueError(f"{now!r} has no time zone")
     utc = now.astimezone(UTC)
-    day = utc.date()
     start = utc.replace(
         hour=SCHEDULE_HOUR_UTC,
         minute=SCHEDULE_MINUTE_UTC,
         second=0,
         microsecond=0,
     )
-    if day.weekday() in SCHEDULE_WEEKDAYS and utc < start:
-        return day
-    day += timedelta(days=1)
-    while day.weekday() not in SCHEDULE_WEEKDAYS:
-        day += timedelta(days=1)
-    return day
+    if start <= utc:
+        start += timedelta(days=1)
+    while start.weekday() not in SCHEDULE_WEEKDAYS:
+        start += timedelta(days=1)
+    return start
 
 
 class Trigger(StrEnum):

@@ -16,7 +16,7 @@ import markdown  # type: ignore[import-untyped]  # Python-Markdown ships no stub
 import pytest
 import yaml
 
-from test.ci._scratch_git import git, isolate_git_config
+from test.ci._scratch_git import git, isolate_git_config, scratch_clone
 from test.ci._workflows import (
     BUILD_SITE_ACTION,
     WORKFLOWS_DIR,
@@ -765,73 +765,142 @@ _HEADER = "# The register's header comment.\n#\n# It is kept as written.\n"
 FREEZE = dr.Freeze("v2026.11.1", dr.date(2026, 11, 16))
 
 
+@pytest.fixture
+def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A clone of a bare ``origin``, so the command can fetch its tags."""
+    isolate_git_config(monkeypatch)
+    return scratch_clone(tmp_path)
+
+
 def _freeze_repo(repo: Path, text: str) -> None:
     _commit_register(repo, _HEADER + text)
 
 
+def _never_predicted(_root: Path) -> dr.Freeze:
+    raise AssertionError("predicted a freeze")
+
+
+def _tracked(repo: Path) -> dict[str, str]:
+    """The register and its fragments, as the clone holds them now."""
+    paths = [dr.REGISTER_PATH, dr.STATUS_BOX_PATH]
+    paths += [
+        str(p.relative_to(repo)) for p in (repo / dr.FRAGMENT_DIR).glob("*")
+    ]
+    return {
+        p: (repo / p).read_text(encoding="utf-8")
+        for p in paths
+        if (repo / p).exists()
+    }
+
+
 @pytest.mark.spec("DOCBW-08-043")
-def test_release_marks_the_open_draft_released_and_regenerates(repo):
-    _freeze_repo(repo, _register(_released(1, "v2026.11.0"), _open(2)))
-    git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
+def test_release_marks_the_open_draft_released_and_regenerates(clone):
+    _freeze_repo(clone, _register(_released(1, "v2026.11.0"), _open(2)))
+    git(clone, "tag", "-a", "v2026.11.0", "-m", "release")
     asked: list[Path] = []
 
     def predict(root: Path) -> dr.Freeze:
         asked.append(root)
         return FREEZE
 
-    entry = dr.release_open_draft(repo, predict)
-    assert asked == [repo]
+    entry, freeze = dr.release_open_draft(clone, predict=predict)
+    assert asked == [clone]
+    assert freeze == FREEZE
     assert (entry.version, entry.release, entry.date.isoformat()) == (
         "draft-2",
         "v2026.11.1",
         "2026-11-16",
     )
-    text = (repo / dr.REGISTER_PATH).read_text(encoding="utf-8")
+    text = (clone / dr.REGISTER_PATH).read_text(encoding="utf-8")
     assert text == _HEADER + _register(
         _released(1, "v2026.11.0"),
         _entry("draft-2", "released", "2026-11-16", "v2026.11.1"),
     )
-    register = dr.load_register(repo)
-    assert list(stale_paths(repo, dr.desired_fragments(register))) == []
+    register = dr.load_register(clone)
+    assert list(stale_paths(clone, dr.desired_fragments(register))) == []
     # The released entry still matches its tag's register (DOCBW-08-003).
-    assert dr.check_releases(repo) == []
+    assert dr.check_releases(clone) == []
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_with_a_given_freeze_does_not_predict(clone):
+    _freeze_repo(clone, _register(_open(1)))
+    entry, freeze = dr.release_open_draft(
+        clone, FREEZE, predict=_never_predicted
+    )
+    assert freeze == FREEZE and entry.release == "v2026.11.1"
 
 
 @pytest.mark.spec("DOCBW-08-041", "DOCBW-08-043")
-def test_release_dates_again_a_draft_whose_release_is_not_made(repo):
+def test_release_dates_again_a_draft_whose_release_is_not_made(clone):
     """The publish it was dated for never ran: run the command again."""
     _freeze_repo(
-        repo,
+        clone,
         _register(_entry("draft-1", "released", "2026-11-13", "v2026.11.1")),
     )
-    entry = dr.release_open_draft(repo, lambda _root: FREEZE)
+    entry, _ = dr.release_open_draft(clone, FREEZE)
     assert (entry.version, entry.date.isoformat()) == ("draft-1", "2026-11-16")
 
 
-@pytest.mark.spec("DOCBW-08-043")
-def test_release_refuses_when_every_drafts_release_is_made(repo):
-    _freeze_repo(repo, _register(_released(1, "v2026.11.0")))
-    git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
-    before = (repo / dr.REGISTER_PATH).read_text(encoding="utf-8")
+@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043")
+@pytest.mark.parametrize("where", ["local", "origin-only"])
+def test_release_refuses_when_every_drafts_release_is_made(clone, where):
+    """A tag only ``origin`` holds counts too: the command fetches it first."""
+    _freeze_repo(clone, _register(_released(1, "v2026.11.0")))
+    git(clone, "tag", "-a", "v2026.11.0", "-m", "release")
+    if where == "origin-only":
+        git(clone, "push", "-q", "origin", "HEAD", "v2026.11.0")
+        git(clone, "tag", "-d", "v2026.11.0")
+    before = _tracked(clone)
     with pytest.raises(
         dr.ReleaseCommandError, match="every draft is released"
     ):
-        dr.release_open_draft(repo, lambda _root: FREEZE)
-    assert (repo / dr.REGISTER_PATH).read_text(encoding="utf-8") == before
+        dr.release_open_draft(clone, FREEZE)
+    assert _tracked(clone) == before
 
 
 @pytest.mark.spec("DOCBW-08-043")
-def test_release_cli_takes_a_given_tag_and_date(repo, monkeypatch, capsys):
-    _freeze_repo(repo, _register(_open(1)))
-    monkeypatch.setattr(dr, "repo_root", lambda: repo)
-    monkeypatch.setattr(
-        dr, "predict_freeze", lambda _root: pytest.fail("predicted")
+def test_release_refuses_a_register_it_would_write_malformed(clone):
+    """A given tag that another entry already names is refused before any write."""
+    _freeze_repo(clone, _register(_released(1, "v2026.11.0"), _open(2)))
+    before = _tracked(clone)
+    with pytest.raises((MetadataLoadError, MetadataLoadErrors)):
+        dr.release_open_draft(clone, dr.Freeze("v2026.11.0", FREEZE.day))
+    assert _tracked(clone) == before
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_refuses_a_flow_style_list(clone):
+    """With no ``drafts:`` block line, the header cannot be told apart."""
+    _commit_register(
+        clone,
+        "{drafts: [{version: draft-1, status: unreleased, date: 2026-11-06}]}\n",
     )
+    with pytest.raises(dr.ReleaseCommandError, match="block list"):
+        dr.release_open_draft(clone, FREEZE)
+
+
+@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043")
+def test_release_fails_before_any_write_when_the_tags_cannot_be_fetched(clone):
+    _freeze_repo(clone, _register(_open(1)))
+    git(clone, "remote", "remove", "origin")
+    before = _tracked(clone)
+    with pytest.raises(dr.GitError):
+        dr.release_open_draft(clone, FREEZE)
+    assert _tracked(clone) == before
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_cli_takes_a_given_tag_and_date(clone, monkeypatch, capsys):
+    _freeze_repo(clone, _register(_open(1)))
+    monkeypatch.setattr(dr, "repo_root", lambda: clone)
+    monkeypatch.setattr(dr, "predict_freeze", _never_predicted)
     dr.main(["release", "--release", "v2026.12.0", "--date", "2026-12-01"])
     out = capsys.readouterr().out
     assert "Marked draft-1 released in v2026.12.0, dated 2026-12-01" in out
+    assert "before the publish of 2026-12-01" in out
     assert "promote workflow with an empty input" in out
-    (entry,) = dr.load_register(repo).released
+    (entry,) = dr.load_register(clone).released
     assert (entry.release, entry.date.isoformat()) == (
         "v2026.12.0",
         "2026-12-01",
@@ -839,9 +908,25 @@ def test_release_cli_takes_a_given_tag_and_date(repo, monkeypatch, capsys):
 
 
 @pytest.mark.spec("DOCBW-08-043")
-def test_release_cli_refuses_a_tag_without_a_date(repo, monkeypatch, capsys):
-    _freeze_repo(repo, _register(_open(1)))
-    monkeypatch.setattr(dr, "repo_root", lambda: repo)
+def test_release_cli_names_the_predicted_publish_start(
+    clone, monkeypatch, capsys
+):
+    _freeze_repo(clone, _register(_open(1)))
+    monkeypatch.setattr(dr, "repo_root", lambda: clone)
+    starts = dr.datetime.fromisoformat("2026-11-16T06:07:00+00:00")
+    monkeypatch.setattr(
+        dr,
+        "predict_freeze",
+        lambda _root: dr.Freeze(FREEZE.release, FREEZE.day, starts),
+    )
+    dr.main(["release"])
+    assert "before 2026-11-16 06:07 UTC" in capsys.readouterr().out
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_cli_refuses_a_tag_without_a_date(clone, monkeypatch, capsys):
+    _freeze_repo(clone, _register(_open(1)))
+    monkeypatch.setattr(dr, "repo_root", lambda: clone)
     with pytest.raises(SystemExit) as exited:
         dr.main(["release", "--release", "v2026.12.0"])
     assert exited.value.code == 1
@@ -849,21 +934,15 @@ def test_release_cli_refuses_a_tag_without_a_date(repo, monkeypatch, capsys):
 
 
 @pytest.mark.spec("DOCBW-08-043")
-def test_predict_freeze_fetches_the_tags_and_reads_next_freeze(
-    tmp_path, monkeypatch
-):
+def test_predict_freeze_reads_next_freeze(tmp_path, monkeypatch):
     calls: list[list[str]] = []
-
-    def git_run(root: Path):
-        def run(args):
-            calls.append(["git", *args])
-            return ""
-
-        return run
 
     class _Proc:
         returncode = 0
-        stdout = '{"release": "v2026.11.1", "date": "2026-11-16"}\n'
+        stdout = (
+            '{"release": "v2026.11.1", "date": "2026-11-16", '
+            '"publish_starts": "2026-11-16T06:07:00+00:00"}\n'
+        )
         stderr = ""
 
     def fake_run(argv, **kwargs):
@@ -871,11 +950,13 @@ def test_predict_freeze_fetches_the_tags_and_reads_next_freeze(
         assert kwargs["cwd"] == tmp_path
         return _Proc()
 
-    monkeypatch.setattr(dr, "git_runner", git_run)
     monkeypatch.setattr(dr.subprocess, "run", fake_run)
-    assert dr.predict_freeze(tmp_path) == FREEZE
-    fetch, script = calls
-    assert fetch == ["git", "fetch", "--quiet", "--tags", "origin"]
+    freeze = dr.predict_freeze(tmp_path)
+    assert (freeze.release, freeze.day) == (FREEZE.release, FREEZE.day)
+    assert freeze.publish_starts == dr.datetime.fromisoformat(
+        "2026-11-16T06:07:00+00:00"
+    )
+    (script,) = calls
     assert script[1:] == [
         "-I",
         str(tmp_path / dr.RELEASE_SCRIPT),
@@ -886,7 +967,16 @@ def test_predict_freeze_fetches_the_tags_and_reads_next_freeze(
 @pytest.mark.spec("DOCBW-08-043")
 @pytest.mark.parametrize(
     ("code", "stdout", "words"),
-    [(1, "", "next-freeze failed"), (0, "not json", "printed no prediction")],
+    [
+        (1, "", "next-freeze failed"),
+        (0, "not json", "printed no prediction"),
+        (
+            0,
+            '{"release": "v2026.11.1", "date": "2026-11-16"}',
+            "printed no prediction",
+        ),
+    ],
+    ids=["failed", "not-json", "no-start"],
 )
 def test_predict_freeze_refuses_a_failed_prediction(
     tmp_path, monkeypatch, code, stdout, words
@@ -896,7 +986,6 @@ def test_predict_freeze_refuses_a_failed_prediction(
         stderr = "boom"
 
     _Proc.stdout = stdout
-    monkeypatch.setattr(dr, "git_runner", lambda root: lambda args: "")
     monkeypatch.setattr(dr.subprocess, "run", lambda argv, **kw: _Proc())
     with pytest.raises(dr.ReleaseCommandError, match=words):
         dr.predict_freeze(tmp_path)

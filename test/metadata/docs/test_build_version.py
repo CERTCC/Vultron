@@ -243,6 +243,25 @@ def test_page_hook_writes_the_publish_date_into_every_slot(
 
 
 @pytest.mark.spec("DOCBW-08-040")
+def test_page_hook_runs_before_the_print_page_copies_the_html() -> None:
+    """MkDocs orders the event by priority; print-site's runs at the default."""
+    from mkdocs.plugins import PluginCollection
+    from mkdocs_print_site_plugin.plugin import (  # type: ignore[import-untyped]  # ships no stubs
+        PrintSitePlugin,
+    )
+
+    plugins = PluginCollection()
+    plugins["print-site"] = PrintSitePlugin()
+    plugins["build_version"] = build_version  # type: ignore[assignment]
+    order = [
+        getattr(method, "__self__", None) or method.__module__
+        for method in plugins.events["page_content"]
+    ]
+    assert order[0] == build_version.__name__
+    assert isinstance(order[1], PrintSitePlugin)
+
+
+@pytest.mark.spec("DOCBW-08-040")
 def test_page_hook_leaves_a_page_without_a_slot_alone() -> None:
     config = _config()
     config.extra[PUBLISH_DATE_KEY] = "2026-10-30"

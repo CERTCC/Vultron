@@ -974,6 +974,36 @@ def test_a_same_day_publish_without_the_entry_is_passed_over(
     assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == commit
 
 
+@pytest.mark.spec("DOCBW-07-012", "DOCBW-08-042")
+def test_a_late_promote_resumes_the_tag_a_failed_run_left(
+    repo: Path, releases: _Releases, tmp_path: Path
+) -> None:
+    """The freezing commit already carries the release tag, with no release."""
+    commit = _publish(repo, RELEASED)
+    tag_as_bot(repo, RELEASE, commit)
+    git(repo, "push", "-q", "origin", RELEASE)
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    assert _promote(_frozen(tmp_path, commit), commit=commit) == 0
+    (create,) = _creates(releases)
+    assert create[2] == RELEASE
+    assert {Path(a).name for a in create[3:5]} == {ARCHIVE, MANIFEST}
+    assert {t.name for t in _tags.release_tags()} == {RELEASE}
+
+
+@pytest.mark.spec("DOCBW-08-042")
+def test_an_open_draft_keeps_the_newest_publish(
+    repo: Path, releases: _Releases
+) -> None:
+    """With a draft open, an earlier released draft's date moves nothing."""
+    _publish(repo, ("draft-1", "unreleased", None))
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    newest = git(repo, "rev-parse", "HEAD")
+    assert _promote(None, draft="", commit=newest) == 0
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == newest
+
+
 @pytest.mark.spec("DOCBW-08-041")
 @pytest.mark.parametrize("named", [True, False], ids=["named", "empty-input"])
 def test_a_draft_dated_off_its_publish_is_refused(
