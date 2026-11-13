@@ -34,4 +34,7 @@ pattern (see ``vultron/core/ports/AGENTS.md``
   ``SqliteDataLayer`` in ``vultron/adapters/driven/``.
 - ``ActivityEmitter`` (``emitter.py``) — outbound activity delivery;
   implemented by ``HttpDeliveryAdapter`` in ``vultron/adapters/driven/``.
+- ``CaseReader`` (``case_reader.py``) — read-only: one outside-system case
+  as a case reading; implemented by connector plugins in
+  ``vultron/adapters/connectors/`` (ADR-0191).
 """

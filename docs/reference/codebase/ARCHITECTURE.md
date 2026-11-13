@@ -108,7 +108,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | `vultron/trigger_registry/` | One `TriggerEntry` per trigger verb (request model, use case, result type, exposure, spec IDs) | Per-verb behavior | `vultron/trigger_registry/__init__.py` |
 | `vultron/adapters/driving/` | FastAPI routers, inbox orchestration, outbox handling and monitor, CLI; `shared_inbox.py` is a `NotImplementedError` stub | Business logic, persistence | `vultron/adapters/driving/fastapi/` |
 | `vultron/adapters/driven/` | SQLite data layer (CRUD + queues), outbound HTTP delivery, sync adapter, trigger-activity adapter, wire render adapter | Core domain rules | `vultron/adapters/driven/datalayer_sqlite/`, `vultron/adapters/driven/wire_render/` |
-| `vultron/adapters/connectors/` | Third-party tracker translations (Jira and VINCE examples) and a connector loader | Direct protocol handling | `vultron/adapters/connectors/` |
+| `vultron/adapters/connectors/` | Outside-system connector plugins, each implementing core ports such as `CaseReader` (a VINCE example), and a connector loader | Direct protocol handling | `vultron/adapters/connectors/` |
 | `vultron/config/` | Settings models, YAML + env loading, `get_config()` | Adapter or core imports | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/bt/` | Legacy BT simulator (custom engine, read-only reference for protocol BTs) | Use by production code or demo scenarios | `notes/bt-composability.md`, `test/architecture/test_demo_no_bt_imports.py` |
 

@@ -28,6 +28,10 @@ Core ports are split by direction.
   ports.
 - `ActivityEmitter` (`core/ports/emitter.py`) — outbound delivery of an
   activity's *sealed body* (JSON text), relayed unchanged (VM-08-003).
+- `CaseReader` (`core/ports/case_reader.py`) — one outside-system case as a
+  `CaseReading`; read-only, so it declares no write method (CRD-01-002). A
+  connector's directions are the ports it implements, listed in
+  `CONNECTOR_PORTS` (`adapters/connectors/base.py`, ARCH-05-004).
 
 Naming principle: choose domain intent, not transport implementation.
 
