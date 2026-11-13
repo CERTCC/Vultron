@@ -284,6 +284,17 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#6372](https://github.com/CERTCC/Vultron/issues/6372)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MV-12-001",
+    "MV-12-003",
+    "MV-12-005",
+))
+```
+
 ## Requirements a test shows `main` meets only in part
 
 Each requirement below has tests that pass and at least one test that is held by a strict expected failure (`xfail`) or a skip.
@@ -323,6 +334,15 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "AKM-02-006",
+))
+```
+
+### Tracked by [#6372](https://github.com/CERTCC/Vultron/issues/6372)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MV-12-002",
 ))
 ```
 

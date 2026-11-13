@@ -287,6 +287,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) *(revision 2)*
 - [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md) *(revision 2)*
 - [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
+- [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
 
 ## Proposed ADRs
 
