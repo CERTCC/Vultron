@@ -39,7 +39,7 @@ path by which a participant's P, X or A report reaches the case status:
     ├─ [IntakeReceivedActivityNode]           # After the doors (CLP-10-010, CLP-10-017)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
-    │   ├─ [OnBehalfAssertion]                # Another's record: only v→V/d→D (RSH-08-014)
+    │   ├─ OnBehalfAssertion                  # Another's record: only v→V/d→D (RSH-08-014)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     └─ AddParticipantStatusBTAct (ActTransaction, only if case_id)  # One act (CLP-07-015)
@@ -136,7 +136,6 @@ from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.enums.roles import CVDRole
-from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +210,6 @@ def add_participant_status_tree(
     call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
     *,
     sender_rule: SenderRule,
-    target_actor_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
@@ -227,16 +225,16 @@ def add_participant_status_tree(
     correctly fires only when the receiving actor holds
     ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the commit and all children is the target
-    participant's own case, which the use case reads from the receiver's
-    record of the participant (HP-08-008); the status's ``context`` never
-    chooses it.  ``CarriedObjectInTargetCaseNode`` refuses, before the
-    commit, a status whose ``context`` names another case or none
-    (HP-08-007).  When the receiver holds no record of the target
-    participant, the use case passes the case the activity names instead,
-    so the path stage judges the receiver there, and the
-    ``TargetParticipantInCaseNode`` door refuses it before the sender guard
-    (HP-08-014): no status ever joins a case its target is not in.
+    The *case_id* for the commit and all children is the case the activity
+    names, and the ``TargetParticipantInCaseNode`` door admits the delivery
+    only when the receiver's record of the target participant names that
+    same case (HP-08-008, HP-08-014).  A target the receiver holds no record
+    of, or one recorded in another case, is refused there, before the sender
+    guard, so the status only ever joins its target's own case, and no use
+    case reads the record before the tree runs.  ``CarriedObjectInTargetCaseNode``
+    then refuses, before the commit, a status whose ``context`` names another
+    case or none (HP-08-007).  Whose record the target is, for the on-behalf
+    guard, is read from the record when the tree runs (RSH-08-014).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -268,25 +266,18 @@ def add_participant_status_tree(
 
     Args:
         request: The parsed inbound domain event.
-        case_id: ID of the target participant's VulnerabilityCase
-            (HP-08-008).  When provided, a guarded-commit subtree is
-            inserted after precondition guards so the receiving CaseActor
-            writes a canonical ledger entry (CLP-10-005).  The case the
-            activity names when the receiver holds no record of the target,
-            which the HP-08-014 door then refuses; ``None`` when neither
-            names one, which the path stage refuses.
+        case_id: The case the activity names (its ``context``).  When
+            provided, a guarded-commit subtree is inserted after
+            precondition guards so the receiving CaseActor writes a
+            canonical ledger entry (CLP-10-005), and the HP-08-014 door
+            refuses a target not recorded in it; ``None`` when the activity
+            names none, which the path stage refuses.
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC`, which
             withholds every non-CASE_OWNER update until the Case Owner
             approves (ADR-0076, RSH-07-001).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
-        target_actor_id: The actor the receiver's stored record of the
-            target participant names.  When it is not the sender, the
-            status is an on-behalf assertion, and the tree admits only the
-            v→V or d→D a CASE_MANAGER or Case Owner may assert for this
-            actor (RSH-08-014, PRM-06-003/004).  The sender guard has
-            already refused any other sender of such a status.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -302,9 +293,8 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # The case is the target participant's own, resolved by the use case
-    # from the receiver's record (HP-08-008); the HP-08-014 door refuses
-    # any other before the sender guard.
+    # The case the activity names; the HP-08-014 door refuses a target the
+    # receiver does not record in it, before the sender guard (HP-08-008).
     tree_case_id: str | None = case_id
 
     # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
@@ -375,19 +365,20 @@ def add_participant_status_tree(
                 if tree_case_id
                 else []
             ),
+            # A status onto another participant's record is an on-behalf
+            # assertion; the guard reads whose record it is when it runs and
+            # passes the sender's own (RSH-08-014, PRM-06-003/004).
             *(
                 [
                     on_behalf_status_guard(
                         case_id=tree_case_id,
                         participant_id=participant_id,
-                        target_actor_id=target_actor_id,
+                        sender_id=actor_id,
                         status_id=status_id,
                         status_obj=status_obj,
                     )
                 ]
                 if tree_case_id
-                and target_actor_id is not None
-                and not same_actor_id(target_actor_id, actor_id)
                 else []
             ),
             CheckParticipantStatusAcceptableNode(

@@ -22,8 +22,6 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
     CheckParticipantStatusAcceptableNode,
 )
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -47,9 +45,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
     any_of,
-)
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
 )
 
 logger = logging.getLogger(__name__)
@@ -217,15 +212,11 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The case is the target participant's own (HP-08-008); the tree
-        # refuses a status of any other case before the commit (HP-08-007).
-        # A target the receiver holds no record of leaves the activity's own
-        # case, so the tree's path stage judges the receiver there and its
-        # HP-08-014 door refuses the delivery.
-        resolve_receiver_before_reads(self._dl, request)
-        target = self._stored_target_participant()
-        target_case_id = _as_id(target.context) if target is not None else None
-        case_id = target_case_id or request.context_id
+        # The tree is built on the case the activity names.  Its HP-08-014
+        # door admits the delivery only when the receiver's record of the
+        # target participant names that case, so the status joins only its
+        # target's own case and no store is read here (HP-08-008).
+        case_id = request.context_id
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -234,11 +225,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             request=request,
             case_id=case_id,
             sender_rule=self.sender_entitlement,
-            # The record's own participant, for the on-behalf guard
-            # (RSH-08-014, PRM-06-003/004).
-            target_actor_id=(
-                _as_id(target.attributed_to) if target is not None else None
-            ),
             **call_out_kwargs,
         )
         verdict = run_received_tree(
@@ -258,18 +244,3 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             # no case the sender guard has already refused.
             verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         return verdict
-
-    def _stored_target_participant(self) -> CaseParticipant | None:
-        """The receiver's stored record of the target participant.
-
-        Its ``context`` is the case the Add acts on (HP-08-008), never the
-        status's ``context`` or the activity's: the sender chooses those,
-        while the status is appended to whichever case owns the participant.
-        Its ``attributed_to`` is whose status it is (RSH-08-007).  A
-        participant the receiver does not hold, or whose record names no
-        case, leaves no case to act on: the tree refuses it before the
-        commit (HP-08-014).
-        """
-        participant_id = self._request.participant_id
-        stored = self._dl.read(participant_id) if participant_id else None
-        return stored if isinstance(stored, CaseParticipant) else None

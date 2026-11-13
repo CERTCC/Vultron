@@ -30,12 +30,14 @@ sender's own, the status must be an on-behalf assertion.  That is a check of
 what the status asserts, so an entitled sender that asserts more is refused
 by a precondition guard and answered with the refusal notice (CLP-10-022).
 
-:func:`on_behalf_status_guard` composes it, and the tree composes it only
-when the target record names an actor other than the sender::
+:func:`on_behalf_status_guard` composes it into every received tree.  Whose
+record the target is comes from the receiver's stored record at run time, never
+from a read before the tree is built: each node reads the record, and on the
+sender's own record it has nothing to judge and succeeds::
 
     OnBehalfAssertion (Sequence)                          # PRM-06-003/004
     ├─ CheckOnBehalfStatusShapeNode               # v→V or d→D, nothing else
-    └─ CheckOnBehalfTargetIsParticipantNode     # target holds the role
+    └─ CheckOnBehalfRecordTargetIsParticipantNode  # target holds the role
 
 Only the CASE_MANAGER judges the assertion, and the tree declares the
 manager path alone: a replica takes participant status from the ledger, so
@@ -62,12 +64,45 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.primitives import same_actor_id
+
+
+def on_behalf_target(
+    node: DataLayerConditionWithPorts, participant_id: str, sender_id: str
+) -> str | None:
+    """The actor the stored target record names, when it is not *sender_id*.
+
+    ``None`` when the record is the sender's own, so there is no on-behalf
+    assertion to judge.  The record exists: the tree's
+    ``TargetParticipantInCaseNode`` door refused the delivery otherwise
+    (HP-08-014).
+
+    Raises:
+        RuntimeError: the record is missing or names no actor, which the
+            door rules out, so it is a fault of the tree, not the sender.
+    """
+    assert node.datalayer is not None
+    record = node.datalayer.read(participant_id)
+    target = (
+        _as_id(record.attributed_to)
+        if isinstance(record, CaseParticipant)
+        else None
+    )
+    if not target:
+        raise RuntimeError(
+            f"{node.name}: target participant '{participant_id}' has no"
+            " readable record naming its actor, though the HP-08-014 door"
+            " admitted it"
+        )
+    return None if same_actor_id(target, sender_id) else target
 
 
 def _asserted_vf(status: ParticipantStatus) -> CS_vf | None:
@@ -186,18 +221,20 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
       from when the tree was built (*expected_roles*), so the role check never
       judges a different status than this one; a status carried by reference
       has no expected roles and is refused;
-    - the case's participant index must list *participant_id* for
-      *target_actor_id*, so the roles checked are the target record's own
+    - the case's participant index must list *participant_id* for the actor
+      the record names, so the roles checked are the target record's own
       (CM-19-003).
 
-    FAILURE names every violation (EH-07-001, RSH-08-007).
+    SUCCESS with nothing judged when the record is the sender's own
+    (:func:`on_behalf_target`).  FAILURE names every violation (EH-07-001,
+    RSH-08-007).
     """
 
     def __init__(
         self,
         case_id: str,
         participant_id: str,
-        target_actor_id: str,
+        sender_id: str,
         status_id: str,
         expected_roles: list[CVDRole] | None,
         status_obj_fallback: PersistableModel | None = None,
@@ -206,7 +243,8 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._participant_id = participant_id
-        self._target_actor_id = target_actor_id
+        self._sender_id = sender_id
+        self._target_actor_id = ""
         self._status_id = status_id
         self._expected_roles = expected_roles
         self._status_obj_fallback = status_obj_fallback
@@ -254,6 +292,10 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
+        target = on_behalf_target(self, self._participant_id, self._sender_id)
+        if target is None:
+            return Status.SUCCESS
+        self._target_actor_id = target
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the index check needs the case
@@ -271,27 +313,66 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
+class CheckOnBehalfRecordTargetIsParticipantNode(
+    CheckOnBehalfTargetIsParticipantNode
+):
+    """The PRM-06-006 role check, on the actor the stored target record names.
+
+    The received tree learns whose record the target is only when it runs
+    (:func:`on_behalf_target`), so this reads it then and hands it to the
+    trigger tree's check.  SUCCESS with nothing judged on the sender's own
+    record.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        participant_id: str,
+        sender_id: str,
+        required_roles: list[CVDRole],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            case_id=case_id,
+            target_actor_id="",
+            required_roles=required_roles,
+            name=name or self.__class__.__name__,
+        )
+        self._participant_id = participant_id
+        self._sender_id = sender_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        target = on_behalf_target(self, self._participant_id, self._sender_id)
+        if target is None:
+            return Status.SUCCESS
+        self._target_actor_id = target
+        return super().update()
+
+
 def on_behalf_status_guard(
     *,
     case_id: str,
     participant_id: str,
-    target_actor_id: str,
+    sender_id: str,
     status_id: str,
     status_obj: PersistableModel | None,
 ) -> py_trees.behaviour.Behaviour:
     """The RSH-08-007 guard for a status onto another participant's record.
 
-    The tree composes it only when the target record names an actor other
-    than the sender, whom the sender guard has already found to be the
-    CASE_MANAGER or Case Owner.  It admits only an on-behalf v→V or d→D for
-    a target holding the matching role (PRM-06-003/004).  The target's
-    required roles come from the status as carried; a status carried by
-    reference has none, and the shape check refuses it.
+    Every received tree carries it.  When the stored target record names the
+    sender, it succeeds with nothing judged.  Otherwise the sender guard has
+    already found the sender to be the CASE_MANAGER or Case Owner, and it
+    admits only an on-behalf v→V or d→D for a target holding the matching
+    role (PRM-06-003/004).  The target's required roles come from the status
+    as carried; a status carried by reference has none, and the shape check
+    refuses it.
 
     Args:
         case_id: The target participant's case (HP-08-008).
         participant_id: The target participant record.
-        target_actor_id: The actor the target record names.
+        sender_id: The sender, whose own record needs no on-behalf check.
         status_id: The asserted status's id.
         status_obj: The asserted status as carried, if inline.
     """
@@ -304,7 +385,7 @@ def on_behalf_status_guard(
         CheckOnBehalfStatusShapeNode(
             case_id=case_id,
             participant_id=participant_id,
-            target_actor_id=target_actor_id,
+            sender_id=sender_id,
             status_id=status_id,
             expected_roles=roles,
             status_obj_fallback=status_obj,
@@ -312,9 +393,10 @@ def on_behalf_status_guard(
     ]
     if roles is not None:
         assertion.append(
-            CheckOnBehalfTargetIsParticipantNode(
+            CheckOnBehalfRecordTargetIsParticipantNode(
                 case_id=case_id,
-                target_actor_id=target_actor_id,
+                participant_id=participant_id,
+                sender_id=sender_id,
                 required_roles=roles,
             )
         )

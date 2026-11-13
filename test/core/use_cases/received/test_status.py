@@ -781,16 +781,23 @@ class TestStatusUseCases:
 
     @pytest.mark.spec("HP-08-008")
     @pytest.mark.spec("IO-03-004")
+    @pytest.mark.spec("HP-08-008")
+    @pytest.mark.spec("HP-08-014")
+    @pytest.mark.parametrize("status_case", ["b", "a"])
     def test_add_participant_status_through_ingress_naming_another_case_is_refused(
-        self,
+        self, status_case
     ):
-        """An Add(ParticipantStatus) whose status names case B but whose
-        target participant is case A's is refused before the commit on the
-        inbox path: the case is the target participant's own, so neither
-        case gains an entry and A's participant gains no status (#4961).
+        """An Add(ParticipantStatus) whose activity names case B but whose
+        target participant is case A's is refused at the HP-08-014 door on
+        the inbox path, whichever case the status names: the tree is built
+        on the case the activity names, and the target is not recorded in
+        it, so neither case gains an entry and A's participant gains no
+        status (#4961, #6412).
 
         The sender is a participant of both cases, so the sender guard would
-        pass on either; only the case the handler picks decides the outcome.
+        pass on either.  With the status naming A, the Add was applied to A
+        before #6412; it is now refused, because the activity and its target
+        disagree about the case (HP-08-008).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -815,11 +822,12 @@ class TestStatusUseCases:
         seed_case_participant(dl, case_b, sender)
         dl.create(case_a)
         dl.create(case_b)
-        status_id = f"{case_b.id_}/participants/vendor/statuses/s1"
+        status_ctx = case_b.id_ if status_case == "b" else case_a.id_
+        status_id = f"{status_ctx}/participants/vendor/statuses/s1"
         entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
         activity = add_status_to_participant_activity(
-            make(as_ParticipantStatus, id_=status_id, context=case_b.id_),
+            make(as_ParticipantStatus, id_=status_id, context=status_ctx),
             target=as_CaseParticipant.model_validate(
                 with_times(
                     as_CaseParticipant,
@@ -841,9 +849,6 @@ class TestStatusUseCases:
             event, AddParticipantStatusToParticipantReceivedEvent
         )
 
-        # The sender stamps its tail of the case its context names, which
-        # the participant's case does not hold: a split, re-seeded, and the
-        # act refused on its own merits all the same (SYNC-18-005).
         result = run_in_act(
             AddParticipantStatusToParticipantReceivedUseCase(
                 dl,
@@ -855,7 +860,11 @@ class TestStatusUseCases:
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "HP-08-007" in result.reason
+        assert result.reason == (
+            f"AddParticipantStatusBT: target participant '{target.id_}'"
+            f" belongs to case '{case_a.id_}', not case '{case_b.id_}'"
+            " — REFUSED (HP-08-014)"
+        )
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         stored = cast(as_CaseParticipant, dl.read(target.id_))
         assert status_id not in [
@@ -2200,7 +2209,8 @@ class TestParticipantStatusSubjectIsTheSender:
         assertion = on_behalf_status_guard(
             case_id=_SUBJ_CASE_ID,
             participant_id=ids[_SUBJ_VENDOR],
-            target_actor_id=_SUBJ_VENDOR,
+            # The CASE_MANAGER asserts onto the vendor's record.
+            sender_id=cast(str, dl.actor_id),
             status_id=stored.id_,
             status_obj=None,
         )
@@ -2210,3 +2220,50 @@ class TestParticipantStatusSubjectIsTheSender:
 
         assert result.status == Status.FAILURE
         assert "not carried inline" in BTBridge.get_failure_reason(assertion)
+
+    @pytest.mark.spec("RSH-08-014")
+    def test_on_behalf_guard_passes_the_senders_own_record(self):
+        """The guard reads whose record the target is when it runs; on the
+        sender's own record there is no on-behalf assertion to judge, so it
+        succeeds whatever the status asserts (RSH-08-014)."""
+        from vultron.core.behaviors.status.nodes.status_subject import (
+            on_behalf_status_guard,
+        )
+
+        dl, ids = self._case_manager_store()
+        assertion = on_behalf_status_guard(
+            case_id=_SUBJ_CASE_ID,
+            participant_id=ids[_SUBJ_VENDOR],
+            sender_id=_SUBJ_VENDOR,
+            status_id=f"{_SUBJ_CASE_ID}/statuses/own",
+            status_obj=None,
+        )
+        result = BTTestScenario(actor_id=cast(str, dl.actor_id), dl=dl).run(
+            assertion
+        )
+
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_on_behalf_guard_without_a_target_record_is_an_internal_error(
+        self,
+    ):
+        """The HP-08-014 door admits only a held target, so a guard that
+        finds none is a fault of the tree, never a refusal of the sender."""
+        from vultron.core.behaviors.status.nodes.status_subject import (
+            on_behalf_status_guard,
+        )
+
+        dl, _ids = self._case_manager_store()
+        assertion = on_behalf_status_guard(
+            case_id=_SUBJ_CASE_ID,
+            participant_id=f"{_SUBJ_CASE_ID}/participants/missing",
+            sender_id=_SUBJ_VENDOR,
+            status_id=f"{_SUBJ_CASE_ID}/statuses/none",
+            status_obj=None,
+        )
+        result = BTTestScenario(actor_id=cast(str, dl.actor_id), dl=dl).run(
+            assertion
+        )
+
+        assert result.internal_error is True
