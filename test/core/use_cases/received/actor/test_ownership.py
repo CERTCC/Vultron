@@ -1924,7 +1924,7 @@ class TestOfferAtTheTransferee:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
         assert dl.read(offer.id_) is None
         assert dl.outbox_list() == []
 

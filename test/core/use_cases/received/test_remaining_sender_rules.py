@@ -377,10 +377,13 @@ def test_use_case_with_nothing_to_gate_declares_no_sender_check(
 @pytest.mark.spec("SYNC-16-003")
 def test_the_fault_declares_its_sender_rule_once() -> None:
     """At the CASE_MANAGER a case-diverged fault needs an active participant
-    (CM-10-004); at a participant a fault comes from the CASE_MANAGER."""
+    (CM-10-004); each response tree declares the manager path alone, so the
+    rule states no other side (HP-01-038)."""
     assert (
         CreateProcessingFaultReceivedUseCase.sender_entitlement
-        == SenderRule.to_case_manager(SenderEntitlementKind.ACTIVE_PARTICIPANT)
+        == SenderRule.at_case_manager_only(
+            SenderEntitlementKind.ACTIVE_PARTICIPANT
+        )
     )
 
 
