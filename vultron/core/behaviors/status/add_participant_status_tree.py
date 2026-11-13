@@ -34,11 +34,12 @@ path by which a participant's P, X or A report reaches the case status:
 
     AddParticipantStatusBT (Sequence)
     ├─ [door guards]                          # Addressee, seen-before, path, post-close
+    ├─ TargetParticipantInCaseNode            # Door: target held, in this case (HP-08-014)
     ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ [IntakeReceivedActivityNode]           # After the doors (CLP-10-010, CLP-10-017)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
-    │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-014)
+    │   ├─ [OnBehalfAssertion]                # Another's record: only v→V/d→D (RSH-08-014)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     └─ AddParticipantStatusBTAct (ActTransaction, only if case_id)  # One act (CLP-07-015)
@@ -121,6 +122,9 @@ from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
 )
 from vultron.core.behaviors.status.nodes.status_subject import (
     on_behalf_status_guard,
+)
+from vultron.core.behaviors.status.nodes.target_participant import (
+    TargetParticipantInCaseNode,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -225,9 +229,11 @@ def add_participant_status_tree(
     record of the participant (HP-08-008); the status's ``context`` never
     chooses it.  ``CarriedObjectInTargetCaseNode`` refuses, before the
     commit, a status whose ``context`` names another case or none
-    (HP-08-007).  With no case known, the sender guard refuses, because the
-    declared rule states no side for an activity outside any case
-    (HP-01-024).
+    (HP-08-007).  When the receiver holds no record of the target
+    participant, the use case passes the case the activity names instead,
+    so the path stage judges the receiver there, and the
+    ``TargetParticipantInCaseNode`` door refuses it before the sender guard
+    (HP-08-014): no status ever joins a case its target is not in.
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -258,8 +264,10 @@ def add_participant_status_tree(
         case_id: ID of the target participant's VulnerabilityCase
             (HP-08-008).  When provided, a guarded-commit subtree is
             inserted after precondition guards so the receiving CaseActor
-            writes a canonical ledger entry (CLP-10-005).  ``None`` leaves
-            no case, and the sender guard refuses (HP-01-024).
+            writes a canonical ledger entry (CLP-10-005).  The case the
+            activity names when the receiver holds no record of the target,
+            which the HP-08-014 door then refuses; ``None`` when neither
+            names one, which the path stage refuses.
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC`, which
             withholds every non-CASE_OWNER update until the Case Owner
@@ -282,7 +290,8 @@ def add_participant_status_tree(
     status_obj = request.status
 
     # The case is the target participant's own, resolved by the use case
-    # from the receiver's record (HP-08-008); the status never chooses it.
+    # from the receiver's record (HP-08-008); the HP-08-014 door refuses
+    # any other before the sender guard.
     tree_case_id: str | None = case_id
 
     # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
@@ -308,17 +317,15 @@ def add_participant_status_tree(
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
-        # The participant declares its status to the CASE_MANAGER, which
-        # adjudicates and commits it, and the CASE_MANAGER relays the
-        # adopted status to a participant replica, which archives it and
-        # takes the state from the ledger (RSH-08-003, PCR-03-001,
-        # HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares its status to the CASE_MANAGER alone,
+        # which adjudicates and commits it.  A replica takes participant
+        # status from the ledger the CASE_MANAGER fans out, never from an
+        # Add, so a replica is refused at the path stage (RSH-08-003,
+        # PCR-03-001, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # A replica takes the update from the CASE_MANAGER alone, so with no
-        # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
-        # At the CASE_MANAGER the sender is the participant the target
-        # record names, or the CASE_MANAGER or Case Owner (RSH-08-007).
+        # The sender is the participant the target record names, or the
+        # CASE_MANAGER or Case Owner (RSH-08-007).
         sender_context=SenderCheckContext(
             sender_id=actor_id,
             case_id=tree_case_id,
@@ -326,6 +333,19 @@ def add_participant_status_tree(
             authored_object=AuthoredParticipantRecord(
                 participant_id=participant_id
             ),
+        ),
+        # HP-08-014: a target participant this receiver holds no record of,
+        # or one of another case, leaves no case to act on; the door refuses
+        # it before the sender guard.  With no case at all there is nothing
+        # to check it against, and the path stage refuses the no-case path.
+        case_resolution=(
+            [
+                TargetParticipantInCaseNode(
+                    participant_id=participant_id, case_id=tree_case_id
+                )
+            ]
+            if tree_case_id
+            else None
         ),
         precondition_guards=[
             # HP-08-007: a status of another case never joins this one.

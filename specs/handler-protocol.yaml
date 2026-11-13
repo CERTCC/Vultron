@@ -492,7 +492,7 @@ groups:
     statement: >-
       A declared sender entitlement MUST state the standing it requires for each
       addressee of the activity. The addressee is the CASE_MANAGER, a participant,
-      or, for an activity sent before a case exists, an actor outside any case.
+      or a receiver that holds no replica of the case.
     rationale: >-
       The same message can need different senders at different addressees. A rule
       with only one side would state less than the receiver enforces, and the
@@ -777,20 +777,32 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      The sender guard's at-the-CASE_MANAGER and at-a-participant arms MUST be
-      selected from the path the HP-01-035 stage resolved, never from a second role
-      read.
+      The sender guard MUST take its sender rule's side only from the path the
+      HP-01-035 stage resolved. The manager path takes `at_case_manager`, the
+      participant-replica path `at_participant`, and the no-case path
+      `outside_case`.
     rationale: >-
       One cause gets one verdict only if the role question is asked once. A second
       read can disagree with the first, which is how a role refusal fired for the
       wrong receiver (#4851, #4970), and it reads a roster that another delivery may
-      have changed between the two reads.
+      have changed between the two reads. Whether the sender context names a case
+      is a second answer too, and it is wrong at a receiver that lacks the case it
+      names (#5744).
     verification: >-
       `test/core/behaviors/case/test_received_path_stage.py::test_the_sender_guards_arms_read_the_path_stages_answer`
       asserts the composed guard holds path checks bound to the tree's stage and no
-      receiver-role condition node, and
+      receiver-role condition node,
       `::test_the_declared_tree_asks_the_role_question_once` asserts the stage is the
-      only door node that reads the role.
+      only door node that reads the role, and
+      `::test_a_two_sided_rule_without_a_path_stage_is_a_wiring_error` asserts the
+      factory refuses a rule whose sides differ on a tree that declares no paths,
+      and `test/core/behaviors/test_sender_guard.py::test_a_rule_whose_sides_differ_needs_a_path_stage`
+      that the composer does when no stage is given.
+      `test/core/behaviors/test_sender_guard.py::test_the_resolved_path_picks_the_side`
+      runs the stage ahead of the guard and asserts the side judged for a context
+      naming no case, a case the receiver does not hold, and a case it manages or
+      holds a replica of. `test/architecture/test_received_path_role_question.py::test_the_ratchet_stays_empty`
+      holds the received-side role-question ratchet at empty.
     relationships:
     - rel_type: refines
       spec_id: HP-01-008
@@ -934,7 +946,10 @@ groups:
     statement: >-
       A tree MUST declare the no-case path only for a message type the inbox
       delivers without its case being known, so every case-scoped type waits at the
-      inbox's defer check instead of being refused at the HP-01-035 stage.
+      inbox's defer check instead of being refused at the HP-01-035 stage. A
+      report-scoped verdict built with no case for its report is such a type, and
+      its tree declares the no-case path alone, with a sender rule whose
+      `outside_case` side admits no sender.
     rationale: >-
       A case-scoped message that arrives before its case is not an error: the inbox
       holds it until the case is known (IO-02-001). Declaring the no-case branch for
@@ -948,6 +963,12 @@ groups:
       `::test_the_type_that_precedes_its_case_declares_the_no_case_branch` asserts
       the Invite tree declares the no-case path and resolves it at an invitee with
       no replica.
+      `test/core/behaviors/test_declared_received_paths.py::test_a_conditional_site_with_no_case_judges_the_outside_case_side`
+      asserts the InvalidateReport tree with no case declares the no-case path
+      alone and composes the empty side, and
+      `test/core/behaviors/case/test_received_path_stage.py::test_a_no_case_declaration_on_a_run_time_case_must_admit_no_sender`
+      asserts the factory refuses that declaration with a side that admits a
+      sender.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-038

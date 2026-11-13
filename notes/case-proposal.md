@@ -237,12 +237,12 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
 - **Same proposal id, another sender** (CP-05-010, CP-05-022): the proposal id is
-  sender-chosen, so the use case declares `SenderRule.before_case(AUTHOR)` and the
-  factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
-  whose admission record, decline record or stored proposal (`attributed_to`) names
-  another proposer is `REFUSED` before any proposal-keyed record is read or written
-  (HP-01-008, #4719); CP-05-010 counts all three as recording the proposal. Add any
-  new proposal-keyed record that names the
+  sender-chosen, so the use case declares AUTHOR on its no-case and manager sides
+  and the factory composes `SenderIsProposalAuthorNode` ahead of every arm. A
+  proposal id whose admission record, decline record or stored proposal
+  (`attributed_to`) names another proposer is `REFUSED` before any proposal-keyed
+  record is read or written (HP-01-008, #4719); CP-05-010 counts all three as
+  recording the proposal. Add any new proposal-keyed record that names the
   proposer to that node. `LoadExistingCaseNode`'s `accepted_for_proposer_only`
   (#4650) is not a second defense: it reads the admission record, which the accept
   arm writes for the current sender when none exists.

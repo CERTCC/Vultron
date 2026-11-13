@@ -56,7 +56,8 @@ actor or two (CM-02-010).
 
 A participant MUST NOT create a replica from an arbitrary
 `Announce(VulnerabilityCase)`. The use case declares
-`SenderRule.in_case(CASE_MANAGER)`, and the announce tree passes
+`SenderRule.on_every_path(CASE_MANAGER)` (the first Announce lands on the no-case
+path, HP-01-036), and the announce tree passes
 `case_manager_anchored=True`, so the composed `SenderIsCaseManagerNode` admits
 the sender only against an anchor the receiver derived itself (HP-01-008):
 

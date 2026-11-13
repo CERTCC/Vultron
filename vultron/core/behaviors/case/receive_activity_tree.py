@@ -280,9 +280,10 @@ def create_receive_activity_tree(
     failure to a verdict after the run (HP-01-005, HP-01-039).  A case-scoped
     type never reaches the no-case path: the inbox's defer check holds its
     delivery until the case is known (IO-02-001), so only a type that starts
-    a case declares the no-case branch and takes it (HP-01-041).  A tree that
-    omits ``paths`` keeps the role gates it had, and the migration is
-    ratcheted by ``test/architecture/test_received_path_role_question.py``.
+    a case, or a report-scoped verdict built with no case for its report,
+    declares the no-case branch and takes it (HP-01-041).  A tree that
+    omits ``paths`` has no path stage, so it may carry only a sender rule
+    whose sides all name the same kinds (HP-01-036).
 
     Work that belongs to some of the declared paths rather than to all of
     them is passed as an
@@ -609,6 +610,7 @@ def create_receive_activity_tree(
         stage_case_id,
         paths,
         case_resolved_at_run_time=bool(case_resolution),
+        sender_rule=sender_rule,
     )
     if path_stage is not None:
         children.append(with_case_id(path_stage, stage_case_id))

@@ -255,10 +255,14 @@ class SenderRule:
     (:func:`vultron.core.behaviors.sender_guard.compose_sender_guard`).
 
     Attributes:
-        at_case_manager: Kinds that entitle a sender at the CASE_MANAGER.
-        at_participant: Kinds that entitle a sender at any other participant.
-        outside_case: Kinds that entitle a sender of an activity that names no
-            case, addressed to an actor outside any case.
+        at_case_manager: Kinds that entitle a sender at the CASE_MANAGER
+            (the manager path).
+        at_participant: Kinds that entitle a sender at any other participant
+            (the participant-replica path).
+        outside_case: Kinds that entitle a sender at a receiver that holds
+            no replica of the case (the no-case path), such as an actor
+            receiving an activity sent before any case exists.  The path the
+            tree's stage resolved picks the side (HP-01-036).
 
     Raises:
         ValueError: The rule states no side, a side holds something other than
@@ -302,6 +306,21 @@ class SenderRule:
         return cls(
             at_case_manager=any_of(*kinds),
             at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+        )
+
+    @classmethod
+    def on_every_path(cls, *kinds: SenderEntitlementKind) -> SenderRule:
+        """The same kinds entitle a sender at the CASE_MANAGER, at a
+        participant and at a receiver that holds no replica yet.
+
+        For a message type that also reaches an actor before it holds the
+        case, such as the Invite or Announce that brings it in: the no-case
+        path reads ``outside_case`` (HP-01-036), so the rule states it.
+        """
+        return cls(
+            at_case_manager=any_of(*kinds),
+            at_participant=any_of(*kinds),
+            outside_case=any_of(*kinds),
         )
 
     @classmethod

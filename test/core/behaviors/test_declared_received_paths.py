@@ -48,11 +48,13 @@ away only where the type is addressed to one role and the tree does no
 protocol work on the other — a participant sends only to the CASE_MANAGER
 (PCR-08-001), so an ``in_case`` rule whose kinds exclude ``CASE_MANAGER``
 names a participant side no sender may legitimately use.  The no-case path
-is added where the type precedes its case (HP-01-041).
+is added where the type precedes its case, and alone for an InvalidateReport
+tree built with no case for its report (HP-01-041).
 """
 
 import ast
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
@@ -65,9 +67,26 @@ from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
     undeclared_path_reason,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.report.received_report_trees.verdicts import (
+    create_invalidate_report_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import NoSenderAdmittedNode
+from vultron.core.behaviors.sender_guard import is_composed_sender_guard
+from vultron.core.behaviors.status.add_participant_status_tree import (
+    add_participant_status_tree,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.use_cases.received.report.rm_transitions import (
+    InvalidateReportReceivedUseCase,
+)
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 
 _FACTORY = "create_receive_activity_tree"
@@ -318,7 +337,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         f"{_S}/add_participant_status_tree.py",
         "add_participant_status_tree",
         0,
-    ): frozenset({CM, PR}),
+    ): frozenset({CM}),
     # --- embargo: the proposal, its answers and the teardown (#5042) -----
     # Each of these four is a directed type with one production emit site,
     # addressed to the CASE_MANAGER alone (PCR-08-001), and every step of
@@ -438,14 +457,13 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
 }
 
 #: Sites whose declaration is conditional on the tree naming a case at build
-#: time.  The path stage runs before ``case_resolution``, so the factory
-#: refuses a declaration from a tree whose case only that stage resolves: it
-#: would read the no-case path for every delivery (``received_path_stage``,
-#: HP-01-025, ADR-0153).  Such a tree declares its paths when it names a case
-#: and none when it does not, which is still one declaration per message
-#: type (HP-01-038).
-# permanent: HP-01-025 (the factory refuses a declaration the stage cannot
-# answer; a tree in this set is not waiting for a migration)
+#: time.  With no case at build time, and none in the activity, the stage
+#: reads the no-case path for every delivery, so such a tree declares that
+#: path alone; its sender rule's ``outside_case`` side is the one it judges
+#: there (HP-01-036).  With a case it declares the paths it works on, which
+#: is still one declaration per message type (HP-01-038).
+# permanent: HP-01-036 (a tree that names no case can be on the no-case path
+# alone; a tree in this set is not waiting for a migration)
 CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
     {
         (
@@ -759,10 +777,11 @@ def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
 
     A declaration conditional on anything but the tree naming a case at
     build time is a message type deciding its paths per delivery, which
-    HP-01-038's "once" forbids.  The one admitted condition is the factory's
-    own wiring rule: a tree whose case only ``case_resolution`` resolves is
-    refused a declaration, because the stage runs first and would read the
-    no-case path for every delivery (``received_path_stage``, HP-01-025).
+    HP-01-038's "once" forbids.  The one admitted condition is a tree that
+    names no case at build time, whose stage then reads the no-case path for
+    every delivery: it declares that path alone, so its guard judges the
+    rule's ``outside_case`` side and never composes an in-case check with no
+    case to read (HP-01-036).
     """
     _, conditional, _ = _call_sites()
     assert conditional == CONDITIONAL_DECLARATION_EXEMPTIONS, _diff(
@@ -770,6 +789,52 @@ def test_a_conditional_declaration_is_listed_with_its_reason() -> None:
         conditional,
         CONDITIONAL_DECLARATION_EXEMPTIONS,
     )
+
+
+@pytest.mark.spec("HP-01-036", "HP-01-041")
+def test_a_conditional_site_with_no_case_judges_the_outside_case_side() -> (
+    None
+):
+    """InvalidateReport with no case declares the no-case path alone, and its
+    guard is the rule's empty ``outside_case`` side, which admits no
+    sender."""
+    report_event = MagicMock(name="request")
+    report_event.report_id = "https://example.org/reports/no-case"
+    report_event.actor_id = "https://example.org/actors/sender"
+    tree = create_invalidate_report_received_tree(
+        report_event,
+        case_id=None,
+        sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+    )
+    assert isinstance(tree, ReceivedActivityTree)
+    stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
+    guard = next(n for n in tree.door_guards if is_composed_sender_guard(n))
+
+    assert stage.declared == frozenset({NC})
+    assert isinstance(guard, NoSenderAdmittedNode)
+
+
+@pytest.mark.spec("HP-08-014", "HP-01-038")
+def test_an_add_participant_status_with_no_case_keeps_its_one_declaration() -> (
+    None
+):
+    """An Add(ParticipantStatus) whose target and activity name no case still
+    builds with the manager path alone: the stage reads the no-case path
+    and refuses it, so no conditional declaration is needed (HP-01-038)."""
+    status_event = MagicMock(name="request")
+    status_event.participant_id = "https://example.org/participants/unknown"
+    status_event.actor_id = "https://example.org/actors/sender"
+    status_event.status_id = "https://example.org/statuses/no-case"
+    tree = add_participant_status_tree(
+        request=status_event,
+        case_id=None,
+        sender_rule=(
+            AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+        ),
+        target_actor_id=None,
+    )
+    stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
+    assert stage.declared == frozenset({CM})
 
 
 CASE_ID = "https://example.org/cases/declared-paths"

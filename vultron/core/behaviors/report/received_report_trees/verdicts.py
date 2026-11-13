@@ -121,14 +121,14 @@ def create_close_report_received_tree(
     refused:
 
     1. The post-close door drops it on a fully closed case (CM-23-013).
-    2. The sender guard, a door, is composed from the use case's declared
-       rule (HP-01-025).  On a case that holds the report the rule admits no
-       sender on either side, so every sender is refused with nothing
-       written or sent: the Case Owner closes a case by
-       ``Leave(VulnerabilityCase)``, and nobody else holds the report.
-       Before any case exists the rule's outside-case side checks the
-       sender is an addressee of the Offer it closes.  A door refusal leaves
-       only a receipt stub (CLP-10-018).
+    2. The path stage refuses a receiver that holds the report's case: the
+       type declares the no-case path alone, so every sender is refused there
+       with nothing written or sent (the Case Owner closes a case by
+       ``Leave(VulnerabilityCase)``, and nobody else holds the report).  On
+       the no-case path the sender guard, a door composed from the use
+       case's declared rule (HP-01-025, HP-01-036), checks the rule's
+       outside-case side: the sender is an addressee of the Offer it closes.
+       A door refusal leaves only a receipt stub (CLP-10-018).
     3. Intake records the admitted ``Reject`` as received (CLP-10-017).
     4. ``RequireCaseForReport`` then refuses a report this store holds no
        case for, as an activity about an unknown case (#2255).
@@ -144,8 +144,9 @@ def create_close_report_received_tree(
     """
     root = create_receive_activity_tree(
         name="CloseReportReceivedBT",
-        # The case names the sender guard's side and the post-close boundary;
-        # the guard admits no sender on a case, so the commit never runs.
+        # The case names the post-close boundary; the path stage picks the
+        # sender guard's side, and on the one declared path it is the
+        # outside-case side (HP-01-036), so the commit never runs on a case.
         case_id=case_id,
         # No receiver applies a CloseReport: the rule admits a sender only
         # before any case exists, so that is the one path the type handles
@@ -233,16 +234,17 @@ def create_invalidate_report_received_tree(
         # The participant declares RM.INVALID to the CASE_MANAGER, which
         # adjudicates and commits it; a participant replica archives its copy
         # and takes the RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).  The path stage runs before
-        # ``case_resolution``, so the factory refuses a declaration from a
-        # tree whose case only that stage resolves: it would read the no-case
-        # path for every delivery (``received_path_stage``, HP-01-025,
-        # ADR-0153).  With no case at build time this tree declares none and
-        # its guards refuse the delivery instead.
+        # (RSH-06-006, RSH-08-003, HP-01-038).  With no case at build time
+        # the receiver holds none for the report, so it is on the no-case
+        # path, whose empty side admits no sender; ``case_resolution``
+        # refuses the delivery as about an unknown case before that side is
+        # read (#2255, HP-01-036).  A report-scoped verdict reaches the tree
+        # without its case being known, so the declaration is the one
+        # HP-01-041 admits.
         paths=(
             {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
             if case_id is not None
-            else None
+            else {ReceivedPath.NO_CASE}
         ),
         # A canonical signature: the CASE_MANAGER commits it after the guards,
         # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the

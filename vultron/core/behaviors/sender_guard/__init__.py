@@ -23,20 +23,27 @@ chooses and arranges them.
 
 Composition:
 
-- An activity that names no case is checked against the rule's
-  ``outside_case`` side.
-- Otherwise, when the CASE_MANAGER and participant sides name the same kinds,
-  the guard is those kinds' any-of selector, whoever receives the activity.
-  An any-of selector ends with :class:`SenderHoldsNoneOfNode`, so a refused
-  sender's reason names every kind the side accepts.
-- Otherwise the guard dispatches on the receiver's side::
+- Each side of the rule belongs to one received path, and the path the tree's
+  path stage resolved picks it (HP-01-036, ADR-0153): ``at_case_manager`` on
+  the manager path, ``at_participant`` on the participant-replica path,
+  ``outside_case`` on the no-case path.  Only the paths the tree declares
+  are judged; the stage refuses any other first.
+- When the judged paths' sides name the same kinds, the guard is those
+  kinds' any-of selector, whoever receives the activity.  An any-of selector
+  ends with :class:`SenderHoldsNoneOfNode`, so a refused sender's reason
+  names every kind the side accepts.
+- Otherwise the guard has one arm per distinct side, each reading the
+  stage's answer::
 
       SenderRuleGuard (Sequence)
-      ├── AtCaseManager (Selector): Inverter(CheckIsCaseManager), <manager kinds>
-      └── AtParticipant (Selector): CheckIsCaseManager, <participant kinds>
+      ├── AtCaseManager (Selector): Inverter(OnPathCaseManager), <manager kinds>
+      └── AtParticipant (Selector): OnPathCaseManager, <participant kinds>
 
-  Each arm passes on the other side, and on its own side fails on its own
-  kinds' failure, so the refusal reason is the failing kind's (BT-13-001).
+  Each arm passes off its own paths, and on them fails on its own kinds'
+  failure, so the refusal reason is the failing kind's (BT-13-001).  A rule
+  whose sides differ, composed with no path stage, is a
+  :class:`~vultron.errors.VultronWiringError`: nothing else may say which
+  path the receiver is on (HP-01-036).
 
 Each kind's node reads the records the context names.  ``NAMED_ACTOR`` is
 one kind whatever the request (HP-01-009): the context's ``request`` names the
@@ -52,9 +59,10 @@ kinds' nodes read the sender and the case from the activity on the blackboard
 at run time (SYNC-03-005, SYNC-13-006).  Only the kinds whose nodes can do
 that may be declared for it: ``CASE_MANAGER`` and ``LEDGER_PEER``.
 
-An empty side composes :class:`NoSenderAdmittedNode`, so an activity that
-names no case is refused under a rule with no ``outside_case`` side; ``ANY_ACTOR`` composes
-no node, so a rule that admits any actor composes no guard at all.
+An empty side composes :class:`NoSenderAdmittedNode`, so a receiver on the
+no-case path is refused under a rule with no ``outside_case`` side;
+``ANY_ACTOR`` composes no node, so a rule that admits any actor composes no
+guard at all.
 
 The context records live in :mod:`vultron.core.behaviors.sender_check_context`
 and are re-exported here.  Beside the composer sit the closed-sender door

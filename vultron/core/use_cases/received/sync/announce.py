@@ -258,7 +258,10 @@ class AnnounceLedgerEntryReceivedUseCase:
     SYNC-11-003, SYNC-12-001, SYNC-14-009.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The tree declares the no-case path for the pre-genesis window
+    # (SYNC-15-001), which reads the outside-case side (HP-01-036): the
+    # announcing CASE_MANAGER is the sender there too.
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.on_every_path(
         SenderEntitlementKind.CASE_MANAGER
     )
 

@@ -10,14 +10,17 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A participant replica takes Offer(Actor) and Add(ParticipantStatus) from
-the CASE_MANAGER alone (PCR-03-001, #4646).
+"""A participant replica takes Offer(Actor) from the CASE_MANAGER alone
+(PCR-03-001, #4646), and refuses every Add(ParticipantStatus).
 
 Each test runs the real received use case in the replica holder's own store:
-the case lists the CASE_MANAGER, a vendor and the replica holder.  A copy sent
-by the vendor is refused on the sender check; the same copy sent by the
-CASE_MANAGER passes it, and is then refused because the replica is not the
-CASE_MANAGER the message is for (HP-01-005).
+the case lists the CASE_MANAGER, a vendor and the replica holder.  An
+Offer(Actor) copy sent by the vendor is refused on the sender check; the same
+copy sent by the CASE_MANAGER passes it, and is then refused because the
+replica is not the CASE_MANAGER the message is for (HP-01-005).  An
+Add(ParticipantStatus) is addressed to the CASE_MANAGER alone, and a replica
+takes participant status from the ledger, so the path stage refuses it from
+any sender before the sender check runs (RSH-08-003, PCR-03-001).
 """
 
 from collections.abc import Callable
@@ -38,6 +41,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_guard import is_composed_sender_guard
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -152,10 +156,7 @@ def _deliver_participant_status(
     )
 
 
-DELIVERIES = [
-    pytest.param(_deliver_offer_actor, id="offer-actor"),
-    pytest.param(_deliver_participant_status, id="add-participant-status"),
-]
+DELIVERIES = [pytest.param(_deliver_offer_actor, id="offer-actor")]
 
 
 def _sender_guard(
@@ -228,5 +229,31 @@ def test_replica_with_no_case_manager_refuses_a_listed_participant(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _sender_guard(tree_runs[0]) is py_trees.common.Status.FAILURE
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("PCR-03-001", "RSH-08-003", "HP-01-039")
+@pytest.mark.parametrize("sender_id", [VENDOR_ID, MANAGER_ID])
+def test_replica_refuses_every_add_participant_status(
+    sender_id: str, make_payload, tree_runs
+) -> None:
+    """A replica takes participant status from the ledger, never from an
+    Add, so the path stage refuses the Add whoever sent it, and the sender
+    guard never runs."""
+    dl, vendor = _replica_store()
+
+    result = _deliver_participant_status(dl, make_payload, sender_id)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'"
+    assert len(tree_runs) == 1
+    (guard,) = [
+        n for n in tree_runs[0].iterate() if is_composed_sender_guard(n)
+    ]
+    assert guard.status is py_trees.common.Status.INVALID
+    stored = dl.read(vendor.id_)
+    assert isinstance(stored, CaseParticipant)
+    assert stored.participant_statuses == vendor.participant_statuses
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []

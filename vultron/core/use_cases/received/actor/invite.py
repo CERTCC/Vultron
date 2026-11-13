@@ -74,8 +74,11 @@ class InviteActorToCaseReceivedUseCase:
     out via ``sync_port`` (SYNC-02-003, #4113).
     """
 
-    # The CASE_MANAGER issues every Invite (CM-17-006, PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The CASE_MANAGER issues every Invite (CM-17-006, PCR-03-001),
+    # including the stub Invite an invitee receives before it holds the
+    # case, on the no-case path that reads the outside-case side
+    # (MV-10-004, HP-01-036).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.on_every_path(
         SenderEntitlementKind.CASE_MANAGER
     )
 

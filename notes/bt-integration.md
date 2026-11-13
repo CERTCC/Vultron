@@ -346,7 +346,11 @@ nothing is written before the last one admits the message (ADR-0154).
    case (HP-01-041), and with the manager path where a redelivery can reach
    the CASE_MANAGER of a case this actor created only after the first
    delivery — which is why `Create(CaseProposal)` declares the manager path
-   beside the no-case one its sender rule gives it. Every declaration in the
+   beside the no-case one. Each declared path is judged by its own side of the
+   sender rule — `at_case_manager`, `at_participant`, `outside_case` — so a
+   widened declaration states that side in the rule too (`SenderRule.on_every_path`
+   for the stub Invite and the first `Announce`), or the path refuses every
+   sender (HP-01-036). Every declaration in the
    migrated areas, and the disposition each gives a non-manager receiver, is
    pinned in `test/core/behaviors/test_declared_received_paths.py`.
 
@@ -399,9 +403,11 @@ nothing is written before the last one admits the message (ADR-0154).
    `path_stage_case_id()` in `case/receive_stages/doors.py`). The last step is
    load-bearing: a tree that commits nothing passes `case_id=None`, and
    without it every such delivery would read the no-case path. A tree whose
-   case only `case_resolution` resolves cannot declare paths at all — the
-   factory raises `VultronWiringError`, because `case_resolution` runs after
-   the path stage, which would then read the no-case path every time.
+   case only `case_resolution` resolves may declare the no-case path alone,
+   and only with a rule whose `outside_case` side admits no sender; any other
+   declaration raises `VultronWiringError`, because `case_resolution` runs
+   after the path stage, which then reads the no-case path every time
+   (`received_path_stage()`, HP-01-036).
 
    `has_role()` (`core/participants/role_predicate.py`) is the only sanctioned
    way to ask whether an actor holds a role in a case: it reads the roster
@@ -413,7 +419,10 @@ nothing is written before the last one admits the message (ADR-0154).
    or proceeds: a case-scoped type is held by the inbox's defer check until
    its case is known, so only a type that precedes or establishes its case
    declares the no-case branch (HP-01-041; `CASE_PRECEDING_SEMANTICS`,
-   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`).
+   `CASE_BOOTSTRAP_SEMANTICS` in `core/models/events/case_context.py`). A
+   report-scoped verdict built with no case for its report declares it alone,
+   with an empty `outside_case` side, since the inbox cannot hold it for a
+   case it does not name.
    Every received-side site that still asks the role question another way is
    listed in `test/architecture/test_received_path_role_question.py`, and
    every site that still derives the authority *boolean* from an ingredient in

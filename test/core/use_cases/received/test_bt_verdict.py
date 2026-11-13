@@ -623,7 +623,9 @@ def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
         case_id=_CLOSED_CASE,
         precondition_guards=[],
         closed_sender=ClosedSenderCheck(sender_id=_CLOSED_SENDER),
-        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_rule=SenderRule.on_every_path(
+            SenderEntitlementKind.PARTICIPANT
+        ),
         sender_context=SenderCheckContext(
             sender_id=_CLOSED_SENDER, case_id=_CLOSED_CASE
         ),
