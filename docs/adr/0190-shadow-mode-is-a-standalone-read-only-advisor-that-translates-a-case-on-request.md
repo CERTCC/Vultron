@@ -100,7 +100,7 @@ It read: "**Insights come in levels.** The first level reads the translated case
 It now reads: "**One standing, scored.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move is scored by how far it changes the case's expected outcome from here, solved over the same chance model as the desiderata baselines. The page leads with the case's best move, then the moves the coordinator can make now. Which single number stands for a multi-vendor case's outcome is a later decision, made after a comparison of candidate aggregates against cases that would make the advice work against the collective good. Scoring a move's setting, such as an embargo's duration, is a later decision too."
 
 Planning for #5966 found that ranking a move by the score of the history with that move added credits almost nothing, because most desiderata are orderings that one move does not settle: notifying a vendor makes "vendor aware before public" more likely without deciding it.
-The change in expected outcome credits it, and computing it needs only the legal moves Level 1 already lists, so the two levels are one.
+The change in expected outcome credits it, and computing it needs only the legal moves the first level already lists, so the two levels are one.
 The maintainer asked for the advice of a card player's coach: the best move for the case, whoever makes it, and the moves open to the coordinator now, optimized for the case rather than for one participant.
 
 - Source: #5966
