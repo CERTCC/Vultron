@@ -1,7 +1,7 @@
 id: SHD
 title: Case Shadow Tool
 description: >-
-  Rules for the shadow: a standalone, read-only tool that reads one case from an
+  Rules for the case shadow: a standalone, read-only tool that reads one case from an
   outside system on request, translates it, and shows Vultron's analysis of it,
   and how that tool is packaged. The first outside system is VINCE; its data
   rules are in `vince-shadow-data.yaml`.
@@ -23,7 +23,7 @@ groups:
       The shadow tool MUST NOT contain a code path that delivers an activity to
       an inbox.
     rationale: >-
-      This version of the shadow advises the people working a case and does not act
+      This version of the case shadow advises the people working a case and does not act
       in it. With no
       delivery path, nothing can reach a participant, whatever its settings.
     verification: >-
@@ -39,10 +39,10 @@ groups:
     statement: >-
       The shadow tool MUST NOT write to an outside system.
     rationale: >-
-      A shadow beside an outside system that holds the case of record must leave
+      A case shadow beside an outside system that holds the case of record must leave
       that record exactly as its users left it.
     verification: >-
-      A test asserts the shadow reads cases only through a `CaseReader`
+      A test asserts the case shadow reads cases only through a `CaseReader`
       (CRD-01-001), and a run against a recorded transport fails on any request
       that is not a read.
   - id: SHD-01-003
@@ -89,7 +89,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The shadow's Compose service MUST NOT mount a persistent volume.
+      The case shadow's Compose service MUST NOT mount a persistent volume.
     rationale: >-
       With nowhere persistent to write, a bug cannot leave a copy of a case
       behind when the container stops.
@@ -102,7 +102,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The shadow's Compose service MUST publish its port on the loopback
+      The case shadow's Compose service MUST publish its port on the loopback
       interface only.
     rationale: >-
       The page shows embargoed case data. Publishing it on loopback keeps it off
@@ -117,7 +117,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The shadow MUST read the outside system's credential only from the
+      The case shadow MUST read the outside system's credential only from the
       environment it runs in.
     rationale: >-
       The credential is a secret, so it is kept outside the code, the repository
