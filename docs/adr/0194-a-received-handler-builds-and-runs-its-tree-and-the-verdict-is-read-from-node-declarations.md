@@ -57,6 +57,8 @@ The reader receives only the finished run: the tree, the bridge's result and the
 It gets no DataLayer, no port and no request.
 
 The readings keep one order: the doors and the sender sequence stage, then the handler's reader, then a declared no-change or repeat, then the general refusal.
+The reader comes before the declarations so that a handler reading that names its own answer for a run wins.
+A reader returns no answer for any run it does not read, and the declarations then decide.
 
 ### Consequences
 

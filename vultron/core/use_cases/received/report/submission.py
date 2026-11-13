@@ -40,11 +40,13 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+
 logger = logging.getLogger(__name__)
 
 
 def _submit_report_reader(
-    report_id: str | None, receiving_actor_id: str | None
+    report_id: str | None, receiving_actor_id: str
 ) -> OutcomeReader:
     """Classify the one ``Offer(VulnerabilityReport)`` tree's outcome (#2255).
 
@@ -163,18 +165,21 @@ class SubmitReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before anything else, so the log lines name the receiver
+        # and a delivery with no resolvable receiver raises as a wiring fault
+        # (BT-17-009, #2667); the runner resolves it again for the run.
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         if request.report_id:
             logger.info(
                 "Actor '%s' receiving report '%s' — running case-creation BT",
-                request.receiving_actor_id,
+                receiving_actor_id,
                 request.report_id,
             )
         tree = receive_report_case_tree.create_submit_report_received_tree(
             request, actor_config=self._actor_config
         )
-        # The runner resolves the receiver before the run: it raises when no
-        # actor owns this store, so a refusal never leaves the report behind
-        # (#2667).
         return run_received_tree(
             tree,
             dl=self._dl,
@@ -184,6 +189,6 @@ class SubmitReportReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
             reader=_submit_report_reader(
-                request.report_id, request.receiving_actor_id
+                request.report_id, receiving_actor_id
             ),
         )

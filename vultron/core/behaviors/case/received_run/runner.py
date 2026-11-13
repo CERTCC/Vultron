@@ -78,7 +78,8 @@ def run_received_tree(
         reader: The handler's own reading of the finished run, asked after
             the doors (see ``read_outcome``).  It receives only the run.
         judges: ``False`` for a tree that only stores or commits what the
-            handler accepted; any failure past its doors then raises.
+            handler accepted; a failure no door, reader or declared repeat
+            answers then raises.
         **context: Further blackboard keys for the run.
 
     Raises:

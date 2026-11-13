@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
     ReceivedOutcome,
     find_node,
     run_received_tree,
@@ -36,23 +37,28 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _unless_revision_applied(outcome: ReceivedOutcome) -> HandlerResult | None:
+def _unless_revision_applied(activity_id: str) -> OutcomeReader:
     """``SKIPPED`` for a run that succeeded without applying the revision.
 
     Only a replica whose ledger stream is paused applies the notice's
     revision (CM-31-009, CM-31-010); any other only archives it.
     """
-    if not outcome.succeeded:
-        return None
-    apply_node = find_node(outcome.tree, ApplyAnnouncedEmbargoRevisionNode)
-    if apply_node is not None and apply_node.applied:
-        return None
-    logger.info(
-        "%s: received embargo announcement — no receiver-side state change"
-        " required",
-        outcome.label,
-    )
-    return HandlerResult.skipped("no receiver-side state change")
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        apply_node = find_node(outcome.tree, ApplyAnnouncedEmbargoRevisionNode)
+        if apply_node is not None and apply_node.applied:
+            return None
+        logger.info(
+            "%s: embargo announcement '%s' received — no receiver-side state"
+            " change required",
+            outcome.label,
+            activity_id,
+        )
+        return HandlerResult.skipped("no receiver-side state change")
+
+    return read
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -101,5 +107,5 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-            reader=_unless_revision_applied,
+            reader=_unless_revision_applied(request.activity_id),
         )

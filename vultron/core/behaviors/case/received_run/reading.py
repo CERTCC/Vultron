@@ -31,6 +31,9 @@ request.  It asks, in this order:
    (CLP-10-010, SYNC-21-008, CLP-10-018).
 3. ``internal_error`` → raise :class:`~vultron.errors.VultronBTInternalError`.
 4. The handler's own reader, when it passed one (:data:`OutcomeReader`).
+   It is asked ahead of the declared no-change and repeat, so a handler
+   reading that names its own answer for a run wins; a reader returns
+   ``None`` for every run it does not read, and the declarations then decide.
 5. On a successful run, a node that reports it changed nothing
    (:class:`~vultron.core.behaviors.idempotency.ReportsNoChange`) →
    ``SKIPPED``; otherwise ``APPLIED``.
@@ -136,13 +139,15 @@ def read_outcome(
         outcome: The finished run.
         reader: The handler's own reading, asked after the doors.
         judges: ``False`` for a tree that only stores or commits what the
-            handler has already accepted: any failure past the doors is then
-            a local fault and raises instead of refusing.
+            handler has already accepted: a failure that no door, reader or
+            declared repeat answers is then a local fault and raises instead
+            of refusing.
 
     Raises:
         VultronBTInternalError: The run failed on an internal error, on a
             node missing its DataLayer or a port, or — for a tree that judges
-            nothing — for any reason past the doors.
+            nothing — for any reason no door, reader or declared repeat
+            answers.
     """
     result = outcome.result
     if result.leader_skipped:

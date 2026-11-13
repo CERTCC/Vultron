@@ -23,6 +23,7 @@ from vultron.core.behaviors.case.received_run import (
     first_reading,
     run_received_tree,
 )
+from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -43,8 +44,6 @@ from vultron.core.use_cases.received._bt_verdict import (
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
-
-from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 
 logger = logging.getLogger(__name__)
 

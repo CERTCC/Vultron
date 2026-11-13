@@ -138,8 +138,8 @@ def case_manager_verdict(
     if refusal is None:
         return verdict
     logger.warning(
-        "received tree '%s' refused at a receiver that is not case '%s''s"
-        " CASE_MANAGER: %s",
+        "%s did not succeed for case '%s': the receiver is not its"
+        " CASE_MANAGER (HP-01-005): %s",
         _root(tree).name,
         case_id,
         refusal.reason,

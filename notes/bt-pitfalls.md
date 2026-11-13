@@ -419,12 +419,12 @@ note describes (ADR-0067, RSH-06-004).
 
 `CheckIsCaseManagerNode` compares the blackboard `actor_id` with the case's
 CASE_MANAGER, so a tree containing `GuardedCommitCaseLedgerEntryBT` MUST run as the
-**receiving** actor: `resolve_receiving_actor_id(self._dl,
-request.receiving_actor_id)` in use cases, `actor_id=case_manager_actor_id` in
-tests. Never fall back to `request.actor_id` — that is the sender, and `actor_id`
-also selects the store. A node that also needs the sender keeps it as a private
-attribute, since `DataLayerAction.setup()` overwrites the blackboard `actor_id`
-(BT-17-005, BT-17-006).
+**receiving** actor: a received use case runs its tree through `run_received_tree`,
+which resolves it with `resolve_receiving_actor_id` (ADR-0194);
+`actor_id=case_manager_actor_id` in tests. Never fall back to `request.actor_id` — that
+is the sender, and `actor_id` also selects the store. A node that also needs the sender
+keeps it as a private attribute, since `DataLayerAction.setup()` overwrites the
+blackboard `actor_id` (BT-17-005, BT-17-006).
 
 ## A BT's Store Follows Its Executing Actor
 

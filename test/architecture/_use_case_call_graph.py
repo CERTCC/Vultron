@@ -117,7 +117,7 @@ _TREE_RUN_CALLEES: frozenset[str] = frozenset(
 )
 
 
-def _is_execute_with_setup_call(node: ast.Call) -> bool:
+def _is_tree_run_call(node: ast.Call) -> bool:
     """True for a call that runs a tree, bare or as a method.
 
     ``execute_with_setup`` or ``run_received_tree`` (see
@@ -354,7 +354,7 @@ class _UseCaseCorpus:
         total = 0
         path = (*stack, step[3])
         for call, callee in self._calls(step):
-            if _is_execute_with_setup_call(call):
+            if _is_tree_run_call(call):
                 total += 1
             elif transitive and callee is not None and callee[3] not in path:
                 total += self._count_tree_runs(callee, path, transitive=True)

@@ -39,6 +39,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,6 +98,12 @@ class ValidateReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before any read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         sender_actor_id = request.actor_id
         report_id = request.report_id
         offer_id = request.offer_id
@@ -114,7 +122,7 @@ class ValidateReportReceivedUseCase:
             "Actor '%s' validates VulnerabilityReport '%s' (receiving='%s')",
             sender_actor_id,
             report_id,
-            request.receiving_actor_id,
+            receiving_actor_id,
         )
 
         case_id = _case_id_for_report(self._dl, report_id)
@@ -171,6 +179,10 @@ class InvalidateReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before any read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
         # *executes* in the receiving actor's store, but the RM write is about
         # the *sender*, ``request.actor_id`` — the activity is an assertion
@@ -282,6 +294,10 @@ class CloseReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before any read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         tree = create_close_report_received_tree(
             request,
             case_id=_case_id_for_report(self._dl, request.report_id),

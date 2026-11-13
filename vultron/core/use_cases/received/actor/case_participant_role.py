@@ -132,8 +132,5 @@ def _no_case_refusal(outcome: ReceivedOutcome) -> HandlerResult | None:
     """
     if not outcome.succeeded:
         return None
-    logger.warning(
-        "OfferCaseParticipantRoleReceivedUseCase: role Offer names no case"
-        " — refusing"
-    )
+    # The runner logs the refusal, with the activity and the receiver.
     return HandlerResult.refused("Offer(CaseParticipantRole) names no case")

@@ -47,8 +47,8 @@ this door carries the body the record was made from.
 :class:`ActivityNotSeenBeforeNode` is the door.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 places it in every received tree, after the addressee check and before the
-path stage.  A handler reads its answer through
-``seen_before_verdict`` in ``vultron/core/use_cases/received/_bt_verdict/``.
+path stage.  The received-tree runner reads its answer through
+``seen_before_verdict`` in ``vultron/core/behaviors/case/received_run/``.
 """
 
 from enum import StrEnum

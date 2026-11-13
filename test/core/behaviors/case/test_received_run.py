@@ -83,7 +83,11 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.rm import RM
-from vultron.errors import VultronBTInternalError, VultronWiringError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronValidationError,
+    VultronWiringError,
+)
 
 _LABEL = "TestBT"
 _FAILED = BTExecutionResult(status=Status.FAILURE)
@@ -252,6 +256,12 @@ def test_a_tree_that_judges_nothing_still_answers_at_its_doors():
     tree = _ran(_SeenDoor(), _Fixed("Store", Status.FAILURE, "x"))
     verdict = _read(tree, judges=False)
     assert verdict.disposition is HandlerDisposition.SKIPPED
+
+
+@pytest.mark.spec("HP-01-014")
+def test_a_tree_that_judges_nothing_still_reads_a_declared_repeat():
+    tree = _ran(_RepeatGuard("Repeat", repeat=True, message="again"))
+    assert _read(tree, judges=False) == HandlerResult.skipped("again")
 
 
 def test_a_tree_that_judges_nothing_passes_success_through():
@@ -728,6 +738,27 @@ def test_the_runner_falls_back_to_the_stores_owner():
         label="ProbeBT",
     )
     assert probe.seen["actor_id"] == _RECEIVER
+
+
+class _NoOwnerStore:
+    """A store that reports no ``actor_id`` of its own."""
+
+    actor_id = None
+
+
+@pytest.mark.spec("BT-17-009")
+@pytest.mark.spec("ARCH-15-001")
+def test_the_runner_raises_when_no_receiver_can_be_resolved():
+    """No stamp and no store owner: a wiring fault, never a refusal."""
+    probe = _Records()
+    with pytest.raises(VultronValidationError):
+        run_received_tree(
+            _probe_tree(probe),
+            dl=_NoOwnerStore(),  # type: ignore[arg-type]
+            request=_event(None),
+            label="ProbeBT",
+        )
+    assert probe.ticks == 0
 
 
 @pytest.mark.spec("HP-01-003")

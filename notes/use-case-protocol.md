@@ -25,6 +25,7 @@ relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
   - vultron/core/behaviors/inbox
+  - vultron/core/behaviors/case/received_run
 ---
 
 # Use-Case Protocol — Results, Dispositions, and Request Paths
@@ -46,13 +47,15 @@ themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
 Most handlers run a tree, and only through `run_received_tree`
 (`vultron/core/behaviors/case/received_run/`, ADR-0194), which runs it once as
-the receiver and reads the verdict from what its nodes recorded: a door's
-answer, then a node-declared repeat (`ReportsIdempotentRepeat`) or no-change
-(`ReportsNoChange`) → `SKIPPED`, `SUCCESS` → `APPLIED`, `internal_error` or a
-missing port → raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED`
-with the failing leaf's reason. `judges=False` is for a tree that only stores
-what the handler already accepted, where any failure can only be the
-DataLayer's. A new repeat or no-op is a node declaration, never a handler
+the receiver and reads the verdict from what its nodes recorded, in this order:
+a door's or the sequence stage's answer; `internal_error` → raise
+`VultronBTInternalError`; the handler's reader; on `SUCCESS`, a node-declared
+no-change (`ReportsNoChange`) → `SKIPPED`, else `APPLIED`; on `FAILURE`, a
+node-declared repeat (`ReportsIdempotentRepeat`) → `SKIPPED`; a missing port →
+raise; any other `FAILURE` → `REFUSED` with the failing leaf's reason.
+`judges=False` is for a tree that only stores what the handler already
+accepted: any failure left after those readings raises, since it can only be
+the DataLayer's. A new repeat or no-op is a node declaration, never a handler
 reading.
 
 A handler that owes a reading no declaration expresses passes an optional

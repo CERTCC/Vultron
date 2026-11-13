@@ -82,6 +82,10 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before any read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         report_id = request.report_id
         case_id = request.case_id
         if report_id is None or case_id is None:
@@ -236,6 +240,7 @@ def _read_close(case_id: str) -> OutcomeReader:
             dataclasses.replace(outcome, label="Leave(VulnerabilityCase)")
         )
         if closed is not None:
+            logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
             return closed
         if sender_guard_refused(outcome.tree):
             return None

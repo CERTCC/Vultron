@@ -57,6 +57,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+
 logger = logging.getLogger(__name__)
 
 _TREE_LABEL = "AcceptInviteToEmbargoBT"
@@ -127,6 +129,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Resolved before any read, so a delivery with no resolvable
+        # receiver raises as a wiring fault rather than being refused
+        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
+        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         # The invitee is read from the recorded Invite (EP-09-010), so an
         # Accept that names none has no invitee to be.
         embargo_id, invite_id = request.embargo_id, request.invite_id
