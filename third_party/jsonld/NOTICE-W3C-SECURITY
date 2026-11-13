@@ -1,0 +1,19 @@
+W3C Verifiable Credentials Data Integrity JSON-LD contexts
+
+Sources and copies (byte for byte, as served with
+Accept: application/ld+json):
+  - https://w3id.org/security/data-integrity/v2 -> data-integrity-v2.jsonld
+    (redirects to https://www.w3.org/2025/credentials/vcdi/context/v2.jsonld)
+  - https://w3id.org/security/multikey/v1 -> multikey-v1.jsonld
+    (redirects to
+    https://www.w3.org/2025/credentials/vcdi/multikey/context/v1.jsonld)
+
+Neither file carries a copyright or licence notice of its own.
+
+Both contexts, with the SHA-256 digests recorded in pin.json, are listed in
+the W3C Recommendation "Verifiable Credential Data Integrity 1.0",
+https://www.w3.org/TR/vc-data-integrity/, published by the Verifiable
+Credentials Working Group. It carries this notice: "Copyright © 2025 World
+Wide Web Consortium. W3C® liability, trademark and permissive document
+license rules apply." Its permissive document license link is
+https://www.w3.org/copyright/software-license-2023/

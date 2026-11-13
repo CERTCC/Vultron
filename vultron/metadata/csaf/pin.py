@@ -22,18 +22,17 @@ the runtime.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    model_validator,
-)
+from pydantic import Field, model_validator
 
+from vultron.metadata.pin_record import (
+    PinRecord,
+    RelativePath,
+    Sha256,
+    file_sha256,
+)
 from vultron.primitives import NonEmptyString
 
 #   parents[0] = csaf, [1] = metadata, [2] = vultron, [3] = <repo root>
@@ -52,26 +51,8 @@ LICENCE_FILE_NAMES = frozenset({"LICENSE", "NOTICE"})
 MODELS_DIR = _REPO_ROOT / "vultron" / "wire" / "csaf" / "models"
 
 
-def _relative_posix_path(value: str) -> str:
-    """Return *value* when it is a plain relative POSIX path, else raise.
-
-    Every segment must be a real name: no empty, ``.`` or ``..`` segment and no
-    backslash, so the path stays inside the pinned local copy on any platform.
-    """
-    parts = value.split("/")
-    if "\\" in value or any(part in ("", ".", "..") for part in parts):
-        raise ValueError(f"{value!r} is not a relative path inside the copy")
-    return value
-
-
-RelativePath = Annotated[NonEmptyString, AfterValidator(_relative_posix_path)]
-Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-
-
-class CsafPin(BaseModel):
+class CsafPin(PinRecord):
     """One revision of the CSAF 2.1 draft, and where its schemas sit locally."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
     repository: NonEmptyString = Field(
         description="The repository of the CSAF Technical Committee."
@@ -85,39 +66,17 @@ class CsafPin(BaseModel):
     root: RelativePath = Field(
         description="The path of the CSAF schema inside the pinned local copy."
     )
-    sources: dict[NonEmptyString, RelativePath] = Field(
-        min_length=1,
-        description=(
-            "Each referenced schema's URL, mapped to its path inside the "
-            "pinned local copy."
-        ),
-    )
-
-    sha256: dict[RelativePath, Sha256] = Field(
-        description=(
-            "The SHA-256 digest of each file of the pinned local copy, so a "
-            "hand edit to the copy is detected."
-        ),
-    )
 
     @model_validator(mode="after")
-    def _files_agree(self) -> CsafPin:
-        files = set(self.sources.values())
-        if self.root not in files:
+    def _root_is_a_source(self) -> CsafPin:
+        if self.root not in set(self.sources.values()):
             raise ValueError(f"root {self.root!r} is not a file in sources")
-        if set(self.sha256) != files:
-            raise ValueError("sha256 must list exactly the files in sources")
         return self
 
     @property
     def short_commit(self) -> str:
         """Return the seven-character commit abbreviation the docs cite."""
         return self.commit[:7]
-
-
-def file_sha256(path: Path) -> str:
-    """Return the hex SHA-256 digest of the file at *path*."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def load_pin(path: Path = PIN_PATH) -> CsafPin:
