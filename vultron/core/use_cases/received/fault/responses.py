@@ -24,9 +24,14 @@ from dataclasses import dataclass
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_intake_only_received_tree,
+)
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_named,
+    find_node,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
@@ -48,19 +53,8 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
-    case_manager_verdict,
-    door_refusal,
-    find_named,
-    find_node,
-    verdict_from_bt,
-)
+from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.use_cases.received._bt_verdict import not_case_manager
 from vultron.errors import VultronBTInternalError
 
 #: Builds the one tree a fault's delivery runs, from the entry the fault
@@ -76,17 +70,25 @@ type FaultTreeBuilder = Callable[
 ]
 
 
-#: Reads the verdict of a finished run, given the tree, its result, the
-#: store and the entry the tree was built from.
-type FaultVerdictReader = Callable[
-    [
-        py_trees.behaviour.Behaviour,
-        BTExecutionResult,
-        CasePersistence,
-        CaseLedgerEntry | None,
-    ],
-    HandlerResult,
-]
+@dataclass(frozen=True)
+class FaultReading:
+    """How the runner reads one fault response's run (HP-01-003).
+
+    ``reader`` receives only the finished run (ADR-0195).  ``judges`` is
+    ``False`` for a tree that judges nothing, whose failure past its doors is
+    a local fault.  ``manager_case_id`` names the case whose CASE_MANAGER
+    alone may act on the fault: the use case applies the CASE_MANAGER
+    refusal for it to the runner's verdict (HP-01-005).
+    """
+
+    label: str
+    reader: OutcomeReader
+    judges: bool = True
+    manager_case_id: str | None = None
+
+
+#: The reading of a response's run, given the entry the tree was built from.
+type FaultVerdictReader = Callable[[CaseLedgerEntry | None], FaultReading]
 
 
 @dataclass(frozen=True)
@@ -94,7 +96,8 @@ class FaultResponse:
     """How the receiver answers a fault of one failure class.
 
     ``build_tree`` builds the delivery's one tree (CLP-10-005);
-    ``read_verdict`` turns its run into the handler's verdict (HP-01-003).
+    ``read_verdict`` says how its run is read into the handler's verdict
+    (HP-01-003).
     """
 
     build_tree: FaultTreeBuilder
@@ -113,45 +116,45 @@ def _archive_tree(
     return create_intake_only_received_tree("CreateProcessingFaultReceivedBT")
 
 
-def _archive_verdict(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    dl: CasePersistence,
-    refused_entry: CaseLedgerEntry | None,
-) -> HandlerResult:
-    """``SKIPPED``: nothing correlates the fault to its ask yet (#2883)."""
-    del dl, refused_entry
-    verdict = applied_or_raise(
-        tree, result, label="CreateProcessingFaultReceivedBT"
-    )
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        return verdict  # a door guard refused: the case is fully closed
-    return HandlerResult.skipped(
-        "ask-register correlation not implemented (#2883)"
+def _archive_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
+    """``SKIPPED``: nothing correlates the fault to its ask yet (#2883).
+
+    A door guard's refusal (the case is fully closed) is the runner's; any
+    other failure of the intake-only tree is a local fault.
+    """
+    del refused_entry
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        return HandlerResult.skipped(
+            "ask-register correlation not implemented (#2883)"
+        )
+
+    return FaultReading(
+        label="CreateProcessingFaultReceivedBT", reader=read, judges=False
     )
 
 
 def _unnamed_entry_refusal(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    *,
-    label: str,
-    answer: str,
-    spec_id: str,
-) -> HandlerResult:
+    *, label: str, answer: str, spec_id: str
+) -> FaultReading:
     """The refusal of a fault that names no ``Announce(CaseLedgerEntry)``
     this actor sent: there is no case to *answer* for.
 
     *spec_id* is the requirement of the response that cannot run.  A door
-    guard's own refusal is kept, since it names the closer cause.
+    guard's own refusal is kept, since it names the closer cause, and any
+    other failure of the intake-only tree is a local fault.
     """
-    if (refusal := door_refusal(tree)) is not None:
-        return refusal
-    applied_or_raise(tree, result, label=label)
-    return HandlerResult.refused(
+    refusal = HandlerResult.refused(
         "the fault names no Announce(CaseLedgerEntry) this actor sent, so it"
         f" names no case to {answer} ({spec_id}, ASK-07-004)"
     )
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        return refusal if outcome.succeeded else None
+
+    return FaultReading(label=label, reader=read, judges=False)
 
 
 def _case_diverged_tree(
@@ -169,12 +172,7 @@ def _case_diverged_tree(
     )
 
 
-def _reseed_verdict(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    dl: CasePersistence,
-    refused_entry: CaseLedgerEntry | None,
-) -> HandlerResult:
+def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
     """The verdict on a case-diverged fault (SYNC-16-003, SYNC-16-004).
 
     ``APPLIED`` when a case copy was queued; ``SKIPPED`` when the re-seed
@@ -186,36 +184,39 @@ def _reseed_verdict(
     label = "CaseDivergedFaultReceivedBT"
     if refused_entry is None:
         return _unnamed_entry_refusal(
-            tree, result, label=label, answer="re-seed", spec_id="SYNC-16-003"
+            label=label, answer="re-seed", spec_id="SYNC-16-003"
         )
-    verdict = case_manager_verdict(
-        tree,
-        verdict_from_bt(tree, result, label=label),
-        dl,
-        refused_entry.case_id,
-    )
-    if verdict.disposition is not HandlerDisposition.APPLIED:
-        return verdict
-    # The re-seed this fault asks for sits in the tree's own CASE_MANAGER
-    # gate; the factory's answer to a stamped ledger position holds another,
-    # which a fault (no ledgerPosition, SYNC-18-017) never runs.
-    gate = find_named(tree, RESEED_GATE_NAME)
-    reseed = None if gate is None else find_node(gate, ReseedPeerNode)
-    if reseed is None:
-        raise VultronBTInternalError(f"{label}: tree has no re-seed node")
-    if reseed.reseeded:
-        return verdict
-    if reseed.withheld:
-        # Unreachable behind the ACTIVE_PARTICIPANT sender guard, which asks
-        # the same predicate; refused the same way if it is ever reached.
-        return HandlerResult.refused(
-            f"the sender is not an active participant of case"
-            f" '{refused_entry.case_id}'; no case copy sent (CM-10-004)"
+    case_id = refused_entry.case_id
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        tree = outcome.tree
+        if not outcome.succeeded or not_case_manager(tree):
+            # A failure is the runner's to read, and a receiver the gate
+            # turned away is refused by the use case (HP-01-005).
+            return None
+        # The re-seed this fault asks for sits in the tree's own CASE_MANAGER
+        # gate; the factory's answer to a stamped ledger position holds
+        # another, which a fault (no ledgerPosition, SYNC-18-017) never runs.
+        gate = find_named(tree, RESEED_GATE_NAME)
+        reseed = None if gate is None else find_node(gate, ReseedPeerNode)
+        if reseed is None:
+            raise VultronBTInternalError(f"{label}: tree has no re-seed node")
+        if reseed.reseeded:
+            return HandlerResult.applied()
+        if reseed.withheld:
+            # Unreachable behind the ACTIVE_PARTICIPANT sender guard, which
+            # asks the same predicate; refused the same way if it is ever
+            # reached.
+            return HandlerResult.refused(
+                f"the sender is not an active participant of case"
+                f" '{case_id}'; no case copy sent (CM-10-004)"
+            )
+        return HandlerResult.skipped(
+            f"the sender was re-seeded with case '{case_id}'"
+            " within the cooldown; no case copy sent (SYNC-16-004)"
         )
-    return HandlerResult.skipped(
-        f"the sender was re-seeded with case '{refused_entry.case_id}'"
-        " within the cooldown; no case copy sent (SYNC-16-004)"
-    )
+
+    return FaultReading(label=label, reader=read, manager_case_id=case_id)
 
 
 def _hash_mismatch_tree(
@@ -240,11 +241,8 @@ def _hash_mismatch_tree(
 
 
 def _hash_mismatch_verdict(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    dl: CasePersistence,
     refused_entry: CaseLedgerEntry | None,
-) -> HandlerResult:
+) -> FaultReading:
     """The verdict on a hash-mismatch fault (SYNC-03-008, SYNC-03-010).
 
     ``SKIPPED`` once the CASE_MANAGER has logged the fault and checked its
@@ -256,29 +254,29 @@ def _hash_mismatch_verdict(
     label = "HashMismatchFaultReceivedBT"
     if refused_entry is None:
         return _unnamed_entry_refusal(
-            tree,
-            result,
-            label=label,
-            answer="report on",
-            spec_id="SYNC-03-008",
+            label=label, answer="report on", spec_id="SYNC-03-008"
         )
-    verdict = case_manager_verdict(
-        tree,
-        verdict_from_bt(tree, result, label=label),
-        dl,
-        refused_entry.case_id,
-    )
-    if verdict.disposition is not HandlerDisposition.APPLIED:
-        return verdict
-    report = find_node(tree, ReportHashMismatchNode)
-    if report is None or report.own_copy is None:
-        raise VultronBTInternalError(
-            f"{label}: the run did not check this actor's own copy"
+    entry_id = refused_entry.id_
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        tree = outcome.tree
+        if not outcome.succeeded or not_case_manager(tree):
+            # A failure is the runner's to read, and a receiver the gate
+            # turned away is refused by the use case (HP-01-005).
+            return None
+        report = find_node(tree, ReportHashMismatchNode)
+        if report is None or report.own_copy is None:
+            raise VultronBTInternalError(
+                f"{label}: the run did not check this actor's own copy"
+            )
+        return HandlerResult.skipped(
+            f"hash mismatch on ledger entry '{entry_id}' logged; own"
+            f" copy {report.own_copy.value}; nothing is sent, re-seeded or"
+            " recorded for it (SYNC-03-008)"
         )
-    return HandlerResult.skipped(
-        f"hash mismatch on ledger entry '{refused_entry.id_}' logged; own"
-        f" copy {report.own_copy.value}; nothing is sent, re-seeded or"
-        " recorded for it (SYNC-03-008)"
+
+    return FaultReading(
+        label=label, reader=read, manager_case_id=refused_entry.case_id
     )
 
 

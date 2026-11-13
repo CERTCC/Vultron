@@ -3,7 +3,6 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -11,6 +10,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
 )
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -19,23 +19,14 @@ from vultron.core.models.events.actor import (
     RejectCaseOwnershipTransferReceivedEvent,
     UndoCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    intake_verdict,
-    ownership_answer_verdict,
-    ownership_offer_verdict,
     unheld_case_refusal,
-    verdict_from_bt,
 )
 from vultron.core.use_cases.received._offer_reply import (
     run_offer_reply_tree,
@@ -115,44 +106,29 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         # The proposal names the case (ADR-0165): the CASE_MANAGER reads every
         # detail from the case it holds, so one it does not hold is refused.
         if (
             case_id is not None
             and (
                 refusal := unheld_case_refusal(
-                    self._dl, case_id, request.activity_id, "Offer(Offer)"
+                    self._dl, request, case_id, "Offer(Offer)"
                 )
             )
             is not None
         ):
             return refusal
-        result = self._bridge().execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        verdict = ownership_offer_verdict(
+        # A redelivery of a proposal the CASE_MANAGER already made its Offer
+        # from is a repeat its guard reports, so the runner reads it SKIPPED
+        # (HP-01-014, CM-21-014).
+        return run_received_tree(
             tree,
-            verdict_from_bt(tree, result, label="ProposeOwnershipTransferBT"),
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "ProposeOwnershipTransferBT refused for case '%s': %s",
-                case_id,
-                verdict.reason,
-            )
-        return verdict
-
-    def _bridge(self) -> BTBridge:
-        return BTBridge(
-            datalayer=self._dl,
+            dl=self._dl,
+            request=request,
+            label="ProposeOwnershipTransferBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
 
 
@@ -201,31 +177,17 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="OfferOwnershipTransferBT"
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "OfferOwnershipTransferBT refused Offer '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            return verdict
         # The transferee keeps the Offer, which intake recorded, so what it
         # did is what intake did (HP-01-003).
-        return intake_verdict(tree, result, label="OfferOwnershipTransferBT")
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="OfferOwnershipTransferBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+        )
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
@@ -282,7 +244,6 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             tree=tree,
             case_id=case_id,
             subject="ownership transfer offer",
-            refine=ownership_answer_verdict,
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
@@ -344,7 +305,6 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             tree=tree,
             case_id=case_id,
             subject="ownership transfer offer",
-            refine=ownership_answer_verdict,
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
@@ -427,7 +387,6 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             tree=tree,
             case_id=case_id,
             subject="ownership transfer offer",
-            refine=ownership_answer_verdict,
             label="UndoOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,

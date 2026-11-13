@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     remove_embargo_from_case_tree,
 )
@@ -22,15 +22,8 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    verdict_from_bt,
-)
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -76,9 +69,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         embargo_id = request.embargo_id
         case_id = request.case_id
         if embargo_id is None or case_id is None:
@@ -92,8 +82,8 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         # One tree: its door guards refuse a closed case, an unaddressed
         # copy (HP-01-005, ADR-0118) and a sender without standing first.
         # The tree embeds the guarded commit as its final step (ADR-0021,
-        # CLP-09-001, CLP-10-003).  Running it with actor_id=receiving_actor_id
-        # means CheckIsCaseManagerNode naturally fires only when the receiving
+        # CLP-09-001, CLP-10-003).  The runner runs it as the receiving actor,
+        # so CheckIsCaseManagerNode naturally fires only when the receiving
         # actor holds the CASE_MANAGER role — no identity comparison in Python.
         tree = remove_embargo_from_case_tree(
             case_id=case_id,
@@ -114,26 +104,12 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
                 else None
             ),
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RemoveEmbargoFromCaseBT",
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-
-        verdict = verdict_from_bt(
-            tree, result, label="RemoveEmbargoFromCaseBT"
-        )
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
-                "%s (embargo '%s', case '%s')",
-                verdict.reason,
-                embargo_id,
-                case_id,
-            )
-        return verdict

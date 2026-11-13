@@ -25,6 +25,7 @@ relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
   - vultron/core/behaviors/inbox
+  - vultron/core/behaviors/case/received_run
 ---
 
 # Use-Case Protocol — Results, Dispositions, and Request Paths
@@ -44,16 +45,23 @@ over a verb registry).
 `rejected` with `failure_reason`. Handlers never use `InboxOutcome` vocabulary
 themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
-Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict/` turns
-the run into a verdict. `verdict_from_bt` is the default reading: `SUCCESS` →
-`APPLIED`, a leadership skip → `SKIPPED`, `internal_error` or a missing port →
-raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED` with the failing
-leaf's reason. `applied_or_raise` is for a tree that only stores what the handler
-already accepted, where any failure can only be the DataLayer's.
+Most handlers run a tree, and only through `run_received_tree`
+(`vultron/core/behaviors/case/received_run/`, ADR-0195), which runs it once as
+the receiver and reads the verdict from what its nodes recorded, in this order:
+a door's or the sequence stage's answer; `internal_error` → raise
+`VultronBTInternalError`; the handler's reader; on `SUCCESS`, a node-declared
+no-change (`ReportsNoChange`) → `SKIPPED`, else `APPLIED`; on `FAILURE`, a
+node-declared repeat (`ReportsIdempotentRepeat`) → `SKIPPED`; a missing port →
+raise; any other `FAILURE` → `REFUSED` with the failing leaf's reason.
+`judges=False` is for a tree that only stores what the handler already
+accepted: any failure left after those readings raises, since it can only be
+the DataLayer's. A new repeat or no-op is a node declaration, never a handler
+reading.
 
-A handler refines the default by asking which node decided (`node_failed`,
-`node_succeeded`, `find_node`, `find_named`), never by matching a node's
-`feedback_message`, which usually embeds ids. Where later steps run only on
+A handler that owes a reading no declaration expresses passes an optional
+`reader`, which receives only the finished run and asks which node decided
+(`node_failed`, `node_succeeded`, `find_node`, `find_named`), never by matching
+a node's `feedback_message`, which usually embeds ids. Where later steps run only on
 `APPLIED`, return early on anything else.
 
 | Exit | Disposition |

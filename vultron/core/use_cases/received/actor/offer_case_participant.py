@@ -31,8 +31,11 @@ of a copy refuses at the tree's addressee door guard (#3752).
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.received_run import (
+    received_path,
+    run_received_tree,
+)
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_accept_actor_recommendation_received_tree,
     create_receive_offer_case_participant_tree,
@@ -48,14 +51,8 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_absence_refusal,
-    intake_verdict,
-    received_path,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -121,61 +118,47 @@ class OfferCaseParticipantReceivedUseCase:
                 "Offer(CaseParticipant) names no case"
             )
 
-        local_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         tree = create_receive_offer_case_participant_tree(
             case_id=case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="ReceiveOfferCaseParticipantBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree, actor_id=local_actor_id, activity=request
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="ReceiveOfferCaseParticipantBT"
+            wire_render_port=self._wire_render_port,
         )
         if verdict.disposition is HandlerDisposition.REFUSED:
+            return verdict
+        # The tree's path stage put this receiver on the participant replica
+        # path, one of the two the tree declares (ADR-0153).  The path says
+        # the receiver does not hold the role; it does not say the case has
+        # anyone holding it, and a case whose roster names no CASE_MANAGER
+        # has nobody to defer the commit to (CM-02-014, CM-24-008), so that
+        # is refused rather than stored.
+        if (
+            received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA
+            and (refusal := case_manager_absence_refusal(self._dl, case_id))
+            is not None
+        ):
             logger.warning(
                 "ReceiveOfferCaseParticipantBT refused '%s': %s",
                 activity_id,
-                verdict.reason,
+                refusal.reason,
             )
-            return verdict
-        if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
-            # The tree's path stage put this receiver on the participant
-            # replica path, one of the two the tree declares (ADR-0153).
-            # The path says the receiver does not hold the role; it does not
-            # say the case has anyone holding it, and a case whose roster
-            # names no CASE_MANAGER has nobody to defer the commit to
-            # (CM-02-014, CM-24-008), so that is refused rather than stored.
-            if (
-                refusal := case_manager_absence_refusal(self._dl, case_id)
-            ) is not None:
-                logger.warning(
-                    "ReceiveOfferCaseParticipantBT refused '%s': %s",
-                    activity_id,
-                    refusal.reason,
-                )
-                return refusal
-            # Otherwise the ledger commit is the CASE_MANAGER's, so this
-            # store keeps what arrived and takes the entry from the ledger.
-            # Past the tree's door and sender guards, the Offer is addressed
-            # to this store, by name or as an active participant of a
-            # participants collection its `to` names (HP-01-012).  The Offer
-            # is now the addressee's to decide, by a separate outbound
-            # Accept or Reject; a redelivery archives nothing new and is
-            # SKIPPED.
-            return intake_verdict(
-                tree, result, label="ReceiveOfferCaseParticipantBT"
-            )
+            return refusal
+        # On the replica path the ledger commit is the CASE_MANAGER's, so this
+        # store keeps what arrived and takes the entry from the ledger.
+        # Past the tree's door and sender guards, the Offer is addressed
+        # to this store, by name or as an active participant of a
+        # participants collection its `to` names (HP-01-012).  The Offer
+        # is now the addressee's to decide, by a separate outbound
+        # Accept or Reject; a redelivery archives nothing new and is
+        # SKIPPED.
         return verdict
 
 
@@ -224,10 +207,6 @@ class AcceptOfferCaseParticipantReceivedUseCase:
                 "Accept(Offer(CaseParticipant)) is missing its case id"
             )
 
-        local_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # The tree looks up the Offer the Accept names: the invitee, its
         # roles and the recommender are the recorded Offer's, not the
         # Accept's (CM-16-019, ISSUE-1745).
@@ -237,29 +216,19 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree, actor_id=local_actor_id, activity=request
-        )
         # The tree declares the manager path alone, so a receiver on any
         # other path is refused by its path door stage, with the one shared
         # reason (ADR-0153, HP-01-005): the handler reads the verdict and
         # infers nothing from a gate skip.
-        verdict = verdict_from_bt(
-            tree, result, label="AcceptActorRecommendationBT"
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AcceptActorRecommendationBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "AcceptActorRecommendationBT refused '%s': %s",
-                activity_id,
-                verdict.reason,
-            )
-        return verdict
 
 
 class RejectOfferCaseParticipantReceivedUseCase:
@@ -306,10 +275,6 @@ class RejectOfferCaseParticipantReceivedUseCase:
                 "Reject(Offer(CaseParticipant)) names no case"
             )
 
-        local_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # The tree looks up the Offer the Reject names: the recommender and
         # the recommended actor are the recorded Offer's (CM-16-023).
         tree = create_reject_actor_recommendation_received_tree(
@@ -318,24 +283,14 @@ class RejectOfferCaseParticipantReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree, actor_id=local_actor_id, activity=request
-        )
         # As for the Accept: the path stage refuses any receiver that is not
         # the case's CASE_MANAGER (ADR-0153, HP-01-005).
-        verdict = verdict_from_bt(
-            tree, result, label="RejectActorRecommendationBT"
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RejectActorRecommendationBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "RejectActorRecommendationBT refused '%s': %s",
-                activity_id,
-                verdict.reason,
-            )
-        return verdict

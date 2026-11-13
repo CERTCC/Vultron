@@ -48,6 +48,11 @@ Usage (in a markdown-exec Python block)::
     print(render_settings_tables())
 """
 
+from vultron.config.env_names import (
+    ENV_NESTED_DELIMITER,
+    ENV_PREFIX,
+    env_var_name,
+)
 from vultron.metadata.docs.config_reference.errors import ConfigReferenceError
 from vultron.metadata.docs.config_reference.render import (
     TOP_LEVEL_SECTION,
@@ -56,10 +61,7 @@ from vultron.metadata.docs.config_reference.render import (
     render_settings_tables,
 )
 from vultron.metadata.docs.config_reference.settings import (
-    ENV_NESTED_DELIMITER,
-    ENV_PREFIX,
     ConfigSetting,
-    env_var_name,
     iter_settings,
 )
 

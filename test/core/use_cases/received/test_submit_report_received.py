@@ -995,7 +995,6 @@ class TestSubmitReportDisposition:
         Offer names no case, so no fully closed case can reach either arm
         end to end.
         """
-        from unittest.mock import MagicMock
 
         import py_trees
         from py_trees.common import Status
@@ -1004,8 +1003,12 @@ class TestSubmitReportDisposition:
         from vultron.core.behaviors.case.nodes.post_close import (
             CaseOpenToExternalWritesNode,
         )
+        from vultron.core.behaviors.case.received_run import (
+            ReceivedOutcome,
+            read_outcome,
+        )
         from vultron.core.use_cases.received.report.submission import (
-            _submit_report_verdict,
+            _submit_report_reader,
         )
 
         guard = CaseOpenToExternalWritesNode(case_id=None)
@@ -1014,13 +1017,13 @@ class TestSubmitReportDisposition:
         tree = py_trees.composites.Sequence(
             name="Root", memory=False, children=[guard]
         )
-        request = MagicMock(report_id=self.REPORT_ID)
-
-        verdict = _submit_report_verdict(
-            tree,
-            BTExecutionResult(status=Status.FAILURE),
-            request,
-            self.VENDOR_ID,
+        verdict = read_outcome(
+            ReceivedOutcome.of(
+                tree,
+                BTExecutionResult(status=Status.FAILURE),
+                "ReceiveReportCaseBT",
+            ),
+            reader=_submit_report_reader(self.REPORT_ID, self.VENDOR_ID),
         )
 
         assert verdict.disposition == HandlerDisposition.REFUSED

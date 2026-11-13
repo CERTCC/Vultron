@@ -187,7 +187,7 @@ groups:
           including `.github/workflows/deploy_site.yml`.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
-          `site/` from a scheduled, manual or rollback run (DOCBW-06-007) and
+          `site/` from a scheduled, manual, release or rollback run (DOCBW-06-007) and
           uploads it to Pages. A gate present only in the pull-request workflow
           does not bind the publishing path, so a withheld artifact on a commit
           the publish takes without a pull request (a direct push to `main`, or a
@@ -620,8 +620,10 @@ groups:
       Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
       beyond the build and gate obligations DOCBW-03 places on every site-building
       workflow. Publication runs on a weekday schedule from `publish-*` tags, gated
-      on `main` CI, with manual publish and rollback (ADR-0171). The gate's
-      decisions live in `.github/scripts/publish_gate.py`.
+      on `main` CI, with manual publish and rollback (ADR-0171), and once more
+      when a release is published, dispatched by
+      `.github/workflows/publish_after_release.yml`. The gate's decisions live in
+      `.github/scripts/publish_gate.py`.
     specs:
       - id: DOCBW-06-001
         priority: MUST
@@ -948,7 +950,8 @@ groups:
         kind: project
         statement: >-
           The DOCBW-06-016 tag's message MUST record the trigger (scheduled,
-          manual, manual with the CI gate skipped, or rollback) and the actor.
+          manual, manual with the CI gate skipped, rollback, or release) and
+          the actor.
         rationale: >-
           The tag is the record of the publish. Its message says why a commit
           went live and who asked, without a search through workflow runs.
@@ -1025,8 +1028,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Scheduled, manual and rollback runs MUST share one concurrency group
-          that does not cancel a run in progress.
+          Scheduled, manual, release and rollback runs MUST share one
+          concurrency group that does not cancel a run in progress.
         rationale: >-
           Two publishes at once would race for the tag counter and for Pages,
           and a cancelled deploy can leave Pages and the tags disagreeing. The
@@ -1035,7 +1038,10 @@ groups:
           newest tag could name a deploy that is no longer live. The cost is
           GitHub's rule of one pending run per group: while a run holds the
           group, a newer queued run replaces an older queued one, which ends as
-          cancelled with no failure notice, and its starter runs it again.
+          cancelled with no failure notice, and its starter runs it again. A
+          replaced release run (DOCBW-06-032) has no person to run it again, so
+          a maintainer who sees the released draft still on its placeholder
+          starts a manual publish.
         verification: >-
           `test_one_concurrency_group_never_cancels` in
           `test/ci/test_publish_gate.py`.
@@ -1223,6 +1229,104 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-016
+      - id: DOCBW-06-032
+        priority: MUST
+        kind: project
+        statement: >-
+          When a GitHub Release is published, the workflow
+          `.github/workflows/publish_after_release.yml` MUST start a run of the
+          publication workflow from `main` through `workflow_dispatch`, naming
+          the release in that run's `release` input.
+        rationale: >-
+          A publish that ran before the release was published serves the
+          released draft's placeholder (DOCBW-08-032). Without this run the
+          placeholder stays until the next weekday publish, up to three days
+          (#6393). The release event itself runs from the release's tag, whose
+          copy of the publication workflow is not `main`'s (ADR-0171) and which
+          the `github-pages` environment does not let deploy, so the release
+          workflow only dispatches. A `workflow_dispatch` is one of the two
+          events (with `repository_dispatch`) that a `GITHUB_TOKEN` can raise
+          to start another workflow.
+        verification: >-
+          `test_publishing_a_release_dispatches_a_publish_of_main`,
+          `test_a_failed_dispatch_files_a_failure_issue`,
+          `test_the_gate_reads_the_release_input_and_the_actor` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+          - ADR-0188
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-08-028
+      - id: DOCBW-06-033
+        priority: MUST
+        kind: project
+        statement: >-
+          A DOCBW-06-032 run MUST apply the CI gate of DOCBW-06-008.
+        rationale: >-
+          The run publishes `main`, so `main` must be green, as it must be for a
+          scheduled publish.
+        verification: >-
+          `test_a_release_run_keeps_the_ci_gate_and_ignores_the_skip_rule` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
+          - rel_type: depends_on
+            spec_id: DOCBW-06-008
+      - id: DOCBW-06-034
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A run whose `release` input is set MUST NOT publish when its actor
+          is not `github-actions[bot]`, when it also sets `rollback-to` or
+          `skip-ci-gate`, or when the input names no published GitHub Release.
+          The gate fails such a run and writes its reason to the run summary.
+        rationale: >-
+          The input only labels the run, but the label goes into the tag
+          message (DOCBW-06-017), so a person who set it by hand would make a
+          false record of why a commit went live. GitHub cannot hide an input
+          from the manual-run form, so the gate enforces who sets it. A refusal
+          fails visibly rather than publishing as a manual run, which would
+          hide the misuse.
+        verification: >-
+          `test_a_release_run_is_refused_unless_the_bot_dispatched_it_alone`,
+          `test_a_release_run_needs_a_published_release`,
+          `test_a_published_release_passes`,
+          `test_gate_command_refuses_a_release_that_is_not_published`,
+          `test_gate_command_fails_when_the_release_lookup_fails` and
+          `test_gate_command_refuses_a_release_run_a_person_started` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
+      - id: DOCBW-06-035
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A DOCBW-06-032 run MUST NOT apply the skip rule of DOCBW-06-013.
+        rationale: >-
+          The release is often published on a day whose scheduled publish
+          already took `main`'s tip, so the skip rule would skip the one run
+          that serves the frozen draft.
+        verification: >-
+          `test_a_release_run_keeps_the_ci_gate_and_ignores_the_skip_rule` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
+        see_also:
+          - spec_id: DOCBW-06-013
+            reason: 'the skip rule a release run is exempt from'
 
   - id: DOCBW-07
     title: Release Promotion and Site Staleness
@@ -1280,10 +1384,12 @@ groups:
         kind: project
         statement: >-
           A promote run with an empty input MUST promote the newest DOCBW-07-013
-          publish.
+          publish, unless DOCBW-08-042 names the publish that froze a draft.
         rationale: >-
           The newest publish names what the site shows now, which is what a
-          maintainer most often means to release.
+          maintainer most often means to release. A release that freezes a
+          draft is the exception: its draft keeps the date of the publish that
+          froze it, so that publish is promoted even after later ones.
         verification: >-
           `test_an_empty_input_promotes_the_newest_publish` in
           `test/ci/test_release.py`.
@@ -1566,13 +1672,20 @@ groups:
           Each draft of the Protocol Specification MUST have exactly one entry
           in the drafts register `docs/reference/vultron-spec/drafts.yaml`.
           The entry gives the draft's version `draft-N`, its status
-          (unreleased or released) and its date, the day the entry was added to
-          the register, in the `YYYY-MM-DD` format. A released entry also gives
-          the `v*` tag of the release that carries the draft.
+          (unreleased or released) and its date in the `YYYY-MM-DD` format. An
+          unreleased entry's date is the day the entry was added to the
+          register. A released entry's date is the date of the publish that
+          froze the draft: the publish that the promote workflow made the
+          draft's release from. A released entry also gives the `v*` tag of the
+          release that carries the draft.
         rationale: >-
           The promote workflow, the deploy and the pages must agree on which
           drafts are released and by which release. Facts that are written in
-          one place cannot disagree.
+          one place cannot disagree. A frozen draft's pages are the pages of
+          the publish that froze it, so that publish's date is the date the
+          draft keeps. `draft-1`, released before this rule, keeps the date its
+          entry was added, since a released entry never changes
+          (DOCBW-08-003).
         verification: >-
           Tests in `test/ci/test_drafts_register.py` load the committed
           register and check that every entry has the fields its status
@@ -1681,6 +1794,47 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-004
+      - id: DOCBW-08-040
+        priority: MUST
+        kind: project
+        statement: >-
+          While the drafts register holds an unreleased entry, the status box
+          and that entry's revision log status table MUST show, as the current
+          draft's last-updated date, the date of the publish that built the
+          page, which the site build reads from the DOCBW-06-031 inputs.
+        rationale: >-
+          The current draft changes with each publish, so a date fixed in the
+          register cannot say which text a reader sees. The publish date can,
+          and a reader cites it with the publish tag in the page footer.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the fragments
+          from fixture registers and check that the current draft's table and
+          citation hold the publish-date slot and a released draft's do not.
+          Tests in `test/metadata/docs/test_build_version.py` run the build
+          hook with and without the publish inputs and check the text that
+          fills the slot.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-031
+      - id: DOCBW-08-044
+        priority: MUST
+        kind: project
+        statement: >-
+          A site build that no publish makes, such as a pull request's review
+          build or `mkdocs serve`, MUST show "unpublished build" where
+          DOCBW-08-040 shows the publish date.
+        rationale: >-
+          A review build has no publish, so a date there would name a text no
+          publish served. Saying so keeps the slot from ever showing a wrong
+          date.
+        verification: >-
+          Tests in `test/metadata/docs/test_build_version.py` run the build
+          hook with no publish inputs and check the text that fills the slot.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-040
       - id: DOCBW-08-007
         priority: MUST
         kind: project
@@ -1786,6 +1940,117 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-009
+      - id: DOCBW-08-041
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST refuse the run, and create no tag, when the
+          drafts register at the chosen publish's commit names the run's
+          release for a draft whose date is not the chosen publish's date. The
+          refusal names both dates and says how to date the entry again.
+        rationale: >-
+          The date of a released entry is the date of the publish that froze
+          the draft (DOCBW-08-001). The entry is written before that publish
+          runs, so it holds a prediction. When the publish of that date never
+          ran, or the maintainer names a different one, the draft would keep a
+          date that no publish of it has.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` plan a promotion of a
+          fixture publish whose register dates the draft another day, named and
+          from an empty input, and of a named later publish, and check that
+          each run fails, names the dates and creates no tag.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-042
+        priority: MUST
+        kind: project
+        statement: >-
+          When the promote workflow's input is empty and the drafts register at
+          the newest publish's commit holds no unreleased entry, its newest
+          released entry's date is not that publish's date, and no published
+          GitHub Release of that entry's release tag exists, the run MUST
+          promote the newest publish of that date whose register holds the
+          same entry, when one exists. The run chooses that publish before it
+          names its release.
+        rationale: >-
+          A maintainer may run the promote days after the publish that froze
+          the draft, once later publishes exist. Promoting the publish of the
+          draft's date makes that run succeed without naming a tag, and its
+          pages are the frozen text: the commits after it hold the same entry,
+          and every change to the text goes into the next draft. Choosing it
+          before naming the release lets a run after one that tagged that
+          publish's commit and failed resume that release (DOCBW-07-012). Once
+          that release is published the draft is done, and until the next
+          draft is opened a later release carries no draft and promotes the
+          newest publish, as DOCBW-07-012 says.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote from an empty input
+          after a later publish, with a same-day publish whose register lacks
+          the entry, after a failed run that left the release tag, after the
+          draft's release is published with no draft open, and with a draft
+          open, and check which commit the release tag names.
+        relationships:
+          - rel_type: refines
+            spec_id: DOCBW-07-012
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-043
+        priority: MUST
+        kind: project
+        statement: >-
+          The command `drafts-register release` MUST mark the unreleased entry
+          of the drafts register released, with the next `v*` release tag and
+          the date of the next scheduled publish (DOCBW-06-007), and write the
+          DOCBW-08-004 fragments from the result. A `--release` and `--date`
+          pair names the tag and the date instead.
+        rationale: >-
+          The maintainer must not predict the release tag and the publish date
+          by hand: a wrong prediction makes the promote refuse
+          (DOCBW-08-011, DOCBW-08-041). The publish after the change merges is
+          the next scheduled one, which is the publish that freezes the
+          draft. When that publish does not run, the command dates the entry
+          again.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` run the command on fixture
+          registers in scratch repositories and check the written entry, the
+          regenerated fragments, a given pair, and a register it would write
+          malformed. Tests in
+          `test/ci/test_release.py` and `test/ci/test_publish_gate.py` check the
+          predicted tag and date, and that the predicted time is the publish
+          workflow's schedule.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-007
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-004
+      - id: DOCBW-08-045
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register holds no unreleased entry, the DOCBW-08-043
+          command MUST date again the newest released entry if its release tag
+          does not exist yet, and refuse otherwise, writing nothing.
+        rationale: >-
+          An entry whose release has not been made can still change: when the
+          publish it was dated for does not run, running the command again
+          dates it for the next one (DOCBW-08-041). An entry whose release
+          exists never changes (DOCBW-08-003), and the command fetches the
+          tags first so a stale clone cannot mistake one for the other.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` run the command on a
+          register whose released entry's tag is not made, on one whose tag
+          exists locally or only on `origin`, and with a failed tag fetch, and
+          check the new date, the refusal and that nothing was written.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-043
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-003
       - id: DOCBW-08-012
         priority: MUST
         kind: project

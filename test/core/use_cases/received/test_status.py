@@ -157,6 +157,60 @@ class TestStatusUseCases:
         )
         assert again.disposition == HandlerDisposition.SKIPPED
 
+    @pytest.mark.spec("HP-01-014")
+    @pytest.mark.spec("CLP-10-042")
+    def test_a_redelivered_case_status_is_skipped_with_no_notice(
+        self, make_payload
+    ):
+        """The same status under a new activity id: the guard's repeat.
+
+        The seen-before door cannot answer it (a new id), so the case-status
+        guard does: it declares a repeat, the runner reports ``SKIPPED`` with
+        the guard's reason, and no refusal notice is queued (#5774 AC-3).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/case_cs_repeat",
+            name="Repeat Status Case",
+            attributed_to=_CASE_MANAGER_ID,
+        )
+        status = make(
+            as_CaseStatus,
+            id_="https://example.org/cases/case_cs_repeat/statuses/s1",
+            context=case.id_,
+        )
+        _seed_replica(dl, case)
+        case.case_statuses.append(status)  # type: ignore[arg-type]
+        dl.create(case)
+        dl.create(status)
+        activity = add_status_to_case_activity(
+            status,
+            target=case,
+            actor=_CASE_MANAGER_ID,
+            to=[dl.actor_id],
+            at=authored_at(),
+        )
+
+        result = run_in_act(
+            AddCaseStatusToCaseReceivedUseCase(
+                dl,
+                make_payload(activity, at=dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason == (
+            f"CaseStatus '{status.id_}' already in case '{case.id_}'"
+        )
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert queued_bodies(dl) == []
+
     @pytest.mark.spec("HP-08-007")
     @pytest.mark.parametrize(
         "stored_for_other_case",

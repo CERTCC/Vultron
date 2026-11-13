@@ -372,7 +372,7 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
     from vultron.core.behaviors.case.ownership_transfer_tree import (
         create_accept_ownership_transfer_tree,
     )
-    from vultron.core.use_cases.received._bt_verdict import find_node
+    from vultron.core.behaviors.case.received_run import find_node
     from vultron.core.use_cases.received.actor.ownership import (
         AcceptCaseOwnershipTransferReceivedUseCase,
     )

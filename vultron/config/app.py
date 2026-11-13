@@ -42,7 +42,10 @@ from pydantic_settings import (
 )
 
 from vultron.config.actor import ActorConfig
+from vultron.config.env_names import ENV_NESTED_DELIMITER, ENV_PREFIX
 from vultron.config.ledger import LedgerConfig
+from vultron.config.secrets import refuse_secrets_in_file
+from vultron.config.vince import VinceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +71,10 @@ class YamlConfigSource(PydanticBaseSettingsSource):
     (default: ``config.yaml`` in the working directory).  If the variable is
     set but the file does not exist, :class:`FileNotFoundError` is raised at
     startup.  If neither is set and no default file exists, an empty dict is
-    returned so all fields fall back to their defaults.
+    returned so all fields fall back to their defaults.  A file that names a
+    secret setting, such as ``vince.api_token``, raises
+    :class:`~vultron.errors.VultronSecretInConfigFileError`: a secret is read
+    only from the environment (VSD-01-004).
     """
 
     def _yaml_data(self) -> dict[str, Any]:
@@ -82,7 +88,9 @@ class YamlConfigSource(PydanticBaseSettingsSource):
             return {}
         logger.debug("Loading configuration from %s", p)
         with p.open() as fh:
-            return yaml.safe_load(fh) or {}
+            data = yaml.safe_load(fh) or {}
+        refuse_secrets_in_file(data, self.settings_cls, p)
+        return data
 
     def get_field_value(
         self, field: FieldInfo, field_name: str
@@ -165,6 +173,9 @@ class AppConfig(BaseSettings):
         actor: Actor policy settings (default CVD roles, case creation policy).
         ledger: Case-ledger timestamp tolerances applied at the CaseActor
             commit boundary (CLP-14-009).
+        vince: The VINCE API endpoint and credential the shadow's VINCE
+            connector reads cases with; the credential is read only from the
+            environment (VSD-01-004).
         mode: Operational mode (``prototype`` or ``prod``).
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
@@ -198,6 +209,7 @@ class AppConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     actor: ActorConfig = ActorConfig()
     ledger: LedgerConfig = LedgerConfig()
+    vince: VinceConfig = VinceConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
     max_inbox_retry_attempts: int = 12
@@ -206,8 +218,14 @@ class AppConfig(BaseSettings):
     verification_key_fetch_timeout_seconds: float = Field(default=5.0, gt=0)
 
     model_config = SettingsConfigDict(
-        env_prefix="VULTRON_",
-        env_nested_delimiter="__",
+        env_prefix=ENV_PREFIX,
+        env_nested_delimiter=ENV_NESTED_DELIMITER,
+        # A validation error names the setting, and pydantic does not append
+        # the input it was given: the input can be a secret, such as a VINCE
+        # credential written as the whole ``vince:`` section (VSD-01-005).
+        # A section model's own setting is overruled by this outermost one.
+        # A field validator's own message may still quote a non-secret value.
+        hide_input_in_errors=True,
     )
 
     @classmethod
@@ -221,7 +239,9 @@ class AppConfig(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # Precedence: YAML file (lowest) < environment variables (highest).
         # In pydantic-settings 2.x, the FIRST source in the tuple has the
-        # HIGHEST priority (it wins in the deep-merge).
+        # HIGHEST priority (it wins in the deep-merge).  No ``.env`` file and
+        # no secrets directory is read, on purpose: a secret comes from the
+        # process environment only (VSD-01-004, SHD-02-003).
         return (env_settings, YamlConfigSource(settings_cls))
 
 

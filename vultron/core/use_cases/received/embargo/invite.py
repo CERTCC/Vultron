@@ -7,10 +7,14 @@ if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
     from vultron.core.ports.wire_render import WireRenderPort
 
-import py_trees
-
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    node_failed,
+    pxa_refusal_reader,
+    run_received_tree,
+)
 from vultron.core.behaviors.embargo.invite_received_tree import (
     EmbargoInviteFault,
     EmbargoInviteSubjects,
@@ -44,14 +48,6 @@ from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    door_refusal,
-    embargo_terms_repeat_verdict,
-    node_failed,
-    pxa_refusal_verdict,
-    verdict_from_bt,
-)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronProtocolViolationError
 
@@ -59,9 +55,67 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
+)
+
 logger = logging.getLogger(__name__)
 
 _TREE_LABEL = "InviteToEmbargoOnCaseBT"
+
+
+def _fault_reader(fault: EmbargoInviteFault) -> OutcomeReader:
+    """A run that answered a malformed Invite with its fault is ``REFUSED``.
+
+    The tree sends the fault and succeeds; the Invite itself was refused
+    for the fault's reason (MSM-05-001, EP-09-010).
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if outcome.succeeded:
+            return HandlerResult.refused(fault.reason)
+        return None
+
+    return read
+
+
+def _refusal_reader(
+    invite_id: str, case_id: str, subjects: EmbargoInviteSubjects
+) -> OutcomeReader:
+    """The verdict for a run the tree did not admit.
+
+    The P/X/A refusal, noting when no ``Reject`` was sent because this
+    receiver is not the invitee (EP-09-010); then the same Invite delivered
+    again, and an Invite already answered delivered again after its proposal
+    left the index (CLP-13-001, ID-04-004, HP-01-014).  Terms the case
+    already holds, under new ids, are the generic repeat (EP-09-032).
+    """
+    where = f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'"
+    pxa = pxa_refusal_reader(PXA_INVITE_REFUSAL, where)
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if outcome.succeeded:
+            return None
+        tree = outcome.tree
+        if (refusal := pxa(outcome)) is not None:
+            if node_failed(tree, ReceiverIsInviteeNode):
+                return HandlerResult.refused(
+                    f"{refusal.reason}; no Reject sent, the Invite is addressed"
+                    f" to '{subjects.invitee_id}' (EP-09-010)"
+                )
+            return refusal
+        if node_failed(tree, EmbargoProposalNotYetRecordedNode):
+            return HandlerResult.skipped(
+                f"invite '{invite_id}' was already applied on case '{case_id}'"
+            )
+        if node_failed(tree, EmbargoInviteNotYetAnsweredNode):
+            return HandlerResult.skipped(
+                f"invite '{invite_id}' was already answered on case"
+                f" '{case_id}'"
+            )
+        return None
+
+    return read
 
 
 def resolve_invitee_id(
@@ -220,16 +274,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
+        resolve_receiver_before_reads(self._dl, request)
         case_id = request.context_id or ""
         # ``activity_id`` is a required ``NonEmptyString`` on every event.
         invite_id = request.activity_id
         self._warn_if_deadline_past(invite_id)
         subjects = self._subjects(case_id, invite_id)
 
-        # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
+        # Single BT execution as the receiving actor (ADR-0022 / CLP-10-005).
         # The door guards, the P/X/A refusal and both arms are in the tree:
         # the CASE_MANAGER adjudicates and relays the proposal (EP-09-001,
         # EP-09-002); the addressee's replica answers the Invite to the
@@ -247,28 +299,23 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             ),
             actor_config=self._actor_config,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=_TREE_LABEL,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            reader=(
+                _fault_reader(subjects)
+                if isinstance(subjects, EmbargoInviteFault)
+                else _refusal_reader(invite_id, case_id, subjects)
+            ),
         )
-
-        verdict = verdict_from_bt(tree, result, label=_TREE_LABEL)
-        if isinstance(subjects, EmbargoInviteFault):
-            if verdict.disposition is HandlerDisposition.APPLIED:
-                verdict = HandlerResult.refused(subjects.reason)
-        elif verdict.disposition is HandlerDisposition.REFUSED:
-            verdict = self._refusal(tree, verdict, case_id, subjects)
         if verdict.disposition is HandlerDisposition.SKIPPED:
             # A repeat is a benign no-op, not a recoverable fault (CLP-13-003).
             logger.info("%s (invite '%s')", verdict.reason, invite_id)
-        elif verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning("%s (invite '%s')", verdict.reason, invite_id)
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value
         # from the committed entry (CM-28-024, CM-28-023).
@@ -295,42 +342,3 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             request.rsvp_deadline.isoformat(),
             at.isoformat(),
         )
-
-    def _refusal(
-        self,
-        tree: py_trees.behaviour.Behaviour,
-        verdict: HandlerResult,
-        case_id: str,
-        subjects: EmbargoInviteSubjects,
-    ) -> HandlerResult:
-        """The verdict for a run the tree did not admit."""
-        invite_id = self._request.activity_id
-        if (refusal := door_refusal(tree)) is not None:
-            return refusal
-        if (
-            refusal := pxa_refusal_verdict(
-                tree,
-                PXA_INVITE_REFUSAL,
-                f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'",
-            )
-        ) is not None:
-            if node_failed(tree, ReceiverIsInviteeNode):
-                return HandlerResult.refused(
-                    f"{refusal.reason}; no Reject sent, the Invite is addressed"
-                    f" to '{subjects.invitee_id}' (EP-09-010)"
-                )
-            return refusal
-        if node_failed(tree, EmbargoProposalNotYetRecordedNode):
-            # The same Invite, delivered again (CLP-13-001, HP-01-014).
-            return HandlerResult.skipped(
-                f"invite '{invite_id}' was already applied on case '{case_id}'"
-            )
-        if node_failed(tree, EmbargoInviteNotYetAnsweredNode):
-            # An Invite this invitee already answered, delivered again
-            # after its proposal left the index (ID-04-004, HP-01-014).
-            return HandlerResult.skipped(
-                f"invite '{invite_id}' was already answered on case"
-                f" '{case_id}'"
-            )
-        # Terms the case already holds, under new ids (EP-09-032).
-        return embargo_terms_repeat_verdict(tree, verdict)

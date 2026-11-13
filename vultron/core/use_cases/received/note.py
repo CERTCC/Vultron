@@ -3,7 +3,7 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.note.add_note_received_tree import (
     create_add_note_to_case_received_tree,
 )
@@ -14,19 +14,10 @@ from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
 from vultron.core.use_cases.received._bt_verdict import (
-    add_note_redelivery_verdict,
     case_manager_verdict,
-    reference_edit_verdict,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -37,6 +28,9 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+)
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,17 +86,13 @@ class AddNoteToCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Add(Note)[target=VulnerabilityCase] is missing its inline note or case id"
             )
-        note_id = note.id_
 
+        resolve_receiver_before_reads(self._dl, request)
         # The CASE_MANAGER gate reads a missing case as "not the manager" and
         # skips, which would hide an Add aimed at a case this actor lacks.
         if self._dl.read_case(case_id) is None:
             logger.warning("add_note_to_case: case '%s' not found", case_id)
             return HandlerResult.refused(f"case '{case_id}' not found")
-
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
 
         tree = create_add_note_to_case_received_tree(
             note_obj=note,
@@ -111,31 +101,20 @@ class AddNoteToCaseReceivedUseCase:
             activity_id=request.activity_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        verdict = add_note_redelivery_verdict(
+        # A redelivered Add fails the note-id guard as a repeat, which the
+        # runner reports SKIPPED (HP-01-003, HP-08-006).
+        verdict = run_received_tree(
             tree,
-            verdict_from_bt(tree, result, label="GuardedAttachAndCommitBT"),
+            dl=self._dl,
+            request=request,
+            label="GuardedAttachAndCommitBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         # Only the CASE_MANAGER attaches; others learn of the note through
         # Announce(CaseLedgerEntry) fan-out (SYNC-02-001, SYNC-02-003).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "add_note_to_case: note '%s' in case '%s' refused: %s",
-                note_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class RemoveNoteFromCaseReceivedUseCase:
@@ -178,6 +157,7 @@ class RemoveNoteFromCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Remove(Note)[target=VulnerabilityCase] is missing its note id or case id"
             )
+        resolve_receiver_before_reads(self._dl, request)
         if self._dl.read_case(case_id) is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
@@ -190,29 +170,15 @@ class RemoveNoteFromCaseReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        verdict = reference_edit_verdict(
+        # A note the case does not hold fails the reference guard as a
+        # repeat, which the runner reports SKIPPED.
+        verdict = run_received_tree(
             tree,
-            verdict_from_bt(tree, result, label="GuardedDetachAndCommitBT"),
-            self._dl,
-            case_id,
+            dl=self._dl,
+            request=request,
+            label="GuardedDetachAndCommitBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "remove_note_from_case: note '%s' in case '%s' refused: %s",
-                note_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)

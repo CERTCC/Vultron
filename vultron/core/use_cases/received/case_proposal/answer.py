@@ -19,12 +19,17 @@ CP-06-003) and logs a ``Reject(CaseProposal)`` (CP-06-002, CP-06-004).
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
     RecordCaseActorAcceptanceNode,
     create_accept_case_proposal_received_tree,
+)
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_node,
+    run_received_tree,
 )
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
@@ -43,11 +48,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
-    verdict_from_bt,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -57,24 +57,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _skipped_if_no_link(
-    tree: Any,
+def _no_link_reader(
     node_type: (
         type[RecordCaseActorAcceptanceNode | RecordCaseProposalRejectionNode]
     ),
     report_id: str,
-) -> HandlerResult:
+) -> OutcomeReader:
     """``SKIPPED`` when there was no report link to record the answer on.
 
     The tree succeeds either way; with no link (a relay, or a proposal this
     actor never made) nothing changed (#2255).
     """
-    node = find_node(tree, node_type)
-    if node is not None and not node.link_found:
-        return HandlerResult.skipped(
-            f"no VultronReportCaseLink for report '{report_id}'"
-        )
-    return HandlerResult.applied()
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        node = find_node(outcome.tree, node_type)
+        if node is not None and not node.link_found:
+            return HandlerResult.skipped(
+                f"no VultronReportCaseLink for report '{report_id}'"
+            )
+        return None
+
+    return read
 
 
 class AcceptCaseProposalReceivedUseCase:
@@ -126,39 +131,22 @@ class AcceptCaseProposalReceivedUseCase:
                 "Accept(CaseProposal) carries no inline report"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         tree = create_accept_case_proposal_received_tree(
             report_id=report_id,
             case_actor_id=case_actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AcceptCaseProposalReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="AcceptCaseProposalReceivedBT"
+            wire_render_port=self._wire_render_port,
+            reader=_no_link_reader(RecordCaseActorAcceptanceNode, report_id),
         )
         if verdict.disposition is HandlerDisposition.APPLIED:
-            verdict = _skipped_if_no_link(
-                tree, RecordCaseActorAcceptanceNode, report_id
-            )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "accept_case_proposal_received: refused for report '%s': %s",
-                report_id,
-                verdict.reason,
-            )
-        elif verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "accept_case_proposal_received: recorded case-actor '%s'"
                 " for report '%s'",
@@ -218,40 +206,23 @@ class RejectCaseProposalReceivedUseCase:
         if request.activity is not None:
             rejection_reason = request.activity.summary
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         tree = create_reject_case_proposal_received_tree(
             report_id=report_id,
             sender_actor_id=request.actor_id,
             rejection_reason=rejection_reason,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RejectCaseProposalReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="RejectCaseProposalReceivedBT"
+            wire_render_port=self._wire_render_port,
+            reader=_no_link_reader(RecordCaseProposalRejectionNode, report_id),
         )
         if verdict.disposition is HandlerDisposition.APPLIED:
-            verdict = _skipped_if_no_link(
-                tree, RecordCaseProposalRejectionNode, report_id
-            )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "reject_case_proposal_received: refused for report '%s': %s",
-                report_id,
-                verdict.reason,
-            )
-        elif verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "reject_case_proposal_received: case-actor '%s' rejected"
                 " proposal for report '%s' (reason: %r) (CP-06-004)",

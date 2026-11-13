@@ -49,6 +49,8 @@ from test.ci.test_frozen_drafts import (
 from vultron.metadata.docs import drafts_register as dr
 
 _rel = load_script("release")
+# The release lookup lives in its own module, so a fake gh patches both.
+_releases = load_script("github_releases")
 _fd = load_script("frozen_draft")
 _serve = load_script("serve_frozen_drafts")
 
@@ -88,6 +90,7 @@ class _FlakyReleases(_Releases):
 def releases(monkeypatch: pytest.MonkeyPatch) -> _FlakyReleases:
     fake = _FlakyReleases()
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_releases, "gh", fake)
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     return fake
 
@@ -836,6 +839,7 @@ def test_an_unexpected_lookup_reply_fails_that_draft_only(
         )
 
     monkeypatch.setattr(_rel, "gh", gh)
+    monkeypatch.setattr(_releases, "gh", gh)
     register = _register_file(
         tmp_path, _released_json(("draft-1", RELEASE), ("draft-2", LATER))
     )
@@ -866,7 +870,8 @@ def test_a_release_lookup_that_fails_is_retried_then_names_the_draft(
         raise subprocess.CalledProcessError(1, ["gh", *args], stderr=stderr)
 
     monkeypatch.setattr(_rel, "gh", gh)
-    monkeypatch.setattr(_rel.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(_releases, "gh", gh)
+    monkeypatch.setattr(_releases.time, "sleep", lambda _seconds: None)
     monkeypatch.setenv("GH_RETRY_ATTEMPTS", "3")
     site = _built_site(tmp_path)
     lines, faults = _serve.serve(

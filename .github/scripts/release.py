@@ -13,6 +13,10 @@ Three workflows run this script, each on ``main``'s copy (DOCBW-07):
   DOCBW-08). A tag the workflow's ``GITHUB_TOKEN`` pushes starts no other
   workflow, so the release tag check never sees it: promote checks its own
   input.
+- ``next-freeze`` prints, as JSON, the release tag and the date that the
+  draft release command, ``drafts-register release``, writes into a released
+  entry: the date of the next scheduled publish, and the next release tag
+  for that day's month (DOCBW-08-043).
 - ``check`` (``release_tag_check.yml``) fails when a ``v*`` tag pushed by
   hand names a commit with no publish, so ``notify-failure`` reports it. It
   only reports: it never blocks the tag and never deletes it.
@@ -25,11 +29,12 @@ gate's tagger check. Tags are append-only (#5545): this script creates a
 release tag and nothing else; it never moves or deletes one.
 
 Usage:
-  release.py plan --ref REF [--publish-tag TAG]
+  release.py plan --repo OWNER/NAME --ref REF [--publish-tag TAG]
   release.py promote --repo OWNER/NAME --ref REF --actor LOGIN --run-url URL
       [--publish-tag TAG] [--planned-release TAG] [--planned-draft draft-N]
       [--frozen-dir DIR]
   release.py frozen-artifact --repo OWNER/NAME --run-id ID --attempt N
+  release.py next-freeze [--now ISO-8601-TIME]
   release.py check --tag TAG [--details-file PATH]
   release.py staleness [--details-file PATH]
 """
@@ -61,7 +66,8 @@ from gh_cli import (  # see gh_cli
     run,
     write_github_file,
 )
-from publish_gate import MAIN_REF
+from github_releases import ReleaseState, release_state
+from publish_gate import MAIN_REF, next_scheduled_publish
 from release_tags import (
     BOT_GIT_IDENTITY,
     BOT_NAME,
@@ -254,6 +260,48 @@ class Register:
         return next((e for e in self.released if e.release == tag), None)
 
 
+def freeze_publish(
+    newest: Tag,
+    tags: Iterable[Tag],
+    register_at: Callable[[str], Register | None],
+    published: Callable[[str], bool],
+) -> Tag:
+    """The publish an empty input promotes: *newest*, or the one that froze a draft.
+
+    When the register at *newest* holds no open draft and its newest released
+    draft is dated another day, the run promotes the newest publish of that
+    date whose register holds the same entry: the publish that froze the
+    draft (DOCBW-08-042). A promote run later than that publish thus still
+    carries the draft with its date, and a run after one that tagged that
+    publish's commit and then failed resumes that release (DOCBW-07-012).
+    The choice is made before the release is named. Once the entry's release
+    is published (*published* answers for its tag), that draft is done and
+    *newest* is kept, so a later release that carries no draft promotes what
+    the site shows now. With no such publish, *newest* is kept too, and
+    :func:`carried_draft` refuses it if the draft is this run's.
+    """
+    register = register_at(newest.commit)
+    if (
+        register is None
+        or register.current is not None
+        or not register.released
+    ):
+        return newest
+    entry = register.released[-1]
+    if entry.date == newest.publish_day:
+        return newest
+    same_day = [
+        tag for tag in tags if tag.is_publish and tag.publish_day == entry.date
+    ]
+    while (tag := newest_publish_tag(same_day)) is not None:
+        theirs = register_at(tag.commit)
+        if theirs is not None and theirs.entry(entry.version) == entry:
+            done = entry.release is not None and published(entry.release)
+            return newest if done else tag
+        same_day.remove(tag)
+    return newest
+
+
 def carried_draft(
     promotion: Promotion,
     existing: Iterable[str],
@@ -264,9 +312,10 @@ def carried_draft(
     Read from the drafts register at the promoted commit. The run is refused
     when that register names, as a draft's release, a tag that is neither
     the run's release nor an existing release whose own register holds the
-    same entry (DOCBW-08-011), and when it names the run's release for a
-    draft while it still holds an open draft (DOCBW-08-012). Every such
-    fault is named.
+    same entry (DOCBW-08-011), when it names the run's release for a draft
+    while it still holds an open draft (DOCBW-08-012), and when the draft's
+    date is not the date of the publish being promoted (DOCBW-08-041). Every
+    such fault is named.
     """
     register = register_at(promotion.source.commit)
     if register is None:
@@ -297,20 +346,24 @@ def carried_draft(
             f"{promotion.release}, but {register.current.version} is still "
             "open: mark it released or remove it before promoting"
         )
+    day = promotion.source.publish_day
+    if carried is not None and carried.date != day:
+        faults.append(
+            f"{carried.version} names this run's release, "
+            f"{promotion.release}, with the date {carried.date}, but "
+            f"{promotion.source.name} was published on {day}, and a released "
+            "draft's date is the date of the publish that freezes it. If a "
+            f"publish of {carried.date} carries the entry, promote that one "
+            "(an empty input does); if none does, that publish never ran: "
+            "run `uv run drafts-register release` again to date the entry "
+            "anew, merge that, and promote after its publish"
+        )
     if faults:
         raise PromotionRefusedError(
             f"the drafts register at {promotion.source.name} cannot be "
             "promoted: " + "; ".join(faults)
         )
     return None if carried is None else carried.version
-
-
-@dataclass(frozen=True)
-class ReleaseState:
-    """A GitHub Release as the promote sees it: draft or not, and its assets."""
-
-    is_draft: bool
-    assets: tuple[str, ...]
 
 
 def frozen_pair(version: str) -> tuple[str, str]:
@@ -450,39 +503,6 @@ def register_at(ref: str) -> Register | None:
     )  # fmt: skip
     data = json.loads(out)
     return None if data is None else Register.from_json(data)
-
-
-def release_state(
-    repo: str, name: str, *, retry: bool = False
-) -> ReleaseState | None:
-    """The GitHub Release, draft or not, for tag *name*, or ``None``.
-
-    Only ``gh``'s "release not found" reads as no release; any other error
-    raises, so a failed lookup never leads to a second draft. With *retry*,
-    such an error is tried again within ``retry.sh``'s bounds, and "not
-    found" is never retried: a deploy that only reads passes it, while the
-    promote reads the release afresh in its own loop.
-    """
-    delays = retry_delays() if retry else []
-    for delay in [*delays, None]:
-        try:
-            out = gh(
-                "release", "view", name, "--repo", repo, "--json",
-                "isDraft,assets", retry=False,
-            )  # fmt: skip
-        except subprocess.CalledProcessError as error:
-            if "not found" in str(error.stderr or "").lower():
-                return None
-            if delay is None:
-                raise
-            time.sleep(delay)
-            continue
-        data = json.loads(out)
-        return ReleaseState(
-            bool(data["isDraft"]),
-            tuple(str(asset["name"]) for asset in data.get("assets") or []),
-        )
-    raise AssertionError("unreachable: the last attempt returns or raises")
 
 
 def download_assets(
@@ -641,22 +661,37 @@ def _today() -> date:
     return datetime.now(UTC).date()
 
 
+def _published(repo: str, name: str) -> bool:
+    """Whether *repo* has a published, not draft, GitHub Release of tag *name*.
+
+    The plan job's read-only token cannot see a draft release, which then
+    reads as none: either way the release is not published.
+    """
+    state = release_state(repo, name, retry=True)
+    return state is not None and not state.is_draft
+
+
 def _decide(args: argparse.Namespace) -> tuple[Promotion, str | None]:
     """The promotion and the draft it carries, or a refusal."""
     if args.ref != MAIN_REF:
         raise PromotionRefusedError(
             f"a promotion starts from main, not {args.ref!r}"
         )
-    source = choose_publish_tag(args.publish_tag, publish_tags())
+    tags = list(publish_tags())
+    source = choose_publish_tag(args.publish_tag, tags)
+    if not args.publish_tag:
+        source = freeze_publish(
+            source, tags, register_at, lambda name: _published(args.repo, name)
+        )
     releases = release_tags()
     promotion = plan_promotion(source, releases, _today())
     draft = carried_draft(promotion, (t.name for t in releases), register_at)
     return promotion, draft
 
 
-def _refused(error: Exception) -> int:
+def _refused(error: Exception, title: str = "Promotion refused") -> int:
     print(f"::error::{error}", file=sys.stderr)
-    _report("Promotion refused", str(error))
+    _report(title, str(error))
     return 1
 
 
@@ -670,13 +705,11 @@ def cmd_plan(args: argparse.Namespace) -> int:
         promotion, draft = _decide(args)
     except ValueError as error:
         return _refused(error)
-    day = PUBLISH_TAG_RE.match(promotion.source.name)
-    assert day is not None
     write_github_file(
         "GITHUB_OUTPUT",
         f"commit={promotion.source.commit}\n"
         f"publish-tag={promotion.source.name}\n"
-        f"publish-date={day.group(1)}\n"
+        f"publish-date={promotion.source.publish_day}\n"
         f"release={promotion.release}\n"
         f"draft={draft or ''}\n",
     )
@@ -879,6 +912,36 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_next_freeze(args: argparse.Namespace) -> int:
+    """Print the release tag and date a draft marked released now gets.
+
+    The date is that of the next scheduled publish after *now*, which is the
+    first publish of a commit merged before it; the tag is the next release
+    tag for that date's month (DOCBW-08-043). The promote numbers its tag by
+    the day it runs, so a promote in a later month refuses the entry
+    (DOCBW-08-011).
+    """
+    try:
+        now = (
+            datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
+        )
+        start = next_scheduled_publish(now)
+    except ValueError as error:
+        return _refused(error, "No freeze predicted")
+    day = start.date()
+    release = next_release_name(day, (t.name for t in release_tags()))
+    print(
+        json.dumps(
+            {
+                "release": release,
+                "date": day.isoformat(),
+                "publish_starts": start.isoformat(),
+            }
+        )
+    )
+    return 0
+
+
 def _unpublished_count(newest: Tag | None, tip: str) -> int:
     span = f"{newest.commit}..{tip}" if newest else tip
     return int(run("git", "rev-list", "--count", span).strip())
@@ -907,6 +970,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     plan = sub.add_parser("plan")
+    plan.add_argument("--repo", required=True)
     plan.add_argument("--ref", required=True)
     plan.add_argument("--publish-tag", default="")
     plan.set_defaults(func=cmd_plan)
@@ -926,6 +990,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     artifact.add_argument("--run-id", required=True)
     artifact.add_argument("--attempt", required=True)
     artifact.set_defaults(func=cmd_frozen_artifact)
+    freeze = sub.add_parser("next-freeze")
+    freeze.add_argument("--now", default="")
+    freeze.set_defaults(func=cmd_next_freeze)
     check = sub.add_parser("check")
     check.add_argument("--tag", required=True)
     check.add_argument("--details-file", default="")

@@ -3,7 +3,7 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -12,17 +12,11 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    rm_declaration_verdict,
     unheld_case_refusal,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -68,21 +62,10 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return HandlerResult.refused("Engage activity has no case id")
 
-        # The BT must execute under the receiving actor's identity so that
-        # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
-        # the CaseActor and commit the ledger entry (fix for #2300).  Absent
-        # receiving_actor_id the answer is the store's owner, never the sender
-        # (BT-17-006, #2667).
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # The Join names the case (ADR-0165): every detail comes from the case
         # this store holds, so one it does not hold is refused.
         if (
-            refusal := unheld_case_refusal(
-                self._dl, case_id, request.activity_id, "Join"
-            )
+            refusal := unheld_case_refusal(self._dl, request, case_id, "Join")
         ) is not None:
             return refusal
 
@@ -97,46 +80,27 @@ class EngageCaseReceivedUseCase:
             case_id,
         )
 
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-        )
         tree = create_engage_case_tree(
             case_id=case_id,
             actor_id=actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+        # A restated Join has no move to record, and so no change to
+        # announce: the tree skips the CASE_MANAGER's effects whole, and its
+        # repeat guard says the run changed nothing, so the runner reports
+        # SKIPPED, not APPLIED (ID-05-003, #5006).  Only the CASE_MANAGER
+        # records the move (HP-01-005).
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="EngageCaseBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
             case_id=case_id,
         )
-
-        # A restated Join has no move to record, and so no change to
-        # announce: the tree skips the CASE_MANAGER's effects whole, and the
-        # handler reports that as SKIPPED, not APPLIED (ID-05-003, #5006).
-        # Only the CASE_MANAGER records the move (HP-01-005).
-        verdict = case_manager_verdict(
-            tree,
-            rm_declaration_verdict(
-                tree,
-                verdict_from_bt(tree, result, label="EngageCaseBT"),
-                label="EngageCaseBT",
-            ),
-            self._dl,
-            case_id,
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
-                actor_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class DeferCaseReceivedUseCase:
@@ -169,18 +133,9 @@ class DeferCaseReceivedUseCase:
             logger.warning("defer_case: missing case_id on request")
             return HandlerResult.refused("Defer activity has no case id")
 
-        # The BT must execute under the receiving actor's identity so that
-        # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
-        # the CaseActor and commit the ledger entry (fix for #2300).  Absent
-        # receiving_actor_id the answer is the store's owner, never the sender
-        # (BT-17-006, #2667).
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         if (
             refusal := unheld_case_refusal(
-                self._dl, case_id, request.activity_id, "Ignore"
+                self._dl, request, case_id, "Ignore"
             )
         ) is not None:
             return refusal
@@ -193,40 +148,20 @@ class DeferCaseReceivedUseCase:
             case_id,
         )
 
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-        )
         tree = create_defer_case_tree(
             case_id=case_id,
             actor_id=actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="DeferCaseBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
             case_id=case_id,
         )
-
         # Only the CASE_MANAGER records the move (HP-01-005).
-        verdict = case_manager_verdict(
-            tree,
-            rm_declaration_verdict(
-                tree,
-                verdict_from_bt(tree, result, label="DeferCaseBT"),
-                label="DeferCaseBT",
-            ),
-            self._dl,
-            case_id,
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
-                actor_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)

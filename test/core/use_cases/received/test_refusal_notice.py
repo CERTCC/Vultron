@@ -73,6 +73,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.received_run import find_node
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
@@ -101,7 +102,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.fault import RefusalNoticeReceivedUseCase
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import (

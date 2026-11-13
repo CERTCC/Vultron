@@ -40,11 +40,14 @@ from vultron.metadata.docs import drafts_register as dr
 _rel = load_script("release")
 _fd = load_script("frozen_draft")
 _tags = load_script("release_tags")
+# The release lookup lives in its own module, so a fake gh patches both.
+_releases = load_script("github_releases")
 
 TODAY = date(2026, 11, 2)
 BUILT = date(2026, 11, 2)
 RELEASE = "v2026.11.0"
 PUBLISH = "publish-2026-11-02.1"
+PUBLISH_DAY = "2026-11-02"
 SITE_URL = "https://example.org/Vultron/"
 RUN_URL = "https://github.com/O/R/actions/runs/7"
 MAIN = "refs/heads/main"
@@ -725,19 +728,26 @@ class _Releases:
         return [c[1] for c in self.calls]
 
 
-def _register_text(*entries: tuple[str, str, str | None]) -> str:
+def _register_text(
+    *entries: tuple[str, str, str | None], day: str = PUBLISH_DAY
+) -> str:
+    """A register of *entries*, each dated *day*: the publish's date by default."""
     text = "drafts:\n"
     for version, status, release in entries:
-        text += f"  - version: {version}\n    status: {status}\n    date: 2026-11-06\n"
+        text += (
+            f"  - version: {version}\n    status: {status}\n    date: {day}\n"
+        )
         if release:
             text += f"    release: {release}\n"
     return text
 
 
-def _commit_register(repo: Path, *entries: tuple[str, str, str | None]) -> str:
+def _commit_register(
+    repo: Path, *entries: tuple[str, str, str | None], day: str = PUBLISH_DAY
+) -> str:
     path = repo / dr.REGISTER_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_register_text(*entries), encoding="utf-8")
+    path.write_text(_register_text(*entries, day=day), encoding="utf-8")
     git(repo, "add", "-A")
     git(
         repo,
@@ -788,7 +798,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def releases(monkeypatch: pytest.MonkeyPatch) -> _Releases:
     fake = _Releases()
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_releases, "gh", fake)
     monkeypatch.setattr(_rel.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(_releases.time, "sleep", lambda _seconds: None)
     return fake
 
 
@@ -821,6 +833,11 @@ def _promote(
         "--frozen-dir", str(frozen or ""),
     ]  # fmt: skip
     return int(_rel.main(argv))
+
+
+def _plan_argv(ref: str) -> list[str]:
+    """The ``plan`` command line for *ref*, with an empty input."""
+    return ["plan", "--repo", "O/R", "--ref", ref, "--publish-tag", ""]
 
 
 def _creates(fake: _Releases) -> list[tuple[str, ...]]:
@@ -933,6 +950,121 @@ def test_a_register_with_an_open_draft_beside_the_release_is_refused(
     assert _promote(_frozen(tmp_path, commit)) == 1
     assert RELEASE not in _remote_tags(repo)
     assert releases.calls == []
+
+
+@pytest.mark.spec("DOCBW-08-042")
+def test_an_empty_input_promotes_the_publish_that_froze_the_draft(
+    repo: Path, releases: _Releases, tmp_path: Path
+) -> None:
+    """A promote run after a later publish still carries the draft's date."""
+    commit = _publish(repo, RELEASED)
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    assert _promote(_frozen(tmp_path, commit), commit=commit) == 0
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == commit
+
+
+@pytest.mark.spec("DOCBW-08-042")
+def test_a_same_day_publish_without_the_entry_is_passed_over(
+    repo: Path, releases: _Releases, tmp_path: Path
+) -> None:
+    """A same-day publish whose register lacks the entry is passed over."""
+    commit = _publish(repo, RELEASED)
+    # The marking was reverted and published, then made again.
+    _commit_register(repo, ("draft-1", "unreleased", None))
+    tag_as_bot(repo, "publish-2026-11-02.2")
+    _commit_register(repo, RELEASED)
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    assert _promote(_frozen(tmp_path, commit), commit=commit) == 0
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == commit
+
+
+@pytest.mark.spec("DOCBW-07-012", "DOCBW-08-042")
+def test_a_late_promote_resumes_the_tag_a_failed_run_left(
+    repo: Path, releases: _Releases, tmp_path: Path
+) -> None:
+    """The freezing commit already carries the release tag, with no release."""
+    commit = _publish(repo, RELEASED)
+    tag_as_bot(repo, RELEASE, commit)
+    git(repo, "push", "-q", "origin", RELEASE)
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    assert _promote(_frozen(tmp_path, commit), commit=commit) == 0
+    (create,) = _creates(releases)
+    assert create[2] == RELEASE
+    assert {Path(a).name for a in create[3:5]} == {ARCHIVE, MANIFEST}
+    assert {t.name for t in _tags.release_tags()} == {RELEASE}
+
+
+@pytest.mark.spec("DOCBW-07-012", "DOCBW-08-042")
+def test_once_the_drafts_release_is_published_the_newest_publish_is_promoted(
+    repo: Path, releases: _Releases
+) -> None:
+    """With no draft open yet, a later release carries no draft (#6406)."""
+    commit = _publish(repo, RELEASED)
+    tag_as_bot(repo, RELEASE, commit)
+    git(repo, "push", "-q", "origin", RELEASE)
+    releases.add(RELEASE, draft=False, assets={ARCHIVE: b"a", MANIFEST: b"m"})
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    newest = git(repo, "rev-parse", "HEAD")
+    later = "v2026.11.1"
+    assert _promote(None, draft="", release=later, commit=newest) == 0
+    assert git(repo, "rev-parse", f"{later}^{{commit}}") == newest
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == commit
+
+
+@pytest.mark.spec("DOCBW-08-042")
+def test_an_open_draft_keeps_the_newest_publish(
+    repo: Path, releases: _Releases
+) -> None:
+    """With a draft open, an earlier released draft's date moves nothing."""
+    _publish(repo, ("draft-1", "unreleased", None))
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    newest = git(repo, "rev-parse", "HEAD")
+    assert _promote(None, draft="", commit=newest) == 0
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == newest
+
+
+@pytest.mark.spec("DOCBW-08-041")
+@pytest.mark.parametrize("named", [True, False], ids=["named", "empty-input"])
+def test_a_draft_dated_off_its_publish_is_refused(
+    repo: Path,
+    releases: _Releases,
+    capsys: pytest.CaptureFixture[str],
+    named: bool,
+) -> None:
+    """No publish of the entry's date carries it: that publish never ran."""
+    _commit_register(repo, RELEASED, day="2026-11-01")
+    tag_as_bot(repo, PUBLISH)
+    argv = [
+        "plan", "--repo", "O/R", "--ref", MAIN,
+        "--publish-tag", PUBLISH if named else "",
+    ]  # fmt: skip
+    assert _rel.main(argv) == 1
+    err = capsys.readouterr().err
+    assert "with the date 2026-11-01" in err
+    assert f"{PUBLISH} was published on {PUBLISH_DAY}" in err
+    assert "drafts-register release" in err
+    assert _tags.release_tags() == []
+    assert releases.calls == []
+
+
+@pytest.mark.spec("DOCBW-08-041")
+def test_a_named_publish_other_than_the_freezing_one_is_refused(
+    repo: Path, releases: _Releases, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Naming a later publish does not move the draft's date."""
+    _publish(repo, RELEASED)
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    argv = [
+        "plan", "--repo", "O/R", "--ref", MAIN,
+        "--publish-tag", "publish-2026-11-03.1",
+    ]  # fmt: skip
+    assert _rel.main(argv) == 1
+    assert "published on 2026-11-03" in capsys.readouterr().err
 
 
 @pytest.mark.spec("DOCBW-08-021")
@@ -1152,14 +1284,12 @@ def test_the_plan_names_the_release_and_its_draft(
     commit = _publish(repo, entry)
     out = tmp_path / "out"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    assert _rel.main(["plan", "--ref", MAIN, "--publish-tag", ""]) == 0
+    assert _rel.main(_plan_argv(MAIN)) == 0
     assert out.read_text() == (
         f"commit={commit}\npublish-tag={PUBLISH}\npublish-date=2026-11-02\n"
         f"release={RELEASE}\ndraft={'draft-1' if carries else ''}\n"
     )
-    assert (
-        _rel.main(["plan", "--ref", "refs/heads/x", "--publish-tag", ""]) == 1
-    )
+    assert _rel.main(_plan_argv("refs/heads/x")) == 1
 
 
 def test_register_at_reads_mains_drafts_register(
@@ -1207,6 +1337,7 @@ def test_a_release_no_longer_a_draft_is_never_deleted(
     fake = _Releases()
     fake.add(RELEASE, draft=False, assets={})
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_releases, "gh", fake)
     with pytest.raises(_rel.IncompleteDraftReleaseError):
         _rel.discard_draft_release("O/R", RELEASE)
     assert "delete" not in fake.verbs()

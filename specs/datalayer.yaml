@@ -287,6 +287,35 @@ groups:
     - persistence
     adr:
     - ADR-0146
+  - id: DL-02-011
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Inside a `dl.transaction()` block, a read of a record the block already
+      read SHOULD NOT fetch it from the store again unless, in between, the block
+      wrote that record or rolled back an inner block.
+    rationale: >-
+      One act reads the same few records hundreds of times, such as its case
+      and the case's participants (#5344). Inside a block nothing but the
+      block's own writes can change the store, because the block holds the
+      write lock, so a record it read stays current until it writes that
+      record. A read after a write, or after an inner block that rolled back,
+      still returns what the store holds (DL-02-008).
+    verification: >-
+      `test/adapters/driven/datalayer_sqlite/test_transaction_read_reuse.py`
+      checks that a row read twice in a block is fetched once, and that a read
+      after each kind of record write, or after a rolled-back inner block,
+      returns what the store holds.
+      `test_one_received_proposal_stays_within_its_store_read_bound` in
+      `test/core/use_cases/received/test_embargo_proposal_answer_copy.py` bounds
+      the store reads of one received embargo proposal.
+    relationships:
+    - rel_type: extends
+      spec_id: DL-02-008
+    tags:
+    - persistence
+    adr:
+    - ADR-0146
 - id: DL-03
   title: Port Isolation
   specs:

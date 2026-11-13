@@ -29,9 +29,6 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.received._bt_verdict import (
-    role_offer_answer_verdict,
-)
 from vultron.core.use_cases.received._offer_reply import (
     run_offer_reply_tree,
 )
@@ -131,7 +128,6 @@ class AcceptCaseParticipantRoleReceivedUseCase:
             label=label,
             case_id=case_id,
             subject="role offer",
-            refine=role_offer_answer_verdict,
             applied_note="accepted",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
@@ -189,7 +185,6 @@ class RejectCaseParticipantRoleReceivedUseCase:
             label=label,
             case_id=case_id,
             subject="role offer",
-            refine=role_offer_answer_verdict,
             applied_note="rejected",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,

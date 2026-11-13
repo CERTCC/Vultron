@@ -38,6 +38,8 @@ CLI (``uv run drafts-register``)::
     drafts-register show --ref REF --absent-ok   # ``null`` when REF holds none
     drafts-register check-releases     # exit 1 if a released entry and its
                                        # tag's register disagree
+    drafts-register release [--release TAG --date YYYY-MM-DD]
+                                       # mark the open draft released
 """
 
 from __future__ import annotations
@@ -47,6 +49,7 @@ import itertools
 import json
 import posixpath
 import re
+import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -63,6 +66,7 @@ from pydantic import (
 )
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.docs.build_version import PUBLISH_DATE_SLOT
 from vultron.metadata.docs.site_urls import url_path
 from vultron.metadata.file_loading import (
     FailureCollector,
@@ -74,6 +78,7 @@ from vultron.metadata.file_loading import (
     validate,
     yaml_node_positions,
 )
+from vultron.metadata.generated_files import write_generated
 from vultron.metadata.git_runner import GitError, GitRunner, git_runner
 
 #: The register, repository-relative (DOCBW-08-001).
@@ -448,17 +453,27 @@ def _status_text(entry: UnreleasedDraft | ReleasedDraft) -> str:
     return f"{CURRENT_DRAFT_LABEL}, not yet released"
 
 
-def _table(
-    entry: UnreleasedDraft | ReleasedDraft, *, indent: str = ""
-) -> list[str]:
+def _table(entry: UnreleasedDraft | ReleasedDraft) -> list[str]:
+    """The rows of *entry*'s status table.
+
+    A released draft has one date, the date of the publish that froze it. The
+    current draft has the day it opened and, filled in by the build, the date
+    of the publish that built the page (DOCBW-08-040).
+    """
     rows = [
         "| Property | Value |",
         "|----------|-------|",
         f"| Version | `{entry.version}` |",
         f"| Status | {_status_text(entry)} |",
-        f"| Date | {entry.date.isoformat()} |",
     ]
-    return [f"{indent}{row}" for row in rows]
+    if isinstance(entry, ReleasedDraft):
+        rows.append(f"| Date | {entry.date.isoformat()} |")
+    else:
+        rows += [
+            f"| Opened | {entry.date.isoformat()} |",
+            f"| Last updated | {PUBLISH_DATE_SLOT} |",
+        ]
+    return rows
 
 
 def render_draft_table(entry: UnreleasedDraft | ReleasedDraft) -> str:
@@ -476,10 +491,10 @@ def render_draft_table(entry: UnreleasedDraft | ReleasedDraft) -> str:
 
 
 def _citation(entry: UnreleasedDraft | ReleasedDraft) -> str:
-    base = f"Vultron Protocol Specification, `{entry.version}`, {entry.date.isoformat()}"
+    base = f"Vultron Protocol Specification, `{entry.version}`"
     if isinstance(entry, ReleasedDraft):
-        return f"{base}, `{entry.release}`"
-    return base
+        return f"{base}, {entry.date.isoformat()}, `{entry.release}`"
+    return f"{base}, {PUBLISH_DATE_SLOT}"
 
 
 def _open_draft_text(
@@ -489,7 +504,7 @@ def _open_draft_text(
         "Until a release of the Vultron repository carries the draft, its "
         "text can still change.",
         "To cite this text, name the specification, the version and the "
-        f"date, for example: {_citation(current)}.",
+        f"date it was last updated, for example: {_citation(current)}.",
         "Until a release carries the draft, also name the "
         "`publish-YYYY-MM-DD.N` tag in the page footer, which identifies the "
         "text you read ([Vultron Release Versioning](../versioning.md)).",
@@ -512,6 +527,27 @@ def _released_draft_text(newest: ReleasedDraft) -> list[str]:
         "draft.",
         "To cite this text, name the specification, the version, the date "
         f"and the release tag, for example: {_citation(newest)}.",
+    ]
+
+
+def _date_text(entry: UnreleasedDraft | ReleasedDraft) -> list[str]:
+    """What the dates in the status box mean (DOCBW-08-001, DOCBW-08-040)."""
+    register = (
+        "The drafts register, which the [Revision Log](revision-log.md) is "
+        "generated from, records each draft's dates."
+    )
+    if isinstance(entry, ReleasedDraft):
+        return [
+            "The date is the date of the publish of the site that froze this "
+            "draft, and it never changes.",
+            register,
+        ]
+    return [
+        "The last-updated date is the date of the publish of the site that "
+        "built this page: each publish stamps it.",
+        "The opened date is the day the entry for this draft was added to "
+        "the drafts register.",
+        register,
     ]
 
 
@@ -542,9 +578,7 @@ def render_status_box(register: DraftsRegister) -> str:
         "",
         *_table(entry),
         "",
-        "The date is the day the entry for this draft was added to the "
-        "drafts register, which the [Revision Log](revision-log.md) is "
-        "generated from.",
+        *_date_text(entry),
         *tail,
     ]
     lines = [f'!!! note "{title}"', ""]
@@ -783,8 +817,174 @@ def check_releases(root: Path, git: GitRunner | None = None) -> list[str]:
     )
 
 
+# --- Marking the open draft released (DOCBW-08-043) -----------------------------
+
+#: The promote's script, whose ``next-freeze`` command predicts the release
+#: tag and the date of a draft marked released now.
+RELEASE_SCRIPT = ".github/scripts/release.py"
+
+
+class ReleaseCommandError(ValueError):
+    """``drafts-register release`` cannot mark a draft released."""
+
+
+@dataclass(frozen=True)
+class Freeze:
+    """The release that will carry a draft, and the date of the publish that freezes it.
+
+    ``publish_starts`` is when that publish is scheduled to start, the time
+    the change must merge by; ``None`` when the date was given, not predicted.
+    """
+
+    release: str
+    day: date
+    publish_starts: datetime | None = None
+
+
+def predict_freeze(root: Path) -> Freeze:
+    """The release and date ``release.py next-freeze`` predicts for *root*.
+
+    Raises:
+        ReleaseCommandError: When the script fails or prints no prediction.
+    """
+    script = root / RELEASE_SCRIPT
+    proc = subprocess.run(  # nosec B603 - fixed argv, the repository's script
+        [sys.executable, "-I", str(script), "next-freeze"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise ReleaseCommandError(
+            f"{RELEASE_SCRIPT} next-freeze failed: {proc.stderr.strip()}"
+        )
+    try:
+        data = json.loads(proc.stdout)
+        return Freeze(
+            str(data["release"]),
+            date.fromisoformat(data["date"]),
+            datetime.fromisoformat(data["publish_starts"]),
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise ReleaseCommandError(
+            f"{RELEASE_SCRIPT} next-freeze printed no prediction: "
+            f"{proc.stdout!r}"
+        ) from error
+
+
+def mark_released(
+    register: DraftsRegister, freeze: Freeze, existing: set[str]
+) -> tuple[DraftsRegister, ReleasedDraft]:
+    """*register* with its open draft released by *freeze*, and that entry.
+
+    With no open draft, the newest released draft is dated again, as long as
+    its release tag is not in *existing*: a draft whose release has not been
+    made can still change, as when the publish it was dated for never ran
+    (DOCBW-08-041).
+
+    Raises:
+        ReleaseCommandError: When every draft's release has been made.
+    """
+    target: UnreleasedDraft | ReleasedDraft | None = register.current
+    if target is None:
+        newest = register.newest_released
+        assert newest is not None  # a register holds at least one entry
+        if newest.release in existing:
+            raise ReleaseCommandError(
+                f"every draft is released: {newest.version}'s release, "
+                f"{newest.release}, exists. Open the next draft as a new "
+                "unreleased entry first."
+            )
+        target = newest
+    released = ReleasedDraft(
+        version=target.version,
+        status="released",
+        date=freeze.day,
+        release=freeze.release,
+    )
+    drafts = tuple(
+        released if entry.version == target.version else entry
+        for entry in register.drafts
+    )
+    return DraftsRegister(drafts, register.shown), released
+
+
+def register_entries_text(register: DraftsRegister) -> str:
+    """The ``drafts:`` list of *register*, as the register file writes it."""
+    lines = ["drafts:"]
+    for entry in register.drafts:
+        lines += [
+            f"  - version: {entry.version}",
+            f"    status: {entry.status}",
+            f"    date: {entry.date.isoformat()}",
+        ]
+        if isinstance(entry, ReleasedDraft):
+            lines.append(f"    release: {entry.release}")
+    return "\n".join(lines) + "\n"
+
+
+def release_open_draft(
+    root: Path,
+    given: Freeze | None = None,
+    predict: Callable[[Path], Freeze] = predict_freeze,
+) -> tuple[ReleasedDraft, Freeze]:
+    """Mark the open draft of *root*'s register released by *given*, or by *predict*.
+
+    Returns the released entry and the freeze it was marked with.
+
+    The tags are fetched first, a given freeze or not: the next release
+    tag is numbered from every ``v*`` tag, and whether a released entry may
+    be dated again depends on whether its tag exists, so a clone that lacks
+    the newest would name a taken tag or change a released entry
+    (DOCBW-08-003).
+
+    The register keeps its comment header and has its ``drafts:`` list
+    written again, and the status box and status tables are generated from
+    the result (DOCBW-08-004), so the change is one commit. Every text is
+    built and checked before anything is written, and the register is
+    written last: a failure part-way leaves the register as it was, so the
+    command can simply run again.
+
+    Raises:
+        MetadataLoadError, MetadataLoadErrors: When the register, or the one
+            the command would write, is malformed.
+        ReleaseCommandError: When no draft can be marked released, or the
+            register's ``drafts:`` list is not in the block form it writes or
+            holds a comment, which writing it again would drop.
+        GitError: When git cannot fetch or read the tags.
+    """
+    path = root / REGISTER_PATH
+    shown = display_path(path, root)
+    text = read_utf8(path, shown)
+    register = parse_register(text, shown)
+    start = re.search(r"^drafts:\s*$", text, re.MULTILINE)
+    if start is None:
+        raise ReleaseCommandError(
+            f"{shown} has no 'drafts:' line opening a block list, so the "
+            "command cannot tell its header from its entries"
+        )
+    if "#" in text[start.end() :]:
+        raise ReleaseCommandError(
+            f"{shown} has a comment inside its 'drafts:' list, which the "
+            "command would drop when it writes the list again: move it into "
+            "the header above 'drafts:'"
+        )
+    git = git_runner(root)
+    git(["fetch", "--quiet", "--tags", "origin"])
+    existing = set(release_tags(git))
+    freeze = given or predict(root)
+    updated, entry = mark_released(register, freeze, existing)
+    text = text[: start.start()] + register_entries_text(updated)
+    parse_register(text, shown)  # the written file must load
+    for relative, contents in desired_fragments(updated).items():
+        write_generated(root / relative, contents)
+    write_generated(path, text)
+    return entry, freeze
+
+
 def main(argv: list[str] | None = None) -> None:
-    """CLI entry point: ``uv run drafts-register {show,check-releases}``."""
+    """CLI entry point: ``uv run drafts-register {show,check-releases,release}``."""
     parser = argparse.ArgumentParser(
         description="Read the Protocol Specification's drafts register."
     )
@@ -812,9 +1012,28 @@ def main(argv: list[str] | None = None) -> None:
             "disagree (DOCBW-08-003)."
         ),
     )
+    release = commands.add_parser(
+        "release",
+        help=(
+            "Mark the open draft released, with the next release tag and the "
+            "date of the next scheduled publish (DOCBW-08-043)."
+        ),
+    )
+    release.add_argument(
+        "--release",
+        help="Name this release tag instead of the predicted one.",
+    )
+    release.add_argument(
+        "--date",
+        type=date.fromisoformat,
+        help="Name this publish date, YYYY-MM-DD, instead of the predicted one.",
+    )
     args = parser.parse_args(argv)
     root = repo_root()
     try:
+        if args.command == "release":
+            _release(root, args.release, args.date)
+            return
         if args.command == "show":
             register = (
                 load_register(root)
@@ -841,6 +1060,33 @@ def main(argv: list[str] | None = None) -> None:
             print(f"[ERROR] {fault} (DOCBW-08-003).", file=sys.stderr)
         sys.exit(1)
     print("Every released draft matches its entry at its release tag.")
+
+
+def _release(root: Path, tag: str | None, day: date | None) -> None:
+    """Run ``drafts-register release`` and say what to do next."""
+    if (tag is None) != (day is None):
+        raise ReleaseCommandError("--release and --date go together")
+    given = None if tag is None or day is None else Freeze(tag, day)
+    entry, freeze = release_open_draft(root, given, predict_freeze)
+    print(_next_steps(entry, freeze.publish_starts))
+
+
+def _next_steps(entry: ReleasedDraft, publish_starts: datetime | None) -> str:
+    """What the maintainer does after ``drafts-register release``."""
+    day = entry.date.isoformat()
+    deadline = (
+        f"before {publish_starts.strftime('%Y-%m-%d %H:%M')} UTC, when the "
+        f"publish of {day} is scheduled to start"
+        if publish_starts is not None
+        else f"before the publish of {day}"
+    )
+    return (
+        f"Marked {entry.version} released in {entry.release}, dated {day}, "
+        f"in {REGISTER_PATH} and its generated fragments.\n"
+        f"Merge the change {deadline}. Then run the promote workflow with an "
+        "empty input on or after that day, in the same month. If that "
+        "publish does not run, run this command again."
+    )
 
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ description: >
   mandatory `notify-failure` wiring and its one-job-per-label rule, the
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
-  `GITHUB_TOKEN`-raised event never triggers another workflow, why a script
+  `GITHUB_TOKEN`-raised event other than a dispatch never triggers another
+  workflow, why a script
   must use the spellings macOS's bash 3.2 understands, why a capping `head`
   behind a pipe kills its own step, why a bot-filed issue
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
@@ -243,6 +244,11 @@ and update arms. The script resolves the type by name, applies it with
 not exist (CISEC-05-017 to CISEC-05-019). `notify-failure`,
 `demo-recordings.yml` and `csaf-draft-watch-issue.sh` use it; never copy its
 body into a workflow.
+
+The one exception is a dispatch: `gh workflow run <file> --ref main` with
+`GITHUB_TOKEN` and `actions: write` starts a run. Use it when an event fires on
+a ref you must not run from, as `publish_after_release.yml` does for a release
+tag that the Pages environment refuses (DOCBW-06-032).
 
 ## A Script Runs On The Host's bash, Which May Be 3.2
 

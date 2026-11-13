@@ -313,6 +313,11 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
   most of a read (#4969). Inside the block that seam yields the block's own
   connection, so the read sees the block's writes. It is for reads only: a write
   on it skips the SAVEPOINT that `_session()` gives.
+- **An object-row write forgets the rows it touches.** The block keeps each row
+  it reads and serves a second read of it without a fetch (DL-02-011, #5344),
+  which is sound only because every `vultron_objects` write calls
+  `forget_rows()` first. A new write path that skips it hands later reads in the
+  block the row's old version; write through `crud`, or call `forget_rows()`.
 - **Side effects outside the store wait for the commit.** The outbox enqueue
   callback runs through `run_after_commit()`; anything else that tells another
   thread a row exists does the same, or it signals a row that may roll back.

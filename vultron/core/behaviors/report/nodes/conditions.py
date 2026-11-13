@@ -196,7 +196,16 @@ class CheckRMStateAccepted(_CheckParticipantRMStateBase):
 
 
 class CheckParticipantRMState(_CheckParticipantRMStateBase):
-    """Guard: actor RM is already *target_rm*; a restated move is recorded once."""
+    """Guard: actor RM is already *target_rm*; a restated move is recorded once.
+
+    It is the first child of the repeat Selector
+    :func:`~vultron.core.behaviors.report.rm_declaration_tree.unless_rm_already_recorded`
+    builds, so its ``SUCCESS`` skips the write: the declared state is already
+    recorded and the run changes nothing.  It says so as a
+    :class:`~vultron.core.behaviors.idempotency.ReportsNoChange`, so the
+    handler reports the run ``SKIPPED``, not ``APPLIED`` (RSH-08-002,
+    ID-05-003, #5006).
+    """
 
     def __init__(
         self,
@@ -207,6 +216,16 @@ class CheckParticipantRMState(_CheckParticipantRMStateBase):
     ) -> None:
         super().__init__(case_id=case_id, actor_id=actor_id, name=name)
         self._target_rm = target_rm
+
+    @property
+    def succeeded_without_change(self) -> bool:
+        """True when the declared RM state was already recorded."""
+        return self.status == Status.SUCCESS
+
+    @property
+    def no_change_reason(self) -> str:
+        """Why the run changed nothing."""
+        return "the declared RM state is already recorded for the sender"
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
