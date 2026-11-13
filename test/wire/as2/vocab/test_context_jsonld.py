@@ -502,16 +502,68 @@ def test_a_malformed_marker_is_named_by_its_field(
         sync.vultron_property_declarations()
 
 
-def test_a_property_term_never_replaces_a_type_term(
+class _ProbeUnknownKind(BaseModel):
+    counted: int = Field(
+        default=0,
+        json_schema_extra={
+            "vultron_property": {"definition": "A count", "kind": "number"}
+        },
+    )
+
+
+class _ProbePaddedDefinition(BaseModel):
+    padded: int = Field(
+        default=0,
+        json_schema_extra={
+            "vultron_property": {"definition": " A value", "kind": "plain"}
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "probe, field",
+    [
+        (_ProbeUnknownKind, "counted"),
+        (_ProbePaddedDefinition, "padded"),
+    ],
+)
+def test_a_refused_declaration_is_named_by_its_field(
+    monkeypatch: pytest.MonkeyPatch, probe: type[BaseModel], field: str
+) -> None:
+    """A marker the declaration refuses, an unknown kind or a padded
+    definition (a ``pydantic.ValidationError``), names its field."""
+    monkeypatch.setattr(sync, "_wire_object_classes", lambda: [probe])
+    with pytest.raises(ValueError, match=rf"{probe.__name__}\.{field}"):
+        sync.vultron_property_declarations()
+
+
+type _ProbeAliased = list[_ProbeNested]
+
+
+class _ProbeAliasRoot(BaseModel):
+    aliased: _ProbeAliased = Field(default_factory=list)
+
+
+def test_a_type_alias_is_followed_to_its_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A property spelled like a type would silently overwrite its term."""
     monkeypatch.setattr(
-        sync,
-        "vultron_property_terms",
-        lambda: {"VulnerabilityCase": "vultron:VulnerabilityCase"},
+        sync, "_wire_object_classes", lambda: [_ProbeAliasRoot]
     )
-    with pytest.raises(ValueError, match="VulnerabilityCase"):
+    assert _ProbeNested in sync.wire_field_classes()
+    assert sync.vultron_property_terms() == {"shown": "vultron:shown"}
+
+
+@pytest.mark.parametrize("name", ["VulnerabilityCase", "vultron"])
+def test_a_property_term_never_replaces_a_type_or_prefix_term(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A property spelled like a type, or like the namespace prefix, would
+    silently overwrite that term."""
+    monkeypatch.setattr(
+        sync, "vultron_property_terms", lambda: {name: f"vultron:{name}"}
+    )
+    with pytest.raises(ValueError, match=rf"\['{name}'\]"):
         sync.build_context_document()
 
 
@@ -522,8 +574,13 @@ def test_two_disagreeing_declarations_of_one_name_are_refused(
     monkeypatch.setattr(
         sync, "_wire_object_classes", lambda: [_ProbeRoot, _ProbeDisagrees]
     )
-    with pytest.raises(ValueError, match="'shown'"):
+    with pytest.raises(ValueError, match="'shown'") as refused:
         sync.vultron_property_declarations()
+    # Each side is named by its field and shown as the marker it stores.
+    message = str(refused.value)
+    assert "_ProbeNested.shown" in message
+    assert "_ProbeDisagrees.shown" in message
+    assert "'definition': 'Another meaning'" in message
 
 
 def test_the_namespace_page_property_table_is_generated(

@@ -238,8 +238,12 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
             where = f"{cls.__module__}.{cls.__qualname__}.{name}"
             try:
                 declaration = declared_vultron_property(info)
-            except (TypeError, ValueError) as error:
-                raise type(error)(f"{where}: {error}") from error
+            except TypeError as error:
+                raise TypeError(f"{where}: {error}") from error
+            except ValueError as error:
+                # A ``pydantic.ValidationError`` is a ``ValueError`` that
+                # cannot be rebuilt from a message, so re-raise the base type.
+                raise ValueError(f"{where}: {error}") from error
             if declaration is None:
                 continue
             wire_name = _wire_name(name, info)
@@ -247,11 +251,15 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
             if first[0] != declaration:
                 raise ValueError(
                     f"two declarations of the Vultron property {wire_name!r} "
-                    f"disagree (VM-10-012): {first[1]} declares {first[0]}, "
-                    f"{where} declares {declaration}. Share one declaration."
+                    f"disagree (VM-10-012): {first[1]} declares "
+                    f"{first[0].as_json()}, {where} declares "
+                    f"{declaration.as_json()}. Share one declaration."
                 )
     return {name: declaration for name, (declaration, _) in declared.items()}
 
+
+#: The term that maps the ``vultron:`` prefix to the namespace (VM-10-002).
+_NAMESPACE_PREFIX = "vultron"
 
 #: The keyword a scalar kind's term carries, and its value (VM-10-010).
 _SCALAR_TYPES: dict[PropertyValueKind, str] = {
@@ -373,12 +381,16 @@ def build_context_document() -> dict[str, object]:
     """
     type_terms = vultron_context_terms()
     property_terms = vultron_property_terms()
-    if clashes := sorted(set(type_terms) & set(property_terms)):
+    reserved = set(type_terms) | {_NAMESPACE_PREFIX}
+    if clashes := sorted(reserved & set(property_terms)):
         raise ValueError(
-            f"Vultron property terms {clashes} share a name with a type term; "
-            "one name has one term (VM-10-012), so rename the property."
+            f"Vultron property terms {clashes} share a name with a type term "
+            "or the namespace prefix; one name has one term (VM-10-012), so "
+            "rename the property."
         )
-    term_block: dict[str, str | dict[str, str]] = {"vultron": VULTRON_NS_URI}
+    term_block: dict[str, str | dict[str, str]] = {
+        _NAMESPACE_PREFIX: VULTRON_NS_URI
+    }
     term_block.update(type_terms)
     term_block.update(property_terms)
     return {"@context": [ACTIVITY_STREAMS_NS, term_block]}
