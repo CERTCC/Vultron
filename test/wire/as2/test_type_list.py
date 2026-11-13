@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Reject,
+    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -195,6 +196,7 @@ class TestOutboundTypeList:
 
         parsed = parse_activity(_wire(create))
 
+        assert isinstance(parsed, as_TransitiveActivity)
         assert type(parsed.object_) is ext.Memo
 
     def test_a_stored_copy_reads_back_as_the_same_class(self, ext):
@@ -212,6 +214,7 @@ class TestOutboundTypeList:
             dl.close()
 
         assert type(stored) is ext.Decline
+        assert stored is not None
         assert stored.type_ == "TestDecline"
 
     @pytest.mark.spec("VM-08-002")
@@ -324,6 +327,7 @@ class TestInboundTypeList:
 
         parsed = parse_activity(body)
 
+        assert isinstance(parsed, as_TransitiveActivity)
         assert type(parsed.object_) is as_Object
         assert parsed.object_.type_ == "Foo"
 
@@ -367,6 +371,7 @@ class TestInboundTypeList:
 
         parsed = parse_activity(copy.deepcopy(body))
 
+        assert isinstance(parsed, as_TransitiveActivity)
         assert isinstance(parsed.object_, CoreObject)
         assert parsed.object_.type_ == "VulnerabilityReport"
         assert parsed.received_evidence == body
@@ -558,4 +563,5 @@ def test_inline_expansion_narrows_only_the_type_it_resolved():
 
     parsed = parse_activity(body)
 
+    assert isinstance(parsed, as_TransitiveActivity)
     assert type(parsed.object_) is as_Note
