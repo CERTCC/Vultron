@@ -1801,8 +1801,7 @@ groups:
           While the drafts register holds an unreleased entry, the status box
           and that entry's revision log status table MUST show, as the current
           draft's last-updated date, the date of the publish that built the
-          page, which the site build reads from the DOCBW-06-031 inputs. A
-          build that no publish makes MUST say that it is unpublished instead.
+          page, which the site build reads from the DOCBW-06-031 inputs.
         rationale: >-
           The current draft changes with each publish, so a date fixed in the
           register cannot say which text a reader sees. The publish date can,
@@ -1819,6 +1818,23 @@ groups:
             spec_id: DOCBW-08-004
           - rel_type: uses_definition
             spec_id: DOCBW-06-031
+      - id: DOCBW-08-044
+        priority: MUST
+        kind: project
+        statement: >-
+          A site build that no publish makes, such as a pull request's review
+          build or `mkdocs serve`, MUST show "unpublished build" where
+          DOCBW-08-040 shows the publish date.
+        rationale: >-
+          A review build has no publish, so a date there would name a text no
+          publish served. Saying so keeps the slot from ever showing a wrong
+          date.
+        verification: >-
+          Tests in `test/metadata/docs/test_build_version.py` run the build
+          hook with no publish inputs and check the text that fills the slot.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-040
       - id: DOCBW-08-007
         priority: MUST
         kind: project
@@ -1983,10 +1999,8 @@ groups:
           The command `drafts-register release` MUST mark the unreleased entry
           of the drafts register released, with the next `v*` release tag and
           the date of the next scheduled publish (DOCBW-06-007), and write the
-          DOCBW-08-004 fragments from the result. It MUST date again a released
-          entry whose release tag does not exist yet, and refuse when every
-          entry's release tag exists. A `--release` and `--date` pair names
-          the tag and the date instead.
+          DOCBW-08-004 fragments from the result. A `--release` and `--date`
+          pair names the tag and the date instead.
         rationale: >-
           The maintainer must not predict the release tag and the publish date
           by hand: a wrong prediction makes the promote refuse
@@ -1997,7 +2011,8 @@ groups:
         verification: >-
           Tests in `test/ci/test_drafts_register.py` run the command on fixture
           registers in scratch repositories and check the written entry, the
-          regenerated fragments, the second dating and the refusal. Tests in
+          regenerated fragments, a given pair, and a register it would write
+          malformed. Tests in
           `test/ci/test_release.py` and `test/ci/test_publish_gate.py` check the
           predicted tag and date, and that the predicted time is the publish
           workflow's schedule.
@@ -2008,6 +2023,29 @@ groups:
             spec_id: DOCBW-06-007
           - rel_type: uses_definition
             spec_id: DOCBW-08-004
+      - id: DOCBW-08-045
+        priority: MUST
+        kind: project
+        statement: >-
+          When the drafts register holds no unreleased entry, the DOCBW-08-043
+          command MUST date again the newest released entry if its release tag
+          does not exist yet, and refuse otherwise, writing nothing.
+        rationale: >-
+          An entry whose release has not been made can still change: when the
+          publish it was dated for does not run, running the command again
+          dates it for the next one (DOCBW-08-041). An entry whose release
+          exists never changes (DOCBW-08-003), and the command fetches the
+          tags first so a stale clone cannot mistake one for the other.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` run the command on a
+          register whose released entry's tag is not made, on one whose tag
+          exists locally or only on `origin`, and with a failed tag fetch, and
+          check the new date, the refusal and that nothing was written.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-043
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-003
       - id: DOCBW-08-012
         priority: MUST
         kind: project

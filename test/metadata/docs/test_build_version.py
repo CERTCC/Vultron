@@ -223,7 +223,7 @@ def test_hook_renders_the_publish_jobs_tag(
 # --- the current draft's date (DOCBW-08-040) -----------------------------------
 
 
-@pytest.mark.spec("DOCBW-08-040")
+@pytest.mark.spec("DOCBW-08-040", "DOCBW-08-044")
 @pytest.mark.parametrize(
     ("published", "shown"),
     [("2026-10-30", "2026-10-30"), ("", "unpublished build")],

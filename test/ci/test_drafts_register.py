@@ -831,7 +831,7 @@ def test_release_with_a_given_freeze_does_not_predict(clone):
     assert freeze == FREEZE and entry.release == "v2026.11.1"
 
 
-@pytest.mark.spec("DOCBW-08-041", "DOCBW-08-043")
+@pytest.mark.spec("DOCBW-08-041", "DOCBW-08-043", "DOCBW-08-045")
 def test_release_dates_again_a_draft_whose_release_is_not_made(clone):
     """The publish it was dated for never ran: run the command again."""
     _freeze_repo(
@@ -842,7 +842,7 @@ def test_release_dates_again_a_draft_whose_release_is_not_made(clone):
     assert (entry.version, entry.date.isoformat()) == ("draft-1", "2026-11-16")
 
 
-@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043")
+@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043", "DOCBW-08-045")
 @pytest.mark.parametrize("where", ["local", "origin-only"])
 def test_release_refuses_when_every_drafts_release_is_made(clone, where):
     """A tag only ``origin`` holds counts too: the command fetches it first."""
@@ -880,7 +880,7 @@ def test_release_refuses_a_flow_style_list(clone):
         dr.release_open_draft(clone, FREEZE)
 
 
-@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043")
+@pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043", "DOCBW-08-045")
 def test_release_fails_before_any_write_when_the_tags_cannot_be_fetched(clone):
     _freeze_repo(clone, _register(_open(1)))
     git(clone, "remote", "remove", "origin")
