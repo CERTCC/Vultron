@@ -41,17 +41,14 @@ _TRACKED = "Tracked by #6407."
 def _pinned_files() -> list[tuple[str, Path, str]]:
     """Each pinned context as (URL, local path, recorded SHA-256 digest)."""
     record = json.loads(_PIN_PATH.read_text())
+    sources = record["sources"]
+    digests = record["sha256"]
     return [
-        (url, _PIN_PATH.parent / entry["path"], entry["sha256"])
-        for url, entry in record.items()
+        (url, _PIN_PATH.parent / filename, digests[filename])
+        for url, filename in sources.items()
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=FileNotFoundError,
-    reason=f"VM-10-011: no context is pinned yet. {_TRACKED}",
-)
 @pytest.mark.spec("VM-10-011")
 def test_each_cited_context_has_a_pinned_copy() -> None:
     pinned = _pinned_files()
@@ -59,11 +56,6 @@ def test_each_cited_context_has_a_pinned_copy() -> None:
     assert all(path.is_file() for _, path, _ in pinned)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=FileNotFoundError,
-    reason=f"VM-10-013: no context is pinned yet. {_TRACKED}",
-)
 @pytest.mark.spec("VM-10-013")
 def test_each_pinned_context_copy_matches_its_digest() -> None:
     pinned = _pinned_files()
