@@ -29,6 +29,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import Field, ValidationError
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import parse_fetched_object
 from vultron.adapters.driving.fastapi.helpers import obj_from_item
@@ -146,7 +147,8 @@ class TestOutboundTypeList:
         assert "type" not in dumped
 
     def test_a_class_with_no_core_supertype_keeps_a_string(self):
-        reject = as_Reject(
+        reject = make(
+            as_Reject,
             actor=ACTOR,
             object_="https://example.org/notes/1",
             published=PUBLISHED,
@@ -157,8 +159,12 @@ class TestOutboundTypeList:
 
     def test_an_inline_extension_object_is_sent_with_the_list(self, ext):
         memo = ext.Memo(content="x", published=PUBLISHED, updated=PUBLISHED)
-        create = as_Create(
-            actor=ACTOR, object_=memo, published=PUBLISHED, updated=PUBLISHED
+        create = make(
+            as_Create,
+            actor=ACTOR,
+            object_=memo,
+            published=PUBLISHED,
+            updated=PUBLISHED,
         )
 
         assert _wire(create)["object"]["type"] == ["TestMemo", "Note"]
@@ -179,8 +185,12 @@ class TestOutboundTypeList:
 
     def test_an_inline_extension_object_parses_back_to_its_class(self, ext):
         memo = ext.Memo(content="x", published=PUBLISHED, updated=PUBLISHED)
-        create = as_Create(
-            actor=ACTOR, object_=memo, published=PUBLISHED, updated=PUBLISHED
+        create = make(
+            as_Create,
+            actor=ACTOR,
+            object_=memo,
+            published=PUBLISHED,
+            updated=PUBLISHED,
         )
 
         parsed = parse_activity(_wire(create))
