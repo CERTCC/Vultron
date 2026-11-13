@@ -2636,7 +2636,7 @@ class TestWithdrawalOfOwnershipTransfer:
         ]
         assert len(queued) == (0 if answer == "accept" else 1), queued
         assert all(
-            getattr(getattr(a, "type_", None), "value", None) == "Reject"
+            getattr(getattr(a, "type_", None), "value", None) == "Refuse"
             and getattr(a, "to", None) == [_VENDOR_ID]
             for a in queued
         )

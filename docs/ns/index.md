@@ -19,27 +19,30 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 
 ## Declared types
 
-| Type name | Description |
-|-----------|-------------|
-| `CaseLedgerEntry` | Entry in the canonical append-only case ledger |
-| `CaseParticipant` | Actor-in-role binding within a specific case |
-| `CaseParticipantRole` | A CVD role being offered to an actor in a case context |
-| `CaseProposal` | Request to a Case Actor Service to initialize a new case |
-| `CaseReference` | Typed external URL reference attached to a case |
-| `CaseStatus` | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
-| `EmbargoConsent` | One participant's consent to one embargo, a row of the consent table |
-| `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
-| `EmbargoPolicy` | Actor-level declaration of embargo preferences |
-| `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
-| `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
-| `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
-| `VulnerabilityCaseStub` | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
-| `VulnerabilityItem` | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
-| `VulnerabilityReport` | Initial report artifact submitted to a case |
+| Type name | Subtype of | Description |
+|-----------|------------|-------------|
+| `CaseLedgerEntry` | — | Entry in the canonical append-only case ledger |
+| `CaseParticipant` | — | Actor-in-role binding within a specific case |
+| `CaseParticipantRole` | — | A CVD role being offered to an actor in a case context |
+| `CaseProposal` | — | Request to a Case Actor Service to initialize a new case |
+| `CaseReference` | — | Typed external URL reference attached to a case |
+| `CaseStatus` | — | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
+| `EmbargoConsent` | — | One participant's consent to one embargo, a row of the consent table |
+| `EmbargoEvent` | — | Embargo proposal, acceptance, revision, or termination record |
+| `EmbargoPolicy` | — | Actor-level declaration of embargo preferences |
+| `ParticipantStatus` | — | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
+| `ProcessingFault` | — | Negative acknowledgment returned when a received activity could not be processed |
+| `Refuse` | `as:Reject` | The CASE_MANAGER's refusal of an activity a precondition did not admit, sent as `"type": ["Refuse", "Reject"]`; a participant's decline of a request stays a `Reject` |
+| `VulnerabilityCase` | — | Coordination container for a vulnerability disclosure case |
+| `VulnerabilityCaseStub` | — | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
+| `VulnerabilityItem` | — | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
+| `VulnerabilityReport` | — | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.
 Those terms come from the wire `type` value each class emits, never from its class name, so a class that emits another class's `type` value gets no term of its own.
 The stub form of a case is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
+A type with a "Subtype of" entry refines that ActivityStreams type: it is transmitted as a list of its own type and that type, so a receiver that knows only ActivityStreams still reads the message.
+`context.jsonld` states each such pair in its `@graph`, as `rdfs:subClassOf`.
 
 ## Declared properties
 

@@ -16,6 +16,7 @@ import pytest
 
 from test.support.future_dates import days_from_now
 from test.support.objects import make
+from test.support.refusal_notice import REFUSAL_NOTICE_WIRE_TYPE
 
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -164,14 +165,14 @@ def assert_only_refusal_notice(
 ) -> dict[str, object]:
     """Assert *dl* queued one thing: the refusal notice for *refused_id*.
 
-    The notice is a ``Reject`` of the refused activity, inline, threaded by
+    The notice is a ``Refuse`` of the refused activity, inline, threaded by
     ``inReplyTo`` and addressed to the asserter alone (CLP-05-001).  Returns
     its body, for a test that checks the reason in ``summary``.
     """
     bodies = queued_bodies(dl)
     assert len(bodies) == 1, f"expected one refusal notice, got {bodies}"
     (notice,) = bodies
-    assert notice["type"] == "Reject"
+    assert notice["type"] == REFUSAL_NOTICE_WIRE_TYPE
     assert notice["inReplyTo"] == refused_id
     assert notice["to"] == [asserter]
     refused = notice["object"]
@@ -185,7 +186,7 @@ def refusal_notices_since(
 ) -> list[dict[str, object]]:
     """The bodies *dl* queued since *before*, each a notice to *asserter*.
 
-    Asserts that everything queued since is a refusal notice: a ``Reject``
+    Asserts that everything queued since is a refusal notice: a ``Refuse``
     of an activity, inline, threaded to it and sent to *asserter* alone
     (CLP-05-001).
     """
@@ -194,7 +195,7 @@ def refusal_notices_since(
     assert len(notices) == len(sent), "a queued item has no sealed body"
     for notice in notices:
         refused = notice["object"]
-        assert notice["type"] == "Reject"
+        assert notice["type"] == REFUSAL_NOTICE_WIRE_TYPE
         assert notice["to"] == [asserter]
         assert isinstance(refused, dict)
         assert notice["inReplyTo"] == refused["id"]

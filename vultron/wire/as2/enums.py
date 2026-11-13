@@ -64,6 +64,9 @@ class as_TransitiveActivityType(StrEnum):
     REJECT = "Reject"
     TENTATIVE_REJECT = "TentativeReject"
     READ = "Read"
+    # A Vultron extension verb, not an AS2 term: ``vultron:Refuse``, a
+    # subtype of ``as:Reject``, sent as ``["Refuse", "Reject"]`` (ADR-0196).
+    REFUSE = "Refuse"
 
 
 def merge_enums(name: str, enums: list[type[StrEnum]]) -> type[StrEnum]:

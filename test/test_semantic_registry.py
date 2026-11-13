@@ -305,10 +305,7 @@ def test_validate_registry_order_reversed_pair_raises():
 def _inline_activity_reject_entry() -> SemanticEntry:
     return _make_entry(
         MessageSemantics.REFUSAL_NOTICE,
-        InlineActivityObjectPattern(
-            activity_=TAtype.REJECT,
-            excluded_object_verbs=frozenset({TAtype.INVITE}),
-        ),
+        InlineActivityObjectPattern(activity_=TAtype.REJECT),
     )
 
 
@@ -323,10 +320,14 @@ def _reject_of(verb: TAtype) -> SemanticEntry:
 
 
 @pytest.mark.spec("SE-03-002")
-def test_an_entry_after_an_inline_activity_catch_all_it_shadows_raises():
+@pytest.mark.parametrize("verb", [TAtype.INVITE, TAtype.OFFER])
+def test_an_entry_after_an_inline_activity_catch_all_it_shadows_raises(
+    verb: TAtype,
+):
+    """The catch-all takes every inline verb, so it shadows each one."""
     with pytest.raises(RegistryOrderError, match="never reached"):
         _validate_registry_order(
-            [_inline_activity_reject_entry(), _reject_of(TAtype.OFFER)]
+            [_inline_activity_reject_entry(), _reject_of(verb)]
         )
 
 
@@ -334,13 +335,6 @@ def test_an_entry_after_an_inline_activity_catch_all_it_shadows_raises():
 def test_an_inline_activity_catch_all_last_passes():
     _validate_registry_order(
         [_reject_of(TAtype.OFFER), _inline_activity_reject_entry()]
-    )
-
-
-@pytest.mark.spec("SE-03-002")
-def test_an_excluded_verb_after_the_catch_all_passes():
-    _validate_registry_order(
-        [_inline_activity_reject_entry(), _reject_of(TAtype.INVITE)]
     )
 
 

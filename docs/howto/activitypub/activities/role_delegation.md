@@ -124,7 +124,7 @@ The CASE_MANAGER refuses these answers and records nothing for them:
 - an answer whose copy names another role or target.
 
 It can refuse your own answer because the offer is no longer open or your copy differs.
-In that case, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
+In that case, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Refuse` of your answer, with the reason in `summary`.
 If your answer is delivered again after the CASE_MANAGER recorded it, the CASE_MANAGER changes nothing ([CM-33-018](../../../reference/vultron-spec/requirements/case-management.md#cm-33-018)).
 
 When it admits your answer, the CASE_MANAGER records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../../../reference/vultron-spec/requirements/case-management.md#cm-33-019)).

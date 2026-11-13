@@ -393,7 +393,7 @@ class HoldPastGapNode(DataLayerActionWithPorts):
 class EmitSequenceRefusalNoticeNode(_EmitSingleActivityBase):
     """Queue the refusal notice for an activity refused for its number.
 
-    One ``Reject`` of the received activity to its sender, as every refusal
+    One ``Refuse`` of the received activity to its sender, as every refusal
     notice is (CLP-05-001), carrying the next number the CASE_MANAGER
     expects as ``expectedSenderSequence`` so the sender resumes there
     (SYNC-21-015, SYNC-21-007).  It writes no state; its id is derived from

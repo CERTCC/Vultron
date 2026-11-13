@@ -453,8 +453,10 @@ class as_Reject(as_TransitiveActivity):
     # ``senderSequence`` names the number the CASE_MANAGER expects next from
     # that sender, as the Vultron property ``expectedSenderSequence``, so
     # the sender resumes at or above it (SYNC-21-007).  Declared on the
-    # base for the reason ``as_Remove`` declares ``termination_cause``: an
-    # inbound notice is reconstructed as a bare ``as_Reject``.
+    # base ``Reject``, which ``as_Refuse`` refines, for the reason
+    # ``as_Remove`` declares ``termination_cause``: a notice is also read
+    # back as a plain ``as_Reject``, which re-reads the ``["Refuse",
+    # "Reject"]`` list as its own type (ADR-0196).
     expected_sender_sequence: SenderSequence | None = Field(
         default=None,
         validation_alias="expectedSenderSequence",

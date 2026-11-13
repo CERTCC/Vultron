@@ -416,7 +416,7 @@ def refusal_notice() -> Scenario:
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(refused_add)))
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
-    (notice, *_) = net.queued(MANAGER, to=BYSTANDER, type_="Reject")
+    (notice, *_) = net.queued(MANAGER, to=BYSTANDER, type_="Refuse")
     body = read_sealed_body_dict(net.stores[MANAGER], notice.id_)
     assert body is not None
     return at_replica(

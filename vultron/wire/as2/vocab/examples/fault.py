@@ -21,7 +21,6 @@ from vultron.wire.as2.factories.fault import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
-    as_Reject,
 )
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
@@ -32,6 +31,7 @@ from vultron.wire.as2.vocab.examples._base import (
 from vultron.wire.as2.vocab.examples.status import (
     add_fix_readiness_to_participant,
 )
+from vultron.wire.as2.vocab.extension_activities import as_Refuse
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
@@ -58,12 +58,13 @@ def create_processing_fault() -> as_Create:
     )
 
 
-def refusal_notice() -> as_Reject:
+def refusal_notice() -> as_Refuse:
     """The Case Manager refuses a Vendor's status assertion a guard rejected.
 
-    The refused ``Add(ParticipantStatus)`` is carried inline, ``inReplyTo``
-    names it, and ``summary`` gives the guard's reason (CLP-05-001).  Nothing
-    is ledgered for the refusal (CLP-04-007).
+    The notice is a ``Refuse``, written as ``"type": ["Refuse", "Reject"]``
+    (ADR-0196).  The refused ``Add(ParticipantStatus)`` is carried inline,
+    ``inReplyTo`` names it, and ``summary`` gives the guard's reason
+    (CLP-05-001).  Nothing is ledgered for the refusal (CLP-04-007).
     """
     refused = add_fix_readiness_to_participant()
     assert isinstance(refused.actor, str)
