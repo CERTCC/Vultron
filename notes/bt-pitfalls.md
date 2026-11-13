@@ -171,11 +171,11 @@ Two conditions on that guard:
   rolls back and raises on a RUNNING child rather than re-ticking, which is
   what keeps a `memory=False` Selector from re-reading the guard after the write.
 
-`rm_declaration_verdict` reads the answer by node *type*
-(`node_succeeded(tree, CheckParticipantRMState)`), so a second node of that type
-asking about another actor or another RM state makes a handler call a first
-delivery a repeat. Pin the set of questions a tree asks, not only the node names
-(`test_engage_tree_node_names`).
+The received-tree runner reads the answer from any `CheckParticipantRMState`
+that declares it changed nothing (`ReportsNoChange`, ADR-0194), so a second node
+of that type asking about another actor or another RM state makes a handler
+call a first delivery a repeat. Pin the set of questions a tree asks, not only
+the node names (`test_engage_tree_node_names`).
 
 ---
 

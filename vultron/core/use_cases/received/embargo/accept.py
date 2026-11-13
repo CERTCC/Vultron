@@ -20,9 +20,15 @@ if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
-import py_trees
-
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    failure_reason,
+    first_reading,
+    pxa_refusal_reader,
+    run_received_tree,
+    taken_diversion,
+)
 from vultron.core.behaviors.embargo.accept_availability_tree import (
     NEVER_HELD_EMBARGO_FAULT,
     UNAVAILABLE_EMBARGO_REFUSAL,
@@ -44,17 +50,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-    embargo_answer_repeat_verdict,
-    failure_reason,
-    pxa_refusal_verdict,
-    taken_diversion,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
@@ -64,6 +60,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TREE_LABEL = "AcceptInviteToEmbargoBT"
+
+
+def _unavailable_embargo_reader(where: str) -> OutcomeReader:
+    """The verdict of an Accept a not-available-embargo diversion answered.
+
+    The Accept was answered, never recorded: a fault for terms the register
+    never held (MSM-07-039), the refusal notice for terms no longer
+    available (MSM-07-012).  *where* names the Invite and the case.
+
+    Raises:
+        VultronBTInternalError: the diversion's answer did not complete.
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        for name in (NEVER_HELD_EMBARGO_FAULT, UNAVAILABLE_EMBARGO_REFUSAL):
+            if (stage := taken_diversion(outcome.tree, name)) is None:
+                continue
+            if not stage.effects_succeeded:
+                raise VultronBTInternalError(
+                    f"{name}: {failure_reason(stage.effects, outcome.result)}"
+                )
+            return HandlerResult.refused(
+                stage.condition.feedback_message
+                or f"{name}: {where} answered, not recorded"
+            )
+        return None
+
+    return read
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -103,9 +127,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         # The invitee is read from the recorded Invite (EP-09-010), so an
         # Accept that names none has no invitee to be.
         embargo_id, invite_id = request.embargo_id, request.invite_id
@@ -140,8 +161,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             accept_id=request.activity_id,
             actor_config=self._actor_config,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        where = f"Accept of Invite '{invite_id}' on case '{case_id}'"
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=_TREE_LABEL,
             # The P/X/A Reject of the Invite, the fault, refusal notice and
             # re-invite that answer an embargo not available, and the
             # owner's acceptance of a shorter revision all emit (CM-31-009,
@@ -149,80 +174,24 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            # A diversion answered the Accept itself; a repeat of an answer
+            # already recorded the runner reports SKIPPED from the repeat
+            # guard's declaration (CM-13-005, HP-01-014).
+            reader=first_reading(
+                pxa_refusal_reader(PXA_ACCEPT_REFUSAL, where),
+                _unavailable_embargo_reader(where),
+            ),
         )
-        verdict = self._verdict(
-            tree, result, case_id=case_id, invite_id=invite_id
-        )
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            # A correct no-op is not a warning (SL-01-001).
-            log = (
-                logger.info
-                if verdict.disposition is HandlerDisposition.SKIPPED
-                else logger.warning
-            )
-            log(
+        # Only the CASE_MANAGER records an answer; a replica learns it from
+        # the ledger broadcast (BT-17-001, HP-01-005).
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
+        if verdict.disposition is HandlerDisposition.SKIPPED:
+            # A correct no-op is not a warning (SL-01-001); a refusal the
+            # runner has already logged.
+            logger.info(
                 "%s (embargo '%s', case '%s')",
                 verdict.reason,
                 embargo_id,
                 case_id,
             )
         return verdict
-
-    def _verdict(
-        self,
-        tree: py_trees.behaviour.Behaviour,
-        result: BTExecutionResult,
-        *,
-        case_id: str,
-        invite_id: str,
-    ) -> HandlerResult:
-        """Read how the one run ended (ADR-0095).
-
-        Raises:
-            VultronBTInternalError: the run failed on an internal error, or
-                the answer of a diversion the tree took did not complete.
-        """
-        verdict = verdict_from_bt(tree, result, label=_TREE_LABEL)
-        if verdict.disposition is not HandlerDisposition.REFUSED:
-            return self._applied_verdict(tree, verdict, case_id)
-        if (
-            refusal := pxa_refusal_verdict(
-                tree,
-                PXA_ACCEPT_REFUSAL,
-                f"Accept of Invite '{invite_id}' on case '{case_id}'",
-            )
-        ) is not None:
-            return refusal
-        for name in (NEVER_HELD_EMBARGO_FAULT, UNAVAILABLE_EMBARGO_REFUSAL):
-            if (stage := taken_diversion(tree, name)) is None:
-                continue
-            if not stage.effects_succeeded:
-                raise VultronBTInternalError(
-                    f"{name}: {failure_reason(stage.effects, result)}"
-                )
-            # The Accept was answered, never recorded: a fault for terms the
-            # register never held (MSM-07-039), the refusal notice for terms
-            # no longer available (MSM-07-012).
-            return HandlerResult.refused(
-                stage.condition.feedback_message
-                or f"{name}: Accept of Invite '{invite_id}' on case"
-                f" '{case_id}' answered, not recorded"
-            )
-        return embargo_answer_repeat_verdict(tree, verdict)
-
-    def _applied_verdict(
-        self,
-        tree: py_trees.behaviour.Behaviour,
-        verdict: HandlerResult,
-        case_id: str,
-    ) -> HandlerResult:
-        """An applied run, unless this receiver is not the CASE_MANAGER.
-
-        Only the CASE_MANAGER records an answer; a replica learns it from the
-        ledger broadcast (BT-17-001, HP-01-005).
-        """
-        return case_manager_verdict(tree, verdict, self._dl, case_id)

@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     ClassifyBootstrapRouteNode,
 )
+from vultron.core.behaviors.case.received_run import find_node, node_failed
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsExpectedCaseCreatorNode,
 )
@@ -57,7 +58,6 @@ from vultron.core.services.genesis_reject_limit import (
     last_genesis_reject_at,
     record_genesis_reject,
 )
-from vultron.core.use_cases.received._bt_verdict import find_node, node_failed
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )

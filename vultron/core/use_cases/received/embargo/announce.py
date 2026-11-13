@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    find_node,
+    run_received_tree,
+)
 from vultron.core.behaviors.embargo.announce_received_tree import (
     announce_embargo_received_tree,
 )
@@ -17,10 +21,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     AnnounceEmbargoEventToCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
@@ -31,13 +32,27 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
-    verdict_from_bt,
-)
 
 logger = logging.getLogger(__name__)
+
+
+def _unless_revision_applied(outcome: ReceivedOutcome) -> HandlerResult | None:
+    """``SKIPPED`` for a run that succeeded without applying the revision.
+
+    Only a replica whose ledger stream is paused applies the notice's
+    revision (CM-31-009, CM-31-010); any other only archives it.
+    """
+    if not outcome.succeeded:
+        return None
+    apply_node = find_node(outcome.tree, ApplyAnnouncedEmbargoRevisionNode)
+    if apply_node is not None and apply_node.applied:
+        return None
+    logger.info(
+        "%s: received embargo announcement — no receiver-side state change"
+        " required",
+        outcome.label,
+    )
+    return HandlerResult.skipped("no receiver-side state change")
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -61,9 +76,6 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         # One tree.  Its door guards refuse an unaddressed copy (HP-01-005,
         # ADR-0118) and any sender but the CASE_MANAGER, at every replica,
         # since the announcement is canonical case state (EP-09-003,
@@ -79,30 +91,15 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        # A revision this replica cannot hold (another case's embargo, or
+        # one it cannot read) is the sender's fault: refused, not raised.
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AnnounceEmbargoEventToCaseReceivedBT",
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree, actor_id=receiving_actor_id, activity=request
+            reader=_unless_revision_applied,
         )
-        # A revision this replica cannot hold (another case's embargo, or
-        # one it cannot read) is the sender's fault: refused, not raised.
-        verdict = verdict_from_bt(
-            tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
-        )
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        apply_node = find_node(tree, ApplyAnnouncedEmbargoRevisionNode)
-        if apply_node is not None and apply_node.applied:
-            return verdict
-        return self._no_change()
-
-    def _no_change(self) -> HandlerResult:
-        logger.info(
-            "Received embargo announcement '%s' — no receiver-side state"
-            " change required",
-            self._request.activity_id,
-        )
-        return HandlerResult.skipped("no receiver-side state change")

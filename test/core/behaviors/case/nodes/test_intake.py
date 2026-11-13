@@ -474,7 +474,7 @@ def test_datalayer_unavailable_returns_failure():
 def test_missing_activity_on_blackboard_returns_failure(scenario):
     """No received event on the blackboard: FAILURE with the wiring reason.
 
-    ``verdict_from_bt`` raises on this reason rather than refusing the sender
+    ``read_outcome`` raises on this reason rather than refusing the sender
     — a handler that omitted ``activity=`` is our fault, not theirs.
     """
     node = IntakeReceivedActivityNode()

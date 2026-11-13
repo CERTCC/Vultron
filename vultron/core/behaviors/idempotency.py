@@ -19,6 +19,10 @@
 - :class:`ReportsIdempotentRepeat` is how a guard says its ``FAILURE`` was a
   repeat the handler reports ``SKIPPED``, not a refusal, so the refusal stage
   sends no refusal effect for it (CLP-10-042, CLP-05-006).
+  :func:`repeat_ending_run` finds the guard that said so on a failed run.
+- :class:`ReportsNoChange` is how a node says the run it let succeed changed
+  nothing, so the handler reports ``SKIPPED``, not ``APPLIED`` (ID-05-003,
+  RSH-08-002).  :func:`unchanged_by_run` finds the node that said so.
 
 Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003,
 CLP-10-022.
@@ -27,6 +31,7 @@ CLP-10-022.
 import logging
 from typing import ClassVar, Protocol, runtime_checkable
 
+import py_trees
 from py_trees.common import Status
 
 
@@ -46,6 +51,68 @@ class ReportsIdempotentRepeat(Protocol):
     def failed_as_repeat(self) -> bool:
         """Whether the last run failed as an idempotent repeat."""
         ...
+
+
+@runtime_checkable
+class ReportsNoChange(Protocol):
+    """A node whose ``SUCCESS`` may mean the run had nothing to change.
+
+    ``succeeded_without_change`` is ``True`` only when the node's last run
+    succeeded because the change the activity asks for is already in place,
+    so the work it guards was skipped and the handler reports the run
+    ``SKIPPED``, not ``APPLIED`` (ID-05-003, RSH-08-002).  The node says why
+    in ``no_change_reason``.  The other half of
+    :class:`ReportsIdempotentRepeat`: a repeat guard ends the run in
+    ``FAILURE``, while a node reporting no change lets it succeed.
+    """
+
+    @property
+    def succeeded_without_change(self) -> bool:
+        """Whether the last run succeeded with nothing to change."""
+        ...
+
+    @property
+    def no_change_reason(self) -> str:
+        """Why the run changed nothing, for the handler's ``SKIPPED``."""
+        ...
+
+
+def repeat_ending_run(
+    root: py_trees.behaviour.Behaviour,
+) -> py_trees.behaviour.Behaviour | None:
+    """The guard on *root*'s failure chain that failed as a repeat, if any.
+
+    Follows the chain ``BTBridge.get_failure_reason`` follows: the last failed
+    child at each composite, down to the leaf that ended the run.  A guard
+    that failed off that chain (an alternative a ``Selector`` tried first) did
+    not decide the run, so its repeat flag is not read.  ``None`` when *root*
+    did not fail, or no guard on the chain reports a repeat.
+    """
+    node = root
+    while node.status == Status.FAILURE:
+        if isinstance(node, ReportsIdempotentRepeat) and node.failed_as_repeat:
+            return node
+        failed = [c for c in node.children if c.status == Status.FAILURE]
+        if not failed:
+            return None
+        node = failed[-1]
+    return None
+
+
+def unchanged_by_run(
+    root: py_trees.behaviour.Behaviour,
+) -> ReportsNoChange | None:
+    """The node in *root* that let the run succeed with nothing to change.
+
+    ``None`` when *root* did not succeed, or no node in it reports that it
+    succeeded without a change.
+    """
+    if root.status != Status.SUCCESS:
+        return None
+    for node in root.iterate():
+        if isinstance(node, ReportsNoChange) and node.succeeded_without_change:
+            return node
+    return None
 
 
 class FlaggedRepeatGuardMixin:
@@ -143,5 +210,8 @@ class SilentIdempotencyGuardMixin:
 __all__ = [
     "FlaggedRepeatGuardMixin",
     "ReportsIdempotentRepeat",
+    "ReportsNoChange",
     "SilentIdempotencyGuardMixin",
+    "repeat_ending_run",
+    "unchanged_by_run",
 ]

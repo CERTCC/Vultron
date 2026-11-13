@@ -15,8 +15,8 @@
 
 """Unit tests for case status workflow nodes (submodule path).
 
-Verifies CASE_STATUS_ALREADY_PRESENT and CheckCaseStatusIdempotencyNode
-imported directly from the submodule, and EmitCaseStatusUpdateNode.
+Verifies CheckCaseStatusIdempotencyNode imported directly from the
+submodule, and EmitCaseStatusUpdateNode.
 
 Per issue #758 AC-1, AC-3.
 """
@@ -41,7 +41,6 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.status.nodes.case_status import (
-    CASE_STATUS_ALREADY_PRESENT,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.models.case import VulnerabilityCase as CoreCase
@@ -114,15 +113,6 @@ def populated_bridge(populated_dl):
 
 
 # ---------------------------------------------------------------------------
-# CASE_STATUS_ALREADY_PRESENT constant
-# ---------------------------------------------------------------------------
-
-
-def test_case_status_already_present_constant():
-    assert CASE_STATUS_ALREADY_PRESENT == "case_status_already_present"
-
-
-# ---------------------------------------------------------------------------
 # CheckCaseStatusIdempotencyNode
 # ---------------------------------------------------------------------------
 
@@ -152,7 +142,7 @@ class TestCheckCaseStatusIdempotencyNode:
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-        assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
+        assert node.failed_as_repeat
 
     def test_missing_case_fails(self, bridge):
         node = CheckCaseStatusIdempotencyNode(

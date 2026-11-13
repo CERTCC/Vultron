@@ -44,6 +44,9 @@ from test.architecture.test_receive_side_bt_commit_ordering import (
 #: A tree factory whose name says it handles a received activity.
 _RECEIVE_FACTORY_NAME = re.compile(r"^create_.*(received|receive).*_tree$")
 _TREE_FACTORY_NAME = re.compile(r"_tree$")
+#: Called from every received use case and named like a factory, but it runs
+#: the tree the use case built and builds none (ADR-0194).
+_TREE_RUNNERS = frozenset({"run_received_tree"})
 
 _RECEIVED_USE_CASES_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
@@ -130,7 +133,10 @@ def _receive_factories() -> dict[str, _Factory]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef):
                 continue
-            if node.name == RECEIVE_ACTIVITY_TREE_CALL:
+            if (
+                node.name == RECEIVE_ACTIVITY_TREE_CALL
+                or node.name in _TREE_RUNNERS
+            ):
                 continue
             called = {
                 name

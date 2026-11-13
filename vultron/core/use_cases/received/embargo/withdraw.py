@@ -27,11 +27,7 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.embargo import (
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    embargo_withdrawal_redelivery_verdict,
-)
 from vultron.core.use_cases.received.embargo._embargo_event_frame import (
     _EmbargoEventReceivedUseCase,
 )
@@ -87,11 +83,6 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
             activity_id=self._request.activity_id,
             sender_rule=self.sender_entitlement,
         )
-
-    def _refine_verdict(
-        self, tree: py_trees.behaviour.Behaviour, verdict: HandlerResult
-    ) -> HandlerResult:
-        return embargo_withdrawal_redelivery_verdict(tree, verdict)
 
     def _applied_message(self, embargo_id: str, case_id: str) -> str:
         return (

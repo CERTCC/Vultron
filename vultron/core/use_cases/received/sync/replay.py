@@ -25,7 +25,13 @@ from typing import ClassVar
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_node,
+    node_failed,
+    run_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -44,20 +50,13 @@ from vultron.core.models.events.sync import (
     ReadLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    find_node,
-    node_failed,
-    verdict_from_bt,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,8 @@ class _LedgerReplayRequestUseCase:
 
     Both ask the CASE_MANAGER, in their own words, for the entries a peer
     lacks, and both are answered by one tree run against the receiver's own
-    store (CLP-10-005); this holds the ports and the run.
+    store (CLP-10-005); this holds the ports and the run, whose verdict
+    only the CASE_MANAGER may act on.
     """
 
     def __init__(
@@ -87,36 +87,27 @@ class _LedgerReplayRequestUseCase:
         self,
         tree: py_trees.behaviour.Behaviour,
         request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
-    ) -> BTExecutionResult:
-        """Run *tree* once for *request*, as the receiving actor."""
-        return BTBridge(
-            datalayer=self._dl,
+        case_id: str,
+        *,
+        label: str,
+        reader: OutcomeReader | None = None,
+    ) -> HandlerResult:
+        """Run *tree* once for *request* and read its verdict.
+
+        Only the CASE_MANAGER answers a replay request; a replica that
+        receives one was misaddressed (SYNC-03-005, HP-01-005).
+        """
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=label,
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+            reader=reader,
         )
-
-    @staticmethod
-    def _reported(
-        verdict: HandlerResult,
-        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
-        label: str,
-    ) -> HandlerResult:
-        """*verdict*, logged at WARNING when it is a refusal."""
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "sync: could not act on %s '%s': %s",
-                label,
-                request.activity_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
@@ -185,16 +176,8 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         tree = create_reject_log_entry_tree(
             case_id, sender_rule=self.sender_entitlement
         )
-        result = self._run(tree, request)
-        verdict = verdict_from_bt(
-            tree, result, label="RejectLogEntryReceivedBT"
-        )
-        # Only the CASE_MANAGER answers a rejection; a replica that
-        # receives one was misaddressed (SYNC-03-005, HP-01-005).
-        return self._reported(
-            case_manager_verdict(tree, verdict, self._dl, case_id),
-            request,
-            "Reject(CaseLedgerEntry)",
+        return self._run(
+            tree, request, case_id, label="RejectLogEntryReceivedBT"
         )
 
 
@@ -268,29 +251,25 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = self._run(tree, request)
-        return self._reported(
-            _read_verdict(tree, result, self._dl, case_id),
+        return self._run(
+            tree,
             request,
-            "Read(CaseLedgerEntry)",
+            case_id,
+            label="ReadLogEntryReceivedBT",
+            reader=_read_reading,
         )
 
 
-def _read_verdict(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    dl: CaseOutboxPersistence,
-    case_id: str,
-) -> HandlerResult:
-    """Classify a finished ``ReadLogEntryReceivedBT`` run (HP-01-003).
+def _read_reading(outcome: ReceivedOutcome) -> HandlerResult | None:
+    """Name the check a failed ``ReadLogEntryReceivedBT`` run ended at.
 
     A position the ledger does not hold fails the position check, which
     already logged it at WARNING (SYNC-17-005); it is refused with that
     reason.  An inert sender fails the active check after its owed Invites
-    were resent, and is refused (SYNC-17-002, SYNC-20-001).  Only the
-    CASE_MANAGER answers a ``Read``; a replica that receives one was
-    misaddressed (HP-01-005).
+    were resent, and is refused (SYNC-17-002, SYNC-20-001).  ``None`` for
+    any other run, which the runner reads.
     """
+    tree = outcome.tree
     if node_failed(tree, CheckStatedPositionInLedgerNode):
         check = find_node(tree, CheckStatedPositionInLedgerNode)
         assert check is not None  # it ran: node_failed found it
@@ -304,5 +283,4 @@ def _read_verdict(
             f"{active.feedback_message}; no replication state recorded and"
             " no entry replayed (SYNC-17-002)"
         )
-    verdict = verdict_from_bt(tree, result, label="ReadLogEntryReceivedBT")
-    return case_manager_verdict(tree, verdict, dl, case_id)
+    return None

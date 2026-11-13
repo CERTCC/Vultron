@@ -1,5 +1,6 @@
 """Use cases for vulnerability case activities."""
 
+import dataclasses
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
@@ -7,32 +8,32 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.add_report_received_tree import (
     create_add_report_to_case_received_tree,
 )
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    closed_sender_reader,
+    failure_reason,
+    find_named,
+    run_received_tree,
+)
+from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
+from vultron.core.behaviors.idempotency import repeat_ending_run
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    closed_sender_verdict,
-    door_refusal,
-    find_named,
-    reference_edit_verdict,
-    sender_sequence_verdict,
     unheld_case_refusal,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -45,6 +46,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import sender_guard_refused
+from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
@@ -98,34 +100,18 @@ class AddReportToCaseReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        verdict = reference_edit_verdict(
+        # A report the case already lists fails the reference guard as a
+        # repeat, which the runner reports SKIPPED (HP-01-014).
+        verdict = run_received_tree(
             tree,
-            verdict_from_bt(
-                tree, result, label="GuardedAttachReportAndCommitBT"
-            ),
-            self._dl,
-            case_id,
+            dl=self._dl,
+            request=request,
+            label="GuardedAttachReportAndCommitBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "add_report_to_case: report '%s' in case '%s' refused: %s",
-                report_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class CloseCaseReceivedUseCase:
@@ -198,9 +184,7 @@ class CloseCaseReceivedUseCase:
         # The Leave names the case (ADR-0165): every detail comes from the
         # case this store holds, so one it does not hold is refused.
         if (
-            refusal := unheld_case_refusal(
-                self._dl, case_id, request.activity_id, "Leave"
-            )
+            refusal := unheld_case_refusal(self._dl, request, case_id, "Leave")
         ) is not None:
             return refusal
 
@@ -218,70 +202,60 @@ class CloseCaseReceivedUseCase:
             post_close_reply=self._actor_config.post_close_reply,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="CloseCaseBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=_read_close(case_id),
         )
-        if (refusal := door_refusal(tree)) is not None:
-            # The case is fully closed, or the copy was not addressed to this
-            # receiver: nothing was recorded, and the sender got a Reject only
-            # under PostCloseReply.REJECT (CM-23-057, HP-01-005).
-            return refusal
-        closed = closed_sender_verdict(
-            tree, result, closes=True, label="Leave(VulnerabilityCase)"
+        # The whole close-or-decline step is the CASE_MANAGER's; a replica
+        # the sender guard admitted did nothing past the gate (HP-01-005).
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
+
+
+def _read_close(case_id: str) -> OutcomeReader:
+    """The close tree's own reading, asked after the doors.
+
+    - A sender already closed repeats a closing act: its effect is in place,
+      so it is ``SKIPPED`` whatever its activity id, with nothing committed
+      or sent (CM-23-018, ID-05-003).
+    - A sender guard refusal is the generic refusal (HP-01-006).
+    - The decline arm ran: the case was left open and the owner was
+      answered with an as:Reject (CM-23-011).  That is a refusal of the
+      close whether or not the Reject itself could be emitted.
+    - Any other failure is refused for the close arm's reason (BT-13-001).
+    """
+    closed_sender = closed_sender_reader(closes=True)
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        closed = closed_sender(
+            dataclasses.replace(outcome, label="Leave(VulnerabilityCase)")
         )
         if closed is not None:
-            # A sender already closed repeats a closing act: its effect is in
-            # place, so it is SKIPPED whatever its activity id, with nothing
-            # committed or sent (CM-23-018, ID-05-003).  An internal error in
-            # the door's Case Owner check raises instead (ARCH-15-001).
-            logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
             return closed
-        if (ordered := sender_sequence_verdict(tree)) is not None:
-            # Held or refused for its number before the close was judged;
-            # the stage sits in the outer tree, not the close arm
-            # (SYNC-21-008).
-            return ordered
-        if sender_guard_refused(tree):
-            # No standing: refused before the close/decline decision, with
-            # nothing committed, declined or sent (HP-01-006).
-            verdict = verdict_from_bt(tree, result, label="CloseCaseBT")
-            logger.warning(
-                "CloseCaseReceivedUseCase: Leave of case '%s' refused: %s",
-                case_id,
-                verdict.reason,
-            )
-            return verdict
-        if _close_declined(tree):
-            # The decline arm ran: the case was left open and the owner was
-            # answered with an as:Reject (CM-23-011).  That is a refusal of the
-            # close whether or not the Reject itself could be emitted.
+        if sender_guard_refused(outcome.tree):
+            return None
+        if _close_declined(outcome.tree):
             reason = f"close of case '{case_id}' declined: embargo active"
             logger.info("CloseCaseReceivedUseCase: %s (CM-23-011)", reason)
             return HandlerResult.refused(f"{reason} (CM-23-011)")
-        # The whole close-or-decline step is the CASE_MANAGER's; a replica
-        # the sender guard admitted did nothing past the gate (HP-01-005).
-        verdict = case_manager_verdict(
-            tree,
-            verdict_from_bt(
-                _close_arm(tree) or tree, result, label="CloseCaseBT"
-            ),
-            self._dl,
-            case_id,
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "CloseCaseReceivedUseCase: close of case '%s' refused: %s",
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        arm = _close_arm(outcome.tree)
+        if (
+            outcome.succeeded
+            or arm is None
+            or repeat_ending_run(outcome.tree) is not None
+        ):
+            return None
+        reason = failure_reason(arm, outcome.result)
+        if reason in WIRING_UNAVAILABLE_MESSAGES:
+            raise VultronBTInternalError(f"{outcome.label}: {reason}")
+        return HandlerResult.refused(f"{outcome.label}: {reason}")
+
+    return read
 
 
 def _close_declined(tree: py_trees.behaviour.Behaviour) -> bool:

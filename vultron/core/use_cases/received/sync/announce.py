@@ -24,8 +24,16 @@ from typing import ClassVar
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    door_refusal,
+    node_failed,
+    node_succeeded,
+    received_path,
+    run_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -65,67 +73,24 @@ from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    door_refusal,
-    node_failed,
-    node_succeeded,
-    received_path,
-    verdict_from_bt,
-)
 
 logger = logging.getLogger(__name__)
 
 
-def _run_announce_bt(
-    dl: CaseOutboxPersistence,
-    request: AnnounceLogEntryReceivedEvent,
-    receiving_actor_id: str,
-    sync_port: SyncActivityPort | None,
-    wire_render_port: WireRenderPort | None,
-    inbox_replay: InboxReplayPort | None,
-    trigger_activity: TriggerActivityPort | None,
-) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
-    """Run the announce receive BT for *request*.
-
-    The tree replays a held successor's ``Announce`` through the inbox via
-    *inbox_replay* rather than running it here (SYNC-14-009).  It builds the
-    replica's fault about a refused entry through *trigger_activity*
-    (RSH-09-006, SYNC-03-007, SYNC-16-001).  Returns the tree along with the
-    result so the caller can tell which branch decided the outcome (#2255).
-    """
-    tree = create_announce_log_entry_tree(
-        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
-    )
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=trigger_activity,
-        wire_render_port=wire_render_port,
-        sync_port=sync_port,
-    ).execute_with_setup(
-        tree=tree,
-        actor_id=receiving_actor_id,
-        activity=request,
-        inbox_replay=inbox_replay,
-    )
-    return tree, result
-
-
-def _announce_verdict(
-    tree: py_trees.behaviour.Behaviour,
-    result: BTExecutionResult,
-    request: AnnounceLogEntryReceivedEvent,
-    entry: CaseLedgerEntry,
-) -> HandlerResult:
+def _announce_reading(entry: CaseLedgerEntry, sender_id: str) -> OutcomeReader:
     """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
 
     ``SendRejectLogEntryNode`` always returns ``FAILURE``, so a failed one
     marks an entry the Reject arm handled: answered with a ``Reject``, or,
     for a case this replica does not hold, with the genesis Reject withheld
-    because one was sent within the interval (SYNC-15-016).
+    because one was sent within the interval (SYNC-15-016).  The reading
+    captures only the announced entry and its sender's id, never the request.
     """
-    verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
-    if verdict.disposition is HandlerDisposition.APPLIED:
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        tree = outcome.tree
+        if not outcome.succeeded:
+            return _refused_announce_verdict(tree, sender_id, entry)
         # Past the sender guard, an announcement the CASE_MANAGER admits is
         # its own (SYNC-13-006).
         if received_path(tree) is ReceivedPath.CASE_MANAGER:
@@ -137,10 +102,9 @@ def _announce_verdict(
             return HandlerResult.skipped(
                 f"ledger entry '{entry.id_}' already stored"
             )
-        return verdict
-    if verdict.disposition is not HandlerDisposition.REFUSED:
-        return verdict
-    return _refused_announce_verdict(tree, request, entry) or verdict
+        return None
+
+    return read
 
 
 def _genesis_reject_withheld(tree: py_trees.behaviour.Behaviour) -> bool:
@@ -153,7 +117,7 @@ def _genesis_reject_withheld(tree: py_trees.behaviour.Behaviour) -> bool:
 
 def _refused_announce_verdict(
     tree: py_trees.behaviour.Behaviour,
-    request: AnnounceLogEntryReceivedEvent,
+    sender_id: str,
     entry: CaseLedgerEntry,
 ) -> HandlerResult | None:
     """Name why a failed announce run failed, or ``None`` for the default."""
@@ -180,7 +144,7 @@ def _refused_announce_verdict(
         )
     if sender_guard_refused(tree):
         return HandlerResult.refused(
-            f"sender '{request.actor_id}' is not the CASE_MANAGER of case"
+            f"sender '{sender_id}' is not the CASE_MANAGER of case"
             f" '{entry.case_id}', so its announcement of ledger entry"
             f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
         )
@@ -298,10 +262,6 @@ class AnnounceLedgerEntryReceivedUseCase:
                 "Announce(CaseLedgerEntry) carries no log entry"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "
             "from actor '%s' (log_index=%d)",
@@ -310,40 +270,35 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        tree, result = _run_announce_bt(
-            self._dl,
-            request,
-            receiving_actor_id,
-            self._sync_port,
-            self._wire_render_port,
-            self._inbox_replay,
-            self._trigger_activity,
+        # The tree replays a held successor's ``Announce`` through the inbox
+        # via *inbox_replay* rather than running it here (SYNC-14-009), and
+        # builds the replica's fault about a refused entry through the
+        # trigger port (RSH-09-006, SYNC-03-007, SYNC-16-001).
+        tree = create_announce_log_entry_tree(
+            sender_rule=self.sender_entitlement
         )
-
-        # A copy the door guards refused (an unaddressed one, HP-01-005, or a
-        # closed case, CM-23-013) acts on nothing: the pending assertion it
-        # does not confirm stays pending.
-        if (refusal := door_refusal(tree)) is not None:
-            logger.warning(
-                "sync: refused log-entry announcement '%s': %s",
-                request.activity_id,
-                refusal.reason,
-            )
-            return refusal
-
-        verdict = _announce_verdict(tree, result, request, entry)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "sync: refused log-entry announcement '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-        elif verdict.disposition is HandlerDisposition.DEFERRED:
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AnnounceLogEntryReceivedBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=_announce_reading(entry, request.actor_id),
+            inbox_replay=self._inbox_replay,
+        )
+        if verdict.disposition is HandlerDisposition.DEFERRED:
             logger.info(
                 "sync: deferred log-entry announcement '%s': %s",
                 request.activity_id,
                 verdict.reason,
             )
+        # A copy the door guards refused (an unaddressed one, HP-01-005, or a
+        # closed case, CM-23-013) acts on nothing: the pending assertion it
+        # does not confirm stays pending.
+        if door_refusal(tree) is not None:
+            return verdict
 
         # Clear pending assertion for this entry whatever the tree decided
         # past its door guards (SYNC-11-003): a canonical ledger entry

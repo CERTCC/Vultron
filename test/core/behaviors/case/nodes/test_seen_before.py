@@ -54,6 +54,11 @@ from vultron.core.behaviors.case.nodes.seen_before import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    read_outcome,
+    seen_before_verdict,
+)
 from vultron.core.behaviors.helpers import ACTIVITY_UNAVAILABLE
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
@@ -68,10 +73,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import began_in_an_earlier_run
 from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.services.received_outcome import write_receipt_stub
-from vultron.core.use_cases.received._bt_verdict import (
-    seen_before_verdict,
-    verdict_from_bt,
-)
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
 )
@@ -180,7 +181,7 @@ def test_a_resend_of_a_refused_message_is_refused_with_the_stubs_reason(
 
     result = scenario.run(tree, activity=_event())
 
-    verdict = verdict_from_bt(tree, result, label="SampleBT")
+    verdict = read_outcome(ReceivedOutcome.of(tree, result, "SampleBT"))
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason == STUB_REASON
     assert ran.ticks == 0
@@ -205,7 +206,7 @@ def test_a_resend_of_an_applied_or_waiting_message_is_skipped(
 
     result = scenario.run(tree, activity=_event())
 
-    verdict = verdict_from_bt(tree, result, label="SampleBT")
+    verdict = read_outcome(ReceivedOutcome.of(tree, result, "SampleBT"))
     assert verdict.disposition is HandlerDisposition.SKIPPED
     door = next(
         n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)

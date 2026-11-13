@@ -31,9 +31,11 @@ from test.support.objects import make
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
-from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.idempotency import (
+    ReportsIdempotentRepeat,
+    SilentIdempotencyGuardMixin,
+)
 from vultron.core.behaviors.status.nodes.case_status import (
-    CASE_STATUS_ALREADY_PRESENT,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -291,7 +293,8 @@ class TestCheckCaseStatusIdempotencyNode:
             f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
         )
 
-    def test_sets_feedback_message_on_duplicate(
+    @pytest.mark.spec("HP-01-014")
+    def test_reports_duplicate_as_repeat(
         self, bt_scenario: BTTestScenario
     ) -> None:
         _, status = _seed_case_with_status(bt_scenario)
@@ -299,7 +302,11 @@ class TestCheckCaseStatusIdempotencyNode:
             case_id=_CASE_ID, status_id=status.id_
         )
         bt_scenario.run(node, actor_id=_ACTOR_ID)
-        assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
+        assert isinstance(node, ReportsIdempotentRepeat)
+        assert node.failed_as_repeat
+        assert node.feedback_message == (
+            f"CaseStatus '{status.id_}' already in case '{_CASE_ID}'"
+        )
 
     def test_returns_success_when_status_not_present(
         self, bt_scenario: BTTestScenario

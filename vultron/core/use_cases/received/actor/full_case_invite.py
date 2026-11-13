@@ -13,10 +13,13 @@ from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.full_case_invite_trees import (
     create_full_case_invite_reply_received_tree,
     create_invite_actor_to_full_case_received_tree,
+)
+from vultron.core.behaviors.case.received_run import (
+    closed_sender_reader,
+    run_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -28,20 +31,12 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToFullCaseReceivedEvent,
     TentativeRejectInviteActorToFullCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    closed_sender_verdict,
-    intake_verdict,
-    rm_declaration_verdict,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -91,9 +86,6 @@ class InviteActorToFullCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Invite is missing its case id or invitee id"
             )
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         tree = create_invite_actor_to_full_case_received_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -101,14 +93,14 @@ class InviteActorToFullCaseReceivedUseCase:
             floor=request.ledger_position,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="InviteActorToFullCaseReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(tree=tree, actor_id=actor_id, activity=request)
-        return intake_verdict(
-            tree, result, label="InviteActorToFullCaseReceivedBT"
+            wire_render_port=self._wire_render_port,
         )
 
 
@@ -171,48 +163,27 @@ class _FullCaseInviteReplyReceivedUseCase:
             return HandlerResult.refused(
                 "reply is missing its case id or Invite id"
             )
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         tree = self._tree()
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=request, case_id=case_id
-        )
         # A sender the case already records as closed may act on nothing
         # further: the tree's closed-sender door stops it before the rule
         # runs, with nothing committed or sent.  Its Reject would close it
         # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-049,
         # RSH-06-006, ID-05-003).  A restated reply (the RM state is already
-        # recorded) changes nothing but the receipt, so it reads SKIPPED like
-        # every other RM declaration (RSH-08-002).
-        closed = closed_sender_verdict(
+        # recorded) changes nothing but the receipt, so its repeat guard
+        # says so and the runner reads it SKIPPED, like every other RM
+        # declaration (RSH-08-002).
+        verdict = run_received_tree(
             tree,
-            result,
-            closes=self.rm_state is RM.CLOSED,
+            dl=self._dl,
+            request=request,
             label=self.tree_name,
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=closed_sender_reader(closes=self.rm_state is RM.CLOSED),
+            case_id=case_id,
         )
-        if closed is not None:
-            return closed
-        verdict = rm_declaration_verdict(
-            tree,
-            verdict_from_bt(tree, result, label=self.tree_name),
-            label=self.tree_name,
-        )
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "%s: reply '%s' from '%s' refused: %s",
-                self.tree_name,
-                request.activity_id,
-                request.actor_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class AcceptInviteActorToFullCaseReceivedUseCase(

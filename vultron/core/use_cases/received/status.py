@@ -6,15 +6,18 @@ from typing import TYPE_CHECKING, ClassVar
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_named,
+    node_failed,
+    run_received_tree,
+)
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
-)
-from vultron.core.behaviors.status.nodes import (
-    CASE_STATUS_ALREADY_PRESENT,
 )
 from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
     CheckParticipantStatusAcceptableNode,
@@ -25,21 +28,11 @@ from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    door_refusal,
-    find_named,
-    node_failed,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -74,6 +67,37 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
     """True when the StatusAdoptionGate withheld adoption (returned FAILURE)."""
     gate = find_named(tree, "StatusAdoptionGate")
     return gate is not None and gate.status == Status.FAILURE
+
+
+def _participant_status_reader(
+    status_id: str, activity_id: str
+) -> OutcomeReader:
+    """The participant-status tree's own reading of its run.
+
+    - The raw claim is on the participant record, but the StatusAdoptionGate
+      withheld its adoption as canonical (RSH-01-001, RSH-01-002).  That is
+      not a refusal of the assertion's content (RSH-09-008), so the act
+      keeps its entry and the append, no fault is sent, and the run is
+      ``SKIPPED``.
+    - The status itself was refused (RSH-09-008, ISSUE-3199): the reason
+      says so.  The tree's refusal notice is the one answer (CLP-05-001); no
+      ProcessingFault is sent as well (#4756).
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if outcome.succeeded and _adoption_gate_blocked(outcome.tree):
+            return HandlerResult.skipped(
+                f"ParticipantStatus '{status_id}' recorded but not"
+                " adopted: CASE_OWNER approval required (RSH-01-002)"
+            )
+        if not outcome.succeeded and _status_refused(outcome.tree):
+            return HandlerResult.refused(
+                f"ParticipantStatus refused for activity"
+                f" '{activity_id}': {outcome.refusal_reason}"
+            )
+        return None
+
+    return read
 
 
 class AddCaseStatusToCaseReceivedUseCase:
@@ -125,49 +149,21 @@ class AddCaseStatusToCaseReceivedUseCase:
             request=request,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        # A redelivered status fails the idempotency guard as a repeat, which
+        # the runner reports SKIPPED with no refusal notice (HP-01-014,
+        # CLP-10-042).  A door refusal gets no reply and no fault (CM-23-045);
+        # a precondition refusal is answered by the tree's refusal notice
+        # alone, and a sender-guard refusal by nothing (CLP-05-001,
+        # HP-01-006); no ProcessingFault is sent as well (#4756).
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AddCaseStatusToCaseBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): the guards
-            # check the inbound CaseStatus against the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-
-        if (refusal := door_refusal(tree)) is not None:
-            return refusal  # a door refused: no reply, no fault (CM-23-045)
-        if (
-            result.status != Status.SUCCESS
-            and BTBridge.get_failure_reason(tree)
-            == CASE_STATUS_ALREADY_PRESENT
-        ):
-            logger.info(
-                "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
-                status_id,
-                case_id,
-            )
-            return HandlerResult.skipped(
-                f"CaseStatus '{status_id}' already in case '{case_id}'"
-            )
-        verdict = verdict_from_bt(tree, result, label="AddCaseStatusToCaseBT")
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "AddCaseStatusToCaseBT refused activity '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            # A precondition refusal is answered by the tree's refusal notice
-            # alone, and a sender-guard refusal by nothing (CLP-05-001,
-            # HP-01-006); no ProcessingFault is sent as well (#4756).
-        return verdict
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
@@ -236,10 +232,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 " participant id"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # The case is the target participant's own (HP-08-008); the tree
         # refuses a status of any other case before the commit (HP-08-007).
         # A target the receiver holds no record of leaves the activity's own
@@ -263,49 +255,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             ),
             **call_out_kwargs,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AddParticipantStatusBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=_participant_status_reader(
+                request.status_id, request.activity_id
+            ),
         )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-
-        if (refusal := door_refusal(tree)) is not None:
-            return refusal  # a door refused: no reply, no fault (CM-23-045)
-        verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if case_id is not None:
             # Only the CASE_MANAGER adjudicates the status (HP-01-005).  With
             # no case the sender guard has already refused.
             verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.APPLIED and (
-            _adoption_gate_blocked(tree)
-        ):
-            # The raw claim is on the participant record; only its adoption as
-            # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
-            # refusal of the assertion's content (RSH-09-008), so the act
-            # keeps its entry and the append, and no fault is sent.
-            return HandlerResult.skipped(
-                f"ParticipantStatus '{request.status_id}' recorded but not"
-                " adopted: CASE_OWNER approval required (RSH-01-002)"
-            )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "AddParticipantStatusBT refused activity '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            # The tree's refusal notice is the one answer (CLP-05-001); no
-            # ProcessingFault is sent as well (#4756).
-            if _status_refused(tree):
-                return HandlerResult.refused(
-                    f"ParticipantStatus refused for activity"
-                    f" '{request.activity_id}': {verdict.reason}"
-                )
         return verdict
 
     def _stored_target_participant(self) -> CaseParticipant | None:

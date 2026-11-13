@@ -68,6 +68,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    door_guards_admitted,
+    node_failed,
+    read_outcome,
+)
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -75,7 +81,6 @@ from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    CASE_STATUS_ALREADY_PRESENT,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.behaviors.status.nodes.case_status_acceptance import (
@@ -107,10 +112,6 @@ from vultron.core.models.pending_assertion import (
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.use_cases.received._bt_verdict import (
-    door_guards_admitted,
-    node_failed,
-)
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
@@ -288,8 +289,8 @@ class TestCheckCaseStatusIdempotencyNode:
         result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-    def test_duplicate_status_fails_with_sentinel(self, populated_dl):
-        """Status already present → FAILURE with CASE_STATUS_ALREADY_PRESENT."""
+    def test_duplicate_status_fails_as_repeat(self, populated_dl):
+        """Status already present → FAILURE that the guard reports a repeat."""
         # Pre-load the status onto the case
         case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         status = populated_dl.read(STATUS_ID)
@@ -306,7 +307,7 @@ class TestCheckCaseStatusIdempotencyNode:
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-        assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
+        assert node.failed_as_repeat
 
     def test_case_not_found_fails(self, bridge):
         """Case not in DataLayer → FAILURE (not idempotent sentinel)."""
@@ -316,7 +317,7 @@ class TestCheckCaseStatusIdempotencyNode:
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-        assert node.feedback_message != CASE_STATUS_ALREADY_PRESENT
+        assert not node.failed_as_repeat
 
 
 # ---------------------------------------------------------------------------
@@ -749,10 +750,11 @@ class TestAddCaseStatusTree:
         assert STATUS_ID not in _status_ids(populated_dl)
         assert _ledger_entries(populated_dl) == []
 
-    def test_idempotent_duplicate_fails_with_sentinel(
+    @pytest.mark.spec("HP-01-014")
+    def test_idempotent_duplicate_reads_as_skipped(
         self, populated_dl, make_payload, case, status_obj
     ):
-        """Duplicate status → BT FAILURE with CASE_STATUS_ALREADY_PRESENT."""
+        """Duplicate status → BT FAILURE read as a repeat, so SKIPPED."""
         # Pre-load the status onto the case (use wire types for DL save)
         stored = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
         stored.case_statuses.append(status_obj.id_)
@@ -763,7 +765,13 @@ class TestAddCaseStatusTree:
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
+        verdict = read_outcome(
+            ReceivedOutcome.of(tree, result, "AddCaseStatusBT")
+        )
+        assert verdict.disposition is HandlerDisposition.SKIPPED
+        assert verdict.reason == (
+            f"CaseStatus '{status_obj.id_}' already in case '{CASE_ID}'"
+        )
 
     @pytest.mark.spec("RSH-09-005")
     def test_status_moving_em_alone_is_refused(self, make_payload):

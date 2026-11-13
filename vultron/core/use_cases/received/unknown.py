@@ -3,7 +3,10 @@
 import logging
 from typing import ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    run_received_tree,
+)
 from vultron.core.behaviors.dead_letter.dead_letter_tree import (
     create_store_dead_letter_tree,
 )
@@ -15,18 +18,11 @@ from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 logger = logging.getLogger(__name__)
 
@@ -103,34 +99,23 @@ class UnresolvableObjectUseCase:
             request.activity_id,
             request.actor_id,
         )
-        tree = create_store_dead_letter_tree(request=request)
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        verdict = verdict_from_bt(tree, result, label="StoreDeadLetterBT")
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
-                "StoreDeadLetterBT did not store a record for activity '%s':"
-                " %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            return verdict
-        # The record is bookkeeping; the activity itself was not processed
-        # (SE-04-007), so the sender sees it rejected (HP-01-003).
-        return HandlerResult.refused(
+        dead_lettered = HandlerResult.refused(
             f"unresolvable object '{unresolvable_uri}'; dead-lettered"
+        )
+
+        def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+            # The record is bookkeeping; the activity itself was not
+            # processed (SE-04-007), so the sender sees it rejected
+            # (HP-01-003).
+            return dead_lettered if outcome.succeeded else None
+
+        return run_received_tree(
+            create_store_dead_letter_tree(request=request),
+            dl=self._dl,
+            request=request,
+            label="StoreDeadLetterBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=read,
         )

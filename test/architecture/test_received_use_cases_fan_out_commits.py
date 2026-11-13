@@ -16,8 +16,9 @@ Every received tree that names a case runs a guarded ledger commit
 (``create_receive_activity_tree``, CLP-10-006), and the CASE_MANAGER announces
 each entry it commits to every active participant (SYNC-02-003).  The commit
 reads the ``SyncActivityPort`` off the blackboard, so the port has to travel
-the whole way: the inbox port factory gives it, the use case accepts it, and
-the use case hands it to the ``BTBridge`` that runs the tree.
+the whole way: the inbox port factory gives it, the use case accepts it, the
+use case hands it to the received-tree runner (``run_received_tree``,
+ADR-0194), and the runner hands it to the ``BTBridge`` that runs the tree.
 
 A use case that broke the chain at any link used to commit without fan-out,
 with only a DEBUG line (``OfferActorToCaseReceivedUseCase`` took no port;
@@ -25,9 +26,9 @@ with only a DEBUG line (``OfferActorToCaseReceivedUseCase`` took no port;
 fan-out node now raises a ``VultronWiringError`` instead, and these checks find
 the broken link statically, before a demo has to.
 
-"Runs a tree" is approximated by "calls ``BTBridge``": a received use case
-that builds a bridge is the one whose commit can be reached, and a bridge
-that is not given the port cannot fan out whatever the tree commits.  The
+"Runs a tree" is "calls the runner": a received use case that runs a tree is
+the one whose commit can be reached, and a run that is not given the port
+cannot fan out whatever the tree commits.  The
 dispatcher-side link (every semantic's factory supplies the port) is pinned in
 ``test/adapters/driving/fastapi/test_inbox_handler.py``.
 """
@@ -44,6 +45,15 @@ from vultron.semantic_registry import use_case_map
 _RECEIVED_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
 )
+_RUNNER = (
+    _corpus.REPO_ROOT
+    / "vultron"
+    / "core"
+    / "behaviors"
+    / "case"
+    / "received_run"
+    / "runner.py"
+)
 
 
 def _calls(
@@ -58,30 +68,29 @@ def _calls(
     return calls
 
 
-def _bridge_calls() -> list[tuple[str, int, ast.Call]]:
+def _runner_calls() -> list[tuple[str, int, ast.Call]]:
     return _calls(
-        "BTBridge(",
-        lambda func: isinstance(func, ast.Name) and func.id == "BTBridge",
+        "run_received_tree(",
+        lambda func: _corpus.callee_name(func) == "run_received_tree",
     )
 
 
-def _execute_with_setup_calls() -> list[tuple[str, int, ast.Call]]:
-    return _calls(
-        "execute_with_setup(",
-        lambda func: (
-            isinstance(func, ast.Attribute)
-            and func.attr == "execute_with_setup"
-        ),
-    )
+def _runner_module_calls(callee: str) -> list[ast.Call]:
+    return [
+        node
+        for node in ast.walk(_corpus.tree_of(_RUNNER))
+        if isinstance(node, ast.Call)
+        and _corpus.callee_name(node.func) == callee
+    ]
 
 
 def _keyword(call: ast.Call, name: str) -> ast.keyword | None:
     return next((kw for kw in call.keywords if kw.arg == name), None)
 
 
-def test_received_side_builds_bridges():
-    """Guard against a vacuous pass: the scan must find the bridges."""
-    assert len(_bridge_calls()) > 10
+def test_received_side_runs_trees():
+    """Guard against a vacuous pass: the scan must find the tree runs."""
+    assert len(_runner_calls()) > 10
 
 
 @pytest.mark.spec("SYNC-02-003")
@@ -105,23 +114,32 @@ def test_every_received_use_case_accepts_sync_port():
 
 @pytest.mark.spec("SYNC-02-003")
 @pytest.mark.spec("BT-14-001")
-def test_every_received_bridge_is_given_the_sync_port():
-    """Each ``BTBridge(...)`` under ``received/`` passes ``sync_port=``.
+def test_every_received_tree_run_is_given_the_sync_port():
+    """Each ``run_received_tree(...)`` under ``received/`` passes ``sync_port=``.
 
-    The value must not be the literal ``None``: a bridge built that way is the
+    The value must not be the literal ``None``: a run started that way is the
     portless commit this ratchet exists to prevent.
     """
     offenders: list[str] = []
-    for rel, lineno, call in _bridge_calls():
+    for rel, lineno, call in _runner_calls():
         kw = _keyword(call, "sync_port")
         if kw is None or (
             isinstance(kw.value, ast.Constant) and kw.value.value is None
         ):
             offenders.append(f"{rel}:{lineno}")
     assert offenders == [], (
-        "BTBridge built without a sync_port; its tree's ledger commit cannot"
+        "tree run without a sync_port; its tree's ledger commit cannot"
         f" be fanned out (SYNC-02-003): {offenders}"
     )
+
+
+@pytest.mark.spec("SYNC-02-003")
+def test_the_runner_hands_the_sync_port_to_its_bridge():
+    """The runner's one ``BTBridge(...)`` passes its own ``sync_port``."""
+    (bridge,) = _runner_module_calls("BTBridge")
+    kw = _keyword(bridge, "sync_port")
+    assert kw is not None
+    assert isinstance(kw.value, ast.Name) and kw.value.id == "sync_port"
 
 
 def test_sync_port_travels_by_one_idiom():
@@ -129,11 +147,14 @@ def test_sync_port_travels_by_one_idiom():
 
     A context kwarg is written to the blackboard as given, skipping the
     bridge's per-store rebinding (``port_for_store``), and a second idiom is
-    a second place for the port to go missing.
+    a second place for the port to go missing.  The runner names
+    ``sync_port`` as a parameter, so a use case cannot pass it as context.
     """
+    runs = _runner_module_calls("execute_with_setup")
+    assert runs, "the runner runs no tree"
     offenders = [
-        f"{rel}:{lineno}"
-        for rel, lineno, call in _execute_with_setup_calls()
+        f"runner.py:{call.lineno}"
+        for call in runs
         if _keyword(call, "sync_port") is not None
     ]
     assert offenders == [], (

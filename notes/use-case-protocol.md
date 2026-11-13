@@ -44,16 +44,21 @@ over a verb registry).
 `rejected` with `failure_reason`. Handlers never use `InboxOutcome` vocabulary
 themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
-Most handlers run a tree; `vultron/core/use_cases/received/_bt_verdict/` turns
-the run into a verdict. `verdict_from_bt` is the default reading: `SUCCESS` →
-`APPLIED`, a leadership skip → `SKIPPED`, `internal_error` or a missing port →
-raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED` with the failing
-leaf's reason. `applied_or_raise` is for a tree that only stores what the handler
-already accepted, where any failure can only be the DataLayer's.
+Most handlers run a tree, and only through `run_received_tree`
+(`vultron/core/behaviors/case/received_run/`, ADR-0194), which runs it once as
+the receiver and reads the verdict from what its nodes recorded: a door's
+answer, then a node-declared repeat (`ReportsIdempotentRepeat`) or no-change
+(`ReportsNoChange`) → `SKIPPED`, `SUCCESS` → `APPLIED`, `internal_error` or a
+missing port → raise `VultronBTInternalError`, any other `FAILURE` → `REFUSED`
+with the failing leaf's reason. `judges=False` is for a tree that only stores
+what the handler already accepted, where any failure can only be the
+DataLayer's. A new repeat or no-op is a node declaration, never a handler
+reading.
 
-A handler refines the default by asking which node decided (`node_failed`,
-`node_succeeded`, `find_node`, `find_named`), never by matching a node's
-`feedback_message`, which usually embeds ids. Where later steps run only on
+A handler that owes a reading no declaration expresses passes an optional
+`reader`, which receives only the finished run and asks which node decided
+(`node_failed`, `node_succeeded`, `find_node`, `find_named`), never by matching
+a node's `feedback_message`, which usually embeds ids. Where later steps run only on
 `APPLIED`, return early on anything else.
 
 | Exit | Disposition |

@@ -108,12 +108,25 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
     return bool(isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS)
 
 
+#: The calls that run a tree: the bridge's own, and the received-tree runner
+#: (ADR-0194), which a received use case calls instead and which runs the
+#: bridge exactly once.  The runner lives in ``core/behaviors``, outside the
+#: indexed packages, so its call is counted where the use case makes it.
+_TREE_RUN_CALLEES: frozenset[str] = frozenset(
+    {"execute_with_setup", "run_received_tree"}
+)
+
+
 def _is_execute_with_setup_call(node: ast.Call) -> bool:
-    """True for a call of ``execute_with_setup``, bare or as a method."""
+    """True for a call that runs a tree, bare or as a method.
+
+    ``execute_with_setup`` or ``run_received_tree`` (see
+    :data:`_TREE_RUN_CALLEES`).
+    """
     func = node.func
     return (
-        isinstance(func, ast.Attribute) and func.attr == "execute_with_setup"
-    ) or (isinstance(func, ast.Name) and func.id == "execute_with_setup")
+        isinstance(func, ast.Attribute) and func.attr in _TREE_RUN_CALLEES
+    ) or (isinstance(func, ast.Name) and func.id in _TREE_RUN_CALLEES)
 
 
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:

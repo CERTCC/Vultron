@@ -37,20 +37,19 @@ from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
-# Stable sentinel used as feedback_message when a CaseStatus duplicate is
-# detected.  The use case imports this constant to distinguish idempotent
-# no-ops (log at INFO) from real failures (log at WARNING).
-CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
-
 
 class CheckCaseStatusIdempotencyNode(
     SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
 ):
     """AC-1: Verify the CaseStatus has not already been added to the case.
 
-    Returns FAILURE with ``feedback_message == CASE_STATUS_ALREADY_PRESENT``
-    when *status_id* is already in ``case.case_statuses`` — a benign no-op
-    with no ledger write (CLP-13-001, CLP-13-002).
+    Returns FAILURE when *status_id* is already in ``case.case_statuses`` — a
+    benign no-op with no ledger write (CLP-13-001, CLP-13-002).  It reports
+    that failure as a repeat
+    (:class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`,
+    through :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`),
+    so the handler reports a redelivered status ``SKIPPED`` and the refusal
+    stage sends no refusal notice for it (HP-01-014, CLP-10-042).
 
     Returns FAILURE with a distinct message when the case itself is not found.
 
@@ -87,7 +86,10 @@ class CheckCaseStatusIdempotencyNode(
 
         existing_ids = [_as_id(s) for s in case.case_statuses]
         if self.status_id in existing_ids:
-            self.feedback_message = CASE_STATUS_ALREADY_PRESENT
+            self.feedback_message = (
+                f"CaseStatus '{self.status_id}' already in case"
+                f" '{self.case_id}'"
+            )
             return self._idempotent_failure(
                 self.logger,
                 "CheckCaseStatusIdempotency: status '%s' already in case '%s'"

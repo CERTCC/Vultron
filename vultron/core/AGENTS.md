@@ -42,7 +42,9 @@ class CreateReportReceivedUseCase:
 - Report a `HandlerDisposition`, never `InboxOutcome` (HP-01-004); write with
   `dl.save()`/`dl.create()`, never hand-built records (HP-08-001); both ratcheted
   in `test/architecture/`
-- Intake-only: `run_intake_only` (`received/_intake_only.py`), `intake_verdict`;
+- Run a received tree only through `run_received_tree`
+  (`core/behaviors/case/received_run/`, ADR-0194); intake-only:
+  `run_intake_only` (`received/_intake_only.py`);
   incomplete activity refused in-tree: `create_incomplete_activity_received_tree`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - `use_case_class=None` = recognized, not handled: "no use case found" (SE-05-002);

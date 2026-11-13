@@ -3,7 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from py_trees.common import Status
+
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
@@ -14,6 +15,14 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
 )
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    closed_sender_reader,
+    find_node,
+    first_reading,
+    run_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -23,25 +32,19 @@ from vultron.core.models.events.actor import (
     InviteActorToCaseReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    closed_sender_verdict,
-    intake_verdict,
-    node_failed,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +113,6 @@ class InviteActorToCaseReceivedUseCase:
                 "Invite is missing its case id or invitee id"
             )
 
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         tree = create_invite_actor_to_case_received_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -120,26 +120,15 @@ class InviteActorToCaseReceivedUseCase:
             invite_id=request.activity_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="InviteActorToCaseReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            activity=request,
+            wire_render_port=self._wire_render_port,
         )
-        verdict = intake_verdict(
-            tree, result, label="InviteActorToCaseReceivedBT"
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "InviteActorToCaseReceivedUseCase: invite '%s' refused: %s",
-                request.activity_id,
-                verdict.reason,
-            )
-        return verdict
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
@@ -192,15 +181,6 @@ class AcceptInviteActorToCaseReceivedUseCase:
         # copy of the Invite names (CM-11-047).
         invitee_id = request.actor_id
 
-        # The BT runs as the *receiving* actor: the inbox-stamped
-        # receiving_actor_id, else the owner of the store we hold (BT-17-006).
-        # It used to fall back to the case's CASE_MANAGER address instead,
-        # which ran the tree under a foreign identity whenever the stamp was
-        # absent and let the role gate pass for a store that is not the
-        # manager's (#3752; the antipattern in notes/case-communication-model.md).
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         # The reply's sender is the invitee: the tree's sender guard refuses
         # any sender that is not the recorded Invite's invitee, so the
         # participant is never taken from the embedded copy (CM-11-017).
@@ -210,51 +190,26 @@ class AcceptInviteActorToCaseReceivedUseCase:
             invite_id=invite_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            activity=request,
-        )
         # An invitee the case already records as closed (its stub Reject was
         # applied) may act on nothing further: its Accept would join a
         # participant whose RM is terminal.  The tree's closed-sender door
         # stops it as REFUSED, with nothing committed or sent (CM-23-018,
         # CM-11-015, RMB-14-006).
-        closed = closed_sender_verdict(
-            tree, result, closes=False, label="AcceptInviteActorToCaseBT"
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AcceptInviteActorToCaseBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=first_reading(
+                closed_sender_reader(closes=False),
+                _joined_or_unknown_case(invitee_id, case_id),
+            ),
         )
-        if closed is not None:
-            return closed
-
-        # The idempotency guard fails both for a fully joined invitee (a
-        # duplicate, CLP-13-001) and for a case this actor does not hold.
-        if node_failed(tree, CheckInviteeNotAlreadyParticipantNode):
-            if self._dl.read(case_id) is None:
-                verdict = HandlerResult.refused(f"unknown case '{case_id}'")
-            else:
-                return HandlerResult.skipped(
-                    f"'{invitee_id}' already joined case '{case_id}'"
-                )
-        else:
-            verdict = verdict_from_bt(
-                tree, result, label="AcceptInviteActorToCaseBT"
-            )
-            # Admitting the invitee is the CASE_MANAGER's job alone.
-            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "accept_invite_actor_to_case: refused invitee '%s' case"
-                " '%s': %s",
-                invitee_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
+        # Admitting the invitee is the CASE_MANAGER's job alone.
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class RejectInviteActorToCaseReceivedUseCase:
@@ -303,49 +258,50 @@ class RejectInviteActorToCaseReceivedUseCase:
                 "Reject(Invite) is missing its case id or Invite id"
             )
 
-        # The store we hold *is* the receiving actor's, so this resolves
-        # without scanning for an actor object (ADR-0073).
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,
             invite_id=request.invite_id,
             invitee_id=request.actor_id or None,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            activity=request,
-        )
         # A Reject from an invitee the case already records as closed would
         # close it again: the tree's closed-sender door stops it with nothing
         # committed or sent, so it is SKIPPED (CM-23-049, ID-05-003).
-        closed = closed_sender_verdict(
+        verdict = run_received_tree(
             tree,
-            result,
-            closes=True,
+            dl=self._dl,
+            request=request,
             label="RejectInviteActorToCaseReceivedBT",
-        )
-        if closed is not None:
-            return closed
-        verdict = verdict_from_bt(
-            tree, result, label="RejectInviteActorToCaseReceivedBT"
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            reader=closed_sender_reader(closes=True),
         )
         # Recording the decline is the CASE_MANAGER's job alone; the gate
         # also reads a case we do not hold as "not the manager".
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "RejectInviteActorToCaseReceivedUseCase: invite '%s' refused:"
-                " %s",
-                request.invite_id,
-                verdict.reason,
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
+
+
+def _joined_or_unknown_case(invitee_id: str, case_id: str) -> OutcomeReader:
+    """Read the Accept's idempotency guard when it ended the run.
+
+    The guard fails both for a fully joined invitee, a repeat it reports
+    (CLP-13-001), and for a case this actor does not hold.  The first is
+    ``SKIPPED``, the second ``REFUSED`` (HP-01-014, HP-01-005).
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        guard = find_node(outcome.tree, CheckInviteeNotAlreadyParticipantNode)
+        if guard is None or guard.status != Status.FAILURE:
+            return None
+        if guard.failed_as_repeat:
+            return HandlerResult.skipped(
+                f"'{invitee_id}' already joined case '{case_id}'"
             )
-        return verdict
+        if guard.feedback_message in WIRING_UNAVAILABLE_MESSAGES:
+            # Composed without its DataLayer: our fault, which the generic
+            # reading raises (ADR-0095).
+            return None
+        return HandlerResult.refused(f"unknown case '{case_id}'")
+
+    return read

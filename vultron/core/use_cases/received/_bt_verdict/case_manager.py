@@ -15,6 +15,12 @@
 
 """Verdicts owed when the CASE_MANAGER gate turned this actor away.
 
+A handler applies these to the runner's verdict
+(:func:`~vultron.core.behaviors.case.received_run.run_received_tree`).  They
+read the DataLayer after or before the tree, which the runner never does;
+#6394 moves each refusal into the tree (a path-stage door, a held-case door)
+and deletes them.
+
 A CASE_MANAGER-addressed message that reaches an actor without that role
 was misaddressed, so it is ``REFUSED`` (HP-01-005); so is an act naming a
 case this store does not hold or one whose roster names no CASE_MANAGER.
@@ -25,12 +31,12 @@ import logging
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
-from vultron.core.behaviors.case.nodes.reference_list import (
-    CaseReferenceEditPendingNode,
+from vultron.core.behaviors.case.received_run.lookup import (
+    _HasRoot,
+    _root,
 )
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
@@ -39,17 +45,14 @@ from vultron.core.behaviors.sync.sender_sequence_stage import (
     SENDER_SEQUENCE_GATE_NAME,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
-    _HasRoot,
-    _root,
-    find_node,
-)
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -132,13 +135,26 @@ def case_manager_verdict(
     if verdict.disposition is HandlerDisposition.REFUSED:
         return verdict
     refusal = not_case_manager_refusal(tree, dl, case_id)
-    return verdict if refusal is None else refusal
+    if refusal is None:
+        return verdict
+    logger.warning(
+        "received tree '%s' refused at a receiver that is not case '%s''s"
+        " CASE_MANAGER: %s",
+        _root(tree).name,
+        case_id,
+        refusal.reason,
+    )
+    return refusal
 
 
 def unheld_case_refusal(
-    dl: CasePersistence, case_id: str, activity_id: str, label: str
+    dl: CasePersistence, request: VultronEvent, case_id: str, label: str
 ) -> HandlerResult | None:
     """The refusal owed to an act that names a case this store does not hold.
+
+    The receiving actor is resolved first, as the runner would resolve it, so
+    a delivery with no resolvable receiver stays a wiring fault that raises
+    before any read, never a refusal of the sender (BT-17-009, ARCH-15-001).
 
     ``Join``, ``Ignore`` and ``Leave`` of a case and the ownership-transfer
     ``Offer`` name their case and carry no copy of it (ADR-0165): the
@@ -146,16 +162,17 @@ def unheld_case_refusal(
     hold leaves it nothing to act on, and the act is ``REFUSED`` naming the
     activity and the case.  ``None`` when the store holds the case.
     """
+    resolve_receiving_actor_id(dl, request.receiving_actor_id)
     if dl.read_case(case_id) is not None:
         return None
     logger.warning(
         "%s '%s' names case '%s', which this actor does not hold — REFUSED",
         label,
-        activity_id,
+        request.activity_id,
         case_id,
     )
     return HandlerResult.refused(
-        f"{label} '{activity_id}' names unknown case '{case_id}'"
+        f"{label} '{request.activity_id}' names unknown case '{case_id}'"
     )
 
 
@@ -177,25 +194,3 @@ def case_manager_absence_refusal(
     if resolve_case_manager_id(case, dl) is None:
         return HandlerResult.refused(f"case '{case_id}' has no CASE_MANAGER")
     return None
-
-
-def reference_edit_verdict(
-    tree: py_trees.behaviour.Behaviour | _HasRoot,
-    verdict: HandlerResult,
-    dl: CasePersistence,
-    case_id: str,
-) -> HandlerResult:
-    """Refine the verdict of a tree that attaches or detaches a case reference.
-
-    Such a tree carries a ``CaseReferenceEditPendingNode`` duplicate guard: its
-    ``FAILURE`` with ``is_duplicate`` set is an idempotent re-delivery, so the
-    handler reports ``SKIPPED`` rather than the default ``REFUSED``.  A tree that otherwise succeeded but
-    whose CASE_MANAGER gate turned this actor away is a refusal (HP-01-005).
-    """
-    pending = find_node(tree, CaseReferenceEditPendingNode)
-    if pending is not None and pending.is_duplicate:
-        return HandlerResult.skipped(
-            BTBridge.get_failure_reason(_root(tree))
-            or "reference edit is already in effect"
-        )
-    return case_manager_verdict(tree, verdict, dl, case_id)

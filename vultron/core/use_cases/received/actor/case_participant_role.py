@@ -10,9 +10,12 @@ the target; the target answers the CASE_MANAGER (CM-33).
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
+)
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    run_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -22,19 +25,10 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
-    role_offer_verdict,
-    verdict_from_bt,
-)
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -90,11 +84,6 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolve the receiver before any write: it raises when no actor owns
-        # this store, and a refusal must not leave the Offer behind.
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         offer_id = request.activity_id
 
         # context carries the VulnerabilityCase; target carries the Actor
@@ -119,39 +108,32 @@ class OfferCaseParticipantRoleReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        # A redelivered Offer is a repeat its guard reports, so the runner
+        # reads it SKIPPED (HP-01-014).  With no case, the tree only records
+        # the Offer: any failure past its doors is a local fault.
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=_LABEL,
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=_no_case_refusal if case_id is None else None,
+            judges=case_id is not None,
         )
-        if case_id is None:
-            # Intake recorded the Offer; there is no case to act on.  A door
-            # guard's refusal (an unaddressed copy, HP-01-005) is its own.
-            verdict = applied_or_raise(tree, result, label=_LABEL)
-            if verdict.disposition is HandlerDisposition.REFUSED:
-                return verdict
-            logger.warning(
-                "OfferCaseParticipantRoleReceivedUseCase: role Offer '%s'"
-                " names no case — refusing",
-                offer_id,
-            )
-            return HandlerResult.refused(
-                "Offer(CaseParticipantRole) names no case"
-            )
-        verdict = role_offer_verdict(
-            tree, verdict_from_bt(tree, result, label=_LABEL)
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "OfferCaseParticipantRoleReceivedUseCase: refused offer"
-                " '%s' from '%s': %s",
-                offer_id,
-                request.actor_id,
-                verdict.reason,
-            )
-        return verdict
+
+
+def _no_case_refusal(outcome: ReceivedOutcome) -> HandlerResult | None:
+    """Refuse an Offer whose tree recorded it but found no case to act on.
+
+    Intake recorded the Offer; there is no case to act on.  A door guard's
+    refusal (an unaddressed copy, HP-01-005) is read ahead of this.
+    """
+    if not outcome.succeeded:
+        return None
+    logger.warning(
+        "OfferCaseParticipantRoleReceivedUseCase: role Offer names no case"
+        " — refusing"
+    )
+    return HandlerResult.refused("Offer(CaseParticipantRole) names no case")

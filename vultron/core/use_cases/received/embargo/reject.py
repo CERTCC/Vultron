@@ -11,26 +11,20 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
+from vultron.core.behaviors.case.received_run import (
+    door_guards_admitted,
+    run_received_tree,
+)
 from vultron.core.behaviors.embargo.answer_trees import (
     reject_invite_to_embargo_tree,
 )
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-    door_guards_admitted,
-    embargo_answer_repeat_verdict,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_ask,
 )
@@ -74,9 +68,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         # before anything decides anything: the pending-ask lookup below
         # judges against it, and nothing here reads the clock (ADR-0176).
         at = read_act_instant()
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
@@ -119,8 +110,14 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        # A repeat of a Reject already recorded is refused by the tree's
+        # repeat guard before the commit, and the runner reports it SKIPPED
+        # from the guard's repeat declaration (CM-13-005, HP-01-014).
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RejectInviteToEmbargoBT",
             wire_render_port=self._wire_render_port,
             # The commit fans the entry out to every participant replica
             # (EP-09-007, RSH-08-004); without the port nothing replays it.
@@ -129,14 +126,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             # any other row the rejection changes is the CASE_MANAGER's own
             # Update(EmbargoConsent) entry, built through it (ADR-0124).
             trigger_activity=self._trigger_activity,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=receiving_actor_id,
-            activity=request,
         )
 
         if door_guards_admitted(tree):
@@ -149,21 +138,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             )
             close_refused_embargo_ask(self._dl, request, at=at)
 
-        # A repeat of a Reject already recorded is refused by the tree's
-        # repeat guard before the commit, and reported SKIPPED (CM-13-005,
-        # HP-01-014).
-        verdict = embargo_answer_repeat_verdict(
-            tree,
-            verdict_from_bt(tree, result, label="RejectInviteToEmbargoBT"),
-        )
         # Only the CASE_MANAGER records an answer; a replica learns it
         # from the ledger broadcast (BT-17-001, HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
-                "%s (invite '%s', case '%s')",
-                verdict.reason,
-                invite_id,
-                case_id,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)

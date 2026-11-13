@@ -3,7 +3,12 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    node_succeeded,
+    run_received_tree,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateValid,
 )
@@ -23,19 +28,10 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    node_succeeded,
-    rm_declaration_verdict,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -46,12 +42,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        logger.warning(
-            "Refused activity '%s': %s", activity_id, verdict.reason
-        )
-    return verdict
+def _already_valid_reader(report_id: str) -> OutcomeReader:
+    """``SKIPPED`` when the Selector's idempotency exit found it VALID."""
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if outcome.succeeded and node_succeeded(
+            outcome.tree, CheckRMStateValid
+        ):
+            # The Selector's idempotency exit (ID-04-004): already VALID.
+            return HandlerResult.skipped(
+                f"report '{report_id}' already validated for this sender"
+            )
+        return None
+
+    return read
 
 
 def _case_id_for_report(
@@ -106,15 +110,11 @@ class ValidateReportReceivedUseCase:
                 "or offer id"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' (receiving='%s')",
             sender_actor_id,
             report_id,
-            receiving_actor_id,
+            request.receiving_actor_id,
         )
 
         case_id = _case_id_for_report(self._dl, report_id)
@@ -132,37 +132,19 @@ class ValidateReportReceivedUseCase:
             case_id=case_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="ValidateReportReceivedBT",
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-
-        verdict = verdict_from_bt(
-            tree, result, label="ValidateReportReceivedBT"
+            reader=_already_valid_reader(report_id),
         )
         if case_id is not None:
             # Only the CASE_MANAGER records the move (HP-01-005).
             verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "ValidateReportReceivedUseCase: refused for report '%s': %s",
-                report_id,
-                verdict.reason,
-            )
-            return verdict
-
-        if node_succeeded(tree, CheckRMStateValid):
-            # The Selector's idempotency exit (ID-04-004): already VALID.
-            return HandlerResult.skipped(
-                f"report '{report_id}' already validated for this sender"
-            )
         return verdict
 
 
@@ -194,9 +176,6 @@ class InvalidateReportReceivedUseCase:
         # the *sender*, ``request.actor_id`` — the activity is an assertion
         # about the sender's state (HP-00-001), which the tree factory reads
         # from the request.
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         # The case the sender guard and the RM adjudication read.
         case_id = _case_id_for_report(self._dl, request.report_id)
         tree = create_invalidate_report_received_tree(
@@ -204,27 +183,22 @@ class InvalidateReportReceivedUseCase:
             case_id=case_id,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        verdict = rm_declaration_verdict(
+        # A restated declaration changes nothing: its repeat guard says so,
+        # and the runner reports SKIPPED (RSH-08-002).
+        verdict = run_received_tree(
             tree,
-            verdict_from_bt(tree, result, label="InvalidateReportReceivedBT"),
+            dl=self._dl,
+            request=request,
             label="InvalidateReportReceivedBT",
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
         if case_id is not None:
             # Only the CASE_MANAGER records the move (HP-01-005).  With no
             # case the sender guard has already refused.
             verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        return _log_refusal(verdict, request.activity_id)
+        return verdict
 
 
 class AckReportReceivedUseCase:
@@ -252,27 +226,17 @@ class AckReportReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         tree = create_ack_report_received_tree(
             request, sender_rule=self.sender_entitlement
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="AckReportReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="AckReportReceivedBT"),
-            request.activity_id,
+            wire_render_port=self._wire_render_port,
         )
 
 
@@ -323,19 +287,12 @@ class CloseReportReceivedUseCase:
             case_id=_case_id_for_report(self._dl, request.report_id),
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="CloseReportReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
-            request.activity_id,
+            wire_render_port=self._wire_render_port,
         )

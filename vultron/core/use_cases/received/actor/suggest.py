@@ -3,23 +3,18 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommend_actor_to_case_received_tree,
 )
 from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
-    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
@@ -106,10 +101,6 @@ class OfferActorToCaseReceivedUseCase:
                 " recommended actor or case"
             )
 
-        local_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         offer_content = getattr(request.activity, "content", None)
         if offer_content is not None and not isinstance(offer_content, str):
             logger.warning(
@@ -143,23 +134,13 @@ class OfferActorToCaseReceivedUseCase:
             actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RecommendActorToCaseReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        result = bridge.execute_with_setup(
-            tree, actor_id=local_actor_id, activity=request
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="RecommendActorToCaseReceivedBT"
-        )
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "OfferActorToCaseReceived: refused '%s': %s",
-                activity_id,
-                verdict.reason,
-            )
-        return verdict
+        return case_manager_verdict(tree, verdict, self._dl, case_id)
