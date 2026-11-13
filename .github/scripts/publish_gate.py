@@ -7,8 +7,8 @@ workflow only wires jobs together. Every run starts from ``main``, so the
 workflow and this script are always ``main``'s reviewed copies:
 
 - ``gate`` classifies the run (scheduled, manual, manual with the CI gate
-  skipped, rollback, release), picks the commit to publish, applies the skip rule and
-  the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
+  skipped, rollback, release), picks the commit to publish, applies the skip
+  rule and the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
   ``tag-message`` to ``$GITHUB_OUTPUT`` and its reason to
   ``$GITHUB_STEP_SUMMARY``. A run that publishes also decides the name of its
   ``publish-*`` tag and writes it, its date and the commit's newest ``v*``
@@ -357,8 +357,9 @@ def tag_message(ctx: RunContext, run_url: str) -> str:
             f"manual publish with the CI gate skipped, by @{ctx.actor}."
         ),
         Trigger.ROLLBACK: f"rollback to {ctx.source_tag}, by @{ctx.actor}.",
+        # Only the bot starts a release run (DOCBW-06-034).
         Trigger.RELEASE: (
-            f"publish after release {ctx.source_tag}, by @{ctx.actor}."
+            f"publish after release {ctx.source_tag}, by {BOT_NAME}."
         ),
     }[ctx.trigger]
     return f"{first}\n\nCommit: {ctx.sha}\n{_run_line(run_url)}\n"

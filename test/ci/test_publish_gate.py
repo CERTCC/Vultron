@@ -635,25 +635,32 @@ def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
 
 @pytest.mark.spec("DOCBW-06-017", "DOCBW-06-020")
 @pytest.mark.parametrize(
-    ("trigger", "first_line"),
+    ("trigger", "source_tag", "first_line"),
     [
-        (Trigger.SCHEDULED, "scheduled publish, by github-actions[bot]."),
-        (Trigger.MANUAL, "manual publish, by @octocat."),
+        (Trigger.SCHEDULED, "", "scheduled publish, by github-actions[bot]."),
+        (Trigger.MANUAL, "", "manual publish, by @octocat."),
         (
             Trigger.MANUAL_UNGATED,
+            "",
             "manual publish with the CI gate skipped, by @octocat.",
         ),
-        (Trigger.ROLLBACK, f"rollback to publish-{DAY}.1, by @octocat."),
+        (
+            Trigger.ROLLBACK,
+            f"publish-{DAY}.1",
+            f"rollback to publish-{DAY}.1, by @octocat.",
+        ),
+        # Only the bot starts a release run, and it names a v* tag.
         (
             Trigger.RELEASE,
-            f"publish after release publish-{DAY}.1, by @octocat.",
+            RELEASE,
+            f"publish after release {RELEASE}, by github-actions[bot].",
         ),
     ],
 )
 def test_tag_message_records_trigger_and_actor(
-    trigger: Any, first_line: str
+    trigger: Any, source_tag: str, first_line: str
 ) -> None:
-    message = _gate.tag_message(_ctx(trigger, f"publish-{DAY}.1"), RUN_URL)
+    message = _gate.tag_message(_ctx(trigger, source_tag), RUN_URL)
     assert message.splitlines()[0] == first_line
     assert "Commit: abc123" in message and f"Run: {RUN_URL}" in message
 
@@ -1036,7 +1043,7 @@ def test_gate_command_publishes_main_after_a_published_release(
     out = outputs["out"].read_text()
     assert "publish=true\n" in out and "trigger=release\n" in out
     assert "commit=abc123\n" in out
-    assert f"publish after release {RELEASE}, by @{BOT_NAME}." in out
+    assert f"publish after release {RELEASE}, by {BOT_NAME}." in out
     assert f"publish-tag=publish-{DAY}.2\n" in out
 
 
@@ -1051,6 +1058,23 @@ def test_gate_command_refuses_a_release_that_is_not_published(
     assert _gate_main(actor=BOT_NAME, release=RELEASE) == 1
     summary = outputs["summary"].read_text()
     assert "refused" in summary and RELEASE in summary
+    assert not outputs["out"].exists()
+
+
+@pytest.mark.spec("DOCBW-06-034")
+def test_gate_command_fails_when_the_release_lookup_fails(
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lookup that still fails after retry.sh's retries fails the gate."""
+    _no_github(monkeypatch)
+
+    def release_state(repo: str, name: str, *, retry: bool = False) -> Any:
+        assert retry, "the gate's release lookup retries"
+        raise subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502")
+
+    monkeypatch.setattr(_gate, "release_state", release_state)
+    with pytest.raises(subprocess.CalledProcessError):
+        _gate_main(actor=BOT_NAME, release=RELEASE)
     assert not outputs["out"].exists()
 
 

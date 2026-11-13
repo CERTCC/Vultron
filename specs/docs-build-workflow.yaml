@@ -187,7 +187,7 @@ groups:
           including `.github/workflows/deploy_site.yml`.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
-          `site/` from a scheduled, manual or rollback run (DOCBW-06-007) and
+          `site/` from a scheduled, manual, release or rollback run (DOCBW-06-007) and
           uploads it to Pages. A gate present only in the pull-request workflow
           does not bind the publishing path, so a withheld artifact on a commit
           the publish takes without a pull request (a direct push to `main`, or a
@@ -1028,8 +1028,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Scheduled, manual and rollback runs MUST share one concurrency group
-          that does not cancel a run in progress.
+          Scheduled, manual, release and rollback runs MUST share one
+          concurrency group that does not cancel a run in progress.
         rationale: >-
           Two publishes at once would race for the tag counter and for Pages,
           and a cancelled deploy can leave Pages and the tags disagreeing. The
@@ -1038,7 +1038,10 @@ groups:
           newest tag could name a deploy that is no longer live. The cost is
           GitHub's rule of one pending run per group: while a run holds the
           group, a newer queued run replaces an older queued one, which ends as
-          cancelled with no failure notice, and its starter runs it again.
+          cancelled with no failure notice, and its starter runs it again. A
+          replaced release run (DOCBW-06-032) has no person to run it again, so
+          a maintainer who sees the released draft still on its placeholder
+          starts a manual publish.
         verification: >-
           `test_one_concurrency_group_never_cancels` in
           `test/ci/test_publish_gate.py`.
@@ -1241,8 +1244,9 @@ groups:
           (#6393). The release event itself runs from the release's tag, whose
           copy of the publication workflow is not `main`'s (ADR-0171) and which
           the `github-pages` environment does not let deploy, so the release
-          workflow only dispatches. A dispatch is the one event that a
-          `GITHUB_TOKEN` can raise to start another workflow.
+          workflow only dispatches. A `workflow_dispatch` is one of the two
+          events (with `repository_dispatch`) that a `GITHUB_TOKEN` can raise
+          to start another workflow.
         verification: >-
           `test_publishing_a_release_dispatches_a_publish_of_main`,
           `test_a_failed_dispatch_files_a_failure_issue`,
@@ -1274,6 +1278,34 @@ groups:
             spec_id: DOCBW-06-032
           - rel_type: depends_on
             spec_id: DOCBW-06-008
+      - id: DOCBW-06-034
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A run whose `release` input is set MUST NOT publish when its actor
+          is not `github-actions[bot]`, when it also sets `rollback-to` or
+          `skip-ci-gate`, or when the input names no published GitHub Release.
+          The gate fails such a run and writes its reason to the run summary.
+        rationale: >-
+          The input only labels the run, but the label goes into the tag
+          message (DOCBW-06-017), so a person who set it by hand would make a
+          false record of why a commit went live. GitHub cannot hide an input
+          from the manual-run form, so the gate enforces who sets it. A refusal
+          fails visibly rather than publishing as a manual run, which would
+          hide the misuse.
+        verification: >-
+          `test_a_release_run_is_refused_unless_the_bot_dispatched_it_alone`,
+          `test_a_release_run_needs_a_published_release`,
+          `test_a_published_release_passes`,
+          `test_gate_command_refuses_a_release_that_is_not_published`,
+          `test_gate_command_fails_when_the_release_lookup_fails` and
+          `test_gate_command_refuses_a_release_run_a_person_started` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
       - id: DOCBW-06-035
         priority: MUST_NOT
         kind: project
@@ -1295,33 +1327,6 @@ groups:
         see_also:
           - spec_id: DOCBW-06-013
             reason: 'the skip rule a release run is exempt from'
-      - id: DOCBW-06-034
-        priority: MUST_NOT
-        kind: project
-        statement: >-
-          A run whose `release` input is set MUST NOT publish when its actor
-          is not `github-actions[bot]`, when it also sets `rollback-to` or
-          `skip-ci-gate`, or when the input names no published GitHub Release.
-          The gate fails such a run and writes its reason to the run summary.
-        rationale: >-
-          The input only labels the run, but the label goes into the tag
-          message (DOCBW-06-017), so a person who set it by hand would make a
-          false record of why a commit went live. GitHub cannot hide an input
-          from the manual-run form, so the gate enforces who sets it. A refusal
-          fails visibly rather than publishing as a manual run, which would
-          hide the misuse.
-        verification: >-
-          `test_a_release_run_is_refused_unless_the_bot_dispatched_it_alone`,
-          `test_a_release_run_needs_a_published_release`,
-          `test_a_published_release_passes`,
-          `test_gate_command_refuses_a_release_that_is_not_published` and
-          `test_gate_command_refuses_a_release_run_a_person_started` in
-          `test/ci/test_publish_gate.py`.
-        adr:
-          - ADR-0171
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-06-032
 
   - id: DOCBW-07
     title: Release Promotion and Site Staleness

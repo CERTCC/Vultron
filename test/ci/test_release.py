@@ -328,6 +328,8 @@ class _FakeGh:
 def fake_gh(monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
     fake = _FakeGh()
     monkeypatch.setattr(_rel, "gh", fake)
+    # The promote reads the release through github_releases.
+    monkeypatch.setattr(_releases, "gh", fake)
     monkeypatch.setattr(_rel, "_today", lambda: TODAY)
     # These repositories hold no drafts register, so no release carries a
     # draft; test_frozen_drafts.py covers the releases that do.
@@ -491,7 +493,7 @@ def test_release_state_with_retry_retries_an_error_until_it_answers(
         return reply
 
     monkeypatch.setattr(_releases, "gh", gh)
-    monkeypatch.setattr(_rel.time, "sleep", slept.append)
+    monkeypatch.setattr(_releases.time, "sleep", slept.append)
     monkeypatch.setenv("GH_RETRY_ATTEMPTS", "3")
     assert _releases.release_state("O/R", "v2026.11.0", retry=True) == (
         _releases.ReleaseState(False, ("a.tar.gz",))
