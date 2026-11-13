@@ -29,7 +29,6 @@ from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
     ReceivedOutcome,
     door_refusal,
-    node_failed,
     node_succeeded,
     received_path,
     run_received_tree,
@@ -45,13 +44,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
-    CheckEntryAgreesWithCasePositionNode,
-    CheckEntryHashIntactNode,
-    CheckHashMatchesNode,
     CheckLedgerEntryAlreadyStoredNode,
-    ReconstructChainTailNode,
-    SendGenesisRejectOnMissingCaseNode,
-    SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
@@ -80,17 +73,20 @@ logger = logging.getLogger(__name__)
 def _announce_reading(entry: CaseLedgerEntry, sender_id: str) -> OutcomeReader:
     """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
 
-    ``SendRejectLogEntryNode`` always returns ``FAILURE``, so a failed one
-    marks an entry the Reject arm handled: answered with a ``Reject``, or,
-    for a case this replica does not hold, with the genesis Reject withheld
-    because one was sent within the interval (SYNC-15-016).  The reading
-    captures only the announced entry and its sender's id, never the request.
+    A held entry is ``DEFERRED`` and a sender that is not the CASE_MANAGER
+    is refused with the entry named; an own announcement echoed back, and an
+    entry already stored, are ``SKIPPED``.  An entry the chain refuses (its
+    hash, its case position, a tail it does not extend, a case not seeded
+    here) is refused by the node that refused it, which declares the reason
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  The
+    reading captures only the announced entry and its sender's id, never the
+    request.
     """
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         tree = outcome.tree
         if not outcome.succeeded:
-            return _refused_announce_verdict(tree, sender_id, entry)
+            return _held_or_not_manager(tree, sender_id, entry)
         # Past the sender guard, an announcement the CASE_MANAGER admits is
         # its own (SYNC-13-006).
         if received_path(tree) is ReceivedPath.CASE_MANAGER:
@@ -107,20 +103,17 @@ def _announce_reading(entry: CaseLedgerEntry, sender_id: str) -> OutcomeReader:
     return read
 
 
-def _genesis_reject_withheld(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Whether the missing-case arm withheld its genesis Reject."""
-    return any(
-        isinstance(node, SendGenesisRejectOnMissingCaseNode) and node.withheld
-        for node in tree.iterate()
-    )
-
-
-def _refused_announce_verdict(
+def _held_or_not_manager(
     tree: py_trees.behaviour.Behaviour,
     sender_id: str,
     entry: CaseLedgerEntry,
 ) -> HandlerResult | None:
-    """Name why a failed announce run failed, or ``None`` for the default."""
+    """A failed run's hold or sender refusal, or ``None`` for the runner.
+
+    A hold is read off a node that succeeded inside the failed run, which
+    no node declaration expresses, so it stays here; the refusals the
+    entry's own checks declare are the runner's.
+    """
     if node_succeeded(tree, BufferOutOfOrderEntryNode):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
@@ -147,43 +140,6 @@ def _refused_announce_verdict(
             f"sender '{sender_id}' is not the CASE_MANAGER of case"
             f" '{entry.case_id}', so its announcement of ledger entry"
             f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
-        )
-    if node_failed(tree, CheckEntryHashIntactNode):
-        return HandlerResult.refused(
-            f"ledger entry '{entry.id_}' does not reproduce its entry_hash;"
-            " not applied or stored (SYNC-03-006)"
-        )
-    if node_failed(tree, CheckEntryAgreesWithCasePositionNode):
-        return HandlerResult.refused(
-            f"ledger entry '{entry.id_}' (log_index={entry.log_index}) is"
-            f" not the entry case '{entry.case_id}' names at its ledger"
-            " position; the chains conflict, so it is not stored"
-            " (SYNC-16-025)"
-        )
-    if node_failed(tree, SendRejectLogEntryNode):
-        return _rejected_announce_verdict(tree, entry)
-    return None
-
-
-def _rejected_announce_verdict(
-    tree: py_trees.behaviour.Behaviour, entry: CaseLedgerEntry
-) -> HandlerResult | None:
-    """Name the Reject arm a failed announce run ended in, if either."""
-    if node_failed(tree, ReconstructChainTailNode):
-        if _genesis_reject_withheld(tree):
-            return HandlerResult.refused(
-                f"case '{entry.case_id}' is not seeded here; a Reject for"
-                " replay from genesis was already sent within the interval,"
-                " so none is sent again (SYNC-15-016)"
-            )
-        return HandlerResult.refused(
-            f"case '{entry.case_id}' is not seeded here; Reject sent for"
-            " replay from genesis (SYNC-15-001)"
-        )
-    if node_failed(tree, CheckHashMatchesNode):
-        return HandlerResult.refused(
-            f"ledger entry '{entry.id_}' does not extend the local chain"
-            " tail; Reject sent (SYNC-03-001)"
         )
     return None
 

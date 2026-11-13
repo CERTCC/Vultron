@@ -3,7 +3,7 @@ status: proposed
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-13
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -47,16 +47,18 @@ The runner wires the bridge and the ports, runs the tree once as the receiving a
 Nothing in the runner reads or writes the DataLayer before or after the run.
 A verdict that needs a fact the tree did not record gets a node that records it, not code in the runner.
 
-Two node declarations carry the non-default verdicts:
+Three node declarations carry the non-default verdicts:
 
 - A guard whose failure is an idempotent repeat declares it (`ReportsIdempotentRepeat`), and the runner reports `SKIPPED` when such a guard is on the failure chain.
 - A node whose success means the run had nothing to change declares it (`ReportsNoChange`), and the runner reports `SKIPPED` instead of `APPLIED`.
+- A node whose failure refuses the activity declares it with its reason (`ReportsRefusal`), and the runner reports `REFUSED` with that reason when the node's failure decided the run.
+  The reason stands alone, without the handler's label, so it names the condition and the requirement it cites.
 
 A handler that owes a reading no declaration expresses passes an optional reader.
 The reader receives only the finished run: the tree, the bridge's result and the handler's label.
 It gets no DataLayer, no port and no request.
 
-The readings keep one order: the doors and the sender sequence stage, then the handler's reader, then a declared no-change or repeat, then the general refusal.
+The readings keep one order: the doors and the sender sequence stage, then the handler's reader, then a declared no-change or repeat, then a declared refusal, then the general refusal.
 The reader comes before the declarations so that a handler reading that names its own answer for a run wins.
 A reader returns no answer for any run it does not read, and the declarations then decide.
 
@@ -66,7 +68,7 @@ A reader returns no answer for any run it does not read, and the declarations th
 - Good, because a handler's `execute()` shrinks to building a tree and running it.
 - Good, because tree tests read verdicts through `core/behaviors` alone.
 - Bad, because a few readings that read the DataLayer around the run stay in the use cases until each gets a node or a door of its own.
-- Neutral, because the reader is a deliberate escape hatch: a reading that recurs across handlers should become a node declaration.
+- Neutral, because the reader is a deliberate escape hatch: a reading that recurs across handlers should become a node declaration, and a reading that only says "this guard failed, so refuse with its reason" is a declared refusal.
 
 ## Validation
 

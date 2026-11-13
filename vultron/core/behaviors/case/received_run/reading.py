@@ -40,9 +40,13 @@ request.  It asks, in this order:
 6. On a failed run, a guard on the failure chain that failed as a repeat
    (:class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`) →
    ``SKIPPED``.
-7. A node composed without a dependency (a ``WIRING_UNAVAILABLE_MESSAGES``
+7. A node whose failure decided the run and declared it a refusal
+   (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`) →
+   ``REFUSED`` with the reason the node gave, which names its condition and
+   the requirement it cites (HP-01-003, HP-01-005).
+8. A node composed without a dependency (a ``WIRING_UNAVAILABLE_MESSAGES``
    reason) → raise: our fault, not the sender's (ADR-0095).
-8. Any other failure → ``REFUSED`` with the failing leaf's reason, or a raise
+9. Any other failure → ``REFUSED`` with the failing leaf's reason, or a raise
    for a tree that judges nothing (``judges=False``): there a failure is a
    local fault, never a verdict on the sender.
 """
@@ -68,6 +72,7 @@ from vultron.core.behaviors.case.received_run.sequence import (
 )
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.idempotency import (
+    refusal_ending_run,
     repeat_ending_run,
     unchanged_by_run,
 )
@@ -120,7 +125,8 @@ class ReceivedOutcome:
 
 
 #: A handler's own reading of a finished run, asked after the doors and
-#: before the generic repeat, no-change and refusal readings.  ``None`` means
+#: before the generic no-change, repeat, declared-refusal and refusal
+#: readings.  ``None`` means
 #: "no reading of mine applies"; the generic reading then decides.
 OutcomeReader = Callable[[ReceivedOutcome], HandlerResult | None]
 
@@ -139,9 +145,9 @@ def read_outcome(
         outcome: The finished run.
         reader: The handler's own reading, asked after the doors.
         judges: ``False`` for a tree that only stores or commits what the
-            handler has already accepted: a failure that no door, reader or
-            declared repeat answers is then a local fault and raises instead
-            of refusing.
+            handler has already accepted: a failure that no door, reader,
+            declared repeat or declared refusal answers is then a local
+            fault and raises instead of refusing.
 
     Raises:
         VultronBTInternalError: The run failed on an internal error, on a
@@ -167,8 +173,8 @@ def read_outcome(
                 f"{outcome.label}: {unchanged.no_change_reason}"
             )
         return HandlerResult.applied()
-    if (repeat := repeat_ending_run(outcome.tree)) is not None:
-        return HandlerResult.skipped(_repeat_reason(repeat, outcome.label))
+    if (verdict := _declared_failure_verdict(outcome)) is not None:
+        return verdict
     reason = outcome.failure_reason
     if reason in WIRING_UNAVAILABLE_MESSAGES or not judges:
         # A node composed without a dependency (it set this message instead
@@ -189,6 +195,20 @@ def _door_verdict(
         return verdict
     # An incomplete activity's guard message is the whole reason (CLP-10-018).
     return incomplete_activity_refusal(tree)
+
+
+def _declared_failure_verdict(
+    outcome: ReceivedOutcome,
+) -> HandlerResult | None:
+    """A failed run's declared repeat, then its declared refusal, if any."""
+    if (repeat := repeat_ending_run(outcome.tree)) is not None:
+        return HandlerResult.skipped(_repeat_reason(repeat, outcome.label))
+    if (refusal := refusal_ending_run(outcome.tree)) is not None:
+        # The node said its failure refuses the activity, and why.
+        return HandlerResult.refused(
+            refusal.declared_refusal or outcome.refusal_reason
+        )
+    return None
 
 
 def _repeat_reason(repeat: py_trees.behaviour.Behaviour, label: str) -> str:

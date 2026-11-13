@@ -51,12 +51,15 @@ the receiver and reads the verdict from what its nodes recorded, in this order:
 a door's or the sequence stage's answer; `internal_error` → raise
 `VultronBTInternalError`; the handler's reader; on `SUCCESS`, a node-declared
 no-change (`ReportsNoChange`) → `SKIPPED`, else `APPLIED`; on `FAILURE`, a
-node-declared repeat (`ReportsIdempotentRepeat`) → `SKIPPED`; a missing port →
-raise; any other `FAILURE` → `REFUSED` with the failing leaf's reason.
-`judges=False` is for a tree that only stores what the handler already
-accepted: any failure left after those readings raises, since it can only be
-the DataLayer's. A new repeat or no-op is a node declaration, never a handler
-reading.
+node-declared repeat (`ReportsIdempotentRepeat`) → `SKIPPED`; a node-declared
+refusal (`ReportsRefusal`, via `DeclaredRefusalMixin._refuse`) → `REFUSED`
+with the node's own reason; a missing port → raise; any other `FAILURE` →
+`REFUSED` with the failing leaf's reason. `judges=False` is for a tree that
+only stores what the handler already accepted: any failure left after those
+readings raises, since it can only be the DataLayer's. A new repeat, no-op or
+"this guard failed, refuse with its reason" is a node declaration, never a
+handler reading. A declared reason stands alone, so it names the condition
+and the requirement it cites (HP-01-005).
 
 A handler that owes a reading no declaration expresses passes an optional
 `reader`, which receives only the finished run and asks which node decided

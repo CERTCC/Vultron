@@ -10,7 +10,6 @@ from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
     ReceivedOutcome,
     find_named,
-    node_failed,
     run_received_tree,
 )
 from vultron.core.behaviors.status.add_case_status_tree import (
@@ -18,9 +17,6 @@ from vultron.core.behaviors.status.add_case_status_tree import (
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
-)
-from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
-    CheckParticipantStatusAcceptableNode,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.status import (
@@ -48,36 +44,23 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _status_refused(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Return True if CheckParticipantStatusAcceptableNode refused the status.
-
-    Used by AddParticipantStatusToParticipantReceivedUseCase to tell a refused
-    status from other BT failure causes (RSH-09-008, ISSUE-3199): a
-    sender-not-a-participant or authorization failure does not say the status
-    itself was refused.
-    """
-    return node_failed(tree, CheckParticipantStatusAcceptableNode)
-
-
 def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
     """True when the StatusAdoptionGate withheld adoption (returned FAILURE)."""
     gate = find_named(tree, "StatusAdoptionGate")
     return gate is not None and gate.status == Status.FAILURE
 
 
-def _participant_status_reader(
-    status_id: str, activity_id: str
-) -> OutcomeReader:
-    """The participant-status tree's own reading of its run.
+def _withheld_adoption_reader(status_id: str) -> OutcomeReader:
+    """``SKIPPED`` for a run whose StatusAdoptionGate withheld adoption.
 
-    - The raw claim is on the participant record, but the StatusAdoptionGate
-      withheld its adoption as canonical (RSH-01-001, RSH-01-002).  That is
-      not a refusal of the assertion's content (RSH-09-008), so the act
-      keeps its entry and the append, no fault is sent, and the run is
-      ``SKIPPED``.
-    - The status itself was refused (RSH-09-008, ISSUE-3199): the reason
-      says so.  The tree's refusal notice is the one answer (CLP-05-001); no
-      ProcessingFault is sent as well (#4756).
+    The raw claim is on the participant record, but the gate withheld its
+    adoption as canonical (RSH-01-001, RSH-01-002).  That is not a refusal
+    of the assertion's content (RSH-09-008), so the act keeps its entry and
+    the append, and no fault is sent.  The run succeeded, and a gate that
+    fails inside a succeeding run declares nothing, so this stays a reading.
+    A status the guard refused is refused by the guard, which declares the
+    reason (``CheckParticipantStatusAcceptableNode``, RSH-09-008); its
+    refusal notice is the one answer (CLP-05-001, #4756).
     """
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
@@ -85,11 +68,6 @@ def _participant_status_reader(
             return HandlerResult.skipped(
                 f"ParticipantStatus '{status_id}' recorded but not"
                 " adopted: CASE_OWNER approval required (RSH-01-002)"
-            )
-        if not outcome.succeeded and _status_refused(outcome.tree):
-            return HandlerResult.refused(
-                f"ParticipantStatus refused for activity"
-                f" '{activity_id}': {outcome.refusal_reason}"
             )
         return None
 
@@ -240,9 +218,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             # An Add missing its status id runs the incomplete-activity
             # tree, which has no status to read (CS-08-002).
             reader=(
-                _participant_status_reader(
-                    request.status_id, request.activity_id
-                )
+                _withheld_adoption_reader(request.status_id)
                 if request.status_id
                 else None
             ),

@@ -54,9 +54,13 @@ from vultron.core.behaviors.case.received_run import (
     read_outcome,
     run_received_tree,
 )
+from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
 from vultron.core.behaviors.idempotency import (
+    DeclaredRefusalMixin,
     ReportsIdempotentRepeat,
     ReportsNoChange,
+    ReportsRefusal,
+    refusal_ending_run,
     repeat_ending_run,
     unchanged_by_run,
 )
@@ -119,6 +123,19 @@ class _RepeatGuard(_Fixed):
     @property
     def failed_as_repeat(self) -> bool:
         return self.repeat and self.status == Status.FAILURE
+
+
+class _RefusingGuard(DeclaredRefusalMixin, _Fixed):
+    """A guard that declares its FAILURE a refusal, or fails as a fault."""
+
+    def __init__(self, name: str, reason: str, message: str = "") -> None:
+        super().__init__(name, Status.FAILURE, message)
+        self.reason = reason
+        self.refuses = True
+
+    def update(self) -> Status:
+        status = super().update()
+        return self._refuse(self.reason) if self.refuses else status
 
 
 class _NoChange(_Fixed):
@@ -344,6 +361,98 @@ def test_the_case_status_guard_reports_a_repeat():
         case_id="https://example.org/cases/c", status_id="s"
     )
     assert isinstance(node, ReportsIdempotentRepeat)
+
+
+# --- a node-declared refusal (HP-01-003, HP-01-005, #5775) -----------------
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_is_refused_with_the_nodes_reason():
+    """The node's reason is the whole reason: no tree label is added."""
+    tree = _ran(_RefusingGuard("Check", "entry hash broken (SYNC-03-006)"))
+    verdict = _read(tree)
+    assert verdict == HandlerResult.refused("entry hash broken (SYNC-03-006)")
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_ahead_of_its_failed_fallback_is_found():
+    """Every alternative of a failed Selector decided it, the guard first."""
+    guard = _RefusingGuard("Check", "refused (SYNC-03-006)")
+    answer = py_trees.composites.Selector(
+        name="CheckOrFault",
+        memory=False,
+        children=[guard, _Fixed("EmitFault", Status.FAILURE, "fault sent")],
+    )
+    tree = _ran(_Fixed("Ok", Status.SUCCESS), answer)
+    assert refusal_ending_run(tree) is guard
+    assert _read(tree).reason == "refused (SYNC-03-006)"
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_that_did_not_decide_the_run_is_not_read():
+    """A refusal a decorator turned into SUCCESS is not the run's verdict."""
+    tree = _ran(
+        py_trees.decorators.FailureIsSuccess(
+            name="Swallowed", child=_RefusingGuard("Check", "not this")
+        ),
+        _Fixed("Last", Status.FAILURE, "real refusal"),
+    )
+    assert refusal_ending_run(tree) is None
+    assert _read(tree).reason == "TestBT: real refusal"
+
+
+@pytest.mark.spec("HP-01-014")
+def test_a_declared_repeat_is_read_before_a_declared_refusal():
+    """A guard whose failure is a repeat is SKIPPED, not refused."""
+
+    class _RepeatAndRefusal(DeclaredRefusalMixin, _RepeatGuard):
+        def update(self) -> Status:
+            super().update()
+            return self._refuse("not this")
+
+    tree = _ran(_RepeatAndRefusal("Guard", repeat=True, message="again"))
+    assert _read(tree) == HandlerResult.skipped("again")
+
+
+def test_the_doors_and_the_reader_are_read_before_a_declared_refusal():
+    tree = _ran(_RefusingGuard("Check", "declared"))
+    assert _read(tree, reader=_refuse_all) == HandlerResult.refused(
+        "reader: TestBT"
+    )
+    door_tree = _ran(
+        ActivityIncompleteNode("Add(X) is missing its id"),
+        _RefusingGuard("Check", "declared"),
+        selector=True,
+    )
+    assert _read(door_tree) == HandlerResult.refused(
+        "Add(X) is missing its id"
+    )
+
+
+def test_a_tree_that_judges_nothing_still_reads_a_declared_refusal():
+    tree = _ran(_RefusingGuard("Check", "declared"))
+    assert _read(tree, judges=False) == HandlerResult.refused("declared")
+
+
+def test_a_fault_of_a_declaring_node_raises_rather_than_refusing():
+    """A node that fails without ``_refuse`` declares no refusal (ADR-0095)."""
+    node = _RefusingGuard("Check", "unused", DATALAYER_UNAVAILABLE)
+    node.refuses = False
+    tree = _ran(node)
+    assert isinstance(node, ReportsRefusal)
+    assert node.declared_refusal is None
+    with pytest.raises(VultronBTInternalError):
+        _read(tree)
+
+
+def test_a_declared_refusal_is_cleared_by_the_next_run():
+    node = _RefusingGuard("Check", "first")
+    tree = _ran(node)
+    assert node.declared_refusal == "first"
+    node.refuses = False
+    tree.tick_once()
+    assert node.status == Status.FAILURE
+    assert node.declared_refusal is None
 
 
 # --- a node-declared no-change (AC-4: ID-05-003, RSH-08-002) ----------------
