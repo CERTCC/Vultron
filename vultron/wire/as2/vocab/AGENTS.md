@@ -39,6 +39,12 @@
    ratchet `test/architecture/test_vocab_registry_keys.py`, which fails on any
    other collision.
 
+4. A new Vultron type, a subtype of an AS2 type, a new Vultron property, or the
+   retirement of one is declared by the rule in
+   [`notes/vocabulary-registry.md`](../../../../notes/vocabulary-registry.md)
+   § 4a, which names the class attribute, the generated `docs/ns/` entry and the
+   hand-written `docs/ns/index.md` row for each case.
+
 ## The Wire Branch Inherits Nothing From Core
 
 `as_Base` in `vultron/wire/as2/vocab/base/base.py` stands on
