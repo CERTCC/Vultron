@@ -512,7 +512,7 @@ def test_a_received_proposal_commits_one_row_per_participant_and_copies():
 _RECEIVED_PROPOSAL_STORE_READS = 230
 
 
-@pytest.mark.spec("DL-02-011", "TB-12-003")
+@pytest.mark.spec("DL-02-011")
 def test_one_received_proposal_stays_within_its_store_read_bound(monkeypatch):
     """Store reads, not ``dl.read`` calls: a read a block already made is
     served from the block and is not counted."""

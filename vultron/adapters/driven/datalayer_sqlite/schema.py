@@ -55,9 +55,9 @@ class VultronObjectRecord(SQLModel, table=True):
 class StoredRow(Protocol):
     """What turning a stored row back into an object reads from it.
 
-    Both an ORM :class:`VultronObjectRecord` and a :class:`StoredRowValues`
-    read by :data:`READ_BY_ID` have these three attributes, so hydration
-    takes either.
+    Both an ORM :class:`VultronObjectRecord` and the :class:`StoredRowValues`
+    that ``crud._stored_row`` builds from a :data:`READ_BY_ID` row have these
+    three attributes, so hydration takes either.
     """
 
     @property

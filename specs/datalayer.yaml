@@ -292,8 +292,8 @@ groups:
     kind: project
     statement: >-
       Inside a `dl.transaction()` block, a read of a record the block already
-      read SHOULD NOT fetch it from the store again unless the block wrote that
-      record in between.
+      read SHOULD NOT fetch it from the store again unless, in between, the block
+      wrote that record or rolled back an inner block.
     rationale: >-
       One act reads the same few records hundreds of times, such as its case
       and the case's participants (#5344). Inside a block nothing but the

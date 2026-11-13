@@ -37,8 +37,8 @@ An enqueue callback raised by a write inside the block runs only after the
 block commits (:func:`run_after_commit`), so an outbox monitor is never woken
 to drain a row another connection cannot yet see, or one that is rolled back.
 
-A block also keeps each object row it reads, as stored (:attr:`OpenTransaction
-.rows_read`), so a later read of the same row in the block is not fetched
+A block also keeps each object row it reads, as stored
+(:attr:`OpenTransaction.rows_read`), so a later read of the same row in the block is not fetched
 again (#5344).  The store cannot change under the block except by the block's
 own writes: the write lock (file-backed) or the session lock (in-memory) keeps
 every other writer out until it ends.  So a kept row stays current until the

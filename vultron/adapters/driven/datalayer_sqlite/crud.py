@@ -83,6 +83,8 @@ def create(
     else:
         rec = object_to_record(record)
 
+    # A missing row is never kept and an existing one is refused, so nothing
+    # can be stale here; it forgets anyway, so every object-row write does.
     forget_rows(dl._engine, [rec.id_])
     with dl._session() as session:
         existing = session.get(VultronObjectRecord, rec.id_)
@@ -180,7 +182,7 @@ def _select_row(
     """Fetch *object_id*'s ``(type_, data_text)`` from the store: one query.
 
     The only place a read by id reaches the store, so a test that counts
-    store reads counts calls to this (TB-12-003).
+    store reads counts calls to this (DL-02-011).
     """
     found = connection.execute(READ_BY_ID, {"object_id": object_id}).first()
     if found is None:
