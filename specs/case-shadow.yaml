@@ -1,10 +1,10 @@
 id: SHD
-title: Case Shadow Tool
+title: Case Shadow
 description: >-
-  Rules for the case shadow: a standalone, read-only tool that reads one case from an
-  outside system on request, translates it, and shows Vultron's analysis of it,
-  and how that tool is packaged. The first outside system is VINCE; its data
-  rules are in `vince-shadow-data.yaml`.
+  Rules for the case shadow: a standalone, read-only tool that reads one case
+  from an outside system on request, translates it, and shows Vultron's
+  analysis of it, and how that tool is packaged. The first outside system is
+  VINCE; its data rules are in `vince-shadow-data.yaml`.
 scope:
 - prototype
 - production
@@ -20,14 +20,14 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The shadow tool MUST NOT contain a code path that delivers an activity to
+      The case shadow MUST NOT contain a code path that delivers an activity to
       an inbox.
     rationale: >-
-      This version of the case shadow advises the people working a case and does not act
-      in it. With no
-      delivery path, nothing can reach a participant, whatever its settings.
+      This version of the case shadow advises the people working a case and does
+      not act in it. With no delivery path, nothing can reach a participant,
+      whatever its settings.
     verification: >-
-      An import test asserts that no module of the shadow tool imports, directly
+      An import test asserts that no module of the case shadow imports, directly
       or transitively, the outbox, an activity emitter, or an HTTP delivery
       adapter. A run against the recorded transport of SHD-01-002 also fails on
       any request to a host other than the configured outside system.
@@ -37,10 +37,10 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The shadow tool MUST NOT write to an outside system.
+      The case shadow MUST NOT write to an outside system.
     rationale: >-
-      A case shadow beside an outside system that holds the case of record must leave
-      that record exactly as its users left it.
+      A case shadow beside an outside system that holds the case of record must
+      leave that record exactly as its users left it.
     verification: >-
       A test asserts the case shadow reads cases only through a `CaseReader`
       (CRD-01-001), and a run against a recorded transport fails on any request
@@ -51,7 +51,7 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The shadow tool MUST NOT keep an outside-system case, or its translation,
+      The case shadow MUST NOT keep an outside-system case, or its translation,
       after the request that read it ends.
     rationale: >-
       A translation is rebuilt whenever it is needed. A copy kept beyond its
@@ -69,8 +69,8 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The shadow tool MUST show every outside-system fact its reader could not
-      translate, beside the analysis of the case.
+      The case shadow MUST show every outside-system fact its case reader could
+      not translate, beside the analysis of the case.
     relationships:
     - rel_type: depends_on
       spec_id: CRD-01-005
@@ -78,7 +78,7 @@ groups:
       An analysis that silently leaves out part of the case looks complete when
       it is not. Shown facts tell the analyst what the scores do not cover.
     verification: >-
-      A dashboard test feeds a reader result with one untranslated fact and
+      A dashboard test feeds a case reading with one untranslated fact and
       asserts the page shows it.
 - id: SHD-02
   title: Packaging
@@ -135,10 +135,10 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      Code outside the shadow tool MUST NOT import Streamlit.
+      Code outside the case shadow MUST NOT import Streamlit.
     rationale: >-
-      Streamlit is sanctioned for the shadow tool only. Keeping it there keeps
+      Streamlit is sanctioned for the case shadow only. Keeping it there keeps
       the protocol packages free of a user-interface dependency.
     verification: >-
-      An import test asserts that no module outside the shadow tool's package
+      An import test asserts that no module outside the case shadow's package
       imports `streamlit`.
