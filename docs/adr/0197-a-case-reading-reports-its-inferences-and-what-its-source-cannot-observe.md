@@ -35,7 +35,7 @@ What does a reader return, so that the analysis can tell a stated fact from an i
 
 ## Decision Drivers
 
-- The projection and the measures read a translated ledger exactly as a native one (ADR-0191, point 3), so the ledger itself stays unmarked.
+- The projection and the measures read a translated ledger exactly as a native one (ADR-0191, points 3 and 4), so the ledger itself stays unmarked.
 - An analyst must be able to see, for every state the analysis shows, whether the source stated it or the translation inferred it.
 - An absence the source could never fill must read as unknown, not false.
 - Each outside system has different gaps, so the rule is the port's, not one adapter's.

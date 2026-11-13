@@ -13,7 +13,7 @@ subject: neutral
 
 This page maps each field of a case in the Vulnerability Information and Coordination Environment (VINCE) onto a Vultron [case](glossary.md#core-cvd-concepts).
 The CERT Coordination Center (CERT/CC) runs VINCE.
-It is for readers who build or check the VINCE case reader, and for analysts who want to know where a state on the case shadow came from.
+This page is for readers who build or check the VINCE case reader, and for analysts who want to know where a state on the case shadow came from.
 The VINCE case reader follows these rows.
 Each row has a stable identifier, and every inference the reader makes names the row that produced it.
 
@@ -53,7 +53,7 @@ Each table has five columns.
 
 Every time comes from a VINCE record.
 The reader never reads a clock.
-An act that VINCE gives no time for takes the case's `created` time, and the reader lists it as an inference.
+An act that VINCE gives no time for takes the time its row names, most often the case's `created` time, and the reader lists it as an inference.
 
 [Report Management (RM)](glossary.md#state-machines-and-status) state belongs to one participant.
 No row sets a case-wide RM state.

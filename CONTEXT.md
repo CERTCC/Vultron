@@ -259,9 +259,16 @@ external. Design work belongs to Agentic Participants (#2450).
 
 **Outside system**:
 A tracker outside Vultron that holds cases of its own, such as VINCE, GHSA or Jira. Its
-cases reach the core through a `CaseReader`, which translates one into a case ledger
-(ADR-0191).
+cases reach the core through a `CaseReader`, which translates one into a case reading
+(ADR-0191, ADR-0197).
 *Avoid*: service domain, external tracker (as a coined name)
+
+**Case reading**:
+What a `CaseReader` returns for one outside case: the translated case ledger, unmarked;
+a citation per entry; the inferences, each naming its mapping rule and a caveat; the
+untranslated facts, each with a reason; and the facts the source can never observe,
+which a consumer reads as unknown, never as false (ADR-0197).
+*Avoid*: translated case, seeded case
 
 **Shadow**:
 A standalone, read-only tool that reads one case from an outside system on request,

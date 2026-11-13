@@ -106,7 +106,9 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 
 - A connector's directions are the core ports it implements for outside systems.
   Today there is one, `CaseReader`: read one case by its outside-system id and
-  return it as a translated case ledger (ADR-0191, ARCH-05-004). A read-write
+  return it as a case reading: a translated case ledger plus its citations,
+  inferences, untranslated facts and unobservable facts (ADR-0191, ADR-0197,
+  ARCH-05-004, CRD-02-001). A read-write
   port arrives with the gateway decision; add a port only when a caller needs it.
 - A one-port connector is complete, because the shadow reads with no write path.
   Declare the port in `vultron/core/ports/`, never in `adapters/connectors/`, so

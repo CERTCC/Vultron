@@ -216,9 +216,11 @@ groups:
       The crosswalk is where a person decided each mapping. Code that departs
       from it makes an analysis no one agreed to.
     verification: >-
-      A test translates each synthetic fixture case and asserts every
-      participant's RM state, the embargo state, the case-wide state flags and
-      every inference's rule identifier match the crosswalk rows for that case.
+      A test translates each synthetic fixture case and asserts that its
+      participants and their roles, every participant's RM state, the embargo
+      state, the case-wide state flags, the vulnerability items and notes, each
+      entry's times and every inference's rule identifier match the crosswalk
+      rows for that case.
   - id: CRD-03-002
     priority: MUST
     kind: project
@@ -263,7 +265,8 @@ groups:
       translated case.
     verification: >-
       The CRD-03-003 test also asserts the untranslated fact names that field
-      and carries the unknown-value reason.
+      and carries the unknown-value reason, and a second case whose own
+      `status` holds an unknown value is returned the same way.
   - id: CRD-03-005
     priority: MUST
     kind: project
