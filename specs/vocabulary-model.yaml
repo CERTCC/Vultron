@@ -1295,3 +1295,97 @@ groups:
       spec_id: VM-10-001
     - rel_type: uses_definition
       spec_id: VM-01-014
+  - id: VM-10-007
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Every field that a Vultron object serializes onto the wire MUST have a JSON-LD
+      term: either a context that a Vultron message or actor profile cites defines it,
+      or the field is declared a Vultron property and the context document maps it.
+      The fields of nested models count, and a field excluded from serialization does
+      not.
+    rationale: >-
+      The AS2 context maps an unknown term to a blank node (`"@vocab": "_:"`), so a
+      JSON-LD processor loses the meaning of a field with no term. An explicit
+      declaration makes each new field's author decide whether AS2 already has the
+      term (ADR-0194).
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001
+  - id: VM-10-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A Vultron property declaration MUST carry a one-line definition and its value
+      kind, and two declarations that share a wire name MUST carry the same definition
+      and the same value kind.
+    rationale: >-
+      Each wire name has one global term, as in AS2, so one name cannot carry two
+      meanings. A name used for two meanings is renamed apart instead (ADR-0194).
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-007
+  - id: VM-10-009
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A Vultron property MUST NOT use a wire name that a context Vultron cites already
+      defines.
+    rationale: >-
+      Vultron's context follows AS2's in `@context`, so a Vultron term with an AS2
+      name would silently replace the AS2 meaning for a JSON-LD reader. Where AS2 has
+      the term, the field uses it (ADR-0194).
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-007
+  - id: VM-10-010
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The context document MUST type each Vultron property term by its value kind, as
+      the AS2 context types its own: an IRI value as `"@type": "@id"`, a received
+      document kept verbatim as `"@type": "@json"`, and an array whose order matters
+      with `"@container": "@list"`.
+    rationale: >-
+      Without a type a JSON-LD reader takes a link for plain text, expands the keys
+      inside a verbatim document such as a ledger entry's payload snapshot, and treats
+      an ordered history as an unordered set. AS2 types its terms, so Vultron's terms
+      are no weaker (ADR-0194).
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-007
+  - id: VM-10-011
+    lint_suppress:
+    - phantom_path_ref
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The term check of VM-10-007 MUST read the terms of each external context Vultron
+      cites from a pinned, byte-for-byte local copy under `third_party/jsonld/`, whose
+      pin record holds each source URL and SHA-256 digest, and a test MUST fail when a
+      copy differs from its digest.
+    rationale: >-
+      A hand-written list of AS2 terms can disagree with the context a processor
+      actually reads, and the field names declared in this codebase's own AS2 classes
+      include Vultron additions. The copies follow the CSAF precedent (CSAF-05-002).
+      The cited contexts are a W3C Recommendation and versioned contexts that do not
+      change at their URLs, so no watch job follows them; a copy moves only when its
+      pin is moved on purpose.
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: implements
+      spec_id: VM-10-007

@@ -430,7 +430,8 @@ groups:
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
       vulnerability item for each entry in `vulnerabilities[]` that has a `cve` or an
-      `ids` entry, with the entry's `cve`, `ids`, `title`, `notes` and `references`.
+      `ids` entry, with the entry's `cve`, `ids`, `notes` and `references`, and its
+      `title` as the item's `name`.
     rationale: >-
       A vulnerability item takes the identity fields of a CSAF vulnerability entry
       (CM-05-018), so each entry becomes an item with no translation. The identifiers are

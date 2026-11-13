@@ -34,17 +34,21 @@ groups:
   - id: EP-01-002
     priority: MUST
     kind: protocol
-    statement: 'The embargo policy record MUST include the following fields: actor_id (full URI string identifying the Actor to which this policy applies), inbox (URL string of the Actor''s ActivityPub inbox), preferred_duration (ISO 8601 duration string representing the Actor''s preferred embargo length)'
+    statement: >-
+      The embargo policy record MUST include `attributedTo` (the full URI of the Actor
+      to which this policy applies) and `preferred_duration` (ISO 8601 duration string
+      representing the Actor's preferred embargo length).
     rationale: >-
-      A coordinator that reads a policy needs to know whose terms it states, where to
-      send a proposal or Invite, and what length the actor prefers. Without `actor_id` a
-      policy copied out of its profile cannot be attributed, without `inbox` the
-      coordinator cannot reach the actor, and `preferred_duration` is the actor default
-      that shortest-wins reads at case creation (EP-04-003).
+      A coordinator that reads a policy needs to know whose terms it states and what
+      length the actor prefers. Without `attributedTo` a policy copied out of its
+      profile cannot be attributed, and `preferred_duration` is the actor default that
+      shortest-wins reads at case creation (EP-04-003). The coordinator reaches the
+      actor through the inbox in the profile `attributedTo` names: AS2 defines `inbox`
+      for actors only, so a policy carries none (ADR-0194).
     verification: >-
-      Inspection of the `EmbargoPolicy` Pydantic model confirms that `actor_id`,
-      `inbox`, and `preferred_duration` are declared as required fields with no
-      default values.
+      Inspection of the `EmbargoPolicy` Pydantic model confirms that `attributedTo` and
+      `preferred_duration` are declared as required fields with no default values, and
+      that it declares no `inbox`.
     relationships:
     - rel_type: uses_definition
       spec_id: DUR-01-001
@@ -61,7 +65,7 @@ groups:
     statement: >-
       The embargo policy record SHOULD include the optional fields
       `minimum_duration` (ISO 8601 duration), `maximum_duration` (ISO 8601 duration),
-      and `notes` (free-text string describing the Actor's embargo preferences).
+      and `content` (free-text string describing the Actor's embargo preferences).
     rationale: >-
       A declared range tells a coordinator, before it proposes, which terms the actor
       will accept (EP-03-002), which saves a propose-and-reject round trip. Free-text
@@ -97,7 +101,7 @@ groups:
   - id: EP-01-005
     priority: MUST
     kind: protocol
-    statement: The embargo policy record MUST use full-URI IDs for `actor_id`
+    statement: The embargo policy record MUST use a full-URI ID for `attributedTo`.
     rationale: >-
       Other actors on other servers read and compare policies. A local or short
       identifier cannot be resolved or compared across servers, so a coordinator could
@@ -105,7 +109,7 @@ groups:
       (OID-01-001).
     verification: >-
       A unit test confirms that `EmbargoPolicy` raises `ValidationError` when
-      `actor_id` is a non-URI string and accepts a well-formed `https://` URI.
+      `attributedTo` is a non-URI string and accepts a well-formed `https://` URI.
     relationships:
     - rel_type: refines
       spec_id: OID-01-001

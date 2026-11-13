@@ -1053,17 +1053,20 @@ groups:
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
       entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
-      `text`, an optional `title`, a list of `notes`, and a list of `references`.
+      `text`, an optional `name` that holds the entry's `title`, a list of `notes`, and
+      a list of `references`.
     rationale: >-
       A vulnerability item is the case's entry for one vulnerability. Shaped like a CSAF
       vulnerability entry, it takes a CSAF report's vulnerabilities in and gives a CSAF
       projection's vulnerabilities out with no translation. Pairing each identifier with
       its tracking system says which namespace it belongs to without parsing its value
-      (CM-05-008, ADR-0187).
+      (CM-05-008, ADR-0187). The entry's `title` travels as the AS2 `name`, which means
+      the same thing, because a Vultron term never duplicates an AS2 term (VM-10-009,
+      ADR-0194).
     verification: >-
       A test marked `CM-05-018` builds a vulnerability item from each field and asserts
-      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title`, `notes` and `references`
-      round-trip through it.
+      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
+      `notes` and `references` round-trip through it.
     adr:
     - ADR-0187
     stories:

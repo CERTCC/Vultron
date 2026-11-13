@@ -4266,8 +4266,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A holder of a case ledger MUST refuse as malformed an entry whose `case_id` does
-      not match the ledger's `case_id`.
+      A holder of a case ledger MUST refuse as malformed an entry whose case, named in
+      its `context`, does not match the ledger's case.
     rationale: >-
       A ledger mixing entries from several cases makes causal comparisons meaningless
       and breaks hash-chain verification, which is scoped per case. Refusing the entry

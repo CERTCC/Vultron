@@ -58,6 +58,7 @@ related_specs:
   - specs/vocabulary-model.yaml
   - specs/case-bootstrap-trust.yaml
   - specs/vultron-protocol-spec.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/activitystreams-state-update.md
@@ -69,6 +70,7 @@ relevant_packages:
   - vultron/semantic_registry
   - vultron/core/behaviors
   - vultron/adapters/driven
+  - vultron/metadata/wire_context
 ---
 
 # AS2 Vocabulary Alignment — Decisions to Build
@@ -320,27 +322,68 @@ structured cause. VOC `summary`: "a natural language summarization of the object
 
 ## Every Vultron Property Has a JSON-LD Term
 
-Issue: #6253.
+Issue: #6253. Decision record: ADR-0194. Requirements: VM-10-007 to VM-10-011,
+ARCH-18-012.
 
-**Decision.** Every Vultron extension property and object field gets a term in the
-Vultron JSON-LD context, after checking for an AS2 term with the same meaning first
-(where one exists, use it and drop ours, as § "One Meaning for origin, and inReplyTo
-for Answers" does for `offerId`). A check fails the build when a wire field has no
-term.
+**Decision.**
+
+1. **Declared, never inferred.** Every Vultron wire field carries the property
+   marker (`VULTRON_PROPERTY_EXTRA`, extended) with a one-line definition and a
+   value kind. A field without it must be a term that a cited context defines: AS2,
+   data-integrity v2, Multikey v1, or Controlled Identifiers v1. A test fails on a
+   field that is neither. Nested models count; `exclude=True` fields do not.
+2. **Typed as AS2 types its own.** IRI value → `"@type": "@id"`; a verbatim
+   received document (`payloadSnapshot`) → `"@type": "@json"`; an ordered array →
+   `"@container": "@list"`.
+3. **One meaning per name.** Two declarations of one wire name carry the same
+   definition and kind. A Vultron term never reuses an external term's name. A name
+   with two meanings is renamed apart; type-scoped terms are not used.
+4. **External terms from pinned copies.** The four contexts are copied byte for
+   byte under `third_party/jsonld/` with a pin record (URL, SHA-256), as
+   `third_party/csaf/` is. No watch job: the versioned contexts never change at
+   their URLs and AS2 changes rarely and only by addition.
+5. **Pending fixes are owned ratchets.** The check lands first. Each field it would
+   refuse today, or that the review found duplicates an AS2 term, sits in a ratchet
+   constant per owner Task (`# owner: #N`), never one shared list, and never an Idea
+   as owner: `plan-issue` closes an Idea at planning, long before the field changes.
+   ARCH-18-012 refuses a PR that closes an owner its ratchet still cites.
 
 **AS2 basis.** CORE extensibility: extension terms are defined in a JSON-LD context;
-the AS2 context maps unknown terms to blank nodes (`"@vocab": "_:"`), so an
-undefined term loses its meaning in a JSON-LD processor. Signing (ADR-0164) makes
-that loss a correctness risk, not only a documentation gap.
+the AS2 context maps unknown terms to blank nodes (`"@vocab": "_:"`). Signing is not
+the risk: `eddsa-jcs-2022` signs the JSON text and expands nothing.
 
-**Today.** `docs/ns/context.jsonld` maps the type names and four properties
-(`ledgerPosition`, `senderSequence`, `expectedSenderSequence`, `terminationCause`),
-marked by `VULTRON_PROPERTY_EXTRA` (`vultron/core/models/base/context.py`). Unmapped:
-`proposedEmbargo`, `suggestedRoles`, `roles`, `offerId`, `offerActorId`,
-`proposerCaseRoles`, and every object field (`caseRoles`, `rmState`, `failureClass`,
-`emState`, …).
+**Today.** `docs/ns/context.jsonld` maps the type names and four marked properties.
+The generator (`vultron/metadata/wire_context/sync.py`) walks only registered
+classes, so nested models are invisible, and it takes AS2 terms from field names on
+this codebase's own AS2 base classes, so the unmarked `proposedEmbargo`,
+`suggestedRoles` and `roles` pass as AS2. About eighty wire names have no term. The
+actor profile cites Multikey v1, which does not define `assertionMethod` at top
+level, so the published key is undefined to a JSON-LD reader.
 
-**Touches.** `notes/vocabulary-registry.md`, the context generator, VM specs.
+**Field review.** Owners are the Tasks named in the Touches line.
+
+| Field (class) | Finding | Becomes |
+|---|---|---|
+| `actorId` (`EmbargoPolicy`) | AS2 duplicate | `attributedTo` |
+| `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` |
+| `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped |
+| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` |
+| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` |
+| `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted |
+| `caseActivity` (`VulnerabilityCase`) | dead | deleted |
+| `actorParticipantIndex`, `pendingEmbargoProposalIndex` | IRI-keyed maps | off the wire |
+| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 |
+| `audience`, `title`, `text`, `category` (`VulnerabilityItemNote`); `notes` (item vs case); `text` (`VulnerabilityItemId`) | name clash, AS2 clash | renamed apart |
+| `state`, `status`, `kind`, `role`/`roles`/`suggestedRoles`, `caseStatus` | name clash | renamed apart |
+| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` |
+| stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped |
+| termination `reason` | decided in § "Embargo End Is an Update…" | `summary` |
+
+Every other field is a Vultron term.
+
+**Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
+EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
+generator, `third_party/README.md`.
 
 ---
 
