@@ -284,7 +284,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
 - [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
 - [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md) *(revision 3)*
-- [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) *(revision 3)*
+- [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) *(revision 4)*
 - [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md) *(revision 2)*
 - [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
@@ -298,10 +298,11 @@ General information about architectural decision records is available at <https:
 - [ADR-0169 Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position](0169-case-roles-split-into-position-authority-and-standing.md) — partially supersedes 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
-- [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 2)*
+- [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 3)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 - [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md)
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
+- [ADR-0200 Move Advice Puts Moves in Bands by Outcome Shift, Not by One Case Score](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md)
 
 ## Rejected ADRs
 
