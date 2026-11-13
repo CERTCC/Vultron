@@ -79,8 +79,8 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
    translation experiment comes first (#6365), then the dashboard (#6366) and the
    insight levels (#6368, #6369; Epic #6367), under Epic #5954. Test-instance VINCE API
    access and a host (#5957) need the maintainer, so start them before the Epic
-   reaches Focus. The test-stage data rules are decided (ADR-0189); live cases
-   wait on a production account (#6338) and their own data rules (#6349).
+   reaches Focus. The data rules are decided (ADR-0189): a VINCE user runs the
+   shadow with their own credential, and development uses the test instance.
 
 The VINCE gateway is 2027. Replay of historical VINCE cases moved to the shadow:
 reading live cases through the API covers what a data dump was for.
