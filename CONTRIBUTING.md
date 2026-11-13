@@ -60,15 +60,24 @@ To cut a Vultron release:
    is refused.
 2. Leave **publish-tag** empty to promote the newest publish, which is what the
    site shows now, or enter an older `publish-*` tag. A tag pushed by hand is
-   refused.
+   refused. For a release that carries a draft, an empty input promotes the
+   publish that froze the draft instead (step 3).
 3. The run tags that commit with the next three-component CalVer tag,
    `vYYYY.M.P`, for the current UTC month (ADR-0006), and opens a **draft**
    GitHub Release. The run summary links to the draft. The run never publishes it.
    When the drafts register (`docs/reference/vultron-spec/drafts.yaml`) at that
    commit names the new tag as a draft's release, the draft release already
    carries that draft's frozen pages, `vultron-spec-draft-N.tar.gz`, and their
-   SHA-256 manifest, `vultron-spec-draft-N.sha256` (ADR-0188). Mark the draft
-   released in the register, with the tag this run will make, before you run it.
+   SHA-256 manifest, `vultron-spec-draft-N.sha256` (ADR-0188). Before you run
+   it, run `uv run drafts-register release` and merge the change it makes. It
+   marks the draft released with the tag this run will make and the date of
+   the next scheduled publish, which is the date the draft keeps. Merge it
+   before 06:07 UTC that day, the time the command prints: the publish often
+   starts late, but never early. Then leave **publish-tag** empty on or after
+   that day, in the same month: until you publish the release, the run then
+   promotes the publish of that date, even if later publishes exist. If that
+   publish never ran, the run refuses; run the command again and merge its new
+   date.
 4. Edit the draft in the GitHub release editor:
    - Keep the title, which is the version tag (e.g., `v2026.11.0`).
    - The notes start with the statement that all interfaces are experimental,

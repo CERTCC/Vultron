@@ -99,6 +99,12 @@ class Tag:
         )
 
     @property
+    def publish_day(self) -> str | None:
+        """The ``YYYY-MM-DD`` in a ``publish-*`` name, or ``None`` for another name."""
+        match = PUBLISH_TAG_RE.match(self.name)
+        return None if match is None else match.group(1)
+
+    @property
     def is_publish(self) -> bool:
         """A ``publish-*`` tag a workflow made: the only kind that counts."""
         return self.made_by_workflow and bool(PUBLISH_TAG_RE.match(self.name))

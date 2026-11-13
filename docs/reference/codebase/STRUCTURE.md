@@ -97,6 +97,7 @@ stakeholder_type: [project-contributor]
   - `drafts-register` → `vultron.metadata.docs.drafts_register:main`.
     `show [--ref REF]` prints the current draft and every released draft with its release tag as JSON, read from the checkout or from a git ref, for the promote and deploy workflows.
     `check-releases` fails when a released entry differs from the register at its release tag, or names an existing tag whose register does not hold it (DOCBW-08-003).
+    `release [--release TAG --date YYYY-MM-DD]` fetches the tags and marks the open draft released, with the next release tag and the date of the next scheduled publish that `.github/scripts/release.py next-freeze` predicts, then regenerates the fragments (DOCBW-08-043).
   - `docs-threads` → `vultron.metadata.docs.threads:main`.
     It fails when a start page declares no thread, a thread lists a page twice or a page that is missing, working record, or not a page, or no thread resolves at all (DF-11-016).
   - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.

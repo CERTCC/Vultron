@@ -10,6 +10,7 @@ triggers, permissions, SHA pins and notify steps (DOCBW-07).
 
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
@@ -337,6 +338,54 @@ def fake_gh(monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
     return fake
 
 
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("now", "release", "day"),
+    [
+        # Friday afternoon: Monday's publish, the month's second release.
+        ("2026-11-13T15:00:00+00:00", "v2026.11.1", "2026-11-16"),
+        # Monday 30 November, late: Tuesday 1 December opens a new month.
+        ("2026-11-30T20:00:00+00:00", "v2026.12.0", "2026-12-01"),
+    ],
+)
+def test_next_freeze_names_the_next_publish_and_its_release(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    now: str,
+    release: str,
+    day: str,
+) -> None:
+    tag_as_bot(repo, "v2026.11.0")
+    assert _rel.main(["next-freeze", "--now", now]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "release": release,
+        "date": day,
+        "publish_starts": f"{day}T06:07:00+00:00",
+    }
+
+
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("now", "words"),
+    [("2026-11-13T15:00:00", "no time zone"), ("Friday", "Invalid isoformat")],
+    ids=["naive", "malformed"],
+)
+def test_next_freeze_refuses_a_bad_time(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    now: str,
+    words: str,
+) -> None:
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert _rel.main(["next-freeze", "--now", now]) == 1
+    assert words in capsys.readouterr().err
+    text = summary.read_text(encoding="utf-8")
+    assert "No freeze predicted" in text and "Promotion" not in text
+
+
 def _promote(publish_tag: str = "", ref: str = MAIN) -> int:
     argv = [
         "promote", "--repo", "O/R", "--ref", ref, "--actor", "octocat",
@@ -607,6 +656,11 @@ def test_promote_workflow() -> None:
         ]
         assert step["env"]["REF"] == "${{ github.ref }}"
         assert '--ref "$REF"' in step["run"]
+        # Both look up the draft's release on GitHub (DOCBW-08-042).
+        assert step["env"]["REPO"] == "${{ github.repository }}"
+        token = step["env"]["GH_TOKEN"]
+        assert token == "${{ secrets.GITHUB_TOKEN }}"  # noqa: S105 - an expression
+        assert '--repo "$REPO"' in step["run"]
 
 
 @pytest.mark.spec("DOCBW-07-007", "DOCBW-07-014")

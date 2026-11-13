@@ -8,11 +8,14 @@
     |----------|-------|
     | Version | `draft-2` |
     | Status | Current draft (work in progress), not yet released |
-    | Date | 2026-11-13 |
+    | Opened | 2026-11-13 |
+    | Last updated | <span class="vultron-publish-date">unpublished build</span> |
 
-    The date is the day the entry for this draft was added to the drafts register, which the [Revision Log](revision-log.md) is generated from.
+    The last-updated date is the date of the publish of the site that built this page: each publish stamps it.
+    The opened date is the day the entry for this draft was added to the drafts register.
+    The drafts register, which the [Revision Log](revision-log.md) is generated from, records each draft's dates.
     Until a release of the Vultron repository carries the draft, its text can still change.
-    To cite this text, name the specification, the version and the date, for example: Vultron Protocol Specification, `draft-2`, 2026-11-13.
+    To cite this text, name the specification, the version and the date it was last updated, for example: Vultron Protocol Specification, `draft-2`, <span class="vultron-publish-date">unpublished build</span>.
     Until a release carries the draft, also name the `publish-YYYY-MM-DD.N` tag in the page footer, which identifies the text you read ([Vultron Release Versioning](../versioning.md)).
     Once a release carries the draft, name the release tag that the Revision Log gives for it instead.
     The newest released draft is `draft-1`, which release `v2026.11.0` carries; the Revision Log links its frozen copy.

@@ -4,4 +4,5 @@
 |----------|-------|
 | Version | `draft-2` |
 | Status | Current draft (work in progress), not yet released |
-| Date | 2026-11-13 |
+| Opened | 2026-11-13 |
+| Last updated | <span class="vultron-publish-date">unpublished build</span> |
