@@ -35,9 +35,10 @@ from vultron.core.models._helpers import (
 )
 from vultron.core.models.base import (
     VULTRON_CONTEXT_URI,
-    VULTRON_PROPERTY_EXTRA,
     VULTRON_PROPERTY_KEY,
     JsonLdContext,
+    PropertyValueKind,
+    vultron_property,
 )
 from vultron.core.models.base.context import (
     ACTIVITY_STREAMS_NS,
@@ -71,9 +72,10 @@ __all__ = [
     "DEFAULT_JSONLD_CONTEXT",
     "VULTRON_CONTEXT_URI",
     "VULTRON_NS_URI",
-    "VULTRON_PROPERTY_EXTRA",
     "VULTRON_PROPERTY_KEY",
+    "PropertyValueKind",
     "as_Base",
+    "vultron_property",
 ]
 
 

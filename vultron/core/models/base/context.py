@@ -23,10 +23,13 @@ imports them from here, which ARCH-25-006 permits.
 
 from collections.abc import Callable
 from contextvars import ContextVar
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Annotated, Any
 
 from pydantic import Field, SerializationInfo
 from pydantic.config import JsonDict
+from pydantic.fields import FieldInfo
 
 from vultron.primitives import NonEmptyString
 
@@ -118,9 +121,149 @@ def serialize_with_top_level_context(
 #: Vultron-namespace property, such as a termination ``Remove``'s
 #: ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
 #: (SYNC-16-005).  The context generator maps each marked field's wire name to
-#: ``vultron:<name>``, so a receiver can resolve it.  In core for the reason
-#: :data:`VULTRON_CONTEXT_URI` is: core classes carry it (ADR-0099).
+#: ``vultron:<name>``, typed by its value kind, so a receiver can resolve it.
+#: In core for the reason :data:`VULTRON_CONTEXT_URI` is: core classes carry it
+#: (ADR-0099).  Build the marker with :func:`vultron_property`, never by hand.
 VULTRON_PROPERTY_KEY = "vultron_property"
 
-#: The marker itself: pass it as a field's ``json_schema_extra``.
-VULTRON_PROPERTY_EXTRA: JsonDict = {VULTRON_PROPERTY_KEY: True}
+
+class PropertyValueKind(StrEnum):
+    """The shape of a Vultron property's value (VM-10-008, VM-10-010).
+
+    The context generator types the property's JSON-LD term from it, as the
+    AS2 context types its own terms (ADR-0194).  A scalar kind says what one
+    value is; a container kind says how an array or map of values is read,
+    and its declaration's ``items`` says what each value in it is.
+    """
+
+    #: A literal (string, number, boolean, date) or an embedded object.  The
+    #: term is a bare ``vultron:<name>``.
+    PLAIN = "plain"
+    #: An IRI, or an object that has one: ``"@type": "@id"``, so a JSON-LD
+    #: reader resolves a string value as a link, not as text.
+    IRI = "iri"
+    #: A received JSON document kept verbatim: ``"@type": "@json"``, so a
+    #: JSON-LD reader expands none of its keys.
+    JSON = "json"
+    #: An array whose order matters: ``"@container": "@list"``.
+    LIST = "list"
+    #: An array whose order does not matter: ``"@container": "@set"``.
+    SET = "set"
+    #: A map keyed by IRIs: ``"@container": "@index"``, so a JSON-LD reader
+    #: does not read its keys as properties.
+    INDEX = "index"
+
+
+#: The kinds that hold several values, each of the declaration's ``items`` kind.
+CONTAINER_KINDS = frozenset(
+    {PropertyValueKind.LIST, PropertyValueKind.SET, PropertyValueKind.INDEX}
+)
+
+#: The kinds one value in a container may have.
+ITEM_KINDS = frozenset({PropertyValueKind.PLAIN, PropertyValueKind.IRI})
+
+
+@dataclass(frozen=True)
+class VultronPropertyDeclaration:
+    """What a field's marker declares about its Vultron property (VM-10-008).
+
+    ``definition`` is the one-line meaning that two declarations of one wire
+    name share (VM-10-012); ``kind`` and ``items`` are what the context
+    document's term is typed from (VM-10-010).  Construction refuses a blank
+    or multi-line definition, an ``items`` kind on a scalar kind, and an
+    ``items`` kind no container holds.
+    """
+
+    definition: str
+    kind: PropertyValueKind
+    items: PropertyValueKind = PropertyValueKind.PLAIN
+
+    def __post_init__(self) -> None:
+        if (
+            not self.definition.strip()
+            or self.definition != self.definition.strip()
+        ):
+            raise ValueError(
+                "a Vultron property definition must be non-empty text with "
+                f"no surrounding whitespace, got {self.definition!r}"
+            )
+        if "\n" in self.definition:
+            raise ValueError(
+                "a Vultron property definition is one line, got "
+                f"{self.definition!r}"
+            )
+        if self.items not in ITEM_KINDS:
+            raise ValueError(
+                f"a container's items are {sorted(ITEM_KINDS)}, got {self.items}"
+            )
+        if (
+            self.kind not in CONTAINER_KINDS
+            and self.items is not PropertyValueKind.PLAIN
+        ):
+            raise ValueError(
+                f"only a container kind declares its items; {self.kind} is a "
+                f"scalar kind, got items={self.items}"
+            )
+
+    def as_json(self) -> JsonDict:
+        """The declaration as the JSON value the marker stores."""
+        value: JsonDict = {
+            "definition": self.definition,
+            "kind": self.kind.value,
+        }
+        if self.items is not PropertyValueKind.PLAIN:
+            value["items"] = self.items.value
+        return value
+
+
+def vultron_property(
+    definition: str,
+    kind: PropertyValueKind,
+    *,
+    items: PropertyValueKind = PropertyValueKind.PLAIN,
+) -> JsonDict:
+    """The marker that declares a field a Vultron property: pass it as the
+    field's ``json_schema_extra`` (VM-10-007, VM-10-008).
+
+    *definition* is the property's meaning in one line; *kind* is its value's
+    shape, and *items*, for a container kind, the shape of each value in it.
+    Raises ``ValueError`` on a declaration
+    :class:`VultronPropertyDeclaration` refuses.
+    """
+    declaration = VultronPropertyDeclaration(definition, kind, items)
+    return {VULTRON_PROPERTY_KEY: declaration.as_json()}
+
+
+def declared_vultron_property(
+    info: FieldInfo,
+) -> VultronPropertyDeclaration | None:
+    """The Vultron property *info*'s marker declares, or ``None`` if unmarked.
+
+    Raises ``TypeError`` when the marker is present but is not the mapping
+    :func:`vultron_property` builds, such as the former bare ``True`` flag, so
+    a malformed marker cannot pass as a declared property, and ``ValueError``
+    when the mapping holds a declaration
+    :class:`VultronPropertyDeclaration` refuses or an unknown kind.
+    """
+    extra = info.json_schema_extra
+    if not isinstance(extra, dict) or VULTRON_PROPERTY_KEY not in extra:
+        return None
+    value = extra[VULTRON_PROPERTY_KEY]
+    fields = value if isinstance(value, dict) else {}
+    definition = fields.get("definition")
+    kind = fields.get("kind")
+    items = fields.get("items", PropertyValueKind.PLAIN.value)
+    if (
+        not fields
+        or set(fields) - {"definition", "kind", "items"}
+        or not isinstance(definition, str)
+        or not isinstance(kind, str)
+        or not isinstance(items, str)
+    ):
+        raise TypeError(
+            "a Vultron property marker is the mapping vultron_property() "
+            f"builds, with a string definition and kind, got {value!r}"
+        )
+    return VultronPropertyDeclaration(
+        definition, PropertyValueKind(kind), PropertyValueKind(items)
+    )

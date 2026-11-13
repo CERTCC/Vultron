@@ -29,15 +29,20 @@ on a pull request that changes ``vultron/``.
 The term set is every distinct concrete ``type_`` value carried by a wire class
 whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON`, plus every non-AS2
 ``type_`` value of a core class registered in ``WIRE_TYPE_MAP`` (the ADR-0099
-aliases; VM-10-002), plus the wire name of every field a wire class marks as a
-Vultron property (:func:`vultron_property_terms`). It is keyed
-by the emitted ``type`` *value*, not the class name: a class that shares
-another's ``type`` value needs no separate term, because the value's term
-already resolves it.
+aliases; VM-10-002), plus the wire name of every field that a wire class, or
+a model nested in one, declares a Vultron property, each typed by its declared
+value kind (:func:`vultron_property_terms`, VM-10-007, VM-10-010). A type term
+is keyed by the emitted ``type`` *value*, not the class name: a class that
+shares another's ``type`` value needs no separate term, because the value's
+term already resolves it.
+
+The same declarations write the "Declared properties" table of
+``docs/ns/index.md`` (:func:`render_property_table`), so the namespace page
+describes each property by the definition that declares it.
 
 CLI (``uv run wire-context``):
-    --check   exit 1 if ``docs/ns/context.jsonld`` is stale
-    --write   rewrite ``docs/ns/context.jsonld`` in place
+    --check   exit 1 if ``docs/ns/context.jsonld`` or the page's table is stale
+    --write   rewrite both in place
 """
 
 from __future__ import annotations
@@ -47,19 +52,26 @@ import importlib
 import json
 import pkgutil
 import sys
+import typing
+from collections.abc import Iterator
 from pathlib import Path
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
+from vultron.core.models.base import (
+    PropertyValueKind,
+    VultronPropertyDeclaration,
+    declared_vultron_property,
+)
 from vultron.metadata.base import repo_root
+from vultron.metadata.generated_block import splice_between
 from vultron.metadata.generated_files import stale_paths, write_generated
 from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
     VULTRON_NS_URI,
-    VULTRON_PROPERTY_KEY,
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -190,25 +202,134 @@ def _wire_name(name: str, info: FieldInfo) -> str:
     return info.serialization_alias or info.alias or name
 
 
-def vultron_property_terms() -> dict[str, str]:
-    """Map each Vultron-namespace wire property to its ``vultron:`` IRI.
+def vultron_property_terms() -> dict[str, str | dict[str, str]]:
+    """Map each Vultron-namespace wire property to its typed JSON-LD term.
 
-    A property is a field a wire class marks with
-    :data:`~vultron.core.models.base.VULTRON_PROPERTY_KEY` in its
-    ``json_schema_extra``, such as a termination ``Remove``'s
-    ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
-    (SYNC-16-005).  The classes walked are the wire vocabulary's and the core
-    classes ``WIRE_TYPE_MAP`` registers (:func:`_wire_object_classes`).  The
-    term is the field's wire name: its serialization alias, else its alias,
-    else its name.  A property is one term however many classes declare it.
+    A property is a field marked with
+    :func:`~vultron.core.models.base.vultron_property`, such as a termination
+    ``Remove``'s ``terminationCause`` (EMB-13-005) or a case's
+    ``ledgerPosition`` (SYNC-16-005).  The fields walked are those of every
+    class whose fields travel on the wire (:func:`wire_field_classes`).  The
+    term is keyed by the field's wire name, and typed by its declared value
+    kind (VM-10-010, :func:`_term_definition`).
     """
-    terms: set[str] = set()
-    for cls in _wire_object_classes():
+    return {
+        name: _term_definition(name, declaration)
+        for name, declaration in sorted(
+            vultron_property_declarations().items()
+        )
+    }
+
+
+def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
+    """Map each Vultron property's wire name to its one declaration.
+
+    A property is one term however many classes declare it, so every
+    declaration of one wire name must agree on its definition and value kind
+    (VM-10-012); a ``ValueError`` names the classes of two that do not, rather
+    than letting one of them silently define the term.
+    """
+    declared: dict[str, tuple[VultronPropertyDeclaration, str]] = {}
+    for cls in wire_field_classes():
         for name, info in cls.model_fields.items():
-            extra = info.json_schema_extra
-            if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
-                terms.add(_wire_name(name, info))
-    return {term: f"vultron:{term}" for term in sorted(terms)}
+            if info.exclude:
+                continue
+            declaration = declared_vultron_property(info)
+            if declaration is None:
+                continue
+            wire_name = _wire_name(name, info)
+            where = f"{cls.__module__}.{cls.__qualname__}.{name}"
+            first = declared.setdefault(wire_name, (declaration, where))
+            if first[0] != declaration:
+                raise ValueError(
+                    f"two declarations of the Vultron property {wire_name!r} "
+                    f"disagree (VM-10-012): {first[1]} declares {first[0]}, "
+                    f"{where} declares {declaration}. Share one declaration."
+                )
+    return {name: declaration for name, (declaration, _) in declared.items()}
+
+
+#: The keyword a scalar kind's term carries, and its value (VM-10-010).
+_SCALAR_TYPES: dict[PropertyValueKind, str] = {
+    PropertyValueKind.IRI: "@id",
+    PropertyValueKind.JSON: "@json",
+}
+
+#: The container a container kind's term carries (VM-10-010).
+_CONTAINERS: dict[PropertyValueKind, str] = {
+    PropertyValueKind.LIST: "@list",
+    PropertyValueKind.SET: "@set",
+    PropertyValueKind.INDEX: "@index",
+}
+
+
+def _term_definition(
+    name: str, declaration: VultronPropertyDeclaration
+) -> str | dict[str, str]:
+    """The JSON-LD term for property *name*, typed as AS2 types its own.
+
+    A plain value needs no typing, so its term is the bare ``vultron:<name>``
+    IRI; any other kind is an expanded term definition: ``"@type"`` for an
+    IRI or verbatim-JSON value (or a container of IRIs), ``"@container"`` for
+    a list, set or index map.
+    """
+    iri = f"vultron:{name}"
+    kind, items = declaration.kind, declaration.items
+    term: dict[str, str] = {"@id": iri}
+    value_kind = items if kind in _CONTAINERS else kind
+    if value_kind in _SCALAR_TYPES:
+        term["@type"] = _SCALAR_TYPES[value_kind]
+    if kind in _CONTAINERS:
+        term["@container"] = _CONTAINERS[kind]
+    return iri if len(term) == 1 else term
+
+
+def _nested_models(annotation: object) -> Iterator[type[BaseModel]]:
+    """Yield every Pydantic model a field annotation can hold.
+
+    Walks unions, ``Annotated``, lists and dict values, so a case's
+    ``embargoRegister`` yields ``EmbargoRegisterEntry``.
+    """
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        yield annotation
+        return
+    for argument in typing.get_args(annotation):
+        yield from _nested_models(argument)
+
+
+def _serializes_its_fields(cls: type[BaseModel]) -> bool:
+    """Whether *cls*'s fields reach the wire as its own keys.
+
+    A model with a plain whole-model serializer replaces its fields with one
+    value: a case status's ``emState`` dimension serializes as the bare state
+    name, so its ``state`` field is never a wire key.
+    """
+    serializers = cls.__pydantic_decorators__.model_serializers.values()
+    return all(s.info.mode != "plain" for s in serializers)
+
+
+def wire_field_classes() -> list[type[BaseModel]]:
+    """Every class whose fields travel on the wire, nested models included.
+
+    Starts from :func:`_wire_object_classes` and follows each field's
+    annotation into the models it holds, so the fields of an
+    ``EmbargoRegisterEntry``, a ``LedgerPosition`` or an embargo termination's
+    cause count (VM-10-007), however deep.  An excluded field is not
+    followed, since nothing under it is sent, and a model that serializes as
+    one value is left out (:func:`_serializes_its_fields`).  Ordered by
+    qualified name so the walk, and any error it raises, is deterministic.
+    """
+    seen: set[type[BaseModel]] = set()
+    pending = list(_wire_object_classes())
+    while pending:
+        cls = pending.pop()
+        if cls in seen or not _serializes_its_fields(cls):
+            continue
+        seen.add(cls)
+        for info in cls.model_fields.values():
+            if not info.exclude:
+                pending.extend(_nested_models(info.annotation))
+    return sorted(seen, key=lambda c: f"{c.__module__}.{c.__qualname__}")
 
 
 def _wire_object_classes() -> list[type[BaseModel]]:
@@ -239,7 +360,7 @@ def build_context_document() -> dict[str, object]:
     resolve against ActivityStreams and only Vultron-specific terms are drawn
     from the ``vultron:`` namespace (VM-10-002, ADR-0069).
     """
-    term_block: dict[str, str] = {"vultron": VULTRON_NS_URI}
+    term_block: dict[str, str | dict[str, str]] = {"vultron": VULTRON_NS_URI}
     term_block.update(vultron_context_terms())
     term_block.update(vultron_property_terms())
     return {"@context": [ACTIVITY_STREAMS_NS, term_block]}
@@ -250,20 +371,73 @@ def render_context_json() -> str:
     return json.dumps(build_context_document(), indent=2) + "\n"
 
 
+#: Repository-relative path of the namespace page, whose "Declared
+#: properties" table is generated from the property declarations.
+NS_INDEX_PATH = "docs/ns/index.md"
+
+#: The markers around the generated properties table in :data:`NS_INDEX_PATH`.
+PROPERTY_TABLE_BEGIN = (
+    "<!-- BEGIN GENERATED PROPERTY TABLE — do not edit; change the field's "
+    f"vultron_property() declaration, then run `{WRITE_COMMAND}` -->"
+)
+PROPERTY_TABLE_END = "<!-- END GENERATED PROPERTY TABLE -->"
+
+
+def render_property_table() -> str:
+    """The namespace page's table of Vultron properties and their definitions.
+
+    One row per property term, in term order, its description the
+    declaration's definition, so the page cannot describe a property
+    differently from the declaration that defines it.
+    """
+    rows = [
+        "| Property name | Value kind | Description |",
+        "|---------------|------------|-------------|",
+    ]
+    for name, declaration in sorted(vultron_property_declarations().items()):
+        rows.append(
+            f"| `{name}` | {_kind_label(declaration)} | "
+            f"{declaration.definition} |"
+        )
+    return "\n".join(rows)
+
+
+def _kind_label(declaration: VultronPropertyDeclaration) -> str:
+    """The value kind as the page shows it: ``set of iri``, ``json``, …"""
+    if declaration.items is PropertyValueKind.PLAIN:
+        return declaration.kind.value
+    return f"{declaration.kind.value} of {declaration.items.value}"
+
+
+def _desired_files(base: Path) -> dict[str, str]:
+    """Each generated path and the text it should hold."""
+    page = (base / NS_INDEX_PATH).read_text(encoding="utf-8")
+    return {
+        CONTEXT_JSONLD_PATH: render_context_json(),
+        NS_INDEX_PATH: splice_between(
+            page,
+            render_property_table(),
+            NS_INDEX_PATH,
+            PROPERTY_TABLE_BEGIN,
+            PROPERTY_TABLE_END,
+        ),
+    }
+
+
 def is_stale(root: Path | None = None) -> bool:
-    """True when the committed file differs from the generated document."""
+    """True when a committed artifact differs from its generated form."""
     base = root or repo_root()
-    desired = {CONTEXT_JSONLD_PATH: render_context_json()}
-    return any(stale_paths(base, desired))
+    return any(stale_paths(base, _desired_files(base)))
 
 
 def write_context(root: Path | None = None) -> bool:
-    """Rewrite the artifact if stale; return whether a write occurred."""
-    if not is_stale(root):
-        return False
-    target = (root or repo_root()) / CONTEXT_JSONLD_PATH
-    write_generated(target, render_context_json())
-    return True
+    """Rewrite each stale artifact; return whether a write occurred."""
+    base = root or repo_root()
+    desired = _desired_files(base)
+    stale = list(stale_paths(base, desired))
+    for path in stale:
+        write_generated(base / path, desired[path])
+    return bool(stale)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -273,31 +447,34 @@ def main(argv: list[str] | None = None) -> None:
     mode.add_argument(
         "--check",
         action="store_true",
-        help=f"Exit 1 if {CONTEXT_JSONLD_PATH} is stale.",
+        help=f"Exit 1 if {CONTEXT_JSONLD_PATH} or {NS_INDEX_PATH} is stale.",
     )
     mode.add_argument(
         "--write",
         action="store_true",
-        help=f"Rewrite {CONTEXT_JSONLD_PATH} from the wire vocabulary.",
+        help=f"Rewrite {CONTEXT_JSONLD_PATH} and {NS_INDEX_PATH}'s property "
+        "table from the wire vocabulary.",
     )
     args = parser.parse_args(argv)
 
+    artifacts = f"{CONTEXT_JSONLD_PATH} and {NS_INDEX_PATH}"
     if args.write:
         if write_context():
-            print(f"Wrote {CONTEXT_JSONLD_PATH}")
+            print(f"Wrote {artifacts}")
         else:
-            print(f"{CONTEXT_JSONLD_PATH} already in sync.")
+            print(f"{artifacts} already in sync.")
         return
 
     if is_stale():
         print(
-            f"[ERROR] {CONTEXT_JSONLD_PATH} is stale — run '{WRITE_COMMAND}' "
-            "(VM-10-001, VM-10-002). A Vultron-namespace wire type or property was added, "
-            "removed, or re-annotated without regenerating the context.",
+            f"[ERROR] {artifacts} are stale — run '{WRITE_COMMAND}' "
+            "(VM-10-001, VM-10-002, VM-10-010). A Vultron-namespace wire type "
+            "or property was added, removed, re-annotated or redefined "
+            "without regenerating the context.",
             file=sys.stderr,
         )
         sys.exit(1)
-    print(f"{CONTEXT_JSONLD_PATH} is in sync.")
+    print(f"{artifacts} are in sync.")
 
 
 if __name__ == "__main__":

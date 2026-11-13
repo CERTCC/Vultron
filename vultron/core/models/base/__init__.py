@@ -26,9 +26,12 @@ Grouped by concern (CS-18-005):
 
 from vultron.core.models.base.context import (
     VULTRON_CONTEXT_URI,
-    VULTRON_PROPERTY_EXTRA,
     VULTRON_PROPERTY_KEY,
     JsonLdContext,
+    PropertyValueKind,
+    VultronPropertyDeclaration,
+    declared_vultron_property,
+    vultron_property,
 )
 from vultron.core.models.base.core_object import (
     CoreObject,
@@ -50,11 +53,14 @@ __all__ = [
     "JsonLdContext",
     "LanguageMap",
     "NonEmptyString",
+    "PropertyValueKind",
     "VULTRON_CONTEXT_URI",
-    "VULTRON_PROPERTY_EXTRA",
     "UriString",
     "VULTRON_PROPERTY_KEY",
     "ValidatedAssignmentMixin",
+    "VultronPropertyDeclaration",
+    "declared_vultron_property",
     "language_map_field",
+    "vultron_property",
     "with_record_id",
 ]

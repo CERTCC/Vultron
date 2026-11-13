@@ -31,10 +31,43 @@ entry's ``prev_log_hash`` must carry.
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
+from vultron.core.models.base import (
+    NonEmptyString,
+    PropertyValueKind,
+    ValidatedAssignmentMixin,
+    vultron_property,
+)
 
 EMPTY_LEDGER_LOG_INDEX = -1
 """``log_index`` of the position of a ledger with no entries (CLP-08-004)."""
+
+#: The Vultron property ``ledgerPosition``, declared once because a case and
+#: every case activity carry it with one meaning (VM-10-012): the case file's
+#: position (SYNC-16-005) and the sender's tail (SYNC-18-001) are both the
+#: last entry a copy of the ledger holds.
+LEDGER_POSITION_PROPERTY = vultron_property(
+    "The last entry of a case's ledger that a case file, or the sender of an "
+    "activity about the case, holds: an object whose logIndex and entryHash "
+    "name that entry, or logIndex -1 with the case's genesis hash when it "
+    "holds none",
+    PropertyValueKind.PLAIN,
+)
+
+#: The Vultron property ``logIndex``, shared by a ledger entry and a ledger
+#: position, which names an entry by it (VM-10-012).
+LOG_INDEX_PROPERTY = vultron_property(
+    "The position of an entry in its case's ledger, counting from 0; -1 in a "
+    "ledger position that names no entry",
+    PropertyValueKind.PLAIN,
+)
+
+#: The Vultron property ``entryHash``, shared by a ledger entry and a ledger
+#: position, which names an entry by it (VM-10-012).
+ENTRY_HASH_PROPERTY = vultron_property(
+    "The SHA-256 hash, in hex, of a case ledger entry's canonical content; "
+    "the case's genesis hash in a ledger position that names no entry",
+    PropertyValueKind.PLAIN,
+)
 
 
 class LedgerPosition(ValidatedAssignmentMixin, BaseModel):
@@ -52,8 +85,10 @@ class LedgerPosition(ValidatedAssignmentMixin, BaseModel):
         alias_generator=to_camel, populate_by_name=True, extra="forbid"
     )
 
-    log_index: int = Field(ge=EMPTY_LEDGER_LOG_INDEX)
-    entry_hash: NonEmptyString
+    log_index: int = Field(
+        ge=EMPTY_LEDGER_LOG_INDEX, json_schema_extra=LOG_INDEX_PROPERTY
+    )
+    entry_hash: NonEmptyString = Field(json_schema_extra=ENTRY_HASH_PROPERTY)
 
 
 def accepted_entry_hash(position: LedgerPosition | None) -> str:
@@ -69,4 +104,11 @@ def accepted_entry_hash(position: LedgerPosition | None) -> str:
     return position.entry_hash
 
 
-__all__ = ["EMPTY_LEDGER_LOG_INDEX", "LedgerPosition", "accepted_entry_hash"]
+__all__ = [
+    "EMPTY_LEDGER_LOG_INDEX",
+    "ENTRY_HASH_PROPERTY",
+    "LEDGER_POSITION_PROPERTY",
+    "LOG_INDEX_PROPERTY",
+    "LedgerPosition",
+    "accepted_entry_hash",
+]

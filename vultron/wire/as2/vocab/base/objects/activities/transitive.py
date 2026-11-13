@@ -22,7 +22,10 @@ from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
 from vultron.core.models.sender_sequence import SenderSequence
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
-from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
+from vultron.wire.as2.vocab.base.base import (
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
@@ -128,6 +131,13 @@ class as_Offer(as_TransitiveActivity):
         default=None,
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
+        json_schema_extra=vultron_property(
+            (
+                "The CVD roles an Offer that recommends an actor suggests it "
+                "take in a case"
+            ),
+            PropertyValueKind.SET,
+        ),
     )
     # EP-04-004: a Reporter states embargo terms for *this* report by carrying
     # a proposed EmbargoEvent on the Offer(VulnerabilityReport).  Declared on
@@ -141,6 +151,13 @@ class as_Offer(as_TransitiveActivity):
         default=None,
         validation_alias="proposedEmbargo",
         serialization_alias="proposedEmbargo",
+        json_schema_extra=vultron_property(
+            (
+                "The embargo a reporter proposes for a report, on its Offer "
+                "of the report: an EmbargoEvent or its id"
+            ),
+            PropertyValueKind.IRI,
+        ),
     )
 
     @field_validator("proposed_embargo", mode="before")
@@ -174,7 +191,13 @@ class as_Invite(as_Offer):
         validation_alias="type",
         serialization_alias="type",
     )
-    roles: list[NonEmptyString] | None = None
+    roles: list[NonEmptyString] | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            "The CVD roles an Invite to a case offers the invitee",
+            PropertyValueKind.SET,
+        ),
+    )
 
 
 class as_Flag(as_TransitiveActivity):
@@ -211,7 +234,12 @@ class as_Remove(as_TransitiveActivity):
         default=None,
         validation_alias="terminationCause",
         serialization_alias="terminationCause",
-        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+        json_schema_extra=vultron_property(
+            "Why an embargo ended early, on the Remove that terminates it: an "
+            "object whose kind is THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or "
+            "OTHER",
+            PropertyValueKind.PLAIN,
+        ),
     )
 
 
@@ -430,7 +458,12 @@ class as_Reject(as_TransitiveActivity):
         default=None,
         validation_alias="expectedSenderSequence",
         serialization_alias="expectedSenderSequence",
-        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+        json_schema_extra=vultron_property(
+            "On a refusal notice for an activity's senderSequence: the "
+            "positive integer the CASE_MANAGER expects next from that sender, "
+            "so the sender numbers its next activity for the case no lower",
+            PropertyValueKind.PLAIN,
+        ),
     )
 
     @property

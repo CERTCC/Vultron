@@ -43,15 +43,85 @@ The stub form of a case is its own type: it is transmitted as `"type": "Vulnerab
 
 ## Declared properties
 
-| Property name | Description |
-|---------------|-------------|
-| `expectedSenderSequence` | On a refusal notice for an activity's `senderSequence`: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
-| `ledgerPosition` | The ledger position a `VulnerabilityCase` is a projection of: an object whose `logIndex` and `entryHash` name the last ledger entry its case file reflects, or `logIndex` -1 with the case's genesis hash before any |
-| `senderSequence` | A participant's number for a case activity it sends the CASE_MANAGER: a positive integer, 1 for its first on the case and one more for each next one, kept by a resend |
-| `terminationCause` | Why an embargo ended early, on the `Remove` that terminates it: an object whose `kind` is `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED` or `OTHER` |
+<!-- BEGIN GENERATED PROPERTY TABLE — do not edit; change the field's vultron_property() declaration, then run `uv run wire-context --write` -->
 
-This table must list exactly the properties `context.jsonld` declares.
+| Property name | Value kind | Description |
+|---------------|------------|-------------|
+| `activeEmbargo` | iri | The embargo active on a case, as its case stub carries it: an EmbargoEvent or its id |
+| `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
+| `caseActivity` | set of iri | The ids of activities about a case |
+| `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
+| `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
+| `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
+| `caseRoles` | set | The CVD roles a participant holds in a case |
+| `caseStatus` | iri | The case status a participant status or a case stub reports: a CaseStatus object or its id |
+| `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
+| `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
+| `cause` | plain | Why an embargo ended early: an object whose kind names the cause |
+| `childCases` | set of iri | The ids of a case's child cases |
+| `cvdRole` | set | The CVD roles a participant status reports its participant holding in the case |
+| `cve` | plain | The CVE ID of a vulnerability |
+| `dState` | plain | A deployer participant's fix-deployed (D) dimension of the Case State (CS) |
+| `emState` | plain | The Embargo Management (EM) state of a case: NONE, PROPOSED, ACTIVE, REVISE or EXITED |
+| `embargo` | iri | The embargo an embargo-register entry records: an EmbargoEvent or its id |
+| `embargoConsents` | set | A participant's consent rows, one for each embargo in its case's embargo register |
+| `embargoId` | iri | The id of the embargo a consent row records an answer to |
+| `embargoPolicy` | plain | The embargo policy an actor publishes in its profile: an EmbargoPolicy object |
+| `embargoRegister` | list | Every embargo ever proposed on a case, in the order proposed, each an entry that gives its status |
+| `entryHash` | plain | The SHA-256 hash, in hex, of a case ledger entry's canonical content; the case's genesis hash in a ledger position that names no entry |
+| `expectedSenderSequence` | plain | On a refusal notice for an activity's senderSequence: the positive integer the CASE_MANAGER expects next from that sender, so the sender numbers its next activity for the case no lower |
+| `failureClass` | iri | The URI of the class of failure that stopped a received activity from being processed |
+| `genesisHash` | plain | The hash that starts a case's ledger chain, computed from its owner; the first ledger entry's prevLogHash |
+| `ids` | set | The identifiers other systems give a vulnerability, each an object with a systemName and a text |
+| `joined` | plain | Whether a participant has joined its case: it was seated when the case was created, or it accepted its case invitation |
+| `kind` | plain | The kind of an embargo's early-termination cause: THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
+| `ledgerPosition` | plain | The last entry of a case's ledger that a case file, or the sender of an activity about the case, holds: an object whose logIndex and entryHash name that entry, or logIndex -1 with the case's genesis hash when it holds none |
+| `logIndex` | plain | The position of an entry in its case's ledger, counting from 0; -1 in a ledger position that names no entry |
+| `logObjectId` | iri | The id of the activity or object a case ledger entry records |
+| `maximumDuration` | plain | The longest embargo duration an actor accepts, as an ISO 8601 duration |
+| `minimumDuration` | plain | The shortest embargo duration an actor accepts, as an ISO 8601 duration |
+| `parentCases` | set of iri | The ids of a case's parent cases |
+| `participantStatuses` | list | A participant's statuses in a case, oldest first; the last is its current status |
+| `payloadSnapshot` | json | The activity a case ledger entry records, kept verbatim as its sender sent it |
+| `pendingEmbargoProposalIndex` | index of iri | A map from the id of each open embargo proposal on a case to the id of the Invite that relayed it |
+| `preferredDuration` | plain | The embargo duration an actor prefers, as an ISO 8601 duration |
+| `prevLogHash` | plain | The SHA-256 hash, in hex, of the case ledger entry before this one, or the case's genesis hash for the first entry |
+| `proposedEmbargo` | iri | The embargo a reporter proposes for a report, on its Offer of the report: an EmbargoEvent or its id |
+| `proposerCaseRoles` | set | The CVD roles a case proposer holds in a case it owns |
+| `pxaState` | plain | The public-awareness, exploit and attack (P, X, A) dimensions of a case's Case State (CS), as one state name |
+| `receivedAt` | plain | When the CASE_MANAGER received the activity a case ledger entry records, as a UTC date-time |
+| `references` | set of iri | The external references about a vulnerability, each a CaseReference or its id |
+| `removalActivity` | iri | The id of the Remove activity that took a participant out of active participation in its case; absent while it is not removed |
+| `replaces` | iri | The id of the embargo that an activated revision replaced |
+| `rmState` | plain | A participant's Report Management (RM) state in a case |
+| `role` | plain | The CVD role offered to an actor in a case |
+| `roles` | set | The CVD roles an Invite to a case offers the invitee |
+| `rsvpDeadline` | plain | The time by which an invited participant is to answer an embargo invitation, as a UTC date-time |
+| `semanticType` | plain | The Vultron message-semantics label of the act a case ledger entry records |
+| `senderSequence` | plain | A participant's number for a case activity it sends the CASE_MANAGER: a positive integer, 1 for its first on the case and one more for each next one, kept by a resend |
+| `siblingCases` | set of iri | The ids of a case's sibling cases |
+| `signals` | set | The threat signals (P, X, A) set on a case when its embargo ended |
+| `state` | plain | A participant's consent to one embargo: UNINVITED, INVITED, AGREED, DECLINED or TIMED_OUT |
+| `status` | plain | The status of an embargo in its case's embargo register, such as PROPOSED, ACTIVE or TERMINATED |
+| `stubSummary` | plain | The summary a case owner chose for the case stub it sends to invitees, which may say less than the case's name |
+| `suggestedRoles` | set | The CVD roles an Offer that recommends an actor suggests it take in a case |
+| `systemName` | plain | The name of the system that issued a vulnerability identifier |
+| `term` | plain | The cluster term in which the CASE_MANAGER committed a case ledger entry; absent on a single-node deployment |
+| `termination` | plain | How a terminated embargo ended: an object that gives the reason and, when recorded, its cause |
+| `terminationCause` | plain | Why an embargo ended early, on the Remove that terminates it: an object whose kind is THREAT_SIGNAL, FIX_READY, FIX_DEPLOYED or OTHER |
+| `title` | plain | The title of a vulnerability note |
+| `trackingId` | plain | A participant's own tracking identifier for a case, such as its internal ticket number |
+| `vendors` | set of iri | The ids of the vendors whose readiness to fix made the quorum that ended an embargo |
+| `vfState` | plain | A vendor participant's vendor-awareness and fix-readiness (V, F) dimensions of the Case State (CS), as one state name |
+| `vulnerabilityItems` | set of iri | The vulnerabilities a case covers, each a VulnerabilityItem or its id |
+| `vulnerabilityReports` | set of iri | The vulnerability reports of a case, each a VulnerabilityReport or its id |
+
+<!-- END GENERATED PROPERTY TABLE -->
+
+This table lists exactly the properties `context.jsonld` declares, and it is generated from the declarations that define them.
 A property's term is its name in the wire message.
+Its value kind is how the context document types the term, as the AS2 context types its own: a `plain` value is a literal or an embedded object and needs no type, an `iri` value is read as a link (`"@type": "@id"`), a `json` value is kept verbatim (`"@type": "@json"`), a `list` keeps its order (`"@container": "@list"`), a `set` does not (`"@container": "@set"`), and an `index` is a map keyed by IRIs (`"@container": "@index"`).
+A container kind names the kind of each value in it, as in `set of iri`.
 
 ## Link relation types
 
