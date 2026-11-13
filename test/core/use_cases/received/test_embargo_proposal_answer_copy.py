@@ -34,7 +34,7 @@ from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.objects import authored_at, make
 from vultron.adapters.driven.clock import SystemClock
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer, crud
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -504,6 +504,35 @@ def test_a_received_proposal_commits_one_row_per_participant_and_copies():
     _assert_replica_copies(net, BYSTANDER)
     _assert_replica_copies(net, OWNER)
     assert net.case(BYSTANDER).em_state == EM.REVISE
+
+
+#: The store reads one received embargo proposal makes at the CASE_MANAGER,
+#: with a little headroom.  Measured at 207 when a ``dl.transaction()`` block
+#: began fetching each row once (#5344); before that it read 494 rows.
+_RECEIVED_PROPOSAL_STORE_READS = 230
+
+
+@pytest.mark.spec("DL-02-011", "TB-12-003")
+def test_one_received_proposal_stays_within_its_store_read_bound(monkeypatch):
+    """Store reads, not ``dl.read`` calls: a read a block already made is
+    served from the block and is not counted."""
+    net = _net("read-bound")
+    fetched = 0
+    select_row = crud._select_row
+
+    def _counting(connection, object_id):
+        nonlocal fetched
+        fetched += 1
+        return select_row(connection, object_id)
+
+    monkeypatch.setattr(crud, "_select_row", _counting)
+
+    _participant_proposes(net, "read-bound", 30)
+
+    assert fetched <= _RECEIVED_PROPOSAL_STORE_READS, (
+        f"one received proposal read {fetched} rows from the store; the"
+        f" bound is {_RECEIVED_PROPOSAL_STORE_READS}"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,16 @@
 
 from typing import Any, NamedTuple, Protocol
 
-from sqlalchemy import Column, Engine, Index, bindparam, select, text
+from sqlalchemy import (
+    Column,
+    Engine,
+    Index,
+    String,
+    bindparam,
+    select,
+    text,
+    type_coerce,
+)
 from sqlalchemy.dialects.sqlite import JSON
 from sqlmodel import Field, SQLModel
 
@@ -71,15 +80,21 @@ class StoredRowValues(NamedTuple):
 
 _OBJECTS = VultronObjectRecord.__table__  # type: ignore[attr-defined]
 
-READ_BY_ID = select(_OBJECTS.c.id_, _OBJECTS.c.type_, _OBJECTS.c.data).where(
-    _OBJECTS.c.id_ == bindparam("object_id")
-)
+READ_BY_ID = select(
+    _OBJECTS.c.type_,
+    type_coerce(_OBJECTS.c.data, String).label("data_text"),
+).where(_OBJECTS.c.id_ == bindparam("object_id"))
 """The primary-key read, as one Core ``select`` built once (#4969).
 
 A read runs this on a plain connection rather than ``Session.get``: the ORM's
 identity map, per-call statement annotation and session setup were most of a
 read's cost, and a read neither needs the identity map nor writes.  Built
 once, the statement's compiled form is reused from the engine's cache.
+
+It returns ``(type_, data_text)``: the ``data`` column as the JSON text it is
+stored as, undecoded.  A read inside a transaction keeps that text for the
+block's later reads of the same row (#5344), and each read decodes its own
+copy, so no two reads share a mutable ``data`` dict.
 """
 
 

@@ -36,11 +36,20 @@ transaction.
 An enqueue callback raised by a write inside the block runs only after the
 block commits (:func:`run_after_commit`), so an outbox monitor is never woken
 to drain a row another connection cannot yet see, or one that is rolled back.
+
+A block also keeps each object row it reads, as stored (:attr:`OpenTransaction
+.rows_read`), so a later read of the same row in the block is not fetched
+again (#5344).  The store cannot change under the block except by the block's
+own writes: the write lock (file-backed) or the session lock (in-memory) keeps
+every other writer out until it ends.  So a kept row stays current until the
+block writes it, and every object-row write forgets the rows it touches before
+it runs (:func:`forget_rows`).  A SAVEPOINT that rolls back forgets every kept
+row, because a row read after a write it undid holds the undone version.
 """
 
 import logging
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
@@ -57,6 +66,9 @@ class OpenTransaction:
 
     connection: Connection
     after_commit: list[Callable[[], None]] = field(default_factory=list)
+    #: Each object row read in the block and not written since, keyed by
+    #: id: its ``type_`` and its ``data`` as the stored JSON text (#5344).
+    rows_read: dict[str, tuple[str, str]] = field(default_factory=dict)
 
 
 class _Registry(threading.local):
@@ -85,6 +97,24 @@ def run_after_commit(engine: Engine, callback: Callable[[], None]) -> None:
         callback()
     else:
         state.after_commit.append(callback)
+
+
+def forget_rows(engine: Engine, ids: Iterable[str] | None = None) -> None:
+    """Forget the rows this thread's transaction on *engine* kept for *ids*.
+
+    Every write to an object row calls this before it writes, so the block's
+    next read of that row fetches what the write left.  *ids* ``None``
+    forgets every kept row, for a write that names no single row.  With no
+    transaction open, nothing is kept and this does nothing.
+    """
+    state = open_transaction(engine)
+    if state is None:
+        return
+    if ids is None:
+        state.rows_read.clear()
+        return
+    for object_id in ids:
+        state.rows_read.pop(object_id, None)
 
 
 @contextmanager
@@ -142,6 +172,9 @@ def _savepoint(state: OpenTransaction) -> Iterator[None]:
     except BaseException:
         nested.rollback()
         del state.after_commit[pending:]
+        # A row read after a write this savepoint undid holds the undone
+        # version; which rows those are is not tracked, so forget them all.
+        state.rows_read.clear()
         raise
     else:
         nested.commit()
@@ -149,6 +182,7 @@ def _savepoint(state: OpenTransaction) -> Iterator[None]:
 
 __all__ = [
     "OpenTransaction",
+    "forget_rows",
     "open_transaction",
     "run_after_commit",
     "transaction",
