@@ -26,6 +26,7 @@ from typing import Any
 
 from vultron.measure.history import CaseEventHistory, case_event_history
 from vultron.measure.ledger import (
+    CaseLedger,
     LedgerFile,
     LedgerRow,
     case_ledgers_from_files,
@@ -265,6 +266,10 @@ class Ledger:
 
     def history(self) -> CaseEventHistory:
         """The event history of the entries so far."""
+        return case_event_history(self.case_ledger())
+
+    def case_ledger(self) -> CaseLedger:
+        """The entries so far, as the case ledger a measure reads."""
         path = Path("hand-built.jsonl")
         ledger_file = LedgerFile(
             path=path,
@@ -274,7 +279,7 @@ class Ledger:
             ],
         )
         read = case_ledgers_from_files([ledger_file])
-        return case_event_history(read.cases[CASE])
+        return read.cases[CASE]
 
 
 def seat_vendor(
