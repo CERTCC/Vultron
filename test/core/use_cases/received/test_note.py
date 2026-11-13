@@ -33,8 +33,13 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+    ActivityUnsupportedNode,
+)
 from vultron.core.behaviors.note.remove_note_received_tree import (
     REMOVE_NOTE_UNSUPPORTED,
+    create_remove_note_from_case_received_tree,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronService
@@ -815,6 +820,30 @@ class TestNoteUseCases:
         assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"
         self._assert_note_kept(dl, note, case)
 
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.parametrize(
+        ("note_id", "case_id"),
+        [(None, "https://example.org/cases/c"), ("urn:note", None)],
+        ids=["no-note", "no-case"],
+    )
+    def test_a_remove_note_naming_no_note_or_case_is_refused_as_incomplete(
+        self, note_id, case_id
+    ):
+        """The tree, not execute(), refuses a Remove with no note or no case:
+        it archives the activity and refuses it as incomplete (CLP-10-018)."""
+        tree = create_remove_note_from_case_received_tree(
+            note_id=note_id,
+            case_id=case_id,
+            sender_id=_OWNER,
+            sender_rule=RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
+        )
+        guards = [
+            n for n in tree.iterate() if isinstance(n, ActivityIncompleteNode)
+        ]
+        assert len(guards) == 1
+        assert not isinstance(guards[0], ActivityUnsupportedNode)
+        assert "missing its note id or case id" in guards[0].reason
+
     def _removal_world(self, *, at_manager: bool):
         """A case holding the author's note, at its CASE_MANAGER or a replica."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
@@ -850,7 +879,7 @@ class TestNoteUseCases:
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
         "use_case",
-        [AddNoteToCaseReceivedUseCase, RemoveNoteFromCaseReceivedUseCase],
+        [AddNoteToCaseReceivedUseCase],
     )
     def test_note_membership_change_without_ids_is_refused(self, use_case):
         dl = SqliteDataLayer(
