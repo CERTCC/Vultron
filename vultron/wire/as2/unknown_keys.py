@@ -59,9 +59,16 @@ from pydantic import AliasChoices, AliasPath, BaseModel
 
 from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.actor import CoreActor
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.errors import (
+    VultronParseUnknownTypeError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    AmbiguousWireTypeError,
+    resolve_wire_type,
+    resolved_wire_type_name,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
     is_case_reference_shape,
@@ -256,15 +263,22 @@ def _candidates_for(
     return tuple(dict.fromkeys(found))
 
 
-def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
+def resolve_inline_class(
+    value: dict[str, Any], path: str = ""
+) -> type[BaseModel] | None:
     """Return the most specific *wire* class for an inline dict's ``type``.
 
-    Returns ``None`` when the dict names no string ``type`` or the wire
-    registry holds no class for it, which leaves the dict for its parent field
-    to validate (MV-04-004).  The lookup is ``find_in_vocabulary``'s wire-only
-    default (VM-06-008, ISSUE-3217).  Shared by this partition, which calls it
-    on the raw dict, and the parser's expansion, which calls it on the
-    partitioned one; both calls answer the same class.
+    Returns ``None`` when the dict's ``type`` names no known type, which
+    leaves the dict for its parent field to validate (MV-04-004).  The lookup
+    is the shared resolver's wire-only default (VM-06-008, ISSUE-3217), so a
+    ``type`` list resolves to its most specific known class (ADR-0196).
+    Shared by this partition, which calls it on the raw dict, and the
+    parser's expansion, which calls it on the partitioned one; both calls
+    answer the same class.
+
+    A list that names two unrelated known types names no class to leave the
+    dict to either, so it refuses the activity as an unknown type at any
+    depth, as it does at the top (ADR-0196).  *path* locates it.
 
     The ``type`` decides the class, a case stub included: a stub names
     itself ``VulnerabilityCaseStub`` (CM-11-013).  The one exception is a
@@ -276,13 +290,15 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     on the partitioned dict, then sees the reference that remains.  A key the
     case declares keeps the dict a case in both calls.
     """
-    obj_type = value.get("type")
-    if not isinstance(obj_type, str):
-        return None
     if is_case_reference_shape(value):
         return as_VulnerabilityCaseReference
     try:
-        return find_in_vocabulary(obj_type)
+        return resolve_wire_type(value.get("type"))
+    except AmbiguousWireTypeError as exc:
+        where = f" at {path!r}" if path else ""
+        raise VultronParseUnknownTypeError(
+            f"Unrecognized inline object type{where}: {exc.args[0]}."
+        ) from exc
     except KeyError:
         return None
 
@@ -309,7 +325,7 @@ def _partition_value(
         ]
     if not isinstance(value, dict):
         return value
-    resolved = resolve_inline_class(value)
+    resolved = resolve_inline_class(value, path)
     declared = _declared_for_type(value, candidates, resolved)
     fallback = (resolved,) if resolved is not None else candidates
     classes = declared or fallback
@@ -342,8 +358,8 @@ def _declared_for_type(
     aside and reported here, not read by a class that never keeps it.  A
     resolved subclass of a declared class keeps its own, wider, fields.
     """
-    obj_type = value.get("type")
-    if resolved is None or not isinstance(obj_type, str):
+    obj_type = resolved_wire_type_name(value.get("type"))
+    if resolved is None or obj_type is None:
         return ()
     matches = tuple(
         cls for cls in candidates if obj_type in _type_literal_values(cls)

@@ -46,13 +46,17 @@ from vultron.core.models.base.context import (
     is_default_jsonld_context,
     serialize_with_top_level_context,
 )
+from vultron.core.models.type_terms import type_terms
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
+    AmbiguousWireTypeError,
+    declared_wire_type,
     declares_registrable_type,
     is_wire_type_alias,
+    narrow_type_list,
     wire_type_value,
 )
 from vultron.wire.as2.vocab.base.utils import generate_new_id
@@ -104,6 +108,16 @@ class as_Base(BaseModel):
     #: (VM-01-015, VM-01-016).
     _wire_type_alias: ClassVar[bool] = False
 
+    #: Set on an extension class whose type overlaps an AS2 core type: the
+    #: AS2 class it refines, which must be an ancestor.  AS2 requires such an
+    #: extension type to carry the core type too, so the class serializes its
+    #: ``type`` as the list ``[own type, core type]`` (``["Refuse",
+    #: "Reject"]``), while ``type_`` stays its own one string; a receiver
+    #: resolves the list back to the most specific class it knows (ADR-0196).
+    #: Declared on the class body, ``_as2_core_supertype = as_Reject``, and
+    #: checked when the class is defined (:func:`_check_as2_core_supertype`).
+    _as2_core_supertype: ClassVar[type[as_Base] | None] = None
+
     #: ``False`` on a class whose instances are not ActivityStreams Objects
     #: (``as_Link`` and its subtypes): a received one may omit its ``id``, and
     #: keeps none rather than one minted for it (OID-01-013).
@@ -113,6 +127,8 @@ class as_Base(BaseModel):
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
         if not declares_registrable_type(cls):
             return  # No concrete type_ of its own → abstract base, skip
+        # Before registering: a refused declaration leaves no registry entry.
+        _check_as2_core_supertype(cls)
         if cls.__name__.startswith("as_"):
             VOCABULARY[cls.__name__] = cls
         # WIRE_TYPE_MAP answers "which class does this inbound `type` value
@@ -198,6 +214,36 @@ class as_Base(BaseModel):
             data["id"] = None
         return absent_times_as_none(cls, data)
 
+    @model_validator(mode="before")
+    @classmethod
+    def narrow_received_type_list(cls, data: Any) -> Any:
+        """Read a ``type`` list as the one term it resolves to (ADR-0196).
+
+        ``type_`` holds one string, so the list an extension class serializes
+        (``_as2_core_supertype``), or any list a peer sends, is narrowed to the
+        term of its most specific known class before the field validates it.
+        A class whose own declared type is in the list reads it as that type:
+        a list names each of its terms, so ``as_Reject`` reads
+        ``["Refuse", "Reject"]`` as a ``Reject``, and a subclass that inherits
+        ``type_`` reads it the same way.  A list that names no wire type is
+        read as the core-only type it names (VM-06-008), else as its first
+        term, as a string naming no known type is kept (an unknown inline
+        object stays an ``as_Object``, MV-04-004, VM-03-006).  A list of two
+        unrelated known types, or one with no string term, is refused.
+        """
+        if not isinstance(data, dict):
+            return data
+        try:
+            narrowed = _narrow_known(data)
+        except AmbiguousWireTypeError as exc:
+            raise ValueError(exc.args[0]) from exc
+        own = declared_wire_type(cls)
+        own_read = None if own is None else _read_as_own_type(data, own)
+        if own_read is None:
+            return narrowed if narrowed is not None else _first_type_term(data)
+        # A second key (``type`` beside ``type_``) may still hold a list.
+        return _narrow_known(own_read) or _first_type_term(own_read)
+
     @model_validator(mode="after")
     def set_type_from_class_name(self):
         if self.type_ is None:
@@ -230,8 +276,24 @@ class as_Base(BaseModel):
             None if is_default_jsonld_context(self.context_) else self.context_
         )
         return serialize_with_top_level_context(
-            lambda: handler(self), info, explicit
+            lambda: self._with_type_list(handler(self)), info, explicit
         )
+
+    def _with_type_list(self, data: Any) -> Any:
+        """*data* with ``type`` as ``[own type, core type]`` when the class has one.
+
+        Only the wire dump (``by_alias``) gets the list: the persistence dump
+        keys the field ``type_`` and keeps its one string, so a stored row
+        reads back as it was written.  ``serialize_with_top_level_context``
+        runs this only for the wire dump.
+        """
+        supertype = type(self)._as2_core_supertype
+        if supertype is None or not isinstance(data, dict):
+            return data
+        if "type" not in data:
+            return data
+        own = wire_type_value(type(self))
+        return {**data, "type": [own, wire_type_value(supertype)]}
 
     def to_json(self, **kwargs):
         """Serialize the model to a JSON string, excluding None values and using aliases."""
@@ -245,3 +307,101 @@ class as_Base(BaseModel):
     def from_json(cls, data: str):
         """Deserialize a JSON string to an instance of the model."""
         return cls.model_validate_json(data)
+
+
+def _narrow_known(data: dict[str, Any]) -> dict[str, Any] | None:
+    """*data* with each ``type`` list narrowed to its known term, or ``None``.
+
+    The wire vocabulary is asked first, then core-only types too, as the
+    string lookup a union's core member sees (VM-06-008).  ``None`` when a
+    list names no known type at all.
+
+    Raises:
+        AmbiguousWireTypeError: When a list names two unrelated known types.
+    """
+    try:
+        return narrow_type_list(data)
+    except AmbiguousWireTypeError:
+        raise
+    except KeyError:
+        pass
+    try:
+        return narrow_type_list(data, include_core=True)
+    except AmbiguousWireTypeError:
+        raise
+    except KeyError:
+        return None
+
+
+def _read_as_own_type(data: dict[str, Any], own: str) -> dict[str, Any] | None:
+    """*data* with a ``type`` list naming *own* read as *own*, or ``None``."""
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if isinstance(value, list) and own in type_terms(value):
+            narrowed = {**narrowed, key: own}
+    return None if narrowed is data else narrowed
+
+
+def _first_type_term(data: dict[str, Any]) -> dict[str, Any]:
+    """*data* with each unresolved ``type`` list read as its first string term.
+
+    Raises:
+        ValueError: When a list holds no string term, so names no type at all.
+    """
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if not isinstance(value, list):
+            continue
+        terms = type_terms(value)
+        if not terms:
+            raise ValueError(f"type list {value!r} names no type")
+        narrowed = {**narrowed, key: terms[0]}
+    return narrowed
+
+
+def _check_as2_core_supertype(cls: type[as_Base]) -> None:
+    """Refuse a malformed ``_as2_core_supertype`` declaration on *cls*.
+
+    Checked when the class is defined, so a wrong declaration fails at import,
+    not when the first message is sent.  The supertype must be an AS2 class
+    (``VocabNamespace.AS``) that *cls* inherits from and whose wire ``type``
+    differs from *cls*'s, and *cls* must be a Vultron extension class
+    (``VocabNamespace.VULTRON``): AS2 asks only an extension type to carry
+    the core type it overlaps (ADR-0196).  A subclass that inherits the
+    declaration is checked the same way.
+
+    Raises:
+        TypeError: When the declaration breaks any of these rules.
+    """
+    supertype = cls._as2_core_supertype
+    if supertype is None:
+        return
+    name = cls.__name__
+    if not isinstance(supertype, type) or not issubclass(supertype, as_Base):
+        raise TypeError(
+            f"{name}._as2_core_supertype must be a wire class, not"
+            f" {supertype!r}"
+        )
+    if supertype is cls or supertype not in cls.__mro__:
+        raise TypeError(
+            f"{name}._as2_core_supertype {supertype.__name__} must be a"
+            f" superclass of {name}"
+        )
+    if supertype._vocab_ns is not VocabNamespace.AS:
+        raise TypeError(
+            f"{name}._as2_core_supertype {supertype.__name__} must be an AS2"
+            " core class (VocabNamespace.AS)"
+        )
+    if cls._vocab_ns is not VocabNamespace.VULTRON:
+        raise TypeError(
+            f"{name} declares an AS2 core supertype, so it must be a Vultron"
+            " extension class (_vocab_ns = VocabNamespace.VULTRON)"
+        )
+    if wire_type_value(cls) == wire_type_value(supertype):
+        raise TypeError(
+            f"{name} shares the wire type {wire_type_value(cls)!r} of its"
+            f" AS2 core supertype {supertype.__name__}; an extension type"
+            " names its own type"
+        )

@@ -20,7 +20,7 @@
 import re
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import (
     Field,
@@ -42,6 +42,7 @@ from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.sender_sequence import SenderSequence
 from vultron.core.models.type_lookup import core_class_for_type
+from vultron.core.models.type_terms import type_terms
 
 #: The ``closed`` time and flag branches, strict so that no string or number
 #: is coerced to a time or a flag.
@@ -225,6 +226,27 @@ class VultronActivity(CoreObject):
         return handler(value)
 
 
+def _own_type_first(value: Mapping[str, Any]) -> Mapping[str, Any]:
+    """*value* with a ``type`` list read as its first term (ADR-0196).
+
+    An embedded dump is one this implementation wrote, and an extension class
+    writes its own type first (``["Refuse", "Reject"]``, VM-03-005); a
+    received list was already narrowed at the parse edge.  Core holds one
+    ``type``, so the list is read as the type the dump's class declared.
+    """
+    listed = {
+        key: terms[0]
+        for key in ("type", "type_")
+        if isinstance(value.get(key), list)
+        and (terms := type_terms(value.get(key)))
+    }
+    if not listed:
+        return value
+    narrowed = dict(value)
+    narrowed.update(listed)
+    return narrowed
+
+
 def _read_embedded_dump(value: object, info: ValidationInfo) -> object:
     """Build *value* as the core class its ``type`` names, when it is a dump.
 
@@ -237,6 +259,7 @@ def _read_embedded_dump(value: object, info: ValidationInfo) -> object:
     """
     if not isinstance(value, Mapping):
         return value
+    value = _own_type_first(value)
     if "actor" in value:
         return VultronActivity.model_validate(value, context=info.context)
     type_value = value.get("type", value.get("type_"))

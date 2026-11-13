@@ -31,7 +31,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     OWNER_ACTOR_ID,
 )
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
-    _snapshot_object_type,
+    _snapshot_object_types,
     _validate_canonical_entry,
 )
 from vultron.core.models._helpers import now_utc
@@ -484,7 +484,32 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
         },
         "context": CASE_ID,
     }
-    assert _snapshot_object_type(snapshot, CASE_ID) == "VulnerabilityCaseStub"
+    assert _snapshot_object_types(snapshot, CASE_ID) == (
+        "VulnerabilityCaseStub",
+    )
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        semantic_type="invite_actor_to_case",
+        at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.spec("VM-03-006")
+def test_a_received_type_list_signs_as_the_type_it_names():
+    """A received body is recorded verbatim (VM-08-002), so its ``type`` may
+    be a list; the signature reads each name it carries (ADR-0196)."""
+    snapshot = {
+        "type": ["Foo", "Invite"],
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": ["Bar", "Organization"],
+            "id": "https://example.org/actors/vendor",
+        },
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,

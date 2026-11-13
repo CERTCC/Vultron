@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id, require_future_aware
+from vultron.core.models.type_terms import body_type_terms, type_terms
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.ports.clock import ClockPort
@@ -313,13 +314,14 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         # A wire ``type_`` is a StrEnum and a core one a plain str; both
         # compare equal to "Offer".  A mapping inner (a dict, or a received
         # view's read-only mapping) may carry either key.
-        inner_type = (
-            inner.get("type") or inner.get("type_")
+        # A received body keeps a ``type`` list as it arrived (ADR-0196).
+        inner_types = (
+            body_type_terms(inner)
             if isinstance(inner, Mapping)
-            else getattr(inner, "type_", None)
+            else type_terms(getattr(inner, "type_", None))
         )
         raw_case_id = _as_id(getattr(proposal, "context", None))
-        if inner_type != "Offer" or not raw_case_id:
+        if "Offer" not in inner_types or not raw_case_id:
             # The owner withdraws its own proposal, never the CASE_MANAGER's
             # Offer made from it (ADR-0148): an id naming anything else is a
             # caller error, refused before any tree runs.

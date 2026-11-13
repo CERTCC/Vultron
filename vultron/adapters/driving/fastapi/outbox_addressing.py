@@ -27,6 +27,21 @@ from typing import Any
 from vultron.core.models.actor import CoreActor, endpoint_uri
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
+
+
+def type_label(raw_type: object) -> str | None:
+    """The name a log or error gives a body's ``type`` value.
+
+    A type list names the type it resolves to (ADR-0196); a string the
+    vocabulary does not know is given as it is; anything else names none.
+    """
+    resolved = resolved_wire_type_name(raw_type)
+    if resolved is not None:
+        return resolved
+    if isinstance(raw_type, str) and raw_type:
+        return raw_type
+    return None
 
 
 def _format_object(obj: object) -> str:
@@ -48,7 +63,7 @@ def _format_object(obj: object) -> str:
     if isinstance(obj, str):
         return obj
     if isinstance(obj, dict):
-        type_name = obj.get("type") or "object"
+        type_name = type_label(obj.get("type")) or "object"
         obj_id = obj.get("id")
         return (
             f"{type_name} {obj_id}" if obj_id is not None else str(type_name)
