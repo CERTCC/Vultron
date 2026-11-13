@@ -1053,19 +1053,24 @@ groups:
     statement: >-
       A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
       entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
-      `text`, an optional `title`, a list of `notes`, and a list of `references`.
+      `text`, an optional `name` that holds the entry's `title`, a list of `notes`, and
+      a list of `references`.
     rationale: >-
-      A vulnerability item is the case's entry for one vulnerability. Shaped like a CSAF
-      vulnerability entry, it takes a CSAF report's vulnerabilities in and gives a CSAF
-      projection's vulnerabilities out with no translation. Pairing each identifier with
-      its tracking system says which namespace it belongs to without parsing its value
-      (CM-05-008, ADR-0187).
+      Shaped like a CSAF vulnerability entry, the item maps a CSAF report's
+      vulnerabilities in and out field by field. Pairing each identifier with
+      its tracking system names its namespace without parsing its value (CM-05-008,
+      ADR-0187). The `title` travels as AS2 `name`, which means the same, because a
+      Vultron term never duplicates an AS2 term (VM-10-009, ADR-0194).
     verification: >-
       A test marked `CM-05-018` builds a vulnerability item from each field and asserts
-      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title`, `notes` and `references`
-      round-trip through it.
+      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title` (as the item's `name`),
+      `notes` and `references` round-trip through it.
+      `test/wire/as2/vocab/test_vulnerability_item.py::test_a_csaf_entrys_title_is_the_items_name`
+      requires the item to declare no `title` and to hold it as `name`; it is a strict
+      `xfail` until #6413 moves the title.
     adr:
     - ADR-0187
+    - ADR-0194
     stories:
     - story_2022_030
   - id: CM-05-019

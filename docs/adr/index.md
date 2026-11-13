@@ -288,6 +288,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md) *(revision 2)*
 - [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
+- [ADR-0194 Every Wire Field Has a Typed JSON-LD Term, With One Meaning per Name](0194-every-wire-field-has-a-typed-json-ld-term-with-one-meaning-per-name.md) *(provisional)*
 
 ## Proposed ADRs
 

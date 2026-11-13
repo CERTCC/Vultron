@@ -346,3 +346,16 @@ def test_a_stated_end_is_not_taken_when_the_document_sets_x() -> None:
     assert inputs.proposed_embargo_end is None
     assert not inputs.embargo_eligible
     assert "vulnerabilities[0].disclosure_date" not in inputs.outcomes
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CSAF-03-008: the intake still copies a CSAF title to the item's "
+    "`title`. Tracked by #6413.",
+)
+@pytest.mark.spec("CSAF-03-008")
+def test_a_csaf_entrys_title_arrives_as_the_items_name() -> None:
+    vul = VulnerabilityClaims(cve="CVE-2026-0001", title="Overflow")
+    item = vulnerability_item_from_claims(vul, published=_NOW)
+    assert item.name == "Overflow"

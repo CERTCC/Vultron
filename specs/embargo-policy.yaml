@@ -34,17 +34,22 @@ groups:
   - id: EP-01-002
     priority: MUST
     kind: protocol
-    statement: 'The embargo policy record MUST include the following fields: actor_id (full URI string identifying the Actor to which this policy applies), inbox (URL string of the Actor''s ActivityPub inbox), preferred_duration (ISO 8601 duration string representing the Actor''s preferred embargo length)'
+    statement: >-
+      The embargo policy record MUST include `attributedTo` (the full URI of the Actor
+      to which this policy applies) and `preferred_duration` (ISO 8601 duration string
+      representing the Actor's preferred embargo length).
     rationale: >-
-      A coordinator that reads a policy needs to know whose terms it states, where to
-      send a proposal or Invite, and what length the actor prefers. Without `actor_id` a
-      policy copied out of its profile cannot be attributed, without `inbox` the
-      coordinator cannot reach the actor, and `preferred_duration` is the actor default
-      that shortest-wins reads at case creation (EP-04-003).
+      A coordinator that reads a policy needs to know whose terms it states and what
+      length the actor prefers. Without `attributedTo` a policy copied out of its
+      profile cannot be attributed, and `preferred_duration` is the actor default that
+      shortest-wins reads at case creation (EP-04-003). The coordinator reaches the
+      actor through the inbox in the profile `attributedTo` names: AS2 defines `inbox`
+      for actors only, so a policy carries none (ADR-0194).
     verification: >-
-      Inspection of the `EmbargoPolicy` Pydantic model confirms that `actor_id`,
-      `inbox`, and `preferred_duration` are declared as required fields with no
-      default values.
+      `test/core/models/test_embargo_policy.py::test_a_policy_requires_attributed_to_and_carries_no_inbox`
+      requires the `EmbargoPolicy` fields `attributed_to` (wire `attributedTo`) and
+      `preferred_duration` to be required, and no `actor_id` or `inbox` field; it is a
+      strict `xfail` until #6410 renames the fields.
     relationships:
     - rel_type: uses_definition
       spec_id: DUR-01-001
@@ -61,12 +66,16 @@ groups:
     statement: >-
       The embargo policy record SHOULD include the optional fields
       `minimum_duration` (ISO 8601 duration), `maximum_duration` (ISO 8601 duration),
-      and `notes` (free-text string describing the Actor's embargo preferences).
+      and `content` (free-text string describing the Actor's embargo preferences).
     rationale: >-
       A declared range tells a coordinator, before it proposes, which terms the actor
       will accept (EP-03-002), which saves a propose-and-reject round trip. Free-text
       notes carry preferences that a duration cannot express. The fields are optional
       because many actors hold only a preferred length.
+    verification: >-
+      `test/core/models/test_embargo_policy.py::test_a_policys_free_text_is_its_content`
+      requires the free text to be the policy's `content`, with no `notes` field; it is
+      a strict `xfail` until #6410 renames the field.
     relationships:
     - rel_type: uses_definition
       spec_id: DUR-01-001
@@ -97,15 +106,19 @@ groups:
   - id: EP-01-005
     priority: MUST
     kind: protocol
-    statement: The embargo policy record MUST use full-URI IDs for `actor_id`
+    statement: The embargo policy record MUST use a full-URI ID for `attributedTo`.
     rationale: >-
       Other actors on other servers read and compare policies. A local or short
       identifier cannot be resolved or compared across servers, so a coordinator could
       attach a policy to the wrong actor; a full URI names one actor everywhere
       (OID-01-001).
     verification: >-
-      A unit test confirms that `EmbargoPolicy` raises `ValidationError` when
-      `actor_id` is a non-URI string and accepts a well-formed `https://` URI.
+      `test/core/models/test_embargo_policy.py::test_a_policys_attributed_to_must_be_a_full_uri`
+      requires `EmbargoPolicy` to accept a well-formed `https://` URI in `attributed_to`
+      and to raise `ValidationError` for a non-URI string; it is a strict `xfail` until
+      #6410 renames the field. Until then
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` checks the
+      same of `actor_id`.
     relationships:
     - rel_type: refines
       spec_id: OID-01-001
@@ -338,16 +351,16 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The policy endpoint MUST derive the record's `actor_id` and `inbox` from the
-      addressed actor's own record, never from the request body.
+      The policy endpoint MUST derive the record's `attributedTo` from the addressed
+      actor's own record, never from the request body.
     rationale: >-
-      Deriving `actor_id` from the path actor keeps a body from publishing terms in
+      Deriving `attributedTo` from the path actor keeps a body from publishing terms in
       another actor's name (EP-01-005).
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
-      (`test_a_body_cannot_publish_in_another_actors_name`) confirms `actor_id` and
-      `inbox` come from the actor record and that a body naming an actor is refused with
-      422.
+      (`test_a_body_cannot_publish_in_another_actors_name`) confirms the policy's actor
+      comes from the actor record and that a body naming an actor is refused with 422;
+      #6410 moves it from `actor_id` to `attributedTo`.
     scope:
     - production
     relationships:
