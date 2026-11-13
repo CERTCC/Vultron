@@ -29,7 +29,9 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +79,6 @@ class AddNoteToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before any read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         note = request.note
         case_id = request.case_id
         if note is None or case_id is None:
@@ -89,6 +87,7 @@ class AddNoteToCaseReceivedUseCase:
                 "Add(Note)[target=VulnerabilityCase] is missing its inline note or case id"
             )
 
+        resolve_receiver_before_reads(self._dl, request)
         # The CASE_MANAGER gate reads a missing case as "not the manager" and
         # skips, which would hide an Add aimed at a case this actor lacks.
         if self._dl.read_case(case_id) is None:
@@ -151,10 +150,6 @@ class RemoveNoteFromCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before any read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         note_id = request.note_id
         case_id = request.case_id
         if note_id is None or case_id is None:
@@ -162,6 +157,7 @@ class RemoveNoteFromCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Remove(Note)[target=VulnerabilityCase] is missing its note id or case id"
             )
+        resolve_receiver_before_reads(self._dl, request)
         if self._dl.read_case(case_id) is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id

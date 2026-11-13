@@ -17,7 +17,7 @@
 
 A received handler builds its tree and runs it through
 :func:`~vultron.core.behaviors.case.received_run.run_received_tree`, which
-reads the verdict from what the tree's nodes recorded (ADR-0194).  What is
+reads the verdict from what the tree's nodes recorded (ADR-0195).  What is
 left here reads the DataLayer around the run, so it cannot live in the
 runner: :func:`case_manager_verdict` turns a CASE_MANAGER gate's skip into
 the refusal HP-01-005 owes, and :func:`unheld_case_refusal` refuses an act

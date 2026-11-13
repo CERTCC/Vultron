@@ -21,7 +21,7 @@ source of that identity: it prefers ``request.receiving_actor_id``, falls back
 to the store's owner, and raises when neither yields one.
 
 A received use case runs its tree through the received-tree runner
-(``run_received_tree``, ADR-0194), so the received side has one
+(``run_received_tree``, ADR-0195), so the received side has one
 ``execute_with_setup`` call, in the runner, and none under
 ``vultron/core/use_cases/received/``.
 
@@ -64,7 +64,7 @@ from test.architecture import _corpus
 _RECEIVED_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
 )
-#: The received-tree runner, which every received use case calls (ADR-0194).
+#: The received-tree runner, which every received use case calls (ADR-0195).
 _RUNNER = (
     _corpus.REPO_ROOT
     / "vultron"
@@ -457,7 +457,7 @@ def _mentioned_outside(path: Path) -> _MentionedElsewhere:
 def test_received_use_cases_run_no_tree_of_their_own() -> None:
     """No received use case calls ``execute_with_setup``: the runner does.
 
-    Every received tree runs through ``run_received_tree`` (ADR-0194), so the
+    Every received tree runs through ``run_received_tree`` (ADR-0195), so the
     receiving actor is resolved in one place, checked below.
     """
     calling = sorted(
@@ -468,7 +468,7 @@ def test_received_use_cases_run_no_tree_of_their_own() -> None:
     )
     assert not calling, (
         f"received use cases calling {_CALL_FRAGMENT} directly; run the tree"
-        " through run_received_tree (ADR-0194):\n"
+        " through run_received_tree (ADR-0195):\n"
         + "\n".join(f"  {p}" for p in calling)
     )
 

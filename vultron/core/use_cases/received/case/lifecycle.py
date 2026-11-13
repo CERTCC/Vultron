@@ -35,6 +35,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
     unheld_case_refusal,
 )
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -90,10 +93,7 @@ class AddReportToCaseReceivedUseCase:
                 "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
                 "missing its report id or case id"
             )
-        # Resolved before the read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
+        resolve_receiver_before_reads(self._dl, request)
         if self._dl.read_case(case_id) is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return HandlerResult.refused(f"unknown case '{case_id}'")

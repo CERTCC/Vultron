@@ -15,7 +15,7 @@
 """The CASE_MANAGER verdicts a handler applies to the runner's result (#3752).
 
 The runner's own reading is tested in
-``test/core/behaviors/case/test_received_run.py`` (ADR-0194).  What is left
+``test/core/behaviors/case/test_received_run.py`` (ADR-0195).  What is left
 here reads the DataLayer around the run, so it stays in the use cases until
 #6394 moves it into the tree.
 """

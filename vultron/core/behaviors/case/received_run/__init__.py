@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Run a received tree and read its verdict from its nodes (ADR-0194).
+"""Run a received tree and read its verdict from its nodes (ADR-0195).
 
 A received use case only builds its tree and runs it through
 :func:`run_received_tree`, which runs it once as the receiver and reads the

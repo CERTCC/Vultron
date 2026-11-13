@@ -16,7 +16,7 @@ stakeholder_type: [project-contributor]
 - **Primary constraints**:
   1. `vultron/core/` must not import from `vultron/adapters/`, `vultron/wire/` or `vultron/demo/` (enforced by `test/architecture/`)
   2. A use case's `execute()` must not call `dl.save/create/update/delete()`, directly or through a helper; DataLayer mutations happen in BT leaf nodes run through `BTBridge` so they pass the audit trail and ledger commit (BT-06-001, BT-15-001, CLP-10-020; ratchet `test_no_dl_mutations_in_execute.py`)
-  3. A received use case's `execute()` runs one tree per delivery, through the received-tree runner `run_received_tree` in `vultron/core/behaviors/case/received_run/`, which runs it as the receiving actor and reads the verdict from what the tree's nodes declared (ADR-0194).
+  3. A received use case's `execute()` runs one tree per delivery, through the received-tree runner `run_received_tree` in `vultron/core/behaviors/case/received_run/`, which runs it as the receiving actor and reads the verdict from what the tree's nodes declared (ADR-0195).
      Every runner or `BTBridge.execute_with_setup()` call it reaches, directly or through a use-case or core-services helper, counts, and calls on alternative branches add up (CLP-10-005, ADR-0135; `test_single_bt_execution_received_side.py`).
      Work that needs a second tree, such as a door check or a refusal, is composed into the one tree by its factory.
   4. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute()`.

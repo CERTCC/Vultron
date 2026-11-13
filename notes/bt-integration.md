@@ -254,7 +254,7 @@ nothing is written before the last one admits the message (ADR-0154).
    (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
    door (CM-23-018) and the sender guard (HP-01-006). The received-tree runner
    reads a door's answer first, through `door_refusal`
-   (`behaviors/case/received_run/`, ADR-0194); never run a door guard as a
+   (`behaviors/case/received_run/`, ADR-0195); never run a door guard as a
    one-node tree ahead of the received tree, the chained shape CLP-10-005
    forbids (ADR-0135).
 

@@ -74,7 +74,7 @@ type FaultTreeBuilder = Callable[
 class FaultReading:
     """How the runner reads one fault response's run (HP-01-003).
 
-    ``reader`` receives only the finished run (ADR-0194).  ``judges`` is
+    ``reader`` receives only the finished run (ADR-0195).  ``judges`` is
     ``False`` for a tree that judges nothing, whose failure past its doors is
     a local fault.  ``manager_case_id`` names the case whose CASE_MANAGER
     alone may act on the fault: the use case applies the CASE_MANAGER

@@ -45,7 +45,7 @@ from test.architecture.test_receive_side_bt_commit_ordering import (
 _RECEIVE_FACTORY_NAME = re.compile(r"^create_.*(received|receive).*_tree$")
 _TREE_FACTORY_NAME = re.compile(r"_tree$")
 #: Called from every received use case and named like a factory, but it runs
-#: the tree the use case built and builds none (ADR-0194).
+#: the tree the use case built and builds none (ADR-0195).
 _TREE_RUNNERS = frozenset({"run_received_tree"})
 
 _RECEIVED_USE_CASES_ROOT = (

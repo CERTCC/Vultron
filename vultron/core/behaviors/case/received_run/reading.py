@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Read a finished received tree's run into its ``HandlerResult`` (ADR-0194).
+"""Read a finished received tree's run into its ``HandlerResult`` (ADR-0195).
 
 A tree's root status says only whether it succeeded.  A handler has to report
 more than that (HP-01-003, HP-01-014, ADR-0095): a benign no-op is
@@ -81,7 +81,7 @@ class ReceivedOutcome:
 
     The whole input of a verdict reading.  It carries no DataLayer, port or
     request, so a reading can only report what the tree's nodes recorded
-    (ADR-0194).
+    (ADR-0195).
 
     Attributes:
         tree: The root of the tree that ran.

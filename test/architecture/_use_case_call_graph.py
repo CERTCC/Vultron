@@ -109,7 +109,7 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
 
 
 #: The calls that run a tree: the bridge's own, and the received-tree runner
-#: (ADR-0194), which a received use case calls instead and which runs the
+#: (ADR-0195), which a received use case calls instead and which runs the
 #: bridge exactly once.  The runner lives in ``core/behaviors``, outside the
 #: indexed packages, so its call is counted where the use case makes it.
 _TREE_RUN_CALLEES: frozenset[str] = frozenset(

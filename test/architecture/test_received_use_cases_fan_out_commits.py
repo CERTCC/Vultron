@@ -18,7 +18,7 @@ each entry it commits to every active participant (SYNC-02-003).  The commit
 reads the ``SyncActivityPort`` off the blackboard, so the port has to travel
 the whole way: the inbox port factory gives it, the use case accepts it, the
 use case hands it to the received-tree runner (``run_received_tree``,
-ADR-0194), and the runner hands it to the ``BTBridge`` that runs the tree.
+ADR-0195), and the runner hands it to the ``BTBridge`` that runs the tree.
 
 A use case that broke the chain at any link used to commit without fan-out,
 with only a DEBUG line (``OfferActorToCaseReceivedUseCase`` took no port;

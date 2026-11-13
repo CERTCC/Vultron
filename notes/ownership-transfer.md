@@ -285,7 +285,7 @@ CASE_MANAGER inbox receives Reject
   derived Offer the
   ledger already records is a redelivery: the guard sets `is_redelivery`, which
   it reports as a repeat, and the received-tree runner reports `SKIPPED`
-  (HP-01-014, ADR-0194).
+  (HP-01-014, ADR-0195).
 - **Withdrawal is an `Undo` of the proposal (CM-21-036, CM-21-037).** The
   CASE_MANAGER derives the Offer id from the proposal id and its own id, so the
   owner needs nothing it learned from the ledger; the ledgered Undo is a reply that

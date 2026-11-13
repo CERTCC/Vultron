@@ -46,7 +46,7 @@ over a verb registry).
 themselves (HP-01-004, `test_use_cases_no_inbox_outcome.py`).
 
 Most handlers run a tree, and only through `run_received_tree`
-(`vultron/core/behaviors/case/received_run/`, ADR-0194), which runs it once as
+(`vultron/core/behaviors/case/received_run/`, ADR-0195), which runs it once as
 the receiver and reads the verdict from what its nodes recorded, in this order:
 a door's or the sequence stage's answer; `internal_error` → raise
 `VultronBTInternalError`; the handler's reader; on `SUCCESS`, a node-declared

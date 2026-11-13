@@ -55,7 +55,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -272,10 +274,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before any read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
+        resolve_receiver_before_reads(self._dl, request)
         case_id = request.context_id or ""
         # ``activity_id`` is a required ``NonEmptyString`` on every event.
         invite_id = request.activity_id

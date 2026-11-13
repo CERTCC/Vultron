@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The received-tree runner and its reading of a finished run (ADR-0194).
+"""The received-tree runner and its reading of a finished run (ADR-0195).
 
 Tree tests: they read outcomes through ``core/behaviors`` alone, never
 through ``use_cases`` (#5774).

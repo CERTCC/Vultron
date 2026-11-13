@@ -57,7 +57,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+from vultron.core.use_cases.received._receiver import (
+    resolve_receiver_before_reads,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +131,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before any read, so a delivery with no resolvable
-        # receiver raises as a wiring fault rather than being refused
-        # (BT-17-009, ARCH-15-001); the runner resolves it again for the run.
-        resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
         # The invitee is read from the recorded Invite (EP-09-010), so an
         # Accept that names none has no invitee to be.
         embargo_id, invite_id = request.embargo_id, request.invite_id
@@ -146,6 +144,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 f"Accept(Invite(EmbargoEvent)) is missing its {missing}"
             )
 
+        resolve_receiver_before_reads(self._dl, request)
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
         if _case is None:
             logger.error("accept_invite_to_embargo_on_case: case not found")

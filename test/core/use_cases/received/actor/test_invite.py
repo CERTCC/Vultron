@@ -2783,7 +2783,7 @@ class TestInviteDispositions:
 class TestAcceptReadsItsIdempotencyGuard:
     """The Accept's own reader of ``CheckInviteeNotAlreadyParticipantNode``.
 
-    It sees only the finished run (ADR-0194): a repeat is ``SKIPPED``, any
+    It sees only the finished run (ADR-0195): a repeat is ``SKIPPED``, any
     other refusal by the guard is ``REFUSED`` as an unknown case, and a
     guard composed without its DataLayer is left to the runner, which
     raises (ADR-0095).
@@ -2810,6 +2810,9 @@ class TestAcceptReadsItsIdempotencyGuard:
         )
         guard.status = Status.FAILURE
         guard.feedback_message = message
+        # Stand in for a run: the reader reads only the guard's status,
+        # message and repeat declaration, so set them directly rather
+        # than seed a store for the guard to read.
         guard._repeat_detected = repeat
         root = py_trees.composites.Sequence(
             name="Root", memory=False, children=[guard]
@@ -2833,6 +2836,6 @@ class TestAcceptReadsItsIdempotencyGuard:
         assert verdict.reason == f"unknown case '{self._CASE}'"
 
     def test_a_wiring_fault_is_left_to_the_runner(self):
-        assert (
-            self._read(repeat=False, message="DataLayer not available") is None
-        )
+        from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
+
+        assert self._read(repeat=False, message=DATALAYER_UNAVAILABLE) is None
