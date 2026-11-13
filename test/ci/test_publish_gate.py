@@ -15,7 +15,7 @@ import os
 import re
 import subprocess
 from collections.abc import Callable, Iterator
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -1237,6 +1237,37 @@ def test_publication_workflow_triggers() -> None:
     on = triggers(_workflow())
     assert set(on) == {"schedule", "workflow_dispatch"}
     assert on["schedule"] == [{"cron": "7 6 * * 1-5"}]
+    # The draft release command predicts publishes from the same time.
+    assert on["schedule"] == [{"cron": _gate.SCHEDULE_CRON}]
+
+
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("now", "publish"),
+    [
+        # Friday before 06:07 UTC: that morning's publish.
+        ("2026-11-13T06:06:59+00:00", date(2026, 11, 13)),
+        # Friday at 06:07 UTC: that publish has started, so Monday's.
+        ("2026-11-13T06:07:00+00:00", date(2026, 11, 16)),
+        ("2026-11-13T15:00:00+00:00", date(2026, 11, 16)),
+        # Weekend: Monday.
+        ("2026-11-14T03:00:00+00:00", date(2026, 11, 16)),
+        ("2026-11-15T23:59:00+00:00", date(2026, 11, 16)),
+        # Monday afternoon: Tuesday.
+        ("2026-11-16T12:00:00+00:00", date(2026, 11, 17)),
+        # Thursday 23:30 in New York is Friday 04:30 UTC.
+        ("2026-11-12T23:30:00-05:00", date(2026, 11, 13)),
+    ],
+)
+def test_next_scheduled_publish(now: str, publish: date) -> None:
+    assert _gate.next_scheduled_publish(datetime.fromisoformat(now)) == publish
+
+
+def test_next_scheduled_publish_refuses_a_naive_time() -> None:
+    with pytest.raises(ValueError, match="no time zone"):
+        _gate.next_scheduled_publish(
+            datetime.fromisoformat("2026-11-13T05:00")
+        )
 
 
 @pytest.mark.spec("DOCBW-06-018", "DOCBW-06-020")

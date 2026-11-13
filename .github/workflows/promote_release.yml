@@ -11,7 +11,9 @@
 # draft's release, the draft release carries that draft's frozen pages
 # (ADR-0188, DOCBW-08): `vultron-spec-draft-N.tar.gz` and its SHA-256 manifest.
 # The order of the jobs keeps a draft release from ever lacking them:
-#   plan          names the release and its draft; reads only.
+#   plan          names the release and its draft, and the publish of the
+#                 draft's date when the input is empty (DOCBW-08-042); reads
+#                 only.
 #   frozen-draft  builds the site at the promoted commit, serves the released
 #                 drafts' frozen pages into it (DOCBW-08-039), and builds the
 #                 archive from it, with no token that can write (DOCBW-08-019).
@@ -31,7 +33,8 @@ on:
         description: >-
           The publish-YYYY-MM-DD.N tag to promote. It must be one the publish
           workflow made. Leave empty to promote the newest one, which names
-          what the site shows now.
+          what the site shows now, or, when the drafts register releases a
+          draft dated an earlier day, the publish of that day that froze it.
         type: string
         default: ''
 

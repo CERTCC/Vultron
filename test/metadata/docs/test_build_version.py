@@ -14,6 +14,8 @@ from vultron.metadata.docs.build_version import (
     FALLBACK_VERSION,
     FOOTER_KEY,
     PUBLISH_DATE_ENV,
+    PUBLISH_DATE_KEY,
+    PUBLISH_DATE_SLOT,
     PUBLISH_TAG_ENV,
     RELEASE_TAG_ENV,
     Publish,
@@ -21,6 +23,7 @@ from vultron.metadata.docs.build_version import (
     describe_build,
     is_release,
     on_config,
+    on_page_content,
     publish_from_env,
 )
 
@@ -199,6 +202,7 @@ def test_hook_renders_an_unpublished_footer(
     config = _config()
     assert on_config(config) is config  # type: ignore[arg-type]
     assert config.extra[FOOTER_KEY] == f"Unpublished build · {DEV}"
+    assert config.extra[PUBLISH_DATE_KEY] == "unpublished build"
 
 
 def test_hook_renders_the_publish_jobs_tag(
@@ -213,6 +217,37 @@ def test_hook_renders_the_publish_jobs_tag(
     assert config.extra[FOOTER_KEY] == (
         f"Published 2026-10-30 · {_link(TAG)} · {DEV}"
     )
+    assert config.extra[PUBLISH_DATE_KEY] == "2026-10-30"
+
+
+# --- the current draft's date (DOCBW-08-040) -----------------------------------
+
+
+@pytest.mark.spec("DOCBW-08-040")
+@pytest.mark.parametrize(
+    ("published", "shown"),
+    [("2026-10-30", "2026-10-30"), ("", "unpublished build")],
+    ids=["publish", "unpublished"],
+)
+def test_page_hook_writes_the_publish_date_into_every_slot(
+    monkeypatch: pytest.MonkeyPatch, published: str, shown: str
+) -> None:
+    monkeypatch.setenv(PUBLISH_TAG_ENV, TAG if published else "")
+    monkeypatch.setenv(PUBLISH_DATE_ENV, published)
+    monkeypatch.delenv(RELEASE_TAG_ENV, raising=False)
+    config = _config()
+    on_config(config)  # type: ignore[arg-type]
+    html = f"<td>{PUBLISH_DATE_SLOT}</td><p>cite: {PUBLISH_DATE_SLOT}.</p>"
+    out = on_page_content(html, None, config, None)  # type: ignore[arg-type]
+    assert out == f"<td>{shown}</td><p>cite: {shown}.</p>"
+
+
+@pytest.mark.spec("DOCBW-08-040")
+def test_page_hook_leaves_a_page_without_a_slot_alone() -> None:
+    config = _config()
+    config.extra[PUBLISH_DATE_KEY] = "2026-10-30"
+    html = '<p>unpublished build <span class="other">x</span></p>'
+    assert on_page_content(html, None, config, None) == html  # type: ignore[arg-type]
 
 
 def test_hook_is_registered_and_the_footer_partial_reads_its_key() -> None:

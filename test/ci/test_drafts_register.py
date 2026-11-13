@@ -12,6 +12,7 @@ import json
 import re
 from pathlib import Path
 
+import markdown  # type: ignore[import-untyped]  # Python-Markdown ships no stubs
 import pytest
 import yaml
 
@@ -313,12 +314,56 @@ def test_the_fragments_carry_each_entry_of_the_register():
     assert "| Date | 2026-11-06 |" in one
     two = fragments[dr.fragment_path("draft-2")]
     assert "| Version | `draft-2` |" in two
-    assert "| Date | 2027-01-04 |" in two
+    assert "| Opened | 2027-01-04 |" in two
     assert "Frozen copy" not in two
     box = fragments[dr.STATUS_BOX_PATH]
     assert "| Version | `draft-2` |" in box
-    assert "Vultron Protocol Specification, `draft-2`, 2027-01-04." in box
     assert "`draft-1`, which release `v2026.11.0` carries" in box
+
+
+@pytest.mark.spec("DOCBW-08-040")
+def test_the_current_draft_is_dated_by_the_publish_that_builds_the_page():
+    """Its last-updated date is a slot the build fills, in table and citation."""
+    register = dr.parse_register(
+        _register(
+            _released(1), _entry("draft-2", "unreleased", date="2027-01-04")
+        ),
+        SHOWN,
+    )
+    fragments = dr.desired_fragments(register)
+    slot = dr.PUBLISH_DATE_SLOT
+    for path in (dr.STATUS_BOX_PATH, dr.fragment_path("draft-2")):
+        assert f"| Last updated | {slot} |" in fragments[path]
+        assert "| Opened | 2027-01-04 |" in fragments[path]
+        assert "| Date |" not in fragments[path]
+    box = fragments[dr.STATUS_BOX_PATH]
+    assert f"Vultron Protocol Specification, `draft-2`, {slot}." in box
+    assert "each publish stamps it" in box
+    assert slot not in fragments[dr.fragment_path("draft-1")]
+
+
+@pytest.mark.spec("DOCBW-08-001", "DOCBW-08-040")
+def test_a_released_draft_keeps_the_date_of_the_publish_that_froze_it():
+    register = dr.parse_register(
+        _register(_released(1, "v2026.11.0"), _released(2, "v2027.2.0")), SHOWN
+    )
+    fragments = dr.desired_fragments(register)
+    for text in fragments.values():
+        assert dr.PUBLISH_DATE_SLOT not in text
+        assert "| Date | 2026-11-06 |" in text
+    assert (
+        "the publish of the site that froze this draft"
+        in (fragments[dr.STATUS_BOX_PATH])
+    )
+
+
+@pytest.mark.spec("DOCBW-08-040")
+def test_the_slot_reaches_the_rendered_status_box_as_written():
+    """Markdown passes the raw-HTML slot through, inside the admonition table."""
+    box = dr.render_status_box(dr.parse_register(_register(_open(1)), SHOWN))
+    html = markdown.markdown(box, extensions=["admonition", "tables"])
+    assert html.count(dr.PUBLISH_DATE_SLOT) == 2
+    assert "<td>" + dr.PUBLISH_DATE_SLOT + "</td>" in html
 
 
 @pytest.mark.spec("DOCBW-08-006")
@@ -712,3 +757,152 @@ def test_the_order_fault_is_named_where_the_order_breaks(tmp_path):
     lines = (tmp_path / dr.REVISION_LOG_PATH).read_text().splitlines()
     assert fault.line is not None
     assert lines[fault.line - 1] == dr.include_line("draft-2")
+
+
+# --- DOCBW-08-043: marking the open draft released ----------------------------
+
+_HEADER = "# The register's header comment.\n#\n# It is kept as written.\n"
+FREEZE = dr.Freeze("v2026.11.1", dr.date(2026, 11, 16))
+
+
+def _freeze_repo(repo: Path, text: str) -> None:
+    _commit_register(repo, _HEADER + text)
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_marks_the_open_draft_released_and_regenerates(repo):
+    _freeze_repo(repo, _register(_released(1, "v2026.11.0"), _open(2)))
+    git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
+    asked: list[Path] = []
+
+    def predict(root: Path) -> dr.Freeze:
+        asked.append(root)
+        return FREEZE
+
+    entry = dr.release_open_draft(repo, predict)
+    assert asked == [repo]
+    assert (entry.version, entry.release, entry.date.isoformat()) == (
+        "draft-2",
+        "v2026.11.1",
+        "2026-11-16",
+    )
+    text = (repo / dr.REGISTER_PATH).read_text(encoding="utf-8")
+    assert text == _HEADER + _register(
+        _released(1, "v2026.11.0"),
+        _entry("draft-2", "released", "2026-11-16", "v2026.11.1"),
+    )
+    register = dr.load_register(repo)
+    assert list(stale_paths(repo, dr.desired_fragments(register))) == []
+    # The released entry still matches its tag's register (DOCBW-08-003).
+    assert dr.check_releases(repo) == []
+
+
+@pytest.mark.spec("DOCBW-08-041", "DOCBW-08-043")
+def test_release_dates_again_a_draft_whose_release_is_not_made(repo):
+    """The publish it was dated for never ran: run the command again."""
+    _freeze_repo(
+        repo,
+        _register(_entry("draft-1", "released", "2026-11-13", "v2026.11.1")),
+    )
+    entry = dr.release_open_draft(repo, lambda _root: FREEZE)
+    assert (entry.version, entry.date.isoformat()) == ("draft-1", "2026-11-16")
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_refuses_when_every_drafts_release_is_made(repo):
+    _freeze_repo(repo, _register(_released(1, "v2026.11.0")))
+    git(repo, "tag", "-a", "v2026.11.0", "-m", "release")
+    before = (repo / dr.REGISTER_PATH).read_text(encoding="utf-8")
+    with pytest.raises(
+        dr.ReleaseCommandError, match="every draft is released"
+    ):
+        dr.release_open_draft(repo, lambda _root: FREEZE)
+    assert (repo / dr.REGISTER_PATH).read_text(encoding="utf-8") == before
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_cli_takes_a_given_tag_and_date(repo, monkeypatch, capsys):
+    _freeze_repo(repo, _register(_open(1)))
+    monkeypatch.setattr(dr, "repo_root", lambda: repo)
+    monkeypatch.setattr(
+        dr, "predict_freeze", lambda _root: pytest.fail("predicted")
+    )
+    dr.main(["release", "--release", "v2026.12.0", "--date", "2026-12-01"])
+    out = capsys.readouterr().out
+    assert "Marked draft-1 released in v2026.12.0, dated 2026-12-01" in out
+    assert "promote workflow with an empty input" in out
+    (entry,) = dr.load_register(repo).released
+    assert (entry.release, entry.date.isoformat()) == (
+        "v2026.12.0",
+        "2026-12-01",
+    )
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_release_cli_refuses_a_tag_without_a_date(repo, monkeypatch, capsys):
+    _freeze_repo(repo, _register(_open(1)))
+    monkeypatch.setattr(dr, "repo_root", lambda: repo)
+    with pytest.raises(SystemExit) as exited:
+        dr.main(["release", "--release", "v2026.12.0"])
+    assert exited.value.code == 1
+    assert "go together" in capsys.readouterr().err
+
+
+@pytest.mark.spec("DOCBW-08-043")
+def test_predict_freeze_fetches_the_tags_and_reads_next_freeze(
+    tmp_path, monkeypatch
+):
+    calls: list[list[str]] = []
+
+    def git_run(root: Path):
+        def run(args):
+            calls.append(["git", *args])
+            return ""
+
+        return run
+
+    class _Proc:
+        returncode = 0
+        stdout = '{"release": "v2026.11.1", "date": "2026-11-16"}\n'
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        assert kwargs["cwd"] == tmp_path
+        return _Proc()
+
+    monkeypatch.setattr(dr, "git_runner", git_run)
+    monkeypatch.setattr(dr.subprocess, "run", fake_run)
+    assert dr.predict_freeze(tmp_path) == FREEZE
+    fetch, script = calls
+    assert fetch == ["git", "fetch", "--quiet", "--tags", "origin"]
+    assert script[1:] == [
+        "-I",
+        str(tmp_path / dr.RELEASE_SCRIPT),
+        "next-freeze",
+    ]
+
+
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("code", "stdout", "words"),
+    [(1, "", "next-freeze failed"), (0, "not json", "printed no prediction")],
+)
+def test_predict_freeze_refuses_a_failed_prediction(
+    tmp_path, monkeypatch, code, stdout, words
+):
+    class _Proc:
+        returncode = code
+        stderr = "boom"
+
+    _Proc.stdout = stdout
+    monkeypatch.setattr(dr, "git_runner", lambda root: lambda args: "")
+    monkeypatch.setattr(dr.subprocess, "run", lambda argv, **kw: _Proc())
+    with pytest.raises(dr.ReleaseCommandError, match=words):
+        dr.predict_freeze(tmp_path)
+
+
+def test_release_script_is_the_promotes_script():
+    """The command runs the script the promote runs, which has next-freeze."""
+    script = repo_root() / dr.RELEASE_SCRIPT
+    assert '"next-freeze"' in script.read_text(encoding="utf-8")

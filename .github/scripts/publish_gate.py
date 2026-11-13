@@ -50,7 +50,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
@@ -82,6 +82,14 @@ from release_tags import (
 )
 
 MAIN_REF = "refs/heads/main"
+# When the workflow's schedule starts a publish: 06:07 UTC, Monday to Friday
+# (DOCBW-06-007). A test holds ``deploy_site.yml``'s cron to SCHEDULE_CRON,
+# so the workflow and ``next_scheduled_publish`` agree on the time.
+SCHEDULE_HOUR_UTC = 6
+SCHEDULE_MINUTE_UTC = 7
+# Monday to Friday: Python counts Monday as 0, cron as 1.
+SCHEDULE_WEEKDAYS = frozenset(range(5))
+SCHEDULE_CRON = f"{SCHEDULE_MINUTE_UTC} {SCHEDULE_HOUR_UTC} * * 1-5"
 FAILURE_LABEL = "ci:main-failure"
 # Wait this long for unfinished blocking runs, then skip.
 WAIT_SECONDS = 3600
@@ -103,6 +111,36 @@ BUILD_ACTIONS = (
     ".github/actions/check-site-publication/action.yml",
     ".github/actions/serve-frozen-drafts/action.yml",
 )
+
+
+def next_scheduled_publish(now: datetime) -> date:
+    """The UTC date of the first scheduled publish after *now*.
+
+    A weekday before 06:07 UTC is that day's publish; any later time, and a
+    weekend, is the next weekday's. The draft release command predicts a
+    released draft's date with it (DOCBW-08-043): the publish of the commit
+    that marks the draft released is the next scheduled one after that
+    commit merges.
+
+    Raises:
+        ValueError: If *now* has no time zone, so it names no UTC instant.
+    """
+    if now.tzinfo is None:
+        raise ValueError(f"{now!r} has no time zone")
+    utc = now.astimezone(UTC)
+    day = utc.date()
+    start = utc.replace(
+        hour=SCHEDULE_HOUR_UTC,
+        minute=SCHEDULE_MINUTE_UTC,
+        second=0,
+        microsecond=0,
+    )
+    if day.weekday() in SCHEDULE_WEEKDAYS and utc < start:
+        return day
+    day += timedelta(days=1)
+    while day.weekday() not in SCHEDULE_WEEKDAYS:
+        day += timedelta(days=1)
+    return day
 
 
 class Trigger(StrEnum):

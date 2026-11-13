@@ -5,6 +5,10 @@ build of the Vultron repository generated it (#5544). The line is rendered once
 per build by this module's ``on_config`` MkDocs hook, stored in
 ``config.extra[FOOTER_KEY]``, and printed by ``overrides/partials/copyright.html``.
 Nothing else writes it, so no two places on the site can disagree about it.
+The same publish dates the Protocol Specification's current draft: the
+``on_page_content`` hook writes the publish date into each
+:data:`PUBLISH_DATE_SLOT` that the drafts register's generated fragments hold
+(DOCBW-08-040).
 
 A publish is named by the ``publish-YYYY-MM-DD.N`` tag the publish workflow
 creates on the deployed commit (``deploy_site.yml``, ADR-0171, DOCBW-06-016).
@@ -42,6 +46,8 @@ from vultron import __version__
 
 if TYPE_CHECKING:
     from mkdocs.config.defaults import MkDocsConfig
+    from mkdocs.structure.files import Files
+    from mkdocs.structure.pages import Page
 
 #: ``fallback_version`` in ``pyproject.toml``, used when no tag is reachable.
 FALLBACK_VERSION = "0.0.0+dev"
@@ -55,6 +61,16 @@ RELEASE_TAG_ENV = "VULTRON_RELEASE_TAG"
 
 #: The ``config.extra`` key the footer partial reads.
 FOOTER_KEY = "build_footer"
+#: The ``config.extra`` key that holds :data:`PUBLISH_DATE_SLOT`'s text.
+PUBLISH_DATE_KEY = "publish_date"
+#: What a generated fragment writes where the current draft's date goes: the
+#: date of the publish that builds the page (DOCBW-08-040). The
+#: ``on_page_content`` hook replaces it in every page; its own text is what an
+#: unpublished build shows.
+UNPUBLISHED_DATE = "unpublished build"
+PUBLISH_DATE_SLOT = (
+    f'<span class="vultron-publish-date">{UNPUBLISHED_DATE}</span>'
+)
 
 #: The date shape the gate writes, zero-padded; ``strptime`` alone also
 #: takes ``2026-1-5``.
@@ -195,6 +211,18 @@ def describe_build(
     )
 
 
+def publish_date_text(publish: Publish | None) -> str:
+    """The text that replaces :data:`PUBLISH_DATE_SLOT` in a build of *publish*."""
+    if publish is None:
+        return UNPUBLISHED_DATE
+    return publish.published.isoformat()
+
+
+def fill_publish_date(html: str, text: str) -> str:
+    """*html* with every :data:`PUBLISH_DATE_SLOT` replaced by *text*."""
+    return html.replace(PUBLISH_DATE_SLOT, escape(text))
+
+
 def on_config(config: MkDocsConfig) -> MkDocsConfig:
     """MkDocs hook: render the footer line into ``config.extra``.
 
@@ -205,7 +233,18 @@ def on_config(config: MkDocsConfig) -> MkDocsConfig:
     repo_url = config.repo_url
     if not repo_url:
         raise PublishLabelError("mkdocs.yml sets no repo_url to link tags to.")
-    config.extra[FOOTER_KEY] = describe_build(
-        __version__, publish_from_env(os.environ), repo_url
-    )
+    publish = publish_from_env(os.environ)
+    config.extra[FOOTER_KEY] = describe_build(__version__, publish, repo_url)
+    config.extra[PUBLISH_DATE_KEY] = publish_date_text(publish)
     return config
+
+
+def on_page_content(
+    html: str, page: Page, config: MkDocsConfig, files: Files
+) -> str:
+    """MkDocs hook: write the publish's date into each date slot of *page*.
+
+    The slot is raw HTML in the Markdown, so it reaches here as written;
+    the search index, built later from the page's content, reads the date.
+    """
+    return fill_publish_date(html, str(config.extra[PUBLISH_DATE_KEY]))

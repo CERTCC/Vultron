@@ -10,6 +10,7 @@ triggers, permissions, SHA pins and notify steps (DOCBW-07).
 
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
@@ -335,6 +336,38 @@ def fake_gh(monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
     # draft; test_frozen_drafts.py covers the releases that do.
     monkeypatch.setattr(_rel, "register_at", lambda ref: None)
     return fake
+
+
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    ("now", "release", "day"),
+    [
+        # Friday afternoon: Monday's publish, the month's second release.
+        ("2026-11-13T15:00:00+00:00", "v2026.11.1", "2026-11-16"),
+        # Monday 30 November, late: Tuesday 1 December opens a new month.
+        ("2026-11-30T20:00:00+00:00", "v2026.12.0", "2026-12-01"),
+    ],
+)
+def test_next_freeze_names_the_next_publish_and_its_release(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    now: str,
+    release: str,
+    day: str,
+) -> None:
+    tag_as_bot(repo, "v2026.11.0")
+    assert _rel.main(["next-freeze", "--now", now]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "release": release,
+        "date": day,
+    }
+
+
+def test_next_freeze_refuses_a_time_with_no_zone(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _rel.main(["next-freeze", "--now", "2026-11-13T15:00:00"]) == 1
+    assert "no time zone" in capsys.readouterr().err
 
 
 def _promote(publish_tag: str = "", ref: str = MAIN) -> int:

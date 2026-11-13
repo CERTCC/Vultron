@@ -1670,13 +1670,20 @@ groups:
           Each draft of the Protocol Specification MUST have exactly one entry
           in the drafts register `docs/reference/vultron-spec/drafts.yaml`.
           The entry gives the draft's version `draft-N`, its status
-          (unreleased or released) and its date, the day the entry was added to
-          the register, in the `YYYY-MM-DD` format. A released entry also gives
-          the `v*` tag of the release that carries the draft.
+          (unreleased or released) and its date in the `YYYY-MM-DD` format. An
+          unreleased entry's date is the day the entry was added to the
+          register. A released entry's date is the date of the publish that
+          froze the draft: the publish that the promote workflow made the
+          draft's release from. A released entry also gives the `v*` tag of the
+          release that carries the draft.
         rationale: >-
           The promote workflow, the deploy and the pages must agree on which
           drafts are released and by which release. Facts that are written in
-          one place cannot disagree.
+          one place cannot disagree. A frozen draft's pages are the pages of
+          the publish that froze it, so that publish's date is the date the
+          draft keeps. `draft-1`, released before this rule, keeps the date its
+          entry was added, since a released entry never changes
+          (DOCBW-08-003).
         verification: >-
           Tests in `test/ci/test_drafts_register.py` load the committed
           register and check that every entry has the fields its status
@@ -1785,6 +1792,31 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-004
+      - id: DOCBW-08-040
+        priority: MUST
+        kind: project
+        statement: >-
+          While the drafts register holds an unreleased entry, the status box
+          and that entry's revision log status table MUST show, as the current
+          draft's last-updated date, the date of the publish that built the
+          page, which the site build reads from the DOCBW-06-031 inputs. A
+          build that no publish makes MUST say that it is unpublished instead.
+        rationale: >-
+          The current draft changes with each publish, so a date fixed in the
+          register cannot say which text a reader sees. The publish date can,
+          and a reader cites it with the publish tag in the page footer.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` generate the fragments
+          from fixture registers and check that the current draft's table and
+          citation hold the publish-date slot and a released draft's do not.
+          Tests in `test/metadata/docs/test_build_version.py` run the build
+          hook with and without the publish inputs and check the text that
+          fills the slot.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-004
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-031
       - id: DOCBW-08-007
         priority: MUST
         kind: project
@@ -1890,6 +1922,87 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-009
+      - id: DOCBW-08-041
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST refuse the run, and create no tag, when the
+          drafts register at the chosen publish's commit names the run's
+          release for a draft whose date is not the chosen publish's date. The
+          refusal names both dates and says how to date the entry again.
+        rationale: >-
+          The date of a released entry is the date of the publish that froze
+          the draft (DOCBW-08-001). The entry is written before that publish
+          runs, so it holds a prediction. When the publish of that date never
+          ran, or the maintainer names a different one, the draft would keep a
+          date that no publish of it has.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` plan a promotion of a
+          fixture publish whose register dates the draft another day, named and
+          from an empty input, and of a named later publish, and check that
+          each run fails, names the dates and creates no tag.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-009
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-042
+        priority: MUST
+        kind: project
+        statement: >-
+          When the promote workflow's input is empty and the drafts register at
+          the newest publish's commit names the run's release for a draft
+          whose date is not that publish's date, the run MUST promote the
+          newest publish of the draft's date whose register holds the same
+          entry, when one exists.
+        rationale: >-
+          A maintainer may run the promote days after the publish that froze
+          the draft, once later publishes exist. Promoting the publish of the
+          draft's date makes that run succeed without naming a tag, and its
+          pages are the frozen text: the commits after it hold the same entry,
+          and every change to the text goes into the next draft.
+        verification: >-
+          Tests in `test/ci/test_frozen_drafts.py` promote from an empty input
+          after a later publish, and with a same-day publish whose register
+          lacks the entry, and check that the release tag names the commit of
+          the publish that froze the draft.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+      - id: DOCBW-08-043
+        priority: MUST
+        kind: project
+        statement: >-
+          The command `drafts-register release` MUST mark the unreleased entry
+          of the drafts register released, with the next `v*` release tag and
+          the date of the next scheduled publish (DOCBW-06-007), and write the
+          DOCBW-08-004 fragments from the result. It MUST date again a released
+          entry whose release tag does not exist yet, and refuse when every
+          entry's release tag exists. A `--release` and `--date` pair names
+          the tag and the date instead.
+        rationale: >-
+          The maintainer must not predict the release tag and the publish date
+          by hand: a wrong prediction makes the promote refuse
+          (DOCBW-08-011, DOCBW-08-041). The publish after the change merges is
+          the next scheduled one, which is the publish that freezes the
+          draft. When that publish does not run, the command dates the entry
+          again.
+        verification: >-
+          Tests in `test/ci/test_drafts_register.py` run the command on fixture
+          registers in scratch repositories and check the written entry, the
+          regenerated fragments, the second dating and the refusal. Tests in
+          `test/ci/test_release.py` and `test/ci/test_publish_gate.py` check the
+          predicted tag and date, and that the predicted time is the publish
+          workflow's schedule.
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-001
+          - rel_type: uses_definition
+            spec_id: DOCBW-06-007
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-004
       - id: DOCBW-08-012
         priority: MUST
         kind: project

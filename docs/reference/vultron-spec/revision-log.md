@@ -30,7 +30,13 @@ Thus the version identifier of a released draft always names one text, and a rea
 The version identifier names the text of the specification only.
 The release tag names a snapshot of the whole repository.
 
-The date of a draft is the day its entry was added to the drafts register, in the `YYYY-MM-DD` format.
+Each date has the `YYYY-MM-DD` format.
+A released draft has one date: the date of the publish of the site that froze it.
+That date never changes.
+The current draft has two dates.
+Its last-updated date is the date of the publish that built the page you read, and each publish stamps a new one.
+Its opened date is the day its entry was added to the drafts register, which is the day the draft before it was frozen.
+The date of Draft 1, 2026-11-06, predates this rule: it is the day its entry was added, and the publish of 2026-11-13 froze it.
 The drafts register is the file in the Vultron repository that records each draft's version, status, date and release, and the status table of each entry on this page is generated from it.
 
 ## Draft 2
