@@ -130,7 +130,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     CM-23-018, CM-23-020, CM-23-048, CM-23-055.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.LEDGER_PEER
     )
 
@@ -201,7 +201,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     SYNC-15-012, SYNC-15-013, SYNC-20-001.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 

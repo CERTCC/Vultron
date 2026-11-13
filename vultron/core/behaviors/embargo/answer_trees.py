@@ -337,6 +337,17 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
+            # At a participant the Reject records nothing in the case: the
+            # handler closes the participant's pending ask from the doors'
+            # answer alone (EP-09-019), and the tree states the replica's
+            # verdict itself, a refusal as the not-CASE_MANAGER it is
+            # (HP-01-005, BT-17-001).  It runs first, because the embargo
+            # guards below are the CASE_MANAGER's questions: at the
+            # proposer's replica the proposal is no open register entry, so
+            # IsAnswerableEmbargoNode would refuse it for that instead.
+            OnPaths.off_case_manager(
+                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
+            ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-014).  Only the
@@ -363,14 +374,6 @@ def reject_invite_to_embargo_tree(
                 case_manager_admits_answer_change_guard(
                     case_id, embargo_id, rejecting_actor_id, accept=False
                 ),
-            ),
-            # At a participant the Reject records nothing in the case: the
-            # handler closes the participant's pending ask from the doors'
-            # answer alone (EP-09-019), and the tree states the replica's
-            # verdict itself, a refusal as the not-CASE_MANAGER it is
-            # (HP-01-005, BT-17-001).
-            OnPaths.off_case_manager(
-                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
             ),
         ],
         manager_effects=[

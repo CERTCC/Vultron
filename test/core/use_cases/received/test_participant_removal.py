@@ -68,6 +68,7 @@ from vultron.core.use_cases.received.case_participant import (
 )
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
     reject_log_entry_activity,
     remove_participant_from_case_activity,
 )
@@ -317,9 +318,11 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
     assert removal.ledger() == []
 
 
-@pytest.mark.spec("CM-24-014")
-def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
-    """With no CASE_MANAGER on the roster, nobody may apply the removal."""
+def _replica_without_a_case_manager() -> tuple[
+    SqliteDataLayer, CaseParticipant
+]:
+    """VENDOR's replica of the case, its roster naming no CASE_MANAGER, and
+    OTHER's record on it."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
     _seed(dl)
     case = dl.read(CASE_ID)
@@ -336,6 +339,13 @@ def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
     dl.save(case)
     record = dl.read(_participant_id(OTHER))
     assert isinstance(record, CaseParticipant)
+    return dl, record
+
+
+@pytest.mark.spec("CM-24-014")
+def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
+    """With no CASE_MANAGER on the roster, nobody may apply the removal."""
+    dl, record = _replica_without_a_case_manager()
 
     result = route_received(
         dl,
@@ -347,10 +357,32 @@ def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "no CASE_MANAGER" in (result.reason or "")
+    assert f"case '{CASE_ID}' names no CASE_MANAGER" in (result.reason or "")
     stored = dl.read(_participant_id(OTHER))
     assert isinstance(stored, CaseParticipant)
     assert not stored.removed
+
+
+@pytest.mark.spec("CM-02-014", "CM-24-008")
+def test_add_on_a_case_without_a_case_manager_is_refused() -> None:
+    """The Add's sender guard requires a CASE_MANAGER on the replica path, so
+    a case whose roster names none refuses it (CM-02-014, #6394)."""
+    dl, record = _replica_without_a_case_manager()
+    before = len(dl.list_objects("CaseLedgerEntry"))
+
+    result = route_received(
+        dl,
+        add_participant_to_case_activity(
+            record, target=CASE_ID, actor=OWNER, to=[VENDOR], at=authored_at()
+        ),
+        receiving_actor_id=VENDOR,
+        sync_port=SyncActivityAdapter(dl),
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert f"case '{CASE_ID}' names no CASE_MANAGER" in (result.reason or "")
+    assert len(dl.list_objects("CaseLedgerEntry")) == before
+    assert dl.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------

@@ -63,8 +63,8 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
 
     # Only the Case Owner proposes; a participant never receives a proposal,
     # so no sender is admitted there (CM-21-045, ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER)
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(

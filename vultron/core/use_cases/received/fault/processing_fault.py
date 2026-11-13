@@ -83,13 +83,14 @@ class CreateProcessingFaultReceivedUseCase:
     The sender rule is declared once, below, and the receive-tree factory
     composes it into the tree of every class that has an effect: at the
     CASE_MANAGER the sender must be an active participant of the case the
-    fault concerns (CM-10-004, SYNC-16-003, SYNC-03-008), and at a
-    participant the fault must come from the CASE_MANAGER (PCR-03-001).  A
+    fault concerns (CM-10-004, SYNC-16-003, SYNC-03-008).  Each response
+    tree declares the manager path alone, so the rule states that side only
+    and the path stage refuses any other receiver (HP-01-038).  A
     class that is only archived runs no guard, because nothing it does is
     gated on a sender's standing.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 

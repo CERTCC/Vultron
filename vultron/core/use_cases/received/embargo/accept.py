@@ -108,7 +108,7 @@ def _resolve_case_for_embargo_acceptance(
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.INVITEE
     )
 

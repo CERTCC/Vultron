@@ -697,7 +697,10 @@ class TestInvalidateReportReceivedTree:
         result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status == Status.FAILURE
-        assert path_refusal(tree) is not None
+        refusal = path_refusal(tree)
+        assert refusal is not None
+        # The fixture's case names no CASE_MANAGER (CM-02-014).
+        assert refusal.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
         assert not _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -774,6 +777,8 @@ class TestInvalidateReportReceivedUseCase:
         result = run_in_act(InvalidateReportReceivedUseCase(dl, event))
 
         assert result.disposition is HandlerDisposition.REFUSED
+        # The fixture's case names no CASE_MANAGER (CM-02-014).
+        assert result.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
         assert not _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]

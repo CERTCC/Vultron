@@ -48,7 +48,6 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseManagerNode,
     SenderIsOwnershipTransfereeNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -154,13 +153,6 @@ def _sender_admitted():
     with (
         patch.object(
             SenderIsOwnershipTransfereeNode,
-            "update",
-            autospec=True,
-            return_value=Status.SUCCESS,
-        ),
-        # The replica's side of the rule: the sender is the CASE_MANAGER.
-        patch.object(
-            SenderIsCaseManagerNode,
             "update",
             autospec=True,
             return_value=Status.SUCCESS,

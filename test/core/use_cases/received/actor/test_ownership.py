@@ -1924,7 +1924,7 @@ class TestOfferAtTheTransferee:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         assert dl.read(offer.id_) is None
         assert dl.outbox_list() == []
 
@@ -1983,7 +1983,8 @@ def _vendor_replica(case_id: str):
 
 
 class TestAcceptAtAReplica:
-    """PCR-03-001: a participant replica takes the change only from the CASE_MANAGER."""
+    """The Accept goes to the CASE_MANAGER alone, so the path stage refuses
+    it at a participant replica, whoever sent it (HP-01-005, PCR-08-001)."""
 
     @pytest.mark.spec("CM-21-011")
     @pytest.mark.spec("PCR-03-001")
@@ -1998,7 +1999,7 @@ class TestAcceptAtAReplica:
         result = _accept(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         _assert_nothing_changed(dl, case_id, roles_before, [])
         assert dl.outbox_list() == []
 
@@ -2007,9 +2008,9 @@ class TestAcceptAtAReplica:
     def test_accept_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """The sender guard admits it, but a replica is not the CASE_MANAGER
-        it was addressed to: it applies the change only from the ledger
-        fan-out (RSH-08-003), so it refuses the copy (HP-01-005)."""
+        """Even from the CASE_MANAGER, the path stage refuses the copy before
+        the sender guard runs: a replica applies the change only from the
+        ledger fan-out (RSH-08-003, HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_replica_admitted"
         dl, offer = _vendor_replica(case_id)
 
@@ -2018,8 +2019,7 @@ class TestAcceptAtAReplica:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "not the CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         assert dl.outbox_list() == []
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _semantic_types(dl) == []
@@ -2238,7 +2238,8 @@ class TestRejectOfOwnershipTransfer:
 
 
 class TestRejectAtAReplica:
-    """PCR-03-001: a replica takes the Reject only from the CASE_MANAGER."""
+    """The Reject goes to the CASE_MANAGER alone, so the path stage refuses
+    it at a participant replica, whoever sent it (HP-01-005, PCR-08-001)."""
 
     @pytest.mark.spec("CM-21-013")
     @pytest.mark.spec("PCR-03-001")
@@ -2252,7 +2253,7 @@ class TestRejectAtAReplica:
         result = _reject(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         _assert_nothing_changed(dl, case_id, roles_before, [])
         assert dl.outbox_list() == []
 
@@ -2262,8 +2263,9 @@ class TestRejectAtAReplica:
     def test_reject_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """Admitted, but a replica is not the CASE_MANAGER: it refuses the
-        copy, commits nothing and keeps the owner (HP-01-005)."""
+        """Even from the CASE_MANAGER, the path stage refuses the copy before
+        the sender guard runs, commits nothing and keeps the owner
+        (HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_rj_replica_admitted"
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
@@ -2273,8 +2275,7 @@ class TestRejectAtAReplica:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "not the CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         _assert_nothing_changed(dl, case_id, roles_before, [])
         assert dl.outbox_list() == []
 
@@ -2760,7 +2761,8 @@ class TestWithdrawalOfOwnershipTransfer:
 
 
 class TestWithdrawalAtAReplica:
-    """PCR-03-001: a replica takes the Undo only from the CASE_MANAGER."""
+    """The Undo goes to the CASE_MANAGER alone, so the path stage refuses
+    it at a participant replica, whoever sent it (HP-01-005, PCR-08-001)."""
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("PCR-03-001")
@@ -2774,7 +2776,7 @@ class TestWithdrawalAtAReplica:
         result = _undo(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         _assert_nothing_changed(dl, case_id, roles_before, [])
         assert dl.outbox_list() == []
 
@@ -2784,8 +2786,9 @@ class TestWithdrawalAtAReplica:
     def test_withdrawal_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """Admitted, but a replica is not the CASE_MANAGER: it refuses the
-        copy, commits nothing and keeps the owner (HP-01-005)."""
+        """Even from the CASE_MANAGER, the path stage refuses the copy before
+        the sender guard runs, commits nothing and keeps the owner
+        (HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_undo_replica_admitted"
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
@@ -2795,8 +2798,7 @@ class TestWithdrawalAtAReplica:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "not the CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case_id}'"
         _assert_nothing_changed(dl, case_id, roles_before, [])
         assert dl.outbox_list() == []
 

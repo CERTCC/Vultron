@@ -299,36 +299,18 @@ def test_case_managers_reject_at_a_replica_is_refused_by_the_tree() -> None:
     as the not-CASE_MANAGER it is, read from its ``ReplicaRefusalNode``
     rather than from a handler read after the run (#6394).
 
-    The embargo guards that run before it are made to pass, so the refusal
-    under test is the replica's own and not a guard's.
+    The replica refusal runs before the embargo guards, which are the
+    CASE_MANAGER's questions: at the proposer's replica the proposal is no
+    open register entry, so a guard ahead of it would refuse for that.
     """
-    from unittest.mock import patch
-
-    from py_trees.common import Status
-
-    from vultron.core.behaviors.embargo.nodes.conditions import (
-        IsAnswerableEmbargoNode,
-    )
-    from vultron.core.behaviors.embargo.nodes.withdrawal import (
-        RejectIsNotWithdrawalNode,
-    )
-
     dl, case, proposal = _proposer_with_pending_proposal()
     event = _reject_event(dl, proposal, case.id_, _MANAGER)
 
-    with (
-        patch.object(
-            IsAnswerableEmbargoNode, "update", return_value=Status.SUCCESS
-        ),
-        patch.object(
-            RejectIsNotWithdrawalNode, "update", return_value=Status.SUCCESS
-        ),
-    ):
-        result = run_in_act(
-            RejectInviteToEmbargoOnCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
-            )
+    result = run_in_act(
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
         )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"

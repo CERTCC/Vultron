@@ -196,12 +196,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
     # takes participant status from the ledger, never from an Add
     # (PCR-03-001, RSH-08-003), so the rule names the CASE_MANAGER side only.
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(
-            SenderEntitlementKind.CASE_MANAGER,
-            SenderEntitlementKind.CASE_OWNER,
-            SenderEntitlementKind.AUTHOR,
-        )
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
+        SenderEntitlementKind.CASE_MANAGER,
+        SenderEntitlementKind.CASE_OWNER,
+        SenderEntitlementKind.AUTHOR,
     )
 
     def __init__(

@@ -672,9 +672,9 @@ class TestNoteUseCases:
         nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
-        fan-out (SYNC-02-001, SYNC-02-003). The BT CheckIsCaseManagerNode guard
-        keeps the non-manager from attaching or committing, and the handler
-        reports the misaddressed note as a refusal (#3752).
+        fan-out (SYNC-02-001, SYNC-02-003). The tree declares the
+        CASE_MANAGER path alone, so its path stage refuses the misaddressed
+        note before anything is attached or committed (HP-01-039, #3752).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -728,7 +728,7 @@ class TestNoteUseCases:
         # HP-01-005: a note addressed to the wrong party is refused, not
         # reported as a processed no-op.
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"
 
     def _remove(self, dl, make_payload, sender, note, case):
         event = make_payload(
@@ -784,6 +784,11 @@ class TestNoteUseCases:
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
+        # The sender guard, not the unsupported-type guard, refuses it: the
+        # sender is judged first (CM-30-001, SYNC-21-008).
+        assert result.reason != REMOVE_NOTE_UNSUPPORTED
+        assert "(CASE_OWNER, AUTHOR)" in (result.reason or "")
+        assert "HP-01-006" in (result.reason or "")
         self._assert_note_kept(dl, note, case)
 
     @pytest.mark.spec("CM-30-003")

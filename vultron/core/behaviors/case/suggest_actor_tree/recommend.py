@@ -99,10 +99,10 @@ def create_recommend_actor_to_case_received_tree(
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
-        ├── SuggestedActorAdmitted (CASE_MANAGER path)
-        │   └── SuggestedActorAdmissible (Sequence, memory=False)
-        │       ├── SuggestedActorNotRemoved      — CM-31-013 guard
-        │       └── SuggestedRolesGrantable       — CM-20-008 guard
+        ├── ReceivedPathNode                     — manager path only (HP-01-038)
+        ├── SuggestedActorAdmissible (Sequence, memory=False)
+        │   ├── SuggestedActorNotRemoved          — CM-31-013 guard
+        │   └── SuggestedRolesGrantable           — CM-20-008 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -122,8 +122,9 @@ def create_recommend_actor_to_case_received_tree(
                                         EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
-    A receiver that is not the case's CASE_MANAGER passes the gate's skip arm
-    and does nothing: no recommender index write, no emit (#3752).
+    The tree declares the CASE_MANAGER path alone, so the path stage refuses
+    any other receiver before intake: no recommender index write, no emit
+    (HP-01-039, #3752, #6394).
 
     Only a participant may suggest an actor (CM-16-001): the sender guard
     refuses a suggestion from anyone the case does not list, before the

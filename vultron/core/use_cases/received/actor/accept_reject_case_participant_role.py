@@ -19,7 +19,6 @@ from vultron.core.behaviors.case.role_offer_answer_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
-    any_of,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
@@ -88,8 +87,8 @@ class AcceptCaseParticipantRoleReceivedUseCase:
     # no sender is admitted at any other store: a participant learns the
     # answer from the CASE_MANAGER's entry, never from the answer itself
     # (CM-02-016).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR)
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -145,8 +144,8 @@ class RejectCaseParticipantRoleReceivedUseCase:
     """
 
     # The Accept's rule (CM-33-005).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR)
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
