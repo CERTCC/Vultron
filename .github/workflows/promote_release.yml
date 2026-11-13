@@ -12,8 +12,8 @@
 # (ADR-0188, DOCBW-08): `vultron-spec-draft-N.tar.gz` and its SHA-256 manifest.
 # The order of the jobs keeps a draft release from ever lacking them:
 #   plan          names the release and its draft, and the publish of the
-#                 draft's date when the input is empty (DOCBW-08-042); reads
-#                 only.
+#                 draft's date when the input is empty and the draft's release
+#                 is not yet published (DOCBW-08-042); reads only.
 #   frozen-draft  builds the site at the promoted commit, serves the released
 #                 drafts' frozen pages into it (DOCBW-08-039), and builds the
 #                 archive from it, with no token that can write (DOCBW-08-019).
@@ -34,7 +34,8 @@ on:
           The publish-YYYY-MM-DD.N tag to promote. It must be one the publish
           workflow made. Leave empty to promote the newest one, which names
           what the site shows now, or, when the drafts register releases a
-          draft dated an earlier day, the publish of that day that froze it.
+          draft dated an earlier day whose release is not yet published, the
+          publish of that day that froze it.
         type: string
         default: ''
 
@@ -80,15 +81,19 @@ jobs:
           uv-sync-args: "--no-dev"
 
       # A manual run from another ref is refused: it would run that ref's copy
-      # of this workflow (DOCBW-07-004). The promote job decides again.
+      # of this workflow (DOCBW-07-004). The promote job decides again. The
+      # read-only token looks up whether a draft's release is published yet
+      # (DOCBW-08-042).
       - name: Plan the promotion
         id: plan
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           REF: ${{ github.ref }}
           PUBLISH_TAG: ${{ inputs.publish-tag }}
         run: |
           python3 -I .github/scripts/release.py plan \
-            --ref "$REF" --publish-tag "$PUBLISH_TAG"
+            --repo "$REPO" --ref "$REF" --publish-tag "$PUBLISH_TAG"
 
   frozen-draft:
     name: Build the frozen draft archive

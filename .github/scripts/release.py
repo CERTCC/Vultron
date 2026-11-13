@@ -29,7 +29,7 @@ gate's tagger check. Tags are append-only (#5545): this script creates a
 release tag and nothing else; it never moves or deletes one.
 
 Usage:
-  release.py plan --ref REF [--publish-tag TAG]
+  release.py plan --repo OWNER/NAME --ref REF [--publish-tag TAG]
   release.py promote --repo OWNER/NAME --ref REF --actor LOGIN --run-url URL
       [--publish-tag TAG] [--planned-release TAG] [--planned-draft draft-N]
       [--frozen-dir DIR]
@@ -264,6 +264,7 @@ def freeze_publish(
     newest: Tag,
     tags: Iterable[Tag],
     register_at: Callable[[str], Register | None],
+    published: Callable[[str], bool],
 ) -> Tag:
     """The publish an empty input promotes: *newest*, or the one that froze a draft.
 
@@ -273,8 +274,10 @@ def freeze_publish(
     draft (DOCBW-08-042). A promote run later than that publish thus still
     carries the draft with its date, and a run after one that tagged that
     publish's commit and then failed resumes that release (DOCBW-07-012).
-    The choice is made before the release is named, so it does not depend on
-    which tags exist. With no such publish, *newest* is kept, and
+    The choice is made before the release is named. Once the entry's release
+    is published (*published* answers for its tag), that draft is done and
+    *newest* is kept, so a later release that carries no draft promotes what
+    the site shows now. With no such publish, *newest* is kept too, and
     :func:`carried_draft` refuses it if the draft is this run's.
     """
     register = register_at(newest.commit)
@@ -293,7 +296,8 @@ def freeze_publish(
     while (tag := newest_publish_tag(same_day)) is not None:
         theirs = register_at(tag.commit)
         if theirs is not None and theirs.entry(entry.version) == entry:
-            return tag
+            done = entry.release is not None and published(entry.release)
+            return newest if done else tag
         same_day.remove(tag)
     return newest
 
@@ -657,6 +661,16 @@ def _today() -> date:
     return datetime.now(UTC).date()
 
 
+def _published(repo: str, name: str) -> bool:
+    """Whether *repo* has a published, not draft, GitHub Release of tag *name*.
+
+    The plan job's read-only token cannot see a draft release, which then
+    reads as none: either way the release is not published.
+    """
+    state = release_state(repo, name, retry=True)
+    return state is not None and not state.is_draft
+
+
 def _decide(args: argparse.Namespace) -> tuple[Promotion, str | None]:
     """The promotion and the draft it carries, or a refusal."""
     if args.ref != MAIN_REF:
@@ -666,7 +680,9 @@ def _decide(args: argparse.Namespace) -> tuple[Promotion, str | None]:
     tags = list(publish_tags())
     source = choose_publish_tag(args.publish_tag, tags)
     if not args.publish_tag:
-        source = freeze_publish(source, tags, register_at)
+        source = freeze_publish(
+            source, tags, register_at, lambda name: _published(args.repo, name)
+        )
     releases = release_tags()
     promotion = plan_promotion(source, releases, _today())
     draft = carried_draft(promotion, (t.name for t in releases), register_at)
@@ -954,6 +970,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     plan = sub.add_parser("plan")
+    plan.add_argument("--repo", required=True)
     plan.add_argument("--ref", required=True)
     plan.add_argument("--publish-tag", default="")
     plan.set_defaults(func=cmd_plan)

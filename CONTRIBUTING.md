@@ -74,9 +74,10 @@ To cut a Vultron release:
    the next scheduled publish, which is the date the draft keeps. Merge it
    before 06:07 UTC that day, the time the command prints: the publish often
    starts late, but never early. Then leave **publish-tag** empty on or after
-   that day, in the same month: the run then promotes the publish of that
-   date, even if later publishes exist. If that publish never ran, the run
-   refuses; run the command again and merge its new date.
+   that day, in the same month: until you publish the release, the run then
+   promotes the publish of that date, even if later publishes exist. If that
+   publish never ran, the run refuses; run the command again and merge its new
+   date.
 4. Edit the draft in the GitHub release editor:
    - Keep the title, which is the version tag (e.g., `v2026.11.0`).
    - The notes start with the statement that all interfaces are experimental,

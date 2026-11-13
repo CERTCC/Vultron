@@ -1969,8 +1969,9 @@ groups:
         kind: project
         statement: >-
           When the promote workflow's input is empty and the drafts register at
-          the newest publish's commit holds no unreleased entry and its newest
-          released entry's date is not that publish's date, the run MUST
+          the newest publish's commit holds no unreleased entry, its newest
+          released entry's date is not that publish's date, and no published
+          GitHub Release of that entry's release tag exists, the run MUST
           promote the newest publish of that date whose register holds the
           same entry, when one exists. The run chooses that publish before it
           names its release.
@@ -1981,12 +1982,16 @@ groups:
           pages are the frozen text: the commits after it hold the same entry,
           and every change to the text goes into the next draft. Choosing it
           before naming the release lets a run after one that tagged that
-          publish's commit and failed resume that release (DOCBW-07-012).
+          publish's commit and failed resume that release (DOCBW-07-012). Once
+          that release is published the draft is done, and until the next
+          draft is opened a later release carries no draft and promotes the
+          newest publish, as DOCBW-07-012 says.
         verification: >-
           Tests in `test/ci/test_frozen_drafts.py` promote from an empty input
           after a later publish, with a same-day publish whose register lacks
-          the entry, after a failed run that left the release tag, and with a
-          draft open, and check which commit the release tag names.
+          the entry, after a failed run that left the release tag, after the
+          draft's release is published with no draft open, and with a draft
+          open, and check which commit the release tag names.
         relationships:
           - rel_type: refines
             spec_id: DOCBW-07-012

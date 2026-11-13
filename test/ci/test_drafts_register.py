@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -881,6 +882,24 @@ def test_release_refuses_a_flow_style_list(clone):
         dr.release_open_draft(clone, FREEZE)
 
 
+@pytest.mark.spec("DOCBW-08-043")
+@pytest.mark.parametrize(
+    "text",
+    [
+        _register(_open(1)) + "  # draft-2 opens after the release\n",
+        _register(_open(1)).replace("2026-11-06", "2026-11-06  # opened"),
+    ],
+    ids=["own-line", "trailing"],
+)
+def test_release_refuses_a_comment_inside_the_list(clone, text):
+    """Writing the list again would drop the comment, so nothing is written."""
+    _freeze_repo(clone, text)
+    before = _tracked(clone)
+    with pytest.raises(dr.ReleaseCommandError, match="comment inside"):
+        dr.release_open_draft(clone, FREEZE)
+    assert _tracked(clone) == before
+
+
 @pytest.mark.spec("DOCBW-08-003", "DOCBW-08-043", "DOCBW-08-045")
 def test_release_fails_before_any_write_when_the_tags_cannot_be_fetched(clone):
     _freeze_repo(clone, _register(_open(1)))
@@ -986,6 +1005,17 @@ def test_predict_freeze_refuses_a_failed_prediction(
     monkeypatch.setattr(dr.subprocess, "run", lambda argv, **kw: proc)
     with pytest.raises(dr.ReleaseCommandError, match=words):
         dr.predict_freeze(tmp_path)
+
+
+def test_predict_freeze_runs_the_real_script():
+    """The isolated (``-I``) run of ``next-freeze`` imports and predicts."""
+    before = datetime.now(UTC)
+    freeze = dr.predict_freeze(repo_root())
+    assert re.fullmatch(r"v\d{4}\.\d{1,2}\.\d+", freeze.release)
+    assert freeze.publish_starts > before
+    assert freeze.publish_starts.date() == freeze.day
+    assert freeze.day.weekday() < 5
+    assert (freeze.publish_starts.hour, freeze.publish_starts.minute) == (6, 7)
 
 
 def test_release_script_is_the_promotes_script():

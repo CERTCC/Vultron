@@ -950,7 +950,8 @@ def release_open_draft(
         MetadataLoadError, MetadataLoadErrors: When the register, or the one
             the command would write, is malformed.
         ReleaseCommandError: When no draft can be marked released, or the
-            register's ``drafts:`` list is not in the block form it writes.
+            register's ``drafts:`` list is not in the block form it writes or
+            holds a comment, which writing it again would drop.
         GitError: When git cannot fetch or read the tags.
     """
     path = root / REGISTER_PATH
@@ -962,6 +963,12 @@ def release_open_draft(
         raise ReleaseCommandError(
             f"{shown} has no 'drafts:' line opening a block list, so the "
             "command cannot tell its header from its entries"
+        )
+    if "#" in text[start.end() :]:
+        raise ReleaseCommandError(
+            f"{shown} has a comment inside its 'drafts:' list, which the "
+            "command would drop when it writes the list again: move it into "
+            "the header above 'drafts:'"
         )
     git = git_runner(root)
     git(["fetch", "--quiet", "--tags", "origin"])

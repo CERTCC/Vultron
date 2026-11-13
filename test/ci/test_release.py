@@ -656,6 +656,11 @@ def test_promote_workflow() -> None:
         ]
         assert step["env"]["REF"] == "${{ github.ref }}"
         assert '--ref "$REF"' in step["run"]
+        # Both look up the draft's release on GitHub (DOCBW-08-042).
+        assert step["env"]["REPO"] == "${{ github.repository }}"
+        token = step["env"]["GH_TOKEN"]
+        assert token == "${{ secrets.GITHUB_TOKEN }}"  # noqa: S105 - an expression
+        assert '--repo "$REPO"' in step["run"]
 
 
 @pytest.mark.spec("DOCBW-07-007", "DOCBW-07-014")

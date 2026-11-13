@@ -835,6 +835,11 @@ def _promote(
     return int(_rel.main(argv))
 
 
+def _plan_argv(ref: str) -> list[str]:
+    """The ``plan`` command line for *ref*, with an empty input."""
+    return ["plan", "--repo", "O/R", "--ref", ref, "--publish-tag", ""]
+
+
 def _creates(fake: _Releases) -> list[tuple[str, ...]]:
     return [c for c in fake.calls if c[1] == "create"]
 
@@ -991,6 +996,24 @@ def test_a_late_promote_resumes_the_tag_a_failed_run_left(
     assert {t.name for t in _tags.release_tags()} == {RELEASE}
 
 
+@pytest.mark.spec("DOCBW-07-012", "DOCBW-08-042")
+def test_once_the_drafts_release_is_published_the_newest_publish_is_promoted(
+    repo: Path, releases: _Releases
+) -> None:
+    """With no draft open yet, a later release carries no draft (#6406)."""
+    commit = _publish(repo, RELEASED)
+    tag_as_bot(repo, RELEASE, commit)
+    git(repo, "push", "-q", "origin", RELEASE)
+    releases.add(RELEASE, draft=False, assets={ARCHIVE: b"a", MANIFEST: b"m"})
+    git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
+    tag_as_bot(repo, "publish-2026-11-03.1")
+    newest = git(repo, "rev-parse", "HEAD")
+    later = "v2026.11.1"
+    assert _promote(None, draft="", release=later, commit=newest) == 0
+    assert git(repo, "rev-parse", f"{later}^{{commit}}") == newest
+    assert git(repo, "rev-parse", f"{RELEASE}^{{commit}}") == commit
+
+
 @pytest.mark.spec("DOCBW-08-042")
 def test_an_open_draft_keeps_the_newest_publish(
     repo: Path, releases: _Releases
@@ -1016,7 +1039,8 @@ def test_a_draft_dated_off_its_publish_is_refused(
     _commit_register(repo, RELEASED, day="2026-11-01")
     tag_as_bot(repo, PUBLISH)
     argv = [
-        "plan", "--ref", MAIN, "--publish-tag", PUBLISH if named else "",
+        "plan", "--repo", "O/R", "--ref", MAIN,
+        "--publish-tag", PUBLISH if named else "",
     ]  # fmt: skip
     assert _rel.main(argv) == 1
     err = capsys.readouterr().err
@@ -1035,7 +1059,10 @@ def test_a_named_publish_other_than_the_freezing_one_is_refused(
     _publish(repo, RELEASED)
     git(repo, "commit", "--allow-empty", "-q", "-m", "later work")
     tag_as_bot(repo, "publish-2026-11-03.1")
-    argv = ["plan", "--ref", MAIN, "--publish-tag", "publish-2026-11-03.1"]
+    argv = [
+        "plan", "--repo", "O/R", "--ref", MAIN,
+        "--publish-tag", "publish-2026-11-03.1",
+    ]  # fmt: skip
     assert _rel.main(argv) == 1
     assert "published on 2026-11-03" in capsys.readouterr().err
 
@@ -1257,14 +1284,12 @@ def test_the_plan_names_the_release_and_its_draft(
     commit = _publish(repo, entry)
     out = tmp_path / "out"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    assert _rel.main(["plan", "--ref", MAIN, "--publish-tag", ""]) == 0
+    assert _rel.main(_plan_argv(MAIN)) == 0
     assert out.read_text() == (
         f"commit={commit}\npublish-tag={PUBLISH}\npublish-date=2026-11-02\n"
         f"release={RELEASE}\ndraft={'draft-1' if carries else ''}\n"
     )
-    assert (
-        _rel.main(["plan", "--ref", "refs/heads/x", "--publish-tag", ""]) == 1
-    )
+    assert _rel.main(_plan_argv("refs/heads/x")) == 1
 
 
 def test_register_at_reads_mains_drafts_register(
