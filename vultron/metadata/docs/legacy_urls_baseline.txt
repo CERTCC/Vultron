@@ -206,6 +206,7 @@ adr/0194-every-wire-field-has-a-typed-json-ld-term-with-one-meaning-per-name.md
 adr/0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md
 adr/0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md
 adr/0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md
+adr/0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
