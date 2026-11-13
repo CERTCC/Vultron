@@ -41,9 +41,9 @@ from typing import Any
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.type_terms import body_type_terms
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
-from vultron.core.predicates.type_terms import body_type_terms
 from vultron.errors import VultronCanonicalEntryError
 
 logger = logging.getLogger(__name__)

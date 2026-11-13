@@ -469,3 +469,93 @@ class TestResolverHelpers:
             _format_object({"type": ["Foo", "Note"], "id": "https://e.org/n"})
             == "Note https://e.org/n"
         )
+
+
+class _RejectReading(as_Reject):
+    """A test-only class that inherits ``Reject``'s ``type_``, as a semantic
+    subclass does: it declares no wire type of its own, so it registers none."""
+
+
+@pytest.mark.spec("VM-03-006")
+class TestAClassReadsAListNamingItsOwnType:
+    """A list names each of its terms, so a class whose declared type is one
+    of them reads the list as that type (ADR-0196): an ancestor re-reading a
+    subtype's wire dump, as the semantic coercion of a stored row does."""
+
+    def test_the_core_supertype_reads_the_subtypes_dump(self, ext):
+        read = as_Reject.model_validate(_wire(_decline(ext)))
+
+        assert type(read) is as_Reject
+        assert read.type_ == "Reject"
+
+    def test_a_class_inheriting_the_supertypes_type_reads_it(self, ext):
+        read = _RejectReading.model_validate(_wire(_decline(ext)))
+
+        assert read.type_ == "Reject"
+
+    def test_the_subtype_still_reads_its_own_dump_as_itself(self, ext):
+        read = ext.Decline.model_validate(_wire(_decline(ext)))
+
+        assert read.type_ == "TestDecline"
+
+    def test_two_unrelated_known_types_are_refused_even_naming_its_own(self):
+        with pytest.raises(ValidationError, match="subtype"):
+            as_Reject.model_validate(_activity_body(["Reject", "Note"]))
+
+
+def test_an_unknown_list_keeps_a_core_only_term():
+    """A core-only name in a list is kept, as the same string is (VM-06-008)."""
+    core_only = next(
+        name for name in sorted(CORE_TYPE_MAP) if name not in WIRE_TYPE_MAP
+    )
+
+    obj = as_Object.model_validate(
+        {
+            "type": ["Foo", core_only],
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+        }
+    )
+
+    assert obj.type_ == core_only
+
+
+def test_a_core_activity_reads_an_embedded_list_as_its_own_type(ext):
+    """A dump this implementation wrote names its own type first (VM-03-005),
+    so a core activity embedding one reads it as that type."""
+    from vultron.core.models.activity import VultronActivity
+
+    embedded = _wire(_decline(ext))
+    outer = VultronActivity.model_validate(
+        {
+            "type": "Announce",
+            "id": "https://example.org/activities/2",
+            "actor": ACTOR,
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+            "object": embedded,
+        }
+    )
+
+    inner = outer.object_
+    assert getattr(inner, "type_", None) == "TestDecline"
+
+
+def test_inline_expansion_narrows_only_the_type_it_resolved():
+    """A stray ``type_`` list on an inline object is not read as its type:
+    the class is resolved from ``type`` and only ``type`` is narrowed."""
+    body = _activity_body(
+        "Create",
+        object={
+            "type": "Note",
+            "type_": ["Foo"],
+            "id": "https://example.org/notes/2",
+            "content": "x",
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+        },
+    )
+
+    parsed = parse_activity(body)
+
+    assert type(parsed.object_) is as_Note

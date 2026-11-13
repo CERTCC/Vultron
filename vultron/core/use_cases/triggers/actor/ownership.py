@@ -36,12 +36,12 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id, require_future_aware
+from vultron.core.models.type_terms import body_type_terms, type_terms
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.predicates.type_terms import body_type_terms, type_terms
 from vultron.core.services.received_activity import (
     read_held_activity,
     read_received_activity,

@@ -21,7 +21,9 @@ as the entry's ``payloadSnapshot``, so a body whose ``type`` is an AS2 list
 ask the wire vocabulary which term is most specific (ARCH-01-001); the parse
 edge already refused a list it cannot resolve (VM-03-006).  A core reader
 therefore asks whether the body *names* a given type: membership in
-:func:`type_terms`, never equality with the raw value.
+:func:`type_terms`, never equality with the raw value.  The module sits in
+``core/models`` so the wire edge reads a list's terms by the same rule
+(ARCH-22-001).
 """
 
 from collections.abc import Collection, Mapping

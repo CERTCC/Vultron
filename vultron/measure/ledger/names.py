@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vultron.core.display import friendly_name
-from vultron.core.predicates.type_terms import body_type_terms, names_type
+from vultron.core.models.type_terms import body_type_terms, names_type
 from vultron.measure.ledger.fields import payload_of
 
 #: The participant record's type, as a set for :func:`names_type`.

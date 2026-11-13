@@ -202,6 +202,13 @@ extension class that refines an AS2 core class declares
 its wire dump writes `[own type, core type]` and its persistence dump keeps one
 string (VM-03-005, ADR-0196).
 
+A class that validates a list naming its own declared type reads the list as that
+type, so `as_Reject` can re-read a `Refuse` dump; the semantic coercion of a
+stored row does exactly that (`coercion.py`). A core reader asks whether a body
+*names* a type through `vultron/core/models/type_terms.py`, which the wire edge
+shares for its term rule, because core cannot ask which term is most specific
+(ARCH-01-001).
+
 ### 6. Dynamic discovery is the startup guarantee
 
 `vocab/objects/__init__.py` and `vocab/activities/__init__.py` import every

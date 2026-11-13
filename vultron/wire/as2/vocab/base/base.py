@@ -46,12 +46,14 @@ from vultron.core.models.base.context import (
     is_default_jsonld_context,
     serialize_with_top_level_context,
 )
+from vultron.core.models.type_terms import type_terms
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
     AmbiguousWireTypeError,
+    declared_wire_type,
     declares_registrable_type,
     is_wire_type_alias,
     narrow_type_list,
@@ -220,19 +222,27 @@ class as_Base(BaseModel):
         ``type_`` holds one string, so the list an extension class serializes
         (``_as2_core_supertype``), or any list a peer sends, is narrowed to the
         term of its most specific known class before the field validates it.
-        A list that names no known type is read as its first term, as a string
-        naming no known type is kept (an unknown inline object stays an
-        ``as_Object``, MV-04-004, VM-03-006).  A list of two unrelated known
-        types, or one with no string term, is refused.
+        A class whose own declared type is in the list reads it as that type:
+        a list names each of its terms, so ``as_Reject`` reads
+        ``["Refuse", "Reject"]`` as a ``Reject``, and a subclass that inherits
+        ``type_`` reads it the same way.  A list that names no wire type is
+        read as the core-only type it names (VM-06-008), else as its first
+        term, as a string naming no known type is kept (an unknown inline
+        object stays an ``as_Object``, MV-04-004, VM-03-006).  A list of two
+        unrelated known types, or one with no string term, is refused.
         """
         if not isinstance(data, dict):
             return data
         try:
-            return narrow_type_list(data)
+            narrowed = _narrow_known(data)
         except AmbiguousWireTypeError as exc:
             raise ValueError(exc.args[0]) from exc
-        except KeyError:
-            return _first_type_term(data)
+        own = declared_wire_type(cls)
+        own_read = None if own is None else _read_as_own_type(data, own)
+        if own_read is None:
+            return narrowed if narrowed is not None else _first_type_term(data)
+        # A second key (``type`` beside ``type_``) may still hold a list.
+        return _narrow_known(own_read) or _first_type_term(own_read)
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):
@@ -299,6 +309,40 @@ class as_Base(BaseModel):
         return cls.model_validate_json(data)
 
 
+def _narrow_known(data: dict[str, Any]) -> dict[str, Any] | None:
+    """*data* with each ``type`` list narrowed to its known term, or ``None``.
+
+    The wire vocabulary is asked first, then core-only types too, as the
+    string lookup a union's core member sees (VM-06-008).  ``None`` when a
+    list names no known type at all.
+
+    Raises:
+        AmbiguousWireTypeError: When a list names two unrelated known types.
+    """
+    try:
+        return narrow_type_list(data)
+    except AmbiguousWireTypeError:
+        raise
+    except KeyError:
+        pass
+    try:
+        return narrow_type_list(data, include_core=True)
+    except AmbiguousWireTypeError:
+        raise
+    except KeyError:
+        return None
+
+
+def _read_as_own_type(data: dict[str, Any], own: str) -> dict[str, Any] | None:
+    """*data* with a ``type`` list naming *own* read as *own*, or ``None``."""
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if isinstance(value, list) and own in type_terms(value):
+            narrowed = {**narrowed, key: own}
+    return None if narrowed is data else narrowed
+
+
 def _first_type_term(data: dict[str, Any]) -> dict[str, Any]:
     """*data* with each unresolved ``type`` list read as its first string term.
 
@@ -310,10 +354,10 @@ def _first_type_term(data: dict[str, Any]) -> dict[str, Any]:
         value = data.get(key)
         if not isinstance(value, list):
             continue
-        term = next((t for t in value if isinstance(t, str) and t), None)
-        if term is None:
+        terms = type_terms(value)
+        if not terms:
             raise ValueError(f"type list {value!r} names no type")
-        narrowed = {**narrowed, key: term}
+        narrowed = {**narrowed, key: terms[0]}
     return narrowed
 
 

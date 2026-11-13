@@ -14,7 +14,7 @@
 
 import pytest
 
-from vultron.core.predicates.type_terms import (
+from vultron.core.models.type_terms import (
     body_type_terms,
     first_named,
     names_type,

@@ -37,7 +37,7 @@ from vultron.wire.as2.unknown_keys import (
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import (
-    narrow_type_list,
+    resolve_received_type,
     resolve_wire_type,
 )
 from vultron.wire.as2.vocab.base.utils import is_blank
@@ -93,8 +93,9 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     if inline_cls is None:
         return expanded
     # The class holds one ``type``: a list is read as the term it resolved
-    # to, which a core class's own validation could not do (ADR-0196).
-    expanded = narrow_type_list(expanded)
+    # to, which a core class's own validation could not do (ADR-0196).  Only
+    # the ``type`` the class was resolved from is narrowed.
+    _, expanded = resolve_received_type(expanded)
 
     # Once the type has resolved to a wire class, failing that class's own
     # validation is a message fault and is refused (ADR-0032: validate at the

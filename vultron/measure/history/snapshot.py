@@ -41,7 +41,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models._helpers import parse_published
-from vultron.core.predicates.type_terms import first_named
+from vultron.core.models.type_terms import first_named
 from vultron.measure.ledger import actor_uri, first_present
 
 #: The activity type whose whole subtree is a recommendation or an offer.

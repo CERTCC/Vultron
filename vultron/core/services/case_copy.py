@@ -58,12 +58,12 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.type_terms import (
+from vultron.core.models.type_terms import (
     first_named,
     names_type,
     type_terms,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import recorded_entries_for_case
 
 logger = logging.getLogger(__name__)
