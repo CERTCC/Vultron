@@ -22,3 +22,6 @@ drafts:
     status: released
     date: 2026-11-06
     release: v2026.11.0
+  - version: draft-2
+    status: unreleased
+    date: 2026-11-13

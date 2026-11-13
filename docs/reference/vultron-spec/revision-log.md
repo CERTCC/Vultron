@@ -33,6 +33,15 @@ The release tag names a snapshot of the whole repository.
 The date of a draft is the day its entry was added to the drafts register, in the `YYYY-MM-DD` format.
 The drafts register is the file in the Vultron repository that records each draft's version, status, date and release, and the status table of each entry on this page is generated from it.
 
+## Draft 2
+
+{% include-markdown "./_drafts/draft-2.md" rewrite-relative-urls=false %}
+
+Draft 2 is the current draft, and its text can still change.
+This entry lists what changed since [Draft 1](#draft-1).
+
+No change has been made since Draft 1 yet.
+
 ## Draft 1
 
 {% include-markdown "./_drafts/draft-1.md" rewrite-relative-urls=false %}
