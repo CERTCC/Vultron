@@ -99,11 +99,6 @@ REFUSAL_UNREACHABLE: dict[MessageSemantics, str] = {
         " which is SKIPPED with no effects, or on an unknown case, which a"
         " door refuses first"
     ),
-    MessageSemantics.REMOVE_NOTE_FROM_CASE: (
-        "its one guard (CaseReferenceEditPendingNode) fails only on a repeat,"
-        " which is SKIPPED with no effects, or on an unknown case, which a"
-        " door refuses first"
-    ),
     MessageSemantics.ADD_CASE_STATUS_TO_CASE: (
         "the tree declares the participant-replica path alone, so the"
         " CASE_MANAGER, the only receiver that runs refusal effects, is"

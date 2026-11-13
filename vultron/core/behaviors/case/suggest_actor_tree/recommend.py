@@ -29,7 +29,6 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
@@ -363,35 +362,26 @@ def create_recommend_actor_to_case_received_tree(
     return create_receive_activity_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
-        # The Offer reaches two stores: the recommending participant
-        # addresses it to the case's CASE_MANAGER, which admits it, commits
-        # it and forwards an Offer(CaseParticipant) to the Case Owner, and
-        # the CASE_MANAGER's copy reaches a participant replica, which takes
-        # it from the CASE_MANAGER alone and does nothing with it
-        # (CM-16-001, CM-16-002, PCR-03-001, HP-01-038, #4646).
-        paths={
-            ReceivedPath.CASE_MANAGER,
-            ReceivedPath.PARTICIPANT_REPLICA,
-        },
+        # The recommending participant addresses the Offer to the case's
+        # CASE_MANAGER, which admits it, commits it and forwards an
+        # Offer(CaseParticipant) to the Case Owner (CM-16-001, CM-16-002).
+        # No replica acts on a copy: it learns of the recommendation from
+        # the ledger fan-out (PCR-03-001, RSH-08-003), so the tree declares
+        # the manager path alone and the path stage refuses any other
+        # receiver (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # A replica takes the Offer from the CASE_MANAGER alone, so with no
-        # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
         sender_context=SenderCheckContext(
-            sender_id=recommender_id,
-            case_id=case_id,
-            case_manager_required=True,
+            sender_id=recommender_id, case_id=case_id
         ),
         precondition_guards=[
-            # The admission check is the CASE_MANAGER's adjudication, so it
-            # is declared on that path rather than run at both (HP-01-038).
-            OnPaths.at_case_manager(
-                "SuggestedActorAdmitted",
-                case_manager_admits_suggested_actor_guard(
-                    recommendation_id=recommendation_id,
-                    recommended_id=recommended_id,
-                    case_id=case_id,
-                    suggested_roles=suggested_roles,
-                ),
+            # The admission check is the CASE_MANAGER's adjudication; the
+            # tree runs nowhere else (HP-01-038).
+            case_manager_admits_suggested_actor_guard(
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+                suggested_roles=suggested_roles,
             )
         ],
         manager_effects=[

@@ -348,16 +348,17 @@ def test_the_case_manager_authors_no_undo_of_an_offer():
     )
 
     assert UndoCaseOwnershipTransferReceivedUseCase.sender_entitlement == (
-        SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)
+        SenderRule.at_case_manager_only(SenderEntitlementKind.CASE_OWNER)
     )
 
 
 @pytest.mark.spec("CM-21-017")
 @pytest.mark.spec("BT-17-001")
 def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
-    """Run at the transferee's replica, the CASE_MANAGER's reply passes the
-    open-Offer stage untouched: its CASE_MANAGER gate skips the deadline
-    check, so a replica never judges the expiry (CM-21-017)."""
+    """Run at the transferee's replica, the CASE_MANAGER's reply is refused
+    at the path stage, which the reply tree declares for the manager alone:
+    the deadline check never runs, so a replica never judges the expiry
+    (CM-21-017, HP-01-005)."""
     from py_trees.common import Status
 
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -368,6 +369,10 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
         OwnershipOfferOpenNode,
+    )
+    from vultron.core.behaviors.case.nodes.received_path import (
+        ReceivedPath,
+        ReceivedPathNode,
     )
     from vultron.core.behaviors.case.ownership_transfer_tree import (
         create_accept_ownership_transfer_tree,
@@ -413,9 +418,6 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
 
     check = find_node(tree, OwnershipOfferOpenNode)
     assert check is not None and check.status is Status.INVALID
-    gate = next(
-        n
-        for n in tree.iterate()
-        if n.name == "OwnershipOfferOpenIfCaseManager"
-    )
-    assert gate.status is Status.SUCCESS
+    stage = find_node(tree, ReceivedPathNode)
+    assert stage is not None and stage.status is Status.FAILURE
+    assert stage.resolved_path is ReceivedPath.PARTICIPANT_REPLICA

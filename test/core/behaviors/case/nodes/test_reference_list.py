@@ -31,10 +31,7 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     AttachReportToCaseNode,
     CaseReferenceEditPendingNode,
 )
-from vultron.core.behaviors.note.nodes.storage import (
-    AttachNoteToCaseNode,
-    DetachNoteFromCaseNode,
-)
+from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderIsNoteAuthorNode
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -72,19 +69,13 @@ def _case(dl) -> as_VulnerabilityCase:
     return cast(as_VulnerabilityCase, dl.read(CASE_ID))
 
 
-def test_attach_and_detach_note_are_idempotent(dl):
+def test_attach_note_is_idempotent(dl):
     for _ in range(2):
         assert (
             _run(dl, AttachNoteToCaseNode(REF, CASE_ID)).status
             == Status.SUCCESS
         )
     assert list(_case(dl).notes) == [REF]
-    for _ in range(2):
-        assert (
-            _run(dl, DetachNoteFromCaseNode(REF, CASE_ID)).status
-            == Status.SUCCESS
-        )
-    assert list(_case(dl).notes) == []
 
 
 def test_attach_report_adds_to_vulnerability_reports(dl):

@@ -193,9 +193,11 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 class AcceptCaseOwnershipTransferReceivedUseCase:
     """The CASE_MANAGER applies an accepted ownership transfer (CM-21-002).
 
-    At the CASE_MANAGER the sender must be the transferee named in an open
-    ownership-transfer Offer it recorded for the case; at any other replica
-    it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
+    The sender must be the transferee named in an open ownership-transfer
+    Offer the CASE_MANAGER recorded for the case (CM-21-011).  The Accept is
+    addressed to the CASE_MANAGER alone, so the path stage refuses it at any
+    other receiver (HP-01-005); a replica learns the new owner from the
+    ledger (PCR-03-001, RSH-08-003).  Any other sender is
     ``REFUSED`` with ownership unchanged, nothing committed and nothing sent
     (HP-01-006).  An Accept of an Offer already closed is ``REFUSED`` the
     same way and answered with the refusal notice (CM-21-014, CLP-05-001).
@@ -205,9 +207,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     """
 
     # The transferee is the addressee of the Offer (ADR-0129), checked at the
-    # CASE_MANAGER against the Offer it recorded; a replica takes the change
-    # from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    # CASE_MANAGER against the Offer it recorded; no other receiver acts on
+    # the Accept (PCR-03-001, TRIG-11-002).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -256,8 +258,8 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 
     The sender rule is the Accept's (CM-21-013): at the CASE_MANAGER the
     sender must be the transferee named in an open ownership-transfer Offer
-    it recorded for the case; at any other replica it must be the
-    CASE_MANAGER.  Anyone else is ``REFUSED`` with nothing committed and
+    it recorded for the case, and the path stage refuses the Reject at any
+    other receiver (HP-01-005).  Any other sender is ``REFUSED`` with nothing committed and
     nothing sent, and the Offer stays open (HP-01-006).  A Reject of an Offer
     already closed is ``REFUSED`` the same way and answered with the refusal
     notice (CM-21-014, CLP-05-001).
@@ -269,8 +271,8 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     the Offer is ``SKIPPED`` (HP-01-014).
     """
 
-    # The same two-sided transferee rule as the Accept (ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    # The same transferee rule as the Accept (ADR-0129, TRIG-11-005).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -318,8 +320,9 @@ class UndoCaseOwnershipTransferReceivedUseCase:
 
     The Case Owner sends ``Undo`` of its own proposal; the CASE_MANAGER
     withdraws the Offer it made from that proposal (ADR-0148).  At the
-    CASE_MANAGER the sender must be the Case Owner that Offer was made for;
-    at any other replica it must be the CASE_MANAGER.  Anyone else, or a
+    CASE_MANAGER the sender must be the Case Owner that Offer was made for,
+    and the path stage refuses the Undo at any other receiver (HP-01-005).
+    Anyone else, or a
     withdrawal of an Offer already answered or withdrawn, is ``REFUSED`` with
     nothing committed; the withdrawal of a closed Offer is answered with the
     refusal notice, anyone else with nothing (CLP-05-001, HP-01-006).
@@ -332,9 +335,9 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     """
 
     # The offerer, which must still be the Case Owner (CM-21-015), checked at
-    # the CASE_MANAGER against the Offer it recorded; a replica takes the
-    # withdrawal from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    # the CASE_MANAGER against the Offer it recorded; no other receiver acts
+    # on the Undo (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -359,8 +362,8 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         # The Undo names the owner's proposal; the CASE_MANAGER withdraws the
         # Offer it made from it, whose id it derives the way it did when it
         # made it (CM-21-037, ADR-0148).  At a replica the derivation names
-        # no Offer it holds, but its sender guard admits the CASE_MANAGER
-        # alone, so nothing is read for it.
+        # no Offer it holds, but the path stage refuses it there first, so
+        # nothing is read for it.
         offer_id = (
             ownership_offer_id(
                 resolve_receiving_actor_id(

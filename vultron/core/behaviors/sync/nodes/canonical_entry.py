@@ -83,7 +83,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
     ("Add", "Note"),
-    ("Remove", "Note"),  # remove_note_from_case
+    # remove_note_from_case: never committed here, because every received
+    # Remove(Note) is refused before the commit (CM-30-003, #6430).  The
+    # signature stays so a ledger that holds one still names it.
+    ("Remove", "Note"),
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
     # CASE_MANAGER-authored records of a vulnerability item or case reference

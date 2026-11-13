@@ -210,11 +210,12 @@ def create_engage_case_tree(
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
-        # The participant declares its RM move to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica archives its copy
-        # and takes the sender's RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares its RM move to the CASE_MANAGER alone,
+        # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
+        # participant replica takes the sender's RM state from the ledger
+        # entry that follows (RSH-08-003), so the path stage refuses a copy
+        # there (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         # The sender is checked against the participant records this store
         # already holds: an Engage goes to the CASE_MANAGER, which created
         # the sender's record when it added the sender, and a stranger's
@@ -270,11 +271,12 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
-        # The participant declares its RM move to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica archives its copy
-        # and takes the sender's RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares its RM move to the CASE_MANAGER alone,
+        # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
+        # participant replica takes the sender's RM state from the ledger
+        # entry that follows (RSH-08-003), so the path stage refuses a copy
+        # there (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[

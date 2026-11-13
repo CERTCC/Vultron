@@ -208,10 +208,9 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the
   message type does not address reports `REFUSED`, never `SKIPPED` (HP-01-005). A
-  receiver on a path the declaration omits is refused at the path stage; one on a
-  declared non-manager path is admitted there and then skips the gate, so
-  `case_manager_verdict()` still maps the skip. Only a manager-only declaration makes
-  that mapping unreachable (ADR-0153).
+  receiver on a path the declaration omits is refused at the path stage, so a type
+  that acts only at the CASE_MANAGER declares that path alone; no handler maps a
+  skipped gate to a verdict after the run (HP-01-039, ADR-0153, #6394).
 - The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
   never as a CASE_MANAGER address looked up from the store (BT-17-006).
 - Emit no `RmEngageCaseActivity` for the invitee. Accepting the stub is joining (RM
@@ -363,8 +362,8 @@ stub `Accept` moves no RM state (CM-11-001).
 
 ## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
 
-`create_case_manager_gated_tree`, `case_manager_verdict()` and the path stage's
-`ReceivedPath.CASE_MANAGER` all check that the **receiving** actor holds
+`create_case_manager_gated_tree` and the path stage's
+`ReceivedPath.CASE_MANAGER` both check that the **receiving** actor holds
 `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005, ADR-0153); they say
 nothing about the sender. A gated tree applies an assertion from *any* sender unless
 something else checks who sent it.
@@ -394,11 +393,11 @@ canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving 
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
 the gate, and a received tree never calls the gate itself (BT-17-008). Then declare
 the paths the message type handles, as the factory's `paths=`, so the path stage
-refuses a receiver on a path it does not handle (ADR-0153). Declaring them does not
-retire `case_manager_verdict()`: a tree that declares a non-manager path admits that
-receiver at the door and then skips the gate, so the handler still maps the skip to
-`REFUSED` rather than reporting `APPLIED` having written nothing (HP-01-005). Only a
-manager-only declaration makes the mapping unreachable. See
+refuses a receiver on a path it does not handle (ADR-0153). Declare a path only
+where the type does protocol work (HP-01-038): a non-manager path that only skips the
+gate would report `APPLIED` having written nothing. When the replica path does act, but
+the replica still owes a refusal, the tree states it with `ReplicaRefusalNode`,
+never a handler read after the run (HP-01-005, #6394). See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner

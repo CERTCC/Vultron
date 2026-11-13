@@ -149,8 +149,9 @@ A participant's replica accepts a note only from the CASE_MANAGER.
 
 A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
 
-To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
-The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
+This implementation does not support withdrawing a note.
+The case ledger is append-only, and the protocol does not yet define what removing ledgered content means.
+So every receiver refuses a `Remove(Note)`, the CASE_MANAGER included, and the note stays in the case (CM-30-003).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/remove-note-from-case.md" %}
 

@@ -40,7 +40,6 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.receiving_actor import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.core.use_cases.received.fault.responses import (
     ARCHIVE_ONLY,
     FaultResponse,
@@ -141,7 +140,10 @@ class CreateProcessingFaultReceivedUseCase:
             refused_entry, request, self.sender_entitlement
         )
         reading = response.read_verdict(refused_entry)
-        verdict = run_received_tree(
+        # Only the case's CASE_MANAGER acts on a fault about its ledger: the
+        # tree declares the manager path alone, so its path stage refuses any
+        # other receiver (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -151,13 +153,6 @@ class CreateProcessingFaultReceivedUseCase:
             wire_render_port=self._wire_render_port,
             reader=reading.reader,
             judges=reading.judges,
-        )
-        if reading.manager_case_id is None:
-            return verdict
-        # Only the case's CASE_MANAGER acts on a fault about its ledger
-        # (HP-01-005).
-        return case_manager_verdict(
-            tree, verdict, self._dl, reading.manager_case_id
         )
 
     def _refused_entry(self) -> CaseLedgerEntry | None:

@@ -161,12 +161,12 @@ def create_validate_report_received_tree(
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
-        # The participant declares RM.VALID to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica that holds a copy
-        # archives it and takes the sender's RM state from the ledger entry
-        # that follows the act, never from the declaration itself
-        # (RSH-06-006, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares RM.VALID to the CASE_MANAGER alone, which
+        # adjudicates and commits it (PCR-08-001, RSH-06-006); a participant
+        # replica takes the sender's RM state from the ledger entry that
+        # follows the act, never from the declaration itself (RSH-08-003),
+        # so the path stage refuses a copy there (HP-01-005, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id

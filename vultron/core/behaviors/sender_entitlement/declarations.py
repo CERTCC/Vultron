@@ -309,6 +309,19 @@ class SenderRule:
         )
 
     @classmethod
+    def at_case_manager_only(cls, *kinds: SenderEntitlementKind) -> SenderRule:
+        """The kinds entitle a sender at the CASE_MANAGER, and no other
+        receiver acts on the message.
+
+        For a message type addressed to the CASE_MANAGER alone, whose tree
+        declares the manager path only (HP-01-038): a participant replica
+        learns of the change from the ledger fan-out, never from a copy of
+        the message (PCR-03-001, RSH-08-003), so the path stage refuses it
+        before any side is read (HP-01-005, HP-01-039).
+        """
+        return cls(at_case_manager=any_of(*kinds))
+
+    @classmethod
     def on_every_path(cls, *kinds: SenderEntitlementKind) -> SenderRule:
         """The same kinds entitle a sender at the CASE_MANAGER, at a
         participant and at a receiver that holds no replica yet.

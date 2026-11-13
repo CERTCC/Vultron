@@ -31,9 +31,7 @@ of a copy refuses at the tree's addressee door guard (#3752).
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.received_run import (
-    received_path,
     run_received_tree,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -47,13 +45,9 @@ from vultron.core.models.events.actor import (
     RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.models.use_case_result import (
-    HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_absence_refusal,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -123,7 +117,17 @@ class OfferCaseParticipantReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        verdict = run_received_tree(
+        # A case whose roster names no CASE_MANAGER has nobody to defer the
+        # commit to, so the tree's sender guard refuses it on the replica path
+        # (CM-02-014, CM-24-008).  On that path the ledger commit is the
+        # CASE_MANAGER's, so this store keeps what arrived and takes the
+        # entry from the ledger.  Past the tree's door and sender guards, the
+        # Offer is addressed to this store, by name or as an active
+        # participant of a participants collection its `to` names
+        # (HP-01-012).  The Offer is now the addressee's to decide, by a
+        # separate outbound Accept or Reject; a redelivery archives nothing
+        # new and is SKIPPED.
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -132,34 +136,6 @@ class OfferCaseParticipantReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            return verdict
-        # The tree's path stage put this receiver on the participant replica
-        # path, one of the two the tree declares (ADR-0153).  The path says
-        # the receiver does not hold the role; it does not say the case has
-        # anyone holding it, and a case whose roster names no CASE_MANAGER
-        # has nobody to defer the commit to (CM-02-014, CM-24-008), so that
-        # is refused rather than stored.
-        if (
-            received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA
-            and (refusal := case_manager_absence_refusal(self._dl, case_id))
-            is not None
-        ):
-            logger.warning(
-                "ReceiveOfferCaseParticipantBT refused '%s': %s",
-                activity_id,
-                refusal.reason,
-            )
-            return refusal
-        # On the replica path the ledger commit is the CASE_MANAGER's, so this
-        # store keeps what arrived and takes the entry from the ledger.
-        # Past the tree's door and sender guards, the Offer is addressed
-        # to this store, by name or as an active participant of a
-        # participants collection its `to` names (HP-01-012).  The Offer
-        # is now the addressee's to decide, by a separate outbound
-        # Accept or Reject; a redelivery archives nothing new and is
-        # SKIPPED.
-        return verdict
 
 
 class AcceptOfferCaseParticipantReceivedUseCase:

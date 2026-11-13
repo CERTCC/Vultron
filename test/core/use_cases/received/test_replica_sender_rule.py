@@ -10,17 +10,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A participant replica takes Offer(Actor) from the CASE_MANAGER alone
-(PCR-03-001, #4646), and refuses every Add(ParticipantStatus).
+"""A participant replica refuses every Offer(Actor) and every
+Add(ParticipantStatus) at its path stage (HP-01-039).
 
 Each test runs the real received use case in the replica holder's own store:
-the case lists the CASE_MANAGER, a vendor and the replica holder.  An
-Offer(Actor) copy sent by the vendor is refused on the sender check; the same
-copy sent by the CASE_MANAGER passes it, and is then refused because the
-replica is not the CASE_MANAGER the message is for (HP-01-005).  An
-Add(ParticipantStatus) is addressed to the CASE_MANAGER alone, and a replica
-takes participant status from the ledger, so the path stage refuses it from
-any sender before the sender check runs (RSH-08-003, PCR-03-001).
+the case lists the CASE_MANAGER, a vendor and the replica holder.  Both
+messages are addressed to the CASE_MANAGER alone (PCR-08-001), and a replica
+takes what they change from the ledger (RSH-08-003, PCR-03-001), so each
+tree declares the manager path only: the path stage refuses a copy from any
+sender before the sender check runs (HP-01-005).  A replica whose case names
+no CASE_MANAGER is told the case has none (CM-02-014).
 """
 
 from collections.abc import Callable
@@ -156,94 +155,24 @@ def _deliver_participant_status(
     )
 
 
-DELIVERIES = [pytest.param(_deliver_offer_actor, id="offer-actor")]
-
-
-def _sender_guard(
-    tree: py_trees.behaviour.Behaviour,
-) -> py_trees.common.Status:
-    """The status of the tree's composed sender guard."""
-    guards = [n for n in tree.iterate() if n.name == "SenderRuleGuard"]
-    assert len(guards) == 1, "the tree composes exactly one sender guard"
-    return guards[0].status
-
-
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.parametrize("deliver", DELIVERIES)
-def test_replica_refuses_a_listed_non_manager(
-    deliver, make_payload, tree_runs
-) -> None:
-    """The vendor is on the case, but a replica refuses its copy."""
-    dl, vendor = _replica_store()
-
-    result = deliver(dl, make_payload, VENDOR_ID)
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert VENDOR_ID in (result.reason or "")
-    assert "is not the CASE_MANAGER" in (result.reason or "")
-    assert len(tree_runs) == 1
-    assert _sender_guard(tree_runs[0]) is py_trees.common.Status.FAILURE
-    stored = dl.read(vendor.id_)
-    assert isinstance(stored, CaseParticipant)
-    assert stored.participant_statuses == vendor.participant_statuses
-    assert dl.list_objects("CaseLedgerEntry") == []
-    assert dl.outbox_list() == []
-
-
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.spec("HP-01-005")
-@pytest.mark.parametrize("deliver", DELIVERIES)
-def test_replica_admits_the_case_manager(
-    deliver, make_payload, tree_runs
-) -> None:
-    """The same copy from the CASE_MANAGER passes the sender check.
-
-    The replica is still not the CASE_MANAGER the message is for, so the gated
-    work does not run and the copy is refused for that, not for its sender.
-    """
-    dl, _ = _replica_store()
-
-    result = deliver(dl, make_payload, MANAGER_ID)
-
-    assert len(tree_runs) == 1
-    assert _sender_guard(tree_runs[0]) is py_trees.common.Status.SUCCESS
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'"
-    assert dl.list_objects("CaseLedgerEntry") == []
-    assert dl.outbox_list() == []
-
-
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.parametrize("deliver", DELIVERIES)
-def test_replica_with_no_case_manager_refuses_a_listed_participant(
-    deliver, make_payload, tree_runs
-) -> None:
-    """A replica whose case names no CASE_MANAGER has no sender to admit.
-
-    The CASE_MANAGER check does not pass a sender through when there is no
-    CASE_MANAGER to compare with, so the vendor is still refused.
-    """
-    dl, _ = _replica_store(with_manager=False)
-
-    result = deliver(dl, make_payload, VENDOR_ID)
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert _sender_guard(tree_runs[0]) is py_trees.common.Status.FAILURE
-    assert dl.list_objects("CaseLedgerEntry") == []
-    assert dl.outbox_list() == []
+DELIVERIES = [
+    pytest.param(_deliver_offer_actor, id="offer-actor"),
+    pytest.param(_deliver_participant_status, id="participant-status"),
+]
 
 
 @pytest.mark.spec("PCR-03-001", "RSH-08-003", "HP-01-039")
+@pytest.mark.parametrize("deliver", DELIVERIES)
 @pytest.mark.parametrize("sender_id", [VENDOR_ID, MANAGER_ID])
-def test_replica_refuses_every_add_participant_status(
-    sender_id: str, make_payload, tree_runs
+def test_replica_refuses_every_copy_at_the_path_stage(
+    deliver, sender_id: str, make_payload, tree_runs
 ) -> None:
-    """A replica takes participant status from the ledger, never from an
-    Add, so the path stage refuses the Add whoever sent it, and the sender
-    guard never runs."""
+    """A replica takes the change from the ledger, never from the message,
+    so the path stage refuses it whoever sent it, and the sender guard never
+    runs."""
     dl, vendor = _replica_store()
 
-    result = _deliver_participant_status(dl, make_payload, sender_id)
+    result = deliver(dl, make_payload, sender_id)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'"
@@ -255,5 +184,22 @@ def test_replica_refuses_every_add_participant_status(
     stored = dl.read(vendor.id_)
     assert isinstance(stored, CaseParticipant)
     assert stored.participant_statuses == vendor.participant_statuses
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CM-02-014", "HP-01-039")
+@pytest.mark.parametrize("deliver", DELIVERIES)
+def test_replica_with_no_case_manager_says_the_case_has_none(
+    deliver, make_payload, tree_runs
+) -> None:
+    """A replica whose case names no CASE_MANAGER is on the replica path,
+    and the path stage's reason says the case has none (CM-02-014)."""
+    dl, _ = _replica_store(with_manager=False)
+
+    result = deliver(dl, make_payload, VENDOR_ID)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []

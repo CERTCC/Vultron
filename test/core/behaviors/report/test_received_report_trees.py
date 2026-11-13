@@ -39,6 +39,7 @@ from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import path_refusal
 from vultron.core.behaviors.report.nodes.storage import (
     StoreReportNode,
 )
@@ -673,14 +674,17 @@ class TestCloseReportReceivedUseCase:
 
 
 class TestInvalidateReportReceivedTree:
-    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
-        """Intake archives the TentativeReject; the RM write is gated.
+    @pytest.mark.spec("HP-01-039")
+    @pytest.mark.spec("RSH-08-003")
+    def test_a_replica_refuses_it_at_the_path_stage(self, dl):
+        """A replica refuses the TentativeReject before intake.
 
         RSH-08-003 (#3814): ``ACTOR_ID`` is an ordinary participant, not the
         CASE_MANAGER, so the sender's RM → INVALID does not run here — the
-        replica takes it from the ledger.  The CASE_MANAGER transition is
-        covered by ``test_report_routing_guard.py`` and
-        ``test_receive_tree_ledger_commit.py``.
+        replica takes it from the ledger.  The tree declares the manager path
+        alone, so the path stage refuses it there (HP-01-039, #6394).  The
+        CASE_MANAGER transition is covered by ``test_report_routing_guard.py``
+        and ``test_receive_tree_ledger_commit.py``.
         """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
@@ -692,8 +696,9 @@ class TestInvalidateReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
         result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
-        assert result.status == Status.SUCCESS
-        assert _archived_by_intake(dl, ACTIVITY_ID)
+        assert result.status == Status.FAILURE
+        assert path_refusal(tree) is not None
+        assert not _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -730,8 +735,8 @@ class TestInvalidateReportReceivedTree:
         # outcome stage leaves its receipt stub (CLP-10-010, CLP-10-018).
         assert not _archived_by_intake(dl, ACTIVITY_ID)
 
-    def test_idempotent_rm_transition(self, dl):
-        """Already-INVALID participant stays INVALID; BT still SUCCESS."""
+    def test_a_replica_refuses_every_redelivery(self, dl):
+        """Each delivery to a replica is refused alike, and RM never moves."""
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
         bridge = BTBridge(datalayer=dl)
@@ -745,15 +750,20 @@ class TestInvalidateReportReceivedTree:
             result = run_tree(
                 bridge, tree=tree, actor_id=ACTOR_ID, activity=event
             )
-            assert result.status == Status.SUCCESS
+            assert result.status == Status.FAILURE
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        p_id = updated_case.actor_participant_index[ACTOR_ID]
+        participant = cast(CaseParticipant, dl.read(p_id))
+        assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
 
 class TestInvalidateReportReceivedUseCase:
-    def test_use_case_archives_activity_but_gates_the_rm_write(self):
-        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+    @pytest.mark.spec("HP-01-005")
+    def test_use_case_refuses_it_at_a_replica(self):
+        """A non-manager receiver refuses it and writes no RM state.
 
-        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
-        transition at the CASE_MANAGER is covered elsewhere.
+        RSH-08-003 (#3814): the transition at the CASE_MANAGER is covered
+        elsewhere; a replica's path stage refuses it (HP-01-005, #6394).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -761,9 +771,10 @@ class TestInvalidateReportReceivedUseCase:
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        run_in_act(InvalidateReportReceivedUseCase(dl, event))
+        result = run_in_act(InvalidateReportReceivedUseCase(dl, event))
 
-        assert _archived_by_intake(dl, ACTIVITY_ID)
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert not _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))

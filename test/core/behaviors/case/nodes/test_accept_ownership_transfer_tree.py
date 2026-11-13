@@ -200,7 +200,8 @@ def test_accept_ownership_transfer_commit_is_role_gated(
     actor_id: str,
     expect_commit: bool,
 ) -> None:
-    """CaseActor commits exactly once; all other actors skip the commit.
+    """CaseActor commits exactly once; any other actor is refused, at the path
+    stage, before the commit (HP-01-039, #6394).
 
     Regression for ISSUE-2252: the previous tree had an extra unguarded
     ``CommitCaseLedgerEntryNode`` in ``effect_nodes`` that fired for the
@@ -229,10 +230,11 @@ def test_accept_ownership_transfer_commit_is_role_gated(
             tree, actor_id=actor_id, activity=_accept_event()
         )
 
-    assert result.status == Status.SUCCESS
     if expect_commit:
+        assert result.status == Status.SUCCESS
         mock_commit.assert_called_once()
     else:
+        assert result.status == Status.FAILURE
         mock_commit.assert_not_called()
 
 

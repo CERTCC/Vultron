@@ -324,7 +324,7 @@ def _overdue() -> datetime:
         ),
         pytest.param(
             CloseCaseReceivedUseCase,
-            SenderRule.to_case_manager(
+            SenderRule.at_case_manager_only(
                 SenderEntitlementKind.CASE_OWNER,
                 SenderEntitlementKind.PARTICIPANT,
             ),
@@ -503,7 +503,8 @@ def test_leave_from_a_stranger_is_refused_and_changes_nothing() -> None:
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("PCR-03-001")
 def test_leave_at_a_replica_from_a_non_manager_is_refused() -> None:
-    """A replica takes a closure from the CASE_MANAGER alone."""
+    """A replica takes a closure from the ledger, so the path stage refuses
+    a Leave there whoever sent it (HP-01-005, PCR-08-001)."""
     world = _World(store_owner="finder")
     before = world.ledger_size()
 

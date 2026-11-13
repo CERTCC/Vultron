@@ -54,6 +54,10 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
     closure the case records (CM-23-018), asked through
     :func:`~vultron.core.participants.recipients.may_act_on_case`.
 
+    No received tree composes it while every ``Remove(Note)`` is refused
+    (CM-30-003, #6430); it states the CM-30-001 rule a supported removal
+    would check.
+
     Spec: CM-30-001, CM-10-004, CM-23-018, HP-01-006.
     """
 

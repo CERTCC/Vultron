@@ -44,7 +44,10 @@ import py_trees
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
-from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReplicaRefusalNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -283,6 +286,7 @@ def reject_invite_to_embargo_tree(
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
         ├─ EmbargoAnswerApplies (manager path)  # the row can be written
+        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
         └─ RejectInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
            └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
@@ -359,6 +363,14 @@ def reject_invite_to_embargo_tree(
                 case_manager_admits_answer_change_guard(
                     case_id, embargo_id, rejecting_actor_id, accept=False
                 ),
+            ),
+            # At a participant the Reject records nothing in the case: the
+            # handler closes the participant's pending ask from the doors'
+            # answer alone (EP-09-019), and the tree states the replica's
+            # verdict itself, a refusal as the not-CASE_MANAGER it is
+            # (HP-01-005, BT-17-001).
+            OnPaths.off_case_manager(
+                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
             ),
         ],
         manager_effects=[
