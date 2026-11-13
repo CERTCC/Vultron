@@ -49,6 +49,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.models.events.base import LedgerPositionedEvent
@@ -332,7 +333,9 @@ class LedgerPositionIsNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class PeerActiveParticipantNode(DataLayerConditionWithPorts):
+class PeerActiveParticipantNode(
+    DeclaredRefusalMixin, DataLayerConditionWithPorts
+):
     """SUCCESS when *sender_id*'s standing in *case_id* is *active*.
 
     The active-participant check is the shared one
@@ -344,6 +347,11 @@ class PeerActiveParticipantNode(DataLayerConditionWithPorts):
     the standing is the other one, and when it cannot be decided (the case
     is not in this store), with the reason, so an undecided standing is
     never read as active.
+
+    With ``active=True`` that failure refuses the sender's position: the
+    node declares it (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`,
+    SYNC-17-002).  With ``active=False`` it only picks a branch, so it
+    declares nothing.
     """
 
     def __init__(
@@ -371,7 +379,7 @@ class PeerActiveParticipantNode(DataLayerConditionWithPorts):
             )
         except VultronError as exc:
             self.feedback_message = str(exc)
-            return Status.FAILURE
+            return self._fail_standing()
         if withheld is self.active:
             self.feedback_message = (
                 f"sender '{self.sender_id}' is not an active participant of"
@@ -380,7 +388,7 @@ class PeerActiveParticipantNode(DataLayerConditionWithPorts):
                 else f"sender '{self.sender_id}' is an active participant of"
                 f" case '{self.case_id}'"
             )
-            return Status.FAILURE
+            return self._fail_standing()
         if withheld:
             self.logger.info(
                 "%s: sender '%s' is not an active participant of case '%s';"
@@ -391,6 +399,15 @@ class PeerActiveParticipantNode(DataLayerConditionWithPorts):
                 self.case_id,
             )
         return Status.SUCCESS
+
+    def _fail_standing(self) -> Status:
+        """``FAILURE``; a refusal of the position when asked for *active*."""
+        if not self.active:
+            return Status.FAILURE
+        return self._refuse(
+            f"{self.feedback_message}; no replication state recorded and"
+            " no entry replayed (SYNC-17-002)"
+        )
 
 
 class LedgerPositionAnswer(py_trees.decorators.Decorator):

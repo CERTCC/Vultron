@@ -399,6 +399,15 @@ def _assert_unknown_position(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "SYNC-17-005" in (result.reason or "")
+    # The check declares the whole reason (#5775).
+    position = event.ledger_position
+    assert (result.reason or "").startswith(
+        f"stated ledger position (log_index={position.log_index},"
+        f" entry_hash={position.entry_hash:.16}…) "
+    )
+    assert (result.reason or "").endswith(
+        "; nothing recorded or sent (SYNC-17-005)"
+    )
     assert _state(dl, SIGNATORY_ID) is None
     port.send_announce_log_entry.assert_not_called()
     warnings = [

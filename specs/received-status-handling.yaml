@@ -1693,9 +1693,10 @@ groups:
       A withheld adoption at `StatusAdoptionGate` does NOT produce `rejected`:
       the status is recorded on the participant and only its adoption as
       canonical is withheld, so the handler returns `SKIPPED` and emits no
-      fault. `_status_refused()` and `_adoption_gate_blocked()` in
-      `vultron/core/use_cases/received/status.py` tell these cases apart by
-      walking the tree after execution.
+      fault. `CheckParticipantStatusAcceptableNode` declares its refusal
+      (`ReportsRefusal`), which the received runner reads; the gate's
+      withheld adoption is read by `_adoption_gate_blocked()` in
+      `vultron/core/use_cases/received/status.py`.
     relationships:
     - rel_type: extends
       spec_id: RSH-09-002

@@ -20,8 +20,9 @@ A received use case only builds its tree and runs it through
 ``HandlerResult`` from what the tree's nodes recorded:
 
 - :mod:`.reading` — the generic reading: doors, the sequence stage, a
-  node-declared repeat (``ReportsIdempotentRepeat``) or no-change
-  (``ReportsNoChange``), and the general refusal.
+  node-declared repeat (``ReportsIdempotentRepeat``), no-change
+  (``ReportsNoChange``) or refusal (``ReportsRefusal``), and the general
+  refusal.
 - :mod:`.readers` — handler-specific readings, each an
   :data:`OutcomeReader` that receives only the finished run.
 - :mod:`.doors`, :mod:`.sequence` — the door and sequence-stage verdicts.

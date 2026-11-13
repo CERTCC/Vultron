@@ -28,6 +28,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
@@ -106,7 +107,9 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
+class CheckEntryHashIntactNode(
+    DeclaredRefusalMixin, DataLayerConditionWithPorts
+):
     """Refuse a received entry whose content does not reproduce its hash.
 
     Runs before the already-stored check and the tail lookup, so an entry
@@ -117,7 +120,9 @@ class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
     The announce tree pairs it with an
     :class:`~vultron.core.behaviors.sync.nodes.ledger_entry_fault.EmitLedgerEntryFaultNode`
     fallback, which reports the refusal to the CASE_MANAGER with a
-    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007).
+    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007).  The failure is
+    a refusal it declares
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -149,7 +154,10 @@ class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
             getattr(self.activity, "actor_id", None),
             entry.entry_hash,
         )
-        return Status.FAILURE
+        return self._refuse(
+            f"ledger entry '{entry.id_}' does not reproduce its entry_hash;"
+            " not applied or stored (SYNC-03-006)"
+        )
 
 
 class CheckHashMatchesNode(DataLayerConditionWithPorts):
@@ -327,7 +335,16 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
         return Status.FAILURE
 
 
-class SendRejectLogEntryNode(DataLayerActionWithPorts):
+class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
+    """Send the ``Reject(CaseLedgerEntry)`` of an entry the chain refuses.
+
+    Returns ``FAILURE`` once the ``Reject`` is queued, so the entry is not
+    stored this pass, and declares that failure the refusal of the entry
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`): it does
+    not extend the local chain tail (SYNC-03-001).  A subclass names its
+    own refusal in :meth:`_refusal_of`.
+    """
+
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
@@ -360,8 +377,9 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if self.actor_id is None:
-            self.logger.error("%s: actor_id not available", self.name)
-            return Status.FAILURE
+            raise VultronWiringError(
+                f"{self.name}: actor_id must be bound to send rejection"
+            )
 
         entry = require_log_entry(self.activity, self.name)
 
@@ -384,7 +402,14 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
         self._reject(
             entry, self._sync_port, self.actor_id, sender_id, announce_id
         )
-        return Status.FAILURE
+        return self._refuse(self._refusal_of(entry))
+
+    def _refusal_of(self, entry: CaseLedgerEntry) -> str:
+        """The reason the entry this run rejected is refused."""
+        return (
+            f"ledger entry '{entry.id_}' does not extend the local chain"
+            " tail; Reject sent (SYNC-03-001)"
+        )
 
     def _reject(
         self,

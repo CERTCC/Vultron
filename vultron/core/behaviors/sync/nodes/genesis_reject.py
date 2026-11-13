@@ -55,7 +55,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
 
     Returns ``FAILURE`` whether it sends or withholds, like
     :class:`SendRejectLogEntryNode`: the entry is not stored this pass.
-    ``withheld`` says which, for the handler's verdict.
+    ``withheld`` says which, and the refusal it declares names it.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -65,6 +65,19 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
     def initialise(self) -> None:
         super().initialise()
         self.withheld = False
+
+    def _refusal_of(self, entry: CaseLedgerEntry) -> str:
+        """The missing case, and whether its genesis Reject was sent."""
+        if self.withheld:
+            return (
+                f"case '{entry.case_id}' is not seeded here; a Reject for"
+                " replay from genesis was already sent within the interval,"
+                " so none is sent again (SYNC-15-016)"
+            )
+        return (
+            f"case '{entry.case_id}' is not seeded here; Reject sent for"
+            " replay from genesis (SYNC-15-001)"
+        )
 
     def _reject(
         self,

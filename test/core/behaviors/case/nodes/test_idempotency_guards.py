@@ -33,6 +33,7 @@ from vultron.core.behaviors.case.nodes import (
 )
 from vultron.core.behaviors.idempotency import (
     ReportsIdempotentRepeat,
+    ReportsRefusal,
     SilentIdempotencyGuardMixin,
 )
 from vultron.core.behaviors.status.nodes.case_status import (
@@ -227,15 +228,54 @@ class TestCheckInviteeNotAlreadyParticipantNode:
         else:
             assert captured == [None]
 
-    def test_returns_failure_when_case_not_found(
+    @pytest.mark.spec("HP-01-005")
+    def test_a_case_not_found_is_a_declared_refusal_naming_it(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """The handler reports ``REFUSED`` for the unknown case it names."""
+        missing = "https://example.org/cases/nonexistent"
         node = CheckInviteeNotAlreadyParticipantNode(
-            case_id="https://example.org/cases/nonexistent",
-            invitee_id=_INVITEE_ID,
+            case_id=missing, invitee_id=_INVITEE_ID
         )
         result = bt_scenario.run(node, actor_id=_ACTOR_ID)
         assert result.status == Status.FAILURE
+        assert isinstance(node, ReportsRefusal)
+        assert node.declared_refusal == f"unknown case '{missing}'"
+        assert not node.failed_as_repeat
+
+    def test_a_guard_with_no_datalayer_declares_no_refusal(self) -> None:
+        """A missing DataLayer is our fault, which the runner raises (ADR-0095)."""
+        from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
+
+        node = CheckInviteeNotAlreadyParticipantNode(
+            case_id=_CASE_ID, invitee_id=_INVITEE_ID
+        )
+        node.datalayer = None
+        node.status = node.update()
+        assert node.status == Status.FAILURE
+        assert node.feedback_message == DATALAYER_UNAVAILABLE
+        assert node.declared_refusal is None
+
+    @pytest.mark.spec("HP-01-014")
+    @pytest.mark.parametrize(
+        ("removed", "standing"),
+        [(False, "joined"), (True, "removed from")],
+        ids=["joined", "removed"],
+    )
+    def test_a_duplicate_is_a_repeat_naming_the_invitee_not_a_refusal(
+        self, bt_scenario: BTTestScenario, removed: bool, standing: str
+    ) -> None:
+        """The repeat's reason names the invitee and the case (ID-05-003)."""
+        _seed_case_with_participant(bt_scenario, removed=removed)
+        node = CheckInviteeNotAlreadyParticipantNode(
+            case_id=_CASE_ID, invitee_id=_INVITEE_ID
+        )
+        bt_scenario.run(node, actor_id=_ACTOR_ID)
+        assert node.failed_as_repeat
+        assert node.declared_refusal is None
+        assert node.feedback_message == (
+            f"'{_INVITEE_ID}' already {standing} case '{_CASE_ID}'"
+        )
 
 
 # ---------------------------------------------------------------------------

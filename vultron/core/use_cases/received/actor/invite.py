@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
@@ -12,18 +10,10 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
     create_reject_invite_actor_to_case_received_tree,
 )
-from vultron.core.behaviors.case.nodes.invite_participant import (
-    CheckInviteeNotAlreadyParticipantNode,
-)
 from vultron.core.behaviors.case.received_run import (
-    OutcomeReader,
-    ReceivedOutcome,
     closed_sender_reader,
-    find_node,
-    first_reading,
     run_received_tree,
 )
-from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -202,10 +192,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=first_reading(
-                closed_sender_reader(closes=False),
-                _joined_or_unknown_case(invitee_id, case_id),
-            ),
+            # A joined invitee's redelivered Accept is a repeat its guard
+            # declares, so the runner reads it SKIPPED (CLP-13-001).
+            reader=closed_sender_reader(closes=False),
         )
 
 
@@ -277,28 +266,3 @@ class RejectInviteActorToCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
             reader=closed_sender_reader(closes=True),
         )
-
-
-def _joined_or_unknown_case(invitee_id: str, case_id: str) -> OutcomeReader:
-    """Read the Accept's idempotency guard when it ended the run.
-
-    The guard fails both for a fully joined invitee, a repeat it reports
-    (CLP-13-001), and for a case this actor does not hold.  The first is
-    ``SKIPPED``, the second ``REFUSED`` (HP-01-014, HP-01-005).
-    """
-
-    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
-        guard = find_node(outcome.tree, CheckInviteeNotAlreadyParticipantNode)
-        if guard is None or guard.status != Status.FAILURE:
-            return None
-        if guard.failed_as_repeat:
-            return HandlerResult.skipped(
-                f"'{invitee_id}' already joined case '{case_id}'"
-            )
-        if guard.feedback_message in WIRING_UNAVAILABLE_MESSAGES:
-            # Composed without its DataLayer: our fault, which the generic
-            # reading raises (ADR-0095).
-            return None
-        return HandlerResult.refused(f"unknown case '{case_id}'")
-
-    return read
