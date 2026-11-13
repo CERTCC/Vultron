@@ -913,6 +913,74 @@ class TestStatusUseCases:
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
 
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-018")
+    def test_add_participant_status_missing_its_status_id_is_refused_in_the_tree(
+        self, make_payload
+    ):
+        """An Add whose status has no id gets the incomplete-activity tree:
+        its guard refuses it after the doors and intake, and nothing is
+        committed (CLP-10-018)."""
+        from unittest.mock import PropertyMock, patch
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/case_ps_missing",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        participant = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        event = make_payload(
+            add_status_to_participant_activity(
+                make(
+                    as_ParticipantStatus,
+                    id_=f"{case.id_}/statuses/s1",
+                    context=case.id_,
+                ),
+                target=make(
+                    as_CaseParticipant,
+                    id_=participant.id_,
+                    context=case.id_,
+                    attributed_to=sender,
+                ),
+                actor=sender,
+                to=[dl.actor_id],
+                context=case.id_,
+                at=authored_at(),
+            ),
+            receiving_actor_id=dl.actor_id,
+            at=dl,
+        )
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        with patch.object(
+            type(event),
+            "status_id",
+            new_callable=PropertyMock,
+            return_value=None,
+        ):
+            result = run_in_act(
+                AddParticipantStatusToParticipantReceivedUseCase(
+                    dl,
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == (
+            "Add(ParticipantStatus) is missing its status id or participant id"
+        )
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
     @pytest.mark.spec("HP-08-008")
     def test_add_participant_status_to_a_record_naming_no_case_is_refused(
         self, make_payload

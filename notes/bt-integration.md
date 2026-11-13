@@ -25,6 +25,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/vultron-as2-mapping.yaml
   - specs/received-status-handling.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -250,9 +251,14 @@ answer, clock decisions, guards, commit, effects. Each door can end the run, and
 nothing is written before the last one admits the message (ADR-0154).
 
 1. **Door guards** — in ADR-0154's order: the addressee check (HP-01-005),
-   the seen-before door (`case/nodes/seen_before.py`), the path stage
-   (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
-   door (CM-23-018) and the sender guard (HP-01-006). The received-tree runner
+   the seen-before door (`case/nodes/seen_before.py`), the held-case door of
+   an act that names its case (AKM-03-006, the factory's `held_case`), the
+   path stage (HP-01-035), the post-close write boundary (CM-23-013), the
+   closed-sender door (CM-23-018) and the sender guard (HP-01-006). A case the
+   receiver does not hold is refused by these doors, never by a `read_case`
+   in `execute()`: the held-case door for the AKM-03-004 acts, whose reason
+   must name the activity, and the path stage's no-case path for every other
+   type (HP-01-039). The received-tree runner
    reads a door's answer first, through `door_refusal`
    (`behaviors/case/received_run/`, ADR-0195); never run a door guard as a
    one-node tree ahead of the received tree, the chained shape CLP-10-005

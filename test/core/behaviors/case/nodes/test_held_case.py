@@ -27,10 +27,14 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make
+from vultron.core.behaviors.case.nodes.addressee import (
+    ENCLOSING_TREE_ADDRESSEE_CHECK,
+)
 from vultron.core.behaviors.case.nodes.held_case import (
     CaseNamedByReference,
     ReceiverHoldsNamedCaseNode,
 )
+from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.ownership_transfer_tree.proposal import (
     create_propose_ownership_transfer_tree,
@@ -159,6 +163,21 @@ def test_held_case_on_a_tree_naming_no_case_is_a_wiring_error() -> None:
             name="NoCaseBT",
             case_id=None,
             precondition_guards=[],
+            held_case=CaseNamedByReference.LEAVE,
+        )
+
+
+@pytest.mark.spec("AKM-03-006")
+def test_held_case_on_a_nested_tree_is_a_wiring_error() -> None:
+    """A nested tree runs on its enclosing tree's doors (ADR-0154)."""
+    with pytest.raises(VultronWiringError, match="enclosing tree"):
+        create_receive_activity_tree(
+            name="NestedBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            nested=True,
+            addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
+            post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
             held_case=CaseNamedByReference.LEAVE,
         )
 

@@ -1113,7 +1113,11 @@ class TestAddCaseStatusToCaseReceivedUseCase:
     def test_use_case_missing_status_id_logs_warning(
         self, make_payload, caplog
     ):
-        """Missing status_id in event → WARNING; no BT executed."""
+        """Missing status_id → the incomplete-activity tree refuses it.
+
+        The check is the tree's guard, after the doors and intake, never a
+        pre-check in ``execute()`` (CLP-10-018).
+        """
         import logging
         from unittest.mock import PropertyMock, patch
 
@@ -1136,6 +1140,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
                 )
 
         assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == (
+            "Add(CaseStatus) is missing its status id or case id"
+        )
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
