@@ -29,7 +29,13 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
 
-from .schema import QueueEntry, VultronObjectRecord, participant_status_summary
+from .schema import (
+    READ_BY_ID,
+    QueueEntry,
+    StoredRowValues,
+    VultronObjectRecord,
+    participant_status_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +117,16 @@ def read(
     Returns:
         Reconstituted domain object or ``None``.
     """
-    with dl._session() as session:
-        # A primary-key get: one id means no ``select`` to compile per read.
-        row = session.get(VultronObjectRecord, object_id)
-        if row is not None:
+    # A Core ``select`` on the primary key, run on a bare connection: no
+    # ``Session``, identity map or ORM statement per read (#4969).  Hydration
+    # stays inside the block, as it did inside the session, so an in-memory
+    # store's lock covers the referenced rows hydration reads in turn.
+    with dl._connection() as connection:
+        found = connection.execute(
+            READ_BY_ID, {"object_id": object_id}
+        ).first()
+        if found is not None:
+            row = StoredRowValues._make(found)
             if row.type_ == "CaseParticipant":
                 summary = participant_status_summary(row.data)
                 logger.debug(

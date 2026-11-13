@@ -15,7 +15,8 @@
 
 """Row ↔ domain-object conversion for the SQLite DataLayer.
 
-One responsibility: turning a :class:`~.schema.VultronObjectRecord` into the
+One responsibility: turning a stored row (a :class:`~.schema.StoredRow`: an
+ORM :class:`~.schema.VultronObjectRecord` or the values a read fetched) into the
 most precise domain object the registries can name, and back.  Nothing here
 opens a session or issues SQL — the callers in :mod:`.crud` and :mod:`.queries`
 own that, and hand rows in.
