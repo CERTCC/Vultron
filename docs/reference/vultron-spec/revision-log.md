@@ -33,6 +33,16 @@ The release tag names a snapshot of the whole repository.
 The date of a draft is the day its entry was added to the drafts register, in the `YYYY-MM-DD` format.
 The drafts register is the file in the Vultron repository that records each draft's version, status, date and release, and the status table of each entry on this page is generated from it.
 
+## Draft 2
+
+{% include-markdown "./_drafts/draft-2.md" rewrite-relative-urls=false %}
+
+Draft 2 is the current draft, and its text can still change.
+This entry lists what changed since [Draft 1](#draft-1).
+
+- The [Requirements Catalog](requirements/messages.md#protocol-mv-12) adds the protocol requirements MV-12-001 to MV-12-005, on the `Redacted` marker that a preview uses for a withheld field.
+- The [Known Gaps](known-gaps.md) page lists MV-12-001, MV-12-002, MV-12-003 and MV-12-005, which issue #6372 tracks.
+
 ## Draft 1
 
 {% include-markdown "./_drafts/draft-1.md" rewrite-relative-urls=false %}
