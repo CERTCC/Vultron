@@ -130,7 +130,7 @@ def cached_read(
         return read(text)
     try:
         return decode(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError, ValueError, KeyError, TypeError:
         pass
     result = read(text)
     _write(path, encode(result))
