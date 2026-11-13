@@ -72,6 +72,13 @@ reserved vul record, draft advisory) are #6257.
   case for good. A redaction is a visible gap, usually lifted on admission, and
   a redacted identity cannot be addressed.
 
-The receiver refusal holds today: every declared field of a full object refuses
-a marker as a malformed value. Accepting the marker in a preview waits on #6244
-and #5743, and is built by #6372.
+- **Not CM-09's redacted case view.** `RedactedVulnerabilityCase` (CM-09-001)
+  is a planned production type: a whole, separate case object for an invitee.
+  A preview marker withholds single fields of a limited view; neither replaces
+  the other.
+
+The receiver refusal holds today for every declared field of a full object,
+which refuses a marker as a malformed value, and for an activity slot given a
+marker with no `id`. A marker that carries an `id` still parses as a generic
+object in an activity slot; refusing it, and accepting the marker in a
+preview, wait on #6244 and #5743 and are built by #6372.

@@ -948,15 +948,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST read a `Redacted` marker in a field of a preview as that field's
-      value withheld from the recipient, never as an absent or empty value. A preview is
-      a limited view of an object for a recipient not yet entitled to the whole object,
-      such as the case stub (MV-10-001).
+      A receiver MUST read a `Redacted` marker in a field its preview type opens to the
+      marker as that field's value withheld from the recipient, never as an absent or
+      empty value. A preview is a limited view of an object for a recipient not yet
+      entitled to the whole object, such as the case stub (MV-10-001).
     rationale: >-
-      An invitee decides whether to join a case from the invitation alone (MV-10-005), so
-      it gains from telling "this case has no score yet" from "this case has a score you
-      cannot see yet". Read as `None`, the marker would say the first when the sender
-      meant the second.
+      An invitee decides whether to join a case from the invitation alone
+      (MV-10-005), so it gains from telling "this case has no score yet" from "this
+      case has a score you cannot see yet". Read as `None`, the marker would say the
+      first when the sender meant the second.
     verification: >-
       `test/wire/as2/test_redaction_marker.py::test_a_marker_in_a_case_preview_field_parses_as_the_marker`
       parses a case stub whose `name` is a marker and requires the parsed field to be
@@ -973,20 +973,24 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST refuse an activity that carries a `Redacted` marker anywhere other
-      than a field of a preview, naming the position.
+      than a field its preview type opens to the marker, naming the position.
     rationale: >-
-      A full object validates its required fields at construction, and the CASE_MANAGER's
-      stored case is the authority every replica copies. A marker in a full object would
-      widen every field to "a value or a marker" and could reach the stored case. The
-      shared, hash-chained ledger could not carry a different redaction per recipient in
-      any case, so a field withheld in a full object would be withheld from the whole
-      case.
+      A full object validates its required fields at construction, and the
+      CASE_MANAGER's stored case is the authority every replica copies. A marker in a
+      full object would widen every field to "a value or a marker" and could reach the
+      stored case. The shared, hash-chained ledger could not carry a different
+      redaction per recipient in any case, so a field withheld in a full object would
+      be withheld from the whole case.
     verification: >-
       `test/wire/as2/test_redaction_marker.py::test_a_marker_in_a_full_case_field_is_refused`
       requires a marker in each of several declared fields of an inline case to be
-      refused, the reason naming the field, and
-      `test_a_marker_in_an_activity_slot_is_refused` in the same file requires a marker
-      as an activity's `object` or `target` to be refused.
+      refused, the reason naming the field;
+      `test_a_marker_in_a_case_stub_identifying_field_is_refused` requires the same of
+      the stub's `caseId`; and `test_a_marker_in_an_activity_slot_is_refused` and
+      `test_a_marker_with_an_id_in_an_activity_slot_is_refused` in the same file
+      require a marker as an activity's `object` or `target` to be refused, with and
+      without an `id`. The `id` row is a strict `xfail` until #6372 builds the marker
+      type.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-001
@@ -1001,14 +1005,36 @@ groups:
       A `Redacted` marker MUST carry `type` `Redacted` and no field other than an
       optional `summary`, which gives the reason the value is withheld.
     rationale: >-
-      A marker that carried the withheld value, or an `id` naming it, would disclose what
-      it exists to withhold. AS2's own `summary` carries the reason, so the marker needs
-      no new property.
+      A marker that carried the withheld value, or an `id` naming it, would disclose
+      what it exists to withhold. AS2's own `summary` carries the reason, so the
+      marker needs no new property.
     verification: >-
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
       withheld value to be refused; it is a strict `xfail` until #6372 builds the marker
       type.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-12-001
+    adr:
+    - ADR-0193
+    stories:
+    - story_2026_054
+  - id: MV-12-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A sender building a preview SHOULD leave a withheld field out unless the recipient
+      needs to know that the field has a value, in which case it marks the field
+      `Redacted`.
+    rationale: >-
+      A marker discloses that a value exists, and that is often the sensitive fact, as
+      when a case marks its exploit details withheld. Leaving the field out discloses
+      nothing the sender did not choose to disclose.
+    verification: >-
+      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_no_case_content`
+      builds a case stub from a case with a name and a summary and requires the stub to
+      carry neither, nor any marker in their place.
     relationships:
     - rel_type: refines
       spec_id: MV-12-001
@@ -1033,28 +1059,6 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: MV-12-003
-    adr:
-    - ADR-0193
-    stories:
-    - story_2026_054
-  - id: MV-12-004
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      A sender building a preview SHOULD leave a withheld field out unless the recipient
-      needs to know that the field has a value, in which case it marks the field
-      `Redacted`.
-    rationale: >-
-      A marker discloses that a value exists, and that is often the sensitive fact, as
-      when a case marks its exploit details withheld. Leaving the field out discloses
-      nothing the sender did not choose to disclose.
-    verification: >-
-      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_no_case_content`
-      builds a case stub from a case with a name and a summary and requires the stub to
-      carry neither, nor any marker in their place.
-    relationships:
-    - rel_type: refines
-      spec_id: MV-12-001
     adr:
     - ADR-0193
     stories:
