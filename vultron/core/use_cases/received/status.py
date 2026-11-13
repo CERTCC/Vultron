@@ -31,9 +31,6 @@ from vultron.core.models.events.status import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.status_authorization import (
@@ -199,12 +196,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     # PRM-06-003/004).  It is sent to the CASE_MANAGER alone: a replica
     # takes participant status from the ledger, never from an Add
     # (PCR-03-001, RSH-08-003), so the rule names the CASE_MANAGER side only.
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(
-            SenderEntitlementKind.CASE_MANAGER,
-            SenderEntitlementKind.CASE_OWNER,
-            SenderEntitlementKind.AUTHOR,
-        )
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
+        SenderEntitlementKind.CASE_MANAGER,
+        SenderEntitlementKind.CASE_OWNER,
+        SenderEntitlementKind.AUTHOR,
     )
 
     def __init__(
@@ -259,7 +254,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             ),
             **call_out_kwargs,
         )
-        verdict = run_received_tree(
+        # Only the CASE_MANAGER adjudicates the status: the tree declares the
+        # manager path alone, so its path stage refuses any other receiver
+        # (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -271,11 +269,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.status_id, request.activity_id
             ),
         )
-        if case_id is not None:
-            # Only the CASE_MANAGER adjudicates the status (HP-01-005).  With
-            # no case the sender guard has already refused.
-            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        return verdict
 
     def _stored_target_participant(self) -> CaseParticipant | None:
         """The receiver's stored record of the target participant.

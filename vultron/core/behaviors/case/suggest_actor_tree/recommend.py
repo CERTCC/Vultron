@@ -29,7 +29,6 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
@@ -100,10 +99,10 @@ def create_recommend_actor_to_case_received_tree(
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
-        ├── SuggestedActorAdmitted (CASE_MANAGER path)
-        │   └── SuggestedActorAdmissible (Sequence, memory=False)
-        │       ├── SuggestedActorNotRemoved      — CM-31-013 guard
-        │       └── SuggestedRolesGrantable       — CM-20-008 guard
+        ├── ReceivedPathNode                     — manager path only (HP-01-038)
+        ├── SuggestedActorAdmissible (Sequence, memory=False)
+        │   ├── SuggestedActorNotRemoved          — CM-31-013 guard
+        │   └── SuggestedRolesGrantable           — CM-20-008 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -123,8 +122,9 @@ def create_recommend_actor_to_case_received_tree(
                                         EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
-    A receiver that is not the case's CASE_MANAGER passes the gate's skip arm
-    and does nothing: no recommender index write, no emit (#3752).
+    The tree declares the CASE_MANAGER path alone, so the path stage refuses
+    any other receiver before intake: no recommender index write, no emit
+    (HP-01-039, #3752, #6394).
 
     Only a participant may suggest an actor (CM-16-001): the sender guard
     refuses a suggestion from anyone the case does not list, before the
@@ -363,35 +363,26 @@ def create_recommend_actor_to_case_received_tree(
     return create_receive_activity_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
-        # The Offer reaches two stores: the recommending participant
-        # addresses it to the case's CASE_MANAGER, which admits it, commits
-        # it and forwards an Offer(CaseParticipant) to the Case Owner, and
-        # the CASE_MANAGER's copy reaches a participant replica, which takes
-        # it from the CASE_MANAGER alone and does nothing with it
-        # (CM-16-001, CM-16-002, PCR-03-001, HP-01-038, #4646).
-        paths={
-            ReceivedPath.CASE_MANAGER,
-            ReceivedPath.PARTICIPANT_REPLICA,
-        },
+        # The recommending participant addresses the Offer to the case's
+        # CASE_MANAGER, which admits it, commits it and forwards an
+        # Offer(CaseParticipant) to the Case Owner (CM-16-001, CM-16-002).
+        # No replica acts on a copy: it learns of the recommendation from
+        # the ledger fan-out (PCR-03-001, RSH-08-003), so the tree declares
+        # the manager path alone and the path stage refuses any other
+        # receiver (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
-        # A replica takes the Offer from the CASE_MANAGER alone, so with no
-        # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
         sender_context=SenderCheckContext(
-            sender_id=recommender_id,
-            case_id=case_id,
-            case_manager_required=True,
+            sender_id=recommender_id, case_id=case_id
         ),
         precondition_guards=[
-            # The admission check is the CASE_MANAGER's adjudication, so it
-            # is declared on that path rather than run at both (HP-01-038).
-            OnPaths.at_case_manager(
-                "SuggestedActorAdmitted",
-                case_manager_admits_suggested_actor_guard(
-                    recommendation_id=recommendation_id,
-                    recommended_id=recommended_id,
-                    case_id=case_id,
-                    suggested_roles=suggested_roles,
-                ),
+            # The admission check is the CASE_MANAGER's adjudication; the
+            # tree runs nowhere else (HP-01-038).
+            case_manager_admits_suggested_actor_guard(
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+                suggested_roles=suggested_roles,
             )
         ],
         manager_effects=[

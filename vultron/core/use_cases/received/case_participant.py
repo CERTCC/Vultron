@@ -50,9 +50,6 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_absence_refusal,
-)
 from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
@@ -165,14 +162,9 @@ class _CaseOwnerParticipantMoveUseCase[
             # The move declares the manager and participant-replica paths,
             # so the path the stage resolved says which this receiver is on;
             # the handler never infers it from a gate that skipped
-            # (HP-01-038, ADR-0153).
-            # No arm for a case without a CASE_MANAGER (CM-24-008): the
-            # sender guard let it through only as the bootstrap window.
-            if (
-                refusal := case_manager_absence_refusal(self._dl, case_id)
-            ) is not None:
-                logger.warning("%s: %s", label, refusal.reason)
-                return refusal
+            # (HP-01-038, ADR-0153).  A case that names no CASE_MANAGER was
+            # refused by the sender guard, which requires one on this path
+            # (CM-02-014, CM-24-008).
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the move from the
             # ledger entry instead (CM-31-029, RSH-08-003).  The notice was

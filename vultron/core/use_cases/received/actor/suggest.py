@@ -13,9 +13,6 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -45,17 +42,17 @@ class OfferActorToCaseReceivedUseCase:
     Accept/Reject use cases can look up the recommender without re-reading the
     stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
 
-    Every effect is gated on the receiving actor holding
-    ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
-    a copy does nothing and refuses (HP-01-005, #3752).
+    The tree declares the manager path alone, so the path stage refuses any
+    other receiver of a copy before anything runs (HP-01-005, HP-01-039):
+    a participant replica learns of the recommendation from the ledger
+    fan-out (PCR-03-001, RSH-08-003).
 
     Only a participant of the case may suggest an actor (CM-16-001): an Offer
     from anyone else is refused before the case ledger is written, so nothing is
-    forwarded to the Case Owner (HP-01-006, #3668).  A participant replica
-    takes a copy from the CASE_MANAGER alone (PCR-03-001, #4646).
+    forwarded to the Case Owner (HP-01-006, #3668).
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -134,7 +131,7 @@ class OfferActorToCaseReceivedUseCase:
             actor_config=self._actor_config,
             sender_rule=self.sender_entitlement,
         )
-        verdict = run_received_tree(
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -143,4 +140,3 @@ class OfferActorToCaseReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        return case_manager_verdict(tree, verdict, self._dl, case_id)

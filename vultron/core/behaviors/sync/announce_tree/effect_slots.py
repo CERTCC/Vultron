@@ -276,6 +276,10 @@ def create_log_entry_event_effects() -> py_trees.composites.Sequence:
                 IsAddCaseReferenceEventNode,
                 ApplyCaseReferenceFromLedgerNode,
             ),
+            # Unreachable from this implementation's CASE_MANAGER, which
+            # commits no remove_note_from_case entry: removing ledgered
+            # content has no defined meaning yet (CM-30-003, #6430).  Kept so
+            # a replica can still replay such an entry if a ledger holds one.
             _event_effect_slot(
                 "RemoveNote",
                 IsRemoveNoteEventNode,

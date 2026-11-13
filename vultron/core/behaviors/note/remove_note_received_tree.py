@@ -12,82 +12,102 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 
+
 """Received-side BT factory for ``Remove(Note)[target=VulnerabilityCase]``.
 
-Mirror of :mod:`add_note_received_tree`: only the CASE_MANAGER detaches the note
-and commits the canonical ledger entry; replicas apply the entry's fan-out
-(SYNC-02-001, SYNC-02-003, RSH-08-004).  At the manager the sender must be the
-note's author (while an active participant) or the Case Owner (CM-30-001,
-ADR-0115).
+Removing a note is not supported.  The case ledger is append-only, so a
+removal would need a defined meaning for erasing what an entry already
+records — a tombstone, hiding the note while its entry stays, or a ledger
+that keeps the order of events but not their content — and the protocol
+defines none yet (#6430, CM-30-003).  The message type stays known: its
+pattern matches and its vocabulary parses.  Every receiver refuses it in its
+one received tree, and nothing is detached, committed or sent but the
+refusal notice the CASE_MANAGER owes the sender (CLP-05-001).
 """
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityUnsupportedNode,
+)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
-)
-from vultron.core.behaviors.case.nodes.reference_list import (
-    CaseReferenceEditPendingNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.note.nodes.storage import DetachNoteFromCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     AuthoredNote,
     SenderCheckContext,
 )
 
+#: Why every ``Remove(Note)`` is refused (CM-30-003, #6430).
+REMOVE_NOTE_UNSUPPORTED = (
+    "Remove(Note)[target=VulnerabilityCase] is not supported: the case"
+    " ledger is append-only and removing ledgered content has no defined"
+    " meaning (CM-30-003)"
+)
+
+_TREE_NAME = "RefuseRemoveNoteBT"
+
 
 def create_remove_note_from_case_received_tree(
-    note_id: str,
-    case_id: str,
+    note_id: str | None,
+    case_id: str | None,
     sender_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Single-BT received-side tree for ``Remove(Note)[target=VulnerabilityCase]`` (ADR-0111).
+    """Single-BT received-side tree for ``Remove(Note)[target=VulnerabilityCase]``.
 
     Structure (the CLP-10-010 stages)::
 
-        GuardedDetachAndCommitBT (Sequence)
-        ├── ActivityAddressedToReceiverNode               # addressee door
-        ├── ActivityNotSeenBeforeNode                     # seen-before door
-        ├── ReceivedPathNode                              # manager or replica
-        ├── SenderRuleGuard (Sequence)                    # sender guard
-        ├── IntakeReceivedActivityNode                    # intake
-        ├── CaseReferenceEditPendingNode                  # duplicate guard
-        ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
-        └── GuardedDetachNoteBT (Selector)                # effect
+        RefuseRemoveNoteBT (Sequence)
+        ├── ActivityAddressedToReceiverNode    # addressee door
+        ├── ActivityNotSeenBeforeNode          # seen-before door
+        ├── ReceivedPathNode                   # manager path only
+        ├── CaseOpenToExternalWrites           # post-close boundary
+        ├── SenderRuleGuard (Sequence)         # sender guard
+        ├── SenderSequenceGate                 # the sender's number
+        ├── IntakeReceivedActivityNode         # intake
+        └── PreconditionGuardStage
+            └── ActivityUnsupportedNode        # refuses every Remove(Note)
 
-    A note the case does not hold fails the duplicate guard before anything is
-    committed; the handler reports it as ``SKIPPED``.
+    The refusal is the tree's own guard, not a check in the use case
+    (CM-30-003, #6430).  A replica is refused at the path stage, since only
+    the CASE_MANAGER is addressed (PCR-08-001).  At the CASE_MANAGER the
+    sender guard and the sender-sequence stage run first, so the sender's
+    number is still counted (SYNC-21-008), and then the guard refuses even
+    an entitled sender.  The commit the factory composes after the guards
+    is never reached, so the note stays attached and nothing is ledgered.
 
-    The factory composes the sender guard from *sender_rule*, with the note
-    as the object an ``AUTHOR`` sender must have written (CM-30-001).  The
-    rule's two non-empty sides are the two paths the tree declares
-    (HP-01-038), so the path stage answers the role question once and the
-    guard's arms read its answer (HP-01-036).
+    A ``Remove`` that names no note or no case is archived and refused as
+    incomplete (CLP-10-018).
 
     Args:
-        note_id: ID of the note being removed.
-        case_id: ID of the case the note leaves.
+        note_id: ID of the note the ``Remove`` names.
+        case_id: ID of the case it names.
         sender_id: The activity's sender.
         sender_rule: The use case's declared sender rule (HP-01-008).
+
+    Returns:
+        Root ``RefuseRemoveNoteBT`` Sequence node.
     """
+    if note_id is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            _TREE_NAME,
+            "Remove(Note)[target=VulnerabilityCase] is missing its note id"
+            " or case id",
+        )
     return create_receive_activity_tree(
-        name="GuardedDetachAndCommitBT",
-        # The note's author or the Case Owner asks the CASE_MANAGER, and at a
-        # replica only the CASE_MANAGER is an entitled sender (CM-30-001,
-        # CM-30-003): the two non-empty sides of the sender rule, so the two
-        # declared paths (HP-01-038).  As with the Add, the replica path
-        # carries no effect of its own — RSH-08-003 keeps every write at the
-        # CASE_MANAGER, so a replica detaches the note from the entry's
-        # Announce fan-out (SYNC-02-001, SYNC-02-003) and a direct
-        # Remove(Note) there is refused (HP-01-005).  It is declared all the
-        # same because the act is the CASE_MANAGER's to relay (PCR-03-001).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        name=_TREE_NAME,
+        # The note's author or the Case Owner addresses the CASE_MANAGER
+        # alone (PCR-08-001); no replica acts on a copy (HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -95,14 +115,5 @@ def create_remove_note_from_case_received_tree(
             case_id=case_id,
             authored_object=AuthoredNote(note_id=note_id),
         ),
-        precondition_guards=[
-            CaseReferenceEditPendingNode(
-                ref_id=note_id, case_id=case_id, field="notes", attach=False
-            )
-        ],
-        manager_effects=[
-            DetachNoteFromCaseNode(note_id=note_id, case_id=case_id)
-        ],
-        manager_case_id=case_id,
-        manager_gate_name="GuardedDetachNoteBT",
+        precondition_guards=[ActivityUnsupportedNode(REMOVE_NOTE_UNSUPPORTED)],
     )

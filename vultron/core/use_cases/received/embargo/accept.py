@@ -50,7 +50,6 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
@@ -109,7 +108,7 @@ def _resolve_case_for_embargo_acceptance(
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.INVITEE
     )
 
@@ -156,7 +155,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         # One received tree (CLP-10-005).  accepting_actor_id is passed so
         # the tree records acceptance for the right actor when receiving !=
-        # accepting.
+        # accepting.  Only the CASE_MANAGER records an answer: the tree
+        # declares the manager path alone, so its path stage refuses a
+        # replica, which learns it from the ledger broadcast (BT-17-001,
+        # HP-01-005).
         tree = accept_invite_to_embargo_tree(
             case_id=case_id,
             embargo_id=embargo_id,
@@ -187,9 +189,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 _unavailable_embargo_reader(where),
             ),
         )
-        # Only the CASE_MANAGER records an answer; a replica learns it from
-        # the ledger broadcast (BT-17-001, HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.SKIPPED:
             # A correct no-op is not a warning (SL-01-001); a refusal the
             # runner has already logged.

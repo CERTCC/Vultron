@@ -37,9 +37,6 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -194,7 +191,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
         # participant whose RM is terminal.  The tree's closed-sender door
         # stops it as REFUSED, with nothing committed or sent (CM-23-018,
         # CM-11-015, RMB-14-006).
-        verdict = run_received_tree(
+        # Admitting the invitee is the CASE_MANAGER's job alone: the tree
+        # declares the manager path only, so the path stage refuses any
+        # other receiver (HP-01-005, HP-01-039).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -207,8 +207,6 @@ class AcceptInviteActorToCaseReceivedUseCase:
                 _joined_or_unknown_case(invitee_id, case_id),
             ),
         )
-        # Admitting the invitee is the CASE_MANAGER's job alone.
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class RejectInviteActorToCaseReceivedUseCase:
@@ -266,7 +264,10 @@ class RejectInviteActorToCaseReceivedUseCase:
         # A Reject from an invitee the case already records as closed would
         # close it again: the tree's closed-sender door stops it with nothing
         # committed or sent, so it is SKIPPED (CM-23-049, ID-05-003).
-        verdict = run_received_tree(
+        # Recording the decline is the CASE_MANAGER's job alone: the tree
+        # declares the manager path only, so the path stage refuses any
+        # other receiver, and one that does not hold the case (HP-01-039).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -276,9 +277,6 @@ class RejectInviteActorToCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
             reader=closed_sender_reader(closes=True),
         )
-        # Recording the decline is the CASE_MANAGER's job alone; the gate
-        # also reads a case we do not hold as "not the manager".
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 def _joined_or_unknown_case(invitee_id: str, case_id: str) -> OutcomeReader:

@@ -155,19 +155,3 @@ class AttachNoteToCaseNode(CaseReferenceEditNode):
     ):
         super().__init__(ref_id=note_id, case_id=case_id, name=name)
         self.note_id = note_id
-
-
-class DetachNoteFromCaseNode(CaseReferenceEditNode):
-    """Remove a note from a VulnerabilityCase's ``notes`` (idempotent)."""
-
-    FIELD: ClassVar[ReferenceField] = "notes"
-    ATTACH: ClassVar[bool] = False
-
-    def __init__(
-        self,
-        note_id: str,
-        case_id: str | None,
-        name: str | None = None,
-    ):
-        super().__init__(ref_id=note_id, case_id=case_id, name=name)
-        self.note_id = note_id

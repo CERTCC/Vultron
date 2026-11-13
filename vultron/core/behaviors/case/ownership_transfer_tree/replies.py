@@ -36,7 +36,6 @@ from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
 )
-from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -56,7 +55,7 @@ class _ReplyStages(NamedTuple):
     """What every reply to an Offer passes the received-tree factory."""
 
     sender_context: SenderCheckContext
-    precondition_guards: list[py_trees.behaviour.Behaviour | OnPaths]
+    precondition_guards: list[py_trees.behaviour.Behaviour]
 
 
 def _reply_stages(
@@ -71,22 +70,21 @@ def _reply_stages(
     """The sender context and guards of a reply to an Offer.
 
     The sender check reads the Offer the CASE_MANAGER recorded, so a sender
-    that is not its party is refused first; at a replica the sender must be
-    the CASE_MANAGER, and a case this store does not hold refuses
-    (PCR-03-001).  The open-Offer check runs next, at the CASE_MANAGER only
-    (CM-21-014, CM-21-016, HP-01-003): a reply to an Offer past its
-    ``end_time`` is refused from that time alone, and nothing records the
-    expiry (CM-21-043, ADR-0152).  With *transferee_must_be_active* (the
-    Accept), the transferee must then still be an active participant
-    (CM-21-022).
+    that is not its party is refused first.  The reply trees run at the
+    CASE_MANAGER alone: the path stage refuses a replica, and a receiver
+    that does not hold the case, before the sender check (HP-01-005).  The
+    open-Offer check runs next (CM-21-014, CM-21-016, HP-01-003): a reply
+    to an Offer past its ``end_time`` is refused from that time alone, and
+    nothing records the expiry (CM-21-043, ADR-0152).  With
+    *transferee_must_be_active* (the Accept), the transferee must then still
+    be an active participant (CM-21-022).
     """
     context = SenderCheckContext(
         sender_id=sender_id,
         case_id=case_id,
         request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
-        case_manager_required=True,
     )
-    guards: list[py_trees.behaviour.Behaviour | OnPaths] = [
+    guards: list[py_trees.behaviour.Behaviour] = [
         case_manager_ownership_offer_open_guard(
             case_id=case_id,
             offer_id=offer_id,
@@ -124,8 +122,7 @@ def create_accept_ownership_transfer_tree(
         offer_id: The Offer the Accept names, the CASE_MANAGER's own.
         sender_id: The Accept's sender.  The sender guard checks it: at the
             CASE_MANAGER it must be the transferee of the Offer it recorded,
-            which the open-Offer guard then requires to be open; at a
-            replica it must be the CASE_MANAGER.
+            which the open-Offer guard then requires to be open.
         answer_id: The Accept's own id, so a redelivery is recognised.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -151,11 +148,11 @@ def create_accept_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
-        # The transferee answers the CASE_MANAGER, which adjudicates the
-        # answer, and the CASE_MANAGER relays the answer to a participant
-        # replica, which archives it and takes the ownership change from the
-        # ledger (CM-21-013, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The transferee answers the CASE_MANAGER alone, which adjudicates
+        # the answer (CM-21-013, TRIG-11-002/005); a participant replica takes
+        # the ownership change from the ledger (RSH-08-003), so the path
+        # stage refuses a copy there (HP-01-005, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
         precondition_guards=stages.precondition_guards,
@@ -227,11 +224,11 @@ def create_reject_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="RejectOwnershipTransferBT",
         case_id=case_id,
-        # The transferee answers the CASE_MANAGER, which adjudicates the
-        # answer, and the CASE_MANAGER relays the answer to a participant
-        # replica, which archives it and takes the ownership change from the
-        # ledger (CM-21-013, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The transferee answers the CASE_MANAGER alone, which adjudicates
+        # the answer (CM-21-013, TRIG-11-002/005); a participant replica takes
+        # the ownership change from the ledger (RSH-08-003), so the path
+        # stage refuses a copy there (HP-01-005, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         # The Accept's sender rule (CM-21-013) and open-Offer guard, so a
         # closed Offer refuses either answer and a redelivery is recognised.
         sender_rule=sender_rule,
@@ -275,7 +272,7 @@ def create_undo_ownership_transfer_tree(
             names
             (:func:`~vultron.core.participants.ownership_offer.ownership_offer_id`).
         sender_id: The Undo's sender: at the CASE_MANAGER it must be the
-            offerer, still the Case Owner; at a replica, the CASE_MANAGER.
+            offerer, still the Case Owner.
         undo_id: The Undo's own id, so a redelivery is recognised.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -295,11 +292,11 @@ def create_undo_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="UndoOwnershipTransferBT",
         case_id=case_id,
-        # The Case Owner withdraws to the CASE_MANAGER, which adjudicates
-        # the withdrawal, and the CASE_MANAGER relays it to a participant
-        # replica, which archives it and takes the change from the ledger
-        # (CM-21-013, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The Case Owner withdraws to the CASE_MANAGER alone, which
+        # adjudicates the withdrawal (CM-21-015); a participant replica takes
+        # the change from the ledger (RSH-08-003), so the path stage refuses
+        # a copy there (HP-01-005, HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
         precondition_guards=stages.precondition_guards,

@@ -55,7 +55,7 @@ def create_add_report_to_case_received_tree(
         GuardedAttachReportAndCommitBT (Sequence)
         ├── ActivityAddressedToReceiverNode               # addressee door
         ├── ActivityNotSeenBeforeNode                     # seen-before door
-        ├── ReceivedPathNode                              # manager or replica
+        ├── ReceivedPathNode                              # manager path only
         ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── IntakeReceivedActivityNode                    # intake
         ├── CaseReferenceEditPendingNode                  # duplicate guard
@@ -75,14 +75,13 @@ def create_add_report_to_case_received_tree(
     """
     return create_receive_activity_tree(
         name="GuardedAttachReportAndCommitBT",
-        # The Case Owner asks the CASE_MANAGER to attach the report, and the
-        # CASE_MANAGER relays the attachment to a participant, which archives
-        # it and takes the fact from the ledger (PCR-03-001).  The replica
-        # path carries no effect — RSH-08-003 keeps every write at the
-        # CASE_MANAGER — and is declared because naming fewer paths than the
-        # type works on would refuse a receiver the type does act for
-        # (HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The Case Owner asks the CASE_MANAGER alone to attach the report
+        # (PCR-08-001); a participant takes the fact from the ledger
+        # (PCR-03-001), since RSH-08-003 keeps every write at the
+        # CASE_MANAGER.  The tree declares the manager path alone, so the
+        # path stage refuses a copy at any other receiver (HP-01-005,
+        # HP-01-038).
+        paths={ReceivedPath.CASE_MANAGER},
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

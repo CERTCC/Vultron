@@ -24,8 +24,9 @@ receiving actor (CLP-10-005, ADR-0135).  The tree's factory composes every
 outcome, a reply that names no case included: that tree archives the reply
 and refuses it (CLP-10-018).  A redelivery of the reply that closed the
 Offer is reported ``SKIPPED`` by the runner, from the reply guard's own
-repeat declaration (HP-01-003). A reply that reached a replica rather than
-the CASE_MANAGER is ``REFUSED`` (HP-01-005).
+repeat declaration (HP-01-003). Every reply tree declares the manager path
+alone, so a reply that reached a replica rather than the CASE_MANAGER is
+``REFUSED`` by its path stage (HP-01-005, HP-01-039).
 """
 
 import logging
@@ -44,7 +45,6 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -75,8 +75,7 @@ def run_offer_reply_tree(
         tree: The reply's received tree, as its factory composed it for
             the case the reply names (or names none).
         label: The tree's name, for the verdict and the logs.
-        case_id: The case the reply names, for the logs and the
-            CASE_MANAGER refusal (HP-01-005).
+        case_id: The case the reply names, for the logs.
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
         sync_port: Delivers the entries the tree commits.
         wire_render_port: Renders the activities the tree builds.
@@ -95,10 +94,6 @@ def run_offer_reply_tree(
         sync_port=sync_port,
         reader=reader,
     )
-    if case_id is not None:
-        # A reply to an Offer is the CASE_MANAGER's to apply; a replica the
-        # sender guard admitted did nothing past the gate (HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, dl, case_id)
     if applied_note and verdict.disposition is HandlerDisposition.APPLIED:
         logger.info(
             "Actor '%s' %s %s '%s' for case '%s'",

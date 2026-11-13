@@ -26,8 +26,8 @@ Provides:
   an Accept from a transferee that is no longer an active participant
   (CM-21-022).
 - :func:`case_manager_ownership_offer_open_guard` — the open-Offer guard,
-  and for an Accept the active-transferee guard after it, behind the
-  CASE_MANAGER gate, for the reply trees' ``precondition_guards``.
+  and for an Accept the active-transferee guard after it, for the reply
+  trees' ``precondition_guards``.
 
 The guards on the owner's proposal are in
 :mod:`~vultron.core.behaviors.case.nodes.ownership_offer_guard`, which
@@ -39,7 +39,6 @@ from enum import Enum
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.participants.ownership_offer import (
@@ -139,9 +138,9 @@ class OwnershipOfferOpenNode(
 
     The deadline is the ``end_time`` the ledgered Offer carries, and nothing
     records its passing (CM-21-017, ADR-0152): the CASE_MANAGER compares it
-    with its own clock here, so the guard runs behind the CASE_MANAGER gate
-    (:func:`case_manager_ownership_offer_open_guard`).  A replica changes
-    nothing on an expiry, so it never evaluates one.
+    with its own clock here, and the reply trees run at the CASE_MANAGER
+    alone (:func:`case_manager_ownership_offer_open_guard`).  A replica
+    changes nothing on an expiry, so it never evaluates one.
 
     Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, HP-01-003.
     """
@@ -314,7 +313,7 @@ def case_manager_ownership_offer_open_guard(
     party: OfferParty,
     *,
     transferee_must_be_active: bool = False,
-) -> OnPaths:
+) -> py_trees.behaviour.Behaviour:
     """Precondition guard: at the CASE_MANAGER, the replied-to Offer is open.
 
     With *transferee_must_be_active*, the Accept's case, the transferee must
@@ -322,12 +321,10 @@ def case_manager_ownership_offer_open_guard(
     (:class:`OwnershipTransfereeActiveNode`, CM-21-022), checked after the
     Offer is found open so a redelivery is still recognised first.
 
-    Declared on the manager path alone: a receiver on the tree's other
-    declared path skips it, because it takes the change from the
-    CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and changes nothing when an Offer expires (CM-21-043).  The branch
-    reads the path the tree's stage resolved and asks no role question of
-    its own (HP-01-036, HP-01-038).
+    The reply trees declare the manager path alone, so the path stage has
+    refused every other receiver before this guard runs (HP-01-005,
+    HP-01-039): a replica never judges an expiry, and changes nothing when
+    an Offer expires (CM-21-043).
     """
     children: list[py_trees.behaviour.Behaviour] = [
         OwnershipOfferOpenNode(
@@ -342,8 +339,6 @@ def case_manager_ownership_offer_open_guard(
         children.append(
             OwnershipTransfereeActiveNode(case_id=case_id, offer_id=offer_id)
         )
-    return OnPaths.at_case_manager(
-        "OwnershipOfferOpenIfCaseManager",
-        *children,
-        body_name="OwnershipOfferOpen",
+    return py_trees.composites.Sequence(
+        name="OwnershipOfferOpen", memory=False, children=children
     )

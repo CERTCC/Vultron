@@ -263,30 +263,36 @@ cases reach the core through a `CaseReader`, which translates one into a case re
 (ADR-0191, ADR-0197).
 *Avoid*: service domain, external tracker (as a coined name)
 
+**Case shadow**:
+A standalone, read-only tool that reads one case through a case reader on request and
+shows Vultron's analysis of it as a dashboard: where the case stands, which desiderata
+it meets or breaks, and which moves are open. It knows only case ledgers, never the
+source behind them. It advises: this version does not act in the case, write to the
+source, send to participants, or keep the case after the request (ADR-0190).
+*Avoid*: VINCE shadow (the case shadow is not tied to one source), shadow mode as a
+server setting (the case shadow hosts no actor), VINCE observer (Observer is a CVD
+role), VINCE mirror (a case shadow analyses; a mirror only copies)
+
+**Case reader**:
+Anything that answers a request for one case with a case reading: a case ledger, plus
+the source facts it could not translate and what it inferred or cannot observe
+(ADR-0191, ADR-0197). A Vultron case reader returns a CASE_MANAGER's
+ledger as it is, with nothing left untranslated; an outside-system case reader, such as
+the VINCE case reader, translates that system's case into one. Each is one kind of
+connector.
+*Avoid*: shadow adapter, VINCE shadow
+
 **Case reading**:
-What a `CaseReader` returns for one outside case: the translated case ledger, unmarked;
-a citation per entry; the inferences, each naming its mapping rule and a caveat; the
-untranslated facts, each with a reason; and the facts the source can never observe,
-which a consumer reads as unknown, never as false (ADR-0197).
+What a case reader returns for one case: the case ledger, unmarked; a citation per
+entry; the inferences, each naming its mapping rule and a caveat; the untranslated
+facts, each with a reason; and the facts the source can never observe, which a consumer
+reads as unknown, never as false (ADR-0197).
 *Avoid*: translated case, seeded case
-
-**Shadow**:
-A standalone, read-only tool that reads one case from an outside system on request,
-translates it, and shows Vultron's analysis of it as a dashboard: where the case
-stands, which desiderata it meets or breaks, and which moves are open. It advises:
-this version does not act in the case, write to the outside system, send to
-participants, or keep the case after the request (ADR-0190). A Vultron CASE_MANAGER
-can stand behind the same reader, untranslated.
-*Avoid*: shadow mode as a server setting (the shadow hosts no actor), VINCE observer
-(Observer is a CVD role), VINCE mirror (a shadow analyses; a mirror only copies)
-
-**VINCE shadow**:
-The shadow with VINCE as its outside system.
 
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as
 `Offer(VulnerabilityReport)`, on one side and the VINCE API on the other, so VINCE takes
-part in cases as a protocol peer. It is two-way, unlike the VINCE shadow.
+part in cases as a protocol peer. It is two-way, unlike the VINCE case reader.
 *Avoid*: VINCE bridge (clashes with the behavior-tree bridge), VINCE integration, VINCE
 connector (a connector is any plugin to an outside system, and integration does not say
 which direction)

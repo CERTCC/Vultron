@@ -372,7 +372,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     )
     event = make_payload(
         rm_accept_invite_to_case_activity(
-            invite, actor=_IMPOSTOR_ID, at=authored_at()
+            invite, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -388,6 +388,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "is not the invitee" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert _IMPOSTOR_ID not in case.actor_participant_index
     assert cm_store.outbox_list() == []
@@ -424,7 +425,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     )
     event = make_payload(
         rm_accept_invite_to_case_activity(
-            forged, actor=invitee_id, at=authored_at()
+            forged, actor=invitee_id, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -475,7 +476,7 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     invite = _record_stub_invite(cm_store, owned_case)
     event = make_payload(
         rm_accept_invite_to_case_activity(
-            invite, actor=sender, at=authored_at()
+            invite, actor=sender, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -492,6 +493,7 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "is not the invitee" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert sender not in case.actor_participant_index
     assert _INVITEE_ID not in case.actor_participant_index
@@ -528,7 +530,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     )
     event = make_payload(
         rm_accept_invite_to_case_activity(
-            forged, actor=_INVITEE_ID, at=authored_at()
+            forged, actor=_INVITEE_ID, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -544,6 +546,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "is for case" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert _INVITEE_ID not in case.actor_participant_index
     assert cm_store.outbox_list() == []
@@ -568,7 +571,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
     cm_store.create(invite)
     event = make_payload(
         rm_accept_invite_to_case_activity(
-            invite, actor=_IMPOSTOR_ID, at=authored_at()
+            invite, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -585,6 +588,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "not by this CASE_MANAGER" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert _IMPOSTOR_ID not in case.actor_participant_index
     assert cm_store.outbox_list() == []
@@ -615,7 +619,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         )
     event = make_payload(
         rm_reject_invite_to_case_activity(
-            invite, actor=_IMPOSTOR_ID, at=authored_at()
+            invite, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID], at=authored_at()
         ),
         at=cm_store,
     )
@@ -631,6 +635,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "is not the invitee" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert _IMPOSTOR_ID not in case.actor_participant_index
     assert cm_store.outbox_list() == []
@@ -957,7 +962,11 @@ def test_note_removal_by_stranger_is_refused(
     cm_store.create(owned_case)
     event = make_payload(
         make(
-            as_Remove, actor=_IMPOSTOR_ID, object_=note, target=owned_case.id_
+            as_Remove,
+            actor=_IMPOSTOR_ID,
+            object_=note,
+            target=owned_case.id_,
+            to=[_CASE_MANAGER_ID],
         ),
         at=cm_store,
     )
@@ -969,6 +978,9 @@ def test_note_removal_by_stranger_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+    # The CM-30-001 sender guard refuses it before the tree's refusal of
+    # every Remove(Note) (CM-30-003) is reached.
+    assert "(CASE_OWNER, AUTHOR)" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert note.id_ in [_ref_id(n) for n in case.notes]
     assert cm_store.outbox_list() == []
@@ -984,7 +996,11 @@ def test_report_addition_by_non_owner_is_refused(
     report = gen_report()
     event = make_payload(
         add_report_to_case_activity(
-            report, target=owned_case.id_, actor=_IMPOSTOR_ID, at=authored_at()
+            report,
+            target=owned_case.id_,
+            actor=_IMPOSTOR_ID,
+            to=[_CASE_MANAGER_ID],
+            at=authored_at(),
         ),
         at=cm_store,
     )
@@ -992,6 +1008,7 @@ def test_report_addition_by_non_owner_is_refused(
     result = run_in_act(AddReportToCaseReceivedUseCase(cm_store, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "is not the Case Owner" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert report.id_ not in [_ref_id(r) for r in case.vulnerability_reports]
     assert cm_store.outbox_list() == []

@@ -172,6 +172,11 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
     cannot wedge replication.  The note record itself is left in the store: the
     case no longer references it, and other records may.
 
+    Unreachable from this implementation's own CASE_MANAGER, which refuses
+    every received ``Remove(Note)`` and so commits no such entry: removing
+    ledgered content has no defined meaning yet (CM-30-003, #6430).  It is
+    kept so a replica can still replay such an entry if a ledger holds one.
+
     Spec: SYNC-02-001, SYNC-12-001, RSH-08-004.
     """
 
