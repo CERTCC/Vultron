@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import markdown  # type: ignore[import-untyped]  # Python-Markdown ships no stubs
 import pytest
@@ -981,12 +982,8 @@ def test_predict_freeze_reads_next_freeze(tmp_path, monkeypatch):
 def test_predict_freeze_refuses_a_failed_prediction(
     tmp_path, monkeypatch, code, stdout, words
 ):
-    class _Proc:
-        returncode = code
-        stderr = "boom"
-
-    _Proc.stdout = stdout
-    monkeypatch.setattr(dr.subprocess, "run", lambda argv, **kw: _Proc())
+    proc = SimpleNamespace(returncode=code, stdout=stdout, stderr="boom")
+    monkeypatch.setattr(dr.subprocess, "run", lambda argv, **kw: proc)
     with pytest.raises(dr.ReleaseCommandError, match=words):
         dr.predict_freeze(tmp_path)
 
