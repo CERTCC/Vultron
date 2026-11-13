@@ -138,16 +138,8 @@ class AddCaseStatusToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        status_id = request.status_id
-        case_id = request.case_id
-        if not status_id or not case_id:
-            logger.warning(
-                "add_case_status_to_case: missing status_id or case_id"
-            )
-            return HandlerResult.refused(
-                "Add(CaseStatus) is missing its status id or case id"
-            )
-
+        # An Add missing its status id or case id gets the incomplete-
+        # activity tree, whose guard refuses it (CLP-10-018).
         tree = add_case_status_tree(
             request=request,
             sender_rule=self.sender_entitlement,
@@ -225,16 +217,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        if not request.status_id or not request.participant_id:
-            logger.warning(
-                "add_participant_status_to_participant: missing status_id"
-                " or participant_id"
-            )
-            return HandlerResult.refused(
-                "Add(ParticipantStatus) is missing its status id or"
-                " participant id"
-            )
-
         # The case is the target participant's own (HP-08-008); the tree
         # refuses a status of any other case before the commit (HP-08-007).
         # A target the receiver holds no record of leaves the activity's own
@@ -268,7 +250,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
             reader=_participant_status_reader(
-                request.status_id, request.activity_id
+                request.status_id or "", request.activity_id
             ),
         )
         if case_id is not None:

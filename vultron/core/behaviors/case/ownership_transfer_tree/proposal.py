@@ -28,6 +28,9 @@ import py_trees
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     case_manager_admits_ownership_proposal_guard,
 )
@@ -147,6 +150,9 @@ def create_propose_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="ProposeOwnershipTransferBT",
         case_id=case_id,
+        # The proposal names the case (ADR-0165): one the CASE_MANAGER does
+        # not hold is refused at the held-case door (AKM-03-006).
+        held_case=CaseNamedByReference.OWNERSHIP_TRANSFER_PROPOSAL,
         # The Case Owner proposes to the CASE_MANAGER, which alone
         # adjudicates the proposal and makes the Offer; no other receiver
         # is addressed, and the rule admits no sender there (CM-21-026,

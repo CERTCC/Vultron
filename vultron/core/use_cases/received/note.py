@@ -29,9 +29,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +84,8 @@ class AddNoteToCaseReceivedUseCase:
                 "Add(Note)[target=VulnerabilityCase] is missing its inline note or case id"
             )
 
-        resolve_receiver_before_reads(self._dl, request)
-        # The CASE_MANAGER gate reads a missing case as "not the manager" and
-        # skips, which would hide an Add aimed at a case this actor lacks.
-        if self._dl.read_case(case_id) is None:
-            logger.warning("add_note_to_case: case '%s' not found", case_id)
-            return HandlerResult.refused(f"case '{case_id}' not found")
-
+        # A case this store does not hold puts it on the no-case path, which
+        # the tree's path stage refuses (HP-01-039).
         tree = create_add_note_to_case_received_tree(
             note_obj=note,
             case_id=case_id,
@@ -157,13 +149,8 @@ class RemoveNoteFromCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Remove(Note)[target=VulnerabilityCase] is missing its note id or case id"
             )
-        resolve_receiver_before_reads(self._dl, request)
-        if self._dl.read_case(case_id) is None:
-            logger.warning(
-                "remove_note_from_case: case '%s' not found", case_id
-            )
-            return HandlerResult.refused(f"case '{case_id}' not found")
-
+        # A case this store does not hold is refused at the tree's path
+        # stage, on the no-case path (HP-01-039).
         tree = create_remove_note_from_case_received_tree(
             note_id=note_id,
             case_id=case_id,

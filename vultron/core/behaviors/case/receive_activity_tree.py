@@ -18,7 +18,7 @@
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
 It fixes the stage order door guards (addressee check, seen-before door,
-path stage, post-close guard, closed-sender check, sender guard) → intake →
+held-case door, path stage, post-close guard, closed-sender check, sender guard) → intake →
 clock decisions → precondition guards → guarded commit → protocol effects
 (CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013, HP-01-005) and
 supplies the door guards and the shared intake node itself (CLP-10-017,
@@ -103,6 +103,9 @@ from vultron.core.behaviors.case.nodes.addressee import (
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -131,6 +134,7 @@ from vultron.core.behaviors.case.receive_stages.doors import (
     case_resolution_stage,
     check_nested,
     closed_sender_stage,
+    held_case_stage,
     path_stage_case_id,
     post_close_stage,
     received_path_stage,
@@ -181,6 +185,7 @@ def create_receive_activity_tree(
     case_may_be_absent: bool = False,
     *,
     addressee_exemption: AddresseeExemption | None = None,
+    held_case: CaseNamedByReference | None = None,
     paths: Collection[ReceivedPath] | None = None,
     closed_sender: ClosedSenderCheck | None = None,
     sender_rule: SenderRule | None = None,
@@ -209,7 +214,8 @@ def create_receive_activity_tree(
     Structurally enforces the receive-side ordering (ADR-0115, ADR-0135,
     ADR-0154, BT-17-008, CM-23-013)::
 
-        ActivityAddressedToReceiver → ActivityNotSeenBefore → [ReceivedPath]
+        ActivityAddressedToReceiver → ActivityNotSeenBefore
+            → [ReceiverHoldsNamedCase] → [ReceivedPath]
             → CaseOpenToExternalWrites → [closed-sender check]
             → [*case_resolution] → [sender guard]
             → Intake
@@ -254,6 +260,16 @@ def create_receive_activity_tree(
     answered the delivery and its intake recorded it, so a second intake
     would meet that record and read the first run as a re-run (ADR-0154).
     Every other stage is built as usual.
+
+    ``held_case`` names the act of a tree whose message names its case and
+    carries none of it — ``Join``, ``Ignore``, ``Leave`` and the owner's
+    ``Offer(Offer(VulnerabilityCase))`` (AKM-03-004, ADR-0165).  The factory
+    places
+    :class:`~vultron.core.behaviors.case.nodes.held_case.ReceiverHoldsNamedCaseNode`
+    after the seen-before door and before the path stage, on the case the
+    path stage reads: an act naming a case this receiver does not hold is
+    ``REFUSED`` there, naming the activity and the case (AKM-03-006), and no
+    use case reads its store to ask first.
 
     The addressee check opts out only with ``addressee_exemption``, a
     registered
@@ -488,6 +504,10 @@ def create_receive_activity_tree(
             case yet (e.g. an invitee seeing the first Invite).
         addressee_exemption: Why this tree carries no addressee door guard;
             ``None`` (the default) places it (HP-01-005).
+        held_case: Which act that names its case and carries none of it
+            this tree handles (AKM-03-004); places the held-case door,
+            which refuses the act when the receiver does not hold the case
+            (AKM-03-006).  ``None`` (the default) places none.
         paths: The paths this message type handles, declared once
             (ADR-0153); ``None`` places no path stage.
         closed_sender: The sender whose recorded closure stops the tree, for
@@ -604,6 +624,13 @@ def create_receive_activity_tree(
     children.extend(seen_before_stage(name, nested=nested))
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context
+    )
+    # An act that names its case and carries none of it is refused, naming
+    # the activity and the case, when this receiver does not hold the case
+    # (AKM-03-006); ahead of the path stage, which would refuse it on the
+    # no-case path without naming the activity.
+    children.extend(
+        held_case_stage(name, stage_case_id, held_case, nested=nested)
     )
     path_stage = received_path_stage(
         name,

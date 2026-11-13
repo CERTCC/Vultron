@@ -17,13 +17,12 @@
 
 A handler applies these to the runner's verdict
 (:func:`~vultron.core.behaviors.case.received_run.run_received_tree`).  They
-read the DataLayer after or before the tree, which the runner never does;
-#6394 moves each refusal into the tree (a path-stage door, a held-case door)
-and deletes them.
+read the DataLayer after the tree, which the runner never does; #6394 moves
+each refusal into the tree's path stage and deletes them.
 
 A CASE_MANAGER-addressed message that reaches an actor without that role
-was misaddressed, so it is ``REFUSED`` (HP-01-005); so is an act naming a
-case this store does not hold or one whose roster names no CASE_MANAGER.
+was misaddressed, so it is ``REFUSED`` (HP-01-005); so is a case whose
+roster names no CASE_MANAGER.
 """
 
 import logging
@@ -45,14 +44,12 @@ from vultron.core.behaviors.sync.sender_sequence_stage import (
     SENDER_SEQUENCE_GATE_NAME,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -145,35 +142,6 @@ def case_manager_verdict(
         refusal.reason,
     )
     return refusal
-
-
-def unheld_case_refusal(
-    dl: CasePersistence, request: VultronEvent, case_id: str, label: str
-) -> HandlerResult | None:
-    """The refusal owed to an act that names a case this store does not hold.
-
-    The receiving actor is resolved first, as the runner would resolve it, so
-    a delivery with no resolvable receiver stays a wiring fault that raises
-    before any read, never a refusal of the sender (BT-17-009, ARCH-15-001).
-
-    ``Join``, ``Ignore`` and ``Leave`` of a case and the ownership-transfer
-    ``Offer`` name their case and carry no copy of it (ADR-0165): the
-    receiver reads every detail from the case it holds, so a case it does not
-    hold leaves it nothing to act on, and the act is ``REFUSED`` naming the
-    activity and the case.  ``None`` when the store holds the case.
-    """
-    resolve_receiving_actor_id(dl, request.receiving_actor_id)
-    if dl.read_case(case_id) is not None:
-        return None
-    logger.warning(
-        "%s '%s' names case '%s', which this actor does not hold — REFUSED",
-        label,
-        request.activity_id,
-        case_id,
-    )
-    return HandlerResult.refused(
-        f"{label} '{request.activity_id}' names unknown case '{case_id}'"
-    )
 
 
 def case_manager_absence_refusal(

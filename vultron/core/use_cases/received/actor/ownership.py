@@ -25,9 +25,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.services.receiving_actor import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    unheld_case_refusal,
-)
 from vultron.core.use_cases.received._offer_reply import (
     run_offer_reply_tree,
 )
@@ -106,18 +103,8 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
-        # The proposal names the case (ADR-0165): the CASE_MANAGER reads every
-        # detail from the case it holds, so one it does not hold is refused.
-        if (
-            case_id is not None
-            and (
-                refusal := unheld_case_refusal(
-                    self._dl, request, case_id, "Offer(Offer)"
-                )
-            )
-            is not None
-        ):
-            return refusal
+        # The proposal names the case (ADR-0165): the tree's held-case door
+        # refuses one the CASE_MANAGER does not hold (AKM-03-006).
         # A redelivery of a proposal the CASE_MANAGER already made its Offer
         # from is a repeat its guard reports, so the runner reads it SKIPPED
         # (HP-01-014, CM-21-014).

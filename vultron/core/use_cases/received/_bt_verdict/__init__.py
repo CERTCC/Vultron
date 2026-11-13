@@ -18,11 +18,11 @@
 A received handler builds its tree and runs it through
 :func:`~vultron.core.behaviors.case.received_run.run_received_tree`, which
 reads the verdict from what the tree's nodes recorded (ADR-0195).  What is
-left here reads the DataLayer around the run, so it cannot live in the
+left here reads the DataLayer after the run, so it cannot live in the
 runner: :func:`case_manager_verdict` turns a CASE_MANAGER gate's skip into
-the refusal HP-01-005 owes, and :func:`unheld_case_refusal` refuses an act
-naming a case the receiver does not hold (ADR-0165).  #6394 moves both into
-the tree and deletes this package.
+the refusal HP-01-005 owes.  #6394 moves it into the tree and deletes this
+package.  An act naming a case the receiver does not hold is refused by the
+tree's held-case door (AKM-03-006).
 """
 
 from vultron.core.use_cases.received._bt_verdict.case_manager import (
@@ -30,7 +30,6 @@ from vultron.core.use_cases.received._bt_verdict.case_manager import (
     case_manager_verdict,
     not_case_manager,
     not_case_manager_refusal,
-    unheld_case_refusal,
 )
 
 __all__ = [
@@ -38,5 +37,4 @@ __all__ = [
     "case_manager_verdict",
     "not_case_manager",
     "not_case_manager_refusal",
-    "unheld_case_refusal",
 ]

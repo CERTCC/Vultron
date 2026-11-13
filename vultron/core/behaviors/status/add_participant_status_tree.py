@@ -90,6 +90,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
@@ -259,6 +262,10 @@ def add_participant_status_tree(
     #4829).  Both read the case's status, the CASE_MANAGER's own conclusion
     in the forced form, never the sender's claim (SM-09-003, #6080).
 
+    An ``Add`` missing its status id or participant id gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
         request: The parsed inbound domain event.
         case_id: ID of the target participant's VulnerabilityCase
@@ -284,8 +291,14 @@ def add_participant_status_tree(
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
     """
-    status_id = request.status_id or ""
-    participant_id = request.participant_id or ""
+    status_id = request.status_id
+    participant_id = request.participant_id
+    if not status_id or not participant_id:
+        return create_incomplete_activity_received_tree(
+            "AddParticipantStatusBT",
+            "Add(ParticipantStatus) is missing its status id or"
+            " participant id",
+        )
     actor_id = request.actor_id
     status_obj = request.status
 

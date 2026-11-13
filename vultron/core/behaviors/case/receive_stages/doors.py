@@ -15,7 +15,8 @@
 
 """The door guards of a received tree (CLP-10-010, HP-01-005, CM-23-013).
 
-In ADR-0154's order: the addressee check, the seen-before door, the path
+In ADR-0154's order: the addressee check, the seen-before door, the
+held-case door of an act that names its case (AKM-03-006), the path
 stage, the post-close guard, the closed-sender check, any case resolution and
 the sender guard.  Intake follows them, so nothing is written before the last
 door admits the message.
@@ -32,6 +33,10 @@ from vultron.core.behaviors.case.nodes.addressee import (
     AddresseeExemption,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+    ReceiverHoldsNamedCaseNode,
+)
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     PostCloseExemption,
@@ -142,6 +147,40 @@ def seen_before_stage(
     if nested:
         return []
     return [ActivityNotSeenBeforeNode(label=name)]
+
+
+def held_case_stage(
+    name: str,
+    case_id: str | None,
+    act: CaseNamedByReference | None,
+    *,
+    nested: bool = False,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The held-case door of a tree whose act names its case (AKM-03-006).
+
+    Nothing for a tree that passes no *act*.  Placed after the seen-before
+    door and before the path stage: an act that names a case this receiver
+    does not hold is refused naming the activity and the case, which the
+    path stage's no-case reason does not (AKM-03-006, HP-01-039).
+
+    Raises:
+        VultronWiringError: *act* is given to a tree that names no case to
+            check, or to a nested tree, whose enclosing tree's doors ran.
+    """
+    if act is None:
+        return []
+    where = f"create_receive_activity_tree({name})"
+    if nested:
+        raise VultronWiringError(
+            f"{where}: a nested tree runs on its enclosing tree's doors, so"
+            " the held-case door belongs to the enclosing tree (ADR-0154)"
+        )
+    if not case_id:
+        raise VultronWiringError(
+            f"{where}: held_case needs the case the act names, as case_id,"
+            " manager_case_id or the sender context's case (AKM-03-006)"
+        )
+    return [ReceiverHoldsNamedCaseNode(act=act, case_id=case_id)]
 
 
 def post_close_stage(

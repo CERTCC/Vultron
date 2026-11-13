@@ -43,6 +43,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -85,7 +88,7 @@ logger = logging.getLogger(__name__)
 
 
 def accept_invite_to_embargo_tree(
-    case_id: str,
+    case_id: str | None,
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
@@ -153,8 +156,14 @@ def accept_invite_to_embargo_tree(
     is answered with the refusal notice (CLP-02-005); a diverted delivery is
     answered by its diversion, and a repeat gets nothing.
 
+    An Accept that names no case has no case to answer it in: the tree is
+    the incomplete-activity one, whose guard refuses it after intake records
+    it (CLP-10-018).  A case the CASE_MANAGER does not hold puts it on the
+    no-case path, which the path stage refuses (HP-01-039).
+
     Args:
-        case_id: ID of the VulnerabilityCase.
+        case_id: ID of the VulnerabilityCase; ``None`` when the Accept names
+            none.
         embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
@@ -171,6 +180,11 @@ def accept_invite_to_embargo_tree(
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
+    if not case_id:
+        return create_incomplete_activity_received_tree(
+            "AcceptInviteToEmbargoBT",
+            "Accept(Invite(EmbargoEvent)) names no case",
+        )
     expiry_out = {} if expiry_out is None else expiry_out
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",

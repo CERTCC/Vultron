@@ -21,6 +21,9 @@ from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
 from vultron.core.behaviors.case.nodes.addressee import (
     ENCLOSING_TREE_ADDRESSEE_CHECK,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     CaseManagerLeavesOnlyAsCaseOwnerNode,
@@ -90,6 +93,7 @@ def create_close_case_received_tree(
         CloseCaseBT (Sequence, via create_receive_activity_tree)
         ├── ActivityAddressedToReceiverNode             # addressee door (HP-01-005)
         ├── ActivityNotSeenBeforeNode                   # seen-before door
+        ├── ReceiverHoldsNamedCaseNode                  # held-case door (AKM-03-006)
         ├── ReceivedPathNode                            # manager or replica (HP-01-038)
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
@@ -209,6 +213,7 @@ def create_close_case_received_tree(
         return create_receive_activity_tree(
             name="CloseCaseBT",
             case_id=case_id,
+            held_case=CaseNamedByReference.LEAVE,
             precondition_guards=[],
         )
     if sender_rule is None:
@@ -344,6 +349,10 @@ def create_close_case_received_tree(
     return create_receive_activity_tree(
         name="CloseCaseBT",
         case_id=None,
+        # The Leave names the case (ADR-0165): one this store does not hold
+        # is refused at the held-case door, naming the activity and the case
+        # (AKM-03-006).  The door reads the case the sender context names.
+        held_case=CaseNamedByReference.LEAVE,
         precondition_guards=[],
         # The leaver asks the CASE_MANAGER, which decides the close or the
         # decline, and the CASE_MANAGER relays the Leave to a participant
