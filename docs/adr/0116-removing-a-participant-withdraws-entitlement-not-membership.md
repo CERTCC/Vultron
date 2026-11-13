@@ -13,7 +13,7 @@ consulted: >-
 informed: []
 partially_superseded_by:
   - 0172-an-active-participant-is-not-closed.md
-  - 0197-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md
+  - 0198-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -283,7 +283,7 @@ Issue: #6245.
   report's `attributedTo`.
 - A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
   request it received, both exactly when the asker is a different actor from the
-  `actor` (ADR-0197). Every delegated emit has a received request to name: a
+  `actor` (ADR-0198). Every delegated emit has a received request to name: a
   distinct asker reaches the CASE_MANAGER only by message, wherever the two run
   (ADR-0109; the ownership-transfer trigger already sends its proposal). The
   CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
@@ -321,7 +321,7 @@ today's `Remove(CaseParticipant)[target=…]`.
 
 ## The Owner Offers a Removal or Reinstatement
 
-Issue: #6293. Record: ADR-0197.
+Issue: #6293. Record: ADR-0198.
 
 **Decision.**
 
@@ -698,7 +698,7 @@ inquiries where no single act is proposed.
 
 The ownership transfer's `Offer(Offer(VulnerabilityCase))` (ADR-0148) is this pattern
 and stays, now answered with an `Accept` and naming the proposal in `inReplyTo`
-(ADR-0197, § "The Owner Offers a Removal or Reinstatement").
+(ADR-0198, § "The Owner Offers a Removal or Reinstatement").
 
 **AS2 basis.** VOC Offer can propose an action ("Sally is offering to add a File to
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
@@ -755,7 +755,7 @@ needs no rule for a stray `target`.
 
 `Add(CaseParticipant, target=<case>)` was considered and rejected for now: that shape
 is already the Case Owner's reinstatement request (CM-31-011), and a pattern cannot
-tell the two apart by sender. ADR-0197 (#6293) moves the Owner's requests to an
+tell the two apart by sender. ADR-0198 (#6293) moves the Owner's requests to an
 `Offer` naming the Actor, which frees `Add(CaseParticipant)`.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and

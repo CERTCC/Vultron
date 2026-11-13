@@ -97,7 +97,7 @@ The changes these rules imply for today's code are tracked in
 - **A request for another actor to act is `Offer(<the act>)` too, never the act
   itself.** The actor that holds the record answers `Accept` (its decision) or a
   refusal notice, then makes the act with `inReplyTo` = the Offer; the Accept and the
-  act commit together (ADR-0197). Sending the bare act would state that the asker
+  act commit together (ADR-0198). Sending the bare act would state that the asker
   did it.
 
 ## Responses Reference the Request Twice
