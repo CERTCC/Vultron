@@ -85,7 +85,7 @@ A configuration file that names a secret key stops the node at startup, whatever
 The node reads no `.env` file and no secrets directory, so the process environment is the only source of a secret.
 A secret is masked wherever the node logs or prints its configuration (VSD-01-005).
 
-A VINCE case read needs the credential, so the read is refused when `VULTRON_VINCE__API_TOKEN` is unset.
+Reading a case from the Vulnerability Information and Coordination Environment (VINCE) needs the VINCE API credential, so the read is refused when `VULTRON_VINCE__API_TOKEN` is unset.
 A `VULTRON_VINCE__API_TOKEN` that is set but empty stops the node at startup.
 
 ---
