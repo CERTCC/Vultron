@@ -15,10 +15,12 @@
 
 """CRUD operations for the SQLite data layer."""
 
+import json
 import logging
 from typing import Any, cast
 
 from sqlalchemy import String, type_coerce, update as sa_update
+from sqlalchemy.engine import Connection
 from sqlmodel import col, select
 
 from vultron.adapters.driven.db_record import (
@@ -36,6 +38,7 @@ from .schema import (
     VultronObjectRecord,
     participant_status_summary,
 )
+from .transaction import forget_rows, open_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,9 @@ def create(
     else:
         rec = object_to_record(record)
 
+    # A missing row is never kept and an existing one is refused, so nothing
+    # can be stale here; it forgets anyway, so every object-row write does.
+    forget_rows(dl._engine, [rec.id_])
     with dl._session() as session:
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
@@ -122,12 +128,11 @@ def read(
     # stays inside the block, as it did inside the session, so an in-memory
     # store's lock covers the referenced rows hydration reads in turn.
     with dl._connection() as connection:
-        found = connection.execute(
-            READ_BY_ID, {"object_id": object_id}
-        ).first()
-        if found is not None:
-            row = StoredRowValues._make(found)
-            if row.type_ == "CaseParticipant":
+        row = _stored_row(dl, connection, object_id)
+        if row is not None:
+            if row.type_ == "CaseParticipant" and logger.isEnabledFor(
+                logging.DEBUG
+            ):
                 summary = participant_status_summary(row.data)
                 logger.debug(
                     "DataLayer read CaseParticipant '%s' from "
@@ -145,6 +150,46 @@ def read(
     return None
 
 
+def _stored_row(
+    dl: Any,  # SqliteDataLayer
+    connection: Connection,
+    object_id: str,
+) -> StoredRowValues | None:
+    """The row stored under *object_id*, or ``None``; fetched once per block.
+
+    Inside :meth:`~.datalayer.SqliteDataLayer.transaction`, a row the block
+    already read and has not written since is taken from the block's kept
+    rows instead of the store (#5344): nothing else can change it while the
+    block is open (see :mod:`.transaction`).  Each call decodes the row's
+    ``data`` from the stored JSON text, so a caller that changes the dict it
+    is handed changes no other read's.  A missing row is not kept.
+    """
+    state = open_transaction(dl._engine)
+    stored = None if state is None else state.rows_read.get(object_id)
+    if stored is None:
+        stored = _select_row(connection, object_id)
+        if stored is None:
+            return None
+        if state is not None:
+            state.rows_read[object_id] = stored
+    type_, data_text = stored
+    return StoredRowValues(object_id, type_, json.loads(data_text))
+
+
+def _select_row(
+    connection: Connection, object_id: str
+) -> tuple[str, str] | None:
+    """Fetch *object_id*'s ``(type_, data_text)`` from the store: one query.
+
+    The only place a read by id reaches the store, so a test that counts
+    store reads counts calls to this (DL-02-011).
+    """
+    found = connection.execute(READ_BY_ID, {"object_id": object_id}).first()
+    if found is None:
+        return None
+    return found.type_, found.data_text
+
+
 def save(
     dl: Any,  # SqliteDataLayer
     obj: PersistableModel,
@@ -159,6 +204,7 @@ def save(
         obj: Any Pydantic model with ``id_`` and ``type_`` fields.
     """
     rec = object_to_record(obj)
+    forget_rows(dl._engine, [rec.id_])
     with dl._session() as session:
         row = session.get(VultronObjectRecord, rec.id_)
         if row is None:
@@ -240,6 +286,7 @@ def save_if_unchanged(
     rec = object_to_record(obj)
     expected_data = object_to_record(expected).data_
     stored_text = type_coerce(VultronObjectRecord.data, String)
+    forget_rows(dl._engine, [rec.id_])
     with dl._session() as session:
         found = session.exec(
             select(
@@ -285,6 +332,7 @@ def save_many(
             semantics matching :func:`save`).
     """
     rows = [object_to_record(obj) for obj in objs]
+    forget_rows(dl._engine, [rec.id_ for rec in rows])
     with dl._session() as session:
         for rec in rows:
             row = session.get(VultronObjectRecord, rec.id_)
@@ -318,6 +366,7 @@ def delete(
     Returns:
         ``True`` if deleted; ``False`` if not found.
     """
+    forget_rows(dl._engine, [id_])
     with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table,
@@ -341,6 +390,7 @@ def clear_table(
         dl: The SqliteDataLayer instance.
         table: Object type to clear.
     """
+    forget_rows(dl._engine)
     with dl._session() as session:
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_ == table
@@ -362,6 +412,7 @@ def clear_all(
     Args:
         dl: The SqliteDataLayer instance.
     """
+    forget_rows(dl._engine)
     with dl._session() as session:
         for row in session.exec(select(VultronObjectRecord)).all():
             session.delete(row)
@@ -386,6 +437,7 @@ def update(
         ``True`` if the record was updated; ``False`` if not found.
     """
     normalized = _storable_to_record(record)
+    forget_rows(dl._engine, [id_])
     with dl._session() as session:
         row = session.get(VultronObjectRecord, id_)
         if row is None:
