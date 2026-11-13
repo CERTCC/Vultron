@@ -64,7 +64,8 @@ For each migration:
 ### Phase 5 — Validate and commit
 
 1. `wc -l AGENTS.md` — verify within target.
-2. `./mdlint.sh` — lint all modified markdown files.
+2. `./mdlint.sh AGENTS.md <other modified .md files>` — lint the modified
+   markdown files.
 3. Commit: `docs: condense AGENTS.md — migrate <N> sections`.
 
 ## Hard rules

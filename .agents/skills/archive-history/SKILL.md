@@ -15,7 +15,7 @@ description: >
 Archive one completed work item to `plan/history/` and commit + push it to the
 current branch.
 History entries are not markdown-linted: the root `.markdownlint-cli2.yaml`
-ignores `plan/history/**`, so `--fix` can never rewrite one (HM-01-005, #2952).
+ignores `**/plan/history/**`, so `--fix` can never rewrite one (HM-01-005, #2952).
 
 **Always invoke this skill AFTER the PR is opened** — so the PR URL can be
 embedded in the entry body. History entries become immutable once merged into

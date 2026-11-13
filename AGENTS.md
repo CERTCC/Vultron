@@ -355,7 +355,8 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 ## Miscellaneous tips
 
 - Use `markdownlint-cli2` for markdown; `ruff format` skips it. Default config
-  ignores vendor trees, `wip_notes/**` and `plan/history/**` (HM-01-005, #2952).
+  ignores vendor trees, `wip_notes/**`, `**/.claude/worktrees/**` and
+  `**/plan/history/**` (HM-01-005, #2952, #6232).
 - **Docs links must be relative** and MUST NOT go above `docs/`. Run
   the `build-docs` skill before committing docs. `docs/developer/` pages
   are draft docs — visible in `mkdocs serve`, excluded from production builds.

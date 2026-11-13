@@ -5,11 +5,21 @@ on:
     branches: ["main"]
     paths:
       - "**/*.md"
+      # A lint config change can fail any file, and mdlint.sh's behaviour
+      # tests read the config and the script (#6232).
+      - "**/.markdownlint-cli2.yaml"
+      - mdlint.sh
+      - test/metadata/test_mdlint_history_exclusion.py
       - .github/workflows/lint_md_all.yml
   pull_request:
     branches: ["main"]
     paths:
       - "**/*.md"
+      # A lint config change can fail any file, and mdlint.sh's behaviour
+      # tests read the config and the script (#6232).
+      - "**/.markdownlint-cli2.yaml"
+      - mdlint.sh
+      - test/metadata/test_mdlint_history_exclusion.py
       - .github/workflows/lint_md_all.yml
   workflow_dispatch:
 
@@ -35,15 +45,53 @@ jobs:
       with:
         globs: "**/*.md"
         config: .markdownlint-cli2.yaml
+
+  mdlint-behaviour:
+    name: mdlint.sh behaviour (pytest)
+    runs-on: ubuntu-latest
+    # The test file takes seconds; setup dominates. Cap at 10 min so a hang
+    # fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: ./.github/actions/debounce-main-push
+    # No pytest job installs markdownlint-cli2, so there the sandbox tests
+    # skip. This job puts it on PATH and sets VULTRON_REQUIRE_MARKDOWNLINT,
+    # which turns that skip into a failure (#6232). The version matches the
+    # devcontainer's.
+    - name: Install markdownlint-cli2
+      run: npm install --global markdownlint-cli2@0.24.1
+    - uses: ./.github/actions/setup-python-uv
+    - name: Run the mdlint.sh behaviour tests
+      env:
+        VULTRON_REQUIRE_MARKDOWNLINT: "1"
+      run: >-
+        uv run pytest -m "" -n 0 --tb=short
+        test/metadata/test_mdlint_history_exclusion.py
+
+  # One notify job for both: per-job steps sharing one workflow label would
+  # let the passing job close the issue the failing one filed (CISEC-05).
+  notify:
+    name: Notify CI failure
+    runs-on: ubuntu-latest
+    needs: [lint, mdlint-behaviour]
+    if: always() && (github.event_name == 'push' || github.event_name == 'schedule')
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    # File only on a genuine failure, never on cancellation alone, and never
+    # declare recovery from a run with a cancelled job (CISEC-05-006,
+    # CISEC-05-009, CISEC-05-014; python-app.yml's notify job).
     - name: Notify CI failure
-      if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+      if: contains(needs.*.result, 'failure')
       uses: ./.github/actions/notify-failure
       with:
         mode: notify
         workflow-label: ci:workflow-lint-md
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Close CI failure issue
-      if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+      if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
       uses: ./.github/actions/notify-failure
       with:
         mode: close

@@ -15,4 +15,16 @@
 # U.S. Patent and Trademark Office by Carnegie Mellon University
 #
 
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md" "#node_modules/**" "#.venv/**" "#.git/**" "#wip_notes/**" "#graphify-out/**" "#plan/history/**"
+# Usage: ./mdlint.sh [file-or-glob ...]
+#
+# With arguments, lint and --fix only those files or globs. With none, lint
+# every Markdown file in the repository. Either way the exclusions below apply
+# on top of the root config's `ignores`: agent worktrees under
+# .claude/worktrees/ belong to other sessions, and every plan/history/ entry,
+# at any depth, is a write-once record (HM-01-005, #2952, #6232).
+
+if [ "$#" -eq 0 ]; then
+    set -- "**/*.md"
+fi
+
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "$@" "#**/node_modules/**" "#.venv/**" "#.git/**" "#wip_notes/**" "#graphify-out/**" "#**/.claude/worktrees/**" "#**/plan/history/**"

@@ -9,8 +9,8 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \"**/*.md\""
-  - "./mdlint.sh  # alternative: wrapper retains historical exclusions"
+  - "markdownlint-cli2 --fix --config .markdownlint-cli2.yaml <changed .md files>"
+  - "./mdlint.sh <changed .md files>  # alternative: wrapper, same exclusions"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -43,16 +43,17 @@ which is retained as an alternative for environments that rely on it.
 ## Procedure
 
 1. From the repository root (or `repo_root`), run the linter directly using the
-project config (preferred):
+project config on the Markdown files you changed (preferred):
 
 ```bash
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml notes/x.md docs/y.md
 ```
 
-1. The wrapper `./mdlint.sh` is available as an alternative but is no longer
-required by pre-commit (the pre-commit hook invokes `markdownlint-cli2`
-directly). Use the wrapper only if your environment does not have
-`markdownlint-cli2` available on PATH.
+1. The wrapper `./mdlint.sh` is an alternative; pre-commit does not need it
+(the hook invokes `markdownlint-cli2` directly). Pass it the same files:
+`./mdlint.sh notes/x.md` lints and fixes only those. With no arguments it
+lints every Markdown file in the checkout, which is rarely what a task needs.
+Both forms skip `.claude/worktrees/` and every `plan/history/` (#6232).
 
 2. Inspect the output. The wrapper attempts to auto-fix problems. If linting
    still reports failures, address them manually and re-run the command.
@@ -71,16 +72,21 @@ directly). Use the wrapper only if your environment does not have
 ## Examples
 
 ```bash
-# preferred (direct, uses .markdownlint-cli2.yaml)
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"
+# preferred (direct, uses .markdownlint-cli2.yaml), on the changed files
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml notes/x.md
 
-# alternative (wrapper)
+# alternative (wrapper), same files
+./mdlint.sh notes/x.md
+
+# whole checkout (wrapper with no arguments)
 ./mdlint.sh
 ```
 
 ## Rationale
 
-Centralizing markdown linting through `mdlint.sh` ensures the same config and
-exclusions are used by maintainers, CI, and automation. Including this SKILL
+Centralizing markdown linting on `.markdownlint-cli2.yaml` ensures the same
+config and exclusions are used by maintainers, CI, and automation; CI and the
+pre-commit hook call `markdownlint-cli2` directly, and `mdlint.sh` adds the
+same exclusions. Including this SKILL
 makes the capability discoverable by agents and documents the canonical
 command for formatting markdown.
