@@ -259,8 +259,8 @@ external. Design work belongs to Agentic Participants (#2450).
 
 **Outside system**:
 A tracker outside Vultron that holds cases of its own, such as VINCE, GHSA or Jira. Its
-cases reach the core through a `CaseReader`, which translates one into a case ledger
-(ADR-0191).
+cases reach the core through a `CaseReader`, which translates one into a case reading
+(ADR-0191, ADR-0197).
 *Avoid*: service domain, external tracker (as a coined name)
 
 **Case shadow**:
@@ -274,12 +274,20 @@ server setting (the case shadow hosts no actor), VINCE observer (Observer is a C
 role), VINCE mirror (a case shadow analyses; a mirror only copies)
 
 **Case reader**:
-Anything that answers a request for one case with a case ledger, plus the source facts
-it could not translate (ADR-0191). A Vultron case reader returns a CASE_MANAGER's
+Anything that answers a request for one case with a case reading: a case ledger, plus
+the source facts it could not translate and what it inferred or cannot observe
+(ADR-0191, ADR-0197). A Vultron case reader returns a CASE_MANAGER's
 ledger as it is, with nothing left untranslated; an outside-system case reader, such as
 the VINCE case reader, translates that system's case into one. Each is one kind of
 connector.
 *Avoid*: shadow adapter, VINCE shadow
+
+**Case reading**:
+What a case reader returns for one case: the case ledger, unmarked; a citation per
+entry; the inferences, each naming its mapping rule and a caveat; the untranslated
+facts, each with a reason; and the facts the source can never observe, which a consumer
+reads as unknown, never as false (ADR-0197).
+*Avoid*: translated case, seeded case
 
 **VINCE gateway**:
 A component in front of VINCE that speaks Vultron wire activities, such as
