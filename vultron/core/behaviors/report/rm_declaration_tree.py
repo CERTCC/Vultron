@@ -106,8 +106,9 @@ def unless_rm_already_recorded(
     the two cannot drift on what "already recorded" means, and every
     :class:`~vultron.core.behaviors.report.nodes.conditions\
 .CheckParticipantRMState` a tree holds asks one question.  That matters
-    because :func:`~vultron.core.use_cases.received._bt_verdict\
-.rm_declaration_verdict` reads the answer by node *type* (CS-22-001, #5006).
+    because the received-tree runner reads the answer from the node's own
+    :class:`~vultron.core.behaviors.idempotency.ReportsNoChange` declaration,
+    wherever in the tree it sits (CS-22-001, #5006).
 
     There is deliberately no ``Success`` fallback: a failure of *children*
     propagates as FAILURE rather than reading as a benign skip.  The engage

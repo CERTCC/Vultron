@@ -22,7 +22,6 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
@@ -32,6 +31,13 @@ from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckDeclineRecordExistsNode,
     CheckProposalCaseFullyClosedNode,
+)
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_node,
+    node_succeeded,
+    run_received_tree,
 )
 from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.behaviors.sender_entitlement import (
@@ -50,12 +56,6 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.report_case_inputs import StatedReportFields
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
-    node_succeeded,
-    verdict_from_bt,
-)
 from vultron.core.use_cases.received._sender_embargo_proposal import (
     sender_embargo_proposal_inputs,
 )
@@ -218,12 +218,6 @@ class CreateCaseProposalReceivedUseCase:
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
 
-        # receiving_actor_id is the case-actor service URI set by the inbox adapter;
-        # falls back to the store's own actor_id on CLI/replay paths (CLP-10-005).
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # Render the proposal as a plain AS2 dict so the Accept can carry it
         # inline (CP-05-003, CP-05-009).  The subject handed to the port is the
         # core-branch ``VultronActivity`` the extractor built; its ``object`` is
@@ -281,35 +275,25 @@ class CreateCaseProposalReceivedUseCase:
             ),
             activity_id=request.activity_id,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="CreateCaseProposalReceivedBT",
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=(
+                _admission_arm_reader(proposal_id)
+                if proposal_id is not None
+                else None
+            ),
             # The proposer's inline profile is the only source of the
             # CASE_OWNER's actor default (CP-01-010).
             owner_profile=request.proposer_profile,
             **sender_terms,
         )
-        verdict = verdict_from_bt(
-            tree, result, label="CreateCaseProposalReceivedBT"
-        )
-        if (
-            verdict.disposition is HandlerDisposition.APPLIED
-            and proposal_id is not None
-        ):
-            verdict = self._classify_success(tree, proposal_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "create_case_proposal_received: refused proposal '%s': %s",
-                proposal_id,
-                verdict.reason,
-            )
-        elif verdict.disposition is HandlerDisposition.APPLIED:
+        if verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "create_case_proposal_received: case created and responses"
                 " queued for proposal '%s'",
@@ -317,15 +301,20 @@ class CreateCaseProposalReceivedUseCase:
             )
         return verdict
 
-    @staticmethod
-    def _classify_success(tree: Any, proposal_id: str) -> HandlerResult:
-        """Say which arm of the idempotency Selector answered (#2255).
 
-        The tree succeeds on all four arms, but only the accept arm applied
-        the proposal.  A Selector leaves the arms it tried ahead of the winner
-        FAILED and the ones after it INVALID, so the first guard that
-        succeeded names the arm.
-        """
+def _admission_arm_reader(proposal_id: str) -> OutcomeReader:
+    """Say which arm of the idempotency Selector answered (#2255).
+
+    The tree succeeds on all four arms, but only the accept arm applied the
+    proposal.  A Selector leaves the arms it tried ahead of the winner FAILED
+    and the ones after it INVALID, so the first guard that succeeded names
+    the arm.
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        tree = outcome.tree
         if node_succeeded(tree, CheckDeclineRecordExistsNode):
             # HP-01-003: a pre-existing decline record is a duplicate — the
             # earlier REFUSED is the record; replaying the same message is a
@@ -335,16 +324,19 @@ class CreateCaseProposalReceivedUseCase:
             )
         closed = find_node(tree, CheckProposalCaseFullyClosedNode)
         if closed is not None and closed.closed_case_id is not None:
-            # CP-05-014, CP-05-018: the proposal's case is fully closed, so the
-            # CASE_MANAGER declined it and wrote nothing for the case
+            # CP-05-014, CP-05-018: the proposal's case is fully closed, so
+            # the CASE_MANAGER declined it and wrote nothing for the case
             # (CM-23-013).
             return HandlerResult.refused(
                 f"proposal '{proposal_id}' resolves to case"
-                f" '{closed.closed_case_id}', which is fully closed (CM-23-013)"
+                f" '{closed.closed_case_id}', which is fully closed"
+                " (CM-23-013)"
             )
         if node_succeeded(tree, RecordProposalDeclineNode):
             # CP-05-002, CP-05-004: the admission policy said no.
             return HandlerResult.refused(
                 f"proposal '{proposal_id}' declined by admission policy"
             )
-        return HandlerResult.applied()
+        return None
+
+    return read

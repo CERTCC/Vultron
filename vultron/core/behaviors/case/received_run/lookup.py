@@ -158,7 +158,7 @@ def received_path(
     not run.  This is how a handler reads which of the three paths it is on
     (ADR-0153): the answer comes from the one role question the stage asked,
     never from inferring "not the manager" out of a failed gate anywhere in
-    the tree (:func:`not_case_manager`, which is what a handler reads when
+    the tree (``not_case_manager`` in the use cases, which a handler reads when
     the tree's own gate skipped rather than its stage refusing).
     """
     stage = find_node(tree, ReceivedPathNode)

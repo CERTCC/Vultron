@@ -97,7 +97,7 @@ Inside the core, every request takes the same path.
 | Domain model | `vultron/core/models/`, `vultron/core/states/` | Holds the case state and validates it. |
 
 A use case stands for one actor goal, such as validating a report or inviting a participant.
-It is thin glue: it builds the tree, runs it through `BTBridge.execute_with_setup()`, reads the result, and returns.
+It is thin glue: it builds the tree and runs it through the received-tree runner, which reads the verdict from what the tree's nodes recorded (ADR-0195), and returns that verdict.
 It does not write to the DataLayer itself; every write happens in a tree node (CLP-10-020).
 
 The decisions that follow from the goal belong in the tree.

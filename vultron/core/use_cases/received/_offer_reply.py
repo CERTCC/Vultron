@@ -22,20 +22,21 @@ Offer: an ownership-transfer Offer (CM-21) or a role Offer (CM-33).
 :func:`run_offer_reply_tree` runs the reply's one received tree as the
 receiving actor (CLP-10-005, ADR-0135).  The tree's factory composes every
 outcome, a reply that names no case included: that tree archives the reply
-and refuses it (CLP-10-018).  The handler's *refine* reads the verdict,
-reporting a redelivery of the reply that closed the Offer as ``SKIPPED``
-(HP-01-003). A reply that reached a replica rather than the CASE_MANAGER is
-``REFUSED`` (HP-01-005), and a refusal is logged at WARNING with the sender
-and the case.
+and refuses it (CLP-10-018).  A redelivery of the reply that closed the
+Offer is reported ``SKIPPED`` by the runner, from the reply guard's own
+repeat declaration (HP-01-003). A reply that reached a replica rather than
+the CASE_MANAGER is ``REFUSED`` (HP-01-005).
 """
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    run_received_tree,
+)
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -43,22 +44,13 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
-
-#: Reads a finished reply tree's verdict more closely, e.g. a redelivery.
-VerdictRefinement = Callable[
-    [py_trees.behaviour.Behaviour, HandlerResult], HandlerResult
-]
 
 
 def run_offer_reply_tree(
@@ -69,11 +61,11 @@ def run_offer_reply_tree(
     label: str,
     case_id: str | None,
     subject: str,
-    refine: VerdictRefinement,
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
     trigger_activity: TriggerActivityPort | None = None,
     applied_note: str | None = None,
+    reader: OutcomeReader | None = None,
 ) -> HandlerResult:
     """Run the received tree of a reply to an Offer and read its verdict.
 
@@ -86,39 +78,28 @@ def run_offer_reply_tree(
         case_id: The case the reply names, for the logs and the
             CASE_MANAGER refusal (HP-01-005).
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
-        refine: Reads what the tree's guards say beyond success or failure,
-            such as a redelivery reported ``SKIPPED`` (HP-01-014).
         sync_port: Delivers the entries the tree commits.
         wire_render_port: Renders the activities the tree builds.
         trigger_activity: Builds the CASE_MANAGER's own entries for the
             changes an applied reply causes.
         applied_note: When given, an applied reply is logged at INFO with it.
+        reader: The handler's own reading of the finished run, if any.
     """
-    result = BTBridge(
-        datalayer=dl,
+    verdict = run_received_tree(
+        tree,
+        dl=dl,
+        request=request,
+        label=label,
         trigger_activity=trigger_activity,
         wire_render_port=wire_render_port,
         sync_port=sync_port,
-    ).execute_with_setup(
-        tree=tree,
-        actor_id=resolve_receiving_actor_id(dl, request.receiving_actor_id),
-        activity=request,
+        reader=reader,
     )
-    verdict = refine(tree, verdict_from_bt(tree, result, label=label))
     if case_id is not None:
         # A reply to an Offer is the CASE_MANAGER's to apply; a replica the
         # sender guard admitted did nothing past the gate (HP-01-005).
         verdict = case_manager_verdict(tree, verdict, dl, case_id)
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        logger.warning(
-            "%s refused '%s' from '%s' for case '%s': %s",
-            label,
-            request.activity_id,
-            request.actor_id,
-            case_id,
-            verdict.reason,
-        )
-    elif applied_note and verdict.disposition is HandlerDisposition.APPLIED:
+    if applied_note and verdict.disposition is HandlerDisposition.APPLIED:
         logger.info(
             "Actor '%s' %s %s '%s' for case '%s'",
             request.actor_id,
@@ -130,7 +111,4 @@ def run_offer_reply_tree(
     return verdict
 
 
-__all__ = [
-    "VerdictRefinement",
-    "run_offer_reply_tree",
-]
+__all__ = ["run_offer_reply_tree"]

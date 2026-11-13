@@ -5,14 +5,12 @@ from typing import ClassVar
 
 import py_trees
 
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
     create_remove_case_participant_received_tree,
 )
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     EmitParticipantRemovalNoticeNode,
-    ParticipantNotYetRemovedNode,
     RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
@@ -20,6 +18,13 @@ from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    node_failed,
+    received_path,
+    run_received_tree,
+)
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
@@ -45,16 +50,8 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-)
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_absence_refusal,
-    failure_reason,
-    intake_verdict,
-    node_failed,
-    received_path,
-    verdict_from_bt,
 )
 from vultron.errors import VultronBTInternalError
 
@@ -93,8 +90,6 @@ class _CaseOwnerParticipantMoveUseCase[
     _LABEL: ClassVar[str]
     #: The move, in the activity's own words, for log lines.
     _MESSAGE: ClassVar[str]
-    #: Guards whose ``FAILURE`` is an idempotent repeat, read as ``SKIPPED``.
-    _SKIP_GUARDS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = ()
     #: Effects whose ``FAILURE`` is an internal fault: the move is committed.
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]]
 
@@ -139,54 +134,32 @@ class _CaseOwnerParticipantMoveUseCase[
         participant_id = request.participant_id
         case_id = request.case_id
         tree = self._build_tree(participant_id, case_id)
-        result = BTBridge(
-            datalayer=self._dl,
+        # A guard failure that is an idempotent repeat (removing an
+        # already-removed participant) the runner reports SKIPPED.
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=self._LABEL,
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=_effect_fault_reader(self._EFFECTS),
         )
         if participant_id is None or case_id is None:
             # The tree refused the incomplete move itself (CLP-10-018).
-            return verdict_from_bt(tree, result, label=self._LABEL)
-        return self._verdict(tree, result, participant_id, case_id)
+            return verdict
+        return self._replica_verdict(tree, verdict, participant_id, case_id)
 
-    def _verdict(
+    def _replica_verdict(
         self,
         tree: py_trees.behaviour.Behaviour,
-        result: BTExecutionResult,
+        verdict: HandlerResult,
         participant_id: str,
         case_id: str,
     ) -> HandlerResult:
         label = self._LABEL
-        if any(node_failed(tree, guard) for guard in self._SKIP_GUARDS):
-            return HandlerResult.skipped(failure_reason(tree, result))
-        if any(node_failed(tree, effect) for effect in self._EFFECTS):
-            # The guards admitted the move; a fact that could not be
-            # recorded, or a notice that could not be built or queued, is
-            # our fault, not the sender's (ADR-0095, BT-14-001).  The act's
-            # transaction keeps nothing of it (CLP-07-015).
-            raise VultronBTInternalError(
-                f"{label}: {failure_reason(tree, result)}"
-            )
-        verdict = verdict_from_bt(tree, result, label=label)
         if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
-                "%s did not apply %s for participant '%s' of case '%s': %s",
-                label,
-                self._MESSAGE,
-                participant_id,
-                case_id,
-                verdict.reason,
-            )
             return verdict
         if received_path(tree) is ReceivedPath.PARTICIPANT_REPLICA:
             # The move declares the manager and participant-replica paths,
@@ -203,12 +176,9 @@ class _CaseOwnerParticipantMoveUseCase[
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the move from the
             # ledger entry instead (CM-31-029, RSH-08-003).  The notice was
-            # sent to this participant, so its first receipt is APPLIED and
-            # only a redelivery, which archives nothing new, is SKIPPED
+            # sent to this participant, so its first receipt is APPLIED; a
+            # redelivery is answered SKIPPED by the seen-before door
             # (HP-01-005).
-            verdict = intake_verdict(tree, result, label=label)
-            if verdict.disposition is HandlerDisposition.SKIPPED:
-                return verdict
             logger.info(
                 "%s stored the %s notice for participant '%s' of case '%s';"
                 " a replica applies it from its ledger entry",
@@ -226,6 +196,27 @@ class _CaseOwnerParticipantMoveUseCase[
             case_id,
         )
         return verdict
+
+
+def _effect_fault_reader(
+    effects: tuple[type[py_trees.behaviour.Behaviour], ...],
+) -> OutcomeReader:
+    """Raise when an effect after the commit failed: the move is committed.
+
+    The guards admitted the move; a fact that could not be recorded, or a
+    notice that could not be built or queued, is our fault, not the
+    sender's (ADR-0095, BT-14-001).  The act's transaction keeps nothing of
+    it (CLP-07-015).
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if any(node_failed(outcome.tree, effect) for effect in effects):
+            raise VultronBTInternalError(
+                f"{outcome.label}: {outcome.failure_reason}"
+            )
+        return None
+
+    return read
 
 
 class AddCaseParticipantToCaseReceivedUseCase(
@@ -322,9 +313,6 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
     _LABEL: ClassVar[str] = "RemoveCaseParticipantReceivedBT"
     _MESSAGE: ClassVar[str] = (
         "Remove(CaseParticipant)[target=VulnerabilityCase]"
-    )
-    _SKIP_GUARDS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
-        ParticipantNotYetRemovedNode,
     )
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
         RemoveCaseParticipantFromCaseReceivedNode,

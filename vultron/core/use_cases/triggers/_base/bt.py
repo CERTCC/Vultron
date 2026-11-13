@@ -197,7 +197,8 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             if result.internal_error:
                 # A bug or a composition fault (a missing port), not a refused
                 # request: never reported as the client's error (ARCH-20-001).
-                # The received side classifies it the same way (_bt_verdict).
+                # The received side classifies it the same way
+                # (read_outcome in core/behaviors/case/received_run/).
                 raise VultronBTInternalError(
                     f"{type(self).__name__} failed on an internal error:"
                     f" {result.feedback_message}"

@@ -22,15 +22,15 @@ rather than a refusal of the act's merits.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.received_run.lookup import (
+    _HasRoot,
+    find_node,
+)
 from vultron.core.behaviors.sync.nodes.sender_sequence import (
     SequenceAdmitsNode,
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.services.sender_sequence_order import SequenceStanding
-from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
-    _HasRoot,
-    find_node,
-)
 
 
 def sender_sequence_verdict(

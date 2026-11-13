@@ -3,12 +3,17 @@
 import logging
 from typing import ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_case_received_tree import (
     create_create_case_received_tree,
 )
 from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     ClassifyBootstrapRouteNode,
+)
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_node,
+    run_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -16,20 +21,12 @@ from vultron.core.behaviors.sender_entitlement import (
     any_of,
 )
 from vultron.core.models.events.case import CreateCaseReceivedEvent
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
-    verdict_from_bt,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -116,23 +113,26 @@ class CreateCaseReceivedUseCase:
             request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="CreateCaseReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=_bootstrap_route_reader(case_id),
             inbox_replay=self._inbox_replay,
         )
-        verdict = verdict_from_bt(tree, result, label="CreateCaseReceivedBT")
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        classify = find_node(tree, ClassifyBootstrapRouteNode)
+
+
+def _bootstrap_route_reader(case_id: str) -> OutcomeReader:
+    """Read the bootstrap route the tree classified on a successful run."""
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        classify = find_node(outcome.tree, ClassifyBootstrapRouteNode)
         route = classify.route if classify is not None else None
         if route is not None and route.name == "redelivery":
             # Redelivery of a bootstrap already accepted (CBT-01-006).
@@ -143,4 +143,6 @@ class CreateCaseReceivedUseCase:
             # The trust anchors and embedded objects are re-applied
             # idempotently; only the replica itself already existed.
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
-        return HandlerResult.applied()
+        return None
+
+    return read

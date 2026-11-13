@@ -130,7 +130,7 @@ from its role (CLP-09).
   close it again (`Leave`, a `Reject` of its Invite) is `SKIPPED`, with no entry,
   whatever its activity id: the closed-sender door guard asks `closure_recorded()`
   after the post-close boundary (the factory's `closed_sender` argument), and the
-  handler reads it with `closed_sender_verdict()`. The Case Owner's `Leave` is the
+  handler reads it with `closed_sender_reader()`. The Case Owner's `Leave` is the
   exception until the case is fully closed: it closes the case too, so a Case Owner
   whose closure another act recorded still closes an open case with its `Leave`
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of

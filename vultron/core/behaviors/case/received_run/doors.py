@@ -16,16 +16,18 @@
 """Verdicts owed when a door guard of a received tree turned the run away.
 
 The addressee check (HP-01-005), the seen-before door (ADR-0154), the path
-door stage (ADR-0153), the post-close boundary (CM-23-013), the closed-sender
-door (CM-23-018) and the incomplete-activity guard; each keeps its guard's own
-reason (CLP-10-010).  The seen-before door is the one whose answer may be
+door stage (ADR-0153), the post-close boundary (CM-23-013) and the
+incomplete-activity guard; each keeps its guard's own reason (CLP-10-010).
+The closed-sender door (CM-23-018) is read by the handlers whose trees have
+one (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`),
+because what it owes depends on whether the act would close again.
+The seen-before door is the one whose answer may be
 ``SKIPPED``: a resend of a message already applied, or still waiting.
 """
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
 )
@@ -42,20 +44,15 @@ from vultron.core.behaviors.case.nodes.seen_before import (
     ActivityNotSeenBeforeNode,
     SeenBefore,
 )
-from vultron.core.behaviors.case.receive_activity_tree import (
-    ReceivedActivityTree,
-)
-from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
-from vultron.core.behaviors.sender_guard import closed_sender_turned_away
-from vultron.core.models.use_case_result import (
-    HandlerResult,
-)
-from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
+from vultron.core.behaviors.case.received_run.lookup import (
     _HasRoot,
     _root,
     find_node,
 )
-from vultron.errors import VultronBTInternalError, VultronWiringError
+from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
+from vultron.core.models.use_case_result import (
+    HandlerResult,
+)
 
 
 def path_refusal(
@@ -75,59 +72,6 @@ def path_refusal(
     return guard_refusal(tree, ReceivedPathNode)
 
 
-def closed_sender_verdict(
-    tree: py_trees.behaviour.Behaviour | _HasRoot,
-    result: BTExecutionResult,
-    *,
-    closes: bool,
-    label: str,
-) -> HandlerResult | None:
-    """The verdict owed a sender the tree's closed-sender door turned away.
-
-    The door (``closed_sender`` on the receive-tree factory) stops the tree
-    when the case already records the sender's closure, with nothing
-    committed or sent (CM-23-018):
-
-    - an act that would close it again (*closes*: a ``Leave``, a ``Reject``
-      of a stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
-      whatever its activity id (ID-05-003);
-    - any other act is ``REFUSED``: the sender may act on nothing further.
-
-    ``None`` when the run did not end at the door.  The handler asks this
-    before any other reading of the run's failure.
-
-    A door that found the closure but whose run failed on an internal error
-    (the Case Owner check of a ``case_owner_completes`` door crashing, say)
-    raises: a crash is never read as a repeat or a refusal (ARCH-15-001).
-
-    Raises:
-        VultronWiringError: *tree* was not built by
-            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
-        VultronBTInternalError: The door found the closure, but the run
-            failed on an internal error.
-    """
-    root = _root(tree)
-    if not isinstance(root, ReceivedActivityTree):
-        raise VultronWiringError(
-            f"closed_sender_verdict: '{root.name}' is not a"
-            " received-activity tree, so it has no closed-sender door"
-            " (CM-23-018)"
-        )
-    closed = closed_sender_turned_away(root)
-    if closed is None:
-        return None
-    if result.internal_error:
-        raise VultronBTInternalError(f"{label}: {result.feedback_message}")
-    if closes:
-        return HandlerResult.skipped(
-            f"{label}: {closed} — a repeat of a closing act,"
-            " nothing to apply (ID-05-003)"
-        )
-    return HandlerResult.refused(
-        f"{label}: {closed} — it may act on nothing further"
-    )
-
-
 def guard_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     node_type: type[py_trees.behaviour.Behaviour],
@@ -139,10 +83,12 @@ def guard_refusal(
     :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
     and the announce tree's trusted-sender guard.  A guard that never ran (a
     leadership skip, or the post-close guard refused first) is ``None``, so
-    the handler falls through to :func:`verdict_from_bt`.  So does a guard
-    that failed because it was composed without a dependency (a
+    the reading falls through to the general one.  So does a guard that
+    failed because it was composed without a dependency (a
     ``WIRING_UNAVAILABLE_MESSAGES`` reason): that is our fault, not the
-    sender's, and :func:`verdict_from_bt` raises it (ADR-0095).
+    sender's, and
+    :func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`
+    raises it (ADR-0095).
     """
     node = find_node(tree, node_type)
     if node is None or node.status != Status.FAILURE:
@@ -246,8 +192,8 @@ def door_refusal(
     addressee check and the post-close boundary in every received tree
     unless it declares an exemption, the seen-before door in every received
     tree, and the path stage in every tree that declared its paths, so
-    :func:`verdict_from_bt` and :func:`applied_or_raise` ask this first, and
-    a handler that maps a tree's failure itself asks it too.
+    :func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`
+    asks this first.
     """
     if (refusal := addressee_refusal(tree)) is not None:
         return refusal

@@ -58,7 +58,6 @@ from vultron.core.behaviors.status.nodes.append import (
     SkipIfIdempotentNode,
 )
 from vultron.core.behaviors.status.nodes.case_status import (
-    CASE_STATUS_ALREADY_PRESENT,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.behaviors.status.nodes.case_status_acceptance import (
@@ -112,7 +111,6 @@ __all__ = [
     # cs_invariant_diagnostic
     "PxaEmInvariantDiagnosticNode",
     # case_status
-    "CASE_STATUS_ALREADY_PRESENT",
     "CheckCaseStatusIdempotencyNode",
     # case_status_acceptance
     "CheckCaseStatusAcceptableNode",

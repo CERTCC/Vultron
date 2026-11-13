@@ -499,8 +499,8 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     ]
     assert effects.children[0].children[0].name == "AlreadyRecordedAccepted"
     assert effects.children[0].children[1].name == "TransitionRMtoAccepted"
-    # ``rm_declaration_verdict`` reads "already recorded" by node *type*
-    # (``node_succeeded(tree, CheckParticipantRMState)``), so every node of
+    # The runner reads "already recorded" from any ``CheckParticipantRMState``
+    # that declares it changed nothing (``ReportsNoChange``), so every node of
     # that type in this tree must ask the same question. Two now do; a third
     # about another actor or another RM state would make the handler report a
     # redelivery that was not one (#5006).

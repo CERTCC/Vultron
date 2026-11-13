@@ -48,6 +48,7 @@ from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
 )
@@ -207,6 +208,29 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
             AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
         )
         _assert_refused(result, "unknown case")
+
+    @pytest.mark.spec("BT-17-009")
+    @pytest.mark.spec("ARCH-15-001")
+    def test_accept_with_no_resolvable_receiver_raises_before_any_read(
+        self, anonymous_store
+    ):
+        """No receiver stamp and a store with no owner: a wiring fault.
+
+        The receiver is resolved before the case is read, so an unknown case
+        does not turn our fault into a refusal of the sender (#5774).
+        """
+        request = _request(
+            embargo_id="https://example.org/cases/nope/embargo_events/e1",
+            case_id="https://example.org/cases/nope",
+            invite_id="i1",
+            receiving_actor_id=None,
+        )
+        with pytest.raises(VultronValidationError):
+            run_in_act(
+                AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                    anonymous_store(_make_dl()), request
+                )
+            )
 
 
 class TestFailedTeardownIsRefused:

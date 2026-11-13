@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -34,15 +34,13 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.services.receiving_actor import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 from vultron.core.use_cases.received.fault.responses import (
     ARCHIVE_ONLY,
     FaultResponse,
@@ -142,27 +140,25 @@ class CreateProcessingFaultReceivedUseCase:
         tree = response.build_tree(
             refused_entry, request, self.sender_entitlement
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        reading = response.read_verdict(refused_entry)
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=reading.label,
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+            wire_render_port=self._wire_render_port,
+            reader=reading.reader,
+            judges=reading.judges,
         )
-        verdict = response.read_verdict(tree, result, self._dl, refused_entry)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "ProcessingFault '%s' from '%s' refused: %s",
-                request.fault_id,
-                request.actor_id,
-                verdict.reason,
-            )
-        return verdict
+        if reading.manager_case_id is None:
+            return verdict
+        # Only the case's CASE_MANAGER acts on a fault about its ledger
+        # (HP-01-005).
+        return case_manager_verdict(
+            tree, verdict, self._dl, reading.manager_case_id
+        )
 
     def _refused_entry(self) -> CaseLedgerEntry | None:
         """The entry the fault's ``inReplyTo`` announce carried, if this

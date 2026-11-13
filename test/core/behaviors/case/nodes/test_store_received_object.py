@@ -17,11 +17,11 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.received_run import find_node
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.use_cases.received._bt_verdict import find_node
 
 
 def _run(datalayer, actor_id, event, store_node):

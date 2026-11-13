@@ -252,11 +252,11 @@ nothing is written before the last one admits the message (ADR-0154).
 1. **Door guards** — in ADR-0154's order: the addressee check (HP-01-005),
    the seen-before door (`case/nodes/seen_before.py`), the path stage
    (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
-   door (CM-23-018) and the sender guard (HP-01-006). Every handler reads a
-   door's answer through `door_refusal` (`use_cases/received/_bt_verdict/`),
-   asked first by `verdict_from_bt` and `applied_or_raise`; never run a door
-   guard as a one-node tree ahead of the received tree, the chained shape
-   CLP-10-005 forbids (ADR-0135).
+   door (CM-23-018) and the sender guard (HP-01-006). The received-tree runner
+   reads a door's answer first, through `door_refusal`
+   (`behaviors/case/received_run/`, ADR-0195); never run a door guard as a
+   one-node tree ahead of the received tree, the chained shape CLP-10-005
+   forbids (ADR-0135).
 
    The seen-before door answers a resend from the message's one record, by
    its stage, and the run ends there: a receipt stub is `REFUSED` with the
@@ -305,7 +305,7 @@ nothing is written before the last one admits the message (ADR-0154).
    `paths=` argument (HP-01-038). Declare a branch per path the type does real
    work on, never a narrower set with an ungated effect making up the
    difference. A handler reads the answer with `received_path(tree)`
-   (`use_cases/received/_bt_verdict/`), never by inferring "not the manager"
+   (`behaviors/case/received_run/`), never by inferring "not the manager"
    from a gate skip anywhere in the tree.
 
    Read the declaration off the use case's sender rule, then narrow it. The
@@ -460,10 +460,11 @@ nothing is written before the last one admits the message (ADR-0154).
    be told apart (a `Leave`, a stub or full-case Invite reply) passes
    `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
    addressee check, so a sender the case records as closed stops the tree with
-   nothing committed or sent. The handler asks `closed_sender_verdict()`
-   (`_bt_verdict/`) before reading any other refusal: `SKIPPED` for a repeat of
-   a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
-   on the tree; never run the check as a tree of its own or write it per handler.
+   nothing committed or sent. The handler passes the runner
+   `reader=closed_sender_reader(closes=...)` (`behaviors/case/received_run/`):
+   `SKIPPED` for a repeat of a closing act, `REFUSED` for anything else
+   (CM-23-018, ID-05-003). Declare it on the tree; never run the check as a
+   tree of its own or write it per handler.
 
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-025). Pass the read-only

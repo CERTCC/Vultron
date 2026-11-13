@@ -20,13 +20,19 @@ sender.  BT-17-009 and BT-17-010 make ``resolve_receiving_actor_id`` the one
 source of that identity: it prefers ``request.receiving_actor_id``, falls back
 to the store's owner, and raises when neither yields one.
 
+A received use case runs its tree through the received-tree runner
+(``run_received_tree``, ADR-0195), so the received side has one
+``execute_with_setup`` call, in the runner, and none under
+``vultron/core/use_cases/received/``.
+
 The check is an allow-list, not a deny-list (#5847).  Every
-``execute_with_setup`` call under ``vultron/core/use_cases/received/`` must pass,
-as ``actor_id`` (keyword or second positional argument), one of:
+``execute_with_setup`` call on the received side must pass, as ``actor_id``
+(keyword or second positional argument), one of:
 
 (a) a call ``resolve_receiving_actor_id(<dl>, <x>.receiving_actor_id)``, where
-    the bare name is imported unaliased from ``vultron.core.use_cases._helpers``
-    and bound nowhere else in the module;
+    the bare name is imported unaliased from
+    ``vultron.core.services.receiving_actor`` and bound nowhere else in the
+    module;
 (b) a local name whose every binding in its function is a plain assignment of
     (a), with no nested function declaring it ``nonlocal``;
 (c) a parameter of a module-level function, never rebound inside it, where
@@ -58,10 +64,20 @@ from test.architecture import _corpus
 _RECEIVED_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
 )
+#: The received-tree runner, which every received use case calls (ADR-0195).
+_RUNNER = (
+    _corpus.REPO_ROOT
+    / "vultron"
+    / "core"
+    / "behaviors"
+    / "case"
+    / "received_run"
+    / "runner.py"
+)
 _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
 _RESOLVER = "resolve_receiving_actor_id"
-_RESOLVER_MODULE = "vultron.core.use_cases._helpers"
+_RESOLVER_MODULE = "vultron.core.services.receiving_actor"
 _CALLEE = "execute_with_setup"
 _CALL_FRAGMENT = f"{_CALLEE}("
 
@@ -438,38 +454,42 @@ def _mentioned_outside(path: Path) -> _MentionedElsewhere:
     return mentioned
 
 
-def test_received_side_execute_with_setup_runs_as_receiving_actor() -> None:
-    """Every received-side execute_with_setup runs as the resolved receiver.
+def test_received_use_cases_run_no_tree_of_their_own() -> None:
+    """No received use case calls ``execute_with_setup``: the runner does.
 
-    Spec BT-17-006 (with BT-17-009, BT-17-010). Issues #2338, #5847.
+    Every received tree runs through ``run_received_tree`` (ADR-0195), so the
+    receiving actor is resolved in one place, checked below.
     """
-    violations: list[str] = []
-    files_with_calls: set[Path] = set()
-    for py_file, tree in _corpus.files_mentioning(
-        _CALLEE, under=_RECEIVED_ROOT
-    ):
-        seen, found = _scan(tree, _label(py_file), _mentioned_outside(py_file))
-        if seen:
-            files_with_calls.add(py_file)
-        violations.extend(found)
-
-    mentioning = {
-        path
+    calling = sorted(
+        _label(path)
         for path, _ in _corpus.sources_mentioning(
             _CALL_FRAGMENT, under=_RECEIVED_ROOT
         )
-    }
-    assert mentioning, f"no {_CALL_FRAGMENT} call found under {_RECEIVED_ROOT}"
-    undetected = sorted(_label(p) for p in mentioning - files_with_calls)
-    assert not undetected, (
-        f"these files contain {_CALL_FRAGMENT} but the detector saw no call;"
-        " extend _is_execute_with_setup_call:\n"
-        + "\n".join(f"  {p}" for p in undetected)
+    )
+    assert not calling, (
+        f"received use cases calling {_CALL_FRAGMENT} directly; run the tree"
+        " through run_received_tree (ADR-0195):\n"
+        + "\n".join(f"  {p}" for p in calling)
+    )
+
+
+def test_received_side_execute_with_setup_runs_as_receiving_actor() -> None:
+    """The runner's execute_with_setup runs as the resolved receiver.
+
+    Spec BT-17-006 (with BT-17-009, BT-17-010). Issues #2338, #5847.
+    """
+    tree = _corpus.tree_of(_RUNNER)
+    seen, violations = _scan(
+        tree, _label(_RUNNER), _mentioned_outside(_RUNNER)
+    )
+    assert seen == 1, (
+        f"{_label(_RUNNER)}: expected one {_CALL_FRAGMENT} call, saw {seen};"
+        " extend _is_execute_with_setup_call"
     )
     assert not violations, (
-        "received-side execute_with_setup calls must pass the receiving actor"
+        "the received-tree runner must pass the receiving actor"
         f" from {_RESOLVER}(<dl>, request.receiving_actor_id), directly or via"
-        " a local or helper parameter bound only to it (BT-17-006, #5847):\n"
+        " a local bound only to it (BT-17-006, #5847):\n"
         + "\n".join(f"  {v}" for v in sorted(violations))
     )
 

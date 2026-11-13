@@ -50,7 +50,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
-from vultron.core.behaviors.idempotency import ReportsIdempotentRepeat
+from vultron.core.behaviors.idempotency import repeat_ending_run
 
 logger = logging.getLogger(__name__)
 
@@ -246,24 +246,12 @@ class PreconditionGuardStage(py_trees.composites.Composite):
     def _failed_as_repeat(self) -> bool:
         """True when a guard on the failure chain reports a repeat.
 
-        Follows the chain ``BTBridge.get_failure_reason`` follows: the last
-        failed child at each composite, down to the leaf that ended the
-        run.  A guard that failed off that chain (an alternative a
-        ``Selector`` tried first) did not decide the refusal, so its repeat
-        flag does not skip the effects.
+        See :func:`~vultron.core.behaviors.idempotency.repeat_ending_run`: a
+        guard that failed off the chain (an alternative a ``Selector`` tried
+        first) did not decide the refusal, so its repeat flag does not skip
+        the effects.
         """
-        node: py_trees.behaviour.Behaviour = self.guards
-        while node.status == Status.FAILURE:
-            if (
-                isinstance(node, ReportsIdempotentRepeat)
-                and node.failed_as_repeat
-            ):
-                return True
-            failed = [c for c in node.children if c.status == Status.FAILURE]
-            if not failed:
-                return False
-            node = failed[-1]
-        return False
+        return repeat_ending_run(self.guards) is not None
 
     def _diverted(self) -> bool:
         """True when a diversion among the guards took the delivery."""

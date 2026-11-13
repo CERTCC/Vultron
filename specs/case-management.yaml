@@ -7758,8 +7758,8 @@ groups:
       `test/core/use_cases/received/test_remaining_sender_rules.py`,
       `test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped` in
       `test/core/use_cases/received/actor/test_case_joining_replies.py` and
-      `test_closed_sender_verdict_skips_a_repeated_closing_act` in
-      `test/core/use_cases/received/test_bt_verdict.py` drive a second Leave and a
+      `test_closed_sender_reader_skips_a_repeated_closing_act` in
+      `test/core/behaviors/case/test_received_run.py` drive a second Leave and a
       repeated `Reject` of an Invite, each with a new activity id, from a closed sender,
       and assert `SKIPPED` with no ledger entry and no outbound activity.
       `test_close_report_from_a_closed_sender_is_refused_not_skipped` in

@@ -302,7 +302,7 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     sender's closure (:func:`~vultron.core.participants.recipients.closure_recorded`).
     The handler reports an act that would close the sender again as
     ``SKIPPED``, and any other act as ``REFUSED``
-    (:func:`~vultron.core.use_cases.received._bt_verdict.closed_sender_verdict`).
+    (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`).
 
     Keyed on the sender's recorded RM state, never on the activity id, which
     a repeat sent under a new id does not share.  Read-only.

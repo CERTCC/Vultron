@@ -13,24 +13,24 @@
 
 """Run the shared intake-only tree for a received handler (#3871, CLP-10-005).
 
-A handler whose whole job is to record what arrived calls :func:`run_intake_only`
-from ``execute()`` and maps the run through
-:func:`~vultron.core.use_cases.received._bt_verdict.intake_verdict`.  The tree is
+A handler whose whole job is to record what arrived returns
+:func:`run_intake_only` from ``execute()``.  The tree is
 :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_intake_only_received_tree`;
-its docstring records why it commits nothing.
+its docstring records why it commits nothing.  The run and its verdict are
+the received-tree runner's
+(:func:`~vultron.core.behaviors.case.received_run.run_received_tree`): a run
+that got through its doors recorded the message, so it is ``APPLIED``.
 """
 
-import py_trees
-
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_intake_only_received_tree,
 )
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.models.events.base import VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 
 def run_intake_only(
@@ -40,16 +40,13 @@ def run_intake_only(
     name: str,
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
-) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
-    """Build the intake-only tree and run it once as the receiving actor."""
-    tree = create_intake_only_received_tree(name)
-    result = BTBridge(
-        datalayer=dl,
-        wire_render_port=wire_render_port,
+) -> HandlerResult:
+    """Build the intake-only tree *name*, run it once, and return its verdict."""
+    return run_received_tree(
+        create_intake_only_received_tree(name),
+        dl=dl,
+        request=request,
+        label=name,
         sync_port=sync_port,
-    ).execute_with_setup(
-        tree=tree,
-        actor_id=resolve_receiving_actor_id(dl, request.receiving_actor_id),
-        activity=request,
+        wire_render_port=wire_render_port,
     )
-    return tree, result

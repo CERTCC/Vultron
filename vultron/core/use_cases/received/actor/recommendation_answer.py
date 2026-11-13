@@ -27,7 +27,7 @@ tree's sender guard refuses one from any other actor.
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommendation_answer_received_tree,
 )
@@ -45,8 +45,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import intake_verdict
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -104,19 +102,15 @@ class _RecommendationAnswerReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
+        verdict = run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label=self._TREE_NAME,
             trigger_activity=self._trigger_activity,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        verdict = intake_verdict(tree, result, label=self._TREE_NAME)
         if verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "%s: the case manager '%s' %s recommendation '%s' for case"

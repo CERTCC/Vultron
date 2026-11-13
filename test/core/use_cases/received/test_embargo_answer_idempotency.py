@@ -37,6 +37,7 @@ from test.support.received import extract_stamped, received_activity
 from test.support.signing import signed_body
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import find_node
 from vultron.core.behaviors.embargo.answer_trees import (
     accept_invite_to_embargo_tree,
 )
@@ -58,7 +59,6 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.embargo.accept import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
 )

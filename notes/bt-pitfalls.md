@@ -171,11 +171,11 @@ Two conditions on that guard:
   rolls back and raises on a RUNNING child rather than re-ticking, which is
   what keeps a `memory=False` Selector from re-reading the guard after the write.
 
-`rm_declaration_verdict` reads the answer by node *type*
-(`node_succeeded(tree, CheckParticipantRMState)`), so a second node of that type
-asking about another actor or another RM state makes a handler call a first
-delivery a repeat. Pin the set of questions a tree asks, not only the node names
-(`test_engage_tree_node_names`).
+The received-tree runner reads the answer from any `CheckParticipantRMState`
+that declares it changed nothing (`ReportsNoChange`, ADR-0195), so a second node
+of that type asking about another actor or another RM state makes a handler
+call a first delivery a repeat. Pin the set of questions a tree asks, not only
+the node names (`test_engage_tree_node_names`).
 
 ---
 
@@ -419,12 +419,12 @@ note describes (ADR-0067, RSH-06-004).
 
 `CheckIsCaseManagerNode` compares the blackboard `actor_id` with the case's
 CASE_MANAGER, so a tree containing `GuardedCommitCaseLedgerEntryBT` MUST run as the
-**receiving** actor: `resolve_receiving_actor_id(self._dl,
-request.receiving_actor_id)` in use cases, `actor_id=case_manager_actor_id` in
-tests. Never fall back to `request.actor_id` — that is the sender, and `actor_id`
-also selects the store. A node that also needs the sender keeps it as a private
-attribute, since `DataLayerAction.setup()` overwrites the blackboard `actor_id`
-(BT-17-005, BT-17-006).
+**receiving** actor: a received use case runs its tree through `run_received_tree`,
+which resolves it with `resolve_receiving_actor_id` (ADR-0195);
+`actor_id=case_manager_actor_id` in tests. Never fall back to `request.actor_id` — that
+is the sender, and `actor_id` also selects the store. A node that also needs the sender
+keeps it as a private attribute, since `DataLayerAction.setup()` overwrites the
+blackboard `actor_id` (BT-17-005, BT-17-006).
 
 ## A BT's Store Follows Its Executing Actor
 

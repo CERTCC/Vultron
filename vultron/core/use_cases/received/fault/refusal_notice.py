@@ -19,10 +19,15 @@ closes the pending assertion it recorded for it (CLP-06-006).
 
 from typing import ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
     ResumeOutboundSequenceNode,
+)
+from vultron.core.behaviors.case.received_run import (
+    OutcomeReader,
+    ReceivedOutcome,
+    find_node,
+    run_received_tree,
 )
 from vultron.core.behaviors.case.refusal_notice_received_tree import (
     refusal_notice_received_tree,
@@ -35,19 +40,35 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.fault import (
     RefusalNoticeReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
-    verdict_from_bt,
-)
+
+
+def _nothing_to_close_reading(refused_activity_id: str) -> OutcomeReader:
+    """``SKIPPED`` for a run that closed no pending entry and resumed nothing.
+
+    A successful run whose clear node closed no pending assertion and whose
+    resume node moved no sender sequence changed nothing (CLP-06-006).
+    """
+
+    def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+        if not outcome.succeeded:
+            return None
+        clear = find_node(outcome.tree, ClearRefusedAssertionNode)
+        if clear is not None and clear.cleared:
+            return None
+        resume = find_node(outcome.tree, ResumeOutboundSequenceNode)
+        if resume is not None and resume.moved:
+            return None
+        return HandlerResult.skipped(
+            f"refusal notice for '{refused_activity_id}': no pending"
+            " assertion to close and no sender sequence to resume"
+        )
+
+    return read
 
 
 class RefusalNoticeReceivedUseCase:
@@ -92,30 +113,13 @@ class RefusalNoticeReceivedUseCase:
             sender_rule=self.sender_entitlement,
             expected_sender_sequence=request.expected_sender_sequence,
         )
-        result = BTBridge(
-            datalayer=self._dl,
+        return run_received_tree(
+            tree,
+            dl=self._dl,
+            request=request,
+            label="RefusalNoticeReceivedBT",
             trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
-        verdict = verdict_from_bt(
-            tree, result, label="RefusalNoticeReceivedBT"
-        )
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        clear = find_node(tree, ClearRefusedAssertionNode)
-        if clear is not None and clear.cleared:
-            return verdict
-        resume = find_node(tree, ResumeOutboundSequenceNode)
-        if resume is not None and resume.moved:
-            return verdict
-        return HandlerResult.skipped(
-            f"refusal notice for '{request.refused_activity_id}': no pending"
-            " assertion to close and no sender sequence to resume"
+            wire_render_port=self._wire_render_port,
+            reader=_nothing_to_close_reading(request.refused_activity_id),
         )
