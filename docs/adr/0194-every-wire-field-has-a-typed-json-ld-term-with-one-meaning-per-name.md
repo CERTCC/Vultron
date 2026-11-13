@@ -48,6 +48,7 @@ A check fails on a field that is neither.
 A field whose value is an IRI is `"@type": "@id"`.
 A field whose value is received JSON kept verbatim is `"@type": "@json"`.
 An array whose order matters is `"@container": "@list"`.
+A map keyed by IRIs is `"@container": "@index"`, so its keys are not read as properties.
 
 **One meaning per name.**
 Each wire name has one global term, as in AS2.

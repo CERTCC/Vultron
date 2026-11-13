@@ -1369,12 +1369,13 @@ groups:
     statement: >-
       The context document MUST type each Vultron property term by its value kind, as
       the AS2 context types its own: an IRI value as `"@type": "@id"`, a received
-      document kept verbatim as `"@type": "@json"`, and an array whose order matters
-      with `"@container": "@list"`.
+      document kept verbatim as `"@type": "@json"`, an array whose order matters with
+      `"@container": "@list"`, and a map keyed by IRIs with `"@container": "@index"`.
     rationale: >-
       Without a type a JSON-LD reader takes a link for plain text, expands the keys
-      inside a verbatim document such as a ledger entry's payload snapshot, and treats
-      an ordered history as an unordered set. AS2 types its terms, so Vultron's terms
+      inside a verbatim document such as a ledger entry's payload snapshot, reads the
+      keys of an IRI-keyed map as properties, and treats an ordered history as an
+      unordered set. AS2 types its terms, so Vultron's terms
       are no weaker (ADR-0194).
     adr:
     - ADR-0194

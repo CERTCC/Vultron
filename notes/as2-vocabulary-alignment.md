@@ -16,6 +16,20 @@ tracks:
   - "#6245"   # origin and inReplyTo
   - "#6246"   # embargo end as Update
   - "#6253"   # JSON-LD terms and check
+  - "#6407"   # pinned external contexts
+  - "#6408"   # PR may not close a ratchet's open owner
+  - "#6409"   # typed term for every Vultron field
+  - "#6422"   # term check and owned ratchets
+  - "#6410"   # EmbargoPolicy attributedTo/content, no inbox
+  - "#6411"   # ledger entry case in context
+  - "#6413"   # vulnerability item title -> name
+  - "#6415"   # dead participantCaseName, caseActivity
+  - "#6416"   # CSAF item field name clashes
+  - "#6417"   # one roles field on Invite and Offer
+  - "#6418"   # profile cites Controlled Identifiers context
+  - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
+  - "#6420"   # stub caseId dropped (slice of #6244)
+  - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
   - "#6254"   # Refuse(Reject)
   - "#6248"   # instrument, generator, tag
@@ -237,6 +251,10 @@ a Strict Discriminator"). The stub class is
 `vultron/wire/as2/vocab/objects/vulnerability_case.py` (`as_VulnerabilityCaseStub`).
 About eight message semantics in the CM-11 join flow and the embargo Invite family.
 
+**Term-check owner.** #6420 owns the stub's `caseId` in the #6253 term-check
+ratchet, so the entry keeps an open owner. Planning this section adopts #6420
+for that field rather than filing a second Task.
+
 **Touches.** CM-11 (CM-11-003, CM-11-013), CM-17, MV-10-001, VAM-04, ADR-0114 ("the
 stub is its own type and its own object" part), ADR-0165,
 `vultron/wire/as2/case_reference_placement.py`, the examples under
@@ -277,6 +295,10 @@ which this object is considered a response".
 rationale calls `attributedTo` "the AS2-standard field for recording who delegated
 an action"; AS2 says only "entities to which this object is attributed".
 
+**Term-check owner.** #6419 owns `offerId`/`offerActorId` in the #6253 term-check
+ratchet, so the entry keeps an open owner. Planning this section adopts #6419
+for that field rather than filing a second Task.
+
 **Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. Moving `Remove(Note)` and
 `Remove(CaseParticipant)` to `origin` needs an `origin_` field on `ActivityPattern`,
@@ -315,6 +337,10 @@ structured cause. VOC `summary`: "a natural language summarization of the object
 `terminationCause` (`vultron/core/models/embargo_termination.py`,
 `TerminationCauseKind`). Teardown: `vultron/core/behaviors/embargo/nodes/teardown.py`.
 
+**Term-check owner.** #6421 owns the termination `reason` enum in the #6253 term-check
+ratchet, so the entry keeps an open owner. Planning this section adopts #6421
+for that field rather than filing a second Task.
+
 **Touches.** EMB-07, EMB-13-005, EMB-19, ADR-0122 (the register), the
 `terminationCause` JSON-LD term, `REMOVE_EMBARGO_EVENT_FROM_CASE`.
 
@@ -334,7 +360,10 @@ ARCH-18-012.
    field that is neither. Nested models count; `exclude=True` fields do not.
 2. **Typed as AS2 types its own.** IRI value → `"@type": "@id"`; a verbatim
    received document (`payloadSnapshot`) → `"@type": "@json"`; an ordered array →
-   `"@container": "@list"`.
+   `"@container": "@list"`; an IRI-keyed map (`actorParticipantIndex`,
+   `pendingEmbargoProposalIndex`) → `"@container": "@index"`, so its keys are not
+   read as properties. The maps stay on the wire: a case's participants may arrive
+   as bare ids, so a receiver cannot rebuild them.
 3. **One meaning per name.** Two declarations of one wire name carry the same
    definition and kind. A Vultron term never reuses an external term's name. A name
    with two meanings is renamed apart; type-scoped terms are not used.
@@ -360,26 +389,28 @@ this codebase's own AS2 base classes, so the unmarked `proposedEmbargo`,
 actor profile cites Multikey v1, which does not define `assertionMethod` at top
 level, so the published key is undefined to a JSON-LD reader.
 
-**Field review.** Owners are the Tasks named in the Touches line.
+**Field review.** Each row is one ratchet owner in #6422.
 
-| Field (class) | Finding | Becomes |
-|---|---|---|
-| `actorId` (`EmbargoPolicy`) | AS2 duplicate | `attributedTo` |
-| `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` |
-| `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped |
-| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` |
-| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` |
-| `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted |
-| `caseActivity` (`VulnerabilityCase`) | dead | deleted |
-| `actorParticipantIndex`, `pendingEmbargoProposalIndex` | IRI-keyed maps | off the wire |
-| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 |
-| `audience`, `title`, `text`, `category` (`VulnerabilityItemNote`); `notes` (item vs case); `text` (`VulnerabilityItemId`) | name clash, AS2 clash | renamed apart |
-| `state`, `status`, `kind`, `role`/`roles`/`suggestedRoles`, `caseStatus` | name clash | renamed apart |
-| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` |
-| stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped |
-| termination `reason` | decided in § "Embargo End Is an Update…" | `summary` |
+| Field (class) | Finding | Becomes | Owner |
+|---|---|---|---|
+| `actorId` (`EmbargoPolicy`) | AS2 duplicate | `attributedTo` | #6410 |
+| `notes` (`EmbargoPolicy`) | AS2 duplicate | `content` | #6410 |
+| `inbox` (`EmbargoPolicy`) | AS2 name, actor-only domain | dropped | #6410 |
+| `caseId` (`CaseLedgerEntry`) | AS2 duplicate | `context` | #6411 |
+| `title` (`VulnerabilityItem`) | AS2 duplicate | `name` | #6413 |
+| `participantCaseName` (`CaseParticipant`) | dead; duplicates `name` | deleted | #6415 |
+| `caseActivity` (`VulnerabilityCase`) | dead | deleted | #6415 |
+| `assertionMethod` (actor profile) | no term in cited contexts | cite CID v1 | #6418 |
+| `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
+| `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
+| `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
+| stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
+| termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term.
+Every other field is a Vultron term. `state`, `status` and `kind` are each used once
+on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
+none of them is a clash. `caseActivity` is dead but no rule refuses it, so #6415
+deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
