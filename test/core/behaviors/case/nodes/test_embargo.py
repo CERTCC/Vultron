@@ -573,6 +573,33 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         stored_case = cast(Any, scenario.dl.read(case.id_))
         assert stored_case.active_embargo is None
 
+    @pytest.mark.spec("OID-01-006", "CP-09-003")
+    def test_the_owner_passes_its_owner_test_in_either_spelling(self) -> None:
+        """The owner test is tolerant of the executing actor's spelling.
+
+        The stored owner id is canonical (``NormalisedActorId``, #5919), but
+        the executing actor's configured id carries no such type, so an
+        exact comparison would refuse the owner its own creation-time
+        embargo whenever the configured id carried a trailing slash (#5901).
+        """
+        scenario = BTTestScenario(actor_id=f"{_OWNER_ID}/")
+        case = _seed_manager_run_case(scenario)
+        embargo = make(
+            EmbargoEvent,
+            end_time=datetime.now(tz=UTC) + timedelta(days=1),
+            context=case.id_,
+        )
+        scenario.seed(embargo)
+
+        result = scenario.run(
+            InitializeCreationEmbargoNode(),
+            case_id=case.id_,
+            default_embargo=embargo,
+        )
+
+        assert "neither case owner" not in (result.feedback_message or "")
+        assert result.status == Status.SUCCESS, result.feedback_message
+
     @pytest.mark.spec("CM-14-002")
     def test_a_missing_owner_participant_fails_initialization(
         self, caplog: pytest.LogCaptureFixture

@@ -78,7 +78,7 @@ class FieldValue(BaseModel):
         return f"{self.within}.{self.field}"
 
     @model_validator(mode="after")
-    def _value_is_a_member_of_the_field_enum(self) -> "FieldValue":
+    def _value_is_a_member_of_the_field_enum(self) -> FieldValue:
         enums = _enum_classes(
             _field_annotation(self.declaring_type, self.field)
         )
@@ -95,7 +95,7 @@ class FieldValue(BaseModel):
             )
         return self
 
-    def overlaps(self, other: "Distinguisher") -> bool:
+    def overlaps(self, other: Distinguisher) -> bool:
         """Return whether *other* reads this field and holds this value, so
         one activity could match both (MSM-08-011).  A distinguisher on
         another field is not compared."""
@@ -145,7 +145,7 @@ class StateContext(BaseModel):
     states: tuple[Enum, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _states_belong_to_the_machine(self) -> "StateContext":
+    def _states_belong_to_the_machine(self) -> StateContext:
         foreign = [s for s in self.states if not isinstance(s, self.machine)]
         if foreign:
             raise ValueError(
@@ -154,7 +154,7 @@ class StateContext(BaseModel):
             )
         return self
 
-    def overlaps(self, other: "Distinguisher") -> bool:
+    def overlaps(self, other: Distinguisher) -> bool:
         """Return whether *other* is a context on this machine that shares a
         state, so one activity could match both (MSM-08-011).  A context on
         another machine is not compared."""
@@ -187,7 +187,7 @@ class SenderStanding(BaseModel):
     holds: bool
 
     @model_validator(mode="after")
-    def _kind_requires_a_standing(self) -> "SenderStanding":
+    def _kind_requires_a_standing(self) -> SenderStanding:
         if self.kind is SenderEntitlementKind.ANY_ACTOR:
             raise ValueError(
                 "ANY_ACTOR requires no standing, so it cannot tell two"
@@ -195,7 +195,7 @@ class SenderStanding(BaseModel):
             )
         return self
 
-    def overlaps(self, other: "Distinguisher") -> bool:
+    def overlaps(self, other: Distinguisher) -> bool:
         """Return whether *other* is a standing of this kind that the sender
         holds or lacks alike, so one activity could match both (MSM-08-011).
         A standing of another kind is not compared."""

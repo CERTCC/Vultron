@@ -350,7 +350,7 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
             return
         try:
             self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def _invitee(self) -> str:

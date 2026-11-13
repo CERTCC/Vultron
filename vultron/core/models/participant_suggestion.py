@@ -48,7 +48,7 @@ from vultron.core.models.profile import ModelProfile
 from vultron.core.models.report import VulnerabilityReport
 from vultron.enums import CVDRole
 from vultron.errors import VultronValidationError
-from vultron.primitives import NonEmptyString
+from vultron.primitives import NonEmptyString, NormalisedActorId
 
 #: The validation-context key :meth:`SuggestionContext.from_case` sets; a
 #: context built any other way lacks it and is refused (BT-24-003).
@@ -77,14 +77,16 @@ class ParticipantProfile(ModelProfile):
     """One participant already in the case: its actor and roles only.
 
     Attributes:
-        attributed_to: The participant's actor id.  Required: a participant
-            with no actor names nobody to leave out of a suggestion.
+        attributed_to: The participant's actor id, in the canonical spelling
+            the participant record holds (OID-01-006).  Required: a
+            participant with no actor names nobody to leave out of a
+            suggestion.
         case_roles: The roles the participant holds in the case.
     """
 
     profile_of = CaseParticipant
 
-    attributed_to: NonEmptyString
+    attributed_to: NormalisedActorId
     case_roles: list[CVDRole] = Field(default_factory=list)
 
 

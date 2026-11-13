@@ -382,14 +382,14 @@ def reset_store_claimants() -> None:
     _STORE_CLAIMANTS.clear()
 
 
-_SESSION_LOCKS: "weakref.WeakKeyDictionary[Engine, threading.RLock]" = (
+_SESSION_LOCKS: weakref.WeakKeyDictionary[Engine, threading.RLock] = (
     weakref.WeakKeyDictionary()
 )
 _SESSION_LOCKS_GUARD = threading.Lock()
 
 
 def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
-    """Return what a ``Session`` on *engine* must hold for its whole lifetime.
+    """Return what a ``Session``, or a read's connection, on *engine* must hold.
 
     An in-memory engine uses ``StaticPool``: every ``Session`` gets the *same*
     DB-API connection, and ``check_same_thread=False`` lets it cross threads.
@@ -401,8 +401,10 @@ def session_guard(engine: Engine) -> AbstractContextManager[bool | None]:
     pipeline re-read it, while the CaseActor's outbox drain was reading the
     store on the event loop (#3602, ADR-0112).  Two concurrent fairies on the
     single record also confuse the pool's own checkin bookkeeping, so the lock
-    cannot hang off pool events; it wraps the ``Session`` block itself, which is
-    the one seam every adapter session passes through (``SqliteDataLayer._session``).
+    cannot hang off pool events; it wraps the ``Session`` block itself, at the
+    two seams every adapter connection passes through: ``SqliteDataLayer._session``
+    for a ``Session``, and ``SqliteDataLayer._connection`` for a read's bare
+    connection.
 
     The lock is per *engine* — engines are shared per actor by
     :func:`get_actor_engine` — and re-entrant, so a ``Session`` opened inside

@@ -54,7 +54,7 @@ def coerce_int(value: object, default: int) -> int:
         return default
     try:
         return int(value)
-    except (OverflowError, ValueError):
+    except OverflowError, ValueError:
         return default
 
 

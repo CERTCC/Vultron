@@ -311,7 +311,7 @@ def decline_proposal_arm(
     proposal_id: str,
     proposer_uri: str,
     proposal_dict: dict | None,
-    bundle: "CaseProposalCallOutBundle",
+    bundle: CaseProposalCallOutBundle,
 ) -> py_trees.composites.Sequence:
     """Build ``DeclineProposalArm``, the CP-05-002 admission decision."""
     # CP-05-002 / CP-05-004 admission decision.  `Inverter` converts the

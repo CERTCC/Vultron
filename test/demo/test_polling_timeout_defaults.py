@@ -18,9 +18,9 @@ cross-container participant-count convergence under CI contention.  The new
 default must be at least 15.0 s.
 """
 
-import inspect
 from unittest.mock import MagicMock, patch
 
+from test.support.signatures import signature_of
 from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     REPLICA_PARTICIPANT_TIMEOUT,
@@ -32,7 +32,7 @@ from vultron.demo.helpers.polling import (
 
 def test_wait_for_case_participants_default_is_at_least_15s():
     """Default timeout must survive cross-container CI contention (#2305)."""
-    sig = inspect.signature(wait_for_case_participants)
+    sig = signature_of(wait_for_case_participants)
     default = sig.parameters["timeout_seconds"].default
     assert default >= 15.0, (
         f"wait_for_case_participants default ({default}s) is too short; "

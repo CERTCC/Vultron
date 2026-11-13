@@ -81,7 +81,7 @@ logger = logging.getLogger(__name__)
 
 def create_close_report_tree(
     case_id: str,
-    call_out: "CloseReportCallOutBundle | None" = None,
+    call_out: CloseReportCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build the Close Readiness Monitoring seam tree.
 

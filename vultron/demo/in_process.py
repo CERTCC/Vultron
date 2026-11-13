@@ -130,11 +130,11 @@ class InProcessRouter:
         self._clients: dict[str, TestClient] = {}
         self._failing_hosts: set[str] = set()
 
-    def register(self, base_url: str, client: "TestClient") -> None:
+    def register(self, base_url: str, client: TestClient) -> None:
         """Register *client* as the delivery target for *base_url*."""
         self._clients[base_url.rstrip("/")] = client
 
-    def client_for(self, base_url: str) -> "TestClient | None":
+    def client_for(self, base_url: str) -> TestClient | None:
         """The client registered for *base_url*, if any."""
         return self._clients.get(base_url.rstrip("/"))
 
@@ -237,7 +237,7 @@ class InProcessObjectFetcher:
     status is the failure, never raised.
     """
 
-    def __init__(self, router: "InProcessRouter") -> None:
+    def __init__(self, router: InProcessRouter) -> None:
         self._router = router
 
     async def fetch(
@@ -353,9 +353,9 @@ class IsolatedActorApp:
 
 def create_isolated_actor_app(
     base_url: str,
-    router: "InProcessRouter",
+    router: InProcessRouter,
     actor_slug: str = "primary",
-) -> "IsolatedActorApp":
+) -> IsolatedActorApp:
     """Create an isolated FastAPI app for a single actor in tests.
 
     Creates a fresh :class:`FastAPI` application via :func:`create_app`,

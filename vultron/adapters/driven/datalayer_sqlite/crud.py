@@ -29,7 +29,13 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
 
-from .schema import QueueEntry, VultronObjectRecord, participant_status_summary
+from .schema import (
+    READ_BY_ID,
+    QueueEntry,
+    StoredRowValues,
+    VultronObjectRecord,
+    participant_status_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +56,8 @@ def _storable_to_record(record: StorableRecord) -> Record:
 
 
 def create(
-    dl: "Any",  # SqliteDataLayer
-    record: "StorableRecord | PersistableModel",
+    dl: Any,  # SqliteDataLayer
+    record: StorableRecord | PersistableModel,
 ) -> None:
     """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists.
 
@@ -91,7 +97,7 @@ def create(
 
 
 def read(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     object_id: str,
     raise_on_missing: bool = False,
 ) -> PersistableModel | None:
@@ -111,10 +117,16 @@ def read(
     Returns:
         Reconstituted domain object or ``None``.
     """
-    with dl._session() as session:
-        # A primary-key get: one id means no ``select`` to compile per read.
-        row = session.get(VultronObjectRecord, object_id)
-        if row is not None:
+    # A Core ``select`` on the primary key, run on a bare connection: no
+    # ``Session``, identity map or ORM statement per read (#4969).  Hydration
+    # stays inside the block, as it did inside the session, so an in-memory
+    # store's lock covers the referenced rows hydration reads in turn.
+    with dl._connection() as connection:
+        found = connection.execute(
+            READ_BY_ID, {"object_id": object_id}
+        ).first()
+        if found is not None:
+            row = StoredRowValues._make(found)
             if row.type_ == "CaseParticipant":
                 summary = participant_status_summary(row.data)
                 logger.debug(
@@ -134,7 +146,7 @@ def read(
 
 
 def save(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     obj: PersistableModel,
 ) -> None:
     """Persist a domain object, overwriting any existing record.
@@ -171,7 +183,7 @@ def save(
 
 
 def save_if_unchanged(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     obj: PersistableModel,
     expected: PersistableModel,
 ) -> bool:
@@ -257,8 +269,8 @@ def save_if_unchanged(
 
 
 def save_many(
-    dl: "Any",  # SqliteDataLayer
-    objs: list["PersistableModel"],
+    dl: Any,  # SqliteDataLayer
+    objs: list[PersistableModel],
 ) -> None:
     """Persist multiple domain objects in a single atomic transaction.
 
@@ -292,7 +304,7 @@ def save_many(
 
 
 def delete(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
     id_: str,
 ) -> bool:
@@ -320,7 +332,7 @@ def delete(
 
 
 def clear_table(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
 ) -> None:
     """Remove all records of a given object type.
@@ -340,7 +352,7 @@ def clear_table(
 
 
 def clear_all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
 ) -> None:
     """Remove every object record and queue entry in this actor's store.
 
@@ -359,7 +371,7 @@ def clear_all(
 
 
 def update(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     id_: str,
     record: StorableRecord,
 ) -> bool:
@@ -387,7 +399,7 @@ def update(
 
 
 def get(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str | None = None,
     id_: str | None = None,
 ) -> PersistableModel | dict[str, Any] | None:
@@ -435,7 +447,7 @@ def get(
 
 
 def get_all(
-    dl: "Any",  # SqliteDataLayer
+    dl: Any,  # SqliteDataLayer
     table: str,
 ) -> list[dict[str, Any]]:
     """Return all raw data dicts for a given object type.

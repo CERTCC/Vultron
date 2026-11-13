@@ -452,26 +452,37 @@ def register_at(ref: str) -> Register | None:
     return None if data is None else Register.from_json(data)
 
 
-def release_state(repo: str, name: str) -> ReleaseState | None:
+def release_state(
+    repo: str, name: str, *, retry: bool = False
+) -> ReleaseState | None:
     """The GitHub Release, draft or not, for tag *name*, or ``None``.
 
     Only ``gh``'s "release not found" reads as no release; any other error
-    raises, so a failed lookup never leads to a second draft.
+    raises, so a failed lookup never leads to a second draft. With *retry*,
+    such an error is tried again within ``retry.sh``'s bounds, and "not
+    found" is never retried: a deploy that only reads passes it, while the
+    promote reads the release afresh in its own loop.
     """
-    try:
-        out = gh(
-            "release", "view", name, "--repo", repo, "--json",
-            "isDraft,assets", retry=False,
-        )  # fmt: skip
-    except subprocess.CalledProcessError as error:
-        if "not found" in str(error.stderr or "").lower():
-            return None
-        raise
-    data = json.loads(out)
-    return ReleaseState(
-        bool(data["isDraft"]),
-        tuple(str(asset["name"]) for asset in data.get("assets") or []),
-    )
+    delays = retry_delays() if retry else []
+    for delay in [*delays, None]:
+        try:
+            out = gh(
+                "release", "view", name, "--repo", repo, "--json",
+                "isDraft,assets", retry=False,
+            )  # fmt: skip
+        except subprocess.CalledProcessError as error:
+            if "not found" in str(error.stderr or "").lower():
+                return None
+            if delay is None:
+                raise
+            time.sleep(delay)
+            continue
+        data = json.loads(out)
+        return ReleaseState(
+            bool(data["isDraft"]),
+            tuple(str(asset["name"]) for asset in data.get("assets") or []),
+        )
+    raise AssertionError("unreachable: the last attempt returns or raises")
 
 
 def download_assets(

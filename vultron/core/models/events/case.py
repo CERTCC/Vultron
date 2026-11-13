@@ -30,7 +30,7 @@ class CreateCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.object_)
 
 
@@ -80,7 +80,7 @@ class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def report(self) -> "VulnerabilityReport | None":
+    def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.object_)
 
     @property
@@ -88,7 +88,7 @@ class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
         return self.target_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.target)
 
 
@@ -172,5 +172,5 @@ class UpdateCaseOwnerReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def case(self) -> "VulnerabilityCase | None":
+    def case(self) -> VulnerabilityCase | None:
         return cast("VulnerabilityCase | None", self.object_)

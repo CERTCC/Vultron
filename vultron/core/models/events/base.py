@@ -172,8 +172,10 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # is being processed.  Set by the inbox adapter (not extracted from wire
     # format) so that use cases can compare it against activity.to without
     # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
-    # triggers, tests that don't set it).
-    receiving_actor_id: NonEmptyString | None = None
+    # triggers, tests that don't set it).  Canonical like ``actor_id``: the
+    # inbox routes take it from the stored actor record, and an unnormalised
+    # one is refused here (OID-01-006, #5919).
+    receiving_actor_id: NormalisedActorId | None = None
 
     # The received JSON exactly as the parser sealed it (VM-08-002), carried
     # from the parsed wire activity at the parse edge so core records it in

@@ -76,7 +76,7 @@ class _LedgerReplayRequestUseCase:
         dl: CaseOutboxPersistence,
         sync_port: SyncActivityPort | None,
         trigger_activity: TriggerActivityPort | None,
-        wire_render_port: "WireRenderPort | None",
+        wire_render_port: WireRenderPort | None,
     ) -> None:
         self._dl = dl
         self._sync_port = sync_port
@@ -153,7 +153,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(dl, sync_port, trigger_activity, wire_render_port)
         self._request = request
@@ -234,7 +234,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         request: ReadLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(dl, sync_port, trigger_activity, wire_render_port)
         self._request = request

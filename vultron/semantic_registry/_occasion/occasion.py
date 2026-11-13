@@ -101,7 +101,7 @@ class Occasion(BaseModel):
     evolved: bool = False
 
     @model_validator(mode="after")
-    def _evolved_has_no_shorthand(self) -> "Occasion":
+    def _evolved_has_no_shorthand(self) -> Occasion:
         if self.evolved and self.shorthand is not None:
             raise ValueError(
                 "an evolved occasion has no shorthand of its own (MSM-08-006)"
@@ -109,7 +109,7 @@ class Occasion(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _no_shorthand_needs_a_heading(self) -> "Occasion":
+    def _no_shorthand_needs_a_heading(self) -> Occasion:
         if self.shorthand is None and self.heading is None:
             raise ValueError(
                 f"occasion {self.anchor!r} has no shorthand, so its section"

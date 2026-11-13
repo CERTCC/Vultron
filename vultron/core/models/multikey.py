@@ -84,7 +84,7 @@ class Multikey(ValidatedAssignmentMixin, BaseModel):
     )
 
     @model_validator(mode="after")
-    def _id_is_a_fragment_of_its_controller(self) -> "Multikey":
+    def _id_is_a_fragment_of_its_controller(self) -> Multikey:
         """Refuse a key whose id lies outside its controller's document.
 
         A proof's ``verificationMethod`` is dereferenced to the document that

@@ -3,30 +3,20 @@
 <div class="admonition abstract reading-path" data-thread="contribute" data-member="about/project_record.md" markdown>
 <p class="admonition-title">Reading path: You want to work on the Vultron reference implementation</p>
 
+<div class="reading-path-where" markdown>
 This page is part of *Start contributing*.
 
-<table class="reading-path-table" markdown>
-<thead><tr><th>Start</th><th>Previous</th><th>Current</th><th>Next</th></tr></thead>
-<tbody markdown>
-<tr markdown>
-<td markdown="block">
+<p class="reading-path-start" markdown>[Path overview](../../contribute.md)</p>
+</div>
 
-- [You want to work on the Vultron reference implementation](../../contribute.md)
-
-</td>
-<td markdown="block">
+<div class="reading-path-tiles" markdown>
+<div class="reading-path-tile reading-path-previous" markdown>
+<p class="reading-path-direction">Previous</p>
 
 - [Wiring a Capability into the Reference Implementation](../../../howto/wire_capability.md)
 
-</td>
-<td markdown="block">
-
-- Working on This Implementation
-
-</td>
-<td>---</td>
-</tr>
-</tbody>
-</table>
+</div>
+<div class="reading-path-tile reading-path-next reading-path-empty" aria-hidden="true"></div>
+</div>
 
 </div>

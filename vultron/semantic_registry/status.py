@@ -110,7 +110,7 @@ class _PxaForm:
 
     when: Mapping[CS_pxa, str]
     addressee: AddresseeSide
-    object_type: type[CaseStatus] | type[ParticipantStatus]
+    object_type: type[CaseStatus | ParticipantStatus]
     within: str | None
     howto: HowToGuide | None
     notes: str

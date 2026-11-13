@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, Self
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
 
+from sqlalchemy.engine import Connection
 from sqlmodel import Session, SQLModel
 
 from vultron.adapters.driven.clock import SystemBookkeepingClock
@@ -47,7 +48,11 @@ from vultron.core.ports.datalayer import StorableRecord
 
 from . import crud, hydration, queries, queues
 from .engine import dispose_actor_engines, get_actor_engine, session_guard
-from .schema import VultronObjectRecord, require_outbox_pending_index
+from .schema import (
+    StoredRow,
+    VultronObjectRecord,
+    require_outbox_pending_index,
+)
 from .transaction import open_transaction, transaction as _transaction
 
 #: The bookkeeping clock every store stamps its own records with (ADR-0176).
@@ -128,6 +133,30 @@ class SqliteDataLayer:
             with Session(self._engine) as session:
                 yield session
 
+    @contextmanager
+    def _connection(self) -> Iterator[Connection]:
+        """Yield a connection for one read, with no ``Session`` around it.
+
+        A read through a ``Session`` paid for the session, its identity map
+        and the ORM's statement execution on every call, most of a read's cost
+        (#4969).  This yields the connection a read runs a Core statement on
+        instead, under the same lock :meth:`_session` takes.  Outside a
+        transaction it still checks out a pool connection per read.
+
+        Inside :meth:`transaction`, on the thread that opened it, this is the
+        transaction's own connection, so a read sees the block's writes: every
+        CRUD write commits (releases) its savepoint before it returns, so none
+        is left pending in a ``Session``.  Use it only to read; a write here
+        would bypass the savepoint a write through :meth:`_session` gets.
+        """
+        state = open_transaction(self._engine)
+        if state is not None:
+            yield state.connection
+            return
+        with session_guard(self._engine):
+            with self._engine.connect() as connection:
+                yield connection
+
     def transaction(self) -> AbstractContextManager[None]:
         """Commit every write inside the block together, or none of them.
 
@@ -175,7 +204,7 @@ class SqliteDataLayer:
         """
         dispose_actor_engines(self._db_url, self._actor_id)
 
-    def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
+    def clone_for_actor(self, actor_id: str) -> SqliteDataLayer:
         """Return a DataLayer for *actor_id*, backed by that actor's own store.
 
         Under ADR-0073 this opens a **different** store rather than applying a
@@ -237,7 +266,7 @@ class SqliteDataLayer:
         """Convert a domain object to a storage row."""
         return hydration.to_row(obj)
 
-    def _from_row(self, row: VultronObjectRecord) -> PersistableModel | None:
+    def _from_row(self, row: StoredRow) -> PersistableModel | None:
         """Convert a storage row back to a fully-typed domain object."""
         return hydration.from_row(self, row)
 
@@ -265,7 +294,7 @@ class SqliteDataLayer:
     # DataLayer Protocol implementation - delegate to submodules
     # ------------------------------------------------------------------
 
-    def create(self, record: "StorableRecord | PersistableModel") -> None:
+    def create(self, record: StorableRecord | PersistableModel) -> None:
         """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists."""
         crud.create(self, record)
 
@@ -277,7 +306,7 @@ class SqliteDataLayer:
 
     def read_case(
         self, case_id: str, raise_on_missing: bool = False
-    ) -> "VulnerabilityCase | None":
+    ) -> VulnerabilityCase | None:
         """Read a VulnerabilityCase by ID; returns None when not found."""
         result = self.read(case_id, raise_on_missing=raise_on_missing)
         if result is not None and not isinstance(result, _VC):
@@ -381,16 +410,14 @@ class SqliteDataLayer:
         """Find an actor by the last path segment of its URI."""
         return queries.find_actor_by_short_id(self, short_id)
 
-    def find_case_by_short_id(
-        self, short_id: str
-    ) -> "VulnerabilityCase | None":
+    def find_case_by_short_id(self, short_id: str) -> VulnerabilityCase | None:
         """Find a case by its URL-safe surrogate key."""
         result = queries.find_case_by_short_id(self, short_id)
         return result if isinstance(result, _VC) else None
 
     def find_case_by_report_id(
         self, report_id: str
-    ) -> "VulnerabilityCase | None":
+    ) -> VulnerabilityCase | None:
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
         result = queries.find_case_by_report_id(self, report_id)
         return result if isinstance(result, _VC) else None

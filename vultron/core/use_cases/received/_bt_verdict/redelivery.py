@@ -65,12 +65,14 @@ from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
 def _redelivery_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     guard_type: (
-        type[OwnershipOfferOpenNode]
-        | type[NoOpenOwnershipOfferNode]
-        | type[IsWithdrawableEmbargoNode]
-        | type[NoteIdNotTakenNode]
-        | type[RoleOfferAdmissibleNode]
-        | type[RoleOfferOpenNode]
+        type[
+            OwnershipOfferOpenNode
+            | NoOpenOwnershipOfferNode
+            | IsWithdrawableEmbargoNode
+            | NoteIdNotTakenNode
+            | RoleOfferAdmissibleNode
+            | RoleOfferOpenNode
+        ]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -85,9 +87,11 @@ def _redelivery_verdict(
 def _flagged_repeat_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     guard_type: (
-        type[EmbargoAnswerNotRecordedNode]
-        | type[EmbargoTermsNotHeldNode]
-        | type[CaseCopyNotStaleNode]
+        type[
+            EmbargoAnswerNotRecordedNode
+            | EmbargoTermsNotHeldNode
+            | CaseCopyNotStaleNode
+        ]
     ),
     verdict: HandlerResult,
     fallback: str,

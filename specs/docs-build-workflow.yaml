@@ -2118,9 +2118,9 @@ groups:
           every frozen draft served across any rollback the gate accepts
           (DOCBW-08-038).
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` roll a fixture repository
-          back to a commit from before a draft's release, and check that the
-          draft is still served.
+          Tests in `test/ci/test_serve_frozen_drafts.py` roll a fixture repository back
+          to a commit from before a draft's release, and check that the draft is still
+          served.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2141,10 +2141,9 @@ groups:
           local action. Every rollback the gate accepts serves every frozen
           draft (DOCBW-08-027).
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` give the gate a rollback
-          target from before the DOCBW-08-028 step and check that it is refused
-          with its reason in the run summary, and one after it and check that
-          it passes.
+          Tests in `test/ci/test_publish_gate.py` give the gate a rollback target from
+          before the DOCBW-08-028 step and check that it is refused with its reason in
+          the run summary, and one after it and check that it passes.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2166,10 +2165,9 @@ groups:
           check cover the frozen pages, and the build job holds no token that
           can write or deploy (DOCBW-06-027).
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives into
-          a fixture `site/` and check each draft's pages under
-          `spec/draft-N/`, and read the publication workflow to check the job
-          and the step order.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve fixture archives into a
+          fixture `site/` and check each draft's pages under `spec/draft-N/`, and read
+          the publication workflow to check the job and the step order.
         lint_suppress:
           - phantom_path_ref
         adr:
@@ -2191,9 +2189,9 @@ groups:
           otherwise write outside `site/spec/draft-N/`, or plant a link, before
           any check sees it.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives with
-          an absolute member, a `..` member and a symbolic link, and check that
-          each is refused and that nothing was written.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve fixture archives with an
+          absolute member, a `..` member and a symbolic link, and check that each is
+          refused and that nothing was written.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2211,9 +2209,8 @@ groups:
           changed file means the site would serve a text that no release
           carries.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve fixture archives with
-          a missing file, an extra file and a changed file, and check that each
-          fails.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve fixture archives with a
+          missing file, an extra file and a changed file, and check that each fails.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2230,10 +2227,10 @@ groups:
           A rebuild of an old draft runs today's environment on an old tag, so
           its output can drift. A frozen draft comes only from its archive.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` read each workflow that
-          builds the site and check that it runs one shared build per job, that
-          no checkout step names a `v*` tag, and that no run step checks out or
-          adds a worktree of another ref.
+          Tests in `test/ci/test_serve_frozen_drafts.py` read each workflow that builds
+          the site and check that it runs one shared build per job, that no checkout
+          step names a `v*` tag, and that no run step checks out or adds a worktree of
+          another ref.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2256,9 +2253,9 @@ groups:
           not served yet. A token with read access cannot see a draft release,
           so a draft counts as not published.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve registers whose
-          release tag does not exist, has no release, and has a draft release,
-          and check the placeholder and the summary line in each case.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve registers whose release
+          tag does not exist, has no release, and has a draft release, and check the
+          placeholder and the summary line in each case.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2278,11 +2275,11 @@ groups:
           request sees the failure the deploy would. The failure notice of
           DOCBW-06-003 then reports a failed deploy.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve a register whose
-          published release lacks the archive, and one whose archive fails its
-          manifest, and check that each fails and names the draft and the
-          release; they also read the publication workflow and check that the
-          serving step runs in the build job, before the Pages upload.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve a register whose
+          published release lacks the archive, and one whose archive fails its manifest,
+          and check that each fails and names the draft and the release; they also read
+          the publication workflow and check that the serving step runs in the build
+          job, before the Pages upload.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2303,9 +2300,9 @@ groups:
           overwritten by an archive, or would sit at an address that a later
           draft claims.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` serve archives into a
-          fixture `site/` that already holds a file below `spec/`, and check
-          that the step fails.
+          Tests in `test/ci/test_serve_frozen_drafts.py` serve archives into a fixture
+          `site/` that already holds a file below `spec/`, and check that the step
+          fails.
         lint_suppress:
           - phantom_path_ref
         relationships:
@@ -2324,15 +2321,42 @@ groups:
           links, or misses a broken one. A pull request that edits the
           register is checked with its own edit.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` read the review workflow and
-          check that the serving step runs after the shared build and before
-          the publication checks, and that it is given the checked-out tree's
-          register, not one read from another ref.
+          Tests in `test/ci/test_serve_frozen_drafts.py` read the review workflow and
+          check that the serving step runs after the shared build and before the
+          publication checks, and that it is given the checked-out tree's register, not
+          one read from another ref.
         lint_suppress:
           - phantom_path_ref
         relationships:
           - rel_type: extends
             spec_id: DOCBW-08-028
+      - id: DOCBW-08-039
+        priority: MUST
+        kind: project
+        statement: >-
+          The job of the promote workflow that builds the DOCBW-08-009 archive
+          MUST run the DOCBW-08-028 step after the shared build and before its
+          publication checks, reading the drafts register at the promoted
+          commit.
+        rationale: >-
+          The Revision Log at that commit links the frozen copy of every
+          released draft, including the draft this run releases. Without the
+          served tree, the link check and the archive build find no file for
+          those links and fail, so the run makes no tag. With it, the archive
+          builder writes each link as its live URL (DOCBW-08-016).
+        verification: >-
+          Tests in `test/ci/test_serve_frozen_drafts.py` read the promote
+          workflow and check that its archive job runs the serving step after
+          the shared build and before the publication checks and the archive
+          build, with the checked-out register. A test in
+          `test/ci/test_frozen_drafts.py` builds an archive from a site whose
+          Revision Log links a served frozen-copy page and checks that the
+          link becomes its live URL.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-08-028
+          - rel_type: uses_definition
+            spec_id: DOCBW-08-009
       - id: DOCBW-08-036
         priority: MUST_NOT
         kind: project
@@ -2346,9 +2370,10 @@ groups:
           fail it on every later build. The register and DOCBW-08-033 keep
           each frozen draft served, and the link check still covers its pages.
         verification: >-
-          Tests in `test/ci/test_frozen_drafts.py` place a frozen page that
-          breaks a reading-path rule and is absent from the record below a
-          fixture `site/spec/`, and check that those checks pass.
+          Tests in `test/metadata/docs/test_legacy_urls.py` and
+          `test/metadata/docs/test_path_boxes.py` place a frozen page that breaks a
+          reading-path rule and is absent from the record below a fixture `site/spec/`,
+          and check that those checks pass.
         lint_suppress:
           - phantom_path_ref
         relationships:

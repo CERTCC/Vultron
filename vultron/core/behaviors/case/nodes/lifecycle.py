@@ -148,15 +148,15 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._case_id_bb: str | None = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = None
         try:
             self._activity: Any = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._activity = None
         try:
             self._sync_port = self.get_input("sync_port")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def _resolve_case_id(self) -> str | None:

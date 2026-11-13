@@ -68,7 +68,7 @@ class AcceptCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
 
@@ -89,7 +89,7 @@ class RejectCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
 
@@ -200,7 +200,7 @@ class RejectCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -227,7 +227,7 @@ class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def proposal(self) -> "VultronActivity | None":
+    def proposal(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
@@ -291,7 +291,7 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def invitee(self) -> "CoreObject | None":
+    def invitee(self) -> CoreObject | None:
         return cast("CoreObject | None", self.inner_object)
 
 
@@ -308,7 +308,7 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def invite(self) -> "VultronActivity | None":
+    def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property

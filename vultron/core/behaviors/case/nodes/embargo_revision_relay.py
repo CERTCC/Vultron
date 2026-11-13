@@ -117,7 +117,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         self,
         proposal_id: str,
         report_id: str | None,
-        actor_config: "ActorConfig | None" = None,
+        actor_config: ActorConfig | None = None,
         name: str | None = None,
     ) -> None:
         # The case, embargo and proposer are known only at tick time;

@@ -15,6 +15,7 @@ from test.support.received import (
     stamped,
     with_evidence,
 )
+from test.support.signatures import signature_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -253,7 +254,6 @@ def test_make_dispatcher_gives_every_semantic_a_trigger_port(monkeypatch):
     embargo locally and fail to record it, so every use case gets the port and
     must accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
     """
-    import inspect
 
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
@@ -282,7 +282,7 @@ def test_make_dispatcher_gives_every_semantic_a_trigger_port(monkeypatch):
         assert isinstance(
             factory(real_dl).get("trigger_activity"), TriggerActivityAdapter
         ), f"{sem.name} is dispatched without a TriggerActivityPort"
-        assert "trigger_activity" in inspect.signature(use_case).parameters, (
+        assert "trigger_activity" in signature_of(use_case).parameters, (
             f"{use_case.__name__} does not accept trigger_activity"
         )
 
@@ -653,7 +653,6 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
     this one, and the use case must accept it: the dispatcher calls
     ``use_case_class(dl, event, **kwargs)``.
     """
-    import inspect
 
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.semantic_registry import use_case_map
@@ -680,7 +679,7 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
         assert isinstance(
             factory(real_dl).get("wire_render_port"), As2WireRenderAdapter
         ), f"{sem.name} is dispatched without a WireRenderPort"
-        assert "wire_render_port" in inspect.signature(use_case).parameters, (
+        assert "wire_render_port" in signature_of(use_case).parameters, (
             f"{use_case.__name__} does not accept wire_render_port"
         )
 
@@ -1117,7 +1116,6 @@ def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
     ``InboxReplayPort`` queueing to the receiving actor's own store, and no
     other semantic does: the port is not part of every use case's signature
     (SYNC-14-009, SYNC-15-005)."""
-    import inspect
 
     from vultron.adapters.driven.inbox_replay_adapter import (
         InboxReplayAdapter,
@@ -1153,7 +1151,7 @@ def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
         if sem in replay_semantics:
             assert isinstance(port, InboxReplayAdapter), sem.name
             assert port._dl is real_dl
-            assert "inbox_replay" in inspect.signature(use_case).parameters
+            assert "inbox_replay" in signature_of(use_case).parameters
         else:
             assert port is None, f"{sem.name} was given an inbox replay"
 

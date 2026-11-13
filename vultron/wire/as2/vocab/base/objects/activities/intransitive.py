@@ -100,7 +100,7 @@ class as_Question(as_IntransitiveActivity):
     _serialize_closed = timestamp_serializer("closed")
 
     @model_validator(mode="after")
-    def _options_are_exclusive(self) -> "as_Question":
+    def _options_are_exclusive(self) -> as_Question:
         """AS2 §4.1: ``anyOf`` and ``oneOf`` are mutually exclusive.
 
         A Question is either a multiple-choice (``anyOf``) or a single-choice

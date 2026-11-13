@@ -189,7 +189,13 @@ def reject_invite_actor_to_case() -> Scenario:
 
 @applied(MessageSemantics.INVITE_ACTOR_TO_FULL_CASE)
 def invite_actor_to_full_case() -> Scenario:
-    """The full-case Invite at JOINER, which holds the stub's trust anchor."""
+    """The full-case Invite at JOINER, which holds the case's replica.
+
+    JOINER records the stub's trust anchor, then the CASE_MANAGER's
+    ``Announce(VulnerabilityCase)`` creates its replica (PCR-03-004).  The
+    inbox judges a full-case Invite only once the replica exists, so it is
+    on the participant-replica path (CM-11-033, HP-01-041).
+    """
     net, full = _joined("invite-full")
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=JOINER)
     stub = net.stores[MANAGER].read(f"{net.case_id}/invitations/joiner")
@@ -198,6 +204,17 @@ def invite_actor_to_full_case() -> Scenario:
         dl, received_event(cast(as_Activity, stub), receiving_actor_id=JOINER)
     )
     assert anchored.disposition is HandlerDisposition.APPLIED, anchored.reason
+    (announce,) = [
+        a
+        for a in net.queued(MANAGER, to=JOINER, type_="Announce")
+        if (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
+        .get("object", {})
+        .get("type")
+        == "VulnerabilityCase"
+    ]
+    replica = run_use_case(dl, _at_joiner(net, announce.id_))
+    assert replica.disposition is HandlerDisposition.APPLIED, replica.reason
+    assert isinstance(dl.read(net.case_id), VulnerabilityCase)
     return Scenario(
         dl=dl, event=_at_joiner(net, full.id_), reached=_recorded(full.id_)
     )

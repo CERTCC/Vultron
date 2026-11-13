@@ -32,7 +32,6 @@ the owner's adjudication moves the case to REVISE and indexes the proposal
 (EP-09-001).  The owner then answers by trigger as the CASE_MANAGER.
 """
 
-import inspect
 from datetime import timedelta
 from typing import cast
 
@@ -41,6 +40,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from test.support.objects import make
+from test.support.signatures import signature_of
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -223,7 +223,7 @@ class _Revision:
             "trigger_activity": TriggerActivityAdapter(self.dl),
             "wire_render_port": As2WireRenderAdapter(),
         }
-        accepted = inspect.signature(use_case).parameters
+        accepted = signature_of(use_case).parameters
         ports = {k: v for k, v in offered.items() if k in accepted}
         verdict = run_in_act(use_case(self.dl, event, **ports))
         assert verdict.disposition is HandlerDisposition.APPLIED, (

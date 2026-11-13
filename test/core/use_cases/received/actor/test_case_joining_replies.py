@@ -35,7 +35,6 @@ Replies are routed the way the inbox routes them — semantic extraction then
 semantics for a message.  See ``notes/case-joining.md``.
 """
 
-import inspect
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock
@@ -52,6 +51,7 @@ from test.support.act_runner import run_in_act
 from test.support.ledger_records import with_ledger_records
 from test.support.objects import authored_at, make
 from test.support.received import received_event, settle_as_the_inbox
+from test.support.signatures import signature_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -177,7 +177,7 @@ def route_received(
         "wire_render_port": As2WireRenderAdapter(),
         "actor_config": actor_config,
     }
-    accepted = inspect.signature(use_case_class).parameters
+    accepted = signature_of(use_case_class).parameters
     result = run_in_act(
         use_case_class(
             dl, event, **{k: v for k, v in ports.items() if k in accepted}

@@ -169,12 +169,12 @@ def commit_and_apply_embargo_entries(
 def consent_row_entry(
     *,
     datalayer: CaseOutboxPersistence,
-    trigger_activity: "TriggerActivityPort",
+    trigger_activity: TriggerActivityPort,
     actor_id: str,
     case_id: str,
     change: ConsentRowChange,
     cause_id: str,
-    sync_port: "SyncActivityPort | None" = None,
+    sync_port: SyncActivityPort | None = None,
     on_commit: Callable[[dict[str, Any]], None] | None = None,
     at: datetime,
 ) -> PlannedEmbargoEntry:

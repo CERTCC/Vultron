@@ -65,7 +65,7 @@ def _fetch_participant(
             client.dl_path(dl_key(participant_id), actor_id=dl_actor_id)
         )
         return from_server(as_CaseParticipant, p_data)
-    except (httpx.HTTPStatusError, AssertionError):
+    except httpx.HTTPStatusError, AssertionError:
         return None
 
 

@@ -102,9 +102,10 @@ is a property of the queue's pop order, not a delivery guarantee.**
 - **Concurrent delivery needs serialized store sessions.** An in-memory store shares
   one connection across every `Session` (`StaticPool`) and rolls it back on checkin, so
   one thread's `close()` discards another's uncommitted insert.
-  `SqliteDataLayer._session()` serializes sessions per engine (`engine.session_guard`):
-  never open `Session(dl._engine)` directly, and do not hang the lock on pool
-  checkout/checkin events.
+  `SqliteDataLayer._session()` serializes sessions per engine (`engine.session_guard`),
+  and `_connection()` takes the same lock for a read's bare connection: never open
+  `Session(dl._engine)` or `dl._engine.connect()` directly, and do not hang the lock
+  on pool checkout/checkin events.
 - **When you serialize a queue, audit who relied on the churn.** Serializing the drain
   exposed rows that only ever moved because some concurrent drain happened to pick them
   up: every trigger route now drains the outbox the delegated emit went into

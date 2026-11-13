@@ -61,12 +61,12 @@ class TestNoteUseCases:
 
     def _setup_case_with_case_manager(
         self,
-        dl: "SqliteDataLayer",
+        dl: SqliteDataLayer,
         case_id: str,
         case_actor_id: str,
         *,
         create_case_actor: bool = True,
-    ) -> "as_VulnerabilityCase":
+    ) -> as_VulnerabilityCase:
         """Create a as_VulnerabilityCase with a CaseActor holding CASE_MANAGER.
 
         Pass ``create_case_actor=False`` to seed a *second* case onto a

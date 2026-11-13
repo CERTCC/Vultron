@@ -63,9 +63,7 @@ class as_VultronActivity(as_TransitiveActivity):
     _field_map: ClassVar[dict[str, str]] = {}
 
     @classmethod
-    def from_core(
-        cls, domain_activity: VultronActivity
-    ) -> "as_VultronActivity":
+    def from_core(cls, domain_activity: VultronActivity) -> as_VultronActivity:
         """Create a wire activity from a core domain activity.
 
         Performs a JSON round-trip: dumps the domain object with Python field

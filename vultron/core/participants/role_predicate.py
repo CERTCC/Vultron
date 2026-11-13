@@ -72,16 +72,16 @@ def has_role(
     Ids are compared with
     :func:`~vultron.primitives.same_actor_id`, which absorbs a trailing
     slash, in both branches below (OID-01-006, CLP-10-021).  The roster's
-    ``attributed_to`` is an id a peer wrote *inside* an activity, not the
-    sender id the extractor normalises (OID-01-007), and
-    ``CaseParticipant.attributed_to`` is a plain ``NonEmptyString``, so the
-    other spelling reaches the store rather than being refused on the way in.
-    An exact comparison therefore answered "holds no role" for the case's
-    own CASE_MANAGER, and the path stage sent a correctly addressed delivery
-    down the participant-replica or no-case path to be refused with a reason
-    untrue of its receiver (HP-01-037, HP-01-039, #5827).  Tolerance is for
-    the spelling only: two ids that differ by more than a trailing slash name
-    two actors, and the lookup still misses on purpose.
+    ``CaseParticipant.attributed_to`` is a ``NormalisedActorId``, so the
+    record side carries one spelling (#5919); the tolerance is kept on
+    purpose for *actor_id*, which is often the executing actor's configured
+    id and carries no such type.  An exact comparison would answer "holds no
+    role" for the case's own CASE_MANAGER on a spelling, and the path stage
+    would send a correctly addressed delivery down the participant-replica
+    or no-case path to be refused with a reason untrue of its receiver
+    (HP-01-037, HP-01-039, #5827).  Tolerance is for the spelling only: two
+    ids that differ by more than a trailing slash name two actors, and the
+    lookup still misses on purpose.
 
     ``CVDRole.CASE_MANAGER`` is answered by
     :func:`~vultron.core.participants.authority.resolve_case_manager_id`, the

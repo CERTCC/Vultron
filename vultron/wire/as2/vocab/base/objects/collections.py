@@ -48,7 +48,7 @@ class as_Collection(as_Object):
     )  # tracks id_ URIs for duplicate detection
 
     @model_validator(mode="after")
-    def _populate_ids(self) -> "as_Collection":
+    def _populate_ids(self) -> as_Collection:
         for item in self.items:
             if item is None or isinstance(item, str):
                 continue

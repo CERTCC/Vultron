@@ -111,13 +111,13 @@ def create_commit_log_entry_tree(
 
 def commit_emitted_activity(
     *,
-    datalayer: "CaseOutboxPersistence",
+    datalayer: CaseOutboxPersistence,
     actor_id: str,
     case_id: str,
     activity_id: str,
     activity_blob: str,
     semantic_type: str,
-    sync_port: "SyncActivityPort | None" = None,
+    sync_port: SyncActivityPort | None = None,
     check_freshness: bool = True,
 ) -> dict[str, Any]:
     """Commit an activity this actor just emitted as a canonical entry.

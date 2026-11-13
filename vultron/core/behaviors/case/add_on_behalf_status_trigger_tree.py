@@ -67,8 +67,8 @@ def add_on_behalf_status_trigger_bt(
     case_id: str,
     asserting_actor_id: str,
     target_actor_id: str,
-    vf_state: "CS_vf | None",
-    d_state: "CS_d | None",
+    vf_state: CS_vf | None,
+    d_state: CS_d | None,
     result_out: dict,
     activity_builder: Callable[[str], list[str]],
 ) -> py_trees.behaviour.Behaviour:

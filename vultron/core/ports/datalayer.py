@@ -81,7 +81,7 @@ class DataLayer(Protocol):
     tracked in P65-5/P65-6).
     """
 
-    def create(self, record: "StorableRecord | PersistableModel") -> None: ...
+    def create(self, record: StorableRecord | PersistableModel) -> None: ...
 
     def read(
         self, object_id: str, raise_on_missing: bool = False
@@ -173,7 +173,7 @@ class DataLayer(Protocol):
         answering: frozenset[str] | None = None,
     ) -> ProtocolPair: ...
 
-    def clone_for_actor(self, actor_id: str) -> "DataLayer": ...
+    def clone_for_actor(self, actor_id: str) -> DataLayer: ...
 
     # -- Queue operations -------------------------------------------------
     # Declared directly here rather than on a separate refinement: this
