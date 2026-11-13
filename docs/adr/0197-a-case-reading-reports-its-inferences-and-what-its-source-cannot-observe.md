@@ -5,7 +5,8 @@ status_override: >-
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-13
-revision: 1
+revision: 2
+amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -60,7 +61,7 @@ Chosen option: "Inferred states written, and the reading lists each inference an
 3. **Unobservable is the adapter's declaration.** An adapter declares once what its source cannot observe. Each reading copies that declaration, so a consumer needs nothing but the reading.
 4. **Untranslated is per case, with a reason.** A fact the source holds for this case but the adapter could not turn into an entry carries why: an unknown value, no counterpart, a contradiction between the rule's inputs, or no time to place it at.
 5. **Absent and unobservable read as unknown.** A consumer reads a state dimension or event the reading declares unobservable as unknown, never as false.
-6. **A translated entry's times are the source's own.** Both the commit stamp and the claimed publication time of a translated entry come from the outside-system record. An act whose record states no time takes a time the source does state, named by the adapter's mapping rule (for VINCE, the case's creation time), and is listed as an inference. A reader never reads a clock to fill one ([ADR-0176](0176-an-act-reads-the-clock-once-at-its-edge.md)).
+6. **A translated entry's times are the source's own.** Both the commit stamp and the claimed publication time of a translated entry come from the outside-system record. An act whose record states no time takes a time the source does state, named by the adapter's mapping rule (for VINCE, the time its crosswalk row names, most often the case's creation time), and is listed as an inference. A reader never reads a clock to fill one ([ADR-0176](0176-an-act-reads-the-clock-once-at-its-edge.md)).
 
 ### Consequences
 
@@ -68,7 +69,7 @@ Chosen option: "Inferred states written, and the reading lists each inference an
 - Good, because a missing fix in a VINCE case reads as "VINCE cannot say", not as "no fix exists".
 - Good, because the ledger stays the shape the projection and the measures already read, so ADR-0191's single path holds.
 - Bad, because a reading is a larger object than a ledger and a list, and every adapter must declare its blind spots.
-- Neutral, because an entry's receipt timestamp holds the outside system's time in a reading, not a time a Vultron node generated. That is safe for the same reason ADR-0191 gives: a reading is not stored and does not enter a protocol path.
+- Neutral, because an entry's commit stamp holds the outside system's time in a reading, not a time a Vultron node generated. That is safe for the same reason ADR-0191 gives: a reading is not stored and does not enter a protocol path.
 
 ## Validation
 
@@ -93,6 +94,15 @@ A conformance test over every registered `CaseReader` adapter checks each part o
 - Good, because the analysis has states to reason over and the reader can see which are inferred.
 - Good, because blind spots are declared, so absence is not scored as fact.
 - Bad, because each adapter carries a declaration and a set of named rules to keep in step with its mapping.
+
+## Amendment — 2026-11-13
+
+Two details of the outcome are corrected; the chosen option is unchanged.
+
+- Point 6 read "(for VINCE, the case's creation time)". It now reads "(for VINCE, the time its crosswalk row names, most often the case's creation time)", because the VINCE crosswalk's embargo-consent row takes the later of the case's creation and the vendor's addition.
+- The neutral consequence read "an entry's receipt timestamp holds the outside system's time". It now reads "commit stamp", the name point 6 and ADR-0191 use for the same field.
+
+- Source: #5964, review of #6443
 
 ## More Information
 
