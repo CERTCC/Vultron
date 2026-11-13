@@ -17,7 +17,6 @@ from vultron.metadata.docs.requirement_catalog.pages import (
     kind_page,
 )
 from vultron.metadata.docs.requirement_catalog.placement import (
-    _file_of,
     _page_for,
     requirement_anchor,
 )
@@ -90,7 +89,6 @@ def requirement_linker(
         page: ``docs/``-relative source path of the page the link is on.
         pages: The placement table.
     """
-    file_of = _file_of(registry)
 
     def href(spec_id: str) -> str | None:
         try:
@@ -100,7 +98,7 @@ def requirement_linker(
         anchor = requirement_anchor(spec_id)
         if kind not in CATALOG_KINDS:
             return site_href(page, kind_page(kind), anchor)
-        target = _page_for(file_of[spec_id], kind, pages)
+        target = _page_for(registry.get_file_id(spec_id), kind, pages)
         if target is None:
             return None
         if page == FULL_PAGE:

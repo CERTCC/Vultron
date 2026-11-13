@@ -7,7 +7,7 @@ tracks:
   - "#5911"
   - "#6100"
   - "#5954"
-  - "#1147"
+  - "#6367"
   - "#5676"
   - "#5677"
   - "#5624"
@@ -50,8 +50,8 @@ A direction, not a commitment:
 
 1. Vultron accepts the documents CVD tools already exchange (CSAF) and verifies who
    sent them.
-2. The **VINCE shadow** reads live VINCE cases and prompts a human, without writing
-   back (`CONTEXT.md` § Outside Systems).
+2. The **VINCE shadow** reads a live VINCE case on request and shows Vultron's
+   analysis of it, without writing back (`CONTEXT.md` § Outside Systems).
 3. The **VINCE gateway** lets VINCE take part in cases as a protocol peer.
 4. Beyond the year: an independent second implementation.
 
@@ -73,10 +73,11 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
 2. **That offer carries a seeded-key proof that is verified** (#1156). A missing
    or failing proof gets 422 with its own error name (#5763), not 401: a proof is
    content, not an HTTP credential.
-3. **The VINCE shadow reads a real VINCE case and prompts a human.** It runs
-   Vultron's own case logic on a local copy, held as CERT/CC's Case Manager, and
-   raises prompts at call-out points. A Sentinel carries VINCE changes in (#5954).
-   Its prompts wait on the call-out shapes (#1147). Test-instance VINCE API
+3. **The VINCE shadow reads a real VINCE case and shows Vultron's analysis.** On
+   request it reads one VINCE case, translates it into a case ledger, shows where
+   the case stands and ranks the next moves, then keeps nothing (ADR-0190). The
+   translation experiment comes first (#6365), then the dashboard (#6366) and the
+   insight levels (#6368, #6369; Epic #6367), under Epic #5954. Test-instance VINCE API
    access and a host (#5957) need the maintainer, so start them before the Epic
    reaches Focus. The test-stage data rules are decided (ADR-0189); live cases
    wait on a production account (#6338) and their own data rules (#6349).

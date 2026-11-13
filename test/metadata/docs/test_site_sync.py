@@ -15,7 +15,13 @@ import pytest
 import yaml
 
 from vultron.metadata.base import repo_root
-from vultron.metadata.docs import drafts_register as dr, page_schema, site_sync
+from vultron.metadata.docs import (
+    coverage_matrix,
+    drafts_register as dr,
+    lookup_page,
+    page_schema,
+    site_sync,
+)
 from vultron.metadata.docs.coverage_matrix import (
     MATRIX_PATH,
     ROWS,
@@ -32,9 +38,11 @@ from vultron.metadata.docs.landing_pages import (
     discover_section_indexes,
     render_listing,
     routing_faults,
+    sections,
     sort_entries,
     splice_listing,
 )
+from vultron.metadata.docs.page_frontmatter import DocsTree, classify_docs_tree
 from vultron.metadata.docs.page_schema import (
     ALL_STAKEHOLDERS,
     AUDIENCE_DESCRIPTIONS,
@@ -905,6 +913,23 @@ class TestSiteSync:
             site_sync.main(["--check"])
         assert exc.value.code == 1
         assert "DF-09-009" in capsys.readouterr().err
+
+    def test_the_docs_tree_is_classified_once_per_run(
+        self, tmp_path, monkeypatch
+    ):
+        """Its three readers share one classification (#6158)."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        calls: list[Path] = []
+
+        def counting(at: Path) -> DocsTree:
+            calls.append(at)
+            tree: DocsTree = classify_docs_tree(at)
+            return tree
+
+        for module in (site_sync, coverage_matrix, sections, lookup_page):
+            monkeypatch.setattr(module, "classify_docs_tree", counting)
+        site_sync.stale_artifacts(root)
+        assert calls == [root]
 
     @pytest.mark.spec("DF-11-042", "DF-11-046")
     def test_committed_site_artifacts_are_in_sync(self):

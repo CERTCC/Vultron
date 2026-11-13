@@ -29,6 +29,7 @@ from vultron.metadata.docs.landing_pages.nav import (
     split_nav_item,
 )
 from vultron.metadata.docs.page_frontmatter import (
+    DocsTree,
     classify_docs_tree,
     include_directives,
 )
@@ -41,8 +42,9 @@ from vultron.metadata.generated_block import splice_between
 class _Walk:
     """One pass over the nav, collecting each group-opening index by shape."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, tree: DocsTree | None = None) -> None:
         self.root = root
+        self._tree = tree
         self.docs_dir = root / "docs"
         self.generated: list[LandingPage] = []
         self.routing: list[RoutingPage] = []
@@ -57,7 +59,11 @@ class _Walk:
         door (DF-11-003), so neither is required.
         """
         if self._orphans is None:
-            tree = classify_docs_tree(self.root)
+            tree = (
+                classify_docs_tree(self.root)
+                if self._tree is None
+                else self._tree
+            )
             by_dir: dict[str, list[str]] = {}
             for page in tree.pages:
                 if page in tree.navved or is_working_record(page):
@@ -141,12 +147,20 @@ class _Walk:
             self.rendered.append(landing)
 
 
-def discover_section_indexes(root: Path) -> SectionIndexes:
+def discover_section_indexes(
+    root: Path, tree: DocsTree | None = None
+) -> SectionIndexes:
     """Return every section index in the nav, at any depth, by declared shape.
 
     A section index is an ``index.md`` that opens a nav group, or one the nav
     carries as a leaf that declares a shape or is the door to reader pages
     the nav omits.
+
+    Args:
+        root: Repository root.
+        tree: *root*'s classified docs tree, when the caller already holds
+            it; classified here otherwise. A caller building several
+            artifacts classifies once and passes it to each (#6158).
 
     Raises:
         MetadataLoadError: If a section index declares no ``contents:`` or an
@@ -155,7 +169,7 @@ def discover_section_indexes(root: Path) -> SectionIndexes:
             unreadable or empty.
     """
     nav = mkdocs_config(root).get("nav")
-    walk = _Walk(root)
+    walk = _Walk(root, tree)
     walk.visit(nav if isinstance(nav, list) else [])
     if not walk.generated:
         raise MetadataLoadError(

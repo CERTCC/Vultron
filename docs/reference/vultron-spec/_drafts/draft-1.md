@@ -3,5 +3,6 @@
 | Property | Value |
 |----------|-------|
 | Version | `draft-1` |
-| Status | Current draft (work in progress), not yet released |
+| Status | Released in `v2026.11.0` |
 | Date | 2026-11-06 |
+| Frozen copy | [`spec/draft-1/`](../../../spec/draft-1/) |

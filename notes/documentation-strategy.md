@@ -238,7 +238,8 @@ its command must match the whole command, or one step stands in for the other.
 
 **`site/spec/` is not built from `docs/`; a new built-site check must say how
 it treats it.** The shared `.github/actions/serve-frozen-drafts` action runs
-between the build and `check-site-publication` in both workflows, and fills
+between the build and `check-site-publication` in the deploy, the review and the
+promote's archive job (DOCBW-08-039), and fills
 `site/spec/draft-N/` with each released draft's frozen pages, which never
 change. The link check judges them; the continuity, `--require-recorded` and
 reading-path box checks must not, and they don't, because each takes its pages

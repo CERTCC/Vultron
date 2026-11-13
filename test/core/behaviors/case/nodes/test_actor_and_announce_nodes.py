@@ -186,6 +186,38 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         assert owner_id == NEW_OWNER_ID
 
+    @pytest.mark.spec("OID-01-006", "CM-21-024")
+    def test_a_slash_spelled_new_owner_is_recorded_canonical(
+        self, bridge, dl
+    ) -> None:
+        """The case's owner field takes the canonical spelling (#5919)."""
+        participant = make(
+            CaseParticipant,
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(participant)
+        case = make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="OT Node Slash",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={NEW_OWNER_ID: participant.id_},
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID,
+            new_owner_id=f"{NEW_OWNER_ID}/",
+            cause_id=CAUSE_ID,
+        )
+
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert cast(Any, dl.read(CASE_ID)).attributed_to == NEW_OWNER_ID
+
     def test_idempotent_when_already_owned(self, bridge, dl) -> None:
         """SUCCESS without mutation when case already has the new owner."""
         case = make(

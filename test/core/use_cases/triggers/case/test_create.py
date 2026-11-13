@@ -183,6 +183,31 @@ class TestSvcCreateCaseUseCase:
             owner_actor_id=self.actor.id_,
         )
 
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_configured_creator_stores_the_canonical_owner(self):
+        """An actor whose own record id ends in a slash executes under that
+        id, which no type normalises, so the case and the creator's
+        participant record store it normalised rather than refusing it
+        (#5919)."""
+        slashed = "https://example.org/actors/slash-vendor/"
+        canonical = slashed.rstrip("/")
+        reset_datalayer(slashed)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=slashed)
+        dl.create(make(as_Service, id_=slashed, name="Slash Vendor"))
+        request = CreateCaseTriggerRequest(
+            actor_id=slashed, name="Slash Case", content="c"
+        )
+        run_in_act(_use_case(dl, request))
+
+        (case,) = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if getattr(obj, "name", "") == "Slash Case"
+        ]
+        assert isinstance(case, VulnerabilityCase)
+        assert case.attributed_to == canonical
+        assert list(case.actor_participant_index) == [canonical]
+
     def test_create_case_happy_path_without_report(self):
         """SvcCreateCaseUseCase creates a case and queues CreateCaseActivity."""
         request = CreateCaseTriggerRequest(

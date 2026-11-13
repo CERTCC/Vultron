@@ -155,7 +155,10 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
     :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
     per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
     set — a received case keeps its sender's hash; one that carries none
-    derives it here from its carried inputs (ADR-0103).  A case with no
+    derives it here from its carried inputs (ADR-0103).  The owner is read
+    as carried, before the field's inbound normaliser strips a trailing
+    slash (OID-01-006), so the derived hash is the one the sender derived
+    from its own spelling.  A case with no
     ``attributed_to`` is left to the required-field check, which refuses
     it (ARCH-10-001).
 

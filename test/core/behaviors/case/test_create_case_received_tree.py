@@ -434,8 +434,13 @@ def _run_at_owner_result(
     *,
     pending_link: bool = True,
     inbox_replay: RecordingInboxReplay | None = None,
+    executing_actor: str = _OWNER,
 ) -> tuple[SqliteDataLayer, BTExecutionResult]:
-    """:func:`_run_at_owner`, returning the whole bridge result."""
+    """:func:`_run_at_owner`, returning the whole bridge result.
+
+    *executing_actor* is the owner's configured id, which may spell the
+    owner differently from the case's canonical ``attributed_to``.
+    """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -460,7 +465,7 @@ def _run_at_owner_result(
             trigger_activity=TriggerActivityAdapter(owner_dl),
         ),
         tree=tree,
-        actor_id=_OWNER,
+        actor_id=executing_actor,
         activity=event,
         inbox_replay=inbox_replay,
     )
@@ -507,6 +512,27 @@ def test_report_receiver_introduces_the_case_manager_to_the_reporter():
     # protocol lets this Create name the report the reporter offered by id.
     reports = case["vulnerabilityReports"]
     assert [r["id"] for r in reports] == [_REPORT_ID]
+
+
+@pytest.mark.spec("CBT-01-001")
+@pytest.mark.spec("CLP-10-021")
+def test_an_owner_configured_with_a_trailing_slash_still_introduces():
+    """The owner test compares the case's canonical owner with the executing
+    actor's configured id, whose type does not exclude a trailing slash, so
+    it compares them as one actor (#5901)."""
+    owner_dl, result = _run_at_owner_result(
+        _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),)),
+        executing_actor=f"{_OWNER}/",
+    )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+    [intro] = [
+        create
+        for create in owner_dl.list_objects("Create")
+        if isinstance(create, as_Create)
+        and _as_id(create.actor) == f"{_OWNER}/"
+    ]
+    assert intro.to == [_REPORTER]
 
 
 @pytest.mark.spec("CM-10-004")

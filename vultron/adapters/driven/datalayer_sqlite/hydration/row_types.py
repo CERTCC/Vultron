@@ -31,7 +31,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.type_lookup import core_class_for_type
 from vultron.errors import VultronValidationError
 
-from ..schema import VultronObjectRecord
+from ..schema import StoredRow
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ WIRE_ROW_FAILURES: tuple[type[Exception], ...] = (
 """What :func:`wire_object_from_row` raises for a row that does not validate."""
 
 
-def wire_object_from_row(row: VultronObjectRecord) -> PersistableModel:
+def wire_object_from_row(row: StoredRow) -> PersistableModel:
     """Reconstruct *row* through the wire vocabulary.
 
     Raises one of :data:`WIRE_ROW_FAILURES` when the stored data does not
@@ -61,7 +61,7 @@ def wire_object_from_row(row: VultronObjectRecord) -> PersistableModel:
 
 
 def project_wire_row_to_core(
-    row: VultronObjectRecord,
+    row: StoredRow,
     wire_obj: PersistableModel,
     core_exc: Exception,
 ) -> PersistableModel:

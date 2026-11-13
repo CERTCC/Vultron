@@ -7,8 +7,8 @@ description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, the received archive as the
   sealed body, received-activity keying, received-artifact snapshots, per-actor
-  stores, shared-record writes, multi-call transactions, and stored-shape
-  changes. Operating rules live in vultron/core/ports/AGENTS.md.
+  stores, shared-record writes, multi-call transactions and their read seam,
+  and stored-shape changes. Operating rules live in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
@@ -308,6 +308,11 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
   undoes only its own writes. A raw `engine.connect()` inside the block bypasses
   it; on an in-memory store it shares the one connection and its close rolls the
   whole block back (#3602).
+- **A read takes its connection from `SqliteDataLayer._connection()`.** It runs a
+  prebuilt Core `select` there, never an ORM `Session`, because the session cost
+  most of a read (#4969). Inside the block that seam yields the block's own
+  connection, so the read sees the block's writes. It is for reads only: a write
+  on it skips the SAVEPOINT that `_session()` gives.
 - **Side effects outside the store wait for the commit.** The outbox enqueue
   callback runs through `run_after_commit()`; anything else that tells another
   thread a row exists does the same, or it signals a row that may roll back.

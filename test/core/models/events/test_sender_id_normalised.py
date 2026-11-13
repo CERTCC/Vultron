@@ -70,3 +70,16 @@ def test_addressing_re_exports_the_primitive_normaliser():
 
     assert addressing.normalise_actor_id is normalise_actor_id
     assert addressing.same_actor_id is same_actor_id
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("ARCH-10-001")
+def test_received_event_refuses_slash_spelled_receiving_actor_id():
+    """The receiving actor id is canonical like the sender id (#5919)."""
+    with pytest.raises(ValidationError, match="trailing slash"):
+        VultronEvent(
+            semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+            activity_id=ACTIVITY_ID,
+            actor_id=SENDER,
+            receiving_actor_id="https://example.org/actors/receiver/",
+        )

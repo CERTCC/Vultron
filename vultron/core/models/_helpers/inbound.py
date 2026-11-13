@@ -25,13 +25,14 @@ from typing import (
     get_origin,
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationInfo
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
 from vultron.core.models._helpers.clock import (
     _datetime_type,
 )
+from vultron.primitives import normalise_actor_id
 
 
 class DuplicateKeySpellingError(ValueError):
@@ -160,6 +161,26 @@ INBOUND_CONTEXT_KEY = "inbound_wire"
 #: is refused with a reset note rather than silently given a value it never
 #: held (no migration, #4087).
 STORED_CONTEXT_KEY = "stored_row"
+
+
+def normalise_inbound_actor_id(value: object, info: ValidationInfo) -> object:
+    """Strip a trailing slash from an actor id read from a peer's body.
+
+    The ``mode="before"`` half of a ``NormalisedActorId`` field on a class an
+    inbound payload validates into (ARCH-25-003, ADR-0099).  A received
+    activity's parse is where an actor id it carries is extracted, so it is
+    normalised there (OID-01-006).  Any other construction is left alone, so
+    the field's type refuses an id this process authored or stored with the
+    other spelling (ARCH-10-001): a stored row is never rewritten on read.
+    """
+    context = info.context
+    if (
+        isinstance(value, str)
+        and isinstance(context, dict)
+        and context.get(INBOUND_CONTEXT_KEY)
+    ):
+        return normalise_actor_id(value)
+    return value
 
 
 def blank_times_as_none(

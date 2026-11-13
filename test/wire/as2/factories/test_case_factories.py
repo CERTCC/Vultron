@@ -703,17 +703,20 @@ def _invite_stub_wire(sample_actor) -> dict:
     return stub
 
 
+@pytest.mark.spec("MV-12-004")
 @pytest.mark.spec("CM-17-023")
 @pytest.mark.spec("CM-17-022")
 def test_rm_invite_stub_carries_no_case_content(sample_actor):
     """The stub names the case and carries no other case content.
 
     Only the stub summary #4165 adds may join the identifying keys; the
-    case's own ``summary`` and its ``attributedTo`` never travel.
+    case's own ``summary`` and its ``attributedTo`` never travel.  A
+    withheld field is left out, not marked ``Redacted`` (MV-12-004).
     """
     stub = _invite_stub_wire(sample_actor)
     assert set(stub) <= {"type", "id", "caseId", "summary"}
     assert stub.get("summary") != "A summary of the case"
+    assert "Redacted" not in json.dumps(stub)
 
 
 @pytest.mark.spec("CM-17-010")
