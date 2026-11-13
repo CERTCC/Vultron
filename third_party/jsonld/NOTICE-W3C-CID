@@ -1,0 +1,15 @@
+W3C Controlled Identifiers JSON-LD context
+
+Source: https://www.w3.org/ns/cid/v1
+Copy:   cid-v1.jsonld (byte for byte, as served with
+        Accept: application/ld+json)
+
+The file carries no copyright or licence notice of its own.
+
+The context, with the SHA-256 digest recorded in pin.json, is listed in the
+W3C Recommendation "Controlled Identifiers v1.0",
+https://www.w3.org/TR/cid-1.0/, published by the Verifiable Credentials
+Working Group. It carries this notice: "Copyright © 2025 World Wide Web
+Consortium. W3C® liability, trademark and permissive document license rules
+apply." Its permissive document license link is
+https://www.w3.org/copyright/software-license-2023/

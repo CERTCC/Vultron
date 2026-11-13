@@ -1,0 +1,14 @@
+{
+  "sources": {
+    "https://www.w3.org/ns/activitystreams": "activitystreams.jsonld",
+    "https://w3id.org/security/data-integrity/v2": "data-integrity-v2.jsonld",
+    "https://w3id.org/security/multikey/v1": "multikey-v1.jsonld",
+    "https://www.w3.org/ns/cid/v1": "cid-v1.jsonld"
+  },
+  "sha256": {
+    "activitystreams.jsonld": "a27b78b82f4980963127140d0cb74f0e8f21c0e2b8efd0368232bf9823edff5a",
+    "data-integrity-v2.jsonld": "67f21e6e33a6c14e5ccfd2fc7865f7474fb71a04af7e94136cb399dfac8ae8f4",
+    "multikey-v1.jsonld": "ba2c182de2d92f7e47184bcca8fcf0beaee6d3986c527bf664c195bbc7c58597",
+    "cid-v1.jsonld": "ea216ecc1cb02cd39b693dba2250141e270ba0bf95890be107dd9a9e8e43de85"
+  }
+}

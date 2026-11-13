@@ -32,6 +32,9 @@ from vultron.core.behaviors.case.nodes.addressee import (
     AddresseeExemption,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     PostCloseExemption,
@@ -223,6 +226,7 @@ def received_path_stage(
     *,
     case_resolved_at_run_time: bool = False,
     sender_rule: SenderRule | None = None,
+    held_case: CaseNamedByReference | None = None,
 ) -> ReceivedPathNode | None:
     """The path door stage of a tree that declared its paths (ADR-0153).
 
@@ -257,10 +261,15 @@ def received_path_stage(
             ``case_resolution`` finds later can never admit a sender on the
             outside-case side while the receiver sits in that case.
     """
+    where = f"create_receive_activity_tree({name})"
     if paths is None:
+        if held_case is not None:
+            raise VultronWiringError(
+                f"{where}: held_case is refused at the path stage, so the"
+                " tree must declare its paths (AKM-03-006, HP-01-038)"
+            )
         return None
     declared = declared_paths(paths)
-    where = f"create_receive_activity_tree({name})"
     if not declared:
         raise VultronWiringError(
             f"{where}: paths must name at least one ReceivedPath (ADR-0153)"
@@ -288,7 +297,16 @@ def received_path_stage(
             " must admit no sender, or a case found later would be judged on"
             " that side (HP-01-036, HP-01-025)"
         )
-    return ReceivedPathNode(declared=declared, label=name)
+    if held_case is not None and (
+        not case_id or ReceivedPath.NO_CASE in declared
+    ):
+        raise VultronWiringError(
+            f"{where}: held_case refuses a receiver that holds no replica of"
+            " the case the tree names, so the tree must name its case at"
+            " build time and must not declare the no-case path (AKM-03-006,"
+            " HP-01-041)"
+        )
+    return ReceivedPathNode(declared=declared, label=name, held_case=held_case)
 
 
 def closed_sender_stage(

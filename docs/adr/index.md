@@ -290,7 +290,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
 - [ADR-0194 Every Wire Field Has a Typed JSON-LD Term, With One Meaning per Name](0194-every-wire-field-has-a-typed-json-ld-term-with-one-meaning-per-name.md) *(provisional)*
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) *(provisional)* — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
-- [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md)
+- [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md) *(revision 2)*
 
 ## Proposed ADRs
 
