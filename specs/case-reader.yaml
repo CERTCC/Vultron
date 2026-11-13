@@ -179,7 +179,7 @@ groups:
       A case is not scored as having no fix when its source cannot say whether
       a fix exists.
     verification: >-
-      A test of the shadow's analysis gives it a reading that declares fix
+      A test of the case shadow's analysis gives it a reading that declares fix
       readiness unobservable and asserts no desideratum about the fix is
       reported as broken.
   - id: CRD-02-006
