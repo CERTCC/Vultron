@@ -30,7 +30,7 @@ from typing import Literal
 
 import pytest
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from vultron.config.app import AppConfig, config_override
 from vultron.metadata.base import repo_root
@@ -206,6 +206,8 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
             "actor.post_close_reply": ("reject", "reject"),
             "actor.call_out_time_budget": ("PT10S", timedelta(seconds=10)),
             "ledger.position_statement_interval_seconds": ("60", 60),
+            "vince.base_url": ("https://vince.example/api", None),
+            "vince.api_token": ("marker-credential", None),
         }
         raw, expected = overrides[setting.yaml_key]
         if expected is None:
@@ -214,6 +216,8 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
         value: object = cfg
         for key in path:
             value = getattr(value, key)
+    if isinstance(value, SecretStr):
+        value = value.get_secret_value()
     if isinstance(value, list):
         value = [str(item) for item in value]
     elif not isinstance(value, (bool, int, float, timedelta)):
@@ -279,6 +283,28 @@ def test_default_block_is_the_example_file(
         default_config_yaml(settings)
     )
     assert yaml.safe_load(body)["actor"]["min_rsvp_window"] == "P3D"
+
+
+@pytest.mark.spec("VSD-01-004")
+def test_secret_setting_is_listed_but_left_out_of_the_example_file(
+    settings: list[ConfigSetting],
+) -> None:
+    """The page names the credential's variable; the example file omits it.
+
+    The example file is meant to be copied, and a copy that names the secret
+    is refused at load, so the row is the only place the secret appears.
+    """
+    token = next(s for s in settings if s.yaml_key == "vince.api_token")
+    assert token.environment_only
+    assert token.env_var == "VULTRON_VINCE__API_TOKEN"
+    assert token.type_label == (
+        "secret string, read from the environment only, or unset"
+    )
+    example = yaml.safe_load(default_config_yaml(settings))
+    assert "api_token" not in example["vince"]
+    assert example["vince"]["base_url"] is None
+    others = [s for s in settings if s.yaml_key != "vince.api_token"]
+    assert not any(s.environment_only for s in others)
 
 
 class _Undocumented(BaseModel):

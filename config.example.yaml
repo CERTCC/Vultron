@@ -9,6 +9,11 @@
 #   VULTRON_SERVER__BASE_URL         → server.base_url
 #   VULTRON_SERVER__LOG_LEVEL        → server.log_level
 #   VULTRON_DATABASE__DB_URL         → database.db_url
+#   VULTRON_VINCE__BASE_URL          → vince.base_url
+#
+# Secrets are read only from the environment.  A file that names a secret key
+# is refused at startup, whatever its value:
+#   VULTRON_VINCE__API_TOKEN         → the VINCE API credential (no file key)
 
 # Operational mode: "prototype" (default) or "prod".
 # prototype: demo endpoints enabled, relaxed validation.

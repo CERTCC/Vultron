@@ -16,17 +16,19 @@
 from __future__ import annotations
 
 import json
-import types
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Any, Literal, get_args, get_origin
 
 import annotated_types
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, SecretStr
 from pydantic.fields import FieldInfo
 
 from vultron.config.app import AppConfig
+from vultron.config.env_names import env_var_name
+from vultron.config.model_walk import annotation_members, iter_leaf_fields
+from vultron.config.secrets import is_secret_annotation
 from vultron.metadata.docs.config_reference.descriptions import (
     field_description,
 )
@@ -35,15 +37,10 @@ from vultron.metadata.docs.config_reference.errors import (
     field_ref,
 )
 
-#: Prefix of every node environment variable (CFG-03-001).
-ENV_PREFIX = "VULTRON_"
-
-#: Separator between nested keys in an environment variable name (CFG-03-002).
-ENV_NESTED_DELIMITER = "__"
-
 #: Labels for scalar types, checked in order: ``bool`` before ``int`` because
 #: ``bool`` subclasses ``int``. An ``Enum`` is labeled before these by its values.
 _SCALAR_LABELS: tuple[tuple[type, str], ...] = (
+    (SecretStr, "secret string, read from the environment only"),
     (bool, "boolean"),
     (int, "integer"),
     (float, "number"),
@@ -74,6 +71,9 @@ class ConfigSetting:
         default_value: The default in JSON form, as ``config.yaml`` holds it.
         bounds: Markdown rendering of the numeric bounds, or empty.
         description: Markdown description of the setting.
+        environment_only: The setting is a secret, read only from its
+            environment variable; a ``config.yaml`` that names it is refused
+            (VSD-01-004), so the example file leaves it out.
     """
 
     path: tuple[str, ...]
@@ -82,6 +82,7 @@ class ConfigSetting:
     default_value: Any
     bounds: str
     description: str
+    environment_only: bool = False
 
     @property
     def yaml_key(self) -> str:
@@ -94,19 +95,11 @@ class ConfigSetting:
         return env_var_name(self.path)
 
 
-def env_var_name(path: tuple[str, ...]) -> str:
-    """Return the environment variable for the setting at *path* (CFG-03)."""
-    return ENV_PREFIX + ENV_NESTED_DELIMITER.join(path).upper()
-
-
 def _non_null_args(annotation: Any) -> tuple[list[Any], bool]:
     """Split an optional annotation into its non-``None`` members and nullability."""
-    origin = get_origin(annotation)
-    if origin is Union or origin is types.UnionType:
-        args = list(get_args(annotation))
-        members = [arg for arg in args if arg is not type(None)]
-        return members, len(members) != len(args)
-    return [annotation], False
+    args = annotation_members(annotation)
+    members = [arg for arg in args if arg is not type(None)]
+    return members, len(members) != len(args)
 
 
 def _choices(values: list[str]) -> str:
@@ -261,15 +254,11 @@ def iter_settings(
         ConfigReferenceError: A leaf field cannot be rendered.
     """
     settings: list[ConfigSetting] = []
-    for name, field in model.model_fields.items():
-        path = (*prefix, name)
-        section = field.annotation
-        if isinstance(section, type) and issubclass(section, BaseModel):
-            _check_section_default(model, name, field, section)
-            settings.extend(iter_settings(section, path))
-            continue
-        default_value = _default_value(model, name, field)
-        bounds = _bounds(model, name, field)
+    for path, owner, name, field in iter_leaf_fields(
+        model, prefix, on_section=_check_section_default
+    ):
+        default_value = _default_value(owner, name, field)
+        bounds = _bounds(owner, name, field)
         settings.append(
             ConfigSetting(
                 path=path,
@@ -278,8 +267,9 @@ def iter_settings(
                 default_value=default_value,
                 bounds=bounds,
                 description=field_description(
-                    model, name, field, env_var_name(path)
+                    owner, name, field, env_var_name(path)
                 ),
+                environment_only=is_secret_annotation(field.annotation),
             )
         )
     return settings

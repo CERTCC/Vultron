@@ -10,8 +10,10 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
+  - specs/case-shadow.yaml
   - specs/configuration.yaml
   - specs/embargo-policy.yaml
+  - specs/vince-shadow-data.yaml
 relevant_packages:
   - fastapi
   - pydantic
@@ -34,7 +36,8 @@ related_notes:
 Requirements: `specs/configuration.yaml` (CFG). Code: `vultron/config/`
 (`app.py` for `AppConfig`, `get_config()`, `reload_config()`,
 `clear_config_cache()`, `config_override()`; `actor.py` for `ActorConfig`;
-`ledger.py` for `LedgerConfig`). Field meanings and defaults live in those
+`ledger.py` for `LedgerConfig`; `vince.py` for `VinceConfig`; `secrets.py`
+for the secret-setting rule). Field meanings and defaults live in those
 modules' docstrings. The reader-facing list of every setting, its
 `config.yaml` key and its `VULTRON_*` variable is
 `docs/reference/configuration.md`, generated from `AppConfig` by
@@ -94,6 +97,19 @@ build fails.
   seam, not when a bundle is built, so a module-level bundle singleton still
   takes the configured value (BT-18-026). Positive only. The seam detects an
   overrun after the backend returns; it never interrupts it (BT-18-027).
+- **A `SecretStr` field is environment-only**, and its type is the only
+  declaration: the YAML source refuses a file that names its key, in any case
+  and with any value, `null` included, and the reference page leaves it out of
+  the example file (VSD-01-004, `vultron/config/secrets.py`). Declare it as
+  `SecretStr` or `SecretStr | None` in a required section; any other shape
+  is refused, because no single key path could be refused in a file.
+- **`hide_input_in_errors` is set on `AppConfig` and on a secret's section.**
+  Pydantic takes it from the outermost model being validated, so the section's
+  setting alone would not stop `vince: <token>` being quoted (VSD-01-005). It
+  hides only the input pydantic appends; a validator message that quotes its
+  value (`got: {v!r}`) must never be written for a secret. Hand a secret on as
+  `SecretStr` and unwrap it only where the request is built. No `.env` file or
+  secrets directory is read.
 - **`docker/seed-configs/`** `local_actor:` blocks carry bootstrap identity only
   (`name`, `actor_type`, `id`); actor policy belongs in the `config.yaml`
   `actor:` section.

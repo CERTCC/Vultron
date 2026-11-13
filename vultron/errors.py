@@ -519,6 +519,37 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronConfigError(VultronError):
+    """Raised when the node's configuration cannot be used as given.
+
+    A configuration fault is the operator's to fix before the node starts or
+    before the feature that needs the setting runs; it is never a protocol
+    outcome.  A subclass's message names the setting and its source, never a
+    secret setting's value (VSD-01-005).
+    """
+
+
+class VultronSecretInConfigFileError(VultronConfigError, ValueError):
+    """Raised when a configuration file names a secret setting.
+
+    A secret, such as the VINCE API credential, is read only from the
+    environment the node runs in, because configuration files live in the
+    repository and a secret written there has a path into a commit
+    (VSD-01-004, SHD-02-003).  The file is refused at load whatever value the
+    key holds, and the message names the file and the key, never the value.
+    """
+
+
+class VultronMissingCredentialError(VultronConfigError):
+    """Raised when a feature needs a credential the environment does not hold.
+
+    The VINCE connector raises it before it reads a case, so a node with no
+    credential refuses the read rather than sending an unauthenticated
+    request (VSD-01-004, SHD-02-003).  The message names the environment
+    variable to set.
+    """
+
+
 class VultronIdSourceInstalledError(VultronWiringError):
     """Raised when an id source is installed while another install is active.
 

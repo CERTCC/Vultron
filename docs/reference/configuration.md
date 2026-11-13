@@ -69,9 +69,24 @@ An environment variable always carries a string, so a setting whose type is not 
 | unset | `null`, or the key left out | No form: a variable left out of the environment leaves the setting at its file value or default |
 
 A value that does not match its setting's type or bounds stops the node at startup with an error that names the setting.
+The error does not repeat the value as given, because the value can be a secret.
+A check on a setting that is never secret, such as `server.base_url`, may still name the value in its own message.
 A list variable that is not a valid JSON array also stops the node, but its error names only the section, for example `actor`.
 A `ledger.invite_resend_max_cooldown_seconds` set below `ledger.invite_resend_cooldown_seconds` stops the node too.
 A `ledger.sender_sequence_hold_seconds` that is not above 0, or a `ledger.sender_sequence_hold_cap` below 1, stops the node too.
+
+---
+
+## Secret settings
+
+A secret setting, such as `vince.api_token`, is read only from its environment variable (VSD-01-004).
+A configuration file is kept in a repository, and a secret written there can reach a commit.
+A configuration file that names a secret key stops the node at startup, whatever value the key holds, and the error names the file and the key but not the value.
+The node reads no `.env` file and no secrets directory, so the process environment is the only source of a secret.
+A secret is masked wherever the node logs or prints its configuration (VSD-01-005).
+
+A VINCE case read needs the credential, so the read is refused when `VULTRON_VINCE__API_TOKEN` is unset.
+A `VULTRON_VINCE__API_TOKEN` that is set but empty stops the node at startup.
 
 ---
 
