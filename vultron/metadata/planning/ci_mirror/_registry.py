@@ -292,6 +292,14 @@ EXCLUSIONS: Mapping[str, str] = {
     "actions-lint.yml::actionlint::Install actionlint": (
         "downloads the binary; the mirror needs actionlint on PATH instead"
     ),
+    "lint_md_all.yml::mdlint-behaviour::Install markdownlint-cli2": (
+        "installs the tool; the mirror needs markdownlint-cli2 on PATH instead"
+    ),
+    "lint_md_all.yml::mdlint-behaviour::Run the mdlint.sh behaviour tests": (
+        "a pytest run, which no mirror check is; the targeted gate selects "
+        "test/metadata/ on every push, so the file runs locally wherever "
+        "markdownlint-cli2 is installed (PAD-18-001, PAD-18-008)"
+    ),
     "demo-integration.yml": (
         "container demos need Docker and take many minutes; they stay CI's"
     ),

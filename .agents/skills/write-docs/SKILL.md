@@ -292,7 +292,7 @@ In this order:
    term unlinked. Link that use; if the finding is on a page this change does not
    touch and linking it would collide with another task's ownership of that
    page, stop and ask rather than baselining it.
-3. `format-markdown` — markdownlint-cli2 via `./mdlint.sh`.
+3. `format-markdown` — markdownlint-cli2 via `./mdlint.sh <changed .md files>`.
 4. `build-docs` — `mkdocs build --strict`, which must pass with no warnings
    (PD-04-001).
 

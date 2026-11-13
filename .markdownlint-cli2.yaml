@@ -74,6 +74,7 @@ ignores:
   # mdlint.sh also adds "#**/plan/history/**" as a belt-and-suspenders guard.
   # See #2952, #6232.
   - "**/plan/history/**"
-  # Agent worktrees (git-ignored) are other sessions' checkouts; a repo-wide
-  # run must never lint or --fix them (#6232).
-  - ".claude/worktrees/**"
+  # Agent worktrees (git-ignored) are other sessions' checkouts; no run may
+  # lint or --fix them (#6232). The leading **/ also matches a path given
+  # absolutely, which a root-anchored pattern misses.
+  - "**/.claude/worktrees/**"

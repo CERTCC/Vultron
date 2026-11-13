@@ -84,7 +84,9 @@ markdownlint-cli2 --fix --config .markdownlint-cli2.yaml notes/x.md
 
 ## Rationale
 
-Centralizing markdown linting through `mdlint.sh` ensures the same config and
-exclusions are used by maintainers, CI, and automation. Including this SKILL
+Centralizing markdown linting on `.markdownlint-cli2.yaml` ensures the same
+config and exclusions are used by maintainers, CI, and automation; CI and the
+pre-commit hook call `markdownlint-cli2` directly, and `mdlint.sh` adds the
+same exclusions. Including this SKILL
 makes the capability discoverable by agents and documents the canonical
 command for formatting markdown.

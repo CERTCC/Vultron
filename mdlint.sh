@@ -27,4 +27,4 @@ if [ "$#" -eq 0 ]; then
     set -- "**/*.md"
 fi
 
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "$@" "#**/node_modules/**" "#.venv/**" "#.git/**" "#wip_notes/**" "#graphify-out/**" "#.claude/worktrees/**" "#**/plan/history/**"
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "$@" "#**/node_modules/**" "#.venv/**" "#.git/**" "#wip_notes/**" "#graphify-out/**" "#**/.claude/worktrees/**" "#**/plan/history/**"
