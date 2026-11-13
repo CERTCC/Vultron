@@ -387,10 +387,12 @@ the risk: `eddsa-jcs-2022` signs the JSON text and expands nothing.
 **Today.** Every field this review leaves a Vultron term carries the marker, and
 `docs/ns/context.jsonld` maps each one, typed by its value kind; the generator
 (`vultron/metadata/wire_context/sync.py`) walks the nested models too. The fields in
-the table below are still unmarked and have no term, and no check refuses a field
-without one until #6422. The actor profile cites Multikey v1, which does not define
-`assertionMethod` at top level, so the published key is undefined to a JSON-LD
-reader.
+the table below are still unmarked, and no check refuses a field without a term
+until #6422. Most have no term; the item `title` is the exception: a note's `title`
+is a Vultron term, so until #6413 renames the item's field to `name`, the item's
+`title` resolves to the note's meaning. The actor profile cites Multikey v1, which
+does not define `assertionMethod` at top level, so the published key is undefined
+to a JSON-LD reader.
 
 **Field review.** Each row names the Task that fixes it; every row but
 `caseActivity` is a ratchet entry in #6422.
@@ -411,9 +413,10 @@ reader.
 | stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `state`, `status` and `kind` are each used once
-on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
-none of them is a clash. `caseActivity` is dead, but it is marked a Vultron term,
+Every other field is a Vultron term. `title` is a clash only until #6413 renames the
+item's. `state`, `status` and `kind` are each used once on the wire, and
+`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
+a clash. `caseActivity` is dead, but it is marked a Vultron term,
 so no rule refuses it, and #6415 deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,

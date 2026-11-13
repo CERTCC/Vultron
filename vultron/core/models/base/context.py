@@ -23,11 +23,16 @@ imports them from here, which ARCH-25-006 permits.
 
 from collections.abc import Callable
 from contextvars import ContextVar
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import Annotated, Any
 
-from pydantic import Field, SerializationInfo
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    model_validator,
+)
 from pydantic.config import JsonDict
 from pydantic.fields import FieldInfo
 
@@ -163,29 +168,29 @@ CONTAINER_KINDS = frozenset(
 ITEM_KINDS = frozenset({PropertyValueKind.PLAIN, PropertyValueKind.IRI})
 
 
-@dataclass(frozen=True)
-class VultronPropertyDeclaration:
+class VultronPropertyDeclaration(BaseModel):
     """What a field's marker declares about its Vultron property (VM-10-008).
 
     ``definition`` is the one-line meaning that two declarations of one wire
     name share (VM-10-012); ``kind`` and ``items`` are what the context
-    document's term is typed from (VM-10-010).  Construction refuses a blank
-    or multi-line definition, an ``items`` kind on a scalar kind, and an
-    ``items`` kind no container holds.
+    document's term is typed from (VM-10-010).  Construction refuses a blank,
+    padded or multi-line definition, an ``items`` kind on a scalar kind, and
+    an ``items`` kind no container holds.
     """
 
-    definition: str
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    definition: NonEmptyString
     kind: PropertyValueKind
     items: PropertyValueKind = PropertyValueKind.PLAIN
 
-    def __post_init__(self) -> None:
-        if (
-            not self.definition.strip()
-            or self.definition != self.definition.strip()
-        ):
+    @model_validator(mode="after")
+    def _one_line_and_items_fit_kind(self) -> VultronPropertyDeclaration:
+        """Refuse a padded or multi-line definition and a misplaced ``items``."""
+        if self.definition != self.definition.strip():
             raise ValueError(
-                "a Vultron property definition must be non-empty text with "
-                f"no surrounding whitespace, got {self.definition!r}"
+                "a Vultron property definition has no surrounding whitespace, "
+                f"got {self.definition!r}"
             )
         if "\n" in self.definition:
             raise ValueError(
@@ -204,6 +209,7 @@ class VultronPropertyDeclaration:
                 f"only a container kind declares its items; {self.kind} is a "
                 f"scalar kind, got items={self.items}"
             )
+        return self
 
     def as_json(self) -> JsonDict:
         """The declaration as the JSON value the marker stores."""
@@ -227,10 +233,12 @@ def vultron_property(
 
     *definition* is the property's meaning in one line; *kind* is its value's
     shape, and *items*, for a container kind, the shape of each value in it.
-    Raises ``ValueError`` on a declaration
+    Raises ``ValueError`` (a ``pydantic.ValidationError``) on a declaration
     :class:`VultronPropertyDeclaration` refuses.
     """
-    declaration = VultronPropertyDeclaration(definition, kind, items)
+    declaration = VultronPropertyDeclaration(
+        definition=definition, kind=kind, items=items
+    )
     return {VULTRON_PROPERTY_KEY: declaration.as_json()}
 
 
@@ -265,5 +273,7 @@ def declared_vultron_property(
             f"builds, with a string definition and kind, got {value!r}"
         )
     return VultronPropertyDeclaration(
-        definition, PropertyValueKind(kind), PropertyValueKind(items)
+        definition=definition,
+        kind=PropertyValueKind(kind),
+        items=PropertyValueKind(items),
     )

@@ -22,7 +22,10 @@ participants to state their ledger position (SYNC-17-001).
 
 from pydantic import Field
 
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    LEDGER_POSITION_PROPERTY,
+    LedgerPosition,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
@@ -118,4 +121,5 @@ class _ReadLogEntryActivity(as_Read):
         default=...,
         validation_alias="ledgerPosition",
         serialization_alias="ledgerPosition",
+        json_schema_extra=LEDGER_POSITION_PROPERTY,
     )

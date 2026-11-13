@@ -55,6 +55,7 @@ import sys
 import typing
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TypeAliasType
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
@@ -234,11 +235,14 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
         for name, info in cls.model_fields.items():
             if info.exclude:
                 continue
-            declaration = declared_vultron_property(info)
+            where = f"{cls.__module__}.{cls.__qualname__}.{name}"
+            try:
+                declaration = declared_vultron_property(info)
+            except (TypeError, ValueError) as error:
+                raise type(error)(f"{where}: {error}") from error
             if declaration is None:
                 continue
             wire_name = _wire_name(name, info)
-            where = f"{cls.__module__}.{cls.__qualname__}.{name}"
             first = declared.setdefault(wire_name, (declaration, where))
             if first[0] != declaration:
                 raise ValueError(
@@ -287,9 +291,16 @@ def _term_definition(
 def _nested_models(annotation: object) -> Iterator[type[BaseModel]]:
     """Yield every Pydantic model a field annotation can hold.
 
-    Walks unions, ``Annotated``, lists and dict values, so a case's
-    ``embargoRegister`` yields ``EmbargoRegisterEntry``.
+    Walks type aliases, unions, ``Annotated``, lists and dict values, so a
+    case's ``embargoRegister`` yields ``EmbargoRegisterEntry``.  It answers
+    "which models can this field hold", so unlike the parse edge's
+    ``_model_candidates`` (``vultron.wire.as2.unknown_keys``), which asks
+    which model *decides* a dict's keys and so gives up on a union that also
+    admits a plain dict, it keeps every model it finds.
     """
+    if isinstance(annotation, TypeAliasType):
+        yield from _nested_models(annotation.__value__)
+        return
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         yield annotation
         return
@@ -360,9 +371,16 @@ def build_context_document() -> dict[str, object]:
     resolve against ActivityStreams and only Vultron-specific terms are drawn
     from the ``vultron:`` namespace (VM-10-002, ADR-0069).
     """
+    type_terms = vultron_context_terms()
+    property_terms = vultron_property_terms()
+    if clashes := sorted(set(type_terms) & set(property_terms)):
+        raise ValueError(
+            f"Vultron property terms {clashes} share a name with a type term; "
+            "one name has one term (VM-10-012), so rename the property."
+        )
     term_block: dict[str, str | dict[str, str]] = {"vultron": VULTRON_NS_URI}
-    term_block.update(vultron_context_terms())
-    term_block.update(vultron_property_terms())
+    term_block.update(type_terms)
+    term_block.update(property_terms)
     return {"@context": [ACTIVITY_STREAMS_NS, term_block]}
 
 

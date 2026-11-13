@@ -395,7 +395,9 @@ def test_namespace_index_page_lists_exactly_the_reference_rel_values() -> None:
 def test_a_property_term_is_typed_by_its_value_kind(
     kind: PropertyValueKind, items: PropertyValueKind, expected: object
 ) -> None:
-    declaration = VultronPropertyDeclaration("A property", kind, items)
+    declaration = VultronPropertyDeclaration(
+        definition="A property", kind=kind, items=items
+    )
     assert _term_definition("p", declaration) == expected
 
 
@@ -448,9 +450,20 @@ class _ProbeNested(BaseModel):
     )
 
 
+class _ProbeOnlyBehindExcluded(BaseModel):
+    unsent: int = Field(
+        default=0,
+        json_schema_extra=vultron_property(
+            "A value under an excluded field", PropertyValueKind.PLAIN
+        ),
+    )
+
+
 class _ProbeRoot(BaseModel):
     nested: list[_ProbeNested] = Field(default_factory=list)
-    skipped: _ProbeNested | None = Field(default=None, exclude=True)
+    skipped: _ProbeOnlyBehindExcluded | None = Field(
+        default=None, exclude=True
+    )
 
 
 class _ProbeDisagrees(BaseModel):
@@ -466,9 +479,40 @@ class _ProbeDisagrees(BaseModel):
 def test_an_excluded_field_has_no_term(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A nested model's fields count; an ``exclude=True`` field does not."""
+    """A nested model's fields count; an ``exclude=True`` field does not, and
+    neither do the fields of a model only an excluded field holds."""
     monkeypatch.setattr(sync, "_wire_object_classes", lambda: [_ProbeRoot])
     assert sync.vultron_property_terms() == {"shown": "vultron:shown"}
+    assert _ProbeOnlyBehindExcluded not in sync.wire_field_classes()
+
+
+class _ProbeBadMarker(BaseModel):
+    flagged: int = Field(
+        default=0, json_schema_extra={"vultron_property": True}
+    )
+
+
+def test_a_malformed_marker_is_named_by_its_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sync, "_wire_object_classes", lambda: [_ProbeBadMarker]
+    )
+    with pytest.raises(TypeError, match=r"_ProbeBadMarker\.flagged"):
+        sync.vultron_property_declarations()
+
+
+def test_a_property_term_never_replaces_a_type_term(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A property spelled like a type would silently overwrite its term."""
+    monkeypatch.setattr(
+        sync,
+        "vultron_property_terms",
+        lambda: {"VulnerabilityCase": "vultron:VulnerabilityCase"},
+    )
+    with pytest.raises(ValueError, match="VulnerabilityCase"):
+        sync.build_context_document()
 
 
 @pytest.mark.spec("VM-10-012")

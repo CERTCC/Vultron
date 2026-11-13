@@ -43,7 +43,7 @@ def test_the_marker_round_trips_through_a_field() -> None:
     }
     declaration = declared_vultron_property(FieldInfo(json_schema_extra=extra))
     assert declaration == VultronPropertyDeclaration(
-        "The ids of things", Kind.SET, Kind.IRI
+        definition="The ids of things", kind=Kind.SET, items=Kind.IRI
     )
 
 
