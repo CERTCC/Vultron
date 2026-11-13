@@ -53,6 +53,7 @@ Everything else ADR-0141 decided about the notice stays: the refused activity in
 
 The wire keeps the AS2 list.
 When a message is received, one shared resolver narrows a `type` list to the most specific class the vocabulary knows, so the code holds a `Refuse`.
+The resolver ignores a term the vocabulary does not know, so `["Foo", "Reject"]` resolves to `Reject`, as AS2's extensibility guidance expects of a receiver.
 On the way out, the serializer writes a class that declares a core supertype as the list.
 The list form is general: any later Vultron extension type that overlaps a core type uses the same resolver.
 
@@ -82,10 +83,12 @@ Option E was rejected: it keeps the two acts identical on the wire, which is the
 - Bad, because a CASE_MANAGER's plain `Reject` of an activity that is not a request is no longer read as a refusal notice.
   Every sender is this implementation, so no fallback is kept.
 - Neutral, because the CASE_MANAGER's answer to a Case Owner's `Leave(VulnerabilityCase)` during an active embargo becomes the standard refusal notice, and that tree needs no exemption from it.
+- Neutral, because the CASE_MANAGER's optional answer to an activity for a fully closed case, such as a late `Leave(VulnerabilityCase)`, is also a refusal, so it becomes a `Refuse` (CM-23-040, CM-23-057).
+  ADR-0131's default to drop such an activity unanswered does not change.
 
 ## Validation
 
-- A parser test confirms that `["Refuse", "Reject"]`, `["Reject", "Refuse"]` and `"Refuse"` resolve to the `Refuse` class, and that a list of two known, unrelated types is refused as an unknown type.
+- A parser test confirms that `["Refuse", "Reject"]`, `["Reject", "Refuse"]` and `"Refuse"` resolve to the `Refuse` class, that `["Foo", "Reject"]` resolves to the `Reject` class, and that a list of two known, unrelated types is refused as an unknown type.
 - A serialization test confirms that a refusal notice is written with `"type": ["Refuse", "Reject"]`.
 - A pattern test confirms that a `Refuse` of an `Invite` or an `Offer` reaches `REFUSAL_NOTICE` and that a participant's `Reject` of the same request reaches the decline.
 - The JSON-LD context declares `Refuse` as a subclass of `as:Reject`.
@@ -96,4 +99,6 @@ Option E was rejected: it keeps the two acts identical on the wire, which is the
 - ADR-0083 — the three fault mechanisms that MSM-05-001 records.
 - `notes/as2-vocabulary-alignment.md` § "Refusal Is Its Own Type".
 - #6254 — the idea this record answers.
-- #6433, #6434 and #6435 implement this record. They amend MSM-05-001, CLP-02-005, CLP-05-001 and CM-23-011 to name `Refuse`, and add the VM-03 list-type rules, each with its test.
+- ADR-0131 — the post-close reply setting and its drop default, which stay.
+- #6433, #6434 and #6435 implement this record.
+  They amend MSM-05-001, CLP-02-005, CLP-05-001, CM-23-011, CM-23-040 and CM-23-057 to name `Refuse`, and add the VM-03 list-type rules, each with its test.
