@@ -17,13 +17,13 @@
 
 A configuration setting typed with one of pydantic's secret types
 (:class:`pydantic.SecretStr`, :class:`pydantic.SecretBytes` or
-``pydantic.Secret[...]``), alone or with ``| None``, is a secret.  A secret is read only from the environment
-the node runs in, never from a configuration file, because configuration files
-live in the repository and a secret written there has a path into a commit
-(VSD-01-004, SHD-02-003).  The type is the one declaration:
-:func:`secret_setting_paths` finds every secret by it, the YAML source refuses
-a file that names one, and the configuration reference page leaves secrets out
-of its example file.
+``pydantic.Secret[...]``), alone or with ``| None``, is a secret.  A secret
+is read only from the environment the node runs in, never from a
+configuration file, because configuration files live in the repository and a
+secret written there has a path into a commit (VSD-01-004, SHD-02-003).  The
+type is the one declaration: :func:`secret_setting_paths` finds every secret
+by it, the YAML source refuses a file that names one, and the configuration
+reference page leaves secrets out of its example file.
 
 The finder fails closed.  A secret type anywhere else in a field's type,
 inside a list, a dict, or an optional section, has no single key path to
@@ -61,8 +61,8 @@ def is_secret_annotation(annotation: Any) -> bool:
     """Return whether a field typed *annotation* holds a secret directly.
 
     ``SecretStr`` and ``SecretStr | None`` do, as do ``SecretBytes`` and
-    ``Secret[X]``; a secret type nested in a container does not count here, and :func:`secret_setting_paths` refuses
-    it.
+    ``Secret[X]``; a secret type nested in a container does not count here,
+    and :func:`secret_setting_paths` refuses it.
     """
     return any(_is_secret_type(m) for m in annotation_members(annotation))
 
