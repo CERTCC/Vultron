@@ -4,7 +4,8 @@ description: >-
   Rules for data read from a VINCE instance by the VINCE shadow: what logs may
   carry, how the API credential is read, and the only ways
   it may enter the repository or a publication. Readers and retention add no
-  requirement (ADR-0189 rules 2 and 7).
+  requirement: each VINCE user runs the shadow with their own credential, and
+  nothing is kept after a request (ADR-0189).
 scope:
 - prototype
 - production
