@@ -40,7 +40,8 @@ The drafts register is the file in the Vultron repository that records each draf
 Draft 2 is the current draft, and its text can still change.
 This entry lists what changed since [Draft 1](#draft-1).
 
-No change has been made since Draft 1 yet.
+- The [Requirements Catalog](requirements/messages.md#protocol-mv-12) adds the protocol requirements MV-12-001 to MV-12-005, on the `Redacted` marker that a preview uses for a withheld field.
+- The [Known Gaps](known-gaps.md) page lists MV-12-001, MV-12-002, MV-12-003 and MV-12-005, which issue #6372 tracks.
 
 ## Draft 1
 
