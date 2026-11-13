@@ -5,7 +5,7 @@ status_override: >-
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-13
-revision: 1
+revision: 2
 amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
