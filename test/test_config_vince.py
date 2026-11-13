@@ -24,14 +24,20 @@ pin the refusal it relies on.
 from __future__ import annotations
 
 import logging
+import traceback
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, Secret, SecretBytes, SecretStr, ValidationError
+from pydantic_settings import (
+    EnvSettingsSource,
+    InitSettingsSource,
+    SettingsError,
+)
 
 from vultron.config import AppConfig, VinceConfig, clear_config_cache
-from vultron.config.app import config_override, get_config
+from vultron.config.app import YamlConfigSource, config_override, get_config
 from vultron.config.secrets import (
     is_secret_annotation,
     refuse_secrets_in_file,
@@ -130,6 +136,24 @@ def test_credential_is_not_read_from_a_dotenv_or_secrets_file(
     body = f"{TOKEN_VAR}={MARKER}\n" if source == ".env" else MARKER
     path.write_text(body)
     assert AppConfig().vince.api_token is None
+
+
+@pytest.mark.spec("VSD-01-004")
+def test_only_the_environment_and_the_yaml_file_are_sources() -> None:
+    """No `.env` file and no secrets directory, at any path, is configured."""
+    assert AppConfig.model_config.get("env_file") is None
+    assert AppConfig.model_config.get("secrets_dir") is None
+    env = EnvSettingsSource(AppConfig)
+    sources = AppConfig.settings_customise_sources(
+        AppConfig,
+        init_settings=InitSettingsSource(AppConfig, init_kwargs={}),
+        env_settings=env,
+        dotenv_settings=EnvSettingsSource(AppConfig),
+        file_secret_settings=EnvSettingsSource(AppConfig),
+    )
+    assert len(sources) == 2
+    assert sources[0] is env
+    assert type(sources[1]) is YamlConfigSource
 
 
 def test_base_url_is_read_from_environment_and_file(
@@ -270,6 +294,25 @@ def test_secret_is_found_by_type_whether_optional_or_not(
     assert MARKER not in message
 
 
+class _OtherSecretTypes(BaseModel):
+    """Pydantic's other secret types, which mask their value the same way."""
+
+    raw: SecretBytes | None = None
+    number: Secret[int] | None = None
+
+
+def test_every_pydantic_secret_type_is_a_secret(tmp_path: Path) -> None:
+    assert is_secret_annotation(SecretBytes)
+    assert is_secret_annotation(Secret[int] | None)
+    assert secret_setting_paths(_OtherSecretTypes) == (("raw",), ("number",))
+    with pytest.raises(VultronSecretInConfigFileError, match=r"raw .*number"):
+        refuse_secrets_in_file(
+            {"raw": MARKER, "number": 1},
+            _OtherSecretTypes,
+            tmp_path / "f.yaml",
+        )
+
+
 class _Section(BaseModel):
     """A section holding a secret."""
 
@@ -292,18 +335,34 @@ class _OptionalSecretSection(BaseModel):
     section: _Section | None = None
 
 
+class _ListOfSecretBytes(BaseModel):
+    tokens: list[SecretBytes] = []
+
+
 @pytest.mark.spec("VSD-01-004")
 @pytest.mark.parametrize(
     "model",
-    [_ListOfSecrets, _DictOfSecrets, _SecretOrInt, _OptionalSecretSection],
-    ids=["list", "dict", "union-with-other", "optional-section"],
+    [
+        _ListOfSecrets,
+        _DictOfSecrets,
+        _SecretOrInt,
+        _OptionalSecretSection,
+        _ListOfSecretBytes,
+    ],
+    ids=[
+        "list",
+        "dict",
+        "union-with-other",
+        "optional-section",
+        "list-of-secret-bytes",
+    ],
 )
 def test_secret_in_a_shape_with_no_key_path_is_refused(
     model: type[BaseModel],
 ) -> None:
     """The finder fails closed: a secret it cannot refuse is a declaration
     error, never a setting silently left out of the file refusal."""
-    with pytest.raises(VultronConfigError, match="SecretStr"):
+    with pytest.raises(VultronConfigError, match="secret type"):
         secret_setting_paths(model)
 
 
@@ -373,6 +432,18 @@ def test_marker_credential_appears_in_no_log_error_or_repr(
     with pytest.raises(ValidationError) as standalone:
         VinceConfig.model_validate({"api_token": {"v": MARKER}})
     rendered += [str(standalone.value), repr(standalone.value)]
+
+    # The section as malformed JSON, which fails in pydantic-settings' own
+    # decoding rather than in validation.
+    monkeypatch.setenv("VULTRON_VINCE", f'{{"api_token": "{MARKER}"')
+    with pytest.raises(SettingsError) as malformed:
+        AppConfig()
+    rendered += [
+        str(malformed.value),
+        repr(malformed.value),
+        "".join(traceback.format_exception(malformed.value)),
+    ]
+    monkeypatch.delenv("VULTRON_VINCE")
 
     # A file that carries the credential, as a key and as the whole section.
     rendered.append(

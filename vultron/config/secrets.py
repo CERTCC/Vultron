@@ -15,8 +15,9 @@
 
 """Secret settings: which they are, and refusing a file that names one.
 
-A configuration setting typed :class:`pydantic.SecretStr` (or
-``SecretStr | None``) is a secret.  A secret is read only from the environment
+A configuration setting typed with one of pydantic's secret types
+(:class:`pydantic.SecretStr`, :class:`pydantic.SecretBytes` or
+``pydantic.Secret[...]``), alone or with ``| None``, is a secret.  A secret is read only from the environment
 the node runs in, never from a configuration file, because configuration files
 live in the repository and a secret written there has a path into a commit
 (VSD-01-004, SHD-02-003).  The type is the one declaration:
@@ -24,7 +25,7 @@ live in the repository and a secret written there has a path into a commit
 a file that names one, and the configuration reference page leaves secrets out
 of its example file.
 
-The finder fails closed.  A ``SecretStr`` anywhere else in a field's type,
+The finder fails closed.  A secret type anywhere else in a field's type,
 inside a list, a dict, or an optional section, has no single key path to
 refuse, so it is refused as a declaration instead of being missed.
 """
@@ -33,9 +34,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, get_args, get_origin
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Secret, SecretBytes, SecretStr
 
 from vultron.config.env_names import env_var_name
 from vultron.config.model_walk import (
@@ -45,23 +46,29 @@ from vultron.config.model_walk import (
 )
 from vultron.errors import VultronConfigError, VultronSecretInConfigFileError
 
+#: Pydantic's secret types: each masks its value when rendered, so a field
+#: typed with any of them is a secret setting.
+_SECRET_TYPES: tuple[type, ...] = (SecretStr, SecretBytes, Secret)
+
 
 def _is_secret_type(member: Any) -> bool:
-    return isinstance(member, type) and issubclass(member, SecretStr)
+    """Return whether *member* is a pydantic secret type, ``Secret[X]`` too."""
+    origin = get_origin(member) or member
+    return isinstance(origin, type) and issubclass(origin, _SECRET_TYPES)
 
 
 def is_secret_annotation(annotation: Any) -> bool:
     """Return whether a field typed *annotation* holds a secret directly.
 
-    ``SecretStr`` and ``SecretStr | None`` do; a ``SecretStr`` nested in a
-    container does not count here, and :func:`secret_setting_paths` refuses
+    ``SecretStr`` and ``SecretStr | None`` do, as do ``SecretBytes`` and
+    ``Secret[X]``; a secret type nested in a container does not count here, and :func:`secret_setting_paths` refuses
     it.
     """
     return any(_is_secret_type(m) for m in annotation_members(annotation))
 
 
 def _contains_secret(annotation: Any, seen: set[type[BaseModel]]) -> bool:
-    """Return whether *annotation* holds a ``SecretStr`` at any depth."""
+    """Return whether *annotation* holds a secret type at any depth."""
     if _is_secret_type(annotation):
         return True
     model = section_model(annotation)
@@ -89,7 +96,7 @@ def secret_setting_paths(
     ``("vince", "api_token")`` names ``AppConfig.vince.api_token``.
 
     Raises:
-        VultronConfigError: A field holds a ``SecretStr`` in a shape with no
+        VultronConfigError: A field holds a secret type in a shape with no
             single key path, such as ``list[SecretStr]`` or an optional
             section that contains a secret; the file refusal could not see
             it, so the declaration is refused rather than missed.
@@ -107,10 +114,10 @@ def secret_setting_paths(
                 continue
         if _contains_secret(field.annotation, set()):
             raise VultronConfigError(
-                f"setting {'.'.join(path)} holds a SecretStr in a shape the"
+                f"setting {'.'.join(path)} holds a secret type in a shape the"
                 " secret-setting rule cannot refuse in a file; declare the"
-                " secret as SecretStr or SecretStr | None in a required"
-                " section"
+                " secret as SecretStr or SecretStr | None (or another"
+                " pydantic secret type) in a required section"
             )
     return tuple(paths)
 

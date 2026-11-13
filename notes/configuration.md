@@ -97,12 +97,13 @@ build fails.
   seam, not when a bundle is built, so a module-level bundle singleton still
   takes the configured value (BT-18-026). Positive only. The seam detects an
   overrun after the backend returns; it never interrupts it (BT-18-027).
-- **A `SecretStr` field is environment-only**, and its type is the only
-  declaration: the YAML source refuses a file that names its key, in any case
-  and with any value, `null` included, and the reference page leaves it out of
-  the example file (VSD-01-004, `vultron/config/secrets.py`). Declare it as
-  `SecretStr` or `SecretStr | None` in a required section; any other shape
-  is refused, because no single key path could be refused in a file.
+- **A `SecretStr` field is environment-only** (so is `SecretBytes` or
+  `Secret[X]`), and its type is the only declaration: the YAML source refuses
+  a file that names its key, in any case and with any value, `null` included,
+  and the reference page leaves it out of the example file (VSD-01-004,
+  `vultron/config/secrets.py`). Declare it as `SecretStr` or
+  `SecretStr | None` in a required section; any other shape is refused,
+  because no single key path could be refused in a file.
 - **`hide_input_in_errors` is set on `AppConfig` and on a secret's section.**
   Pydantic takes it from the outermost model being validated, so the section's
   setting alone would not stop `vince: <token>` being quoted (VSD-01-005). It
