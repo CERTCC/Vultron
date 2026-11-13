@@ -294,7 +294,7 @@ groups:
       one implementation serves every connector. If a connector holds any of them, two
       connectors can make different decisions for the same case, and a tracker becomes a
       way around the core rules. A `CaseReader` adapter's translated ledger is
-      translation: it commits nothing and is never stored (ADR-0191).
+      translation: it commits nothing, and the shadow does not store it (ADR-0191).
   - id: ARCH-05-004
     priority: MUST
     kind: project

@@ -96,8 +96,8 @@ groups:
       performed the act in the outside system.
     rationale: >-
       The projection and the measures then read a translated case exactly as a
-      native one. This holds only because a translation is never stored and
-      never enters a protocol path (ADR-0190).
+      native one. This holds only while a translation is not stored and does not
+      enter a protocol path, as in the shadow's first version (ADR-0190).
     verification: >-
       A conformance test, run over every registered `CaseReader` adapter with a
       synthetic case, asserts that an entry translated from a vendor's status

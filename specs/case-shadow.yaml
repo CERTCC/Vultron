@@ -23,7 +23,8 @@ groups:
       The shadow tool MUST NOT contain a code path that delivers an activity to
       an inbox.
     rationale: >-
-      The shadow advises the people working a case and never acts in it. With no
+      This version of the shadow advises the people working a case and does not act
+      in it. With no
       delivery path, nothing can reach a participant, whatever its settings.
     verification: >-
       An import test asserts that no module of the shadow tool imports, directly

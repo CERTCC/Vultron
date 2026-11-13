@@ -17,7 +17,7 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-The shadow ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)) needs a user interface: an analyst enters a case number and a credential, and sees Vultron's analysis of the case.
+The shadow ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)) needs a user interface: an analyst enters a case number and sees Vultron's analysis of the case.
 The project's existing browser interface is the React app in `ui/` ([ADR-0104](0104-interactive-demo-ui-live-ledger-watcher.md)).
 Its Log Replay mode maps ledger entries to states and checks transitions in TypeScript, a second model of the protocol beside the Python one, and the maintainer does not work in TypeScript.
 Getting the shadow running should take a clone and one command.

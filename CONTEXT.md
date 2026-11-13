@@ -266,10 +266,10 @@ cases reach the core through a `CaseReader`, which translates one into a case le
 **Shadow**:
 A standalone, read-only tool that reads one case from an outside system on request,
 translates it, and shows Vultron's analysis of it as a dashboard: where the case
-stands, which desiderata it meets or breaks, and which moves are open. It advises; it
-never acts in the case, writes to the outside system, sends to participants, or keeps
-the case after the request (ADR-0190). A Vultron CASE_MANAGER can stand behind the same
-reader, untranslated.
+stands, which desiderata it meets or breaks, and which moves are open. It advises:
+this version does not act in the case, write to the outside system, send to
+participants, or keep the case after the request (ADR-0190). A Vultron CASE_MANAGER
+can stand behind the same reader, untranslated.
 *Avoid*: shadow mode as a server setting (the shadow hosts no actor), VINCE observer
 (Observer is a CVD role), VINCE mirror (a shadow analyses; a mirror only copies)
 

@@ -5,7 +5,8 @@ status_override: >-
 date: 2026-11-12
 created: 2026-11-12
 updated: 2026-11-12
-revision: 1
+revision: 2
+amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -34,7 +35,7 @@ Later work will add a two-way gateway, and other outside systems will add reader
 - A case is its ledger and the projection of that ledger. A snapshot alone loses the order and timing the CVD desiderata are about.
 - A reader must not be able to write to its outside system.
 - Each insight must trace back to the outside-system record it rests on.
-- A translation is regenerated whenever it is needed, so it is never stored ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)).
+- A translation is regenerated whenever it is needed, so it is not stored ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)).
 - The later gateway, and readers for other systems, should build on this interface rather than replace it.
 
 ## Considered Options
@@ -60,7 +61,7 @@ Who a translated entry credits:
 1. **A read-only case reader port.** The core declares a `CaseReader` port. Given an outside system's case identifier, it returns that case translated. It has no method that writes to the outside system. A read-write port, for the later gateway, is a separate interface and a separate decision. Adapters that implement both may share translation components.
 2. **Straight to core.** An adapter translates into core domain objects directly. The core and wire classes are the same classes for domain types ([ADR-0099](0099-one-object-model-as2-is-a-serialization.md)), so a detour through wire adds a parse step and no protection. Where a ledger entry stores an activity payload, the payload is rendered from the core object.
 3. **A ledger, projected by the core.** The translation is a case ledger. The snapshot is the core's projection of that ledger, never a second model the adapter builds alongside it.
-4. **Entries credit the participant who acted, and cite their source.** A translated entry names as its actor the participant who performed the act in the outside system, and cites the outside-system record it was translated from. The ledger carries no mark that it is a translation, because a translation is never stored and never enters a protocol path.
+4. **Entries credit the participant who acted, and cite their source.** A translated entry names as its actor the participant who performed the act in the outside system, and cites the outside-system record it was translated from. The ledger carries no mark that it is a translation, because in this version a translation is not stored and does not enter a protocol path ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)).
 5. **Nothing untranslatable is dropped.** A fact the adapter cannot translate is returned with the result and shown, never silently left out.
 6. **Adapters stay outside the core.** An adapter is a connector plugin: it translates and holds no case logic, and the core never imports it.
 7. **A connector's directions are the core ports it implements.** `CaseReader` is the only one today. The three directions #6357 named are removed until a caller needs one; #6357's rules that a connector declares only what it implements, carries no stub for the rest, and is refused by the loader when it implements nothing all stand.
@@ -114,6 +115,16 @@ A test of the port asserts it declares no write method.
 
 - Good, because code could refuse a translated ledger on a protocol path.
 - Bad, because nothing reads the mark while translations are ephemeral, so it is built ahead of any need.
+
+## Amendment — 2026-11-13
+
+Point 4's last sentence was replaced.
+It read: "The ledger carries no mark that it is a translation, because a translation is never stored and never enters a protocol path."
+It now reads: "The ledger carries no mark that it is a translation, because in this version a translation is not stored and does not enter a protocol path ([ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md))."
+
+The record states what this version does. A later version that stores a translation or feeds one to a protocol path reopens point 4, as the Consequences already say.
+
+- Source: #6336 (PR #6364 review)
 
 ## More Information
 
