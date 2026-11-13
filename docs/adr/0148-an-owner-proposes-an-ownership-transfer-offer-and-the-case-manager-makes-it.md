@@ -10,6 +10,7 @@ consulted: >-
   ADR-0114; notes/ownership-transfer.md, notes/datalayer-design.md;
   issues #4911, #5186, #5189
 informed: []
+partially_superseded_by: 0198-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0053-ownership-transfer-routed-via-caseactor.md

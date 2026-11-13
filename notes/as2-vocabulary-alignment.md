@@ -281,10 +281,18 @@ Issue: #6245.
 - `Add(VulnerabilityReport)` and `CaseProposal` drop the Vultron `offerId` for
   `inReplyTo` (the report Offer); `offerActorId` is read from that Offer or the
   report's `attributedTo`.
-- A delegated emit (CM-24) keeps `attributedTo` = the asker and adds `inReplyTo` =
-  the asker's request act where one exists (e.g. the owner's ownership-transfer
-  proposal). The CASE_MANAGER is not modelled as anyone's `instrument`: it has its
-  own authority and must be the `actor` receivers authenticate (CM-24-001).
+- A delegated emit (CM-24) sets `attributedTo` = the asker and `inReplyTo` = the
+  request it received, both exactly when the asker is a different actor from the
+  `actor` (ADR-0198). Every delegated emit has a received request to name: a
+  distinct asker reaches the CASE_MANAGER only by message, wherever the two run
+  (ADR-0109; the ownership-transfer trigger already sends its proposal). The
+  CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
+  must be the `actor` receivers authenticate (CM-24-001).
+- `Remove(CaseParticipant)` is replaced by the CASE_MANAGER's `Remove(<Actor>,
+  origin=<case>)` (§ "The Owner Offers a Removal or Reinstatement"), and
+  `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
+  Termination Object"), so this section moves only `Remove(Note)`, whose path has no
+  sender (CM-30-003).
 
 **AS2 basis.** VOC Remove: "the actor is removing the object… [from] the origin";
 Ex 28 uses origin, Ex 27 and ActivityPub use target (issues #534, #664 open; the
@@ -308,6 +316,49 @@ helper `vultron/core/behaviors/delegated_authorship.py`. Moving `Remove(Note)` a
 so the rule "no `origin_` field" in `vultron/wire/as2/AGENTS.md` and the root
 `AGENTS.md` pattern-matching row change with it; `notes/case-joining.md` shows
 today's `Remove(CaseParticipant)[target=…]`.
+
+---
+
+## The Owner Offers a Removal or Reinstatement
+
+Issue: #6293. Record: ADR-0198.
+
+**Decision.**
+
+- The Case Owner asks with `Offer(Remove(<Actor>, origin=<case>))` or
+  `Offer(Add(<Actor>, target=<case>))`, sent to the CASE_MANAGER only. The inner act
+  names the actor as a typed reference (`id` + `type`), not the `CaseParticipant`:
+  one record per actor per case (CM-19) identifies it, and reinstatement reuses it
+  (CM-31-034, CM-31-035).
+- The CASE_MANAGER refuses a request that breaks the CM-31-004 or CM-31-036 rules
+  with a refusal notice, changing nothing. Otherwise it sends the Owner
+  `Accept(<the Offer>)` and makes the act itself: `actor` = CASE_MANAGER,
+  `attributedTo` = Owner, `inReplyTo` = the Offer, an id derived from the Offer. The
+  Accept and the act commit together.
+- That act is the ledger entry and, under the same id, the direct message to the
+  actor it names. The separate unledgered notice (CM-31-006, CM-31-026) goes. A
+  replica still applies the change only from the entry (CM-31-007, CM-31-029).
+- The ownership-transfer proposal gets the same answer: the CASE_MANAGER sends the
+  Owner `Accept(Offer(Offer(VulnerabilityCase)))`, committed with the transfer Offer it
+  makes (CM-21-028), and that Offer names the proposal in `inReplyTo`.
+
+**AS2 basis.** An activity states what its sender did; a request for another to act
+is an `Offer` of the act (VOC Offer). ActivityPub answers a request with `Accept`,
+then makes the change; the `Accept` is a decision, not a receipt (delivery is the
+HTTP response).
+
+**Today.** The Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` and
+`Add(CaseParticipant)[target=VulnerabilityCase]`, carrying the whole record; the
+CASE_MANAGER ledgers the received act as its entry (CM-31-005, CM-31-025) and sends a
+second, unledgered `Remove` (CM-31-006). The ownership-transfer proposal gets no
+answer of its own.
+
+**Touches.** CM-31 (004, 005, 006, 011, 024, 025, 026, 036), CM-21-028, CM-24-002,
+VAM-04, the add and remove participant received trees and their trigger, the
+semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
+`docs/reference/messages/case_management.md`, the manage-participants demo. Frees
+`Add(CaseParticipant)` for the CASE_MANAGER's own record-keeping (§ "Create(CaseParticipant)
+Names Its Case in context").
 
 ---
 
@@ -646,7 +697,8 @@ closed with no wire form) becomes the CASE_MANAGER sending the Owner
 inquiries where no single act is proposed.
 
 The ownership transfer's `Offer(Offer(VulnerabilityCase))` (ADR-0148) is this pattern
-and stays, plus the `inReplyTo` above.
+and stays, now answered with an `Accept` and naming the proposal in `inReplyTo`
+(ADR-0198, § "The Owner Offers a Removal or Reinstatement").
 
 **AS2 basis.** VOC Offer can propose an action ("Sally is offering to add a File to
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
@@ -703,8 +755,8 @@ needs no rule for a stray `target`.
 
 `Add(CaseParticipant, target=<case>)` was considered and rejected for now: that shape
 is already the Case Owner's reinstatement request (CM-31-011), and a pattern cannot
-tell the two apart by sender. Idea #6293 would move the Owner's requests to name the
-Actor, which frees `Add(CaseParticipant)`.
+tell the two apart by sender. ADR-0198 (#6293) moves the Owner's requests to an
+`Offer` naming the Actor, which frees `Add(CaseParticipant)`.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
@@ -724,10 +776,6 @@ apply read no `target`: the apply takes the case from the ledger entry's `case_i
 Each is its own Idea; none is designed here. The three wire defects the review found
 are Concerns #6259, #6260 and #6261.
 
-- **Owner's requests name the Actor** (#6293). Removal and reinstatement name the
-  Actor, not the `CaseParticipant`; the CASE_MANAGER applies them to that actor's one
-  record (CM-19) and keeps it, so a reinstated participant keeps history and consent
-  (ADR-0116). Needs an ADR revising ADR-0116's choice of message.
 - **Fetchable ledger** (#5089). `GET <case>/ledger` paged by `OrderedCollectionPage` and
   `startIndex`. `Read(<case>/ledger)[ledgerPosition=N]` is then the push form of
   `GET …?startIndex=N+1`. Adds the first ledger fetch surface; needs authorization

@@ -94,6 +94,11 @@ The changes these rules imply for today's code are tracked in
 - **A request for an approval of a concrete act is `Offer(<the act>)`**, answered by
   `Accept` or `Reject`; `Question` is for choices and open inquiries (VOC Offer,
   Question).
+- **A request for another actor to act is `Offer(<the act>)` too, never the act
+  itself.** The actor that holds the record answers `Accept` (its decision) or a
+  refusal notice, then makes the act with `inReplyTo` = the Offer; the Accept and the
+  act commit together (ADR-0198). Sending the bare act would state that the asker
+  did it.
 
 ## Responses Reference the Request Twice
 
