@@ -41,13 +41,13 @@ The question: **how does the shadow sort the open moves, so that the analyst see
 
 ## Decision Outcome
 
-Chosen option: "Bands from a comparison of each move's outcome shifts, scope by scope", because it is the only option that needs no weights and that shows each trade-off instead of hiding it in one number.
+Chosen option: "Bands from a comparison of each move's outcome shifts, scope by scope", because it is the only option that puts no scopes into one number, so it adds no weight and shows each trade-off.
 
 1. **The chance value is the reference.**
    For each scope, the chance value is the expected outcome from where the case stands, if each allowed next step is equally likely.
    It is the mean of the values after each open move, solved over the walk of ADR-0182.
 2. **A move's outcome shift is one number for each scope.**
-   The outcome shift is the change in expected outcome from the chance value, after the move.
+   A move's outcome shift in a scope is the expected outcome after the move, minus the chance value.
    The scopes come from the desiderata themselves: one scope for each vendor in the case, notified or not, and one scope for each case-wide group (embargo and multi-party).
    A scope with no chance value has no outcome shift.
    Thus path preferences, and participants with no vendor path, are not scopes until their preferences have chance values.
@@ -57,14 +57,15 @@ Chosen option: "Bands from a comparison of each move's outcome shifts, scope by 
 4. **Three bands.**
    A leading move is an open move that no other open move beats.
    A helpful move is not leading, but has a positive outcome shift in at least one scope.
-   An unhelpful move has no positive outcome shift in any scope.
-   The page shows the unhelpful moves in a collapsed group, and does not hide them.
+   An unhelpful move is not leading and has no positive outcome shift in any scope.
+   The page shows the unhelpful moves in a collapsed group that the analyst can open.
 5. **Two marks, not bands.**
    "Harms none" marks a move with no negative outcome shift in any scope.
    "Leading among yours" marks a coordinator's move that none of the coordinator's other open moves beats, whatever its band.
 6. **Each negative shift is shown.**
    Each move shows its negative outcome shifts by scope, for example "vendor 2" or "the case: embargo".
-   A harm is relative to the chance value, not a broken desideratum, and the page says so.
+   A negative shift means worse than the chance value.
+   It does not mean a broken desideratum, and the page says so.
 
 If the cases show that adding up the desiderata inside one vendor's scope hides a trade-off that matters, the fallback is one scope for each vendor and desideratum group.
 
@@ -72,7 +73,7 @@ If the cases show that adding up the desiderata inside one vendor's scope hides 
 
 - Good, because the analyst sees several good options, with the trade-offs between them.
 - Good, because no weight between vendors or between desiderata is chosen.
-- Good, because a move that notifies a vendor helps that vendor's scope, so the tool never advises against it.
+- Good, because a move that notifies a vendor raises that vendor's expected outcome, so it has a positive shift in that vendor's scope and is never unhelpful.
 - Good, because "harms none" and "beats" use the same test, so a move that harms none can only be beaten by another move that harms none.
 - Bad, because with many scopes, most moves do not beat each other, and the leading band can be large.
 - Bad, because inside one vendor's scope the desiderata are still added together.

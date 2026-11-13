@@ -69,7 +69,7 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    The spread is read as how evenly the case served its vendors, not as a statistical sample, because the vendors share events.
    It measures evenness across vendors, not across users: weighting by users or risk stays an open question.
    A two-party case reduces to its one vendor's score.
-   A participant with no vendor path has no ordering score until it has ordering desiderata of its own, but the counts of rule 5 for each participant still apply.
+   A participant with no vendor path has no score of its own until it has desiderata of its own, but the counts of rule 5 for each participant still apply.
 5. **Path preferences are simple counts.**
    A preference about the shape of a history is a count or ratio read from the event history.
    A preference about a participant's own acts is a count or ratio for each participant, such as invitations answered before their deadline out of those received.
@@ -84,7 +84,7 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
 - Good, because an incomplete case gets a score and a range, instead of a refusal.
 - Bad, because skill is measured against "a one-vendor case handled by chance", not against a chance version of this particular case. The pages that report a score must say so.
 - Bad, because the unweighted median and spread can mislead when a few vendors carry most of the risk; the measure does not answer the weighting question.
-- Neutral, because a participant with no vendor path gets no ordering score, as ADR-0174 already records, but gets the counts of rule 5.
+- Neutral, because a participant with no vendor path gets no score of its own, as ADR-0174 already records, but gets the counts of rule 5.
 
 ## Validation
 

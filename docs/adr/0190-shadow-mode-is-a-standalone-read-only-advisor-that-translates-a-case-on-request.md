@@ -4,7 +4,7 @@ status_override: >-
   Decided by the maintainer in the planning interview for #6336 on 2026-11-12.
 date: 2026-11-12
 created: 2026-11-12
-updated: 2026-11-12
+updated: 2026-11-13
 revision: 4
 amended: "2026-11-13"
 deciders: Allen D. Householder
@@ -113,7 +113,7 @@ It now reads: "**One standing, with moves in bands.** The shadow reads the trans
 
 The maintainer asked for options, not one answer.
 Many moves are good at a given point in a case, and some are clearly better than others.
-One case score would reduce all the desiderata to one number, and one best move goes too far in the other direction.
+One case score would reduce all the desiderata to one number, and one best move hides the other good moves.
 Thus the page puts the moves in bands and shows the trade-offs between them.
 
 - Source: #6450
