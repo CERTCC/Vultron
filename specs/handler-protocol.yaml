@@ -1626,7 +1626,7 @@ groups:
       activity `context` and status `context` name different cases, with a reason
       that names both cases.
     rationale: >-
-      The status says which case it applies to (HP-08-008). An activity that names
+      The status says which case it applies to (HP-08-013). An activity that names
       another case says two things about where the act belongs, and applying either
       one would ignore the other. Naming both cases lets the sender see the
       disagreement.

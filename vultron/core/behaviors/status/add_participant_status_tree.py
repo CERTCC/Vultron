@@ -34,7 +34,7 @@ path by which a participant's P, X or A report reaches the case status:
 
     AddParticipantStatusBT (Sequence)
     ├─ [door guards]                          # Addressee, seen-before, path, post-close
-    ├─ TargetParticipantInCaseNode            # Door: target held, in this case (HP-08-014)
+    ├─ TargetParticipantInCaseNode            # Door: target held, in this case (HP-08-013/014)
     ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ [IntakeReceivedActivityNode]           # After the doors (CLP-10-010, CLP-10-017)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
@@ -231,15 +231,16 @@ def add_participant_status_tree(
 
     The *case_id* for the commit and all children is the case the status
     names (its own ``context``), and the ``TargetParticipantInCaseNode`` door
-    admits the delivery
-    only when the receiver's record of the target participant names that
-    same case (HP-08-008, HP-08-014).  A target the receiver holds no record
-    of, or one recorded in another case, is refused there, before the sender
-    guard, so the status only ever joins its target's own case, and no use
-    case reads the record before the tree runs.  ``CarriedObjectInTargetCaseNode``
-    then refuses, before the commit, a status whose ``context`` names another
-    case or none (HP-08-007).  Whose record the target is, for the on-behalf
-    guard, is read from the record when the tree runs (RSH-08-014).
+    admits the delivery only when the receiver's record of the target
+    participant names that same case (HP-08-008).  A target the receiver
+    holds no record of (HP-08-014), or one recorded in another case
+    (HP-08-013), is refused there, before the sender guard, so the status
+    only ever joins its target's own case, and no use case reads the record
+    before the tree runs.  The carried status names the tree's case by
+    construction, so ``CarriedObjectInTargetCaseNode`` refuses, before the
+    commit, only a status the receiver already stores under that id with
+    another case or none (HP-08-007).  Whose record the target is, for the
+    on-behalf guard, is read from the record when the tree runs (RSH-08-014).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -274,8 +275,8 @@ def add_participant_status_tree(
         case_id: The case the status names (its own ``context``).  When
             provided, a guarded-commit subtree is inserted after
             precondition guards so the receiving CaseActor writes a
-            canonical ledger entry (CLP-10-005), and the HP-08-014 door
-            refuses a target not recorded in it; ``None`` when the status
+            canonical ledger entry (CLP-10-005), and the target door
+            refuses a target not recorded in it (HP-08-013, HP-08-014); ``None`` when the status
             names none (or is carried by reference), which the path stage
             refuses.  ``ActivityContextMatchesObjectNode`` refuses an
             activity whose own ``context`` names another case (HP-08-015).
@@ -300,8 +301,9 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # The case the status names; the HP-08-014 door refuses a target the
-    # receiver does not record in it, before the sender guard (HP-08-008).
+    # The case the status names; the target door refuses a target the
+    # receiver does not record in it, before the sender guard (HP-08-008,
+    # HP-08-013, HP-08-014).
     tree_case_id: str | None = case_id
 
     # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
@@ -344,9 +346,9 @@ def add_participant_status_tree(
                 participant_id=participant_id
             ),
         ),
-        # HP-08-014: a target participant this receiver holds no record of,
-        # or one of another case, leaves no case to act on; the door refuses
-        # it before the sender guard.  With no case at all there is nothing
+        # HP-08-014: a target participant this receiver holds no record of
+        # leaves no case to act on; HP-08-013: one of another case is not
+        # the status's case.  The door refuses both before the sender guard.  With no case at all there is nothing
         # to check it against, and the path stage refuses the no-case path.
         case_resolution=(
             [

@@ -80,29 +80,30 @@ def on_behalf_target(
 ) -> str | None:
     """The actor the stored target record names, when it is not *sender_id*.
 
-    ``None`` when the record is the sender's own, so there is no on-behalf
-    assertion to judge.  The record exists: the tree's
-    ``TargetParticipantInCaseNode`` door refused the delivery otherwise
-    (HP-08-014).
+    ``None`` when there is no on-behalf assertion to judge: the record is
+    the sender's own, or it names no actor, so it is no other actor's
+    record.  The record exists: the tree's ``TargetParticipantInCaseNode``
+    door refused the delivery otherwise (HP-08-014).
 
     Raises:
-        RuntimeError: the record is missing or names no actor, which the
-            door rules out, so it is a fault of the tree, not the sender.
+        RuntimeError: the record is missing, which the door rules out, so
+            it is a fault of the tree, not the sender.
     """
     assert node.datalayer is not None
     record = node.datalayer.read(participant_id)
+    if record is None:
+        raise RuntimeError(
+            f"{node.name}: target participant '{participant_id}' has no"
+            " stored record, though the HP-08-014 door admitted it"
+        )
     target = (
         _as_id(record.attributed_to)
         if isinstance(record, CaseParticipant)
         else None
     )
-    if not target:
-        raise RuntimeError(
-            f"{node.name}: target participant '{participant_id}' has no"
-            " readable record naming its actor, though the HP-08-014 door"
-            " admitted it"
-        )
-    return None if same_actor_id(target, sender_id) else target
+    if not target or same_actor_id(target, sender_id):
+        return None
+    return target
 
 
 def _asserted_vf(status: ParticipantStatus) -> CS_vf | None:

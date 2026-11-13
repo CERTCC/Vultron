@@ -57,7 +57,7 @@ print("```")
 Handles receipt of an `Add(ParticipantStatus)[target=CaseParticipant]` activity at the CASE_MANAGER, the only receiver it is sent to.
 A participant replica refuses it at the path stage, because a replica takes participant status from the case ledger (PCR-03-001, RSH-08-003).
 The tree is built on the case the status's own `context` names.
-A door refuses a target participant the receiver holds no record of, or one recorded in another case, before the sender guard runs (HP-08-014).
+A door refuses a target participant the receiver holds no record of (HP-08-014), or one recorded in another case than the status names (HP-08-013), before the sender guard runs.
 A guard refuses an `Add` whose activity `context` names a different case than its status, before the commit (HP-08-015).
 Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption through the adoption call-out; an adopted P, X or A ends an active embargo in the same act, because the adoption also authorizes the teardown (ADR-0166).
 An adopted P, X or A reaches the case status here, and nowhere else on the received side (RSH-01-003).

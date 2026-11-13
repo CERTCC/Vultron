@@ -779,7 +779,6 @@ class TestStatusUseCases:
         ]
         assert pstatus.id_ in status_ids
 
-    @pytest.mark.spec("HP-08-008")
     def _deliver_across_cases(self, status_case: str):
         """An Add from a participant of cases A and B, its target A's
         participant and its activity ``context`` case B, through the inbox
@@ -860,14 +859,13 @@ class TestStatusUseCases:
     @pytest.mark.spec("IO-03-004")
     @pytest.mark.spec("HP-08-008")
     @pytest.mark.spec("HP-08-013")
-    @pytest.mark.spec("HP-08-014")
     def test_add_participant_status_through_ingress_naming_another_case_is_refused(
         self,
     ):
         """A status naming case B whose target participant is case A's is
-        refused at the HP-08-014 door on the inbox path: the tree is built on
-        the case the status names, and the target is not recorded in it, so
-        neither case gains an entry and A's participant gains no status
+        refused at the target door on the inbox path: the tree is built on
+        the case the status names, and the target is not recorded in it
+        (HP-08-013), so neither case gains an entry and A's participant gains no status
         (#4961, #6412)."""
         result, dl, target, status_id, case_a, case_b, before = (
             self._deliver_across_cases("b")
@@ -877,7 +875,7 @@ class TestStatusUseCases:
         assert result.reason == (
             f"AddParticipantStatusBT: target participant '{target.id_}'"
             f" belongs to case '{case_a.id_}', not case '{case_b.id_}'"
-            " — REFUSED (HP-08-014)"
+            " — REFUSED (HP-08-013)"
         )
         self._assert_nothing_kept(dl, target, status_id, before)
 
@@ -956,9 +954,9 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        # The tree is scoped to the case the activity names, and the sender
-        # guard's AUTHOR check finds no record of the target there, so it
-        # refuses for the missing record, at a door (HP-08-014).
+        # The tree is scoped to the case the status names, and the target
+        # door finds no record of the target, so it refuses for the missing
+        # record before the sender guard (HP-08-014).
         assert (
             f"holds no record of target participant '{unheld.id_}'"
             in result.reason
@@ -966,6 +964,79 @@ class TestStatusUseCases:
         assert "REFUSED (HP-08-014)" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
+
+    @pytest.mark.spec("HP-08-013")
+    @pytest.mark.spec("HP-01-039")
+    def test_add_participant_status_carried_by_reference_is_refused_at_the_path_stage(
+        self, make_payload
+    ):
+        """A status carried by reference names no case, so the tree is built
+        with none and its path stage refuses the no-case path before
+        anything is committed: the status does not say it is the target's
+        case (HP-08-013, HP-01-039)."""
+        from unittest.mock import PropertyMock, patch
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/case_ps_by_ref",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        participant = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        status_id = f"{participant.id_}/statuses/by-ref"
+        event = make_payload(
+            add_status_to_participant_activity(
+                make(as_ParticipantStatus, id_=status_id, context=case.id_),
+                target=make(
+                    as_CaseParticipant,
+                    id_=participant.id_,
+                    context=case.id_,
+                    attributed_to=sender,
+                ),
+                actor=sender,
+                to=[dl.actor_id],
+                context=case.id_,
+                at=authored_at(),
+            ),
+            receiving_actor_id=dl.actor_id,
+            at=dl,
+        )
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        # By reference, the receiver has the status's id but no carried
+        # object, so no ``context`` to read.
+        with patch.object(
+            type(event),
+            "status",
+            new_callable=PropertyMock,
+            return_value=None,
+        ):
+            result = run_in_act(
+                AddParticipantStatusToParticipantReceivedUseCase(
+                    dl,
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "holds no replica of the case this activity names" in (
+            result.reason
+        ), result.reason
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(participant.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CLP-10-018")
@@ -1093,7 +1164,7 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        # The tree is scoped to the case the activity names, and its HP-08-014
+        # The tree is scoped to the case the status names, and its HP-08-014
         # door refuses the record that names no case, ahead of the sender
         # guard.
         assert (
@@ -2272,6 +2343,34 @@ class TestParticipantStatusSubjectIsTheSender:
             assertion
         )
 
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-08-014")
+    def test_on_behalf_guard_passes_a_record_naming_no_actor(self):
+        """A target record that names no actor is no other actor's record,
+        so there is no on-behalf assertion to judge, and the guard passes
+        rather than faulting the tree; the sender guard has already judged
+        the sender (RSH-08-014)."""
+        from vultron.core.behaviors.status.nodes.status_subject import (
+            on_behalf_status_guard,
+        )
+
+        dl, ids = self._case_manager_store()
+        record = cast(as_CaseParticipant, dl.read(ids[_SUBJ_VENDOR]))
+        record.attributed_to = None
+        dl.save(record)
+        assertion = on_behalf_status_guard(
+            case_id=_SUBJ_CASE_ID,
+            participant_id=ids[_SUBJ_VENDOR],
+            sender_id=cast(str, dl.actor_id),
+            status_id=f"{_SUBJ_CASE_ID}/statuses/actorless",
+            status_obj=None,
+        )
+        result = BTTestScenario(actor_id=cast(str, dl.actor_id), dl=dl).run(
+            assertion
+        )
+
+        assert result.internal_error is False
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("ARCH-15-001")

@@ -214,10 +214,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         # The status says which case it applies to: the tree is built on the
-        # carried status's own ``context``.  Its HP-08-014 door admits the
+        # carried status's own ``context``.  Its target door admits the
         # delivery only when the receiver's record of the target participant
         # names that case, so the status joins only its target's own case
-        # and no store is read here (HP-08-008).  A status carried by
+        # and no store is read here (HP-08-008, HP-08-013, HP-08-014).  A status carried by
         # reference names no case, which the path stage refuses.
         case_id = _as_id(getattr(request.status, "context", None)) or None
 
@@ -238,8 +238,14 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=_participant_status_reader(
-                request.status_id or "", request.activity_id
+            # An Add missing its status id runs the incomplete-activity
+            # tree, which has no status to read (CS-08-002).
+            reader=(
+                _participant_status_reader(
+                    request.status_id, request.activity_id
+                )
+                if request.status_id
+                else None
             ),
         )
         if case_id is not None:

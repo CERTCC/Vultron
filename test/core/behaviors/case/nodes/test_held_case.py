@@ -179,6 +179,35 @@ def test_held_case_with_the_no_case_path_is_a_wiring_error() -> None:
         _tree(paths=frozenset({ReceivedPath.NO_CASE}), case_id=None)
 
 
+@pytest.mark.spec("AKM-03-006")
+def test_held_case_naming_no_case_at_build_time_is_a_wiring_error() -> None:
+    """A manager-and-replica declaration with no case anywhere at build time
+    leaves the stage no case to name in the AKM-03-006 reason."""
+    with pytest.raises(VultronWiringError, match="name its case at build"):
+        create_receive_activity_tree(
+            name="HeldCaseBT",
+            case_id=None,
+            precondition_guards=[],
+            paths=_DECLARED,
+            sender_rule=_RULE,
+            sender_context=SenderCheckContext(sender_id=SENDER_ID),
+            held_case=CaseNamedByReference.JOIN,
+        )
+
+
+@pytest.mark.spec("AKM-03-006")
+def test_held_case_with_no_activity_id_keeps_the_paths_own_reason() -> None:
+    """With no activity to name, the stage gives the no-case path's reason
+    rather than a reason naming ``'None'``."""
+    assert undeclared_path_reason(
+        ReceivedPath.NO_CASE,
+        _DECLARED,
+        CASE_ID,
+        held_case=CaseNamedByReference.JOIN,
+        activity_id=None,
+    ) == undeclared_path_reason(ReceivedPath.NO_CASE, _DECLARED, CASE_ID)
+
+
 def _stage_act(
     tree: py_trees.behaviour.Behaviour,
 ) -> CaseNamedByReference | None:

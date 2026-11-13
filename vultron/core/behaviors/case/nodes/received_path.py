@@ -136,12 +136,18 @@ def undeclared_path_reason(
         case_id: The case the role was read in; ``None`` when the tree
             resolved none, which only the no-case path reaches.
         held_case: The act, for a type that names its case by reference.
-        activity_id: The refused activity, named with *held_case*.
+        activity_id: The refused activity, named with *held_case*; with
+            none, the path's own reason is used.
 
     Returns:
         One sentence fragment, true of the receiver being refused.
     """
-    if held_case is not None and path is ReceivedPath.NO_CASE and case_id:
+    if (
+        held_case is not None
+        and path is ReceivedPath.NO_CASE
+        and case_id
+        and activity_id
+    ):
         return (
             f"{held_case.value} '{activity_id}' names unknown case '{case_id}'"
         )
