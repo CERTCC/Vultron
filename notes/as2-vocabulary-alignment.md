@@ -18,6 +18,9 @@ tracks:
   - "#6253"   # JSON-LD terms and check
   - "#6247"   # ledger and status histories as ordered collections
   - "#6254"   # Refuse(Reject)
+  - "#6433"   # type list resolved at the wire edge
+  - "#6434"   # the refusal notice is a Refuse
+  - "#6435"   # owner-close answer is a Refuse
   - "#6248"   # instrument, generator, tag
   - "#6249"   # CaseReference holds a Link
   - "#6250"   # Update forms; dead REMOVE_NOTE path
@@ -406,7 +409,8 @@ if the `Add` waits until they commit. Pick one.
 
 ## Refusal Is Its Own Type
 
-Issue: #6254.
+Issue: #6254. Built by #6433 (type list at the wire edge), then #6434 (the `Refuse`
+type), then #6435 (the owner-close answer).
 
 **Decision.** A refusal notice is `"type": ["Refuse", "Reject"]`: `class
 Refuse(Reject)` in the wire vocabulary, and `vultron:Refuse rdfs:subClassOf
@@ -425,8 +429,9 @@ versus *rejected* (ADR-0196).
   "a refusal of a request reads as a decline".
 - **Refuse versus Reject is by who decides.** The CASE_MANAGER's guard refusal is a
   `Refuse`, including its answer to the owner's `Leave(VulnerabilityCase)` during an
-  active embargo (CM-23-011). A participant's own `Reject(Invite(EmbargoEvent))` at
-  P/X/A stays a `Reject`: it is the addressee's decline (EMB-01-002).
+  active embargo (CM-23-011) and its optional reply to a late `Leave` after close.
+  A participant's own `Reject(Invite(EmbargoEvent))` at P/X/A stays a `Reject`: it
+  is the addressee's decline (EMB-01-002).
 
 **AS2 basis.** No AS2 verb fits "I won't admit your act": `Ignore` is ignoring and is
 our RM defer, `Block` targets an actor and is not delivered to it (ActivityPub), `Flag`

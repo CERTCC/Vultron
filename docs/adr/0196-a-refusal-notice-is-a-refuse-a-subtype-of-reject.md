@@ -96,4 +96,4 @@ Option E was rejected: it keeps the two acts identical on the wire, which is the
 - ADR-0083 — the three fault mechanisms that MSM-05-001 records.
 - `notes/as2-vocabulary-alignment.md` § "Refusal Is Its Own Type".
 - #6254 — the idea this record answers.
-- The implementation issues amend MSM-05-001, CLP-02-005, CLP-05-001 and CM-23-011 to name `Refuse`, and add the VM-03 list-type rules, each with its test.
+- #6433, #6434 and #6435 implement this record. They amend MSM-05-001, CLP-02-005, CLP-05-001 and CM-23-011 to name `Refuse`, and add the VM-03 list-type rules, each with its test.
