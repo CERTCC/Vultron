@@ -13,9 +13,9 @@ Sub-packages:
 - ``driven/`` — Driven (right-side) adapters that the core calls out to.
   Examples: activity store, delivery queue, HTTP delivery.
 
-- ``connectors/`` — Bidirectional connector plugins (tracker integrations,
-  third-party systems). Each plugin translates between external events and
-  Vultron domain events.
+- ``connectors/`` — Connector plugins for outside systems (trackers,
+  coordination platforms). Each plugin implements the core ports it serves,
+  such as the read-only ``CaseReader``, and translates only.
 
 See ``notes/architecture-adapters.md`` for adapter-layer design details.
 """

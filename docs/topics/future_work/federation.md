@@ -336,6 +336,7 @@ The coordination service is independent of the issue tracker.
 It speaks the Vultron protocol, and it has no data about any one tracker.
 Each deployment adds a connector for its own internal tracker.
 The connector translates between the events of the internal tracker and Vultron activities, in both directions.
+A connector implements only the core ports it needs: a read-only case reader has no write path, and a two-way connector adds a port of its own.
 
 The service finds its connectors as plugins at start-up.
 Support for a new tracker thus needs no change to the service.
