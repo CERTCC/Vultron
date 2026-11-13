@@ -93,7 +93,7 @@ def create_close_case_received_tree(
         CloseCaseBT (Sequence, via create_receive_activity_tree)
         ├── ActivityAddressedToReceiverNode             # addressee door (HP-01-005)
         ├── ActivityNotSeenBeforeNode                   # seen-before door
-        ├── ReceivedPathNode                            # manager or replica (HP-01-038)
+        ├── ReceivedPathNode                            # manager path only
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
@@ -134,8 +134,9 @@ def create_close_case_received_tree(
                     └── EmitRejectCloseCase                 # decline via as:Reject
 
     Intake runs after the doors, ahead of the gate, so the inbound Leave is
-    recorded on every replica the doors admit, whether or not the receiver is
-    the CASE_MANAGER (CLP-10-010, CLP-10-017); the per-arm ``StoreActivityNode``
+    recorded once the doors admit it (CLP-10-010, CLP-10-017); the doors admit
+    only the case's CASE_MANAGER, since the tree declares the manager path
+    alone (HP-01-038, #6394).  The per-arm ``StoreActivityNode``
     this tree once carried duplicated it and was removed (CLP-10-019).  The
     inner ``CloseCaseReceive`` is built by the same factory because only the
     factory supplies the guarded receipt commit.  It is built ``nested``, with
@@ -147,11 +148,11 @@ def create_close_case_received_tree(
     ``manager_effects``, so the factory wraps the whole close/decline decision
     in a CASE_MANAGER gate (BT-17-008).  Only the case's CASE_MANAGER declines
     an owner close (CM-23-011) or runs its closure effects (CM-23-002/003); a
-    replica holding a copy of the Leave skips the gate, emits no ``as:Reject`` (the
-    #3825 defect), writes nothing, and takes any resulting closure from the
-    ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).  The two arms stay in
-    one Selector because the close arm FAILS when a decline is warranted and
-    only a Selector lets the decline arm run next.
+    replica holding a copy of the Leave is refused at the path stage, emits no
+    ``as:Reject`` (the #3825 defect), writes nothing, and takes any resulting
+    closure from the ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).
+    The two arms stay in one Selector because the close arm FAILS when a
+    decline is warranted and only a Selector lets the decline arm run next.
 
     The same decline decision (owner + live embargo) gates both arms: the close
     arm runs only when the decision is inverted-false, and the decline arm runs
@@ -318,10 +319,10 @@ def create_close_case_received_tree(
     # ``EmitRejectCloseCaseNode`` is emit-capable, and only the case's
     # CASE_MANAGER declines an owner close (CM-23-011, BT-17-001). The close
     # arm's own effects are already CASE_MANAGER-gated internally and its
-    # commit is role-gated, so on a replica holding a copy of the Leave the gate skips
-    # the whole decision: nothing is written, nothing is emitted, and the
-    # replica takes any resulting closure from the ledger fan-out
-    # (CLP-10-001, RSH-08-003). The close/decline arms stay in one Selector —
+    # commit is role-gated; a replica holding a copy of the Leave never gets
+    # here, because the path stage refuses it, and it takes any resulting
+    # closure from the ledger fan-out (CLP-10-001, RSH-08-003). The
+    # close/decline arms stay in one Selector —
     # the close arm FAILS when a decline is warranted, and only a Selector lets
     # the decline arm run next, which a side-by-side Sequence placement in
     # ``replica_effects``/``manager_effects`` could not express. ``case_id`` is
@@ -352,14 +353,14 @@ def create_close_case_received_tree(
         # (AKM-03-006).
         held_case=CaseNamedByReference.LEAVE,
         precondition_guards=[],
-        # The leaver asks the CASE_MANAGER, which decides the close or the
-        # decline, and the CASE_MANAGER relays the Leave to a participant
-        # replica, which records it and takes the closure from the ledger
-        # fan-out (CM-23-002, CLP-10-001, RSH-08-003, HP-01-038).  The close
-        # arm inside the manager gate declares no paths of its own: this
-        # tree's stage already answered the question for the delivery
+        # The leaver asks the CASE_MANAGER alone, which decides the close or
+        # the decline (CM-23-002, PCR-08-001); a participant replica takes
+        # the closure from the ledger fan-out (CLP-10-001, RSH-08-003), so
+        # the path stage refuses a copy there (HP-01-005, HP-01-038).  The
+        # close arm inside the manager gate declares no paths of its own:
+        # this tree's stage already answered the question for the delivery
         # (HP-01-037).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        paths={ReceivedPath.CASE_MANAGER},
         # A sender whose closure the case records repeats a closing act; the
         # Case Owner's Leave also closes the case, so while the case is not
         # fully closed its Leave runs to close it (CM-23-018, CM-23-002).

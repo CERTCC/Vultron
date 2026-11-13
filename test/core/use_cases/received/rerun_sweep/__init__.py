@@ -99,15 +99,22 @@ REFUSAL_UNREACHABLE: dict[MessageSemantics, str] = {
         " which is SKIPPED with no effects, or on an unknown case, which a"
         " door refuses first"
     ),
-    MessageSemantics.REMOVE_NOTE_FROM_CASE: (
-        "its one guard (CaseReferenceEditPendingNode) fails only on a repeat,"
-        " which is SKIPPED with no effects, or on an unknown case, which a"
-        " door refuses first"
-    ),
     MessageSemantics.ADD_CASE_STATUS_TO_CASE: (
         "the tree declares the participant-replica path alone, so the"
         " CASE_MANAGER, the only receiver that runs refusal effects, is"
         " refused at the path stage before the guards"
+    ),
+}
+
+
+#: Semantic -> why no run of it ever reaches the tree's effects, so it has
+#: no applied builder.  Each such semantic must have a refusal builder, which
+#: is the run the sweep re-runs instead.
+APPLY_UNREACHABLE: dict[MessageSemantics, str] = {
+    MessageSemantics.REMOVE_NOTE_FROM_CASE: (
+        "every receiver refuses a Remove(Note): removing ledgered content is"
+        " not supported (CM-30-003, #6430), so its tree's guard refuses even"
+        " an entitled sender before the commit"
     ),
 }
 

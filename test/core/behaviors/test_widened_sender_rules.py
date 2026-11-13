@@ -254,22 +254,23 @@ def _cases(
 _PARTICIPANT_MOVE = ("HP-01-008", "PCR-03-001", "CM-31-004", "CM-31-011")
 
 CASES = [
-    # The note's author or the Case Owner at the CASE_MANAGER, which a
-    # participant alone takes the removal from (CM-30-003, PCR-03-001).
+    # The note's author or the Case Owner, at the CASE_MANAGER alone
+    # (CM-30-001, PCR-08-001).  The tree then refuses every Remove(Note)
+    # (CM-30-003), but the sender is still judged first.
     *_cases(
         RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
         _note,
         at_manager=(VENDOR, REPLICA),
-        at_participant=(MANAGER, VENDOR),
-        marks=("HP-01-008", "CM-30-001", "CM-30-003", "PCR-03-001"),
+        at_participant=None,
+        marks=("HP-01-008", "CM-30-001", "PCR-08-001"),
         label="remove-note-author",
     ),
     *_cases(
         RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
         _note,
         at_manager=(OWNER, STRANGER),
-        at_participant=(MANAGER, OWNER),
-        marks=("HP-01-008", "CM-30-001", "CM-30-003", "PCR-03-001"),
+        at_participant=None,
+        marks=("HP-01-008", "CM-30-001", "PCR-08-001"),
         label="remove-note-owner",
     ),
     *_cases(
@@ -288,12 +289,15 @@ CASES = [
         marks=_PARTICIPANT_MOVE,
         label="remove-participant",
     ),
+    # The Case Owner asks the CASE_MANAGER alone; a replica takes the
+    # report from the ledger, so the rule states no participant side
+    # (PCR-08-001, #6394).
     *_cases(
         AddReportToCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(OWNER, VENDOR),
-        at_participant=(MANAGER, OWNER),
-        marks=("HP-01-008", "CM-30-002", "CM-30-005", "PCR-03-001"),
+        at_participant=None,
+        marks=("HP-01-008", "CM-30-002", "PCR-08-001"),
         label="add-report",
     ),
     # An active participant proposes to the CASE_MANAGER, which relays the
@@ -340,14 +344,15 @@ CASES = [
         marks=("HP-01-008", "EP-09-003", "PCR-03-001"),
         label="embargo-announce",
     ),
-    # A participant suggests an actor to the CASE_MANAGER; at a replica only
-    # the CASE_MANAGER relays it (PCR-03-001).
+    # A participant suggests an actor to the CASE_MANAGER alone; no replica
+    # acts on a copy, so the rule states no participant side (PCR-08-001,
+    # #6394).
     *_cases(
         OfferActorToCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(VENDOR, STRANGER),
-        at_participant=(MANAGER, VENDOR),
-        marks=("HP-01-008", "CM-16-001", "PCR-03-001"),
+        at_participant=None,
+        marks=("HP-01-008", "CM-16-001", "PCR-08-001"),
         label="offer-actor",
     ),
     # A participant sends its own status update to the CASE_MANAGER, and
@@ -401,9 +406,10 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 
 
 #: Declarations relabelled from ``ACTIVE_PARTICIPANT`` to ``PARTICIPANT``
-#: (#4437): each tree admitted any participant the case lists, and still does.
-#: ``offer-actor`` uses ``to_case_manager`` rather than ``in_case`` (#4646),
-#: and ``add-participant-status`` states the CASE_MANAGER side alone, so
+#: (#4437): each tree admitted any participant the case lists, and still does
+#: at the CASE_MANAGER, the one side each rule now states: the participant
+#: declares its RM move to the CASE_MANAGER alone (PCR-08-001, #6394).
+#: ``offer-actor`` and ``add-participant-status`` are relabelled otherwise, so
 #: neither is here.
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
@@ -415,7 +421,6 @@ RELABELLED = {
 
 @pytest.mark.spec("HP-01-008")
 @pytest.mark.spec("HP-01-009")
-@pytest.mark.parametrize("receiver", [MANAGER, REPLICA], ids=["cm", "replica"])
 @pytest.mark.parametrize(
     ("sender", "admitted"),
     [(INERT, True), (VENDOR, True), (STRANGER, False)],
@@ -425,55 +430,31 @@ RELABELLED = {
     "use_case", RELABELLED.values(), ids=RELABELLED.keys()
 )
 def test_relabelled_declaration_admits_any_listed_participant(
-    use_case: type, receiver: str, sender: str, admitted: bool
+    use_case: type, sender: str, admitted: bool
 ) -> None:
-    """Relabelling to ``PARTICIPANT`` changed no admission: an inert invitee
-    the case lists is still admitted, and an unlisted actor still refused."""
+    """Relabelling to ``PARTICIPANT`` changed no admission at the
+    CASE_MANAGER: an inert invitee the case lists is still admitted, and an
+    unlisted actor still refused."""
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
-    assert rule == SenderRule.in_case(Kind.PARTICIPANT)
-    assert _admits(rule, _plain, receiver, sender) is admitted
+    assert rule == SenderRule.at_case_manager_only(Kind.PARTICIPANT)
+    assert _admits(rule, _plain, MANAGER, sender) is admitted
 
 
 # ---------------------------------------------------------------------------
-# PCR-03-001: replica admits only the CASE_MANAGER (fix #4646).
+# Offer(Actor) is the CASE_MANAGER's alone (#6394, formerly #4646).
 # ---------------------------------------------------------------------------
 
-_PCR03_CASES = [
-    pytest.param(
-        OfferActorToCaseReceivedUseCase,
-        id="offer-actor",
-    ),
-]
 
-
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.parametrize("use_case", _PCR03_CASES)
-def test_replica_refuses_listed_non_manager_for_case_update(
-    use_case: type,
-) -> None:
-    """A listed non-manager participant is refused at a replica (#4646).
-
-    ``Offer(Actor)`` declares ``to_case_manager(...)``, so at a participant
-    replica any sender other than the CASE_MANAGER is refused even when the
-    case lists them.
-    """
-    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
-    assert not _admits(rule, _vendor_record, REPLICA, VENDOR)
-
-
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.parametrize("use_case", _PCR03_CASES)
-def test_replica_admits_case_manager_for_case_update(
-    use_case: type,
-) -> None:
-    """The CASE_MANAGER is admitted at a replica (#4646).
-
-    ``to_case_manager(...)`` sets the participant side to
-    ``{CASE_MANAGER}``, so the CASE_MANAGER is the only entitled sender
-    at a replica.
-    """
-    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
-    assert _admits(rule, _vendor_record, REPLICA, MANAGER)
+@pytest.mark.spec("PCR-08-001")
+@pytest.mark.spec("HP-01-038")
+def test_offer_actor_states_no_participant_side() -> None:
+    """A participant sends ``Offer(Actor)`` to the CASE_MANAGER alone, and no
+    replica acts on a copy, so the rule names the manager side only and the
+    path stage refuses a replica before any side is read (HP-01-039)."""
+    rule = OfferActorToCaseReceivedUseCase.sender_entitlement
+    assert rule == SenderRule.at_case_manager_only(Kind.PARTICIPANT)
+    assert rule.at_participant == frozenset()
+    assert rule.outside_case == frozenset()
 
 
 def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
@@ -518,7 +499,8 @@ def test_relabelled_tree_guard_checks_the_declared_kind(label: str) -> None:
         if getattr(node, "guards_kind", None) is not None
     }
     assert kinds == {Kind.PARTICIPANT}
-    assert kinds <= rule.at_case_manager and kinds <= rule.at_participant
+    assert kinds <= rule.at_case_manager
+    assert rule.at_participant == frozenset()
 
 
 @pytest.mark.spec("PCR-03-001")
@@ -619,11 +601,6 @@ def test_embargo_rule_refuses_every_sender_where_the_case_names_no_manager(
 
 _BOOTSTRAP_RULES = [
     pytest.param(
-        RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
-        _note,
-        id="remove-note",
-    ),
-    pytest.param(
         AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
         _plain,
         id="add-participant",
@@ -632,11 +609,6 @@ _BOOTSTRAP_RULES = [
         RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
         _plain,
         id="remove-participant",
-    ),
-    pytest.param(
-        AddReportToCaseReceivedUseCase.sender_entitlement,
-        _plain,
-        id="add-report",
     ),
 ]
 

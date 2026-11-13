@@ -320,9 +320,13 @@ def _remove_note(net: LedgerNetwork, sender: str) -> Scenario:
     )
 
 
-@applied(MessageSemantics.REMOVE_NOTE_FROM_CASE)
-def remove_note_from_case() -> Scenario:
-    """The note's author removes it: committed and announced (CM-30-001)."""
+@refused(MessageSemantics.REMOVE_NOTE_FROM_CASE)
+def remove_note_from_case_refused() -> Scenario:
+    """An entitled author's Remove(Note), refused by the tree's guard.
+
+    No Remove(Note) is ever applied (APPLY_UNREACHABLE), so this refused run
+    is the one the sweep re-runs (CM-30-003, #6430).
+    """
     return _remove_note(_noted("remove-note"), BYSTANDER)
 
 

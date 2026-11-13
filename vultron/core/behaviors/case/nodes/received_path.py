@@ -35,6 +35,11 @@ message type's declaration says which paths it handles:
   ``REFUSED`` with :func:`undeclared_path_reason`, composed in this one place
   for every message type from the resolved path and the declaration
   (HP-01-005, HP-01-039).
+  A replica whose case names no CASE_MANAGER is told that instead
+  (CM-02-014).
+- :class:`ReplicaRefusalNode` is that same refusal, stated after the guards
+  by a tree that declares the replica path only because the message reaches
+  a replica, where the act is not the tree's (HP-01-005).
 - :class:`CheckReceivedPathNode` is how a later node reads the answer: a pure
   condition over the path the stage already resolved, with no second read of
   the roster.
@@ -54,6 +59,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
 from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
 
@@ -61,8 +67,10 @@ __all__ = [
     "CheckReceivedPathNode",
     "ReceivedPath",
     "ReceivedPathNode",
+    "ReplicaRefusalNode",
     "declared_paths",
     "on_any_of_paths",
+    "replica_names_no_case_manager",
     "undeclared_path_reason",
 ]
 
@@ -110,6 +118,7 @@ def undeclared_path_reason(
     *,
     held_case: CaseNamedByReference | None = None,
     activity_id: str | None = None,
+    case_names_no_manager: bool = False,
 ) -> str:
     """The reason an undeclared *path* is refused with (HP-01-039).
 
@@ -130,6 +139,11 @@ def undeclared_path_reason(
     activity and the case instead, because the receiver has nothing to act
     on (AKM-03-006).
 
+    A replica whose case names no CASE_MANAGER is told so instead: no actor
+    holds the role there, so "not the CASE_MANAGER" is true of every
+    receiver, while the case missing its CASE_MANAGER is what the sender can
+    act on (CM-02-014).
+
     Args:
         path: The path the stage resolved for this receiver.
         declared: The paths the message type handles.
@@ -138,6 +152,8 @@ def undeclared_path_reason(
         held_case: The act, for a type that names its case by reference.
         activity_id: The refused activity, named with *held_case*; with
             none, the path's own reason is used.
+        case_names_no_manager: On the participant-replica path, the case
+            this store holds names no CASE_MANAGER at all.
 
     Returns:
         One sentence fragment, true of the receiver being refused.
@@ -151,6 +167,12 @@ def undeclared_path_reason(
         return (
             f"{held_case.value} '{activity_id}' names unknown case '{case_id}'"
         )
+    if (
+        case_names_no_manager
+        and path is ReceivedPath.PARTICIPANT_REPLICA
+        and case_id
+    ):
+        return f"case '{case_id}' has no CASE_MANAGER"
     case = f"case '{case_id}'" if case_id else "the case this activity names"
     clause = _PATH_CLAUSE[path].format(case=case)
     if ReceivedPath.CASE_MANAGER in declared:
@@ -276,6 +298,21 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
             return ReceivedPath.NO_CASE
         return ReceivedPath.PARTICIPANT_REPLICA
 
+    def _refusal_reason(self, path: ReceivedPath, case_id: str | None) -> str:
+        """Why the undeclared *path* is refused, true of this receiver."""
+        return undeclared_path_reason(
+            path,
+            self.declared,
+            case_id,
+            held_case=self.held_case,
+            activity_id=getattr(self._activity, "activity_id", None),
+            case_names_no_manager=(
+                path is ReceivedPath.PARTICIPANT_REPLICA
+                and bool(case_id)
+                and replica_names_no_case_manager(self, case_id or "")
+            ),
+        )
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -299,13 +336,7 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
                 case_id,
             )
             return Status.SUCCESS
-        self.feedback_message = undeclared_path_reason(
-            path,
-            self.declared,
-            case_id,
-            held_case=self.held_case,
-            activity_id=getattr(self._activity, "activity_id", None),
-        )
+        self.feedback_message = self._refusal_reason(path, case_id)
         self.logger.warning(
             "%s: refused at '%s' on the %s path; %s handles %s only: %s",
             self.label or self.name,
@@ -313,6 +344,66 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
             path.value,
             self.label or self.name,
             sorted(declared.value for declared in self.declared),
+            self.feedback_message,
+        )
+        return Status.FAILURE
+
+
+def replica_names_no_case_manager(
+    node: DataLayerConditionWithPorts, case_id: str
+) -> bool:
+    """True when *node*'s store holds *case_id* and its roster names no
+    CASE_MANAGER (CM-02-014).
+
+    Asks who the CASE_MANAGER is, never whether the receiver is it: that
+    question is the path stage's alone (ARCH-24-008, ARCH-24-009).
+    """
+    assert node.datalayer is not None
+    case = node._resolve_case_replica(case_id)
+    return (
+        case is not None
+        and resolve_case_manager_id(case, node.datalayer) is None
+    )
+
+
+class ReplicaRefusalNode(DataLayerConditionWithPorts):
+    """Guard: refuse, at a participant replica, what only the manager acts on.
+
+    For a tree that declares the participant-replica path because the
+    message does reach a replica, but whose act there is the handler's, not
+    the tree's.  Placed last among the guards on the replica path
+    (``OnPaths.off_case_manager``), it makes the replica's verdict a
+    refusal that the tree states, rather than one a handler reads from a
+    skipped gate after the run (HP-01-005, ADR-0153).
+
+    Always FAILURE, with the reason the path stage would have given had the
+    tree not declared the path (:func:`undeclared_path_reason`, CM-02-014
+    included).  The runner reads it as the path stage's own refusal, with
+    the reason whole (HP-01-039).
+
+    Args:
+        case_id: The case the message names.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        self.feedback_message = undeclared_path_reason(
+            ReceivedPath.PARTICIPANT_REPLICA,
+            {ReceivedPath.CASE_MANAGER},
+            self.case_id,
+            case_names_no_manager=replica_names_no_case_manager(
+                self, self.case_id
+            ),
+        )
+        self.logger.warning(
+            "%s: refused at '%s': %s",
+            self.name,
+            self.actor_id,
             self.feedback_message,
         )
         return Status.FAILURE

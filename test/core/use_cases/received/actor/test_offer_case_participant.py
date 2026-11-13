@@ -1996,7 +1996,11 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason == f"case '{CASE_ID}' has no CASE_MANAGER"
+        # The sender guard refuses it: with no CASE_MANAGER on the roster the
+        # Offer's sender has no standing (CM-02-014, #6394).
+        assert f"case '{CASE_ID}' names no CASE_MANAGER" in (
+            result.reason or ""
+        )
 
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("HP-01-039")

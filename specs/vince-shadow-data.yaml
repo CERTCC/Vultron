@@ -1,10 +1,11 @@
 id: VSD
-title: VINCE Shadow Data Handling
+title: VINCE Data Handling in the Case Shadow
 description: >-
-  Rules for data read from a VINCE instance by the VINCE shadow: what logs may
-  carry, how the API credential is read, and the only ways
-  it may enter the repository or a publication. Live production readers and
-  retention are not yet decided (#6349).
+  Rules for data read from a VINCE instance by the case shadow's VINCE case
+  reader: what logs may carry, how the API credential is read, and the only ways
+  it may enter the repository or a publication. Readers and retention add no
+  requirement: each VINCE user runs the shadow with their own credential, and
+  nothing is kept after a request (ADR-0189).
 scope:
 - prototype
 - production

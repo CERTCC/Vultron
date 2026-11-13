@@ -22,7 +22,9 @@ effects, yet it still arrived, so the receiver keeps it (CLP-10-018) and
 refuses it inside the one tree it runs for the delivery (CLP-10-005,
 ADR-0135).
 
-:class:`ActivityIncompleteNode` is that refusal.  A tree factory that finds
+:class:`ActivityIncompleteNode` is that refusal, and
+:class:`ActivityUnsupportedNode` the same refusal for a known message type
+this implementation does not support.  A tree factory that finds
 the activity incomplete composes it as the tree's only precondition guard,
 through
 :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`,
@@ -36,7 +38,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.node_logger import node_logger
 
-__all__ = ["ActivityIncompleteNode"]
+__all__ = ["ActivityIncompleteNode", "ActivityUnsupportedNode"]
 
 
 class ActivityIncompleteNode(py_trees.behaviour.Behaviour):
@@ -58,3 +60,15 @@ class ActivityIncompleteNode(py_trees.behaviour.Behaviour):
         self.feedback_message = self.reason
         self.logger.warning("%s: %s — refusing", self.name, self.reason)
         return Status.FAILURE
+
+
+class ActivityUnsupportedNode(ActivityIncompleteNode):
+    """Guard: refuse a received activity whose type has no supported meaning.
+
+    An :class:`ActivityIncompleteNode` whose missing piece is the meaning
+    itself: the message type is known (its pattern matches and its
+    vocabulary parses), but this implementation defines nothing it may do,
+    so every receiver refuses it, the CASE_MANAGER included, with *reason*.
+    It is read the same way: the reason is the whole refusal, and intake
+    has archived the activity (CLP-10-018).
+    """

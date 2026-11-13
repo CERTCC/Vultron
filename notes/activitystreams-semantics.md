@@ -70,7 +70,8 @@ The changes these rules imply for today's code are tracked in
 - **An extension type carries the core type it overlaps** (AS2 Core's example is
   `"type": ["Resign", "Leave"]`), and every Vultron property gets a JSON-LD term. A
   generic AS2 reader then still understands the message, and a JSON-LD processor
-  keeps the property (AS2 Core § Extensibility).
+  keeps the property (AS2 Core § Extensibility). Where each declaration lives:
+  [vocabulary-registry](vocabulary-registry.md) § 4a.
 - **A verb describes what was done.** If the sentence would be false, such as `Move`
   for a case that stays where it is, pick another verb.
 - **`origin` is where something comes from or leaves; `target` is where it goes.**

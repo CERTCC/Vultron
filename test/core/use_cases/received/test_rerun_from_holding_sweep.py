@@ -69,6 +69,7 @@ from vultron.wire.as2.parser import parse_activity
 from ._ledger_network import BYSTANDER, MANAGER, LedgerNetwork
 from .rerun_sweep import (
     APPLIED,
+    APPLY_UNREACHABLE,
     NO_TREE,
     REFUSAL_UNREACHABLE,
     REFUSED,
@@ -87,7 +88,7 @@ def _subjects() -> list[MessageSemantics]:
             no longer routed.
     """
     routed = set(use_case_map())
-    covered = set(APPLIED) | set(NO_TREE)
+    covered = set(APPLIED) | set(NO_TREE) | set(APPLY_UNREACHABLE)
     missing = sorted(s.value for s in routed - covered)
     stale = sorted(
         s.value
@@ -96,13 +97,16 @@ def _subjects() -> list[MessageSemantics]:
     both = sorted(
         s.value
         for s in (set(APPLIED) & set(NO_TREE))
+        | (set(APPLIED) & set(APPLY_UNREACHABLE))
         | (set(REFUSED) & set(REFUSAL_UNREACHABLE))
+        | (set(APPLY_UNREACHABLE) - set(REFUSED))
     )
     if missing or stale or both:
         raise RuntimeError(
             "re-run sweep subjects do not match use_case_map():"
             f" no builder for {missing}; builders for unrouted {stale};"
-            f" two declarations (a builder and a no-tree reason, or a"
+            f" two declarations (a builder and a no-tree or apply-unreachable"
+            " reason, an apply-unreachable type with no refusal builder, or a"
             f" refusal builder and an unreachable reason) for {both}"
             " (test/core/use_cases/received/rerun_sweep)"
         )

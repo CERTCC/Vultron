@@ -44,7 +44,6 @@ def test_demo(demo_env, demo_fn, caplog):
     For the notes workflow, verifies:
     - Case initialized with reporter participant
     - Note created and added to case
-    - Note removed from case
 
     For the status workflow, verifies:
     - Case initialized with reporter participant

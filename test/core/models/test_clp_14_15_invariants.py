@@ -249,6 +249,20 @@ def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
     assert ledger_tail_position(CASE_ID, dl).log_index == -1
 
 
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CLP-14-012: a ledger entry still names its case in case_id. "
+    "Tracked by #6411.",
+)
+@pytest.mark.spec("CLP-14-012")
+def test_clp_14_012_an_entry_names_its_case_in_context():
+    """The case a ledger entry belongs to is its AS2 ``context`` (ADR-0194)."""
+    fields = CaseLedgerEntry.model_fields
+    assert "case_id" not in fields
+    assert fields["context"].is_required()
+
+
 @pytest.mark.spec("CLP-14-005")
 def test_clp_14_005_log_index_unique_by_construction():
     """CaseLedger.append() assigns unique log_index values."""

@@ -69,7 +69,12 @@ ignores:
   # plan/history/ entries are write-once records (HM-01-005). --fix rewrote
   # entries whose body lines started with an issue reference (#NNN), which
   # markdownlint reads as an ATX heading. Excluding here stops every
-  # markdownlint run (with or without --fix) from touching those files.
-  # mdlint.sh also adds "#plan/history/**" as a belt-and-suspenders guard.
-  # See #2952.
-  - "plan/history/**"
+  # markdownlint run (with or without --fix) from touching those files. The
+  # leading **/ also covers a plan/history/ inside a nested checkout.
+  # mdlint.sh also adds "#**/plan/history/**" as a belt-and-suspenders guard.
+  # See #2952, #6232.
+  - "**/plan/history/**"
+  # Agent worktrees (git-ignored) are other sessions' checkouts; no run may
+  # lint or --fix them (#6232). The leading **/ also matches a path given
+  # absolutely, which a root-anchored pattern misses.
+  - "**/.claude/worktrees/**"

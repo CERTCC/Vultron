@@ -78,8 +78,12 @@ def create_receive_offer_case_participant_tree(
         # RSH-08-003).
         paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
         sender_rule=sender_rule,
+        # A replica acts on the CASE_MANAGER's word alone, so a case whose
+        # roster names no CASE_MANAGER leaves the sender no standing there:
+        # the sender guard refuses it rather than passing it through as the
+        # bootstrap window (CM-02-014, CM-24-008, PCR-03-001).
         sender_context=SenderCheckContext(
-            sender_id=sender_id, case_id=case_id
+            sender_id=sender_id, case_id=case_id, case_manager_required=True
         ),
         precondition_guards=[],
     )

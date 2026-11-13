@@ -47,7 +47,10 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
-from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReplicaRefusalNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -293,6 +296,7 @@ def reject_invite_to_embargo_tree(
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode         # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
+        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
@@ -347,6 +351,17 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
+            # At a participant the Reject records nothing in the case: the
+            # handler closes the participant's pending ask from the doors'
+            # answer alone (EP-09-019), and the tree states the replica's
+            # verdict itself, a refusal as the not-CASE_MANAGER it is
+            # (HP-01-005, BT-17-001).  It runs first, because the embargo
+            # guards below are the CASE_MANAGER's questions: at the
+            # proposer's replica the proposal is no open register entry, so
+            # IsAnswerableEmbargoNode would refuse it for that instead.
+            OnPaths.off_case_manager(
+                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
+            ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-014).  Only the

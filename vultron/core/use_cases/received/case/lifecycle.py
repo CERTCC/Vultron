@@ -31,9 +31,6 @@ from vultron.core.models.events.case import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.receiving_actor import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -59,9 +56,9 @@ class AddReportToCaseReceivedUseCase:
     already lists is ``SKIPPED``.
     """
 
-    # The Case Owner asks the CASE_MANAGER; a participant takes the report
-    # from the CASE_MANAGER alone (CM-30-005, PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    # The Case Owner asks the CASE_MANAGER alone (CM-30-005, PCR-08-001); a
+    # participant takes the report from the ledger (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -98,8 +95,10 @@ class AddReportToCaseReceivedUseCase:
             sender_rule=self.sender_entitlement,
         )
         # A report the case already lists fails the reference guard as a
-        # repeat, which the runner reports SKIPPED (HP-01-014).
-        verdict = run_received_tree(
+        # repeat, which the runner reports SKIPPED (HP-01-014).  Only the
+        # CASE_MANAGER attaches it: the path stage refuses any other
+        # receiver (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -108,15 +107,15 @@ class AddReportToCaseReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class CloseCaseReceivedUseCase:
     """Close the case on an owner Leave, or close one participant's handling.
 
     The sender must hold a participant record on the case whose closure is
-    not recorded, or be its Case Owner; a participant replica takes the
-    closure from the CASE_MANAGER alone (PCR-03-001).  Any other sender is
+    not recorded, or be its Case Owner.  The Leave goes to the CASE_MANAGER
+    alone, so the path stage refuses it at any other receiver; a replica
+    takes the closure from the ledger (PCR-03-001).  Any other sender is
     ``REFUSED`` with nothing committed or sent (HP-01-006).  A Leave from a
     sender whose closure the case already records is a repeat of a closing
     act: it is ``SKIPPED``, whatever its activity id, with nothing committed
@@ -132,12 +131,12 @@ class CloseCaseReceivedUseCase:
     (ADR-0131).
     """
 
-    # A participant leaves through the CASE_MANAGER; a replica takes the
-    # closure from the CASE_MANAGER alone (CM-23-001, PCR-03-001).  The Case
+    # A participant leaves through the CASE_MANAGER alone; a replica takes
+    # the closure from the ledger (CM-23-001, PCR-03-001).  The Case
     # Owner is named too: once its own closure is recorded it is no longer
     # an open participant, but its Leave must still close a case that is
     # not fully closed (CM-23-002).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.CASE_OWNER, SenderEntitlementKind.PARTICIPANT
     )
 
@@ -195,7 +194,9 @@ class CloseCaseReceivedUseCase:
             post_close_reply=self._actor_config.post_close_reply,
             sender_rule=self.sender_entitlement,
         )
-        verdict = run_received_tree(
+        # The whole close-or-decline step is the CASE_MANAGER's: the path
+        # stage refuses any other receiver (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -205,9 +206,6 @@ class CloseCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
             reader=_read_close(case_id),
         )
-        # The whole close-or-decline step is the CASE_MANAGER's; a replica
-        # the sender guard admitted did nothing past the gate (HP-01-005).
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 def _read_close(case_id: str) -> OutcomeReader:

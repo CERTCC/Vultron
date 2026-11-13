@@ -62,9 +62,8 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
-- **Who may send:** the CASE_MANAGER admits `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
-  Any other sender is refused, and the note stays in the case.
-  A participant replica accepts it only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
+- **Not supported:** every receiver refuses `Remove(Note)[target=VulnerabilityCase]`, the CASE_MANAGER included, whoever sent it, and the note stays in the case (CM-30-003).
+  The case ledger is append-only, and the protocol does not yet define what removing ledgered content means.
 
 ## Formal messages with no dedicated wire activity
 

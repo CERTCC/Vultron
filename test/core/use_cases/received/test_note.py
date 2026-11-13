@@ -33,6 +33,14 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+    ActivityUnsupportedNode,
+)
+from vultron.core.behaviors.note.remove_note_received_tree import (
+    REMOVE_NOTE_UNSUPPORTED,
+    create_remove_note_from_case_received_tree,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -54,6 +62,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _STORE_ACTOR = "https://example.org/actors/cm-store"
 _OWNER = "https://example.org/actors/case-owner"
+_OTHER_MANAGER = "https://example.org/actors/the-manager"
 
 
 class TestNoteUseCases:
@@ -663,9 +672,9 @@ class TestNoteUseCases:
         nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
-        fan-out (SYNC-02-001, SYNC-02-003). The BT CheckIsCaseManagerNode guard
-        keeps the non-manager from attaching or committing, and the handler
-        reports the misaddressed note as a refusal (#3752).
+        fan-out (SYNC-02-001, SYNC-02-003). The tree declares the
+        CASE_MANAGER path alone, so its path stage refuses the misaddressed
+        note before anything is attached or committed (HP-01-039, #3752).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -719,24 +728,7 @@ class TestNoteUseCases:
         # HP-01-005: a note addressed to the wrong party is refused, not
         # reported as a processed no-op.
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
-
-    def _managed_case_with_note(
-        self, dl: SqliteDataLayer, case_id: str, note: as_Note, owner_id: str
-    ) -> as_VulnerabilityCase:
-        """A case the store's actor manages, owned by *owner_id*, holding *note*."""
-        case = make(
-            as_VulnerabilityCase,
-            id_=case_id,
-            name="Remove Note Case",
-            attributed_to=owner_id,
-            notes=[note.id_],
-        )
-        seed_case_manager_participant(dl, case, _STORE_ACTOR)
-        seed_case_owner_participant(dl, case, owner_id)
-        dl.create(case)
-        dl.create(note)
-        return case
+        assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"
 
     def _remove(self, dl, make_payload, sender, note, case):
         event = make_payload(
@@ -758,188 +750,147 @@ class TestNoteUseCases:
             )
         )
 
+    @pytest.mark.spec("CM-30-003")
     @pytest.mark.spec("CM-30-001")
-    @pytest.mark.spec("CLP-10-005")
-    def test_remove_note_from_case_removes_note(
-        self, monkeypatch, make_payload
+    @pytest.mark.parametrize("sender", ["author", "owner"])
+    def test_every_receiver_refuses_remove_note(
+        self, make_payload, sender: str
     ):
-        """The Case Owner's Remove(Note) detaches the note and commits an entry."""
+        """Removing ledgered content is not supported (CM-30-003, #6430).
+
+        The CASE_MANAGER refuses a Remove(Note) even from the note's author
+        or the Case Owner, the senders CM-30-001 names: the note stays
+        attached and no entry is committed.
+        """
+        dl, note, case, author = self._removal_world(at_manager=True)
+        sender_id = {"author": author, "owner": _OWNER}[sender]
+
+        result = self._remove(dl, make_payload, sender_id, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == REMOVE_NOTE_UNSUPPORTED
+        self._assert_note_kept(dl, note, case)
+
+    @pytest.mark.spec("CM-30-003")
+    @pytest.mark.spec("CM-30-004")
+    def test_remove_note_from_an_unentitled_sender_is_refused(
+        self, make_payload
+    ):
+        """A sender CM-30-001 does not name is refused by the sender guard."""
+        dl, note, case, _ = self._removal_world(at_manager=True)
+
+        result = self._remove(
+            dl, make_payload, "https://example.org/actors/stranger", note, case
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        # The sender guard, not the unsupported-type guard, refuses it: the
+        # sender is judged first (CM-30-001, SYNC-21-008).
+        assert result.reason != REMOVE_NOTE_UNSUPPORTED
+        assert "(CASE_OWNER, AUTHOR)" in (result.reason or "")
+        assert "HP-01-006" in (result.reason or "")
+        self._assert_note_kept(dl, note, case)
+
+    @pytest.mark.spec("CM-30-003")
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize("sender", ["author", "manager"])
+    def test_a_replica_refuses_remove_note_at_its_path_stage(
+        self, make_payload, sender: str
+    ):
+        """A replica is not addressed, so its path stage refuses the Remove,
+        the CASE_MANAGER's own included (HP-01-005, PCR-08-001)."""
+        dl, note, case, author = self._removal_world(at_manager=False)
+        sender_id = {"author": author, "manager": _OTHER_MANAGER}[sender]
+
+        result = self._remove(dl, make_payload, sender_id, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"
+        self._assert_note_kept(dl, note, case)
+
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.parametrize(
+        ("note_id", "case_id"),
+        [(None, "https://example.org/cases/c"), ("urn:note", None)],
+        ids=["no-note", "no-case"],
+    )
+    def test_a_remove_note_naming_no_note_or_case_is_refused_as_incomplete(
+        self, note_id, case_id
+    ):
+        """The tree, not execute(), refuses a Remove with no note or no case:
+        it archives the activity and refuses it as incomplete (CLP-10-018)."""
+        tree = create_remove_note_from_case_received_tree(
+            note_id=note_id,
+            case_id=case_id,
+            sender_id=_OWNER,
+            sender_rule=RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
+        )
+        guards = [
+            n for n in tree.iterate() if isinstance(n, ActivityIncompleteNode)
+        ]
+        assert len(guards) == 1
+        assert not isinstance(guards[0], ActivityUnsupportedNode)
+        assert "missing its note id or case id" in guards[0].reason
+
+    @pytest.mark.spec("HP-01-039")
+    def test_remove_note_naming_a_case_the_receiver_does_not_hold(
+        self, make_payload
+    ):
+        """No replica of the case is the no-case path, which the tree omits,
+        so the path stage refuses it and says what the receiver is."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
         note = make(
-            as_Note, id_="https://example.org/notes/note5", content="A note"
+            as_Note, id_="https://example.org/notes/note_unheld", content="x"
         )
-        case = self._managed_case_with_note(
-            dl, "https://example.org/cases/case_n3", note, _OWNER
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/no-such-case",
+            name="Unheld",
+            attributed_to=_OWNER,
         )
 
         result = self._remove(dl, make_payload, _OWNER, note, case)
 
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert note.id_ not in case.notes
-        assert result.disposition == HandlerDisposition.APPLIED
-        entries = [
-            cast(CaseLedgerEntry, o)
-            for o in dl.list_objects("CaseLedgerEntry")
-            if isinstance(o, CaseLedgerEntry) and o.case_id == case.id_
-        ]
-        assert [e.semantic_type for e in entries] == ["remove_note_from_case"]
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == f"holds no replica of case '{case.id_}'"
+        assert dl.list_objects("CaseLedgerEntry") == []
 
-    @pytest.mark.spec("CM-30-001")
-    def test_remove_note_by_its_active_author_is_applied(self, make_payload):
-        """The note's author, an active participant, may remove it."""
+    def _removal_world(self, *, at_manager: bool):
+        """A case holding the author's note, at its CASE_MANAGER or a replica."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
         author = "https://example.org/actors/note-author"
         note = make(
             as_Note,
-            id_="https://example.org/notes/note_author",
+            id_="https://example.org/notes/note_unsupported",
             content="A note",
             attributed_to=author,
         )
-        case = self._managed_case_with_note(
-            dl, "https://example.org/cases/case_n3_author", note, _OWNER
-        )
-        seed_case_participant(dl, case, author)
-        dl.save(case)
-
-        result = self._remove(dl, make_payload, author, note, case)
-
-        assert result.disposition == HandlerDisposition.APPLIED
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert note.id_ not in case.notes
-
-    @pytest.mark.spec("CM-30-001")
-    @pytest.mark.spec("CM-30-004")
-    def test_remove_note_by_author_who_left_is_refused(self, make_payload):
-        """An author who is no longer a participant has no standing."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        author = "https://example.org/actors/departed-author"
-        note = make(
-            as_Note,
-            id_="https://example.org/notes/note_departed",
-            content="A note",
-            attributed_to=author,
-        )
-        case = self._managed_case_with_note(
-            dl, "https://example.org/cases/case_n3_departed", note, _OWNER
-        )
-
-        result = self._remove(dl, make_payload, author, note, case)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert note.id_ in case.notes
-        assert dl.list_objects("CaseLedgerEntry") == []
-
-    @pytest.mark.spec("HP-01-005")
-    def test_remove_note_at_non_manager_is_refused(self, make_payload):
-        """A replica neither detaches nor commits; the CASE_MANAGER sent it."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        manager = "https://example.org/actors/the-manager"
-        note = make(
-            as_Note, id_="https://example.org/notes/note_rep", content="x"
-        )
         case = make(
             as_VulnerabilityCase,
-            id_="https://example.org/cases/case_n3_replica",
-            name="Replica",
-            attributed_to=_OWNER,
-            notes=[note.id_],
-        )
-        seed_case_manager_participant(dl, case, manager)
-        dl.create(case)
-        dl.create(note)
-
-        result = self._remove(dl, make_payload, manager, note, case)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert note.id_ in case.notes
-        assert dl.list_objects("CaseLedgerEntry") == []
-
-    @pytest.mark.spec("CM-30-003")
-    def test_remove_note_at_replica_from_non_manager_is_refused(
-        self, make_payload
-    ):
-        """At a replica only the CASE_MANAGER is an entitled sender."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        note = make(
-            as_Note, id_="https://example.org/notes/note_rep2", content="x"
-        )
-        case = make(
-            as_VulnerabilityCase,
-            id_="https://example.org/cases/case_n3_replica2",
-            name="Replica",
+            id_="https://example.org/cases/case_remove_unsupported",
+            name="Remove Note Case",
             attributed_to=_OWNER,
             notes=[note.id_],
         )
         seed_case_manager_participant(
-            dl, case, "https://example.org/actors/the-manager"
+            dl, case, _STORE_ACTOR if at_manager else _OTHER_MANAGER
         )
+        seed_case_owner_participant(dl, case, _OWNER)
+        seed_case_participant(dl, case, author)
         dl.create(case)
         dl.create(note)
+        return dl, note, case, author
 
-        result = self._remove(dl, make_payload, _OWNER, note, case)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "CASE_MANAGER" in result.reason
-
-    def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
-        """A note the case does not hold is SKIPPED and commits nothing."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
-        note = make(
-            as_Note, id_="https://example.org/notes/note6", content="A note"
-        )
-        case = self._managed_case_with_note(
-            dl, "https://example.org/cases/case_n4", note, _OWNER
-        )
-        case.notes.clear()
-        dl.save(case)
-
-        result = self._remove(dl, make_payload, _OWNER, note, case)
-
-        # HP-01-014: an idempotent re-removal is a no-op.
-        assert result.disposition == HandlerDisposition.SKIPPED
+    @staticmethod
+    def _assert_note_kept(dl, note, case) -> None:
+        stored = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert note.id_ in stored.notes
         assert dl.list_objects("CaseLedgerEntry") == []
-
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.spec("HP-01-039")
-    def test_remove_note_from_unknown_case_is_refused(self, make_payload):
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        note = make(
-            as_Note, id_="https://example.org/notes/note7", content="x"
-        )
-        activity = make(
-            as_Remove,
-            actor="https://example.org/users/finder",
-            object_=note,
-            target="https://example.org/cases/no-such-case",
-            to=[dl.actor_id],
-        )
-        event = make_payload(activity, at=dl)
-
-        result = run_in_act(
-            RemoveNoteFromCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-
-        # The case is unheld, so the path stage refuses the no-case path
-        # (HP-01-039); the handler reads no store before its tree.
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason == (
-            "holds no replica of case 'https://example.org/cases/no-such-case'"
-        )
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
         "use_case",
-        [AddNoteToCaseReceivedUseCase, RemoveNoteFromCaseReceivedUseCase],
+        [AddNoteToCaseReceivedUseCase],
     )
     def test_note_membership_change_without_ids_is_refused(self, use_case):
         dl = SqliteDataLayer(

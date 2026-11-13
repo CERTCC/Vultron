@@ -468,7 +468,8 @@ See [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md) for t
 
 This demo shows two workflows for updating a case record:
 
-1. **Notes** — the vendor creates a `Note`, adds it to the case with `Add(Note)`, and then removes it again with `Remove(Note)`.
+1. **Notes** — the vendor creates a `Note` and adds it to the case with `Add(Note)`.
+   The demo does not remove it: this implementation refuses every `Remove(Note)` (CM-30-003).
 2. **Status** — the vendor reports public awareness in a new `ParticipantStatus`.
    It adds the status to its own participant record with `Add(ParticipantStatus)`.
    The demo then checks that the case status adopted it.

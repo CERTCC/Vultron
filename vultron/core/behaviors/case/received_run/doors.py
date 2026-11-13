@@ -39,6 +39,7 @@ from vultron.core.behaviors.case.nodes.post_close import (
 )
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
+    ReplicaRefusalNode,
 )
 from vultron.core.behaviors.case.nodes.seen_before import (
     ActivityNotSeenBeforeNode,
@@ -68,8 +69,15 @@ def path_refusal(
     (HP-01-039); :func:`door_refusal` asks this after the addressee check
     and the seen-before door, in the stage order the factory places them in
     (CLP-10-010).
+
+    A :class:`~vultron.core.behaviors.case.nodes.received_path.ReplicaRefusalNode`
+    is the same refusal, stated past the guards by a tree that declares the
+    replica path, so its reason is read whole the same way.
     """
-    return guard_refusal(tree, ReceivedPathNode)
+    for node_type in (ReceivedPathNode, ReplicaRefusalNode):
+        if (refusal := guard_refusal(tree, node_type)) is not None:
+            return refusal
+    return None
 
 
 def guard_refusal(

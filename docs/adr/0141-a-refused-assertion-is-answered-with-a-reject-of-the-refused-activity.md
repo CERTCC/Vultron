@@ -10,6 +10,7 @@ consulted: >-
   CLP-02-005, CLP-05-001, CLP-10-022; specs/message-semantics-mapping.yaml
   MSM-05-001
 informed: []
+partially_superseded_by: [0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md]
 stakeholder_type: [project-contributor]
 ---
 

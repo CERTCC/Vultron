@@ -651,8 +651,9 @@ class TestOfferActorToCaseAtNonCaseManager:
         )
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "CASE_MANAGER" in result.reason
+        assert (
+            result.reason == f"not the CASE_MANAGER of case '{self._CASE_ID}'"
+        )
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must not forward an"
             " Offer(CaseParticipant) to the Case Owner"

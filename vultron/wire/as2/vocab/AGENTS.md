@@ -29,15 +29,24 @@
    `WIRE_TYPE_MAP` by the emitted wire `type` value (`Person`, VM-01-008). Both
    are filled by `as_Base.__init_subclass__` — `VOCABULARY` from `cls.__name__`,
    `WIRE_TYPE_MAP` from `wire_type_value()` — so do not hand-assign a
-   `WIRE_TYPE_MAP` key. The sole exception is `as_Actor`, which declares no
-   `type_` of its own (so auto-registration skips it) yet is stored concretely
-   as `type_="Actor"`. If a new class shares an existing class's `type` value,
+   `WIRE_TYPE_MAP` key for a wire class. Two kinds of class are assigned by
+   hand: `as_Actor`, which declares no `type_` of its own (so auto-registration
+   skips it) yet is stored concretely as `type_="Actor"`, and a core domain
+   class, which is not an `as_Base` subclass, so its wire module registers it
+   in one line (`WIRE_TYPE_MAP["VulnerabilityReport"] = VulnerabilityReport`,
+   ARCH-25-003). If a new class shares an existing class's `type` value,
    declare `_wire_type_alias: ClassVar[bool] = True` on it rather than letting
    import order decide who owns the key; it is still listed in `VOCABULARY`
    under its class name, but no wire `type` value resolves to it. The only
    unflagged sharers are the five `as_Vultron*` actor shadows, enumerated in the
    ratchet `test/architecture/test_vocab_registry_keys.py`, which fails on any
    other collision.
+
+4. A new Vultron type, a subtype of an AS2 type, a new Vultron property, or the
+   retirement of one is declared by the rule in
+   [`notes/vocabulary-registry.md`](../../../../notes/vocabulary-registry.md)
+   § 4a, which names the class attribute, the generated `docs/ns/` entry and the
+   hand-written `docs/ns/index.md` row for each case.
 
 ## The Wire Branch Inherits Nothing From Core
 

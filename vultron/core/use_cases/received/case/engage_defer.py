@@ -14,9 +14,6 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -32,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 class EngageCaseReceivedUseCase:
-    # The sender declares its own RM state; only a participant of the case may
-    # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The sender declares its own RM state to the CASE_MANAGER; only a
+    # participant of the case may (HP-01-006, RSH-06-006, PCR-08-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -84,8 +81,9 @@ class EngageCaseReceivedUseCase:
         # announce: the tree skips the CASE_MANAGER's effects whole, and its
         # repeat guard says the run changed nothing, so the runner reports
         # SKIPPED, not APPLIED (ID-05-003, #5006).  Only the CASE_MANAGER
-        # records the move (HP-01-005).
-        verdict = run_received_tree(
+        # records the move: the path stage refuses any other receiver
+        # (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -95,13 +93,12 @@ class EngageCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
             case_id=case_id,
         )
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class DeferCaseReceivedUseCase:
-    # The sender declares its own RM state; only a participant of the case may
-    # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The sender declares its own RM state to the CASE_MANAGER; only a
+    # participant of the case may (HP-01-006, RSH-06-006, PCR-08-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -142,7 +139,9 @@ class DeferCaseReceivedUseCase:
             actor_id=actor_id,
             sender_rule=self.sender_entitlement,
         )
-        verdict = run_received_tree(
+        # Only the CASE_MANAGER records the move: the path stage refuses any
+        # other receiver (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -152,5 +151,3 @@ class DeferCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
             case_id=case_id,
         )
-        # Only the CASE_MANAGER records the move (HP-01-005).
-        return case_manager_verdict(tree, verdict, self._dl, case_id)

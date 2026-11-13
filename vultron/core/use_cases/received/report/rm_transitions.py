@@ -30,9 +30,6 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -78,9 +75,9 @@ def _case_id_for_report(
 
 
 class ValidateReportReceivedUseCase:
-    # The sender declares its own RM state; only a participant of the case may
-    # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The sender declares its own RM state to the CASE_MANAGER; only a
+    # participant of the case may (HP-01-006, RSH-06-006, PCR-08-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -126,7 +123,7 @@ class ValidateReportReceivedUseCase:
         if case_id is None:
             logger.debug(
                 "ValidateReportReceivedUseCase: no case found for report '%s'"
-                " — the sender guard will refuse the activity",
+                " — the path stage will refuse the activity",
                 report_id,
             )
 
@@ -137,7 +134,9 @@ class ValidateReportReceivedUseCase:
             case_id=case_id,
             sender_rule=self.sender_entitlement,
         )
-        verdict = run_received_tree(
+        # Only the CASE_MANAGER records the move: the path stage refuses any
+        # other receiver (HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -147,16 +146,12 @@ class ValidateReportReceivedUseCase:
             wire_render_port=self._wire_render_port,
             reader=_already_valid_reader(report_id),
         )
-        if case_id is not None:
-            # Only the CASE_MANAGER records the move (HP-01-005).
-            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        return verdict
 
 
 class InvalidateReportReceivedUseCase:
-    # The sender declares its own RM state; only a participant of the case may
-    # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The sender declares its own RM state to the CASE_MANAGER; only a
+    # participant of the case may (HP-01-006, RSH-06-006, PCR-08-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -190,8 +185,10 @@ class InvalidateReportReceivedUseCase:
             sender_rule=self.sender_entitlement,
         )
         # A restated declaration changes nothing: its repeat guard says so,
-        # and the runner reports SKIPPED (RSH-08-002).
-        verdict = run_received_tree(
+        # and the runner reports SKIPPED (RSH-08-002).  Only the CASE_MANAGER
+        # records the move: the path stage refuses any other receiver
+        # (HP-01-005), and with no case the tree refuses an unknown case.
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -200,11 +197,6 @@ class InvalidateReportReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        if case_id is not None:
-            # Only the CASE_MANAGER records the move (HP-01-005).  With no
-            # case the sender guard has already refused.
-            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        return verdict
 
 
 class AckReportReceivedUseCase:

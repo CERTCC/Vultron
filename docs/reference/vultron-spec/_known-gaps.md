@@ -295,6 +295,15 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "EP-01-002",
+))
+```
+
 ## Requirements a test shows `main` meets only in part
 
 Each requirement below has tests that pass and at least one test that is held by a strict expected failure (`xfail`) or a skip.
@@ -343,6 +352,35 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "MV-12-002",
+))
+```
+
+### Tracked by [#6410](https://github.com/CERTCC/Vultron/issues/6410)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "EP-01-003",
+    "EP-01-005",
+))
+```
+
+### Tracked by [#6411](https://github.com/CERTCC/Vultron/issues/6411)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CLP-14-012",
+))
+```
+
+### Tracked by [#6413](https://github.com/CERTCC/Vultron/issues/6413)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-05-018",
+    "CSAF-03-008",
 ))
 ```
 
@@ -617,7 +655,6 @@ print(requirement_callout(
     "EMB-12-003",
     "EMB-13-002",
     "EMB-19-002",
-    "EP-01-002",
     "EP-01-006",
     "EP-01-007",
     "EP-03-001",

@@ -55,9 +55,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases.received._bt_verdict import (
-    case_manager_verdict,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -87,17 +84,17 @@ class _LedgerReplayRequestUseCase:
         self,
         tree: py_trees.behaviour.Behaviour,
         request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
-        case_id: str,
         *,
         label: str,
         reader: OutcomeReader | None = None,
     ) -> HandlerResult:
         """Run *tree* once for *request* and read its verdict.
 
-        Only the CASE_MANAGER answers a replay request; a replica that
-        receives one was misaddressed (SYNC-03-005, HP-01-005).
+        Only the CASE_MANAGER answers a replay request: the tree declares
+        the manager path alone, so the path stage refuses a replica that
+        receives one, which was misaddressed (SYNC-03-005, HP-01-005).
         """
-        verdict = run_received_tree(
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -107,7 +104,6 @@ class _LedgerReplayRequestUseCase:
             wire_render_port=self._wire_render_port,
             reader=reader,
         )
-        return case_manager_verdict(tree, verdict, self._dl, case_id)
 
 
 class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
@@ -134,7 +130,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     CM-23-018, CM-23-020, CM-23-048, CM-23-055.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.LEDGER_PEER
     )
 
@@ -176,9 +172,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         tree = create_reject_log_entry_tree(
             case_id, sender_rule=self.sender_entitlement
         )
-        return self._run(
-            tree, request, case_id, label="RejectLogEntryReceivedBT"
-        )
+        return self._run(tree, request, label="RejectLogEntryReceivedBT")
 
 
 class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
@@ -207,7 +201,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     SYNC-15-012, SYNC-15-013, SYNC-20-001.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.at_case_manager_only(
         SenderEntitlementKind.PARTICIPANT
     )
 
@@ -254,7 +248,6 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         return self._run(
             tree,
             request,
-            case_id,
             label="ReadLogEntryReceivedBT",
             reader=_read_reading,
         )

@@ -30,7 +30,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases.received._bt_verdict import case_manager_verdict
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,10 @@ class _EmbargoEventReceivedUseCase:
                 f"{label} is missing its embargo id or case id"
             )
         # The tree's door guards refuse a closed case, an unaddressed copy
-        # (HP-01-005, ADR-0118) and a sender without standing first.
+        # (HP-01-005, ADR-0118) and a sender without standing first.  Only
+        # the CASE_MANAGER applies: each tree declares the manager path
+        # alone, so its path stage refuses a replica, which learns the
+        # change from the ledger broadcast (BT-17-001, HP-01-039).
         tree = self._build_tree(case_id, embargo_id, request.actor_id)
         verdict = run_received_tree(
             tree,
@@ -102,9 +104,6 @@ class _EmbargoEventReceivedUseCase:
             # (EP-09-007, RSH-08-004); without the port nothing replays it.
             sync_port=self._sync_port,
         )
-        # Only the CASE_MANAGER applies; a replica learns it from the
-        # ledger broadcast (BT-17-001, HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.APPLIED:
             message = self._applied_message(embargo_id, case_id)
             if message is not None:

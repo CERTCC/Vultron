@@ -305,3 +305,47 @@ class TestParseDuration:
     def test_unsupported_type_raises(self):
         with pytest.raises(TypeError, match="Unsupported"):
             parse_duration(42)
+
+
+_RENAMED = "Tracked by #6410."
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=f"EP-01-002: the policy still names its actor in actor_id and "
+    f"carries an inbox. {_RENAMED}",
+)
+@pytest.mark.spec("EP-01-002")
+def test_a_policy_requires_attributed_to_and_carries_no_inbox() -> None:
+    fields = EmbargoPolicy.model_fields
+    assert fields["attributed_to"].is_required()
+    assert fields["preferred_duration"].is_required()
+    assert not {"actor_id", "inbox"} & fields.keys()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=f"EP-01-003: the policy's free text is still `notes`. {_RENAMED}",
+)
+@pytest.mark.spec("EP-01-003")
+def test_a_policys_free_text_is_its_content() -> None:
+    fields = EmbargoPolicy.model_fields
+    assert "content" in fields
+    assert "notes" not in fields
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ValidationError,
+    reason=f"EP-01-005: a policy still requires actor_id and inbox. {_RENAMED}",
+)
+@pytest.mark.spec("EP-01-005")
+def test_a_policys_attributed_to_must_be_a_full_uri() -> None:
+    policy = make(
+        EmbargoPolicy, attributed_to=ACTOR_ID, preferred_duration=_P90D
+    )
+    assert policy.attributed_to == ACTOR_ID
+    with pytest.raises(ValidationError):
+        make(EmbargoPolicy, attributed_to="vendor", preferred_duration=_P90D)

@@ -49,11 +49,15 @@ You may still run `uv run pyright` by hand when you are chasing a type error myp
 
 ## Lint markdown separately
 
-Run:
+Pass the Markdown files you changed:
 
 ```bash
-./mdlint.sh
+./mdlint.sh notes/example.md docs/example.md
 ```
+
+With file arguments, `mdlint.sh` lints and fixes only those files.
+With no arguments, it lints every Markdown file in the checkout.
+Either way it skips every `plan/history/` entry, a write-once record (HM-01-005), and every agent worktree under `.claude/worktrees/`, another session's checkout.
 
 `ruff format` skips markdown by configuration.
 

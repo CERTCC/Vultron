@@ -231,10 +231,11 @@ def create_invalidate_report_received_tree(
     )
     return create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
-        # The participant declares RM.INVALID to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica archives its copy
-        # and takes the RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).  With no case at build time
+        # The participant declares RM.INVALID to the CASE_MANAGER alone,
+        # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
+        # participant replica takes the RM state from the ledger entry that
+        # follows (RSH-08-003), so the path stage refuses a copy there
+        # (HP-01-005, HP-01-038).  With no case at build time
         # the receiver holds none for the report, so it is on the no-case
         # path, whose empty side admits no sender; ``case_resolution``
         # refuses the delivery as about an unknown case before that side is
@@ -242,7 +243,7 @@ def create_invalidate_report_received_tree(
         # without its case being known, so the declaration is the one
         # HP-01-041 admits.
         paths=(
-            {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+            {ReceivedPath.CASE_MANAGER}
             if case_id is not None
             else {ReceivedPath.NO_CASE}
         ),

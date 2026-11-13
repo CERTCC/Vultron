@@ -240,8 +240,10 @@ Read the `exit:` line first — it is the verdict; the tail is only detail.
 
 ### 4. (Optional) Format markdown if you updated docs
 
+Pass the Markdown files you changed:
+
 ```bash
-./mdlint.sh
+./mdlint.sh docs/example.md
 ```
 
 ## Troubleshooting

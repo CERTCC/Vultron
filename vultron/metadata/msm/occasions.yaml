@@ -1176,7 +1176,10 @@ groups:
     semantics: remove_note_from_case
     shorthand: GI
     status: expansion
-    description: Removes the note from the case named by the target.
+    description: 'Asks to remove the note from the case named by the target. This implementation
+      does not support it: the case ledger is append-only and removing ledgered content has
+      no defined meaning yet, so every receiver refuses it and the note stays in the case
+      (CM-30-003).'
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note

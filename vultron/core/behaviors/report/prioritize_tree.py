@@ -216,11 +216,12 @@ def create_engage_case_tree(
         # A Join of a case this store does not hold is refused at the path
         # stage, naming the activity and the case (AKM-03-006).
         held_case=CaseNamedByReference.JOIN,
-        # The participant declares its RM move to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica archives its copy
-        # and takes the sender's RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares its RM move to the CASE_MANAGER alone,
+        # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
+        # participant replica takes the sender's RM state from the ledger
+        # entry that follows (RSH-08-003), so the path stage refuses a copy
+        # there (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         # The sender is checked against the participant records this store
         # already holds: an Engage goes to the CASE_MANAGER, which created
         # the sender's record when it added the sender, and a stranger's
@@ -278,11 +279,12 @@ def create_defer_case_tree(
         case_id=case_id,
         # The Ignore names its case as the Join does (AKM-03-006).
         held_case=CaseNamedByReference.IGNORE,
-        # The participant declares its RM move to the CASE_MANAGER, which
-        # adjudicates and commits it; a participant replica archives its copy
-        # and takes the sender's RM state from the ledger entry that follows
-        # (RSH-06-006, RSH-08-003, HP-01-038).
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
+        # The participant declares its RM move to the CASE_MANAGER alone,
+        # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
+        # participant replica takes the sender's RM state from the ledger
+        # entry that follows (RSH-08-003), so the path stage refuses a copy
+        # there (HP-01-005, HP-01-038, HP-01-039).
+        paths={ReceivedPath.CASE_MANAGER},
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[
