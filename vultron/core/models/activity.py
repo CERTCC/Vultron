@@ -234,11 +234,16 @@ def _own_type_first(value: Mapping[str, Any]) -> Mapping[str, Any]:
     received list was already narrowed at the parse edge.  Core holds one
     ``type``, so the list is read as the type the dump's class declared.
     """
-    narrowed: Mapping[str, Any] = value
-    for key in ("type", "type_"):
-        terms = type_terms(value.get(key))
-        if isinstance(value.get(key), list) and terms:
-            narrowed = {**narrowed, key: terms[0]}
+    listed = {
+        key: terms[0]
+        for key in ("type", "type_")
+        if isinstance(value.get(key), list)
+        and (terms := type_terms(value.get(key)))
+    }
+    if not listed:
+        return value
+    narrowed = dict(value)
+    narrowed.update(listed)
     return narrowed
 
 
