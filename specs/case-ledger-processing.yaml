@@ -1550,8 +1550,9 @@ groups:
       The obligation falls on whoever builds the activity. A received snapshot is the
       body as sent (CLP-07-011), so the CASE_MANAGER neither writes a `context` in nor
       rewrites one; the commit boundary refuses a `context` naming another case, and
-      the entry names its case on the envelope (its `context`), so a snapshot that names no
-      `context`, such as the Offer that opened the case, is still that case's entry.
+      the entry names its case on the envelope (its `context`), so a snapshot that
+      names no `context`, such as the Offer that opened the case, is still that case's
+      entry.
     verification: Integration tests in `test/demo/` confirm that `CaseLedgerEntry`
       objects created after report-to-case promotion carry the case URI (not the report
       URI) as the `payloadSnapshot.context` field for case-scoped entries such as
