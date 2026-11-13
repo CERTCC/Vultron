@@ -36,6 +36,7 @@ The CSAF 2.1 crosswalk maps concepts instead of clauses, because CSAF is a docum
     - [Concept Mapping](../csaf_crosswalk/concept_mapping.md) — Each Vultron concept with its counterpart in the Common Security Advisory Framework (CSAF) 2.1 draft, the granularity of the match, and the type of mapping in each direction.
     - [Coverage Differences](../csaf_crosswalk/coverage.md) — Concepts that Vultron has and the Common Security Advisory Framework (CSAF) 2.1 draft does not, and concepts that CSAF has and Vultron does not.
 - [SSVC Crosswalk](../ssvc_crosswalk.md) — A crosswalk of the Vultron Protocol against Stakeholder-Specific Vulnerability Categorization (SSVC).
+- [VINCE Field Mapping](../vince_crosswalk.md) — How each field the VINCE API serves maps onto a Vultron case ledger: its Vultron counterpart, the type of mapping, the time it takes, and what VINCE never exposes.
 <!-- markdownlint-enable MD007 -->
 
 <!-- END GENERATED SECTION CONTENTS -->

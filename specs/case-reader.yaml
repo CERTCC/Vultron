@@ -102,3 +102,178 @@ groups:
       A conformance test, run over every registered `CaseReader` adapter with a
       synthetic case, asserts that an entry translated from a vendor's status
       change names that vendor as its actor.
+- id: CRD-02
+  title: What a Case Reading Carries
+  specs:
+  - id: CRD-02-001
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    statement: >-
+      A `CaseReader` result MUST hold five parts: the ledger, the entry
+      citations, the inferences, the untranslated facts and the unobservable
+      facts.
+    rationale: >-
+      The ledger stays unmarked so the projection reads it as a native one. The
+      other parts let a reader tell a stated fact from an inferred one, and an
+      absent fact from one the source could never supply.
+    verification: >-
+      A conformance test, run over every registered `CaseReader` adapter and a
+      fake, asserts each result carries all five parts.
+  - id: CRD-02-002
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    statement: >-
+      Each inference MUST name its ledger entry, its mapping rule, and a caveat
+      stating what the source did not say.
+    rationale: >-
+      An analyst shown an inferred state can then check the rule against the
+      source record instead of trusting the state as stated.
+    verification: >-
+      A conformance test feeds every registered `CaseReader` adapter a synthetic
+      case that needs an inference and asserts the inference names an entry in
+      the ledger, a rule identifier the adapter's mapping defines, and a
+      non-empty caveat.
+  - id: CRD-02-003
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    statement: >-
+      Each untranslated fact MUST carry one reason: unknown value, no
+      counterpart, rule conflict, or no time.
+    rationale: >-
+      The reason tells an analyst whether the gap is in the mapping, in the
+      source's data, or in this one case.
+    verification: >-
+      A conformance test feeds every registered `CaseReader` adapter a synthetic
+      case holding one fact of each kind and asserts each untranslated fact
+      carries the matching reason.
+  - id: CRD-02-004
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    statement: >-
+      A `CaseReader` adapter MUST declare what its source cannot observe and
+      copy that declaration into every result.
+    rationale: >-
+      Each outside system has its own blind spots. Declared once by the adapter,
+      they reach every consumer with the reading itself.
+    verification: >-
+      A conformance test asserts every registered `CaseReader` adapter declares
+      its unobservable facts and that each result carries exactly that
+      declaration.
+  - id: CRD-02-005
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    statement: >-
+      A consumer of a case reading MUST read a state dimension or event the
+      reading declares unobservable as unknown, never as false.
+    rationale: >-
+      A case is not scored as having no fix when its source cannot say whether
+      a fix exists.
+    verification: >-
+      A test of the shadow's analysis gives it a reading that declares fix
+      readiness unobservable and asserts no desideratum about the fix is
+      reported as broken.
+  - id: CRD-02-006
+    priority: MUST
+    kind: architecture
+    adr:
+    - ADR-0197
+    - ADR-0176
+    statement: >-
+      A translated entry MUST take both its times from a time the source
+      states, never from a clock read.
+    rationale: >-
+      A translation reports when the act happened in the outside system. A clock
+      read would date every entry to the moment of reading (ADR-0176). An act
+      whose own record states no time takes a stated time the mapping rule
+      names, and is listed as an inference.
+    verification: >-
+      A conformance test feeds every registered `CaseReader` adapter a synthetic
+      case with known record times, and one record with none, and asserts every
+      entry's times equal source times, and the timeless one is listed as an
+      inference.
+- id: CRD-03
+  title: VINCE Case Translation
+  specs:
+  - id: CRD-03-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0197
+    statement: >-
+      The VINCE `CaseReader` adapter MUST translate each VINCE field by its
+      VINCE crosswalk row.
+    rationale: >-
+      The crosswalk is where a person decided each mapping. Code that departs
+      from it makes an analysis no one agreed to.
+    verification: >-
+      A test translates each synthetic fixture case and asserts every
+      participant's RM state, the embargo state, the case-wide state flags and
+      every inference's rule identifier match the crosswalk rows for that case.
+  - id: CRD-03-002
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0197
+    statement: >-
+      The VINCE `CaseReader` adapter MUST give each translated case a case
+      reference whose link relation is `issue-tracking` and whose link is the
+      VINCE case's URL.
+    rationale: >-
+      The outside tracker's own case id rides on the case as a reference, the
+      same rule any connector-built case follows.
+    verification: >-
+      A test translates a synthetic fixture case and asserts the case carries
+      one `issue-tracking` case reference whose link is that case's VINCE URL.
+  - id: CRD-03-003
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0197
+    statement: >-
+      The VINCE `CaseReader` adapter MUST NOT refuse a case for a VINCE value
+      its crosswalk does not know.
+    rationale: >-
+      A new VINCE status value is a gap in the mapping, and the analyst still
+      needs the rest of the case. The value comes back as an untranslated fact
+      (CRD-03-004).
+    verification: >-
+      A test feeds the adapter a synthetic case whose vendor status holds an
+      unknown value and asserts the result holds a translated ledger and an
+      untranslated fact naming that field with the unknown-value reason.
+  - id: CRD-03-004
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0197
+    statement: >-
+      The VINCE `CaseReader` adapter MUST return a VINCE value its crosswalk
+      does not know as an untranslated fact with the unknown-value reason.
+    rationale: >-
+      The analyst sees which value the mapping lacks, beside the rest of the
+      translated case.
+    verification: >-
+      The CRD-03-003 test also asserts the untranslated fact names that field
+      and carries the unknown-value reason.
+  - id: CRD-03-005
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0197
+    statement: >-
+      Every inference the VINCE `CaseReader` adapter returns MUST name the
+      crosswalk row identifier that produced it.
+    rationale: >-
+      The dashboard links each inferred state to the row a person agreed to.
+    verification: >-
+      The CRD-03-001 test asserts every inference's rule identifier is a row
+      identifier on the VINCE crosswalk page.
