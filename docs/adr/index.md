@@ -217,7 +217,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)* — partially superseded by 0172-an-active-participant-is-not-closed.md
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
-- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)* — partially superseded by 0172-an-active-participant-is-not-closed.md
+- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)* — partially superseded by 0172-an-active-participant-is-not-closed.md, 0197-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md) *(revision 2)*
@@ -248,7 +248,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
 - [ADR-0146 One Atomic Commit per CASE_MANAGER Act](0146-one-atomic-commit-per-case-manager-act.md) *(revision 5)* *(provisional)*
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md) *(provisional)*
-- [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) *(revision 2)* *(provisional)* — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
+- [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) *(revision 2)* *(provisional)* — partially superseded by 0197-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md; partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
 - [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) *(provisional)* — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 - [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md) *(revision 2)* *(provisional)*
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* *(provisional)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
@@ -302,6 +302,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 - [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md)
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
+- [ADR-0197 An Owner's Request Is an Offer of the Act, Which the CASE_MANAGER Accepts and Makes](0197-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
 
 ## Rejected ADRs
 
