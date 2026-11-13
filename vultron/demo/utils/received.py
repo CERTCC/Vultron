@@ -23,6 +23,7 @@ from vultron.demo.utils.client import DataLayerClient, logfmt
 from vultron.demo.utils.inbox import read_stored_of_types
 from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -212,7 +213,9 @@ def read_received_activities(
     return [
         a
         for a in activities
-        if a is not None and a.get("type") == activity_type
+        if a is not None
+        # As received: the shared resolver reads a type list (ADR-0196).
+        and resolved_wire_type_name(a.get("type")) == activity_type
     ]
 
 

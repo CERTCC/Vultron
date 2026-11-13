@@ -22,7 +22,10 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    narrow_type_list,
+    resolve_wire_type,
+)
 
 
 def obj_from_item(item: dict) -> as_Base:
@@ -41,9 +44,11 @@ def obj_from_item(item: dict) -> as_Base:
         )
 
     # Wire-only lookup (VM-06-008): the item is client input and the result is
-    # returned as ``as_Base``, so a core-only name is an unknown type.
+    # returned as ``as_Base``, so a core-only name is an unknown type.  The
+    # shared resolver reads a ``type`` list too (ADR-0196).
     try:
-        cls = find_in_vocabulary(item["type"])
+        cls = resolve_wire_type(item["type"])
+        item = narrow_type_list(item)
     except KeyError:
         raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=400, detail=f"Unknown item type: {item['type']}"

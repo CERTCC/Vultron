@@ -18,6 +18,7 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 
 import types as _types
 import typing as _typing
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -145,6 +146,115 @@ def find_in_vocabulary(
         except KeyError:
             pass
     raise KeyError(f"Unknown vocabulary type: {item_name!r}")
+
+
+class AmbiguousWireTypeError(KeyError):
+    """A received ``type`` list names known types none of which is the most specific.
+
+    A ``KeyError``, so every caller that already reads an unknown type from a
+    lookup's ``KeyError`` reads this one as unknown too: neither class can be
+    chosen, so the value names no class this receiver can build (ADR-0196).
+    """
+
+
+def _resolve_type_term(
+    type_value: object, *, include_core: bool
+) -> tuple[str, type[BaseModel]]:
+    """Return the term of *type_value* that names its most specific known class.
+
+    The one rule for a received ``type`` (ADR-0196): a string is looked up as it
+    is; a list is narrowed to the known class that is a subclass of every other
+    known class it names, in any order, and a term the vocabulary does not know
+    is ignored, as AS2 expects of a receiver that meets an extension type.
+    Anything else names no type.
+
+    Raises:
+        KeyError: When *type_value* names no known type.
+        AmbiguousWireTypeError: When it names two known classes and neither is
+            a subclass of the other.
+    """
+    if isinstance(type_value, str):
+        return type_value, find_in_vocabulary(
+            type_value, include_core=include_core
+        )
+    if not isinstance(type_value, list):
+        raise KeyError(f"Unknown vocabulary type: {type_value!r}")
+    known: dict[type[BaseModel], str] = {}
+    for term in type_value:
+        if not isinstance(term, str):
+            continue
+        try:
+            cls = find_in_vocabulary(term, include_core=include_core)
+        except KeyError:
+            continue
+        known.setdefault(cls, term)
+    if not known:
+        raise KeyError(f"Unknown vocabulary type: {type_value!r}")
+    for cls, term in known.items():
+        if all(issubclass(cls, other) for other in known):
+            return term, cls
+    raise AmbiguousWireTypeError(
+        f"Type list {type_value!r} names the known types"
+        f" {sorted(known.values())!r}, and none is a subtype of the others"
+    )
+
+
+def resolve_wire_type(
+    type_value: object, *, include_core: bool = False
+) -> type[BaseModel]:
+    """Return the class a received ``type`` value names (ADR-0196).
+
+    The shared resolver every reader of a received ``type`` goes through.
+    *type_value* is a string or an AS2 type list: a list resolves to its most
+    specific known class, in any order, and ignores terms the vocabulary does
+    not know, so ``["Foo", "Reject"]`` is a ``Reject``.  Core holds the one
+    class this returns, never the list.  Each term is looked up as
+    :func:`find_in_vocabulary` looks it up, with the same *include_core* rule.
+
+    Raises:
+        KeyError: When *type_value* is not a string or a list, or names no
+            known type.
+        AmbiguousWireTypeError: When a list names two known classes and
+            neither is a subclass of the other.
+    """
+    return _resolve_type_term(type_value, include_core=include_core)[1]
+
+
+def resolved_wire_type_name(
+    type_value: object, *, include_core: bool = False
+) -> str | None:
+    """Return the term of *type_value* that :func:`resolve_wire_type` resolves.
+
+    For a reader that compares or reports a body's type by name: the name of
+    the most specific known type in a list, the string itself when it names a
+    known type, and ``None`` when *type_value* resolves to no class.
+    """
+    try:
+        return _resolve_type_term(type_value, include_core=include_core)[0]
+    except KeyError:
+        return None
+
+
+def narrow_type_list(
+    data: dict[str, Any], *, include_core: bool = False
+) -> dict[str, Any]:
+    """Return *data* with a ``type`` list replaced by the term it resolves to.
+
+    A class's ``type_`` field holds one string, so a received list is narrowed
+    before the class validates it (ADR-0196).  *data* is returned unchanged
+    when its ``type`` (or ``type_``) is not a list, and is never modified.
+
+    Raises:
+        KeyError: When the list names no known type.
+        AmbiguousWireTypeError: When it names two unrelated known types.
+    """
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if isinstance(value, list):
+            term, _ = _resolve_type_term(value, include_core=include_core)
+            narrowed = {**narrowed, key: term}
+    return narrowed
 
 
 def main():

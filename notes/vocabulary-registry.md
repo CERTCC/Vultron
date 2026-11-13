@@ -7,8 +7,9 @@ description: >
   Design rules for the AS2 vocabulary registry: auto-registration via
   __init_subclass__, flat dict, VocabNamespace, the rule for declaring a
   Vultron extension term (new type, subtype of an AS2 type, new property,
-  retired term) in the generated JSON-LD context, fail-fast lookup,
-  CORE_TYPE_MAP, and disjoint registry keys.
+  retired term) in the generated JSON-LD context, fail-fast lookup, received
+  type lists (resolve_wire_type, _as2_core_supertype), CORE_TYPE_MAP, and
+  disjoint registry keys.
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
@@ -184,6 +185,20 @@ published site until #3653 moves it to the versioned URL ADR-0106 decided, and
 `find_in_vocabulary()` raises `KeyError` for an unregistered name (VM-06-005):
 a silent `None` lets corrupt deserialization proceed. A caller that should skip
 unknown types catches `KeyError`.
+
+### 5a. A received `type` goes through `resolve_wire_type()`
+
+A received `type` may be an AS2 list. Read it only through `resolve_wire_type()`
+(or `resolved_wire_type_name()` to compare or report a name), never with
+`isinstance(type_, str)` and a bare `find_in_vocabulary()`: the resolver narrows
+a list to its most specific known class, ignores unknown terms, and raises
+`AmbiguousWireTypeError` (a `KeyError`) on two unrelated known types
+(VM-03-006). Validate a dict whose `type` may be a list through
+`narrow_type_list()` first, because a core class's `type_` holds one string. An
+extension class that refines an AS2 core class declares
+`_as2_core_supertype = <AS2 class>` with `_vocab_ns = VocabNamespace.VULTRON`;
+its wire dump writes `[own type, core type]` and its persistence dump keeps one
+string (VM-03-005, ADR-0196).
 
 ### 6. Dynamic discovery is the startup guarantee
 

@@ -423,6 +423,63 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: VM-03-001
+  - id: VM-03-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A sender MUST write the `type` of a Vultron extension type that refines an
+      ActivityStreams core type as the list of the extension type followed by that core
+      type, such as `["Refuse", "Reject"]`. Inside the sender, the object still has
+      only the extension type.
+    rationale: >-
+      The ActivityStreams Core extensibility guidance asks an extension type that
+      overlaps a core type to carry the core type too. A plain ActivityStreams receiver
+      that does not know the extension then still reads the message as the core type.
+      Code that handles the message needs only one type: a list in code would change
+      every type check for no gain (ADR-0196).
+    note: >-
+      Only the wire form carries the list. A sender's own stored copy keeps the one
+      extension type.
+    verification: >-
+      `TestOutboundTypeList` in `test/wire/as2/test_type_list.py` confirms that a
+      test-only extension class serializes its `type` as the list, keeps its own `type`
+      inside, and reads back as the same class from the list, through the parser and
+      through a stored copy.
+    adr:
+    - ADR-0196
+    stories:
+    - story_2026_012
+  - id: VM-03-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST resolve a received `type` list, in any order, to the most specific
+      type that its vocabulary knows, and MUST ignore a term that it does not know. A
+      receiver MUST refuse a list that names two known types when neither is a subtype
+      of the other, as an unknown type.
+    rationale: >-
+      ActivityStreams allows `type` to be a list, and VM-03-005 sends one. The most
+      specific known type is the one the sender meant, and a term the receiver does not
+      know is an extension it cannot read, so `["Foo", "Reject"]` is a `Reject`. When
+      two known types are unrelated, the receiver cannot tell which one the sender
+      meant, so it must not choose one (ADR-0196).
+    note: >-
+      The rule applies to an inline object at any depth as it does to the activity. A
+      list that names no known type is an unknown type, as a string that names none is
+      (MV-01-001).
+    verification: >-
+      `TestInboundTypeList` in `test/wire/as2/test_type_list.py` confirms resolution in
+      either order, that an unknown term is ignored, and that a list of two unrelated
+      known types is refused as an unknown type, at the top level and inline.
+    adr:
+    - ADR-0196
+    stories:
+    - story_2026_013
+    relationships:
+    - rel_type: extends
+      spec_id: VM-03-005
+    - rel_type: refines
+      spec_id: MV-01-001
 - id: VM-04
   title: ID Generation
   specs:

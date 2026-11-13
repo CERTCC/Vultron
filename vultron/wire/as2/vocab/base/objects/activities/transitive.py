@@ -30,7 +30,10 @@ from vultron.wire.as2.vocab.base.objects.base import (
     as_ObjectRef,
     as_ObjectRequiredRef,
 )
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    narrow_type_list,
+    resolve_wire_type,
+)
 from vultron.wire.as2.vocab.base.utils import name_of, print_activity_examples
 
 
@@ -152,16 +155,17 @@ class as_Offer(as_TransitiveActivity):
         ``as_Object``, so a stored ``{"type": "EmbargoEvent", ...}`` read back
         from the data layer — a path that has no ``parse_activity``
         pre-expansion — would validate as a bare ``as_Object`` and lose its
-        class.  Resolving the wire type here keeps the two paths agreeing.  An
-        unknown type is left for the union to validate (MV-04-003).
+        class.  Resolving the wire type here, through the parser's shared
+        resolver (ADR-0196), keeps the two paths agreeing.  An unknown type is
+        left for the union to validate (MV-04-003).
         """
-        if isinstance(value, dict) and isinstance(value.get("type"), str):
-            try:
-                target = find_in_vocabulary(value["type"])
-            except KeyError:
-                return value
-            return target.model_validate(value)
-        return value
+        if not isinstance(value, dict):
+            return value
+        try:
+            target = resolve_wire_type(value.get("type"))
+        except KeyError:
+            return value
+        return target.model_validate(narrow_type_list(value))
 
 
 class as_Invite(as_Offer):

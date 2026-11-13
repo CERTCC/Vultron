@@ -36,7 +36,10 @@ from vultron.wire.as2.unknown_keys import (
 )
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    narrow_type_list,
+    resolve_wire_type,
+)
 from vultron.wire.as2.vocab.base.utils import is_blank
 
 logger = logging.getLogger(__name__)
@@ -86,9 +89,12 @@ def _expand_inline_value(value: object, path: str = "") -> object:
         )
         for key, item in value.items()
     }
-    inline_cls = resolve_inline_class(expanded)
+    inline_cls = resolve_inline_class(expanded, path)
     if inline_cls is None:
         return expanded
+    # The class holds one ``type``: a list is read as the term it resolved
+    # to, which a core class's own validation could not do (ADR-0196).
+    expanded = narrow_type_list(expanded)
 
     # Once the type has resolved to a wire class, failing that class's own
     # validation is a message fault and is refused (ADR-0032: validate at the
@@ -223,7 +229,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         VultronParseMissingPublishedError: If the `published` field is absent
             or blank, or a ``CaseStatus`` anywhere in the activity carries none
             (CLP-15-010).
-        VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
+        VultronParseUnknownTypeError: If the `type` value is not in the
+            vocabulary: a string it does not hold, a list naming no type it
+            holds or two unrelated ones (VM-03-006), or any other value.
         VultronParseValidationError: If Pydantic validation fails, including
             when a recognised inline object fails its own class's validation,
             if a ``Create(CaseProposal)`` does not carry its proposer's inline
@@ -248,26 +256,20 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             "Missing 'type' field in activity body."
         )
 
-    # A non-string ``type`` is deliberately not a ``MissingType`` 400: the
-    # sender did name a type, it is just not one we can look up, so it belongs
-    # in the ``UnknownType`` 422.  It must be rejected *here* rather than left
-    # to the lookup below, because ``find_in_vocabulary`` tests dict membership
-    # and an unhashable value (``[]``, ``{}``) raises ``TypeError`` — not the
-    # ``KeyError`` that except clause catches — which escaped ``parse_activity``
-    # entirely and drew a 500 from the inbox adapter (ISSUE-3217).
-    if not isinstance(type_, str):
-        raise VultronParseUnknownTypeError(
-            f"Unrecognized activity type: {type_!r}."
-        )
-
     # Wire-only lookup (VM-06-008): a core-only name is an unknown type here,
-    # not a core class to validate a sender's activity against.
+    # not a core class to validate a sender's activity against.  The shared
+    # resolver reads a string or an AS2 type list (ADR-0196) and answers any
+    # other value with a ``KeyError``.  A ``type`` it cannot resolve is
+    # deliberately not a ``MissingType`` 400: the sender did name a type, it is
+    # just not one we can look up, so it is the ``UnknownType`` 422.  An
+    # unhashable value (``{}``) once raised ``TypeError`` from a bare dict
+    # lookup, which escaped ``parse_activity`` and drew a 500 (ISSUE-3217).
     try:
-        cls = find_in_vocabulary(type_)
-    except KeyError:
-        raise VultronParseUnknownTypeError(  # noqa: B904  # ruff-baseline #3353
-            f"Unrecognized activity type: {type_!r}."
-        )
+        cls = resolve_wire_type(type_)
+    except KeyError as exc:
+        raise VultronParseUnknownTypeError(
+            f"Unrecognized activity type: {type_!r} ({exc.args[0]})."
+        ) from exc
 
     if not issubclass(cls, as_Activity):
         raise VultronParseUnknownTypeError(

@@ -53,6 +53,7 @@ from vultron.wire.as2.vocab.base.registry import (
     WIRE_TYPE_MAP,
     declares_registrable_type,
     is_wire_type_alias,
+    narrow_type_list,
     wire_type_value,
 )
 from vultron.wire.as2.vocab.base.utils import generate_new_id
@@ -104,6 +105,16 @@ class as_Base(BaseModel):
     #: (VM-01-015, VM-01-016).
     _wire_type_alias: ClassVar[bool] = False
 
+    #: Set on an extension class whose type overlaps an AS2 core type: the
+    #: AS2 class it refines, which must be an ancestor.  AS2 requires such an
+    #: extension type to carry the core type too, so the class serializes its
+    #: ``type`` as the list ``[own type, core type]`` (``["Refuse",
+    #: "Reject"]``), while ``type_`` stays its own one string; a receiver
+    #: resolves the list back to the most specific class it knows (ADR-0196).
+    #: Declared on the class body, ``_as2_core_supertype = as_Reject``, and
+    #: checked when the class is defined (:func:`_check_as2_core_supertype`).
+    _as2_core_supertype: ClassVar[type[as_Base] | None] = None
+
     #: ``False`` on a class whose instances are not ActivityStreams Objects
     #: (``as_Link`` and its subtypes): a received one may omit its ``id``, and
     #: keeps none rather than one minted for it (OID-01-013).
@@ -121,6 +132,7 @@ class as_Base(BaseModel):
         # register a key no payload ever carries (VM-01-012, issue #2982).
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
+        _check_as2_core_supertype(cls)
 
     # Every outbound document cites AS2 and then the Vultron context
     # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognizes it, Vultron so
@@ -198,6 +210,23 @@ class as_Base(BaseModel):
             data["id"] = None
         return absent_times_as_none(cls, data)
 
+    @model_validator(mode="before")
+    @classmethod
+    def narrow_received_type_list(cls, data: Any) -> Any:
+        """Read a ``type`` list as the one term it resolves to (ADR-0196).
+
+        ``type_`` holds one string, so the list an extension class serializes
+        (``_as2_core_supertype``), or any list a peer sends, is narrowed to the
+        term of its most specific known class before the field validates it.
+        A list that resolves to no class, or to two unrelated ones, is refused.
+        """
+        if not isinstance(data, dict):
+            return data
+        try:
+            return narrow_type_list(data)
+        except KeyError as exc:
+            raise ValueError(exc.args[0]) from exc
+
     @model_validator(mode="after")
     def set_type_from_class_name(self):
         if self.type_ is None:
@@ -230,8 +259,24 @@ class as_Base(BaseModel):
             None if is_default_jsonld_context(self.context_) else self.context_
         )
         return serialize_with_top_level_context(
-            lambda: handler(self), info, explicit
+            lambda: self._with_type_list(handler(self)), info, explicit
         )
+
+    def _with_type_list(self, data: Any) -> Any:
+        """*data* with ``type`` as ``[own type, core type]`` when the class has one.
+
+        Only the wire dump (``by_alias``) gets the list: the persistence dump
+        keys the field ``type_`` and keeps its one string, so a stored row
+        reads back as it was written.  ``serialize_with_top_level_context``
+        runs this only for the wire dump.
+        """
+        supertype = type(self)._as2_core_supertype
+        if supertype is None or not isinstance(data, dict):
+            return data
+        own = wire_type_value(type(self))
+        if data.get("type") != own:
+            return data
+        return {**data, "type": [own, wire_type_value(supertype)]}
 
     def to_json(self, **kwargs):
         """Serialize the model to a JSON string, excluding None values and using aliases."""
@@ -245,3 +290,49 @@ class as_Base(BaseModel):
     def from_json(cls, data: str):
         """Deserialize a JSON string to an instance of the model."""
         return cls.model_validate_json(data)
+
+
+def _check_as2_core_supertype(cls: type[as_Base]) -> None:
+    """Refuse a malformed ``_as2_core_supertype`` declaration on *cls*.
+
+    Checked when the class is defined, so a wrong declaration fails at import,
+    not when the first message is sent.  The supertype must be an AS2 class
+    (``VocabNamespace.AS``) that *cls* inherits from and whose wire ``type``
+    differs from *cls*'s, and *cls* must be a Vultron extension class
+    (``VocabNamespace.VULTRON``): AS2 asks only an extension type to carry
+    the core type it overlaps (ADR-0196).  A subclass that inherits the
+    declaration is checked the same way.
+
+    Raises:
+        TypeError: When the declaration breaks any of these rules.
+    """
+    supertype = cls._as2_core_supertype
+    if supertype is None:
+        return
+    name = cls.__name__
+    if not isinstance(supertype, type) or not issubclass(supertype, as_Base):
+        raise TypeError(
+            f"{name}._as2_core_supertype must be a wire class, not"
+            f" {supertype!r}"
+        )
+    if supertype is cls or supertype not in cls.__mro__:
+        raise TypeError(
+            f"{name}._as2_core_supertype {supertype.__name__} must be a"
+            f" superclass of {name}"
+        )
+    if supertype._vocab_ns is not VocabNamespace.AS:
+        raise TypeError(
+            f"{name}._as2_core_supertype {supertype.__name__} must be an AS2"
+            " core class (VocabNamespace.AS)"
+        )
+    if cls._vocab_ns is not VocabNamespace.VULTRON:
+        raise TypeError(
+            f"{name} declares an AS2 core supertype, so it must be a Vultron"
+            " extension class (_vocab_ns = VocabNamespace.VULTRON)"
+        )
+    if wire_type_value(cls) == wire_type_value(supertype):
+        raise TypeError(
+            f"{name} shares the wire type {wire_type_value(cls)!r} of its"
+            f" AS2 core supertype {supertype.__name__}; an extension type"
+            " names its own type"
+        )

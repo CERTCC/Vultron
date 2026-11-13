@@ -46,6 +46,7 @@ from vultron.errors import (
     VultronOutboxObjectIntegrityError,
     VultronOutboxToFieldMissingError,
 )
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +101,12 @@ def _load_sealed_body(
 
 
 def _activity_type(body: dict[str, Any]) -> str:
-    """Return the body's ``type``, or ``"Activity"`` when it names none."""
-    raw = body.get("type")
-    return raw if isinstance(raw, str) and raw else "Activity"
+    """Return the body's ``type``, or ``"Activity"`` when it names none.
+
+    Read through the shared resolver, so an extension type's list
+    (``["Refuse", "Reject"]``) names the one type it resolves to (ADR-0196).
+    """
+    return resolved_wire_type_name(body.get("type")) or "Activity"
 
 
 def _validate_to_field(

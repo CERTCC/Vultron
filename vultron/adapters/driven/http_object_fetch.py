@@ -77,7 +77,10 @@ from vultron.wire.as2.vocab import (
     objects as _objects,  # noqa: F401
 )
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    narrow_type_list,
+    resolve_wire_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -333,12 +336,13 @@ def parse_fetched_body(
             validate as its type, or is not the object *object_id* names.
     """
     type_name = document.get("type")
-    if not isinstance(type_name, str) or not type_name:
+    if not type_name:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} names no type"
         )
     try:
-        cls = find_in_vocabulary(type_name)
+        # The shared resolver reads a ``type`` list too (ADR-0196).
+        cls = resolve_wire_type(type_name)
         declared, set_aside = partition_unknown_keys(
             document,
             cls,
@@ -352,7 +356,7 @@ def parse_fetched_body(
         # claiming none, read as ``None``, never this node's clock (ADR-0103,
         # ADR-0176).
         parsed = cls.model_validate(
-            declared, context={INBOUND_CONTEXT_KEY: True}
+            narrow_type_list(declared), context={INBOUND_CONTEXT_KEY: True}
         )
     except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(
