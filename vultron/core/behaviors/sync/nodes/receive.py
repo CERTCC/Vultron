@@ -377,8 +377,9 @@ class SendRejectLogEntryNode(DeclaredRefusalMixin, DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if self.actor_id is None:
-            self.logger.error("%s: actor_id not available", self.name)
-            return Status.FAILURE
+            raise VultronWiringError(
+                f"{self.name}: actor_id must be bound to send rejection"
+            )
 
         entry = require_log_entry(self.activity, self.name)
 

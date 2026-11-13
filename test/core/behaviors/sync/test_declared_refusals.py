@@ -17,43 +17,22 @@
 Each names its condition and the requirement it cites, which the received
 runner reports as the ``REFUSED`` reason
 (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  The handler
-tests drive each one end to end; these pin what the node itself declares.
+tests drive each one end to end and pin its whole reason; these pin the
+branches a handler test does not reach.
 """
 
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
-from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
-from vultron.core.behaviors.sync.nodes import (
-    CheckEntryAgreesWithCasePositionNode,
-    CheckEntryHashIntactNode,
-    SendGenesisRejectOnMissingCaseNode,
-    SendRejectLogEntryNode,
-)
+from vultron.core.behaviors.sync.nodes import SendRejectLogEntryNode
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     PeerActiveParticipantNode,
 )
-from vultron.core.behaviors.sync.nodes.position_statement import (
-    CheckStatedPositionInLedgerNode,
-)
+from vultron.errors import VultronWiringError
 
+CASE_ID = "https://example.org/cases/declared-refusal"
 _SENDER = "https://example.org/actors/sender"
-
-
-@pytest.mark.parametrize(
-    "node_type",
-    [
-        CheckEntryAgreesWithCasePositionNode,
-        CheckEntryHashIntactNode,
-        CheckStatedPositionInLedgerNode,
-        PeerActiveParticipantNode,
-        SendRejectLogEntryNode,
-    ],
-)
-def test_each_refusing_sync_node_declares_its_refusal(node_type: type) -> None:
-    assert issubclass(node_type, DeclaredRefusalMixin)
 
 
 @pytest.mark.spec("SYNC-17-002")
@@ -85,29 +64,11 @@ def test_the_branch_asked_for_not_active_declares_no_refusal(
     assert node.declared_refusal is None
 
 
-@pytest.mark.spec("SYNC-03-001")
-def test_a_rejected_entry_is_refused_for_the_tail_it_does_not_extend() -> None:
-    entry = _make_entry(log_index=3)
-    assert SendRejectLogEntryNode()._refusal_of(entry) == (
-        f"ledger entry '{entry.id_}' does not extend the local chain tail;"
-        " Reject sent (SYNC-03-001)"
-    )
-
-
-@pytest.mark.spec("SYNC-15-001")
-@pytest.mark.spec("SYNC-15-016")
-@pytest.mark.parametrize(
-    ("withheld", "spec_id"),
-    [(False, "SYNC-15-001"), (True, "SYNC-15-016")],
-    ids=["sent", "withheld"],
-)
-def test_a_missing_case_names_whether_its_genesis_reject_was_sent(
-    withheld: bool, spec_id: str
-) -> None:
-    entry = _make_entry(log_index=0)
-    node = SendGenesisRejectOnMissingCaseNode()
-    node.withheld = withheld
-    reason = node._refusal_of(entry)
-    assert f"case '{entry.case_id}' is not seeded here" in reason
-    assert reason.endswith(f"({spec_id})")
-    assert ("none is sent again" in reason) is withheld
+def test_a_reject_node_with_no_actor_raises_rather_than_refusing() -> None:
+    """A Reject with no sender identity is our fault (ADR-0095)."""
+    node = SendRejectLogEntryNode()
+    node.actor_id = None
+    node.activity = object()
+    with pytest.raises(VultronWiringError, match="actor_id"):
+        node.update()
+    assert node.declared_refusal is None

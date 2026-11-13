@@ -137,10 +137,8 @@ def unchanged_by_run(
     return None
 
 
-def refusal_ending_run(
-    root: py_trees.behaviour.Behaviour,
-) -> ReportsRefusal | None:
-    """The first node whose failure decided *root*'s and declared a refusal.
+def refusal_ending_run(root: py_trees.behaviour.Behaviour) -> str | None:
+    """The reason the first node whose failure decided *root*'s declared.
 
     A node decided the run when it failed and every composite above it
     failed with it: the one failed child of a ``Sequence``, and each child
@@ -150,12 +148,14 @@ def refusal_ending_run(
     ``Selector``).  A node that failed under a decorator or composite that
     succeeded did not decide the run, so its declaration is not read.
     ``None`` when *root* did not fail, or no deciding node declares a
-    refusal.
+    refusal.  A local fault elsewhere on the run is the caller's to read
+    first: the received runner raises on one before it asks this
+    (ADR-0095).
     """
     if root.status != Status.FAILURE:
         return None
     if isinstance(root, ReportsRefusal) and root.declared_refusal:
-        return root
+        return root.declared_refusal
     for child in root.children:
         if (found := refusal_ending_run(child)) is not None:
             return found
@@ -183,7 +183,16 @@ class DeclaredRefusalMixin:
         return self._refusal if self.status == Status.FAILURE else None
 
     def _refuse(self, reason: str) -> Status:
-        """Declare the run's failure a refusal for *reason*; ``FAILURE``."""
+        """Declare the run's failure a refusal for *reason*; ``FAILURE``.
+
+        Raises:
+            ValueError: *reason* is empty; a refusal names why (HP-01-005,
+                CS-08-002).
+        """
+        if not reason:
+            raise ValueError(
+                f"{type(self).__name__}: a declared refusal needs a reason"
+            )
         self._refusal = reason
         return Status.FAILURE
 

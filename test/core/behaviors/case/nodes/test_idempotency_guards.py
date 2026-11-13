@@ -243,6 +243,19 @@ class TestCheckInviteeNotAlreadyParticipantNode:
         assert node.declared_refusal == f"unknown case '{missing}'"
         assert not node.failed_as_repeat
 
+    def test_a_guard_with_no_datalayer_declares_no_refusal(self) -> None:
+        """A missing DataLayer is our fault, which the runner raises (ADR-0095)."""
+        from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
+
+        node = CheckInviteeNotAlreadyParticipantNode(
+            case_id=_CASE_ID, invitee_id=_INVITEE_ID
+        )
+        node.datalayer = None
+        node.status = node.update()
+        assert node.status == Status.FAILURE
+        assert node.feedback_message == DATALAYER_UNAVAILABLE
+        assert node.declared_refusal is None
+
     @pytest.mark.spec("HP-01-014")
     @pytest.mark.parametrize(
         ("removed", "standing"),

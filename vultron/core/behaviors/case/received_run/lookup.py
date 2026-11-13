@@ -110,8 +110,8 @@ def node_failed(
 ) -> bool:
     """True when any node of *node_type* ran and returned ``FAILURE``.
 
-    Any, not first: one node type often sits on several branches (the Reject
-    emitter on both the missing-case and hash-mismatch arms of a sync tree).
+    Any, not first: one node type often sits on several branches of a tree
+    (an emitter on two arms of a ``Selector``).
     """
     return _any_with_status(tree, node_type, Status.FAILURE)
 

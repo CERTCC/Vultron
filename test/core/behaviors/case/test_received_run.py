@@ -384,7 +384,7 @@ def test_a_declared_refusal_ahead_of_its_failed_fallback_is_found():
         children=[guard, _Fixed("EmitFault", Status.FAILURE, "fault sent")],
     )
     tree = _ran(_Fixed("Ok", Status.SUCCESS), answer)
-    assert refusal_ending_run(tree) is guard
+    assert refusal_ending_run(tree) == "refused (SYNC-03-006)"
     assert _read(tree).reason == "refused (SYNC-03-006)"
 
 
@@ -443,6 +443,25 @@ def test_a_fault_of_a_declaring_node_raises_rather_than_refusing():
     assert node.declared_refusal is None
     with pytest.raises(VultronBTInternalError):
         _read(tree)
+
+
+def test_a_wiring_fault_raises_ahead_of_a_declared_refusal():
+    """A fallback composed without its port is our fault (ADR-0095)."""
+    answer = py_trees.composites.Selector(
+        name="CheckOrFault",
+        memory=False,
+        children=[
+            _RefusingGuard("Check", "refused"),
+            _Fixed("EmitFault", Status.FAILURE, DATALAYER_UNAVAILABLE),
+        ],
+    )
+    with pytest.raises(VultronBTInternalError):
+        _read(_ran(answer))
+
+
+def test_a_refusal_declared_without_a_reason_raises():
+    with pytest.raises(ValueError, match="needs a reason"):
+        _ran(_RefusingGuard("Check", ""))
 
 
 def test_a_declared_refusal_is_cleared_by_the_next_run():
