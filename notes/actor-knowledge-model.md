@@ -49,8 +49,12 @@ replaced embargo, and a proposer's profile (AKM-05-007). A bare `object` matches
 no pattern that tests the object by its type (SE-01-006), so an activity whose
 `object` the recipient lacks is fetched for before it reaches a handler; only
 `Read(CaseLedgerEntry)`, told apart by its `ledgerPosition`, matches one. A bare
-`target` or `context` still matches (SE-01-007) and its handler decides. Keep
-inlining: every fetch is a round trip.
+`target` or `context` still matches (SE-01-007) and its handler decides. A typed
+reference (`id` and `type` only) of any type routes by its type, then its object is
+fetched before a handler that needs it runs (MV-10-011, ADR-0198, #6455). Keep
+inlining: every fetch is a round trip. The fetch runs inline, holding the activity;
+a queue that resolves references ahead of handling is a possible later step, not
+planned.
 
 ## This Codebase Carries Full Inline Objects
 
@@ -102,16 +106,16 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   local `CoreActor` record is enrichment, never a precondition: under per-actor
   storage (ADR-0073) the inviter almost never holds the peer's record, so
   requiring one refuses every cross-node invitee.
-- **An actor travels as held, or as an id-and-type actor reference
-  (AKM-05-005, AKM-05-017, ADR-0159).** Carry the sender's held profile unchanged;
-  with only the URI, carry exactly `id` and `type`. A receiver reads a reference's
-  missing fields as unknown and never lets it replace a fuller record (AKM-05-018,
-  AKM-05-019). Not a stub: it is
-  the one other exception MV-10-001 allows. Factories take the held record or the
-  URI (`carried_actor`, `vultron/wire/as2/factories/_actor.py`); the trigger
-  adapter reads the held record first (`_held_actor`), and a bare `CoreActor`
-  minimal peer travels as a reference, since its type names no wire actor.
-  Marker tests: `test/wire/as2/factories/test_actor_references.py`.
+- **An actor travels as held, or as an id-and-type actor reference (AKM-05-005,
+  AKM-05-017, ADR-0159).** Carry the sender's held profile unchanged; with only the URI,
+  carry exactly `id` and `type`. A receiver reads a reference's missing fields as
+  unknown and never lets it replace a fuller record (AKM-05-018, AKM-05-019). Not a
+  stub: it is the actor case of the typed reference (MV-10-011, ADR-0198). Factories
+  take the held record or the URI (`carried_actor`,
+  `vultron/wire/as2/factories/_actor.py`); the trigger adapter reads the held record
+  first (`_held_actor`), and a bare `CoreActor` minimal peer travels as a reference,
+  since its type names no wire actor. Marker tests:
+  `test/wire/as2/factories/test_actor_references.py`.
 - **Never record or send a value you do not know (AKM-02-006).** A clock-read
   `published`/`updated` or an `inbox`/`outbox` derived from an id is invented: a
   receiver cannot tell it from an asserted value, and a rebuild under the same id

@@ -4644,9 +4644,9 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST carry the `published` and `updated` timestamps of every object
-      nested in an inbound activity as received. A timestamp the sender omitted stays
-      absent: the receiver never substitutes its own clock for it, at parsing,
-      extraction, storage or rendering.
+      nested in an inbound activity as received. An omitted timestamp that CLP-15-011
+      does not require stays absent. The receiver never substitutes its own clock for
+      it, at parsing, extraction, storage or rendering.
     rationale: >-
       AS2 makes object timestamps optional. A value that the receiver makes is later
       indistinguishable from the sender's claim. For example, each receiver would derive
@@ -4661,6 +4661,7 @@ groups:
     - ADR-0103
     - ADR-0079
     - ADR-0032
+    - ADR-0198
     stories:
     - story_2026_029
   - id: CLP-15-009
@@ -4712,5 +4713,40 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-009
+    - rel_type: refines
+      spec_id: CLP-15-011
     stories:
     - story_2022_075
+  - id: CLP-15-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse at message validation an inbound activity that carries, at
+      any depth, a whole object with no `published`, naming the object's position. An
+      actor profile and a collection are exempt. A typed reference (MV-10-011), a URI
+      and a `Link` are not whole objects, so the rule does not reach them.
+    rationale: >-
+      A conformant sender states the time of every object it authors, so the rule
+      refuses only malformed input. Refusing at the edge spares every reader of a
+      received object's time a check of whether its type is one a decision needs, and
+      lets core declare the time required (ADR-0032). An actor profile or a collection
+      is not an act made at a moment, and many servers serve profiles without one.
+    note: >-
+      The objects nested in a ledger entry's `payloadSnapshot` are kept as received
+      JSON and are not validated into objects (CLP-07-011), so this rule does not
+      reach them.
+    verification: >-
+      `test_a_whole_object_without_published_is_refused` in
+      `test/wire/as2/test_typed_references.py` asserts `parse_activity` refuses an
+      activity whose inline `Note` has no `published`. It is a strict xfail until
+      #6456 lands.
+    relationships:
+    - rel_type: extends
+      spec_id: CLP-15-007
+    see_also:
+    - spec_id: MV-10-011
+      reason: defines the typed reference the rule excludes; a scope boundary, not a dependency
+    adr:
+    - ADR-0198
+    stories:
+    - story_2026_029

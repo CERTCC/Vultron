@@ -8,6 +8,7 @@ deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0107; design interview of 2026-10-26 on issue #4976
 informed: []
+partially_superseded_by: 0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 stakeholder_type: [project-contributor]
 ---
 

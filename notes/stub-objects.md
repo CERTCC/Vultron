@@ -11,6 +11,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/case-management.yaml (CM-11-013, CM-17-002, CM-17-010, CM-17-011, MV-10-001)
   - specs/actor-knowledge-model.yaml (AKM-05-017)
+  - specs/case-ledger-processing.yaml (CLP-15-011)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -25,11 +26,11 @@ relevant_packages:
 
 The `VulnerabilityCase` stub (`as_VulnerabilityCaseStub`) is the only stub type
 the protocol permits (MV-10-001, narrowed by ADR-0090). Requirements: MV-10 in
-`specs/message-validation.yaml`. The id-and-type actor reference of AKM-05-017
-(ADR-0159) is MV-10-001's one other exception, and it is not a stub: it claims
-only the two fields its sender knows. Referencing other objects without inlining
-them, and explicit redaction, are not built: see
-[selective-disclosure.md](selective-disclosure.md).
+`specs/message-validation.yaml`. A typed reference is not a stub: it claims only
+the `id` and `type` its sender knows (MV-10-011, ADR-0198). The actor reference
+of AKM-05-017 is its built case; for other types it is a receiver-side rule only
+(#6455), since this codebase's senders keep inlining (AKM-03-003). Explicit
+redaction is not built: see [selective-disclosure.md](selective-disclosure.md).
 
 ## Why Only `VulnerabilityCase`
 
@@ -51,7 +52,11 @@ routes to `UNKNOWN`.
 A recognized inline object that fails its own class's validation is refused
 (MV-04-003). Do not reintroduce arbitrary-type partial objects to get past that
 refusal: a partial inline object and a corrupt one are indistinguishable to the
-parser, which is why the refusal exists.
+parser, which is why the refusal exists. The shape is the test (ADR-0198): exactly
+`id` and `type`, with or without `preview`, is a typed reference; any other key
+makes a whole object, validated in full and never completed by a default that
+creates state (#5265). A `preview` is refused until its type's preview is defined
+(MV-10-012; the case stub moves into one in #6244).
 
 ## Receiving a Stub
 
