@@ -82,6 +82,9 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -210,6 +213,9 @@ def create_engage_case_tree(
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
+        # A Join of a case this store does not hold is refused at the path
+        # stage, naming the activity and the case (AKM-03-006).
+        held_case=CaseNamedByReference.JOIN,
         # The participant declares its RM move to the CASE_MANAGER alone,
         # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
         # participant replica takes the sender's RM state from the ledger
@@ -271,6 +277,8 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
+        # The Ignore names its case as the Join does (AKM-03-006).
+        held_case=CaseNamedByReference.IGNORE,
         # The participant declares its RM move to the CASE_MANAGER alone,
         # which adjudicates and commits it (PCR-08-001, RSH-06-006); a
         # participant replica takes the sender's RM state from the ledger

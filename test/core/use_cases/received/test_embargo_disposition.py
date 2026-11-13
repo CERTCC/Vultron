@@ -50,6 +50,8 @@ from vultron.core.use_cases.received.embargo import (
 )
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -198,16 +200,88 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         )
 
     @pytest.mark.spec("HP-01-003")
-    def test_accept_for_unknown_case(self):
-        request = _request(
-            embargo_id="https://example.org/cases/nope/embargo_events/e1",
-            case_id="https://example.org/cases/nope",
-            invite_id="i1",
+    @pytest.mark.spec("HP-01-039")
+    def test_accept_for_unknown_case(self, make_payload):
+        """An Accept naming a case this store does not hold is refused at
+        the path stage, on the no-case path, and nothing is recorded: the
+        handler reads no store before its tree runs (HP-01-039)."""
+        case_id = "https://example.org/cases/nope"
+        embargo = make(
+            as_EmbargoEvent,
+            id_=f"{case_id}/embargo_events/e1",
+            context=case_id,
+            end_time=days_from_now(45),
         )
+        invite = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor=_COORD,
+            to=[_VENDOR],
+            at=authored_at(),
+        )
+        accept = em_accept_embargo_activity(
+            invite,
+            context=case_id,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
+        )
+        dl = _make_dl()
+        event = make_payload(accept, receiving_actor_id=_COORD)
+
         result = run_in_act(
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event)
         )
-        _assert_refused(result, "unknown case")
+
+        _assert_refused(result, f"holds no replica of case '{case_id}'")
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-018")
+    def test_accept_naming_no_case_is_refused_as_incomplete(
+        self, make_payload
+    ):
+        """An Accept whose Invite names no case gets the incomplete-activity
+        tree: its guard refuses it after the doors and intake, and nothing is
+        committed or sent (CLP-10-018)."""
+        case_id = "https://example.org/cases/c9"
+        embargo = make(
+            as_EmbargoEvent,
+            id_=f"{case_id}/embargo_events/e-no-case",
+            context=case_id,
+            end_time=days_from_now(45),
+        )
+        invite = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor=_COORD,
+            to=[_VENDOR],
+            at=authored_at(),
+        )
+        accept = em_accept_embargo_activity(
+            invite,
+            context=case_id,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
+        )
+        dl = _make_dl()
+        # The pattern needs the case to recognise the Accept, so the event
+        # whose Invite names none is built from a recognised one.
+        event = make_payload(accept, receiving_actor_id=_COORD).model_copy(
+            update={"inner_context": None}
+        )
+        assert event.case_id is None
+
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event)
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == "Accept(Invite(EmbargoEvent)) names no case"
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("BT-17-009")
     @pytest.mark.spec("ARCH-15-001")

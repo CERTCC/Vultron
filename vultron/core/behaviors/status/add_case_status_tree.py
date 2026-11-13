@@ -46,6 +46,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
@@ -96,6 +99,10 @@ def add_case_status_tree(
        otherwise; also FAILURE when the case or the status cannot be resolved
        (CLP-10-009, RSH-09-005).
 
+    An ``Add(CaseStatus)`` missing its status id or case id gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     The tree has no effects: a replica writes no case state on receipt and
     takes the status from the ledger fan-out (RSH-08-003), and it asks for no
     embargo teardown, since the CASE_MANAGER declared the status (RSH-03-004).
@@ -109,14 +116,19 @@ def add_case_status_tree(
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
     """
-    status_id = request.status_id or ""
-    case_id: str | None = request.case_id or None
+    status_id = request.status_id
+    case_id = request.case_id
+    if not status_id or not case_id:
+        return create_incomplete_activity_received_tree(
+            "AddCaseStatusToCaseBT",
+            "Add(CaseStatus) is missing its status id or case id",
+        )
     status_obj = request.status
     sender_actor_id = request.actor_id
 
     root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
-        case_id=case_id or None,
+        case_id=case_id,
         # The CASE_MANAGER alone sends this Add, and only to a participant,
         # so the participant-replica path is the only one the type handles:
         # the declaration is what refuses the case's own CASE_MANAGER, which
@@ -137,16 +149,10 @@ def add_case_status_tree(
                 status_id=status_id,
             ),
             # HP-08-007: a status of another case never joins this one.
-            *(
-                [
-                    CarriedObjectInTargetCaseNode(
-                        object_id=status_id,
-                        carried=status_obj,
-                        case_id=case_id,
-                    )
-                ]
-                if case_id
-                else []
+            CarriedObjectInTargetCaseNode(
+                object_id=status_id,
+                carried=status_obj,
+                case_id=case_id,
             ),
             CheckCsEphemeralStateNode(
                 case_id=case_id,

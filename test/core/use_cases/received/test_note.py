@@ -898,6 +898,9 @@ class TestNoteUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         event = MagicMock()
+        # Neither handler has the id it needs: the Add no inline note, the
+        # Remove no note id.
+        event.note = None
         event.note_id = None
         event.case_id = "https://example.org/cases/c"
 
