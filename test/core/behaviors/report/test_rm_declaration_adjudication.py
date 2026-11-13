@@ -648,8 +648,9 @@ class TestRefusedRegressionIsNoted:
         self, store_for, make_payload
     ):
         # The vendor's own replica: a participant, not the CASE_MANAGER.  A
-        # replica takes the update from the CASE_MANAGER alone (PCR-03-001),
-        # so the CASE_MANAGER relays it and it reaches the adjudication.
+        # replica takes participant status from the ledger, never from an
+        # Add, so the path stage refuses the copy before the adjudication
+        # and no note is posted (RSH-08-003, PCR-03-001).
         dl = store_for(ACTOR_ID)
         _seed(dl, RM.ACCEPTED)
         status, activity = _status_declaration(
@@ -672,10 +673,8 @@ class TestRefusedRegressionIsNoted:
         result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status.name == "FAILURE"
-        # The refusal is the adjudication's, so the refusal stage ran and
-        # only the CASE_MANAGER gate kept the note back.
         reason = BTBridge.get_failure_reason(tree)
-        assert "rm: ACCEPTED → VALID moves RM backwards" in reason, reason
+        assert f"not the CASE_MANAGER of case '{CASE_ID}'" in reason, reason
         assert recorded_notes(dl) == []
 
     @pytest.mark.spec("CLP-10-022")

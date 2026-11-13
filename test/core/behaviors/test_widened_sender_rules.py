@@ -214,14 +214,29 @@ def _cases(
     context: ContextFor,
     *,
     at_manager: tuple[str, str],
-    at_participant: tuple[str, str],
+    at_participant: tuple[str, str] | None,
     marks: tuple[str, ...],
     label: str,
 ) -> list[object]:
-    """One param per (side, entitled-or-not) for a declaration."""
+    """One param per (side, entitled-or-not) for a declaration.
+
+    *at_participant* is ``None`` for a rule that states no participant
+    side, so no sender is admitted there; it gets no entitled case.
+    """
     spec_marks = [pytest.mark.spec(spec_id) for spec_id in marks]
     entitled_cm, unentitled_cm = at_manager
-    entitled_p, unentitled_p = at_participant
+    sides = [
+        ("at-manager", MANAGER, entitled_cm, True),
+        ("at-manager", MANAGER, unentitled_cm, False),
+    ]
+    if at_participant is None:
+        sides.append(("at-participant", REPLICA, MANAGER, False))
+    else:
+        entitled_p, unentitled_p = at_participant
+        sides += [
+            ("at-participant", REPLICA, entitled_p, True),
+            ("at-participant", REPLICA, unentitled_p, False),
+        ]
     return [
         pytest.param(
             rule,
@@ -232,12 +247,7 @@ def _cases(
             id=f"{label}-{side}-{'entitled' if admitted else 'unentitled'}",
             marks=spec_marks,
         )
-        for side, receiver, sender, admitted in (
-            ("at-manager", MANAGER, entitled_cm, True),
-            ("at-manager", MANAGER, unentitled_cm, False),
-            ("at-participant", REPLICA, entitled_p, True),
-            ("at-participant", REPLICA, unentitled_p, False),
-        )
+        for side, receiver, sender, admitted in sides
     ]
 
 
@@ -341,13 +351,14 @@ CASES = [
         label="offer-actor",
     ),
     # A participant sends its own status update to the CASE_MANAGER, and
-    # another participant may not write onto its record (RSH-08-007); at a
-    # replica only the CASE_MANAGER relays it (PCR-03-001).
+    # another participant may not write onto its record (RSH-08-007).  A
+    # replica takes participant status from the ledger, so the rule states
+    # no participant side (RSH-08-003, PCR-03-001).
     *_cases(
         AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
         _vendor_record,
         at_manager=(VENDOR, REPLICA),
-        at_participant=(MANAGER, VENDOR),
+        at_participant=None,
         marks=("HP-01-008", "RSH-08-007", "PCR-03-001"),
         label="add-participant-status",
     ),
@@ -391,8 +402,9 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 
 #: Declarations relabelled from ``ACTIVE_PARTICIPANT`` to ``PARTICIPANT``
 #: (#4437): each tree admitted any participant the case lists, and still does.
-#: ``offer-actor`` and ``add-participant-status`` are not here because they
-#: use ``to_case_manager`` rather than ``in_case`` (#4646).
+#: ``offer-actor`` uses ``to_case_manager`` rather than ``in_case`` (#4646),
+#: and ``add-participant-status`` states the CASE_MANAGER side alone, so
+#: neither is here.
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
     "invalidate-report": InvalidateReportReceivedUseCase,
@@ -431,10 +443,6 @@ _PCR03_CASES = [
         OfferActorToCaseReceivedUseCase,
         id="offer-actor",
     ),
-    pytest.param(
-        AddParticipantStatusToParticipantReceivedUseCase,
-        id="add-participant-status",
-    ),
 ]
 
 
@@ -445,9 +453,9 @@ def test_replica_refuses_listed_non_manager_for_case_update(
 ) -> None:
     """A listed non-manager participant is refused at a replica (#4646).
 
-    Both ``Offer(Actor)`` and ``Add(ParticipantStatus)`` declare
-    ``to_case_manager(...)``, so at a participant replica any sender
-    other than the CASE_MANAGER is refused even when the case lists them.
+    ``Offer(Actor)`` declares ``to_case_manager(...)``, so at a participant
+    replica any sender other than the CASE_MANAGER is refused even when the
+    case lists them.
     """
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
     assert not _admits(rule, _vendor_record, REPLICA, VENDOR)
@@ -458,7 +466,7 @@ def test_replica_refuses_listed_non_manager_for_case_update(
 def test_replica_admits_case_manager_for_case_update(
     use_case: type,
 ) -> None:
-    """The CASE_MANAGER is admitted at a replica for both use cases (#4646).
+    """The CASE_MANAGER is admitted at a replica (#4646).
 
     ``to_case_manager(...)`` sets the participant side to
     ``{CASE_MANAGER}``, so the CASE_MANAGER is the only entitled sender
