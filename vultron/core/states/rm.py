@@ -175,6 +175,15 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     )
 
 
+def rm_transition_trigger(source: RM, dest: RM) -> RM_Trigger | None:
+    """The trigger of the RM transition (source → dest), or ``None`` when
+    the RM transition function has no such edge."""
+    for t in _transitions:
+        if t["source"] == source and t["dest"] == dest:
+            return RM_Trigger(t["trigger"])
+    return None
+
+
 def is_rm_write_permitted(current: RM, target: RM) -> bool:
     """Return True if an RM write may move *current* to *target*.
 

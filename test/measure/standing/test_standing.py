@@ -28,11 +28,15 @@ import pytest
 from pydantic import ValidationError
 
 from test.measure.history.builders import (
+    DEPLOYER,
     EMBARGO_2,
+    INVITEE,
     VENDOR,
     Ledger,
     embargo,
+    participant,
     seat_vendor,
+    status,
 )
 from vultron.core.states.cs import CS, CS_pxa
 from vultron.core.states.cs_invariants import (
@@ -60,7 +64,11 @@ from vultron.measure.scoring import (
     score_case,
     score_prefix,
 )
-from vultron.measure.sequences import UnprojectableReason, case_state_sequences
+from vultron.measure.sequences import (
+    UnprojectableParticipant,
+    UnprojectableReason,
+    case_state_sequences,
+)
 from vultron.measure.standing import (
     CaseStanding,
     DesideratumStatus,
@@ -358,3 +366,103 @@ def test_a_record_serializes_as_json():
     assert vendor["case_state"] == "VFdPxa"
     assert len(vendor["desiderata"]) == len(ORIGINAL)
     assert data["case"]["pxa"] == "Pxa"
+
+
+def _write(path: Path, entries: list[dict[str, Any]]) -> Path:
+    path.write_text(
+        "".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8"
+    )
+    return path
+
+
+def test_copies_that_disagree_name_the_gap(tmp_path):
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "Vf")
+    other = json.loads(json.dumps(ledger.entries))
+    other[1]["entryHash"] = "another-hash"
+    read = read_case_ledgers(
+        [
+            _write(tmp_path / "a.jsonl", ledger.entries),
+            _write(tmp_path / "b.jsonl", other),
+        ]
+    )
+    (case_ledger,) = read.cases.values()
+    record = case_standing(case_ledger)
+    assert record.gap is not None
+    assert record.gap.conflicting_log_indices == [1]
+    assert record.participants == []
+
+
+def test_an_unplaceable_row_names_the_gap(tmp_path):
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "Vf")
+    rows = json.loads(json.dumps(ledger.entries))
+    del rows[1]["logIndex"]
+    record = case_standing(_ledger(_write(tmp_path / "a.jsonl", rows)))
+    assert record.gap is not None
+    assert len(record.gap.unusable_rows) == 1
+
+
+def test_an_unreadable_entry_names_the_gap():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add("not_a_semantic_type", "Note", VENDOR)
+    record = case_standing(ledger.case_ledger())
+    assert record.gap is not None
+    (unreadable,) = record.gap.unreadable_entries
+    assert unreadable.log_index == 1
+    assert record.case is None
+
+
+def test_an_unscored_participant_keeps_the_projections_reason():
+    """A Deployer without the Vendor role has no case-state model state."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.seat(
+        participant(
+            DEPLOYER,
+            [
+                status(
+                    "dep-r", DEPLOYER, "ACCEPTED", d="D", roles=("DEPLOYER",)
+                )
+            ],
+            roles=("DEPLOYER",),
+        )
+    )
+    record = case_standing(ledger.case_ledger())
+    deployer = record.for_participant(DEPLOYER)
+    assert deployer.unscored.reason is UnprojectableReason.NO_VENDOR_AWARENESS
+    assert deployer.cs_moves == ()
+    assert deployer.case_state is None
+
+
+def test_a_participant_with_no_event_is_unscored_for_that_reason():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.seat(participant(INVITEE, [], roles=("VENDOR",), joined=False))
+    record = case_standing(ledger.case_ledger())
+    invitee = record.for_participant(INVITEE)
+    assert invitee.unscored.reason is UnprojectableReason.NO_CASE_STATE_EVENTS
+    assert "no event" in invitee.unscored.detail
+    assert [m.destination for m in invitee.rm_moves] == [RM.RECEIVED]
+
+
+def test_the_reason_given_must_be_the_participants_own():
+    reason = UnprojectableParticipant(
+        participant=INVITEE,
+        reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+        detail="none",
+    )
+    with pytest.raises(ValidationError, match="not"):
+        ParticipantStanding(participant=VENDOR, rm=RM.START, unscored=reason)
+
+
+def test_every_move_names_the_participant_whose_state_it_moves(tmp_path):
+    """AC-3 (#6368): each RM and CS move is labelled with its participant."""
+    record = case_standing(_cut("rcv-embargo", 32, tmp_path))
+    for standing in record.participants:
+        for move in (*standing.rm_moves, *standing.cs_moves):
+            assert move.participant == standing.participant
+    assert any(p.cs_moves for p in record.participants)

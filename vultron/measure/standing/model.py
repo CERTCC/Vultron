@@ -49,7 +49,11 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.measure.baselines import ORIGINAL, case_state_query
-from vultron.measure.history import PxaName, UnreadableEntry
+from vultron.measure.history import (
+    CaseEventHistory,
+    PxaName,
+    UnreadableEntry,
+)
 from vultron.measure.ledger import UnusableRow
 from vultron.measure.scoring import SequenceScore, met_desiderata
 from vultron.measure.sequences import UnprojectableParticipant
@@ -194,9 +198,9 @@ class ParticipantStanding(BaseModel):
         """The report-management moves allowed from :attr:`rm`."""
         state = self.case_state
         if state is None:
-            return rm_moves(self.rm, None, None)
+            return rm_moves(self.participant, self.rm, None, None)
         vf, d, _ = cs_dimensions(state)
-        return rm_moves(self.rm, vf, d)
+        return rm_moves(self.participant, self.rm, vf, d)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -206,7 +210,7 @@ class ParticipantStanding(BaseModel):
         state = self.case_state
         if state is None:
             return ()
-        return cs_moves(state, self.rm)
+        return cs_moves(self.participant, state, self.rm)
 
     @property
     def case_state_prefix(self) -> tuple[CSEvent, ...]:
@@ -262,15 +266,24 @@ class StandingGap(BaseModel):
 
     @model_validator(mode="after")
     def _names_a_hole(self) -> StandingGap:
-        if not (
-            self.missing_log_indices
-            or self.conflicting_log_indices
-            or self.unusable_rows
-            or self.unreadable_entries
-            or self.register_problem
-        ):
+        if not any(getattr(self, name) for name in type(self).model_fields):
             raise ValueError("a standing gap must name at least one hole")
         return self
+
+    @classmethod
+    def of(
+        cls, history: CaseEventHistory, register_problem: str | None = None
+    ) -> StandingGap | None:
+        """The holes in *history*, and *register_problem*; ``None`` with
+        none."""
+        holes = {
+            "missing_log_indices": history.missing_log_indices,
+            "conflicting_log_indices": history.conflicting_log_indices,
+            "unusable_rows": history.unusable_rows,
+            "unreadable_entries": history.unreadable_entries,
+            "register_problem": register_problem,
+        }
+        return cls.model_validate(holes) if any(holes.values()) else None
 
 
 class StandingRecord(BaseModel):

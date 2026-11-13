@@ -46,11 +46,12 @@ from vultron.core.states.embargo_register import (
 from vultron.core.states.rm import RM
 from vultron.primitives import NonEmptyString
 
-#: A public state, serialized by its ``pxa`` notation (``CS_pxa`` values are
-#: tuples, which say nothing to a reader).
-PxaName = Annotated[
-    CS_pxa, PlainSerializer(lambda state: state.name, return_type=str)
-]
+#: Serialize a state enum by its member name: the ``CS`` and ``CS_pxa``
+#: values are tuples, which say nothing to a reader.
+BY_NAME = PlainSerializer(lambda state: state.name, return_type=str)
+
+#: A public state, serialized by its ``pxa`` notation.
+PxaName = Annotated[CS_pxa, BY_NAME]
 
 
 class ReachedParticipant(BaseModel):

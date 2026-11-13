@@ -47,7 +47,6 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.embargo_register import (
-    FINAL_REGISTER_STATUSES,
     EmbargoRegisterStatus,
     TerminationReason,
 )
@@ -67,6 +66,7 @@ from vultron.measure.history.model import (
     UnreadableEntry,
 )
 from vultron.measure.history.reached import ReachedParticipant, ReachedState
+from vultron.measure.history.register import RebuiltRegister
 from vultron.measure.history.snapshot import (
     ParticipantRecord,
     member_of,
@@ -214,7 +214,7 @@ class _Deriver:
     started: set[str] = field(default_factory=set)
     exited: set[str] = field(default_factory=set)
     #: Each embargo register entry's status as the ledger's steps leave it.
-    register: dict[str, EmbargoRegisterStatus] = field(default_factory=dict)
+    register: RebuiltRegister = field(default_factory=RebuiltRegister)
 
     # -- one entry -----------------------------------------------------
 
@@ -304,27 +304,21 @@ class _Deriver:
         """
         self._remember_end_time(obj)
         embargo_id = actor_uri(obj)
-        if embargo_id is not None and embargo_id not in self.register:
-            self.register[embargo_id] = EmbargoRegisterStatus.PROPOSED
+        if embargo_id is not None:
+            self.register.propose(embargo_id)
 
     def _on_proposal_rejected(self, context: _Entry, obj: object) -> None:
         """The Case Owner's ``Reject(EmbargoEvent)`` of a proposal."""
-        self._close_proposal(actor_uri(obj), EmbargoRegisterStatus.REJECTED)
+        embargo_id = actor_uri(obj)
+        if embargo_id is not None:
+            self.register.reject(embargo_id)
 
     def _on_invite_undone(self, context: _Entry, invite: object) -> None:
         """The CASE_MANAGER's ``Undo(Invite(EmbargoEvent))``: an abandoned
         proposal is cancelled (EMB-16-001)."""
-        self._close_proposal(_invitee(invite), EmbargoRegisterStatus.CANCELLED)
-
-    def _close_proposal(
-        self, embargo_id: str | None, status: EmbargoRegisterStatus
-    ) -> None:
-        """Move a ``PROPOSED`` register entry to *status*; nothing else."""
-        if (
-            embargo_id is not None
-            and self.register.get(embargo_id) is EmbargoRegisterStatus.PROPOSED
-        ):
-            self.register[embargo_id] = status
+        embargo_id = _invitee(invite)
+        if embargo_id is not None:
+            self.register.cancel(embargo_id)
 
     def _on_activation(self, context: _Entry, obj: object) -> None:
         self._remember_end_time(obj)
@@ -423,9 +417,7 @@ class _Deriver:
             return
         self.started.add(embargo_id)
         replaced = self.active_embargo
-        if replaced is not None and replaced != embargo_id:
-            self.register[replaced] = EmbargoRegisterStatus.SUPERSEDED
-        self.register[embargo_id] = EmbargoRegisterStatus.ACTIVE
+        self.register.activate(embargo_id)
         self.events.append(
             context.event(
                 EventKind.EMBARGO_START,
@@ -501,15 +493,7 @@ class _Deriver:
             )
             return
         self.exited.add(embargo_id)
-        # A termination cancels every open proposal in the same step
-        # (EP-08-004).
-        self.register = {
-            other: EmbargoRegisterStatus.CANCELLED
-            if status is EmbargoRegisterStatus.PROPOSED
-            else status
-            for other, status in self.register.items()
-        }
-        self.register[embargo_id] = EmbargoRegisterStatus.TERMINATED
+        self.register.terminate(embargo_id)
         cause = first_present(
             context.payload, "terminationCause", "termination_cause"
         )
@@ -533,11 +517,9 @@ class _Deriver:
     def _register_entry(
         self, context: _Entry, register_entry: Mapping[str, Any]
     ) -> None:
-        """A carried case's register: an ``ACTIVE`` entry is in force.
-
-        The entry's status is kept as carried, except that an entry the
-        history already holds in a final status keeps it: no step leaves one.
-        """
+        """A carried case's register: an ``ACTIVE`` entry is in force, and
+        any other status is carried unless it is behind the one held
+        (:meth:`.RebuiltRegister.carry`)."""
         embargo = register_entry.get("embargo")
         self._remember_end_time(embargo)
         embargo_id = actor_uri(embargo)
@@ -546,11 +528,8 @@ class _Deriver:
             return
         if status is EmbargoRegisterStatus.ACTIVE:
             self._start(context, embargo_id)
-        elif (
-            status is not None
-            and self.register.get(embargo_id) not in FINAL_REGISTER_STATUSES
-        ):
-            self.register[embargo_id] = status
+        elif status is not None:
+            self.register.carry(embargo_id, status)
 
     # -- consent answers (CEH-04-008, CEH-04-009) ----------------------
 
@@ -804,7 +783,7 @@ def _reached(deriver: _Deriver) -> ReachedState:
             for tracker in deriver.participants.values()
         ],
         pxa=_pxa_of(deriver.pxa),
-        embargo_register=dict(deriver.register),
+        embargo_register=dict(deriver.register.statuses),
     )
 
 

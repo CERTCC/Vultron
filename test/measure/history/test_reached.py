@@ -36,9 +36,9 @@ from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.history import (
+    RM_EVENT_KINDS,
     ReachedParticipant,
     ReachedState,
-    case_event_history,
     derive_case,
 )
 
@@ -55,12 +55,23 @@ def _propose(ledger: Ledger, embargo_id: str = EMBARGO_2) -> int:
     )
 
 
-def test_derive_case_yields_the_history_case_event_history_does():
+def test_a_joined_participant_reaches_the_state_of_its_last_rm_event():
+    """The reached state and the events come from one walk, so they agree."""
     ledger = Ledger()
     ledger.standard_genesis()
     seat_vendor(ledger, VENDOR, "Vf")
-    history, _ = derive_case(ledger.case_ledger())
-    assert history == case_event_history(ledger.case_ledger())
+    ledger.add_status(
+        VENDOR, status("v-v", VENDOR, "VALID", vf="Vf", roles=("VENDOR",))
+    )
+    history, reached = derive_case(ledger.case_ledger())
+    by_kind = {kind: rm for rm, kind in RM_EVENT_KINDS.items()}
+    for reached_one in reached.participants:
+        rm_events = [
+            e
+            for e in history.for_participant(reached_one.participant)
+            if e.kind in by_kind
+        ]
+        assert reached_one.rm is by_kind[rm_events[-1].kind]
 
 
 def test_each_participant_keeps_the_last_state_it_reached():
@@ -276,3 +287,59 @@ def test_a_participant_is_listed_once():
 def test_roles_are_sorted_and_listed_once():
     with pytest.raises(ValueError, match="sorted"):
         ReachedParticipant(participant=VENDOR, roles=("VENDOR", "DEPLOYER"))
+
+
+def test_a_stale_carried_status_never_moves_an_entry_back():
+    """A later snapshot still listing the embargo as proposed."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _propose(ledger)
+    ledger.add("activate_embargo_on_case", "Add", OWNER, embargo(EMBARGO_2))
+    ledger.add(
+        "announce_vulnerability_case",
+        "Announce",
+        CM,
+        {
+            "id": "urn:uuid:case-1",
+            "type": "VulnerabilityCase",
+            "embargoRegister": [
+                {"embargo": embargo(), "status": "ACTIVE"},
+                {"embargo": embargo(EMBARGO_2), "status": "PROPOSED"},
+            ],
+        },
+    )
+    reached = _reached(ledger)
+    assert reached.embargo_register == {
+        EMBARGO: _S.SUPERSEDED,
+        EMBARGO_2: _S.ACTIVE,
+    }
+    assert reached.em() is EM.ACTIVE
+
+
+def test_an_activation_never_reopens_a_rejected_proposal():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _propose(ledger)
+    ledger.add(
+        "reject_embargo_proposal_on_case", "Reject", OWNER, embargo(EMBARGO_2)
+    )
+    ledger.add("activate_embargo_on_case", "Add", OWNER, embargo(EMBARGO_2))
+    reached = _reached(ledger)
+    assert reached.embargo_register == {
+        EMBARGO: _S.ACTIVE,
+        EMBARGO_2: _S.REJECTED,
+    }
+
+
+def test_a_termination_of_an_unrecorded_embargo_records_it_ended():
+    """A merge missing the activation still ends the embargo."""
+    ledger = Ledger()
+    ledger.genesis([], with_embargo=False)
+    ledger.add(
+        "remove_embargo_event_from_case",
+        "Remove",
+        OWNER,
+        embargo(EMBARGO_2),
+        content="EARLY",
+    )
+    assert _reached(ledger).embargo_register == {EMBARGO_2: _S.TERMINATED}

@@ -50,6 +50,7 @@ from vultron.measure.history.model import (
     scope_of,
 )
 from vultron.measure.history.reached import (
+    BY_NAME,
     PxaName,
     ReachedParticipant,
     ReachedState,
@@ -60,6 +61,7 @@ from vultron.measure.history.render import (
 )
 
 __all__ = [
+    "BY_NAME",
     "CASE_KINDS",
     "RM_EVENT_KINDS",
     "CaseEvent",

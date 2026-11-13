@@ -46,33 +46,8 @@ from vultron.measure.standing.model import (
 logger = logging.getLogger(__name__)
 
 
-def _gap(
-    history: CaseEventHistory, register_problem: str | None
-) -> StandingGap | None:
-    """The holes in *history* that keep it from a reading, or ``None``."""
-    if not (
-        history.missing_log_indices
-        or history.conflicting_log_indices
-        or history.unusable_rows
-        or history.unreadable_entries
-        or register_problem
-    ):
-        return None
-    return StandingGap(
-        missing_log_indices=history.missing_log_indices,
-        conflicting_log_indices=history.conflicting_log_indices,
-        unusable_rows=history.unusable_rows,
-        unreadable_entries=history.unreadable_entries,
-        register_problem=register_problem,
-    )
-
-
-def _gapped(
-    history: CaseEventHistory, register_problem: str | None
-) -> StandingRecord:
+def _gapped(history: CaseEventHistory, gap: StandingGap) -> StandingRecord:
     """The record of a ledger with a hole: the gap, and no reading."""
-    gap = _gap(history, register_problem)
-    assert gap is not None, "only a ledger with a hole is gapped"
     logger.warning(
         "Case %s: no standing record over a ledger with a hole: %s",
         history.case_id,
@@ -134,10 +109,12 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     try:
         em = reached.em()
     except VultronInvalidStateTransitionError as exc:
-        return _gapped(history, str(exc))
-    gap = _gap(history, None)
+        register_gap = StandingGap.of(history, str(exc))
+        assert register_gap is not None, "a register problem is a hole"
+        return _gapped(history, register_gap)
+    gap = StandingGap.of(history)
     if gap is not None:
-        return _gapped(history, None)
+        return _gapped(history, gap)
     scores = score_case(case_state_sequences(history))
     return StandingRecord(
         case_id=history.case_id,

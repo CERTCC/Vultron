@@ -33,9 +33,12 @@ Every rule is read from :mod:`vultron.core.states`, never restated here:
 .violation_pxa_em_entailment`, CSB-18-002 to CSB-18-004).
 
 Each move is typed by its machine and refuses, at construction, a step its
-machine's table does not hold.  A :class:`CSMove` names the case-state event
-it appends, so a measure can score the history the move would extend
-(:meth:`CSMove.extend`).
+machine's table does not hold.  A move is named by its machine and its
+trigger in that machine (``rm.validate``, ``cs.fix_is_ready``,
+``em.propose``), never by the wire activity that would carry it.  An RM or CS
+move names the participant whose state it moves.  A :class:`CSMove` names
+the case-state event it appends, so a measure can score the history the move
+would extend (:meth:`CSMove.extend`).
 """
 
 from __future__ import annotations
@@ -43,14 +46,23 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, PlainSerializer, model_validator
+from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
     violation_pxa_em_entailment,
 )
-from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs import (
+    CS,
+    CS_d,
+    CS_pxa,
+    CS_vf,
+    D_Trigger,
+    PXA_Trigger,
+    VF_Trigger,
+)
 from vultron.core.states.cs_invariants import (
+    CS_EVENT_TO_PXA_TRIGGER,
     CSEvent,
     cs_dimensions,
     cs_transition_event,
@@ -64,27 +76,55 @@ from vultron.core.states.em import (
     EM_Trigger,
     is_em_transition,
 )
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import (
+    RM,
+    RM_Trigger,
+    is_valid_rm_transition,
+    rm_transition_trigger,
+)
+from vultron.measure.history import BY_NAME
+from vultron.primitives import NonEmptyString
 
-#: A compound case state, serialized by its ``vfdpxa`` notation (``CS``
-#: values are tuples, which say nothing to a reader).
-CSName = Annotated[
-    CS, PlainSerializer(lambda state: state.name, return_type=str)
-]
+#: A compound case state, serialized by its ``vfdpxa`` notation.
+CSName = Annotated[CS, BY_NAME]
+
+#: The trigger of each case-state event in its own dimension's machine.
+CS_TRIGGERS: dict[CSEvent, VF_Trigger | D_Trigger | PXA_Trigger] = {
+    CSEvent.V: VF_Trigger.V,
+    CSEvent.F: VF_Trigger.F,
+    CSEvent.D: D_Trigger.D,
+    **CS_EVENT_TO_PXA_TRIGGER,
+}
 
 
 class RMMove(BaseModel):
     """One report-management move a participant can make from here.
 
     Fields:
-        source: The participant's report-management state now.
+        participant: The participant whose report management moves.
+        source: Its report-management state now.
         destination: The state the move reaches.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    participant: NonEmptyString
     source: RM
     destination: RM
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def trigger(self) -> RM_Trigger:
+        """The RM trigger of the move."""
+        trigger = rm_transition_trigger(self.source, self.destination)
+        assert trigger is not None, "the validator admits only RM edges"
+        return trigger
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name(self) -> str:
+        """The move's name: ``rm.`` and its RM trigger."""
+        return f"rm.{self.trigger}"
 
     @model_validator(mode="after")
     def _is_an_rm_transition(self) -> RMMove:
@@ -100,16 +140,30 @@ class CSMove(BaseModel):
     """One case-state event a participant's case can take next.
 
     Fields:
+        participant: The participant whose case state moves.
         event: The case-state event the move appends to the history.
-        source: The participant's compound case state now.
+        source: Its compound case state now.
         destination: The compound state the event reaches.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    participant: NonEmptyString
     event: CSEvent
     source: CSName
     destination: CSName
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def trigger(self) -> VF_Trigger | D_Trigger | PXA_Trigger:
+        """The event's trigger in its own dimension's machine."""
+        return CS_TRIGGERS[self.event]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name(self) -> str:
+        """The move's name: ``cs.`` and its dimension trigger."""
+        return f"cs.{self.trigger}"
 
     @model_validator(mode="after")
     def _is_the_events_cs_transition(self) -> CSMove:
@@ -164,6 +218,12 @@ class EMMove(BaseModel):
     source: EM
     destination: EM
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name(self) -> str:
+        """The move's name: ``em.`` and its EM trigger."""
+        return f"em.{self.trigger}"
+
     @model_validator(mode="after")
     def _is_an_em_transition(self) -> EMMove:
         if not is_em_transition(self.trigger, self.source, self.destination):
@@ -174,28 +234,38 @@ class EMMove(BaseModel):
         return self
 
 
-def rm_moves(rm: RM, vf: CS_vf | None, d: CS_d | None) -> tuple[RMMove, ...]:
-    """The report-management moves allowed from *rm*, in RM order.
+def rm_moves(
+    participant: str, rm: RM, vf: CS_vf | None, d: CS_d | None
+) -> tuple[RMMove, ...]:
+    """*participant*'s report-management moves allowed from *rm*, in RM order.
 
     *vf* and *d* are the participant's fix path, or ``None`` when it has no
     case state, which asserts nothing (``composite_state_violations``).
     """
     return tuple(
-        RMMove(source=rm, destination=dest)
+        RMMove(participant=participant, source=rm, destination=dest)
         for dest in RM
         if is_valid_rm_transition(rm, dest)
         and not composite_state_violations(dest, vf, d)
     )
 
 
-def cs_moves(state: CS, rm: RM) -> tuple[CSMove, ...]:
-    """The case-state events allowed from *state*, in event order."""
+def cs_moves(participant: str, state: CS, rm: RM) -> tuple[CSMove, ...]:
+    """*participant*'s case-state events allowed from *state*, in event
+    order."""
     found = []
     for dest in next_cs_states(state):
         vf, d, _ = cs_dimensions(dest)
         event = cs_transition_event(state, dest)
         if event is not None and not composite_state_violations(rm, vf, d):
-            found.append(CSMove(event=event, source=state, destination=dest))
+            found.append(
+                CSMove(
+                    participant=participant,
+                    event=event,
+                    source=state,
+                    destination=dest,
+                )
+            )
     order = list(CSEvent)
     return tuple(sorted(found, key=lambda move: order.index(move.event)))
 
