@@ -28,6 +28,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
 )
@@ -131,4 +132,4 @@ def test_no_resolvable_receiver_raises_before_any_store_read(
     use_case: Any, request_: SimpleNamespace
 ) -> None:
     with pytest.raises(VultronValidationError, match="receiving actor"):
-        use_case(_UnreadableOwnerlessStore(), request_).execute()
+        run_in_act(use_case(_UnreadableOwnerlessStore(), request_))
