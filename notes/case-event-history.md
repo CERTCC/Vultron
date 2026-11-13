@@ -11,6 +11,7 @@ tracks:
   - "#6067"
   - "#6068"
   - "#6069"
+  - "#6368"
 description: >
   Design for the read-only layer that turns a case ledger into the case's CVD event
   history: why events come from state comparison rather than a semantic-type table,
@@ -31,6 +32,7 @@ related_notes:
 related_adrs:
   - docs/adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
   - docs/adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
+  - docs/adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md
   - docs/adr/0075-split-vfd-state-machine.md
   - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
@@ -134,6 +136,16 @@ Keep the three consent answers distinct (CEH-04-008). Inaction is recorded as
 `TIMED_OUT` and never as `DECLINED` (CM-18-002), so collapsing them would make a
 pocket veto indistinguishable from a refusal and destroy the pocket-veto rate as a
 measure.
+
+### Read the case's EM from the register the walk rebuilds
+
+The walk keeps each embargo register entry's status from the steps the ledger
+records (`derive_case`, `vultron/measure/history/reached.py`), and a measure that
+needs the case's EM derives it from those statuses with `derive_em`. Never read the
+stamped `CaseStatus.em` instead. Reason: EM is derived from the register, and the
+stamp is only a copy written when a case status is added (ADR-0122); in `rcv-embargo`
+the stamp reads `ACTIVE` from entry 8 to 39 while a proposal holds the register in
+`REVISE` from entry 23 to 33.
 
 ## Two Clocks Stay Two Fields
 

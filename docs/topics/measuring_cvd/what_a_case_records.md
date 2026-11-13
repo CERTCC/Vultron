@@ -344,6 +344,13 @@ For embargo times, the measure connects the embargo register and the consent row
     The case's event history stays as the ledger records it.
     The layer reports every other participant with the reason it has no sequence, and it computes no score.
     A separate measure scores each vendor's sequence through the complete histories it can still become (`vultron/measure/scoring/`), as [Reasoning over Possible Histories](reasoning_over_histories.md#scoring-a-case-that-is-still-in-progress) describes.
+    The standing record puts these results together for one case at its last entry (`vultron/measure/standing/`).
+    It gives each participant's report-management state, and each vendor's case state and score.
+    It gives the case's embargo-management state, which it derives from the embargo register that the ledger's steps rebuild, and the case's public state.
+    It marks each desideratum as met, broken or open for each vendor.
+    A desideratum is met when every history that the vendor's sequence can still become meets it, and broken when none of them does.
+    The record lists the moves that the state machines allow from each state, and names each move by its machine and its trigger.
+    A ledger with a gap in its history gives a record that names the gap and holds no score.
 
 ## Further reading
 
