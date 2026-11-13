@@ -780,24 +780,13 @@ class TestStatusUseCases:
         assert pstatus.id_ in status_ids
 
     @pytest.mark.spec("HP-08-008")
-    @pytest.mark.spec("IO-03-004")
-    @pytest.mark.spec("HP-08-008")
-    @pytest.mark.spec("HP-08-014")
-    @pytest.mark.parametrize("status_case", ["b", "a"])
-    def test_add_participant_status_through_ingress_naming_another_case_is_refused(
-        self, status_case
-    ):
-        """An Add(ParticipantStatus) whose activity names case B but whose
-        target participant is case A's is refused at the HP-08-014 door on
-        the inbox path, whichever case the status names: the tree is built
-        on the case the activity names, and the target is not recorded in
-        it, so neither case gains an entry and A's participant gains no
-        status (#4961, #6412).
+    def _deliver_across_cases(self, status_case: str):
+        """An Add from a participant of cases A and B, its target A's
+        participant and its activity ``context`` case B, through the inbox
+        ingress; the status names case *status_case* (``"a"`` or ``"b"``).
 
         The sender is a participant of both cases, so the sender guard would
-        pass on either.  With the status naming A, the Add was applied to A
-        before #6412; it is now refused, because the activity and its target
-        disagree about the case (HP-08-008).
+        pass on either.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -859,17 +848,58 @@ class TestStatusUseCases:
             )
         )
 
+        return result, dl, target, status_id, case_a, case_b, entries_before
+
+    def _assert_nothing_kept(self, dl, target, status_id, entries_before):
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(target.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
+
+    @pytest.mark.spec("IO-03-004")
+    @pytest.mark.spec("HP-08-008")
+    @pytest.mark.spec("HP-08-013")
+    @pytest.mark.spec("HP-08-014")
+    def test_add_participant_status_through_ingress_naming_another_case_is_refused(
+        self,
+    ):
+        """A status naming case B whose target participant is case A's is
+        refused at the HP-08-014 door on the inbox path: the tree is built on
+        the case the status names, and the target is not recorded in it, so
+        neither case gains an entry and A's participant gains no status
+        (#4961, #6412)."""
+        result, dl, target, status_id, case_a, case_b, before = (
+            self._deliver_across_cases("b")
+        )
+
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason == (
             f"AddParticipantStatusBT: target participant '{target.id_}'"
             f" belongs to case '{case_a.id_}', not case '{case_b.id_}'"
             " — REFUSED (HP-08-014)"
         )
-        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
-        stored = cast(as_CaseParticipant, dl.read(target.id_))
-        assert status_id not in [
-            getattr(s, "id_", s) for s in stored.participant_statuses
-        ]
+        self._assert_nothing_kept(dl, target, status_id, before)
+
+    @pytest.mark.spec("HP-08-015")
+    def test_add_participant_status_whose_activity_names_another_case_is_refused(
+        self,
+    ):
+        """A status and target of case A, in an activity whose ``context``
+        names case B, is refused before the commit with both cases in the
+        reason: the sender said two things about which case the act is for
+        (HP-08-015)."""
+        result, dl, target, status_id, case_a, case_b, before = (
+            self._deliver_across_cases("a")
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert (
+            f"the activity's context names case '{case_b.id_}' but"
+            f" '{status_id}' names case '{case_a.id_}' — REFUSED (HP-08-015)"
+        ) in result.reason
+        self._assert_nothing_kept(dl, target, status_id, before)
 
     @pytest.mark.spec("HP-08-008")
     def test_add_participant_status_to_an_unheld_participant_is_refused(

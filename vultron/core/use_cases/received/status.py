@@ -22,6 +22,7 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
     CheckParticipantStatusAcceptableNode,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -212,11 +213,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The tree is built on the case the activity names.  Its HP-08-014
-        # door admits the delivery only when the receiver's record of the
-        # target participant names that case, so the status joins only its
-        # target's own case and no store is read here (HP-08-008).
-        case_id = request.context_id
+        # The status says which case it applies to: the tree is built on the
+        # carried status's own ``context``.  Its HP-08-014 door admits the
+        # delivery only when the receiver's record of the target participant
+        # names that case, so the status joins only its target's own case
+        # and no store is read here (HP-08-008).  A status carried by
+        # reference names no case, which the path stage refuses.
+        case_id = _as_id(getattr(request.status, "context", None)) or None
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}

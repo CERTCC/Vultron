@@ -38,6 +38,7 @@ path by which a participant's P, X or A report reaches the case status:
     ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ [IntakeReceivedActivityNode]           # After the doors (CLP-10-010, CLP-10-017)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
+    │   ├─ ActivityContextMatchesObjectNode   # Guard: activity and status agree (HP-08-015)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
     │   ├─ OnBehalfAssertion                  # Another's record: only v→V/d→D (RSH-08-014)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
@@ -92,6 +93,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 )
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
+)
+from vultron.core.behaviors.case.nodes.activity_context import (
+    ActivityContextMatchesObjectNode,
 )
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
@@ -225,8 +229,9 @@ def add_participant_status_tree(
     correctly fires only when the receiving actor holds
     ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the commit and all children is the case the activity
-    names, and the ``TargetParticipantInCaseNode`` door admits the delivery
+    The *case_id* for the commit and all children is the case the status
+    names (its own ``context``), and the ``TargetParticipantInCaseNode`` door
+    admits the delivery
     only when the receiver's record of the target participant names that
     same case (HP-08-008, HP-08-014).  A target the receiver holds no record
     of, or one recorded in another case, is refused there, before the sender
@@ -266,12 +271,14 @@ def add_participant_status_tree(
 
     Args:
         request: The parsed inbound domain event.
-        case_id: The case the activity names (its ``context``).  When
+        case_id: The case the status names (its own ``context``).  When
             provided, a guarded-commit subtree is inserted after
             precondition guards so the receiving CaseActor writes a
             canonical ledger entry (CLP-10-005), and the HP-08-014 door
-            refuses a target not recorded in it; ``None`` when the activity
-            names none, which the path stage refuses.
+            refuses a target not recorded in it; ``None`` when the status
+            names none (or is carried by reference), which the path stage
+            refuses.  ``ActivityContextMatchesObjectNode`` refuses an
+            activity whose own ``context`` names another case (HP-08-015).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC`, which
             withholds every non-CASE_OWNER update until the Case Owner
@@ -293,7 +300,7 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # The case the activity names; the HP-08-014 door refuses a target the
+    # The case the status names; the HP-08-014 door refuses a target the
     # receiver does not record in it, before the sender guard (HP-08-008).
     tree_case_id: str | None = case_id
 
@@ -351,11 +358,18 @@ def add_participant_status_tree(
             else None
         ),
         precondition_guards=[
+            # HP-08-015: an activity whose context names another case than
+            # its status's is refused, naming both.
             # HP-08-007: a status of another case never joins this one.
             # RSH-08-007: only the participant asserts its own status, save
             # the on-behalf v→V and d→D of PRM-06-003/004.
             *(
                 [
+                    ActivityContextMatchesObjectNode(
+                        activity_context_id=request.context_id,
+                        object_context_id=tree_case_id,
+                        object_id=status_id,
+                    ),
                     CarriedObjectInTargetCaseNode(
                         object_id=status_id,
                         carried=status_obj,

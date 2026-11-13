@@ -31,7 +31,7 @@ class TargetParticipantInCaseNode(CaseResolving, DataLayerConditionWithPorts):
     holds no record of that participant, or the record names another case
     or none, the activity has no case to act on, and this door refuses it
     ahead of the sender guard, so nothing is written or sent (HP-08-014,
-    HP-01-006).  The tree is scoped to the case the activity names, so its
+    HP-01-006).  The tree is scoped to the case the status names, so its
     path stage can judge the receiver; this door is what keeps a case the
     target is not recorded in from ever taking the status (HP-08-008).  A
     pure read, run as the tree's ``case_resolution`` step.
