@@ -276,10 +276,11 @@ def add_participant_status_tree(
             provided, a guarded-commit subtree is inserted after
             precondition guards so the receiving CaseActor writes a
             canonical ledger entry (CLP-10-005), and the target door
-            refuses a target not recorded in it (HP-08-013, HP-08-014); ``None`` when the status
-            names none (or is carried by reference), which the path stage
-            refuses.  ``ActivityContextMatchesObjectNode`` refuses an
-            activity whose own ``context`` names another case (HP-08-015).
+            refuses a target not recorded in it (HP-08-013, HP-08-014);
+            ``None`` when the status names none (or is carried by
+            reference), which the path stage refuses.
+            ``ActivityContextMatchesObjectNode`` refuses an activity whose
+            own ``context`` names another case (HP-08-015).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC`, which
             withholds every non-CASE_OWNER update until the Case Owner
@@ -348,8 +349,9 @@ def add_participant_status_tree(
         ),
         # HP-08-014: a target participant this receiver holds no record of
         # leaves no case to act on; HP-08-013: one of another case is not
-        # the status's case.  The door refuses both before the sender guard.  With no case at all there is nothing
-        # to check it against, and the path stage refuses the no-case path.
+        # the status's case.  The door refuses both before the sender guard.
+        # With no case at all there is nothing to check it against, and the
+        # path stage refuses the no-case path.
         case_resolution=(
             [
                 TargetParticipantInCaseNode(

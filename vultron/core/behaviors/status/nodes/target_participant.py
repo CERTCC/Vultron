@@ -32,10 +32,11 @@ class TargetParticipantInCaseNode(CaseResolving, DataLayerConditionWithPorts):
     activity has no case to act on (HP-08-014); when the record names
     another case than the status, the status is not the target's case
     (HP-08-013).  Either way this door refuses it ahead of the sender
-    guard, so nothing is written or sent (HP-01-006).  The tree is scoped to the case the status names, so its
-    path stage can judge the receiver; this door is what keeps a case the
-    target is not recorded in from ever taking the status (HP-08-008).  A
-    pure read, run as the tree's ``case_resolution`` step.
+    guard, so nothing is written or sent (HP-01-006).  The tree is scoped
+    to the case the status names, so its path stage can judge the receiver;
+    this door is what keeps a case the target is not recorded in from ever
+    taking the status (HP-08-008).  A pure read, run as the tree's
+    ``case_resolution`` step.
     """
 
     def __init__(

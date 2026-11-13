@@ -217,8 +217,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         # carried status's own ``context``.  Its target door admits the
         # delivery only when the receiver's record of the target participant
         # names that case, so the status joins only its target's own case
-        # and no store is read here (HP-08-008, HP-08-013, HP-08-014).  A status carried by
-        # reference names no case, which the path stage refuses.
+        # and no store is read here (HP-08-008, HP-08-013, HP-08-014).  A
+        # status carried by reference names no case, which the path stage
+        # refuses.
         case_id = _as_id(getattr(request.status, "context", None)) or None
 
         call_out_kwargs = (
