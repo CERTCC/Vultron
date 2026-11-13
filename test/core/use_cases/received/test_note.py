@@ -902,6 +902,7 @@ class TestNoteUseCases:
         assert dl.list_objects("CaseLedgerEntry") == []
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("HP-01-039")
     def test_remove_note_from_unknown_case_is_refused(self, make_payload):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -928,8 +929,12 @@ class TestNoteUseCases:
             )
         )
 
+        # The case is unheld, so the path stage refuses the no-case path
+        # (HP-01-039); the handler reads no store before its tree.
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "not found" in result.reason
+        assert result.reason == (
+            "holds no replica of case 'https://example.org/cases/no-such-case'"
+        )
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
@@ -942,6 +947,9 @@ class TestNoteUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         event = MagicMock()
+        # Neither handler has the id it needs: the Add no inline note, the
+        # Remove no note id.
+        event.note = None
         event.note_id = None
         event.case_id = "https://example.org/cases/c"
 

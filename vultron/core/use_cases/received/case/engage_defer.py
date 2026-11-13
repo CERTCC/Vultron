@@ -61,8 +61,8 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return HandlerResult.refused("Engage activity has no case id")
 
-        # The Join names the case (ADR-0165): the tree's held-case door
-        # refuses one this store does not hold (AKM-03-006).
+        # The Join names the case (ADR-0165): the tree's path stage refuses
+        # one this store does not hold (AKM-03-006).
 
         # A receipt, not a transition: the tree decides whether the declared
         # move happened, and a restatement is reported SKIPPED.  An
@@ -128,8 +128,9 @@ class DeferCaseReceivedUseCase:
             logger.warning("defer_case: missing case_id on request")
             return HandlerResult.refused("Defer activity has no case id")
 
-        # A receipt, not a transition, for the reason given on the engage
-        # line above (SL-04-007).
+        # The Ignore names the case, as the Join does (AKM-03-006).  A
+        # receipt, not a transition, for the reason given on the engage line
+        # above (SL-04-007).
         logger.info(
             "Actor '%s' declares RM.DEFERRED on case '%s' (Ignore received)",
             actor_id,

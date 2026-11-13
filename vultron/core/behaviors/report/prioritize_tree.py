@@ -213,8 +213,8 @@ def create_engage_case_tree(
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
-        # A Join of a case this store does not hold is refused at the
-        # held-case door, naming the activity and the case (AKM-03-006).
+        # A Join of a case this store does not hold is refused at the path
+        # stage, naming the activity and the case (AKM-03-006).
         held_case=CaseNamedByReference.JOIN,
         # The participant declares its RM move to the CASE_MANAGER, which
         # adjudicates and commits it; a participant replica archives its copy

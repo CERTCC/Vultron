@@ -11,12 +11,12 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 
-"""The held-case door of a received tree (AKM-03-006, ADR-0165).
+"""The path stage's refusal of an act naming an unheld case (AKM-03-006).
 
-An act that names its case and carries none of it is refused, naming the
-activity and the case, when the receiver does not hold the case; the factory
-places the door after the seen-before door and before the path stage, and
-the runner reads the door's own reason.
+An act that names its case and carries none of it (AKM-03-004) is refused,
+naming the activity and the case, when the receiver holds no replica of the
+case.  The refusal is the path stage's on the no-case path, composed in one
+place (HP-01-039), so the door order is unchanged (HP-01-035).
 """
 
 from types import SimpleNamespace
@@ -27,15 +27,12 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.objects import make
-from vultron.core.behaviors.case.nodes.addressee import (
-    ENCLOSING_TREE_ADDRESSEE_CHECK,
+from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
+from vultron.core.behaviors.case.nodes.received_path import (
+    ReceivedPath,
+    ReceivedPathNode,
+    undeclared_path_reason,
 )
-from vultron.core.behaviors.case.nodes.held_case import (
-    CaseNamedByReference,
-    ReceiverHoldsNamedCaseNode,
-)
-from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
-from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.ownership_transfer_tree.proposal import (
     create_propose_ownership_transfer_tree,
 )
@@ -48,11 +45,8 @@ from vultron.core.behaviors.case.receive_close_case_tree.factory import (
 from vultron.core.behaviors.case.receive_stages.tree import (
     ReceivedActivityTree,
 )
-from vultron.core.behaviors.case.received_run import (
-    door_refusal,
-    held_case_refusal,
-)
-from vultron.core.behaviors.case_id_scope import unscoped
+from vultron.core.behaviors.case.received_run import door_refusal
+from vultron.core.behaviors.case_id_scope import unscoped, with_case_id
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -66,135 +60,130 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import VultronWiringError
 
-CASE_ID = "https://example.org/cases/held-case-door"
+CASE_ID = "https://example.org/cases/held-case"
 ACTOR_ID = "https://example.org/actors/manager"
 SENDER_ID = "https://example.org/actors/vendor"
 ACTIVITY_ID = "https://example.org/activities/join-1"
 
 _RULE = SenderRule.to_case_manager(SenderEntitlementKind.PARTICIPANT)
 _CONTEXT = SenderCheckContext(sender_id=SENDER_ID, case_id=CASE_ID)
+_DECLARED = frozenset(
+    {ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA}
+)
 
 
-def _run_door(*, held: bool) -> ReceiverHoldsNamedCaseNode:
+def _run_stage(*, held: bool) -> ReceivedPathNode:
     scenario = BTTestScenario(actor_id=ACTOR_ID)
     if held:
         scenario.seed(
-            make(VulnerabilityCase, id_=CASE_ID, attributed_to=ACTOR_ID)
+            make(VulnerabilityCase, id_=CASE_ID, attributed_to=SENDER_ID)
         )
-    door = ReceiverHoldsNamedCaseNode(
-        act=CaseNamedByReference.JOIN, case_id=CASE_ID
+    stage = ReceivedPathNode(
+        declared=_DECLARED,
+        label="ProofBT",
+        held_case=CaseNamedByReference.JOIN,
     )
-    scenario.run(door, activity=SimpleNamespace(activity_id=ACTIVITY_ID))
-    return door
+    scenario.run(
+        with_case_id(stage, CASE_ID),
+        activity=SimpleNamespace(activity_id=ACTIVITY_ID),
+    )
+    return stage
 
 
 @pytest.mark.spec("AKM-03-006")
-def test_the_door_admits_a_held_case() -> None:
-    assert _run_door(held=True).status == Status.SUCCESS
+@pytest.mark.spec("HP-01-039")
+def test_an_unheld_case_is_refused_naming_the_activity_and_the_case() -> None:
+    stage = _run_stage(held=False)
 
-
-@pytest.mark.spec("AKM-03-006")
-def test_the_door_refuses_an_unheld_case_naming_the_activity_and_case() -> (
-    None
-):
-    door = _run_door(held=False)
-
-    assert door.status == Status.FAILURE
-    assert door.feedback_message == (
+    assert stage.status == Status.FAILURE
+    assert stage.resolved_path is ReceivedPath.NO_CASE
+    assert stage.feedback_message == (
         f"Join '{ACTIVITY_ID}' names unknown case '{CASE_ID}'"
     )
 
 
 @pytest.mark.spec("AKM-03-006")
-def test_the_runner_reads_the_doors_own_reason() -> None:
-    """``door_refusal`` returns the door's refusal, so the handler does."""
-    door = _run_door(held=False)
+def test_the_handler_reads_the_stages_own_reason() -> None:
+    stage = _run_stage(held=False)
+    assert stage.parent is not None
     tree = py_trees.composites.Sequence(
-        name="ProofBT", memory=False, children=[door]
+        name="ProofBT", memory=False, children=[stage.parent]
     )
 
-    refusal = held_case_refusal(tree)
+    refusal = door_refusal(tree)
     assert refusal is not None
-    assert refusal.reason == door.feedback_message
-    assert door_refusal(tree) == refusal
+    assert refusal.reason == stage.feedback_message
+
+
+@pytest.mark.spec("AKM-03-006")
+def test_a_held_case_takes_its_path_as_before() -> None:
+    """A held replica is the participant-replica path, admitted."""
+    stage = _run_stage(held=True)
+
+    assert stage.status == Status.SUCCESS
+    assert stage.resolved_path is ReceivedPath.PARTICIPANT_REPLICA
+
+
+@pytest.mark.spec("HP-01-039")
+def test_the_act_changes_only_the_no_case_reason() -> None:
+    """Every other refused path keeps the composed reason (HP-01-039)."""
+    for path in (ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA):
+        declared = frozenset(ReceivedPath) - {path}
+        assert undeclared_path_reason(
+            path,
+            declared,
+            CASE_ID,
+            held_case=CaseNamedByReference.LEAVE,
+            activity_id=ACTIVITY_ID,
+        ) == undeclared_path_reason(path, declared, CASE_ID)
 
 
 def _tree(
-    held_case: CaseNamedByReference | None = None,
+    held_case: CaseNamedByReference | None = CaseNamedByReference.JOIN,
+    paths: frozenset[ReceivedPath] | None = _DECLARED,
+    case_id: str | None = CASE_ID,
 ) -> ReceivedActivityTree:
     return create_receive_activity_tree(
         name="HeldCaseBT",
-        case_id=CASE_ID,
+        case_id=case_id,
         precondition_guards=[],
-        paths={ReceivedPath.CASE_MANAGER, ReceivedPath.PARTICIPANT_REPLICA},
-        sender_rule=_RULE,
-        sender_context=_CONTEXT,
+        paths=paths,
+        sender_rule=_RULE if paths is not None else None,
+        sender_context=_CONTEXT if paths is not None else None,
         held_case=held_case,
     )
 
 
-def _door_names(tree: ReceivedActivityTree) -> list[str]:
-    return [type(unscoped(guard)).__name__ for guard in tree.door_guards]
-
-
-@pytest.mark.spec("AKM-03-006")
+@pytest.mark.spec("HP-01-035")
 @pytest.mark.spec("CLP-10-010")
-def test_the_factory_places_the_door_before_the_path_stage() -> None:
-    """After the seen-before door, ahead of the path stage's no-case refusal."""
-    names = _door_names(_tree(CaseNamedByReference.JOIN))
+def test_the_door_order_is_unchanged() -> None:
+    """The act rides on the path stage, directly after the seen-before door."""
+    names = [type(unscoped(g)).__name__ for g in _tree().door_guards]
 
-    assert names[:4] == [
+    assert names[:3] == [
         "ActivityAddressedToReceiverNode",
         "ActivityNotSeenBeforeNode",
-        "ReceiverHoldsNamedCaseNode",
         "ReceivedPathNode",
     ]
 
 
 @pytest.mark.spec("AKM-03-006")
-def test_a_tree_without_held_case_has_no_door() -> None:
-    assert "ReceiverHoldsNamedCaseNode" not in _door_names(_tree())
+def test_held_case_without_paths_is_a_wiring_error() -> None:
+    with pytest.raises(VultronWiringError, match="declare its paths"):
+        _tree(paths=None)
 
 
-@pytest.mark.spec("AKM-03-006")
-def test_held_case_on_a_tree_naming_no_case_is_a_wiring_error() -> None:
-    with pytest.raises(VultronWiringError, match="held_case"):
-        create_receive_activity_tree(
-            name="NoCaseBT",
-            case_id=None,
-            precondition_guards=[],
-            held_case=CaseNamedByReference.LEAVE,
-        )
+@pytest.mark.spec("HP-01-041")
+def test_held_case_with_the_no_case_path_is_a_wiring_error() -> None:
+    with pytest.raises(VultronWiringError, match="no-case path"):
+        _tree(paths=frozenset({ReceivedPath.NO_CASE}), case_id=None)
 
 
-@pytest.mark.spec("AKM-03-006")
-def test_held_case_on_a_nested_tree_is_a_wiring_error() -> None:
-    """A nested tree runs on its enclosing tree's doors (ADR-0154)."""
-    with pytest.raises(VultronWiringError, match="enclosing tree"):
-        create_receive_activity_tree(
-            name="NestedBT",
-            case_id=CASE_ID,
-            precondition_guards=[],
-            nested=True,
-            addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
-            post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
-            held_case=CaseNamedByReference.LEAVE,
-        )
-
-
-def _held_case_door_act(
+def _stage_act(
     tree: py_trees.behaviour.Behaviour,
 ) -> CaseNamedByReference | None:
-    doors = [
-        node
-        for node in tree.iterate()
-        if isinstance(node, ReceiverHoldsNamedCaseNode)
-    ]
-    assert len(doors) <= 1
-    if not doors:
-        return None
-    assert doors[0].case_id == CASE_ID
-    return doors[0].act
+    (stage,) = [n for n in tree.iterate() if isinstance(n, ReceivedPathNode)]
+    return stage.held_case
 
 
 @pytest.mark.spec("AKM-03-004")
@@ -244,6 +233,6 @@ def _held_case_door_act(
     ],
     ids=["Join", "Ignore", "Leave", "Offer(Offer)"],
 )
-def test_every_act_naming_its_case_carries_the_door(build, act) -> None:
-    """Each AKM-03-004 act's tree has exactly one held-case door, on its case."""
-    assert _held_case_door_act(build()) is act
+def test_every_act_naming_its_case_declares_it(build, act) -> None:
+    """Each AKM-03-004 act's path stage carries the act."""
+    assert _stage_act(build()) is act

@@ -22,7 +22,7 @@ left here reads the DataLayer after the run, so it cannot live in the
 runner: :func:`case_manager_verdict` turns a CASE_MANAGER gate's skip into
 the refusal HP-01-005 owes.  #6394 moves it into the tree and deletes this
 package.  An act naming a case the receiver does not hold is refused by the
-tree's held-case door (AKM-03-006).
+tree's path stage (AKM-03-006).
 """
 
 from vultron.core.use_cases.received._bt_verdict.case_manager import (

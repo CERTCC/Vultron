@@ -15,8 +15,8 @@
 
 """Verdicts owed when a door guard of a received tree turned the run away.
 
-The addressee check (HP-01-005), the seen-before door (ADR-0154), the
-held-case door (AKM-03-006), the path door stage (ADR-0153), the post-close boundary (CM-23-013) and the
+The addressee check (HP-01-005), the seen-before door (ADR-0154), the path
+door stage (ADR-0153), the post-close boundary (CM-23-013) and the
 incomplete-activity guard; each keeps its guard's own reason (CLP-10-010).
 The closed-sender door (CM-23-018) is read by the handlers whose trees have
 one (:func:`~vultron.core.behaviors.case.received_run.readers.closed_sender_reader`),
@@ -30,9 +30,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
-)
-from vultron.core.behaviors.case.nodes.held_case import (
-    ReceiverHoldsNamedCaseNode,
 )
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
     ActivityIncompleteNode,
@@ -116,19 +113,6 @@ def addressee_refusal(
     return guard_refusal(tree, ActivityAddressedToReceiverNode)
 
 
-def held_case_refusal(
-    tree: py_trees.behaviour.Behaviour | _HasRoot,
-) -> HandlerResult | None:
-    """The refusal of an act naming a case the receiver does not hold.
-
-    ``None`` unless the tree's
-    :class:`~vultron.core.behaviors.case.nodes.held_case.ReceiverHoldsNamedCaseNode`
-    door refused; the reason is the door's own, naming the activity and the
-    case (AKM-03-006).
-    """
-    return guard_refusal(tree, ReceiverHoldsNamedCaseNode)
-
-
 def incomplete_activity_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
 ) -> HandlerResult | None:
@@ -196,8 +180,7 @@ def door_refusal(
     """The verdict owed when a door guard every received tree carries ended it.
 
     The addressee check (:func:`addressee_refusal`, HP-01-005), the
-    seen-before door (:func:`seen_before_verdict`, ADR-0154), the held-case
-    door (:func:`held_case_refusal`, AKM-03-006), the path stage
+    seen-before door (:func:`seen_before_verdict`, ADR-0154), the path stage
     (:func:`path_refusal`, ADR-0153), then the post-close boundary
     (:func:`post_close_refusal`, CM-23-013); each keeps its guard's own
     reason, and they are asked in the order the factory places them
@@ -216,8 +199,6 @@ def door_refusal(
         return refusal
     if (verdict := seen_before_verdict(tree)) is not None:
         return verdict
-    if (refusal := held_case_refusal(tree)) is not None:
-        return refusal
     if (refusal := path_refusal(tree)) is not None:
         return refusal
     return post_close_refusal(tree)

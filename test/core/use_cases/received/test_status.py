@@ -28,7 +28,11 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make, with_times
-from test.support.received import delivered_body, received_event
+from test.support.received import (
+    TEST_SENDER_POSITION,
+    delivered_body,
+    received_event,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -39,10 +43,20 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+)
+from vultron.core.behaviors.case.received_run import find_node
 from vultron.core.behaviors.sender_entitlement import (
     AddresseeSide,
     SenderEntitlementKind,
     SenderRule,
+)
+from vultron.core.behaviors.status.add_case_status_tree import (
+    add_case_status_tree,
+)
+from vultron.core.behaviors.status.add_participant_status_tree import (
+    add_participant_status_tree,
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -51,6 +65,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.events.status import (
+    AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -1124,61 +1139,47 @@ class TestStatusUseCases:
             " (store-owner fallback, CLP-10-005)"
         )
 
-    def test_add_case_status_to_case_rejects_empty_status_id(self, caplog):
-        """execute() logs a warning and returns early when status_id is empty string."""
-        import logging
-        from unittest.mock import MagicMock
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+    @pytest.mark.spec("CLP-10-018")
+    def test_add_case_status_to_case_rejects_empty_status_id(self):
+        """An empty status id gets the incomplete-activity tree: the refusal
+        is the tree's guard, after the doors and intake, not a pre-check in
+        ``execute()`` (CLP-10-005, CLP-10-018)."""
+        event = AddCaseStatusToCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
+            activity_id="https://example.org/activities/a1",
+            actor_id="https://example.org/actors/vendor",
         )
-        mock_event = MagicMock()
-        mock_event.status_id = ""
-        mock_event.case_id = "https://example.org/cases/test-empty-id"
-        mock_event.receiving_actor_id = None
+        tree = add_case_status_tree(
+            event,
+            sender_rule=AddCaseStatusToCaseReceivedUseCase.sender_entitlement,
+        )
+        guard = find_node(tree, ActivityIncompleteNode)
+        assert guard is not None
+        assert guard.reason == (
+            "Add(CaseStatus) is missing its status id or case id"
+        )
 
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                AddCaseStatusToCaseReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                )
-            )
-
-        assert "missing status_id or case_id" in caplog.text
-        assert result.disposition == HandlerDisposition.REFUSED
-
+    @pytest.mark.spec("CLP-10-018")
     def test_add_participant_status_to_participant_rejects_empty_status_id(
-        self, caplog
+        self,
     ):
-        """execute() logs a warning and returns early when status_id is empty string."""
-        import logging
-        from unittest.mock import MagicMock
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+        """As above, for ``Add(ParticipantStatus)`` with no participant."""
+        event = AddParticipantStatusToParticipantReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
+            activity_id="https://example.org/activities/a2",
+            actor_id="https://example.org/actors/vendor",
         )
-        mock_event = MagicMock()
-        mock_event.status_id = ""
-        mock_event.participant_id = (
-            "https://example.org/cases/test/participants/p"
+        tree = add_participant_status_tree(
+            request=event,
+            sender_rule=(
+                AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+            ),
         )
-        mock_event.receiving_actor_id = None
-
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                AddParticipantStatusToParticipantReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                )
-            )
-
-        assert "missing status_id" in caplog.text
-        assert result.disposition == HandlerDisposition.REFUSED
+        guard = find_node(tree, ActivityIncompleteNode)
+        assert guard is not None
+        assert guard.reason == (
+            "Add(ParticipantStatus) is missing its status id or participant id"
+        )
 
 
 # ---------------------------------------------------------------------------

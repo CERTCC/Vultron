@@ -151,7 +151,7 @@ def create_propose_ownership_transfer_tree(
         name="ProposeOwnershipTransferBT",
         case_id=case_id,
         # The proposal names the case (ADR-0165): one the CASE_MANAGER does
-        # not hold is refused at the held-case door (AKM-03-006).
+        # not hold is refused at the path stage (AKM-03-006).
         held_case=CaseNamedByReference.OWNERSHIP_TRANSFER_PROPOSAL,
         # The Case Owner proposes to the CASE_MANAGER, which alone
         # adjudicates the proposal and makes the Offer; no other receiver

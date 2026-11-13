@@ -52,6 +52,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
+from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
@@ -106,6 +107,9 @@ def undeclared_path_reason(
     path: ReceivedPath,
     declared: Collection[ReceivedPath],
     case_id: str | None,
+    *,
+    held_case: CaseNamedByReference | None = None,
+    activity_id: str | None = None,
 ) -> str:
     """The reason an undeclared *path* is refused with (HP-01-039).
 
@@ -121,15 +125,26 @@ def undeclared_path_reason(
     missing; a declaration that omits the manager path therefore says what is
     missing — a branch, not the role (HP-01-005).
 
+    A message type that names its case and carries none of it
+    (*held_case*, AKM-03-004) is refused on the no-case path naming the
+    activity and the case instead, because the receiver has nothing to act
+    on (AKM-03-006).
+
     Args:
         path: The path the stage resolved for this receiver.
         declared: The paths the message type handles.
         case_id: The case the role was read in; ``None`` when the tree
             resolved none, which only the no-case path reaches.
+        held_case: The act, for a type that names its case by reference.
+        activity_id: The refused activity, named with *held_case*.
 
     Returns:
         One sentence fragment, true of the receiver being refused.
     """
+    if held_case is not None and path is ReceivedPath.NO_CASE and case_id:
+        return (
+            f"{held_case.value} '{activity_id}' names unknown case '{case_id}'"
+        )
     case = f"case '{case_id}'" if case_id else "the case this activity names"
     clause = _PATH_CLAUSE[path].format(case=case)
     if ReceivedPath.CASE_MANAGER in declared:
@@ -171,6 +186,9 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         declared: The paths the message type handles.
         label: Names the tree in log lines; the factory passes the tree's own
             name.
+        held_case: The act, for a type that names its case by reference
+            (AKM-03-004); its no-case refusal names the activity and the
+            case (AKM-03-006).
     """
 
     def __init__(
@@ -178,10 +196,13 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         declared: frozenset[ReceivedPath],
         label: str = "",
         name: str | None = None,
+        *,
+        held_case: CaseNamedByReference | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.declared = declared
         self.label = label
+        self.held_case = held_case
         self._case_id_bb: str | None = None
         self._activity: object | None = None
         self.resolved_path: ReceivedPath | None = None
@@ -273,7 +294,11 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
         self.feedback_message = undeclared_path_reason(
-            path, self.declared, case_id
+            path,
+            self.declared,
+            case_id,
+            held_case=self.held_case,
+            activity_id=getattr(self._activity, "activity_id", None),
         )
         self.logger.warning(
             "%s: refused at '%s' on the %s path; %s handles %s only: %s",

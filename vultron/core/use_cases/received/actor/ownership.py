@@ -103,7 +103,7 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
-        # The proposal names the case (ADR-0165): the tree's held-case door
+        # The proposal names the case (ADR-0165): the tree's path stage
         # refuses one the CASE_MANAGER does not hold (AKM-03-006).
         # A redelivery of a proposal the CASE_MANAGER already made its Offer
         # from is a repeat its guard reports, so the runner reads it SKIPPED

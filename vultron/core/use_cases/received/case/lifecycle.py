@@ -178,11 +178,11 @@ class CloseCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # The Leave names the case (ADR-0165): the tree's held-case door
-        # refuses one this store does not hold (AKM-03-006).
-
+        # A receipt, not a closure: the Leave names the case (ADR-0165), and
+        # the tree's path stage refuses one this store does not hold
+        # (AKM-03-006); the closure itself is logged by the tree.
         logger.info(
-            "Actor '%s' is closing case '%s'",
+            "Leave(VulnerabilityCase) received from actor '%s' for case '%s'",
             request.actor_id,
             case_id,
         )
