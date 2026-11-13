@@ -71,7 +71,22 @@ uv run python .agents/skills/shared/run-heavy.py .github/scripts/mkdocs-build-st
 2. Fix all reported real issues in the `docs/` files and re-run the command until
    it exits with code 0.
 
-3. Check the publication axis against the site the previous step just built:
+3. Serve the released drafts' frozen pages into `site/spec/`, as CI's
+   `serve-frozen-drafts` action does between the build and the checks below
+   (DOCBW-08-028, DOCBW-08-035):
+
+```bash
+PYTHONPATH='' uv run drafts-register show > /tmp/drafts-register.json
+python3 -I .github/scripts/serve_frozen_drafts.py \
+  --register /tmp/drafts-register.json --site site --repo CERTCC/Vultron
+```
+
+   The build never writes `site/spec/` (DOCBW-08-034), but the Revision Log
+   links each released draft's frozen copy at `spec/draft-N/`. Without this
+   step, `docs-links` reports every such link as unresolved. The script reads
+   the drafts' release assets through `gh`, so it needs `gh` authenticated.
+
+1. Check the publication axis against the site the previous step just built:
 
 ```bash
 PYTHONPATH='' uv run docs-withheld
@@ -84,7 +99,7 @@ PYTHONPATH='' uv run docs-legacy-urls
    (DOCBW-03-008). The fix for a moved page is a `redirect_maps` entry in
    `mkdocs.yml`. A page withdrawn on purpose gets a declaration in
    `vultron/metadata/docs/withheld.py` instead. Both checks read the built tree,
-   so they only mean anything after step 1 succeeded. Both the pull-request
+   so they only mean anything after steps 1 and 3 succeeded. Both the pull-request
    workflow and `deploy_site.yml` run them through the
    `check-site-publication` action, so a failure here is a failure that would
    have blocked the deploy.
@@ -111,7 +126,7 @@ PYTHONPATH='' uv run docs-links
    nothing links to. Both workflows run it, unconditionally, through the same
    `check-site-publication` action.
 
-1. Stage changes only after all four commands exit cleanly with zero code.
+1. Stage changes only after all five commands exit cleanly with zero code.
 
 ## Constraints / Rules
 
