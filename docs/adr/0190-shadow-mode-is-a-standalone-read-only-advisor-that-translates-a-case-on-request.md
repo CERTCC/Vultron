@@ -4,8 +4,8 @@ status_override: >-
   Decided by the maintainer in the planning interview for #6336 on 2026-11-12.
 date: 2026-11-12
 created: 2026-11-12
-updated: 2026-11-12
-revision: 3
+updated: 2026-11-13
+revision: 4
 amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
@@ -45,7 +45,7 @@ Chosen option: "A standalone tool that reads, translates and analyses one case o
 2. **Pull.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. Nothing runs between requests.
 3. **Ephemeral.** A translation is built for the request that needs it and discarded afterwards. The shadow keeps no long-lived copy of an outside-system case or its translation. Transient working files within a request are allowed. A later need for the case is met by translating it again.
 4. **Standalone.** The shadow uses the Vultron core as a library. It hosts no actor and has no inbox, outbox or activity delivery, so "delivers nothing" holds because no delivery path exists, not because a setting turns one off.
-5. **One standing, scored.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move is scored by how far it changes the case's expected outcome from here, solved over the same chance model as the desiderata baselines. The page leads with the case's best move, then the moves the coordinator can make now. Which single number stands for a multi-vendor case's outcome is a later decision, made after a comparison of candidate aggregates against cases that would make the advice work against the collective good. Scoring a move's setting, such as an embargo's duration, is a later decision too.
+5. **One standing, with moves in bands.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move gets an outcome shift for each scope: the change in expected outcome from the chance value, solved over the same chance model as the desiderata baselines. The page does not pick one best move. It shows the leading moves for the case, then the helpful moves, and collapses the unhelpful moves. It marks each coordinator move that is leading among the coordinator's own moves. How a move gets its band is [ADR-0200](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md). Scoring a move's setting, such as an embargo's duration, is a later decision.
 6. **Measure before building on it.** Translating real-shaped cases, timing it, and sorting each mapping into translation or interpretation comes before the analysis is built on top.
 7. **This is the first version.** Every "does not" above describes the shadow this record decides. A later version that writes to an outside system, acts in a case, or sends to participants is a later decision, and that record supersedes the parts of this one it changes.
 
@@ -104,6 +104,19 @@ The change in expected outcome credits it, and computing it needs only the legal
 The maintainer asked for the advice of a card player's coach: the best move for the case, whoever makes it, and the moves open to the coordinator now, optimized for the case rather than for one participant.
 
 - Source: #5966
+
+## Amendment — 2026-11-13 (revision 4)
+
+Rule 5 was replaced.
+It read: "**One standing, scored.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move is scored by how far it changes the case's expected outcome from here, solved over the same chance model as the desiderata baselines. The page leads with the case's best move, then the moves the coordinator can make now. Which single number stands for a multi-vendor case's outcome is a later decision, made after a comparison of candidate aggregates against cases that would make the advice work against the collective good. Scoring a move's setting, such as an embargo's duration, is a later decision too."
+It now reads: "**One standing, with moves in bands.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move gets an outcome shift for each scope: the change in expected outcome from the chance value, solved over the same chance model as the desiderata baselines. The page does not pick one best move. It shows the leading moves for the case, then the helpful moves, and collapses the unhelpful moves. It marks each coordinator move that is leading among the coordinator's own moves. How a move gets its band is [ADR-0200](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md). Scoring a move's setting, such as an embargo's duration, is a later decision."
+
+The maintainer asked for options, not one answer.
+Many moves are good at a given point in a case, and some are clearly better than others.
+One case score would reduce all the desiderata to one number, and one best move hides the other good moves.
+Thus the page puts the moves in bands and shows the trade-offs between them.
+
+- Source: #6450
 
 ## More Information
 

@@ -299,6 +299,55 @@ which direction)
 
 ---
 
+## Move Advice
+
+**Chance value**:
+The expected desiderata outcome, for each scope, from where the case stands, if every
+allowed next step is equally likely: the mean over the moves open now.
+*Avoid*: baseline, do-nothing value (no move means "nothing")
+
+**Outcome shift**:
+A move's expected outcome minus the chance value, as one signed number for each
+scope: each vendor in the case, notified or not, and each case-wide desiderata group
+(embargo, multi-party).
+*Avoid*: lift, gain, score delta
+
+**Move band**:
+The tier an open move falls in: leading, helpful or unhelpful. It is decided by
+which moves beat which, never by one combined case score.
+*Avoid*: rank, rating, grade
+
+**Beats**:
+Move X beats move Y when X's outcome shift is at least as good as Y's in every scope
+and better in at least one.
+*Avoid*: dominates, outranks
+
+**Leading move**:
+An open move that no other open move beats. There are usually several.
+*Avoid*: best move, optimal move, recommended move
+
+**Helpful move**:
+An open move that is not leading but has a positive outcome shift in at least one
+scope.
+*Avoid*: good move
+
+**Unhelpful move**:
+An open move that is not leading and has no positive outcome shift in any scope. At
+best, it is neutral in every scope.
+*Avoid*: bad move, harmful move
+
+**Leading among yours**:
+A mark on a coordinator's move that none of the coordinator's other open moves
+beats, whatever its move band.
+*Avoid*: your best move, your strongest move
+
+**Harms none**:
+A mark on an open move with no negative outcome shift in any scope, whatever its
+move band.
+*Avoid*: safe move, harmless move
+
+---
+
 ## SSVC
 
 **SSVC (Stakeholder-Specific Vulnerability Categorization)**:
