@@ -51,6 +51,7 @@ from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
+    AmbiguousWireTypeError,
     declares_registrable_type,
     is_wire_type_alias,
     narrow_type_list,
@@ -124,6 +125,8 @@ class as_Base(BaseModel):
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
         if not declares_registrable_type(cls):
             return  # No concrete type_ of its own → abstract base, skip
+        # Before registering: a refused declaration leaves no registry entry.
+        _check_as2_core_supertype(cls)
         if cls.__name__.startswith("as_"):
             VOCABULARY[cls.__name__] = cls
         # WIRE_TYPE_MAP answers "which class does this inbound `type` value
@@ -132,7 +135,6 @@ class as_Base(BaseModel):
         # register a key no payload ever carries (VM-01-012, issue #2982).
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
-        _check_as2_core_supertype(cls)
 
     # Every outbound document cites AS2 and then the Vultron context
     # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognizes it, Vultron so
@@ -218,14 +220,19 @@ class as_Base(BaseModel):
         ``type_`` holds one string, so the list an extension class serializes
         (``_as2_core_supertype``), or any list a peer sends, is narrowed to the
         term of its most specific known class before the field validates it.
-        A list that resolves to no class, or to two unrelated ones, is refused.
+        A list that names no known type is read as its first term, as a string
+        naming no known type is kept (an unknown inline object stays an
+        ``as_Object``, MV-04-004, VM-03-006).  A list of two unrelated known
+        types, or one with no string term, is refused.
         """
         if not isinstance(data, dict):
             return data
         try:
             return narrow_type_list(data)
-        except KeyError as exc:
+        except AmbiguousWireTypeError as exc:
             raise ValueError(exc.args[0]) from exc
+        except KeyError:
+            return _first_type_term(data)
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):
@@ -273,9 +280,9 @@ class as_Base(BaseModel):
         supertype = type(self)._as2_core_supertype
         if supertype is None or not isinstance(data, dict):
             return data
-        own = wire_type_value(type(self))
-        if data.get("type") != own:
+        if "type" not in data:
             return data
+        own = wire_type_value(type(self))
         return {**data, "type": [own, wire_type_value(supertype)]}
 
     def to_json(self, **kwargs):
@@ -290,6 +297,24 @@ class as_Base(BaseModel):
     def from_json(cls, data: str):
         """Deserialize a JSON string to an instance of the model."""
         return cls.model_validate_json(data)
+
+
+def _first_type_term(data: dict[str, Any]) -> dict[str, Any]:
+    """*data* with each unresolved ``type`` list read as its first string term.
+
+    Raises:
+        ValueError: When a list holds no string term, so names no type at all.
+    """
+    narrowed = data
+    for key in ("type", "type_"):
+        value = data.get(key)
+        if not isinstance(value, list):
+            continue
+        term = next((t for t in value if isinstance(t, str) and t), None)
+        if term is None:
+            raise ValueError(f"type list {value!r} names no type")
+        narrowed = {**narrowed, key: term}
+    return narrowed
 
 
 def _check_as2_core_supertype(cls: type[as_Base]) -> None:

@@ -41,6 +41,7 @@ from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
+from vultron.core.predicates.type_terms import body_type_terms, type_terms
 from vultron.core.services.received_activity import (
     read_held_activity,
     read_received_activity,
@@ -313,13 +314,14 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         # A wire ``type_`` is a StrEnum and a core one a plain str; both
         # compare equal to "Offer".  A mapping inner (a dict, or a received
         # view's read-only mapping) may carry either key.
-        inner_type = (
-            inner.get("type") or inner.get("type_")
+        # A received body keeps a ``type`` list as it arrived (ADR-0196).
+        inner_types = (
+            body_type_terms(inner)
             if isinstance(inner, Mapping)
-            else getattr(inner, "type_", None)
+            else type_terms(getattr(inner, "type_", None))
         )
         raw_case_id = _as_id(getattr(proposal, "context", None))
-        if inner_type != "Offer" or not raw_case_id:
+        if "Offer" not in inner_types or not raw_case_id:
             # The owner withdraws its own proposal, never the CASE_MANAGER's
             # Offer made from it (ADR-0148): an id naming anything else is a
             # caller error, refused before any tree runs.

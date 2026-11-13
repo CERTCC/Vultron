@@ -131,7 +131,6 @@ def test_factory_refuses_a_proposal_about_something_else() -> None:
         )
 
 
-@pytest.mark.spec("EP-04-009")
 @pytest.mark.spec("VM-03-006")
 def test_a_stored_proposal_with_a_type_list_reads_back_typed() -> None:
     """The field's own expansion reads a ``type`` list as the parser does."""
@@ -145,6 +144,7 @@ def test_a_stored_proposal_with_a_type_list_reads_back_typed() -> None:
     assert rebuilt.proposed_embargo.end_time == _END
 
 
+@pytest.mark.spec("EP-04-009")
 def test_embargo_event_with_a_report_context_validates() -> None:
     event = _proposal_for(_report())
     assert event.context == _report().id_

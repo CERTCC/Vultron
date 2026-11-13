@@ -30,10 +30,7 @@ from vultron.wire.as2.vocab.base.objects.base import (
     as_ObjectRef,
     as_ObjectRequiredRef,
 )
-from vultron.wire.as2.vocab.base.registry import (
-    narrow_type_list,
-    resolve_wire_type,
-)
+from vultron.wire.as2.vocab.base.registry import resolve_received_type
 from vultron.wire.as2.vocab.base.utils import name_of, print_activity_examples
 
 
@@ -162,10 +159,10 @@ class as_Offer(as_TransitiveActivity):
         if not isinstance(value, dict):
             return value
         try:
-            target = resolve_wire_type(value.get("type"))
+            target, value = resolve_received_type(value)
         except KeyError:
             return value
-        return target.model_validate(narrow_type_list(value))
+        return target.model_validate(value)
 
 
 class as_Invite(as_Offer):

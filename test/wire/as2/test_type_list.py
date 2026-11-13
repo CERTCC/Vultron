@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Reject,
 )
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -138,6 +139,11 @@ class TestOutboundTypeList:
         # The persistence dump keeps one string: only the wire form lists.
         assert decline.model_dump()["type_"] == "TestDecline"
         assert decline.model_dump(mode="json")["type_"] == "TestDecline"
+
+    def test_a_dump_without_its_type_gains_none(self, ext):
+        dumped = _decline(ext).model_dump(by_alias=True, exclude={"type_"})
+
+        assert "type" not in dumped
 
     def test_a_class_with_no_core_supertype_keeps_a_string(self):
         reject = as_Reject(
@@ -236,6 +242,18 @@ class TestCoreSupertypeDeclaration:
                 _as2_core_supertype = as_Reject
                 type_: Literal["TestPlain"] = "TestPlain"  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
 
+    def test_a_refused_declaration_registers_nothing(self):
+        before = (dict(WIRE_TYPE_MAP), dict(VOCABULARY))
+
+        with pytest.raises(TypeError):
+
+            class as_TestSame(as_Reject):
+                _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+                _as2_core_supertype = as_Reject
+                type_: Literal["Reject"] = "Reject"  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        assert (dict(WIRE_TYPE_MAP), dict(VOCABULARY)) == before
+
     def test_the_class_must_name_its_own_type(self):
         with pytest.raises(TypeError, match="shares the wire type"):
 
@@ -281,6 +299,22 @@ class TestInboundTypeList:
             resolve_wire_type(["Reject", "Accept"])
         with pytest.raises(VultronParseUnknownTypeError, match="subtype"):
             parse_activity(_activity_body(["Reject", "Accept"]))
+
+    def test_an_inline_list_naming_no_known_type_is_kept_as_an_object(self):
+        """An inline object of unknown type is left to its parent field, as
+        it is for an unknown string (MV-04-004)."""
+        body = _activity_body(
+            "Create",
+            object={
+                "type": ["Foo", "Bar"],
+                "id": "https://example.org/objects/1",
+            },
+        )
+
+        parsed = parse_activity(body)
+
+        assert type(parsed.object_) is as_Object
+        assert parsed.object_.type_ == "Foo"
 
     def test_two_unrelated_known_types_are_refused_inline(self):
         body = _activity_body(
@@ -389,13 +423,36 @@ class TestResolverHelpers:
         with pytest.raises(KeyError):
             narrow_type_list({"type": ["Foo"]})
 
-    def test_a_class_refuses_a_list_that_resolves_to_nothing(self):
-        with pytest.raises(ValidationError, match="Unknown vocabulary type"):
-            as_Note.model_validate({"type": ["Foo"], "content": "x"})
+    def test_a_list_naming_no_known_type_reads_as_its_first_term(self):
+        """As a string naming no known type is kept (MV-04-004)."""
+        obj = as_Object.model_validate(
+            {
+                "type": ["Foo", "Bar"],
+                "content": "x",
+                "published": PUBLISHED,
+                "updated": PUBLISHED,
+            }
+        )
+
+        assert obj.type_ == "Foo"
+
+    def test_a_list_with_no_string_term_is_refused(self):
+        with pytest.raises(ValidationError, match="names no type"):
+            as_Object.model_validate({"type": [7], "content": "x"})
+
+    def test_a_class_refuses_two_unrelated_known_types(self):
+        with pytest.raises(ValidationError, match="subtype"):
+            as_Object.model_validate({"type": ["Note", "Accept"]})
+
+    def test_narrowing_reads_the_python_key_too(self, ext):
+        assert narrow_type_list({"type_": ["Reject", "TestDecline"]}) == {
+            "type_": "TestDecline"
+        }
 
     def test_outbox_logs_name_the_resolved_type(self):
         assert _activity_type({"type": ["Foo", "Reject"]}) == "Reject"
         assert _activity_type({}) == "Activity"
+        assert _activity_type({"type": "Unheard"}) == "Unheard"
         assert (
             _format_object({"type": ["Foo", "Note"], "id": "https://e.org/n"})
             == "Note https://e.org/n"

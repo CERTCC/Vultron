@@ -257,6 +257,26 @@ def narrow_type_list(
     return narrowed
 
 
+def resolve_received_type(
+    data: dict[str, Any], *, include_core: bool = False
+) -> tuple[type[BaseModel], dict[str, Any]]:
+    """Return the class *data*'s ``type`` names and *data* ready to validate.
+
+    The two steps every reader of a received dict takes (ADR-0196): resolve
+    its ``type`` with :func:`resolve_wire_type`, and narrow a list to the term
+    it resolved to, so the class's one-string ``type_`` accepts it.  *data* is
+    never modified.
+
+    Raises:
+        KeyError: When the ``type`` names no known type.
+        AmbiguousWireTypeError: When it names two unrelated known types.
+    """
+    term, cls = _resolve_type_term(data.get("type"), include_core=include_core)
+    if isinstance(data.get("type"), list):
+        data = {**data, "type": term}
+    return cls, data
+
+
 def main():
     pass
 

@@ -77,10 +77,7 @@ from vultron.wire.as2.vocab import (
     objects as _objects,  # noqa: F401
 )
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import (
-    narrow_type_list,
-    resolve_wire_type,
-)
+from vultron.wire.as2.vocab.base.registry import resolve_received_type
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +301,13 @@ class FetchedObject:
     declared_body: dict[str, Any]
 
 
+def _reason(exc: Exception) -> str:
+    """*exc*'s message; a ``KeyError``'s without the quotes ``str()`` adds."""
+    if isinstance(exc, KeyError) and exc.args:
+        return str(exc.args[0])
+    return str(exc)
+
+
 def parse_fetched_object(
     document: dict[str, Any], object_id: str, holder_id: str
 ) -> CoreObject | as_Base:
@@ -342,9 +346,9 @@ def parse_fetched_body(
         )
     try:
         # The shared resolver reads a ``type`` list too (ADR-0196).
-        cls = resolve_wire_type(type_name)
+        cls, document_typed = resolve_received_type(document)
         declared, set_aside = partition_unknown_keys(
-            document,
+            document_typed,
             cls,
             subject="The body",
             root="the fetched object",
@@ -356,12 +360,12 @@ def parse_fetched_body(
         # claiming none, read as ``None``, never this node's clock (ADR-0103,
         # ADR-0176).
         parsed = cls.model_validate(
-            narrow_type_list(declared), context={INBOUND_CONTEXT_KEY: True}
+            declared, context={INBOUND_CONTEXT_KEY: True}
         )
     except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} is not a valid"
-            f" {type_name!r}: {exc}"
+            f" {type_name!r}: {_reason(exc)}"
         ) from exc
     if not isinstance(parsed, (CoreObject, as_Base)):
         raise VultronValidationError(
