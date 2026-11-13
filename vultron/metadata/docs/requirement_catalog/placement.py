@@ -38,15 +38,6 @@ def requirement_anchor(spec_id: str) -> str:
     return spec_id.lower().replace("_", "-")
 
 
-def _file_of(registry: SpecRegistry) -> dict[str, str]:
-    return {
-        spec.id: spec_file.id
-        for spec_file in registry.files
-        for group in spec_file.groups
-        for spec in group.specs
-    }
-
-
 def _page_for(
     file_id: str, tier: SpecKind, pages: Iterable[CatalogPage]
 ) -> CatalogPage | None:
@@ -77,7 +68,7 @@ def catalog_location(
             "foundation requirements are in the Requirements Catalog "
             "(DF-12-012)"
         )
-    file_id = _file_of(registry)[spec_id]
+    file_id = registry.get_file_id(spec_id)
     page = _page_for(file_id, kind, pages)
     if page is None:
         raise NotInCatalogError(

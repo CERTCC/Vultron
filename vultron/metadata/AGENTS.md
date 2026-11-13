@@ -35,8 +35,8 @@ just edited a metadata file and got it wrong, so **error messages are the produc
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests/`); merged `base:main` PRs and the Issues they close, through `gh` search, and a `git blame` trace of each bug-fix PR in the local clone (`size_calibration/`, `pr-size --calibrate`); `.github/workflows/` and a branch diff, running CI's pull-request checks locally (`ci_mirror/`: `prepush-ci-mirror`); a PR body file or `gh pr view` payload (`pr_body_lint/`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate and CI mirror: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
 Shared helpers live in `base.py`, `markdown_tables.py`, `git_runner.py` (`GitRunner`,
-the `git` seam) and `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)).
-**Do not re-derive any of them** — see the `repo_root` history below for the cost.
+the `git` seam), `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17)) and
+`text_cache.py` (per-file reads kept on disk, #5880). **Do not re-derive any of them.**
 
 `base.py` — cross-subpackage primitives:
 
@@ -44,7 +44,7 @@ the `git` seam) and `file_loading.py` ([MS-17](#loader-failure-attribution-ms-17
 |---|---|
 | `repo_root()` | every loader needs it and none may assume the caller's cwd |
 | `MkDocsYamlLoader` | a `SafeLoader` tolerating `mkdocs.yml`'s `!ENV` and `!!python/name:` tags |
-| `mkdocs_config()` | the parsed `mkdocs.yml` |
+| `mkdocs_config()` | the parsed `mkdocs.yml`, read on each call but parsed once per text (`loads_yaml_cached()` in `file_loading.py`, which the spec loader shares): call it freely, never cache the result yourself (#6158) |
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
 | `iter_tree_texts()`, `markdown_files()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it. `markdown_files()` is every sorted `*.md` under one directory, not descending what its predicate prunes: use it, not `sorted(rglob("*.md"))` plus a filter, since a repository-wide `rglob` walks all of `.git` and `.venv` first |

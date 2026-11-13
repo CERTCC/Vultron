@@ -243,8 +243,16 @@ def _description_faults(
     ]
 
 
-def lookup_sections(root: Path) -> tuple[LookupSection, ...]:
+def lookup_sections(
+    root: Path, tree: DocsTree | None = None
+) -> tuple[LookupSection, ...]:
     """Return the lookup page's listing, one section per top-level nav item.
+
+    Args:
+        root: Repository root.
+        tree: *root*'s classified docs tree, when the caller already holds
+            it; classified here otherwise. A caller building several
+            artifacts classifies once and passes it to each (#6158).
 
     Raises:
         MetadataLoadError: If a listed page is missing or unreadable, the
@@ -254,7 +262,8 @@ def lookup_sections(root: Path) -> tuple[LookupSection, ...]:
             be placed and every entry whose target declares no
             ``description:``.
     """
-    tree = classify_docs_tree(root)
+    if tree is None:
+        tree = classify_docs_tree(root)
     reference = reference_pages(root, tree)
     if not reference:
         raise MetadataLoadError(

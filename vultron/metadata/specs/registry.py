@@ -14,7 +14,9 @@ from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
     SAFE_LOADER,
     FailureCollector,
-    load_yaml,
+    display_path,
+    loads_yaml_cached,
+    read_utf8,
     validate,
 )
 from vultron.metadata.specs.schema import (
@@ -155,6 +157,15 @@ class SpecRegistry(BaseModel):
         """Return the ``kind`` for *spec_id* (required on every spec item)."""
         return self.get(spec_id).kind
 
+    def get_file_id(self, spec_id: SpecIdStr) -> str:
+        """Return the ``id`` of the spec file that holds *spec_id*.
+
+        Raises:
+            KeyError: If the spec ID is not found in the registry.
+        """
+        self.get(spec_id)
+        return self._spec_context[spec_id][1].id
+
     def get_effective_scope(self, spec_id: SpecIdStr) -> list[Scope]:
         """Return the resolved ``scope`` for *spec_id* via inheritance."""
         spec = self.get(spec_id)
@@ -244,8 +255,15 @@ def load_spec_files(spec_dir: Path) -> list[tuple[Path, SpecFile]]:
         with collector.attempt():
             # Named, not defaulted: spec-lint has always reported libyaml's
             # own fault wording, and the default re-parses a fault in Python.
-            raw = load_yaml(
-                yaml_path, root=spec_dir.parent, loader=SAFE_LOADER
+            # Cached by text: a growth guard loads the working tree and the
+            # merge base, which share most files (#5880). Shared, not
+            # copied: validate() only reads it, and builds fresh models.
+            shown = display_path(yaml_path, spec_dir.parent)
+            raw = loads_yaml_cached(
+                read_utf8(yaml_path, shown),
+                shown,
+                loader=SAFE_LOADER,
+                shared=True,
             )
             files.append(
                 (
