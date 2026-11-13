@@ -116,16 +116,18 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The shadow MUST read the outside system's credential only at runtime, from
-      the page or from the environment.
+      The shadow MUST read the outside system's credential only from the
+      environment it runs in.
     rationale: >-
-      An image or a compose file is shared and often committed. A credential
-      read only at runtime has no path into either.
+      The credential is a secret, so it is kept outside the code, the repository
+      and every configuration file. An image or a compose file is shared and
+      often committed, and a credential that only the running environment holds
+      has no path into either.
     verification: >-
       A test builds the image with a marker credential in the build environment
       and asserts no image layer contains it, asserts the Compose file names the
       credential only through `${VAR}` interpolation, and asserts the tool reads
-      one from the page or the environment.
+      it from the environment and refuses to read a case without it.
   - id: SHD-02-004
     priority: MUST_NOT
     kind: project

@@ -286,7 +286,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md) *(revision 2)*
 - [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md)
 - [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md)
-- [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md)
+- [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
 
 ## Proposed ADRs
 

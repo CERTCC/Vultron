@@ -5,7 +5,8 @@ status_override: >-
 date: 2026-11-12
 created: 2026-11-12
 updated: 2026-11-12
-revision: 1
+revision: 2
+amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -43,7 +44,7 @@ Chosen option: "A Streamlit app in Python", because the whole tool stays in the 
 1. **Streamlit, scoped to the shadow.** Streamlit is a sanctioned dependency for the shadow tool only. No code outside the shadow tool imports it.
 2. **A dashboard, not a report.** The page presents a case's standing as a scoreboard: icons, colors and short labels an analyst reads at a glance.
 3. **One Compose service.** The shadow ships as a `shadow` service, so a clone plus `docker compose up shadow` starts it.
-4. **Closed by packaging.** The service mounts no persistent volume, so a long-lived copy has nowhere to go. It listens on the loopback interface only. The credential is entered in the page or passed in the environment when the service starts, and never written into an image or a compose file.
+4. **Closed by packaging.** The service mounts no persistent volume, so a long-lived copy has nowhere to go. It listens on the loopback interface only. The credential is read only from the environment the service runs in, and never written into an image or a compose file. *(Amended 2026-11-13.)*
 5. **`ui/` is not decided here.** The React app is unchanged. Whether its Log Replay mode moves to Python is a later decision, made once the shadow's Python timeline exists to compare with it.
 
 ### Consequences
@@ -74,6 +75,18 @@ Chosen option: "A Streamlit app in Python", because the whole tool stays in the 
 
 - Good, because the project would end with one interface stack.
 - Bad, because it decides the React app's future before there is a Python timeline to compare it with.
+
+## Amendment — 2026-11-13
+
+Rule 4's credential sentence was replaced.
+It read: "The credential is entered in the page or passed in the environment when the service starts, and never written into an image or a compose file."
+It now reads: "The credential is read only from the environment the service runs in, and never written into an image or a compose file."
+
+The credential is a secret held outside the code, the repository and every configuration file.
+The first version reads it, and the outside system's base URL, from environment variables only; entering them in the page is a later feature.
+This also brings the rule into line with VSD-01-004, which named no page.
+
+- Source: #6336 (PR #6364 review)
 
 ## More Information
 

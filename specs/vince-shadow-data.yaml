@@ -40,14 +40,16 @@ groups:
     - ADR-0189
     statement: >-
       The VINCE API credential MUST be read only at runtime, from the
-      environment or a secret file.
+      environment.
     rationale: >-
-      Configuration files live in the repository. A credential read only at
-      runtime has no path into a commit.
+      The credential is a secret, so it is kept outside the code, the repository
+      and every configuration file. Configuration files live in the repository,
+      and a credential read only from the runtime environment has no path into
+      a commit.
     verification: >-
       A test (#5960) asserts the connector reads the credential from the
-      environment variable or the secret file, and refuses a configuration file
-      that carries it.
+      environment variable, refuses to read a case without it, and refuses a
+      configuration file that carries it.
   - id: VSD-01-005
     priority: MUST_NOT
     kind: project
