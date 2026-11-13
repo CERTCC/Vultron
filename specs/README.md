@@ -90,7 +90,7 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
-| VINCE shadow data handling (logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
+| VINCE data handling in the case shadow (logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |
@@ -132,7 +132,7 @@ related requirements across files.
   (ARCH-01 through ARCH-12; ARCH-01-004, ARCH-04-002 added to track sync
   port and broader wire-import violations in core/)
 - **`vince-shadow-data.yaml`** - Handling of data read from VINCE by the
-  VINCE shadow: no long-lived copy, id-only logs, runtime-only credential, and
+  case shadow: no long-lived copy, id-only logs, runtime-only credential, and
   per-case clearance or sanitization before anything enters the repository
   (VSD-01, VSD-02; ADR-0189)
 - **`case-shadow.yaml`** - The shadow: a standalone, read-only tool that
