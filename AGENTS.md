@@ -56,7 +56,8 @@ Small tweaks need no ADR; architectural/protocol changes SHOULD have one before 
 Runtime: Python **3.14+** (CI: 3.14), **FastAPI** (BackgroundTasks for long
 ops), **Pydantic v2**, **pytest**, **mkdocs** (Material). Dev tools: **uv**,
 **ruff** (lint/format), **mypy**, **markdownlint-cli2** (`mdlint.sh`), **pyright** (CI).
-No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104).
+No other frameworks/package managers without approval (`ui/` Node/React: ADR-0104;
+Streamlit, shadow tool only: ADR-0192).
 
 ---
 

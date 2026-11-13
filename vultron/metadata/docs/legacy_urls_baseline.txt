@@ -198,6 +198,9 @@ adr/0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-bo
 adr/0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md
 adr/0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md
 adr/0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md
+adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md
+adr/0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md
+adr/0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
