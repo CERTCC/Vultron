@@ -21,12 +21,15 @@ rolls back leaves no read of an undone write behind, and that nothing kept
 outlives the block.  Each runs on an in-memory and a file-backed store.
 """
 
+import threading
 from collections import Counter
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
 from test.support.objects import make
+from test.support.pool_kind_stores import open_pool_kind_store
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer, crud
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.note import VultronNote
@@ -213,3 +216,32 @@ def test_each_read_of_a_kept_row_decodes_its_own_data(dl: SqliteDataLayer):
 
     assert second is not None
     assert second.data["content"] == "before"
+
+
+def test_another_thread_never_reads_a_blocks_kept_rows(
+    tmp_path: Path, fetches: Counter[str]
+):
+    """The kept rows are the opening thread's alone.
+
+    File-backed only: on an in-memory store another thread's read waits on
+    the session lock until the block ends, so it cannot run inside one.
+    """
+    dl = open_pool_kind_store("file", tmp_path)
+    try:
+        dl.save(_note("committed"))
+        seen: list[str | None] = []
+
+        with dl.transaction():
+            dl.save(_note("uncommitted"))
+            assert _content(dl) == "uncommitted"
+            kept_fetches = fetches[_ID]
+            reader = threading.Thread(target=lambda: seen.append(_content(dl)))
+            reader.start()
+            reader.join(timeout=10)
+            assert not reader.is_alive()
+            assert _content(dl) == "uncommitted"
+
+        assert seen == ["committed"]
+        assert fetches[_ID] == kept_fetches + 1
+    finally:
+        dl.close()
