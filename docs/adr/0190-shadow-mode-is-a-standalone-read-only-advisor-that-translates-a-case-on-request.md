@@ -5,7 +5,7 @@ status_override: >-
 date: 2026-11-12
 created: 2026-11-12
 updated: 2026-11-12
-revision: 2
+revision: 3
 amended: "2026-11-13"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
@@ -45,7 +45,7 @@ Chosen option: "A standalone tool that reads, translates and analyses one case o
 2. **Pull.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. Nothing runs between requests.
 3. **Ephemeral.** A translation is built for the request that needs it and discarded afterwards. The shadow keeps no long-lived copy of an outside-system case or its translation. Transient working files within a request are allowed. A later need for the case is met by translating it again.
 4. **Standalone.** The shadow uses the Vultron core as a library. It hosts no actor and has no inbox, outbox or activity delivery, so "delivers nothing" holds because no delivery path exists, not because a setting turns one off.
-5. **Insights come in levels.** The first level reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves the state machines allow. The second level ranks each allowed move by the score the case would have if that move came next. A multi-step search or simulation of future play is a later decision.
+5. **One standing, scored.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move is scored by how far it changes the case's expected outcome from here, solved over the same chance model as the desiderata baselines. The page leads with the case's best move, then the moves the coordinator can make now. Which single number stands for a multi-vendor case's outcome is a later decision, made after a comparison of candidate aggregates against cases that would make the advice work against the collective good. Scoring a move's setting, such as an embargo's duration, is a later decision too.
 6. **Measure before building on it.** Translating real-shaped cases, timing it, and sorting each mapping into translation or interpretation comes before the analysis is built on top.
 7. **This is the first version.** Every "does not" above describes the shadow this record decides. A later version that writes to an outside system, acts in a case, or sends to participants is a later decision, and that record supersedes the parts of this one it changes.
 
@@ -92,6 +92,18 @@ Rule 7 reads: "**This is the first version.** Every "does not" above describes t
 The maintainer asked that the record state what this version does, not what the shadow will never do: a later version may write to VINCE.
 
 - Source: #6336 (PR #6364 review)
+
+## Amendment — 2026-11-13 (revision 3)
+
+Rule 5 was replaced.
+It read: "**Insights come in levels.** The first level reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves the state machines allow. The second level ranks each allowed move by the score the case would have if that move came next. A multi-step search or simulation of future play is a later decision."
+It now reads: "**One standing, scored.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move is scored by how far it changes the case's expected outcome from here, solved over the same chance model as the desiderata baselines. The page leads with the case's best move, then the moves the coordinator can make now. Which single number stands for a multi-vendor case's outcome is a later decision, made after a comparison of candidate aggregates against cases that would make the advice work against the collective good. Scoring a move's setting, such as an embargo's duration, is a later decision too."
+
+Planning for #5966 found that ranking a move by the score of the history with that move added credits almost nothing, because most desiderata are orderings that one move does not settle: notifying a vendor makes "vendor aware before public" more likely without deciding it.
+The change in expected outcome credits it, and computing it needs only the legal moves Level 1 already lists, so the two levels are one.
+The maintainer asked for the advice of a card player's coach: the best move for the case, whoever makes it, and the moves open to the coordinator now, optimized for the case rather than for one participant.
+
+- Source: #5966
 
 ## More Information
 
