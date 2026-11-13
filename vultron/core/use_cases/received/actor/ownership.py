@@ -259,8 +259,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     The sender rule is the Accept's (CM-21-013): at the CASE_MANAGER the
     sender must be the transferee named in an open ownership-transfer Offer
     it recorded for the case, and the path stage refuses the Reject at any
-    other receiver (HP-01-005).  Any other sender is ``REFUSED`` with nothing committed and
-    nothing sent, and the Offer stays open (HP-01-006).  A Reject of an Offer
+    other receiver (HP-01-005).  Any other sender is ``REFUSED`` with
+    nothing committed and nothing sent, and the Offer stays open
+    (HP-01-006).  A Reject of an Offer
     already closed is ``REFUSED`` the same way and answered with the refusal
     notice (CM-21-014, CLP-05-001).
 

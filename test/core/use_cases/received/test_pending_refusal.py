@@ -43,6 +43,7 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_ask,
@@ -287,4 +288,48 @@ def test_the_managers_reject_judges_the_pending_accept_at_the_acts_instant(
 
     assert clock_reads == []
     assert accept.status == ("timed_out" if overdue else "cleared")
+    assert not _pending(case.id_, proposal.id_)
+
+
+@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("EP-09-019")
+def test_case_managers_reject_at_a_replica_is_refused_by_the_tree() -> None:
+    """At the participant's replica the CASE_MANAGER's Reject closes the
+    pending ask, and the tree itself states the replica's verdict: REFUSED
+    as the not-CASE_MANAGER it is, read from its ``ReplicaRefusalNode``
+    rather than from a handler read after the run (#6394).
+
+    The embargo guards that run before it are made to pass, so the refusal
+    under test is the replica's own and not a guard's.
+    """
+    from unittest.mock import patch
+
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.embargo.nodes.conditions import (
+        IsAnswerableEmbargoNode,
+    )
+    from vultron.core.behaviors.embargo.nodes.withdrawal import (
+        RejectIsNotWithdrawalNode,
+    )
+
+    dl, case, proposal = _proposer_with_pending_proposal()
+    event = _reject_event(dl, proposal, case.id_, _MANAGER)
+
+    with (
+        patch.object(
+            IsAnswerableEmbargoNode, "update", return_value=Status.SUCCESS
+        ),
+        patch.object(
+            RejectIsNotWithdrawalNode, "update", return_value=Status.SUCCESS
+        ),
+    ):
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            )
+        )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == f"not the CASE_MANAGER of case '{case.id_}'"
     assert not _pending(case.id_, proposal.id_)

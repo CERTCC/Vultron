@@ -187,7 +187,7 @@ Each of these is committed by the CASE_MANAGER and fanned out, so checking your 
     DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
     ```
 
-    The scenario adds and removes a note, then reports public awareness in a participant status and checks that the case status adopted it.
+    The scenario adds a note, then reports public awareness in a participant status and checks that the case status adopted it.
 
 ---
 

@@ -90,7 +90,7 @@ def create_close_case_received_tree(
         CloseCaseBT (Sequence, via create_receive_activity_tree)
         ├── ActivityAddressedToReceiverNode             # addressee door (HP-01-005)
         ├── ActivityNotSeenBeforeNode                   # seen-before door
-        ├── ReceivedPathNode                            # manager path only (HP-01-038)
+        ├── ReceivedPathNode                            # manager path only
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
@@ -147,9 +147,9 @@ def create_close_case_received_tree(
     an owner close (CM-23-011) or runs its closure effects (CM-23-002/003); a
     replica holding a copy of the Leave is refused at the path stage, emits no
     ``as:Reject`` (the #3825 defect), writes nothing, and takes any resulting
-    closure from the ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).  The two arms stay in
-    one Selector because the close arm FAILS when a decline is warranted and
-    only a Selector lets the decline arm run next.
+    closure from the ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).
+    The two arms stay in one Selector because the close arm FAILS when a
+    decline is warranted and only a Selector lets the decline arm run next.
 
     The same decline decision (owner + live embargo) gates both arms: the close
     arm runs only when the decision is inverted-false, and the decline arm runs
@@ -318,7 +318,8 @@ def create_close_case_received_tree(
     # arm's own effects are already CASE_MANAGER-gated internally and its
     # commit is role-gated; a replica holding a copy of the Leave never gets
     # here, because the path stage refuses it, and it takes any resulting
-    # closure from the ledger fan-out (CLP-10-001, RSH-08-003). The close/decline arms stay in one Selector —
+    # closure from the ledger fan-out (CLP-10-001, RSH-08-003). The
+    # close/decline arms stay in one Selector —
     # the close arm FAILS when a decline is warranted, and only a Selector lets
     # the decline arm run next, which a side-by-side Sequence placement in
     # ``replica_effects``/``manager_effects`` could not express. ``case_id`` is

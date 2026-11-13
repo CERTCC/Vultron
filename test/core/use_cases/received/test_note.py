@@ -730,23 +730,6 @@ class TestNoteUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
 
-    def _managed_case_with_note(
-        self, dl: SqliteDataLayer, case_id: str, note: as_Note, owner_id: str
-    ) -> as_VulnerabilityCase:
-        """A case the store's actor manages, owned by *owner_id*, holding *note*."""
-        case = make(
-            as_VulnerabilityCase,
-            id_=case_id,
-            name="Remove Note Case",
-            attributed_to=owner_id,
-            notes=[note.id_],
-        )
-        seed_case_manager_participant(dl, case, _STORE_ACTOR)
-        seed_case_owner_participant(dl, case, owner_id)
-        dl.create(case)
-        dl.create(note)
-        return case
-
     def _remove(self, dl, make_payload, sender, note, case):
         event = make_payload(
             make(
@@ -843,6 +826,29 @@ class TestNoteUseCases:
         assert len(guards) == 1
         assert not isinstance(guards[0], ActivityUnsupportedNode)
         assert "missing its note id or case id" in guards[0].reason
+
+    @pytest.mark.spec("HP-01-039")
+    def test_remove_note_naming_a_case_the_receiver_does_not_hold(
+        self, make_payload
+    ):
+        """No replica of the case is the no-case path, which the tree omits,
+        so the path stage refuses it and says what the receiver is."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        note = make(
+            as_Note, id_="https://example.org/notes/note_unheld", content="x"
+        )
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/no-such-case",
+            name="Unheld",
+            attributed_to=_OWNER,
+        )
+
+        result = self._remove(dl, make_payload, _OWNER, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == f"holds no replica of case '{case.id_}'"
+        assert dl.list_objects("CaseLedgerEntry") == []
 
     def _removal_world(self, *, at_manager: bool):
         """A case holding the author's note, at its CASE_MANAGER or a replica."""

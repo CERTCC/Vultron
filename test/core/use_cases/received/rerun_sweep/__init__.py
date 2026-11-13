@@ -107,6 +107,18 @@ REFUSAL_UNREACHABLE: dict[MessageSemantics, str] = {
 }
 
 
+#: Semantic -> why no run of it ever reaches the tree's effects, so it has
+#: no applied builder.  Each such semantic must have a refusal builder, which
+#: is the run the sweep re-runs instead.
+APPLY_UNREACHABLE: dict[MessageSemantics, str] = {
+    MessageSemantics.REMOVE_NOTE_FROM_CASE: (
+        "every receiver refuses a Remove(Note): removing ledgered content is"
+        " not supported (CM-30-003, #6430), so its tree's guard refuses even"
+        " an entitled sender before the commit"
+    ),
+}
+
+
 def _register(
     table: dict[MessageSemantics, Builder], semantic: MessageSemantics
 ) -> Callable[[Builder], Builder]:

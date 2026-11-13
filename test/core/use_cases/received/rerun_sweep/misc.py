@@ -13,7 +13,6 @@
 
 """Builders for participants, notes, statuses, faults and the unmatched."""
 
-import dataclasses
 import json
 from typing import Any, cast
 
@@ -321,22 +320,13 @@ def _remove_note(net: LedgerNetwork, sender: str) -> Scenario:
     )
 
 
-@applied(MessageSemantics.REMOVE_NOTE_FROM_CASE)
-def remove_note_from_case() -> Scenario:
-    """The note's author asks to remove it: refused (CM-30-003, #6430).
-
-    No Remove(Note) is applied, so the run that reaches the tree's guards is
-    the refused one: it commits nothing and answers with the refusal notice.
-    """
-    return dataclasses.replace(
-        remove_note_from_case_refused(),
-        disposition=HandlerDisposition.REFUSED,
-    )
-
-
 @refused(MessageSemantics.REMOVE_NOTE_FROM_CASE)
 def remove_note_from_case_refused() -> Scenario:
-    """An entitled author's Remove(Note), refused by the tree's guard."""
+    """An entitled author's Remove(Note), refused by the tree's guard.
+
+    No Remove(Note) is ever applied (APPLY_UNREACHABLE), so this refused run
+    is the one the sweep re-runs (CM-30-003, #6430).
+    """
     return _remove_note(_noted("remove-note"), BYSTANDER)
 
 

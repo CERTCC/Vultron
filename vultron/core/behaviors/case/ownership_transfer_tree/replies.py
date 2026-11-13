@@ -75,9 +75,9 @@ def _reply_stages(
     that does not hold the case, before the sender check (HP-01-005).  The
     open-Offer check runs next (CM-21-014, CM-21-016, HP-01-003): a reply
     to an Offer past its ``end_time`` is refused from that time alone, and
-    nothing records the expiry (CM-21-043, ADR-0152).  With *transferee_must_be_active* (the
-    Accept), the transferee must then still be an active participant
-    (CM-21-022).
+    nothing records the expiry (CM-21-043, ADR-0152).  With
+    *transferee_must_be_active* (the Accept), the transferee must then still
+    be an active participant (CM-21-022).
     """
     context = SenderCheckContext(
         sender_id=sender_id,
