@@ -9577,9 +9577,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Every receiver, the CASE_MANAGER included, MUST refuse a
-      `Remove(Note)[target=VulnerabilityCase]` from any sender, leaving the note
-      attached to the case and committing no ledger entry for the Remove.
+      Every receiver, the CASE_MANAGER included, MUST refuse each
+      `Remove(Note)[target=VulnerabilityCase]`, leaving the note attached and
+      committing no ledger entry.
     rationale: >-
       The case ledger is append-only, and the protocol does not yet define what
       removing ledgered content means. A removal could need a tombstone, could only
