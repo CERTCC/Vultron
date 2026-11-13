@@ -38,6 +38,7 @@ from test.ci.test_workflow_sha_pinning import (
 
 _rel = load_script("release")
 _tags = load_script("release_tags")
+_releases = load_script("github_releases")
 Tag = _tags.Tag
 BOT = (_tags.BOT_NAME, _tags.BOT_EMAIL)
 TODAY = date(2026, 11, 2)  # a Monday
@@ -463,12 +464,12 @@ def test_release_state_reads_only_not_found_as_no_release(
             raise subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
         return '{"isDraft": true, "assets": [{"name": "a.tar.gz"}]}'
 
-    monkeypatch.setattr(_rel, "gh", gh)
+    monkeypatch.setattr(_releases, "gh", gh)
     if expected == "raises":
         with pytest.raises(subprocess.CalledProcessError):
-            _rel.release_state("O/R", "v2026.11.0")
+            _releases.release_state("O/R", "v2026.11.0")
     else:
-        assert _rel.release_state("O/R", "v2026.11.0") == expected
+        assert _releases.release_state("O/R", "v2026.11.0") == expected
     assert calls == [False]
 
 
@@ -489,11 +490,11 @@ def test_release_state_with_retry_retries_an_error_until_it_answers(
             raise reply
         return reply
 
-    monkeypatch.setattr(_rel, "gh", gh)
+    monkeypatch.setattr(_releases, "gh", gh)
     monkeypatch.setattr(_rel.time, "sleep", slept.append)
     monkeypatch.setenv("GH_RETRY_ATTEMPTS", "3")
-    assert _rel.release_state("O/R", "v2026.11.0", retry=True) == (
-        _rel.ReleaseState(False, ("a.tar.gz",))
+    assert _releases.release_state("O/R", "v2026.11.0", retry=True) == (
+        _releases.ReleaseState(False, ("a.tar.gz",))
     )
     assert replies == []
     assert len(slept) == 1

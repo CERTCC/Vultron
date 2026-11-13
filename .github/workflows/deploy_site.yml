@@ -10,6 +10,9 @@
 # with its unit tests in test/ci/test_publish_gate.py. Every publish also
 # serves each released Protocol Specification draft's frozen pages at
 # spec/draft-N/, from main's drafts register (ADR-0188, DOCBW-08-027/028).
+# Publishing a release starts one more run: publish_after_release.yml
+# dispatches this workflow from main with the release in the `release` input,
+# so the released draft's frozen pages go live at once (DOCBW-06-032).
 name: Publish site to Pages
 
 on:
@@ -31,6 +34,14 @@ on:
           commit must be on main and carry the build's local actions, the
           frozen-draft serving step among them, which no commit before it
           does. Leave empty to publish main.
+        type: string
+        default: ''
+      release:
+        description: >-
+          Set only by publish_after_release.yml, never by hand: the published
+          release this run publishes main after. The gate refuses the run
+          when anyone else sets it, when another input is set too, or when
+          the release is not published.
         type: string
         default: ''
 
@@ -105,11 +116,12 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           SKIP_CI_GATE: ${{ inputs.skip-ci-gate || false }}
           ROLLBACK_TO: ${{ inputs.rollback-to }}
+          RELEASE: ${{ inputs.release }}
         run: |
           python3 .github/scripts/publish_gate.py gate \
             --repo "$REPO" --sha "$SHA" --event "$EVENT" --ref "$REF" \
             --actor "$ACTOR" --run-id "$RUN_ID" --skip-ci-gate "$SKIP_CI_GATE" \
-            --rollback-to "$ROLLBACK_TO"
+            --rollback-to "$ROLLBACK_TO" --release "$RELEASE"
 
   # The drafts register as main holds it when the run starts, whatever commit
   # the run deploys, so a rollback still serves every frozen draft
@@ -341,8 +353,9 @@ jobs:
             echo "tag and redeploys with it."
           } > untagged-deploy.md
 
-      # Every trigger reports a failure: a failed scheduled, manual or rollback
-      # publish each leaves the site other than intended (DOCBW-06-003).
+      # Every trigger reports a failure: a failed scheduled, manual, release or
+      # rollback publish each leaves the site other than intended
+      # (DOCBW-06-003).
       - name: Notify CI failure
         if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure

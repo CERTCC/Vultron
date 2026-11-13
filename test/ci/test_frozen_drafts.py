@@ -40,6 +40,8 @@ from vultron.metadata.docs import drafts_register as dr
 _rel = load_script("release")
 _fd = load_script("frozen_draft")
 _tags = load_script("release_tags")
+# The release lookup lives in its own module, so a fake gh patches both.
+_releases = load_script("github_releases")
 
 TODAY = date(2026, 11, 2)
 BUILT = date(2026, 11, 2)
@@ -788,7 +790,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def releases(monkeypatch: pytest.MonkeyPatch) -> _Releases:
     fake = _Releases()
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_releases, "gh", fake)
     monkeypatch.setattr(_rel.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(_releases.time, "sleep", lambda _seconds: None)
     return fake
 
 
@@ -1207,6 +1211,7 @@ def test_a_release_no_longer_a_draft_is_never_deleted(
     fake = _Releases()
     fake.add(RELEASE, draft=False, assets={})
     monkeypatch.setattr(_rel, "gh", fake)
+    monkeypatch.setattr(_releases, "gh", fake)
     with pytest.raises(_rel.IncompleteDraftReleaseError):
         _rel.discard_draft_release("O/R", RELEASE)
     assert "delete" not in fake.verbs()

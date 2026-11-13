@@ -52,6 +52,7 @@ from vultron.metadata.docs.build_version import (
 
 _SCRIPT = SCRIPTS_DIR / "publish_gate.py"
 _WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
+_AFTER_RELEASE = WORKFLOWS_DIR / "publish_after_release.yml"
 _MAIN_CI = {
     "python-app.yml",
     "demo-integration.yml",
@@ -63,6 +64,7 @@ _MAIN_CI = {
 DAY = "2026-11-02"
 MAIN = "refs/heads/main"
 RUN_URL = "https://github.com/O/R/actions/runs/5"
+RELEASE = "v2026.11.0"
 
 
 _gate = load_script("publish_gate")
@@ -420,6 +422,91 @@ def test_publish_tags_on_reads_only_publish_tags_on_the_commit(
     assert _gate.publish_tags_on(_head(repo)) == []
 
 
+# --- a publish after a release ---------------------------------------------------
+
+
+@pytest.mark.spec("DOCBW-06-032", "DOCBW-06-034")
+def test_a_bot_dispatched_release_run_is_a_release_run() -> None:
+    trigger = _gate.classify_trigger(
+        "workflow_dispatch", MAIN, False, release=RELEASE, actor=BOT_NAME
+    )
+    assert trigger == Trigger.RELEASE
+
+
+@pytest.mark.spec("DOCBW-06-029", "DOCBW-06-034")
+@pytest.mark.parametrize(
+    ("ref", "skip", "rollback_to", "release", "actor", "why"),
+    [
+        # A person cannot label a publish as a release's.
+        (MAIN, False, "", RELEASE, "octocat", "github-actions"),
+        # A release run is always a gated publish of main's tip.
+        (MAIN, True, "", RELEASE, BOT_NAME, "skip-ci-gate"),
+        (MAIN, False, f"publish-{DAY}.1", RELEASE, BOT_NAME, "rollback-to"),
+        # Only a version-shaped v* tag names a release.
+        (MAIN, False, "", "main", BOT_NAME, "not a v"),
+        (MAIN, False, "", "vNext", BOT_NAME, "not a v"),
+        # A run from the tag would execute the tag's copy of the workflow.
+        (f"refs/tags/{RELEASE}", False, "", RELEASE, BOT_NAME, "from main"),
+    ],
+    ids=["person", "ungated", "rollback", "branch", "unversioned", "from-tag"],
+)
+def test_a_release_run_is_refused_unless_the_bot_dispatched_it_alone(
+    ref: str, skip: bool, rollback_to: str, release: str, actor: str, why: str
+) -> None:
+    with pytest.raises(_gate.UnsupportedRunError, match=why):
+        _gate.classify_trigger(
+            "workflow_dispatch",
+            ref,
+            skip,
+            rollback_to,
+            release=release,
+            actor=actor,
+        )
+
+
+@pytest.mark.spec("DOCBW-06-034")
+@pytest.mark.parametrize(
+    ("state", "why"),
+    [
+        (None, "no published release"),
+        # A token that can push sees a draft; a read-only one gets None.
+        (_gate.ReleaseState(True, ()), "still a draft"),
+    ],
+    ids=["missing", "draft"],
+)
+def test_a_release_run_needs_a_published_release(
+    state: object, why: str
+) -> None:
+    with pytest.raises(_gate.UnsupportedRunError, match=why):
+        _gate.require_published_release(RELEASE, lambda name: state)
+
+
+@pytest.mark.spec("DOCBW-06-034")
+def test_a_published_release_passes() -> None:
+    asked: list[str] = []
+
+    def state(name: str) -> object:
+        asked.append(name)
+        return _gate.ReleaseState(False, ("a.tar.gz",))
+
+    _gate.require_published_release(RELEASE, state)
+    assert asked == [RELEASE]
+
+
+@pytest.mark.spec("DOCBW-06-033", "DOCBW-06-035")
+def test_a_release_run_keeps_the_ci_gate_and_ignores_the_skip_rule() -> None:
+    """The release often lands on a commit already published that morning."""
+    blocked = _Calls(tags=[_bot_tag()], issues=[[(41, "ci:workflow-ui")]])
+    decision = blocked.decide(_ctx(Trigger.RELEASE, RELEASE))
+    assert not decision.publish
+    assert "blocked by #41 (ci:workflow-ui)" in decision.reason
+    green = _Calls(tags=[_bot_tag()])
+    decision = green.decide(_ctx(Trigger.RELEASE, RELEASE))
+    assert decision.publish
+    assert green.issue_reads == 2 and green.waits == 1
+    assert any(f"publish-{DAY}.1" in note for note in decision.notes)
+
+
 # --- manual publish and rollback ------------------------------------------------
 
 
@@ -557,6 +644,10 @@ def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
             "manual publish with the CI gate skipped, by @octocat.",
         ),
         (Trigger.ROLLBACK, f"rollback to publish-{DAY}.1, by @octocat."),
+        (
+            Trigger.RELEASE,
+            f"publish after release publish-{DAY}.1, by @octocat.",
+        ),
     ],
 )
 def test_tag_message_records_trigger_and_actor(
@@ -810,7 +901,8 @@ def _gate_main(
 ) -> int:
     argv = [
         "gate", "--repo", "O/R", "--sha", sha, "--event", event,
-        "--ref", inputs.pop("ref", MAIN), "--actor", "octocat", "--run-id", "5",
+        "--ref", inputs.pop("ref", MAIN), "--actor", inputs.pop("actor", "octocat"),
+        "--run-id", "5",
     ]  # fmt: skip
     for key, value in inputs.items():
         argv += [f"--{key.replace('_', '-')}", value]
@@ -917,6 +1009,62 @@ def test_gate_command_refuses_a_run_from_a_tag(
 ) -> None:
     assert _gate_main(ref="refs/tags/v2026.10.0") == 1
     assert "refused" in outputs["summary"].read_text()
+
+
+@pytest.mark.spec(
+    "DOCBW-06-032", "DOCBW-06-033", "DOCBW-06-035", "DOCBW-06-017"
+)
+def test_gate_command_publishes_main_after_a_published_release(
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_gate, "publish_tags_on", lambda sha: [_bot_tag()])
+    _no_github(monkeypatch)
+    looked_up: list[tuple[str, str]] = []
+
+    def release_state(repo: str, name: str, *, retry: bool = False) -> Any:
+        looked_up.append((repo, name))
+        return _gate.ReleaseState(False, ())
+
+    monkeypatch.setattr(_gate, "release_state", release_state)
+    monkeypatch.setattr(_gate, "_utc_today", lambda: DAY)
+    monkeypatch.setattr(
+        _gate, "next_publish_tag", lambda day: f"publish-{day}.2"
+    )
+    monkeypatch.setattr(_gate, "release_tag_on", lambda sha: RELEASE)
+    assert _gate_main(actor=BOT_NAME, release=RELEASE) == 0
+    assert looked_up == [("O/R", RELEASE)]
+    out = outputs["out"].read_text()
+    assert "publish=true\n" in out and "trigger=release\n" in out
+    assert "commit=abc123\n" in out
+    assert f"publish after release {RELEASE}, by @{BOT_NAME}." in out
+    assert f"publish-tag=publish-{DAY}.2\n" in out
+
+
+@pytest.mark.spec("DOCBW-06-034")
+def test_gate_command_refuses_a_release_that_is_not_published(
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_github(monkeypatch)
+    monkeypatch.setattr(
+        _gate, "release_state", lambda repo, name, *, retry=False: None
+    )
+    assert _gate_main(actor=BOT_NAME, release=RELEASE) == 1
+    summary = outputs["summary"].read_text()
+    assert "refused" in summary and RELEASE in summary
+    assert not outputs["out"].exists()
+
+
+@pytest.mark.spec("DOCBW-06-034")
+def test_gate_command_refuses_a_release_run_a_person_started(
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def must_not_look_up(*args: object, **kwargs: object) -> None:
+        raise AssertionError("a refused run looks up no release")
+
+    monkeypatch.setattr(_gate, "release_state", must_not_look_up)
+    assert _gate_main(release=RELEASE) == 1
+    assert "github-actions" in outputs["summary"].read_text()
+    assert not outputs["out"].exists()
 
 
 @pytest.mark.parametrize(
@@ -1070,10 +1218,75 @@ def test_publication_workflow_triggers() -> None:
 @pytest.mark.spec("DOCBW-06-018", "DOCBW-06-020")
 def test_skip_ci_gate_input_defaults_off() -> None:
     inputs = triggers(_workflow())["workflow_dispatch"]["inputs"]
-    assert set(inputs) == {"skip-ci-gate", "rollback-to"}
+    assert set(inputs) == {"skip-ci-gate", "rollback-to", "release"}
     assert inputs["skip-ci-gate"]["type"] == "boolean"
     assert inputs["skip-ci-gate"]["default"] is False
     assert inputs["rollback-to"]["default"] == ""
+    assert inputs["release"]["default"] == ""
+
+
+@pytest.mark.spec("DOCBW-06-032", "DOCBW-06-034")
+def test_the_gate_reads_the_release_input_and_the_actor() -> None:
+    (gate,) = [s for s in _job_steps("gate") if s.get("id") == "gate"]
+    assert gate["env"]["RELEASE"] == "${{ inputs.release }}"
+    assert gate["env"]["ACTOR"] == "${{ github.actor }}"
+    assert '--release "$RELEASE"' in gate["run"]
+
+
+def _after_release() -> dict[str, Any]:
+    return load_workflow(_AFTER_RELEASE)
+
+
+@pytest.mark.spec("DOCBW-06-032")
+def test_publishing_a_release_dispatches_a_publish_of_main() -> None:
+    """A published release starts the publish workflow from main.
+
+    The release event runs from the tag, which the Pages environment does not
+    let deploy and whose copy of the workflow is not main's (ADR-0171), so
+    this workflow only dispatches; the publish itself runs from main.
+    """
+    wf = _after_release()
+    assert triggers(wf) == {"release": {"types": ["published"]}}
+    assert wf["permissions"] == {"contents": "read"}
+    (name,) = wf["jobs"]
+    job = wf["jobs"][name]
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "write",
+        "issues": "write",
+    }
+    assert "timeout-minutes" in job
+    job_steps = job["steps"]
+    (checkout,) = [
+        s for s in job_steps if "actions/checkout" in str(s.get("uses"))
+    ]
+    # Only main's notify-failure action is loaded; no tag code runs.
+    assert checkout["with"] == {"ref": "main"}
+    (dispatch,) = [
+        s for s in job_steps if "gh workflow run" in str(s.get("run"))
+    ]
+    command = " ".join(str(dispatch["run"]).split())
+    assert f"gh workflow run {_WORKFLOW.name}" in command
+    assert "--ref main" in command
+    assert '--field release="$RELEASE"' in command
+    assert dispatch["env"]["RELEASE"] == "${{ github.event.release.tag_name }}"
+    assert dispatch["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"  # noqa: S105 - an expression, not a secret
+    assert job_steps.index(checkout) < job_steps.index(dispatch)
+
+
+@pytest.mark.spec("DOCBW-06-032")
+def test_a_failed_dispatch_files_a_failure_issue() -> None:
+    (job,) = _after_release()["jobs"].values()
+    reports = {
+        s["with"]["mode"]: s
+        for s in job["steps"]
+        if s.get("uses") == "./.github/actions/notify-failure"
+    }
+    assert set(reports) == {"notify", "close"}
+    assert reports["notify"]["if"] == "failure()"
+    assert reports["close"]["if"] == "success()"
+    labels = {s["with"]["workflow-label"] for s in reports.values()}
+    assert labels == {"ci:workflow-publish-after-release"}
 
 
 @pytest.mark.spec("DOCBW-06-009")
@@ -1346,7 +1559,9 @@ def test_no_step_moves_or_deletes_a_tag(path: Path) -> None:
     assert not found, f"{path.name} can move or delete a tag: {found}"
 
 
-@pytest.mark.parametrize("path", _TAG_WORKFLOWS, ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path", [*_TAG_WORKFLOWS, _AFTER_RELEASE], ids=lambda p: p.name
+)
 def test_no_run_step_expands_an_expression(path: Path) -> None:
     """Inputs, outputs and context values reach a shell only through ``env:``.
 

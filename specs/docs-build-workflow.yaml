@@ -620,8 +620,10 @@ groups:
       Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
       beyond the build and gate obligations DOCBW-03 places on every site-building
       workflow. Publication runs on a weekday schedule from `publish-*` tags, gated
-      on `main` CI, with manual publish and rollback (ADR-0171). The gate's
-      decisions live in `.github/scripts/publish_gate.py`.
+      on `main` CI, with manual publish and rollback (ADR-0171), and once more
+      when a release is published, dispatched by
+      `.github/workflows/publish_after_release.yml`. The gate's decisions live in
+      `.github/scripts/publish_gate.py`.
     specs:
       - id: DOCBW-06-001
         priority: MUST
@@ -948,7 +950,8 @@ groups:
         kind: project
         statement: >-
           The DOCBW-06-016 tag's message MUST record the trigger (scheduled,
-          manual, manual with the CI gate skipped, or rollback) and the actor.
+          manual, manual with the CI gate skipped, rollback, or release) and
+          the actor.
         rationale: >-
           The tag is the record of the publish. Its message says why a commit
           went live and who asked, without a search through workflow runs.
@@ -1223,6 +1226,102 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-016
+      - id: DOCBW-06-032
+        priority: MUST
+        kind: project
+        statement: >-
+          When a GitHub Release is published, the workflow
+          `.github/workflows/publish_after_release.yml` MUST start a run of the
+          publication workflow from `main` through `workflow_dispatch`, naming
+          the release in that run's `release` input.
+        rationale: >-
+          A publish that ran before the release was published serves the
+          released draft's placeholder (DOCBW-08-032). Without this run the
+          placeholder stays until the next weekday publish, up to three days
+          (#6393). The release event itself runs from the release's tag, whose
+          copy of the publication workflow is not `main`'s (ADR-0171) and which
+          the `github-pages` environment does not let deploy, so the release
+          workflow only dispatches. A dispatch is the one event that a
+          `GITHUB_TOKEN` can raise to start another workflow.
+        verification: >-
+          `test_publishing_a_release_dispatches_a_publish_of_main`,
+          `test_a_failed_dispatch_files_a_failure_issue`,
+          `test_the_gate_reads_the_release_input_and_the_actor` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+          - ADR-0188
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-08-028
+      - id: DOCBW-06-033
+        priority: MUST
+        kind: project
+        statement: >-
+          A DOCBW-06-032 run MUST apply the CI gate of DOCBW-06-008.
+        rationale: >-
+          The run publishes `main`, so `main` must be green, as it must be for a
+          scheduled publish.
+        verification: >-
+          `test_a_release_run_keeps_the_ci_gate_and_ignores_the_skip_rule` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
+          - rel_type: depends_on
+            spec_id: DOCBW-06-008
+      - id: DOCBW-06-035
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A DOCBW-06-032 run MUST NOT apply the skip rule of DOCBW-06-013.
+        rationale: >-
+          The release is often published on a day whose scheduled publish
+          already took `main`'s tip, so the skip rule would skip the one run
+          that serves the frozen draft.
+        verification: >-
+          `test_a_release_run_keeps_the_ci_gate_and_ignores_the_skip_rule` and
+          `test_gate_command_publishes_main_after_a_published_release` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
+        see_also:
+          - spec_id: DOCBW-06-013
+            reason: 'the skip rule a release run is exempt from'
+      - id: DOCBW-06-034
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A run whose `release` input is set MUST NOT publish when its actor
+          is not `github-actions[bot]`, when it also sets `rollback-to` or
+          `skip-ci-gate`, or when the input names no published GitHub Release.
+          The gate fails such a run and writes its reason to the run summary.
+        rationale: >-
+          The input only labels the run, but the label goes into the tag
+          message (DOCBW-06-017), so a person who set it by hand would make a
+          false record of why a commit went live. GitHub cannot hide an input
+          from the manual-run form, so the gate enforces who sets it. A refusal
+          fails visibly rather than publishing as a manual run, which would
+          hide the misuse.
+        verification: >-
+          `test_a_release_run_is_refused_unless_the_bot_dispatched_it_alone`,
+          `test_a_release_run_needs_a_published_release`,
+          `test_a_published_release_passes`,
+          `test_gate_command_refuses_a_release_that_is_not_published` and
+          `test_gate_command_refuses_a_release_run_a_person_started` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-032
 
   - id: DOCBW-07
     title: Release Promotion and Site Staleness

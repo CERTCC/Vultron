@@ -61,6 +61,7 @@ from gh_cli import (  # see gh_cli
     run,
     write_github_file,
 )
+from github_releases import ReleaseState, release_state
 from publish_gate import MAIN_REF
 from release_tags import (
     BOT_GIT_IDENTITY,
@@ -305,14 +306,6 @@ def carried_draft(
     return None if carried is None else carried.version
 
 
-@dataclass(frozen=True)
-class ReleaseState:
-    """A GitHub Release as the promote sees it: draft or not, and its assets."""
-
-    is_draft: bool
-    assets: tuple[str, ...]
-
-
 def frozen_pair(version: str) -> tuple[str, str]:
     """The names of the archive and the manifest of draft *version*."""
     return archive_name(version), manifest_name(version)
@@ -450,39 +443,6 @@ def register_at(ref: str) -> Register | None:
     )  # fmt: skip
     data = json.loads(out)
     return None if data is None else Register.from_json(data)
-
-
-def release_state(
-    repo: str, name: str, *, retry: bool = False
-) -> ReleaseState | None:
-    """The GitHub Release, draft or not, for tag *name*, or ``None``.
-
-    Only ``gh``'s "release not found" reads as no release; any other error
-    raises, so a failed lookup never leads to a second draft. With *retry*,
-    such an error is tried again within ``retry.sh``'s bounds, and "not
-    found" is never retried: a deploy that only reads passes it, while the
-    promote reads the release afresh in its own loop.
-    """
-    delays = retry_delays() if retry else []
-    for delay in [*delays, None]:
-        try:
-            out = gh(
-                "release", "view", name, "--repo", repo, "--json",
-                "isDraft,assets", retry=False,
-            )  # fmt: skip
-        except subprocess.CalledProcessError as error:
-            if "not found" in str(error.stderr or "").lower():
-                return None
-            if delay is None:
-                raise
-            time.sleep(delay)
-            continue
-        data = json.loads(out)
-        return ReleaseState(
-            bool(data["isDraft"]),
-            tuple(str(asset["name"]) for asset in data.get("assets") or []),
-        )
-    raise AssertionError("unreachable: the last attempt returns or raises")
 
 
 def download_assets(
