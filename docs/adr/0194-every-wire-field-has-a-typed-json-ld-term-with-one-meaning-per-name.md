@@ -100,4 +100,4 @@ Tests fail on a wire field with no term, on two declarations of one name that di
 
 Source: #6253.
 The governing note is `notes/as2-vocabulary-alignment.md` § "Every Vultron Property Has a JSON-LD Term".
-Generated spec requirements: VM-10-007, VM-10-008, VM-10-009, VM-10-010, VM-10-011, ARCH-18-012.
+Generated spec requirements: VM-10-007 to VM-10-013, ARCH-18-012.

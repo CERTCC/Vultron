@@ -1321,8 +1321,23 @@ groups:
     verification_debt: '#2575'
     statement: >-
       A Vultron property declaration MUST carry a one-line definition and its value
-      kind, and two declarations that share a wire name MUST carry the same definition
-      and the same value kind.
+      kind.
+    rationale: >-
+      The definition is what makes "one meaning per name" (VM-10-012) checkable, and
+      the value kind is what the context document's typed term is written from
+      (VM-10-010).
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-007
+  - id: VM-10-012
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Two Vultron property declarations that share a wire name MUST carry the same
+      definition and the same value kind.
     rationale: >-
       Each wire name has one global term, as in AS2, so one name cannot carry two
       meanings. A name used for two meanings is renamed apart instead (ADR-0194).
@@ -1330,7 +1345,7 @@ groups:
     - ADR-0194
     relationships:
     - rel_type: refines
-      spec_id: VM-10-007
+      spec_id: VM-10-008
   - id: VM-10-009
     priority: MUST_NOT
     kind: project
@@ -1375,8 +1390,7 @@ groups:
     statement: >-
       The term check of VM-10-007 MUST read the terms of each external context Vultron
       cites from a pinned, byte-for-byte local copy under `third_party/jsonld/`, whose
-      pin record holds each source URL and SHA-256 digest, and a test MUST fail when a
-      copy differs from its digest.
+      pin record holds each source URL and SHA-256 digest.
     rationale: >-
       A hand-written list of AS2 terms can disagree with the context a processor
       actually reads, and the field names declared in this codebase's own AS2 classes
@@ -1389,3 +1403,19 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-10-007
+  - id: VM-10-013
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A test MUST fail when a pinned external context copy (VM-10-011) differs from the
+      digest its pin record holds.
+    rationale: >-
+      The copies are never edited by hand (`third_party/README.md`), so a mismatch
+      means the copy no longer is the context it claims to be, and the term check would
+      judge fields against the wrong terms.
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-011

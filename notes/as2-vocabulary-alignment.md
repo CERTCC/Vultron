@@ -322,7 +322,7 @@ structured cause. VOC `summary`: "a natural language summarization of the object
 
 ## Every Vultron Property Has a JSON-LD Term
 
-Issue: #6253. Decision record: ADR-0194. Requirements: VM-10-007 to VM-10-011,
+Issue: #6253. Decision record: ADR-0194. Requirements: VM-10-007 to VM-10-013,
 ARCH-18-012.
 
 **Decision.**
