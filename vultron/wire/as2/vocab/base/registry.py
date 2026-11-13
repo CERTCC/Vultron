@@ -16,12 +16,12 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import inspect
 import types as _types
 import typing as _typing
 
 from pydantic import BaseModel
 
+from vultron.core.models._helpers import own_annotations
 from vultron.core.models.registry import (
     declared_type_value,
     find_in_core_type_map,
@@ -66,7 +66,7 @@ def declares_registrable_type(cls: type) -> bool:
     (``str | None``), and a subclass that merely inherits ``type_`` is not a new
     wire type. Shared with the registry ratchet so both apply one rule.
     """
-    annotations = inspect.get_annotations(cls)
+    annotations = own_annotations(cls)
     if "type_" not in annotations:
         return False
     annotation = annotations["type_"]

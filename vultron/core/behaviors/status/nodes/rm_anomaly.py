@@ -89,7 +89,7 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
         super().initialise()
         try:
             self.rm_anomaly = self.get_input(BB_RM_ANOMALY)
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.rm_anomaly = None
 
     def _compose(self) -> CaseManagerNote | None:

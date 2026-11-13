@@ -44,6 +44,7 @@ from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
+from vultron.primitives import same_actor_id
 
 
 class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
@@ -247,11 +248,11 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         self._activity = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
         try:
             self._activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             pass
 
     def update(self) -> Status:
@@ -315,10 +316,20 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
     def _is_own_activity(self) -> bool:
-        """True when the activity must find its case: the actor sent it."""
+        """True when the activity must find its case: the actor sent it.
+
+        Compared with ``same_actor_id``, as the addressee door asks the same
+        question (``addressee.py``): the sender id is canonical, but the
+        executing actor's configured id carries no ``NormalisedActorId``
+        type, so a strict match would decide this regime on a spelling
+        (OID-01-006, #5901).
+        """
+        sender_id = getattr(self._activity, "actor_id", None)
         return (
             self._own_activity_needs_case
-            and getattr(self._activity, "actor_id", None) == self.actor_id
+            and isinstance(sender_id, str)
+            and self.actor_id is not None
+            and same_actor_id(sender_id, self.actor_id)
         )
 
 

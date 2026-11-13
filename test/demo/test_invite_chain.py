@@ -1,6 +1,5 @@
 """Unit tests for the shared case-invite chain (DEMOMA-17-001, #4192)."""
 
-import inspect
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -8,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import mock_actor, mock_case
+from test.support.signatures import signature_of
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.invite_chain import (
@@ -470,7 +470,7 @@ def test_the_chain_takes_no_hook_between_delivery_and_the_answer():
     would pass.  Both the public entry point and the private step that ran the
     hook are pinned, so moving it one level down does not hide it.
     """
-    assert set(inspect.signature(run_case_invite_chain).parameters) == {
+    assert set(signature_of(run_case_invite_chain).parameters) == {
         "case",
         "invitee_name",
         "invitee_client",
@@ -486,9 +486,7 @@ def test_the_chain_takes_no_hook_between_delivery_and_the_answer():
         "reply_timeout",
         "then",
     }
-    assert set(
-        inspect.signature(invite_links._await_and_answer).parameters
-    ) == {
+    assert set(signature_of(invite_links._await_and_answer).parameters) == {
         "case",
         "invitee_name",
         "invitee_client",

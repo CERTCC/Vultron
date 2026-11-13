@@ -187,7 +187,7 @@ def _declared_inline_required_refs(cls: type) -> frozenset[str]:
 
 
 def _inline_required_refs(
-    obj: "PersistableModel | BaseModel",
+    obj: PersistableModel | BaseModel,
 ) -> frozenset[str]:
     """The fields of *obj* that storage must keep inline (DL-08-001).
 

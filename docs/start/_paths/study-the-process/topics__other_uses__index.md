@@ -3,35 +3,26 @@
 <div class="admonition abstract reading-path" data-thread="study-the-process" data-member="topics/other_uses/index.md" markdown>
 <p class="admonition-title">Reading path: You study how vulnerability disclosure works and want the models behind it</p>
 
+<div class="reading-path-where" markdown>
 This page is part of *Work with the models*.
 
-<table class="reading-path-table" markdown>
-<thead><tr><th>Start</th><th>Previous</th><th>Current</th><th>Next</th></tr></thead>
-<tbody markdown>
-<tr markdown>
-<td markdown="block">
+<p class="reading-path-start" markdown>[Path overview](../../study-the-process.md)</p>
+</div>
 
-- [You study how vulnerability disclosure works and want the models behind it](../../study-the-process.md)
-
-</td>
-<td markdown="block">
+<div class="reading-path-tiles" markdown>
+<div class="reading-path-tile reading-path-previous" markdown>
+<p class="reading-path-direction">Previous</p>
 
 - [Measuring CVD](../../../topics/measuring_cvd/index.md)
 
-</td>
-<td markdown="block">
-
-- Other Uses of the Vultron Case State Model
-
-</td>
-<td markdown="block">
+</div>
+<div class="reading-path-tile reading-path-next" markdown>
+<p class="reading-path-direction">Next — pick one</p>
 
 - [A Formal Protocol Definition for MPCVD](../../../reference/formal_protocol/index.md)
 - [User Stories](../../../reference/user_stories/index.md)
 
-</td>
-</tr>
-</tbody>
-</table>
+</div>
+</div>
 
 </div>

@@ -45,6 +45,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
+from vultron.core.models.wire_keys import wire_key
+from vultron.core.predicates.addressing import snapshot_actor_id
+
+_ATTRIBUTED_TO = wire_key("attributed_to", CaseParticipant)
 
 
 def _carried_participant(
@@ -57,6 +61,11 @@ def _carried_participant(
             f"{node.name}: the entry carries no CaseParticipant object"
         )
         return None
+    # The snapshot is the activity as its sender wrote it, so the record's
+    # actor may carry a trailing slash; the replica stores the canonical
+    # spelling the field type requires (OID-01-006, #5919).
+    if (actor_id := snapshot_actor_id(data.get(_ATTRIBUTED_TO))) is not None:
+        data = {**data, _ATTRIBUTED_TO: actor_id}
     try:
         return CaseParticipant.model_validate(
             project_wire_snapshot_to_core(CaseParticipant, data)

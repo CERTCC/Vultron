@@ -112,7 +112,7 @@ def deployment_target(case_id: str, deployed: str) -> str:
 def create_stay_deferred_arm(
     case_id: str,
     actor_id: str,
-    bundle: "DeploymentMonitoringBundle",
+    bundle: DeploymentMonitoringBundle,
 ) -> py_trees.behaviour.Behaviour:
     """Build the ``_ShouldStayInRmDeferred`` arm shared by both deployment trees.
 
@@ -143,7 +143,7 @@ def create_stay_deferred_arm(
 def create_deploy_fix_tree(
     case_id: str,
     actor_id: str,
-    call_out: "DeployFixCallOutBundle | None" = None,
+    call_out: DeployFixCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the fix deployment workflow.
 

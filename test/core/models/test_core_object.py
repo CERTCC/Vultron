@@ -299,7 +299,7 @@ def test_concrete_type_annotation_is_none_for_an_unresolvable_hint():
     """
 
     class UnresolvableHintProbe:
-        type_: "UndefinedTypeName"  # type: ignore[name-defined]  # noqa: F821
+        type_: UndefinedTypeName  # type: ignore[name-defined]  # noqa: F821
 
     assert concrete_type_annotation(UnresolvableHintProbe) is None
 
@@ -552,7 +552,6 @@ def test_core_object_strips_computed_field_input(isolated_core_registries):
     key.  A local subclass carries one, so the contract is tested apart from
     any production field (ARCH-23-005).
     """
-    from typing import Literal
 
     from pydantic import computed_field
 
@@ -595,7 +594,6 @@ def test_computed_field_with_a_field_serializer_is_refused(
     the object refuse its own ``by_alias`` dump.  The class is refused when
     it is defined instead.
     """
-    from typing import Literal
 
     from pydantic import computed_field, field_serializer
 

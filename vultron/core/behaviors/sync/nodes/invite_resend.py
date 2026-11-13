@@ -325,7 +325,7 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 "SyncActivityPort | None", self.get_input("sync_port")
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._sync_port = None
 
     def _answered_ids(self) -> set[str]:

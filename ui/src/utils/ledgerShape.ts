@@ -109,7 +109,10 @@ class ShapeChecker {
         return null
       case 'string':
         if (typeof value !== 'string') return `expected a string, got ${describe(value)}`
-        return shape.nonEmpty && value.trim() === '' ? 'must not be empty' : null
+        if (shape.nonEmpty && value.trim() === '') return 'must not be empty'
+        return shape.noTrailingSlash === true && value.endsWith('/')
+          ? 'must not end in a trailing slash (an actor id in its canonical spelling)'
+          : null
       case 'datetime':
         if (typeof value !== 'string') return `expected a datetime string, got ${describe(value)}`
         return ISO_DATETIME.test(value) && !Number.isNaN(Date.parse(value))

@@ -202,7 +202,7 @@ def is_valid_cs_history_prefix(
     """
     try:
         replay_cs_history(events, start=start)
-    except (VultronValidationError, VultronInvalidStateTransitionError):
+    except VultronValidationError, VultronInvalidStateTransitionError:
         return False
     return True
 

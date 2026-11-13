@@ -248,7 +248,7 @@ def find_cross_references(
             continue
         try:
             text = (repo_root / rel).read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+        except UnicodeDecodeError, OSError:
             continue
         for n, line in enumerate(text.splitlines(), start=1):
             if pattern.search(line):

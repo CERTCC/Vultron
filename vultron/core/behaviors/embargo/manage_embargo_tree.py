@@ -74,7 +74,7 @@ logger = logging.getLogger(__name__)
 
 def create_manage_embargo_tree(
     case_id: str,
-    call_out: "EmbargoCallOutBundle | None" = None,
+    call_out: EmbargoCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the embargo management workflow (Phase 1 stub).
 

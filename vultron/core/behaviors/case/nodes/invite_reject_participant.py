@@ -121,9 +121,7 @@ class ApplyInviteRejectToParticipantNode(
         super().initialise()
         self.activity = self.get_input("activity")
 
-    def _make_close_node(
-        self, is_vendor: bool
-    ) -> "CreateParticipantStatusNode":
+    def _make_close_node(self, is_vendor: bool) -> CreateParticipantStatusNode:
         """Return a close node that sets VF only for VENDOR invitees (CM-11-009)."""
         return CreateParticipantStatusNode(
             actor_id=self.invitee_id,

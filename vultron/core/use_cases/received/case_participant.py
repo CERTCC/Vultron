@@ -102,9 +102,9 @@ class _CaseOwnerParticipantMoveUseCase[
         self,
         dl: CasePersistence,
         request: MoveEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -251,9 +251,9 @@ class AddCaseParticipantToCaseReceivedUseCase(
         self,
         dl: CasePersistence,
         request: AddCaseParticipantToCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(
             dl,
@@ -307,9 +307,9 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
         self,
         dl: CasePersistence,
         request: RemoveCaseParticipantFromCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
     ) -> None:
         super().__init__(
             dl,

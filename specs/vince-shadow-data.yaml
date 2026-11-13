@@ -1,8 +1,8 @@
 id: VSD
 title: VINCE Shadow Data Handling
 description: >-
-  Rules for data read from a VINCE instance by the VINCE shadow: where it is
-  stored, what logs may carry, how the API credential is read, and the only ways
+  Rules for data read from a VINCE instance by the VINCE shadow: what logs may
+  carry, how the API credential is read, and the only ways
   it may enter the repository or a publication. Live production readers and
   retention are not yet decided (#6349).
 scope:
@@ -14,44 +14,13 @@ groups:
 - id: VSD-01
   title: Runtime Handling
   specs:
-  - id: VSD-01-001
-    priority: MUST
-    kind: project
-    adr:
-    - ADR-0189
-    statement: >-
-      In shadow mode, the server MUST store VINCE-derived records only in the
-      store `database.db_url` names.
-    rationale: >-
-      One configured store is one place to protect, back up and delete. A second
-      store, or a fallback, is a place nobody planned for.
-    verification: >-
-      A shadow run test (#5958) with `database.db_url` set to a path outside the
-      checkout asserts the VINCE-derived records are written there and nowhere
-      else.
-  - id: VSD-01-002
-    priority: MUST
-    kind: project
-    adr:
-    - ADR-0189
-    statement: >-
-      In shadow mode, the server MUST refuse to start when `database.db_url` is
-      the default, in memory, or inside the repository checkout.
-    rationale: >-
-      The default path is relative, so a server started from the checkout writes
-      inside it, where an agent or a commit can pick up a case. Refusing to
-      start cannot write a case to the wrong place.
-    verification: >-
-      A startup test (#5958) sets the default, an in-memory store, and SQLite
-      paths inside the checkout (relative and through a symlink), and asserts
-      each refuses to start with an error naming the setting.
   - id: VSD-01-003
     priority: MUST_NOT
     kind: project
     adr:
     - ADR-0189
     statement: >-
-      A shadow-mode log record MUST NOT carry VINCE case content, such as a
+      A shadow log record MUST NOT carry VINCE case content, such as a
       title, description, post, vul detail or contact detail.
     rationale: >-
       Logs are copied into issues, CI artifacts and Coding Agent sessions, so a
@@ -59,10 +28,11 @@ groups:
       still be logged, which keeps records joinable without carrying what the
       embargo protects.
     verification: >-
-      A shadow run test (#5959) seeds a synthetic VINCE case whose content holds
-      a unique marker and asserts no captured record, at any level and including
-      tracebacks, contains it. So the test is not vacuous, it also asserts the
-      run logged records carrying the case and activity ids.
+      A shadow run test (#5959) reads a synthetic VINCE case, whose content
+      holds a unique marker, through the reader and asserts no captured record,
+      at any level and including tracebacks, contains it. So the test is not
+      vacuous, it also asserts the run logged records carrying the case and
+      source-record ids.
   - id: VSD-01-004
     priority: MUST
     kind: project
@@ -70,14 +40,16 @@ groups:
     - ADR-0189
     statement: >-
       The VINCE API credential MUST be read only at runtime, from the
-      environment or a secret file.
+      environment.
     rationale: >-
-      Configuration files live in the repository. A credential read only at
-      runtime has no path into a commit.
+      The credential is a secret, so it is kept outside the code, the repository
+      and every configuration file. Configuration files live in the repository,
+      and a credential read only from the runtime environment has no path into
+      a commit.
     verification: >-
       A test (#5960) asserts the connector reads the credential from the
-      environment variable or the secret file, and refuses a configuration file
-      that carries it.
+      environment variable, refuses to read a case without it, and refuses a
+      configuration file that carries it.
   - id: VSD-01-005
     priority: MUST_NOT
     kind: project

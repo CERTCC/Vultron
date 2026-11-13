@@ -87,7 +87,7 @@ class _ActInstantPort:
         node = cast(BehaviourWithPorts, self)
         try:
             at = node.get_input(ACT_INSTANT_KEY)
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             at = None
         if not isinstance(at, datetime):
             raise VultronMissingActInstantError(
@@ -112,7 +112,7 @@ class _OptionalPortRead:
         node = cast(BehaviourWithPorts, self)
         try:
             return cast(object, node.get_input(key))
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             return None
 
 
@@ -198,14 +198,14 @@ class DataLayerConditionWithPorts(
         return None
 
     def _require_case(
-        self, case_id: "str | None"
-    ) -> "tuple[VulnerabilityCase, Status | None]":
+        self, case_id: str | None
+    ) -> tuple[VulnerabilityCase, Status | None]:
         """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
         return require_case(self, case_id)
 
     def _resolve_case_replica(
-        self, case_id: "str | None"
-    ) -> "VulnerabilityCase | None":
+        self, case_id: str | None
+    ) -> VulnerabilityCase | None:
         """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
         return resolve_case_replica(self, case_id)
 
@@ -292,11 +292,11 @@ class DataLayerActionWithPorts(
             self.trigger_activity_factory = self.get_input(
                 "trigger_activity_factory"
             )
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.trigger_activity_factory = None
         try:
             self.wire_render_port = self.get_input("wire_render_port")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self.wire_render_port = None
 
     def _require_datalayer(self) -> Status | None:
@@ -311,7 +311,7 @@ class DataLayerActionWithPorts(
             return Status.FAILURE
         return None
 
-    def _require_wire_render_port(self) -> "WireRenderPort":
+    def _require_wire_render_port(self) -> WireRenderPort:
         """Return the rendering port, or raise if the tree was built without it.
 
         Core never produces the AS2 shape of an object itself (ARCH-20-001), so
@@ -325,7 +325,7 @@ class DataLayerActionWithPorts(
             raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
         return self.wire_render_port
 
-    def _require_trigger_activity_port(self) -> "TriggerActivityPort":
+    def _require_trigger_activity_port(self) -> TriggerActivityPort:
         """Return the trigger-activity port, or raise if the tree lacks it.
 
         For a node that records the CASE_MANAGER's own act: its ledger entry
@@ -343,14 +343,14 @@ class DataLayerActionWithPorts(
         return self.trigger_activity_factory
 
     def _require_case(
-        self, case_id: "str | None"
-    ) -> "tuple[VulnerabilityCase, Status | None]":
+        self, case_id: str | None
+    ) -> tuple[VulnerabilityCase, Status | None]:
         """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
         return require_case(self, case_id)
 
     def _resolve_case_replica(
-        self, case_id: "str | None"
-    ) -> "VulnerabilityCase | None":
+        self, case_id: str | None
+    ) -> VulnerabilityCase | None:
         """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
         return resolve_case_replica(self, case_id)
 

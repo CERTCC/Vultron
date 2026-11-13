@@ -160,7 +160,7 @@ class UpdateObject(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._current_dict = self.get_input("object_data")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._current_dict = None
 
     def update(self) -> Status:

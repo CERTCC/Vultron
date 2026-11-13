@@ -38,20 +38,20 @@ ACTIVITY_ID = "https://example.org/activities/act1"
 def _make_concrete(
     *,
     factory_missing_returns: Status = Status.FAILURE,
-    resolve_result: "tuple[str, str] | Status" = (
+    resolve_result: tuple[str, str] | Status = (
         EMBARGO_ID,
         CASE_MANAGER_ACTOR,
     ),
-    call_result: "tuple[str, str] | Exception" = (ACTIVITY_ID, "{}"),
+    call_result: tuple[str, str] | Exception = (ACTIVITY_ID, "{}"),
     outbox_fail_returns: Status = Status.FAILURE,
-) -> "_SendEmbargoActivityBase":
+) -> _SendEmbargoActivityBase:
     """Create a minimal concrete subclass for contract testing."""
 
     class _ConcreteNode(_SendEmbargoActivityBase, register=False):
         def _on_factory_unavailable(self) -> Status:
             return factory_missing_returns
 
-        def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+        def _resolve_embargo_and_manager(self) -> tuple[str, str] | Status:
             return resolve_result
 
         def _call_factory(

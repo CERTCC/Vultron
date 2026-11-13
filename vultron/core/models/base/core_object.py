@@ -18,7 +18,6 @@
 ARCH-25-004 (ADR-0099): the core classes *are* the AS2 objects.
 """
 
-import inspect
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import (
@@ -53,6 +52,7 @@ from vultron.core.models._helpers import (
     as_utc,
     blank_times_as_none,
     format_timestamp,
+    own_annotations,
     refuse_absent_id,
     refuse_absent_published,
 )
@@ -148,12 +148,12 @@ class CoreObject(CoreRecord):
     # built it (``UnmodelledObject``, ARCH-01-001).  A blank IRI is refused
     # when the object is built (CS-08-001, #3894).  The aliases are declared
     # below the class they name.
-    replies: "CoreObjectOrIri | None" = None
+    replies: CoreObjectOrIri | None = None
     url: NonEmptyString | None = None
-    generator: "CoreObjectOrIriValues" = None
-    context: "CoreObjectOrIriValues" = None
-    tag: "CoreObjectOrIriValues" = None
-    in_reply_to: "CoreObjectOrIriValues" = None
+    generator: CoreObjectOrIriValues = None
+    context: CoreObjectOrIriValues = None
+    tag: CoreObjectOrIriValues = None
+    in_reply_to: CoreObjectOrIriValues = None
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -172,15 +172,15 @@ class CoreObject(CoreRecord):
 
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
-    icon: "CoreObjectOrIriValues" = None
-    image: "CoreObjectOrIriValues" = None
-    attachment: "CoreObjectOrIriValues" = None
-    location: "CoreObjectOrIriValues" = None
-    to: "CoreObjectOrIriValues" = None
-    cc: "CoreObjectOrIriValues" = None
-    bto: "CoreObjectOrIriValues" = None
-    bcc: "CoreObjectOrIriValues" = None
-    audience: "CoreObjectOrIriValues" = None
+    icon: CoreObjectOrIriValues = None
+    image: CoreObjectOrIriValues = None
+    attachment: CoreObjectOrIriValues = None
+    location: CoreObjectOrIriValues = None
+    to: CoreObjectOrIriValues = None
+    cc: CoreObjectOrIriValues = None
+    bto: CoreObjectOrIriValues = None
+    bcc: CoreObjectOrIriValues = None
+    audience: CoreObjectOrIriValues = None
     attributed_to: NonEmptyString | None = None
     # The natural-language map forms of ``content``, ``name`` and ``summary``
     # (AS2 Core section 4.7), declared so the parse edge reads them rather
@@ -200,8 +200,8 @@ class CoreObject(CoreRecord):
     @model_validator(mode="wrap")
     @classmethod
     def _check_computed_field_inputs(
-        cls, data: Any, handler: ModelWrapValidatorHandler["CoreObject"]
-    ) -> "CoreObject":
+        cls, data: Any, handler: ModelWrapValidatorHandler[CoreObject]
+    ) -> CoreObject:
         """Strip or refuse supplied computed-field values (ARCH-23-005).
 
         A ``@computed_field`` (``VulnerabilityCase.active_participants``,
@@ -459,15 +459,16 @@ class CoreObject(CoreRecord):
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
         # Register only subclasses that override ``type_`` with a concrete
         # (non-union) annotation — e.g. ``type_: Literal["FooBar"] = "FooBar"``.
-        # We inspect the subclass's *own* ``__annotations__`` so an inheriting
-        # class that does not redeclare ``type_`` (e.g. a behavioral mixin)
-        # is not registered. We then resolve the annotation through
-        # ``typing.get_type_hints`` so the check is robust under
-        # ``from __future__ import annotations`` (PEP 563), where raw
-        # annotations are stringified and ``isinstance(..., UnionType)``
-        # would silently fall through and register abstract bases.
-        own_annotations = inspect.get_annotations(cls)
-        if "type_" not in own_annotations:
+        # We inspect the subclass's *own* annotations (``own_annotations``,
+        # which does not evaluate a forward reference the module has not
+        # defined yet) so an inheriting class that does not redeclare
+        # ``type_`` (e.g. a behavioral mixin) is not registered. We then
+        # resolve the annotation through ``typing.get_type_hints`` so the
+        # check is robust under ``from __future__ import annotations``
+        # (PEP 563), where raw annotations are stringified and
+        # ``isinstance(..., UnionType)`` would silently fall through and
+        # register abstract bases.
+        if "type_" not in own_annotations(cls):
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class
             # name so that find_in_vocabulary can reconstruct from DB storage.

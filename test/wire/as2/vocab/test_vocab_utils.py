@@ -20,6 +20,7 @@ import pytest
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from test.support.objects import make
+from test.support.signatures import signature_of
 from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -67,7 +68,7 @@ def _requires_arguments(func) -> bool:
         p.default is inspect.Parameter.empty
         and p.kind
         in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
-        for p in inspect.signature(func).parameters.values()
+        for p in signature_of(func).parameters.values()
     )
 
 

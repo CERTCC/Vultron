@@ -472,6 +472,33 @@ def test_release_state_reads_only_not_found_as_no_release(
     assert calls == [False]
 
 
+def test_release_state_with_retry_retries_an_error_until_it_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lookup error other than "not found" is tried again when the caller
+    asks, and the release a later attempt reads is returned."""
+    replies: list[str | subprocess.CalledProcessError] = [
+        subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 502\n"),
+        '{"isDraft": false, "assets": [{"name": "a.tar.gz"}]}',
+    ]
+    slept: list[float] = []
+
+    def gh(*args: str, retry: bool = True) -> str:
+        reply = replies.pop(0)
+        if isinstance(reply, subprocess.CalledProcessError):
+            raise reply
+        return reply
+
+    monkeypatch.setattr(_rel, "gh", gh)
+    monkeypatch.setattr(_rel.time, "sleep", slept.append)
+    monkeypatch.setenv("GH_RETRY_ATTEMPTS", "3")
+    assert _rel.release_state("O/R", "v2026.11.0", retry=True) == (
+        _rel.ReleaseState(False, ("a.tar.gz",))
+    )
+    assert replies == []
+    assert len(slept) == 1
+
+
 @pytest.mark.spec("DOCBW-07-007", "DOCBW-07-013", "DOCBW-07-014")
 def test_check_reports_a_release_of_no_publish(
     repo: Path, tmp_path: Path

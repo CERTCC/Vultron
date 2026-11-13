@@ -83,9 +83,9 @@ class _RecommendationAnswerReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RecommendationAnswerEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         # The tree's answer to the sender's stamped ledger position may
@@ -147,9 +147,9 @@ class AcceptActorRecommendationReceivedUseCase(
         self,
         dl: CasePersistence,
         request: AcceptActorRecommendationReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         # Restated so ``request`` names the event this handler's row routes
         # (HP-02-002); the base class does the work.
@@ -170,9 +170,9 @@ class RejectActorRecommendationReceivedUseCase(
         self,
         dl: CasePersistence,
         request: RejectActorRecommendationReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
+        wire_render_port: WireRenderPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         # Restated so ``request`` names the event this handler's row routes
         # (HP-02-002); the base class does the work.

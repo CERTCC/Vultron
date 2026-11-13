@@ -12,13 +12,13 @@ hand-written copies each got differently, or not at all.
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 
 import pytest
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from test.support.signatures import signature_of
 from vultron.metadata.adr.index_gen import generate_index
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.file_loading import (
@@ -90,7 +90,7 @@ class TestDefaultLoader:
 
     @pytest.mark.parametrize("parse", [load_yaml, loads_yaml])
     def test_parsers_take_the_fast_path_by_default(self, parse, monkeypatch):
-        default = inspect.signature(parse).parameters["loader"].default
+        default = signature_of(parse).parameters["loader"].default
         used = []
         real_load = yaml.load
 

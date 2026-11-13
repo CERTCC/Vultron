@@ -25,7 +25,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.docs.landing_pages import WRITE_COMMAND
-from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.docs.page_frontmatter import (
+    DocsTree,
+    classify_docs_tree,
+)
 from vultron.metadata.docs.page_schema import (
     AUDIENCE_KEYS,
     LEVELS,
@@ -66,15 +69,22 @@ class Coverage:
     declared: int = 0
 
 
-def measure_coverage(root: Path) -> Coverage:
+def measure_coverage(root: Path, tree: DocsTree | None = None) -> Coverage:
     """Count every reader-facing page into its type × level cells.
+
+    Args:
+        root: Repository root.
+        tree: *root*'s classified docs tree, when the caller already holds
+            it; classified here otherwise. A caller building several
+            artifacts classifies once and passes it to each (#6158).
 
     Raises:
         MetadataLoadError: If the tree resolves no pages (DF-09-009), or a
             page's declarations do not validate — a matrix built by skipping
             a malformed page would under-count the cell it belongs to.
     """
-    tree = classify_docs_tree(root)
+    if tree is None:
+        tree = classify_docs_tree(root)
     if not tree.pages:
         raise MetadataLoadError(
             "resolved no pages to count; an empty target set is a failure, "

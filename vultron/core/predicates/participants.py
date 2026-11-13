@@ -29,7 +29,7 @@ from vultron.enums.roles import CVDRole
 
 def vendor_vf_invariant_ok(
     roles: list[CVDRole],
-    vf_state: "CS_vf | None",
+    vf_state: CS_vf | None,
 ) -> bool:
     """Return True when (roles, vf_state) satisfies the Vendor-implies-V invariant.
 

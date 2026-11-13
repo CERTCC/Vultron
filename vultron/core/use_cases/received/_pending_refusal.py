@@ -68,9 +68,8 @@ def close_refused_embargo_ask(
     if not case_id or not invite_id:
         return
     # The one source of "is the sender the case's authority" (ARCH-24-008):
-    # ``False`` when this replica holds no such case, and tolerant of the
-    # roster spelling the manager with a trailing slash, which the sender id
-    # never carries (OID-01-006, OID-01-007).
+    # ``False`` when this replica holds no such case.  The roster and the
+    # sender id are both canonical (OID-01-006, OID-01-007, #5919).
     if not has_role(request.actor_id, case_id, CVDRole.CASE_MANAGER, dl):
         return
     receiving_actor_id = resolve_receiving_actor_id(

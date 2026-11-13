@@ -84,7 +84,7 @@ class ActivateInviteeParticipantNode(
         super().initialise()
         try:
             self._participant_bb = self.get_input("new_invite_participant")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._participant_bb = None
         self.activity = self.get_input("activity")
 
@@ -162,7 +162,7 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._status_id = self.get_input("invitee_vf_status_id")
-        except (NoDataAvailable, NotImplementedError, KeyError):
+        except NoDataAvailable, NotImplementedError, KeyError:
             self._status_id = None
 
     def update(self) -> Status:

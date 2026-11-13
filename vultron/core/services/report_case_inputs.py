@@ -144,7 +144,7 @@ class ReportCaseInputs(BaseModel):
     )
 
     @classmethod
-    def from_stated(cls, stated: StatedReportFields) -> "ReportCaseInputs":
+    def from_stated(cls, stated: StatedReportFields) -> ReportCaseInputs:
         """The inputs when no document fills any: the stated values alone."""
         return cls(
             name=stated.name,

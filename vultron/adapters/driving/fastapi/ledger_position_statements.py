@@ -111,7 +111,7 @@ async def state_hosted_ledger_positions(
 class PositionStatements:
     """The running position statements: their task and its stop signal."""
 
-    task: "asyncio.Task[None]"
+    task: asyncio.Task[None]
     stop: asyncio.Event
 
 
@@ -134,7 +134,7 @@ async def _state_positions_then_repeat(
     emitter: ActivityEmitter | None,
     interval_seconds: int | None,
     stop: asyncio.Event,
-    after: "asyncio.Task[int] | None",
+    after: asyncio.Task[int] | None,
 ) -> None:
     """State positions after the restart, then on the interval, if set.
 
@@ -160,7 +160,7 @@ async def _state_positions_then_repeat(
 
 def start_ledger_position_statements(
     emitter: ActivityEmitter | None,
-    after: "asyncio.Task[int] | None" = None,
+    after: asyncio.Task[int] | None = None,
 ) -> PositionStatements:
     """Start the position statements as a task beside the server.
 

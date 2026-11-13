@@ -108,7 +108,7 @@ def wait_for_reporter_case(
 def wait_for_case_participants(
     vendor_client: DataLayerClient,
     case_id: str,
-    expected_actor_ids: "set[str]",
+    expected_actor_ids: set[str],
     # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.25,
@@ -157,11 +157,11 @@ def wait_for_case_participants(
 
 
 def wait_for_participants_on_replicas(
-    replica_clients: "Sequence[DataLayerClient]",
+    replica_clients: Sequence[DataLayerClient],
     case_id: str,
-    expected_actor_ids: "set[str]",
+    expected_actor_ids: set[str],
     *,
-    late_joiners: "Sequence[DataLayerClient]" = (),
+    late_joiners: Sequence[DataLayerClient] = (),
     late_joiner_timeout: float = LATE_JOINER_REPLICA_TIMEOUT,
     default_timeout: float = REPLICA_PARTICIPANT_TIMEOUT,
 ) -> None:

@@ -2073,6 +2073,10 @@ groups:
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirm a
       full-case Invite from the replica's CASE_MANAGER is accepted and one from any
       other actor is refused.
+      `test_an_anchored_invitee_judges_it_after_the_announce_replay` in
+      `test/core/behaviors/inbox/test_process_payload.py` confirms that an Invite
+      held before the Announce is admitted on its replay by the replica's
+      CASE_MANAGER.
     adr:
     - ADR-0121
     stories:
@@ -2095,6 +2099,13 @@ groups:
       `test/core/behaviors/case/test_received_path_stage.py` confirms that the
       full-case Invite is not deferral-exempt and that the inbox's defer check
       holds it at a store with no replica, so its received tree never judges it.
+      In `test/core/behaviors/inbox/test_process_payload.py`,
+      `test_an_anchored_invitee_judges_it_after_the_announce_replay` confirms that
+      the inbox defers the Invite at an anchored invitee and that the Announce's
+      replay delivers it on the participant-replica path, and
+      `test_with_no_trust_anchor_it_is_dropped_unjudged_when_the_hold_expires`
+      confirms that with no trust anchor the held Invite is never judged and is
+      dropped when the hold expires.
     relationships:
     - rel_type: extends
       spec_id: CM-11-032

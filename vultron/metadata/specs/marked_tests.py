@@ -60,9 +60,14 @@ import ast
 import bisect
 import functools
 import itertools
+import json
 import re
+import warnings
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from vultron.metadata.text_cache import cached_read, code_version
 
 _ISSUE_REF_RE = re.compile(r"#(\d+)")
 
@@ -422,15 +427,19 @@ def _spec_calls(tree: ast.AST, source: str) -> Iterator[ast.Call]:
         stack.extend(ast.iter_child_nodes(node))
 
 
-def _spec_ids_in(tree: ast.AST, source: str) -> frozenset[str]:
-    """The IDs of every ``mark.spec`` call anywhere in *tree*."""
-    return frozenset().union(
-        *(spec_call_ids(call) for call in _spec_calls(tree, source))
-    )
+def _ids_of(calls: Iterable[ast.Call]) -> frozenset[str]:
+    """The IDs *calls* name."""
+    return frozenset().union(*(spec_call_ids(call) for call in calls))
 
 
+@functools.lru_cache(maxsize=4096)
 def read_marked_file(path: str, source: str) -> MarkedFile:
     """The spec IDs and marked cases of one test file.
+
+    Cached by path and text, so the checks in one run that read the test
+    tree parse each unchanged file once, and the parse is kept on disk
+    (:mod:`vultron.metadata.text_cache`), so a fresh worker or tool run does
+    not parse it again (#5880); the result is frozen.
 
     Args:
         path: The file's path, as reported in :attr:`MarkedCase.test`.
@@ -439,16 +448,92 @@ def read_marked_file(path: str, source: str) -> MarkedFile:
     Raises:
         SyntaxError: *source* does not parse; the error names *path*.
     """
+    unplaced = _file_at_no_path_of(path, source)
+    if not unplaced.cases:
+        return unplaced
+    return MarkedFile(
+        unplaced.spec_ids,
+        tuple(
+            MarkedCase(path + case.test, case.spec_ids, case.xfail_reasons)
+            for case in unplaced.cases
+        ),
+    )
+
+
+def _file_at_no_path_of(path: str, source: str) -> MarkedFile:
+    """:func:`_file_at_no_path`, with a :class:`SyntaxError` naming *path*."""
     if "mark.spec" not in source:
         return _NO_MARKERS
-    tree = ast.parse(source, filename=path)
+    try:
+        return _file_at_no_path(source)
+    except SyntaxError as error:
+        error.filename = path
+        raise
+
+
+#: The version of this reader, which keys its entries on disk.
+_READER_VERSION = code_version(Path(__file__))
+
+
+@functools.lru_cache(maxsize=4096)
+def _file_at_no_path(source: str) -> MarkedFile:
+    """:func:`read_marked_file` of *source* at path ``""``, kept on disk.
+
+    A case's test name is the path followed by the rest of the name, so the
+    entry holds the rest only and one entry serves the file at any path.
+    """
+    return cached_read(
+        "marked-files",
+        _READER_VERSION,
+        source,
+        _parse_file,
+        encode=_encode_file,
+        decode=_decode_file,
+    )
+
+
+def _parse_file(source: str) -> MarkedFile:
+    """The spec IDs and cases of *source* at path ``""``, parsed now.
+
+    A ``SyntaxWarning`` (an invalid escape) is ignored, so the result, which
+    is kept on disk, does not depend on the warnings filter of the process
+    that wrote it: under pytest's ``filterwarnings = error`` it would raise.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        tree = ast.parse(source)
     constants = _module_constants(tree)
     module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
-    cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
-    unplaced = _unplaced_spec_ids(tree, source)
+    cases = list(dict.fromkeys(_cases_in("", tree.body, module, constants)))
+    # One walk serves both the file's IDs and its unplaced ones (#5880).
+    calls = tuple(_spec_calls(tree, source))
+    unplaced = _unplaced_spec_ids(tree, calls)
     if unplaced:
-        cases.append(MarkedCase(path, unplaced, ()))
-    return MarkedFile(_spec_ids_in(tree, source), tuple(cases))
+        cases.append(MarkedCase("", unplaced, ()))
+    return MarkedFile(_ids_of(calls), tuple(cases))
+
+
+def _encode_file(marked: MarkedFile) -> str:
+    return json.dumps(
+        {
+            "spec_ids": sorted(marked.spec_ids),
+            "cases": [
+                [case.test, sorted(case.spec_ids), list(case.xfail_reasons)]
+                for case in marked.cases
+            ],
+        }
+    )
+
+
+def _decode_file(text: str) -> MarkedFile:
+    data = json.loads(text)
+    return MarkedFile(
+        frozenset(data["spec_ids"]),
+        tuple(
+            MarkedCase(test, frozenset(ids), tuple(reasons))
+            for test, ids, reasons in data["cases"]
+        ),
+    )
 
 
 def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
@@ -484,23 +569,7 @@ def marked_spec_ids(source: str, path: str = "<unknown>") -> frozenset[str]:
     Raises:
         SyntaxError: *source* does not parse; the error names *path*.
     """
-    if "mark.spec" not in source:
-        return frozenset()
-    try:
-        return _parsed_spec_ids(source)
-    except SyntaxError as error:
-        error.filename = path
-        raise
-
-
-@functools.lru_cache(maxsize=2048)
-def _parsed_spec_ids(source: str) -> frozenset[str]:
-    """:func:`marked_spec_ids` of a file with ``mark.spec`` text, cached by text.
-
-    The growth guards read the head tree and the merge-base tree, which share
-    most files, and three guards read them in one run.
-    """
-    return _spec_ids_in(ast.parse(source), source)
+    return _file_at_no_path_of(path, source).spec_ids
 
 
 def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
@@ -517,7 +586,9 @@ def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
             yield from _mark_sites(stmt.body)
 
 
-def _unplaced_spec_ids(tree: ast.Module, source: str) -> frozenset[str]:
+def _unplaced_spec_ids(
+    tree: ast.Module, calls: Iterable[ast.Call]
+) -> frozenset[str]:
     """IDs of ``mark.spec`` calls outside every place the reader reads.
 
     Such a marker (in a factory function, under an ``if``) still marks a
@@ -528,10 +599,4 @@ def _unplaced_spec_ids(tree: ast.Module, source: str) -> frozenset[str]:
     placed = {
         id(node) for site in _mark_sites(tree.body) for node in ast.walk(site)
     }
-    return frozenset().union(
-        *(
-            spec_call_ids(call)
-            for call in _spec_calls(tree, source)
-            if id(call) not in placed
-        )
-    )
+    return _ids_of(call for call in calls if id(call) not in placed)

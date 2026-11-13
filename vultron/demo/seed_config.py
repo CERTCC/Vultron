@@ -104,7 +104,7 @@ class _SeedYamlSource(PydanticBaseSettingsSource):
         try:
             with open(path) as fh:
                 return yaml.safe_load(fh) or {}
-        except (FileNotFoundError, yaml.YAMLError):
+        except FileNotFoundError, yaml.YAMLError:
             return {}
 
     def get_field_value(
@@ -166,7 +166,7 @@ class SeedConfig(BaseSettings):
         actor_name: str | None = None,
         actor_type: str | None = None,
         actor_id: str | None = None,
-    ) -> "SeedConfig":
+    ) -> SeedConfig:
         """Build a SeedConfig from environment variables and/or explicit args.
 
         Explicit arguments take precedence over environment variables.
@@ -199,7 +199,7 @@ class SeedConfig(BaseSettings):
         )
 
     @classmethod
-    def from_file(cls, path: str) -> "SeedConfig":
+    def from_file(cls, path: str) -> SeedConfig:
         """Load a SeedConfig from a YAML file.
 
         .. deprecated::
@@ -224,7 +224,7 @@ class SeedConfig(BaseSettings):
         actor_name: str | None = None,
         actor_type: str | None = None,
         actor_id: str | None = None,
-    ) -> "SeedConfig":
+    ) -> SeedConfig:
         """Load a SeedConfig from a YAML file or environment variables.
 
         If ``config_path`` is given (or ``VULTRON_SEED_CONFIG`` env var is

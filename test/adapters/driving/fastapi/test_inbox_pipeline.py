@@ -153,6 +153,38 @@ def test_routing_safety_net_report_domain(test_pipeline, monkeypatch):
     assert dl.read(marker_id) is not None
 
 
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_addressed_activity_runs_under_the_canonical_receiver(
+    test_pipeline, monkeypatch
+):
+    """``to: …/receiver/`` reaches the received use case as ``…/receiver``.
+
+    The harness reads the receiving actor from the sender's ``to``, so it
+    normalises it there, as the production routes' stored actor id already
+    is; the event's type refuses the other spelling (#5919).
+    """
+    marker_id = "https://example.org/markers/report-slash"
+    _patch_execute_with_marker(
+        monkeypatch, CreateReportReceivedUseCase, marker_id
+    )
+    report = make(
+        as_VulnerabilityReport,
+        id_="https://example.org/reports/r-ibp-slash",
+        content="report content",
+    )
+    activity = rm_create_report_activity(
+        report, actor=SENDER_ID, to=[f"{RECEIVER_ID}/"], at=authored_at()
+    )
+
+    event, dl = _save_and_process(
+        test_pipeline, activity=activity, objects=[report]
+    )
+
+    assert event is not None
+    assert event.receiving_actor_id == RECEIVER_ID
+    assert dl.read(marker_id) is not None
+
+
 def test_routing_safety_net_case_domain(test_pipeline, monkeypatch):
     marker_id = "https://example.org/markers/case"
     _patch_execute_with_marker(

@@ -60,8 +60,8 @@ logger = logging.getLogger(__name__)
 def create_deploy_tree(
     case_id: str,
     actor_id: str,
-    fix_call_out: "DeployFixCallOutBundle | None" = None,
-    mitigation_call_out: "DeployMitigationCallOutBundle | None" = None,
+    fix_call_out: DeployFixCallOutBundle | None = None,
+    mitigation_call_out: DeployMitigationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the deployment combinator behavior tree (BT-20-005).
 

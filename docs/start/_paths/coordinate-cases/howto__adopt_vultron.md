@@ -3,28 +3,21 @@
 <div class="admonition abstract reading-path" data-thread="coordinate-cases" data-member="howto/adopt_vultron.md" markdown>
 <p class="admonition-title">Reading path: You handle vulnerability reports and coordinate cases with other organizations</p>
 
+<div class="reading-path-where" markdown>
 This page is part of *Prepare your program*.
 
-<table class="reading-path-table" markdown>
-<thead><tr><th>Start</th><th>Previous</th><th>Current</th><th>Next</th></tr></thead>
-<tbody markdown>
-<tr markdown>
-<td markdown="block">
+<p class="reading-path-start" markdown>[Path overview](../../coordinate-cases.md)</p>
+</div>
 
-- [You handle vulnerability reports and coordinate cases with other organizations](../../coordinate-cases.md)
-
-</td>
-<td markdown="block">
+<div class="reading-path-tiles" markdown>
+<div class="reading-path-tile reading-path-previous" markdown>
+<p class="reading-path-direction">Previous</p>
 
 - [How to Decide Who Owns a Case](../../../howto/decide_who_owns_a_case.md)
 
-</td>
-<td markdown="block">
-
-- How to Adopt Vultron in Your CVD Program
-
-</td>
-<td markdown="block">
+</div>
+<div class="reading-path-tile reading-path-next" markdown>
+<p class="reading-path-direction">Next — pick one</p>
 
 - [Standards Crosswalks](../../../reference/iso_crosswalks/index.md)
 - [User Stories](../../../reference/user_stories/index.md)
@@ -32,9 +25,7 @@ This page is part of *Prepare your program*.
 - [Capability Model](../../../topics/capability_model/index.md)
 - [How to Measure Your CVD Program](../../../howto/measure_your_cvd_program.md)
 
-</td>
-</tr>
-</tbody>
-</table>
+</div>
+</div>
 
 </div>

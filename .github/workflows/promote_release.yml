@@ -12,8 +12,9 @@
 # (ADR-0188, DOCBW-08): `vultron-spec-draft-N.tar.gz` and its SHA-256 manifest.
 # The order of the jobs keeps a draft release from ever lacking them:
 #   plan          names the release and its draft; reads only.
-#   frozen-draft  builds the site at the promoted commit and the archive from
-#                 it, with no token that can write (DOCBW-08-019).
+#   frozen-draft  builds the site at the promoted commit, serves the released
+#                 drafts' frozen pages into it (DOCBW-08-039), and builds the
+#                 archive from it, with no token that can write (DOCBW-08-019).
 #   promote       runs only main's code (DOCBW-08-020). It checks the archive
 #                 before it pushes the tag, creates the draft release with
 #                 both files attached in one call, checks what was attached,
@@ -117,6 +118,16 @@ jobs:
           VULTRON_PUBLISH_TAG: ${{ needs.plan.outputs.publish-tag }}
           VULTRON_PUBLISH_DATE: ${{ needs.plan.outputs.publish-date }}
           VULTRON_RELEASE_TAG: ${{ needs.plan.outputs.release }}
+
+      # Each released draft's frozen pages at spec/draft-N/, or its
+      # placeholder, from the promoted commit's register, as the deploy and
+      # the review serve them (DOCBW-08-039). The Revision Log links every
+      # released draft's frozen copy, the one this run releases included, so
+      # without them the link check and the archive build fail on that link.
+      # The archive builder writes each such link as its live URL
+      # (DOCBW-08-016). The action only reads releases.
+      - name: Serve frozen drafts
+        uses: ./.github/actions/serve-frozen-drafts
 
       # The checks every site build runs (DOCBW-03-006, DOCBW-06-002), at the
       # promoted commit, so the archive is taken from a site that passes them.

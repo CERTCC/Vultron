@@ -341,6 +341,37 @@ def test_links_that_leave_the_specification_name_the_live_site(
     )
 
 
+@pytest.mark.spec("DOCBW-08-016", "DOCBW-08-039")
+def test_a_link_to_a_served_frozen_copy_names_the_live_site(
+    tmp_path: Path,
+) -> None:
+    """The Revision Log links each released draft's frozen copy, outside the
+    specification; once served, the link is written as its live URL."""
+    log = _page('<a href="../../../spec/draft-1/">Frozen copy</a>')
+    site = _site(tmp_path, **{"revision-log/index.html": log})
+    _write(site, {"spec/draft-1/index.html": "<html><body>x</body></html>"})
+    archive, manifest = _fd.build_archive(site, tmp_path / "frozen", _draft())
+    root = tmp_path / "unpacked"
+    _fd.verify_archive(archive, manifest, root)
+    refs = _refs(root / "revision-log/index.html")
+    assert f"{SITE_URL}spec/draft-1/" in refs
+    assert not (root / _fd.BUNDLE_DIR / "spec").exists()
+
+
+@pytest.mark.spec("DOCBW-08-039")
+def test_a_link_to_an_unserved_frozen_copy_fails_the_build(
+    tmp_path: Path,
+) -> None:
+    """Without the served tree the link names no file, which is why the
+    promote's archive job serves the frozen drafts first."""
+    log = _page('<a href="../../../spec/draft-1/">Frozen copy</a>')
+    with pytest.raises(_fd.FrozenDraftError) as caught:
+        _build(tmp_path, **{"revision-log/index.html": log})
+    assert "'../../../spec/draft-1/' names no file of the site" in str(
+        caught.value
+    )
+
+
 @pytest.mark.spec("DOCBW-08-017")
 def test_every_page_carries_the_banner(tmp_path: Path) -> None:
     root = _unpacked(tmp_path)

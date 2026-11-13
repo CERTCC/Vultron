@@ -91,7 +91,7 @@ class ChosenTermination:
 
 
 def resolve_chosen(
-    termination: "TerminationRequest | ChosenTermination",
+    termination: TerminationRequest | ChosenTermination,
 ) -> TerminationRequest:
     """*termination*, with a :class:`ChosenTermination` read at the write."""
     if isinstance(termination, ChosenTermination):

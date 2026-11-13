@@ -137,7 +137,7 @@ def _take_forced_ways_out(
         placed.append(member)
         try:
             state = apply_cs_event(state, member.kind)
-        except (VultronValidationError, VultronInvalidStateTransitionError):
+        except VultronValidationError, VultronInvalidStateTransitionError:
             return [*placed, *pending]
     return placed
 

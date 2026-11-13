@@ -15,6 +15,7 @@
 
 """Unit tests for ``CheckIsCaseManagerNode``."""
 
+import logging
 from types import SimpleNamespace
 
 import py_trees
@@ -167,3 +168,47 @@ def test_resolves_case_id_from_activity_log_entry(
         activity=activity,
     )
     assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("OID-01-006", "CLP-10-021")
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
+@pytest.mark.parametrize(
+    ("executing", "sender"),
+    [
+        (MANAGER_ACTOR_ID, f"{MANAGER_ACTOR_ID}/"),
+        (f"{MANAGER_ACTOR_ID}/", MANAGER_ACTOR_ID),
+    ],
+    ids=["slash-on-sender", "slash-on-executing-actor"],
+)
+def test_an_own_activity_is_own_in_either_spelling(
+    bt_scenario: BTTestScenario,
+    caplog: pytest.LogCaptureFixture,
+    executing: str,
+    sender: str,
+) -> None:
+    """The own-activity test compares ids as the addressee door does (#5901).
+
+    ``addressee.py`` asks the same question — is this my own activity,
+    echoed back — with ``same_actor_id``.  An own activity about a case the
+    actor does not hold is a Regime 1 anomaly logged at ERROR (#5513), not
+    the Regime 3 "no replica yet" DEBUG, so the log level shows which answer
+    the comparison gave.
+    """
+    activity = SimpleNamespace(
+        actor_id=sender, log_entry=SimpleNamespace(case_id=CASE_ID)
+    )
+    with caplog.at_level(logging.DEBUG):
+        result = bt_scenario.run(
+            CheckIsCaseManagerNode(
+                case_may_be_absent=True, own_activity_needs_case=True
+            ),
+            actor_id=executing,
+            activity=activity,
+        )
+
+    assert result.status == Status.FAILURE
+    missing = f"case '{CASE_ID}' not found in DataLayer"
+    assert any(
+        r.levelno == logging.ERROR and missing in r.getMessage()
+        for r in caplog.records
+    ), [(r.levelname, r.getMessage()) for r in caplog.records]

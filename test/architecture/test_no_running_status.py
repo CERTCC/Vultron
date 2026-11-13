@@ -127,7 +127,7 @@ def _file_returns_running(source_path: Path) -> bool:
     try:
         source = source_path.read_text(encoding="utf-8")
         tree = _corpus.parse_inline(source, filename=str(source_path))
-    except (OSError, SyntaxError):
+    except OSError, SyntaxError:
         return False
     return _tree_returns_running(tree)
 

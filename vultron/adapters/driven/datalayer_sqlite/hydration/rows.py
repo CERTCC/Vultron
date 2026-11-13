@@ -35,7 +35,7 @@ from vultron.adapters.driven.db_record import (
 from vultron.core.models.protocols import PersistableModel
 from vultron.errors import VultronValidationError
 
-from ..schema import VultronObjectRecord
+from ..schema import StoredRow, VultronObjectRecord
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
     # ``datalayer`` imports this module to build its own methods, so the name
@@ -60,9 +60,7 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
-def from_row(
-    dl: "SqliteDataLayer", row: VultronObjectRecord
-) -> PersistableModel | None:
+def from_row(dl: SqliteDataLayer, row: StoredRow) -> PersistableModel | None:
     """Convert a storage row back to a fully-typed domain object.
 
     Reconstruction is a three-step pipeline:

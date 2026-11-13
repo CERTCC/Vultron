@@ -108,7 +108,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
         super().initialise()
         try:
             self._case_id_bb: str | None = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = None
 
     def update(self) -> Status:
@@ -236,11 +236,11 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         super().initialise()
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = None
         try:
             self._accept_activity_id_bb = self.get_input("accept_activity_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._accept_activity_id_bb = None
 
     def _build_case_object(

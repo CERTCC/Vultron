@@ -57,6 +57,7 @@ from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
 )
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -78,15 +79,22 @@ def _scalar_actor_ref(value: object) -> str | None:
 
 
 def _receiving_actor_id(activity: as_Activity) -> str | None:
-    """Extract the canonical receiving actor ID from ``activity.to``."""
+    """Extract the canonical receiving actor ID from ``activity.to``.
+
+    ``to`` is the sender's spelling, so the id is normalised where it is
+    extracted (OID-01-006): the received tree runs under the canonical id,
+    as it does on the production inbox routes, which read it from the
+    stored actor record (#5919).
+    """
     to_value = getattr(activity, "to", None)
     if isinstance(to_value, list):
         for item in to_value:
             actor_id = _scalar_actor_ref(item)
             if actor_id is not None:
-                return actor_id
+                return normalise_actor_id(actor_id)
         return None
-    return _scalar_actor_ref(to_value)
+    actor_id = _scalar_actor_ref(to_value)
+    return normalise_actor_id(actor_id) if actor_id is not None else None
 
 
 def _record_the_wait_for_the_replay(

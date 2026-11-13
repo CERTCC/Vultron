@@ -13,8 +13,8 @@ from pydantic import StringConstraints, ValidationInfo
 
 from vultron.metadata.file_loading import (
     MetadataLoadError,
-    load_yaml,
-    loads_yaml,
+    loads_yaml_cached,
+    read_utf8,
 )
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
@@ -194,7 +194,7 @@ def iter_tree_texts(
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 continue
             yield relative_posix(path, root), text
 
@@ -255,8 +255,9 @@ def mkdocs_config(root: Path | None = None) -> dict[str, object]:
             "does not exist; every docs check reads the nav from it",
             path="mkdocs.yml",
         )
-    config = load_yaml(path, root=base, loader=MkDocsYamlLoader)
-    return config if isinstance(config, dict) else {}
+    # Read on every call, parsed once per text: a docs run reads the config
+    # from a dozen checks (#6158), and an edit still reaches each of them.
+    return parse_mkdocs_config(read_utf8(path, "mkdocs.yml"))
 
 
 def parse_mkdocs_config(
@@ -272,7 +273,7 @@ def parse_mkdocs_config(
             ``shown:line:col`` (MS-17-001).
     """
     # mkdocs.yml carries !!python/name tags; the text is the repository's own.
-    config = loads_yaml(text, Path(shown), loader=MkDocsYamlLoader)
+    config = loads_yaml_cached(text, shown, loader=MkDocsYamlLoader)
     return config if isinstance(config, dict) else {}
 
 

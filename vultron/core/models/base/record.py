@@ -19,14 +19,13 @@ ARCH-25-004 (ADR-0099) gives core two roots; this is the one for stored
 records that are not AS2 objects.
 """
 
-import inspect
 import types as _types
 import typing as _typing
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from vultron.core.models._helpers import new_object_id
+from vultron.core.models._helpers import new_object_id, own_annotations
 from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.primitives import NonEmptyString
 
@@ -47,7 +46,7 @@ def concrete_type_annotation(cls: type) -> Any | None:
     """
     try:
         hints = _typing.get_type_hints(cls)
-    except (NameError, TypeError):
+    except NameError, TypeError:
         return None
     annotation = hints.get("type_")
     if isinstance(annotation, _types.UnionType):
@@ -114,7 +113,7 @@ class CoreRecord(ValidatedAssignmentMixin):
         # placing it in the wire VOCABULARY dict. Only subclasses that declare
         # their own concrete type_ annotation are registered; abstract bases that inherit or omit
         # type_ are skipped (same guard as CoreObject).
-        if "type_" not in inspect.get_annotations(cls):
+        if "type_" not in own_annotations(cls):
             return
         annotation = concrete_type_annotation(cls)
         if annotation is None:

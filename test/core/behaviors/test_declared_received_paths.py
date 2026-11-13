@@ -126,7 +126,7 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         f"{_C}/full_case_invite_trees.py",
         "create_invite_actor_to_full_case_received_tree",
         0,
-    ): frozenset({CM, PR, NC}),
+    ): frozenset({CM, PR}),
     (
         f"{_C}/full_case_invite_trees.py",
         "create_full_case_invite_reply_received_tree",

@@ -311,4 +311,12 @@ describe('valueProblems', () => {
     expect(valueProblems(10, shape)).toEqual(['value: number 10 is above the maximum 9'])
     expect(valueProblems(-1, shape)).toEqual(['value: number -1 is below the minimum 0'])
   })
+
+  it('refuses an actor id spelled with a trailing slash where the model does', () => {
+    const shape = { kind: 'string', nonEmpty: true, noTrailingSlash: true } as const
+    expect(valueProblems('http://actor1:7999/api/v2/actors/actor1', shape)).toEqual([])
+    expect(valueProblems('http://actor1:7999/api/v2/actors/actor1/', shape)).toEqual([
+      'value: must not end in a trailing slash (an actor id in its canonical spelling)',
+    ])
+  })
 })

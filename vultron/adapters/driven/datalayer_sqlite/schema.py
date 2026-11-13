@@ -15,9 +15,9 @@
 
 """SQLModel table definitions for the SQLite data layer."""
 
-from typing import Any
+from typing import Any, NamedTuple, Protocol
 
-from sqlalchemy import Column, Engine, Index, text
+from sqlalchemy import Column, Engine, Index, bindparam, select, text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlmodel import Field, SQLModel
 
@@ -41,6 +41,46 @@ class VultronObjectRecord(SQLModel, table=True):
     id_: str = Field(primary_key=True)
     type_: str = Field(index=True)
     data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class StoredRow(Protocol):
+    """What turning a stored row back into an object reads from it.
+
+    Both an ORM :class:`VultronObjectRecord` and a :class:`StoredRowValues`
+    read by :data:`READ_BY_ID` have these three attributes, so hydration
+    takes either.
+    """
+
+    @property
+    def id_(self) -> str: ...
+
+    @property
+    def type_(self) -> str: ...
+
+    @property
+    def data(self) -> dict[str, Any]: ...
+
+
+class StoredRowValues(NamedTuple):
+    """A ``vultron_objects`` row's values, read without the ORM (#4969)."""
+
+    id_: str
+    type_: str
+    data: dict[str, Any]
+
+
+_OBJECTS = VultronObjectRecord.__table__  # type: ignore[attr-defined]
+
+READ_BY_ID = select(_OBJECTS.c.id_, _OBJECTS.c.type_, _OBJECTS.c.data).where(
+    _OBJECTS.c.id_ == bindparam("object_id")
+)
+"""The primary-key read, as one Core ``select`` built once (#4969).
+
+A read runs this on a plain connection rather than ``Session.get``: the ORM's
+identity map, per-call statement annotation and session setup were most of a
+read's cost, and a read neither needs the identity map nor writes.  Built
+once, the statement's compiled form is reused from the engine's cache.
+"""
 
 
 OUTBOX_PENDING_PREDICATE = "queue = 'outbox'"

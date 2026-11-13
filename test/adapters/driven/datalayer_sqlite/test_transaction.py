@@ -22,54 +22,29 @@ mechanics differ.
 """
 
 import threading
-from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from test.support.objects import make
+from test.support.pool_kind_stores import POOL_KIND_ACTOR, example_note
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.schema import (
     VultronObjectRecord as DBRecord,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 pytestmark = pytest.mark.spec("DL-02-004")
-
-_ACTOR = "https://example.org/actors/tx-actor"
 
 
 class _Boom(Exception):
     """The failure a test block raises part-way."""
 
 
-@pytest.fixture(params=["memory", "file"])
-def dl(
-    request: pytest.FixtureRequest, tmp_path: Path
-) -> Iterator[SqliteDataLayer]:
-    url = (
-        "sqlite:///:memory:"
-        if request.param == "memory"
-        else f"sqlite:///{tmp_path / 'tx.db'}"
-    )
-    store = SqliteDataLayer(url, actor_id=_ACTOR)
-    try:
-        yield store
-    finally:
-        store.close()
-
-
 def _row(id_: str) -> DBRecord:
     return DBRecord(id_=id_, type_="Note", data={"id": id_, "type": "Note"})
 
 
-def _note(name: str) -> as_Note:
-    return make(as_Note, id_=f"https://example.org/notes/{name}", content=name)
-
-
 def test_every_write_in_the_block_commits_together(dl: SqliteDataLayer):
-    first, second = _note("first"), _note("second")
+    first, second = example_note("first"), example_note("second")
 
     with dl.transaction():
         dl.save(first)
@@ -82,9 +57,9 @@ def test_every_write_in_the_block_commits_together(dl: SqliteDataLayer):
 
 
 def test_a_block_that_raises_writes_nothing(dl: SqliteDataLayer):
-    kept = _note("kept")
+    kept = example_note("kept")
     dl.save(kept)
-    first, second = _note("first"), _note("second")
+    first, second = example_note("first"), example_note("second")
 
     with pytest.raises(_Boom):
         with dl.transaction():
@@ -101,7 +76,7 @@ def test_a_block_that_raises_writes_nothing(dl: SqliteDataLayer):
 
 
 def test_reads_inside_the_block_see_its_own_writes(dl: SqliteDataLayer):
-    note = _note("seen")
+    note = example_note("seen")
 
     with dl.transaction():
         dl.save(note)
@@ -114,11 +89,11 @@ def test_another_instance_on_the_same_store_joins_the_block(
 ):
     """Every call on the store from this thread is in the block, not only
     the instance that opened it (a nested tree may clone the store)."""
-    note = _note("clone")
+    note = example_note("clone")
 
     with pytest.raises(_Boom):
         with dl.transaction():
-            clone = dl.clone_for_actor(_ACTOR)
+            clone = dl.clone_for_actor(POOL_KIND_ACTOR)
             clone.save(note)
             assert dl.read(note.id_) is not None
             raise _Boom
@@ -127,7 +102,7 @@ def test_another_instance_on_the_same_store_joins_the_block(
 
 
 def test_a_block_inside_another_joins_it(dl: SqliteDataLayer):
-    inner, outer = _note("inner"), _note("outer")
+    inner, outer = example_note("inner"), example_note("outer")
 
     with pytest.raises(_Boom):
         with dl.transaction():
@@ -145,7 +120,7 @@ def test_a_session_rollback_undoes_only_that_sessions_writes(
 ):
     """A CRUD helper's ``rollback()`` inside the block undoes only what its
     own session wrote; the block's other writes stand (SAVEPOINT join)."""
-    before, after = _note("before"), _note("after")
+    before, after = example_note("before"), example_note("after")
 
     with dl.transaction():
         dl.save(before)
@@ -165,9 +140,9 @@ def test_a_failed_flush_inside_the_block_does_not_poison_it(
 ):
     """A helper whose flush fails (here a duplicate key) and whose error the
     caller handles leaves the block usable, and the block's writes commit."""
-    kept = _note("kept")
+    kept = example_note("kept")
     dl.save(kept)
-    after = _note("after-flush")
+    after = example_note("after-flush")
 
     with dl.transaction():
         with pytest.raises(IntegrityError):
@@ -184,7 +159,7 @@ def test_an_inner_block_that_raises_rolls_back_only_its_own_writes(
 ):
     calls: list[str] = []
     dl.set_enqueue_callback(calls.append)
-    outer, inner = _note("outer-kept"), _note("inner-undone")
+    outer, inner = example_note("outer-kept"), example_note("inner-undone")
 
     with dl.transaction():
         dl.save(outer)
@@ -209,7 +184,7 @@ def test_a_failing_after_commit_callback_does_not_fail_the_block(
         run_after_commit,
     )
 
-    note = _note("committed")
+    note = example_note("committed")
 
     def _broken() -> None:
         raise RuntimeError("callback broke")
@@ -228,12 +203,12 @@ def test_a_store_opened_on_another_thread_does_not_end_the_block(
     """Opening the same store on another thread runs its schema check; on
     an in-memory store that waits for the block, so it cannot roll the
     block back by closing the shared connection (#3602)."""
-    first, second = _note("tx-first"), _note("tx-second")
+    first, second = example_note("tx-first"), example_note("tx-second")
     errors: list[BaseException] = []
 
     def _open() -> None:
         try:
-            dl.clone_for_actor(_ACTOR)
+            dl.clone_for_actor(POOL_KIND_ACTOR)
         except BaseException as exc:  # noqa: BLE001 — surfaced below
             errors.append(exc)
 
@@ -257,13 +232,13 @@ def test_the_enqueue_callback_fires_only_after_the_commit(
 ):
     calls: list[str] = []
     dl.set_enqueue_callback(calls.append)
-    note = _note("queued")
+    note = example_note("queued")
 
     with dl.transaction():
         assert dl.outbox_append(note.id_)
         assert calls == []
 
-    assert calls == [_ACTOR]
+    assert calls == [POOL_KIND_ACTOR]
 
 
 def test_a_rolled_back_block_fires_no_enqueue_callback(dl: SqliteDataLayer):
@@ -272,7 +247,7 @@ def test_a_rolled_back_block_fires_no_enqueue_callback(dl: SqliteDataLayer):
 
     with pytest.raises(_Boom):
         with dl.transaction():
-            dl.outbox_append(_note("dropped").id_)
+            dl.outbox_append(example_note("dropped").id_)
             raise _Boom
 
     assert calls == []
@@ -284,7 +259,7 @@ def test_another_thread_does_not_see_or_join_an_open_block(
 ):
     """A second thread's read neither runs inside the block nor sees its
     uncommitted writes; it sees them once the block commits."""
-    note = _note("threaded")
+    note = example_note("threaded")
     seen: list[bool] = []
     errors: list[BaseException] = []
 

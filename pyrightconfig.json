@@ -2,7 +2,7 @@
   "include": ["vultron", "test"],
   "exclude": ["**/__pycache__", "**/node_modules", "site", "docs", "vultron/wire/csaf/models"],
   "typeCheckingMode": "basic",
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.14",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false
 }

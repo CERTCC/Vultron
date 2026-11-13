@@ -86,7 +86,7 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
     termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")
-    def _fields_fit_the_kind(self) -> "RegisterStep":
+    def _fields_fit_the_kind(self) -> RegisterStep:
         """Refuse a termination or embargo object the kind cannot carry."""
         problems: list[str] = []
         if (self.termination is None) == (
@@ -188,7 +188,7 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
     row: EmbargoConsent
 
     @model_validator(mode="after")
-    def _row_names_its_participant(self) -> "ConsentRowChange":
+    def _row_names_its_participant(self) -> ConsentRowChange:
         if self.row.attributed_to is None:
             raise ValueError(
                 f"Consent row for embargo '{self.row.embargo_id}' names no"
@@ -214,7 +214,7 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
     @classmethod
     def answer(
         cls, *, embargo_id: str, actor_id: str, accept: bool
-    ) -> "ConsentRowChange":
+    ) -> ConsentRowChange:
         """The row change a participant's answer states (ADR-0122).
 
         ``Accept(Invite(EmbargoEvent))`` states the sender's row for the

@@ -44,6 +44,7 @@ from vultron.core.models._helpers import authored_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
+from vultron.primitives import normalise_actor_id
 
 
 class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -79,7 +80,7 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
         case = VulnerabilityCase(
             name=self._case_name,
             content=self._case_content,
-            attributed_to=self.actor_id,
+            attributed_to=normalise_actor_id(self.actor_id),
             **authored_times(self._require_act_instant()),
         )
         if self._report_id is not None:
@@ -111,7 +112,7 @@ class _RegisterCreatorParticipantNode(
         super().initialise()
         try:
             self._case_id_bb: str = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = ""
 
     def update(self) -> Status:
@@ -128,7 +129,7 @@ class _RegisterCreatorParticipantNode(
         # The record names its case, as every participant record does: a
         # received Add(ParticipantStatus) acts on that case (HP-08-008).
         participant = CaseParticipant(
-            attributed_to=self.actor_id,
+            attributed_to=normalise_actor_id(self.actor_id),
             context=case_id,
             case_roles=[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
             **authored_times(self._require_act_instant()),
@@ -183,7 +184,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self._case_id_bb: str = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
+        except NoDataAvailable, NotImplementedError:
             self._case_id_bb = ""
 
     def update(self) -> Status:

@@ -249,49 +249,27 @@ def test_a_reject_is_the_abandonment_only_from_the_case_manager(
 
 @pytest.mark.spec("MSM-07-016")
 @pytest.mark.spec("OID-01-006")
-def test_a_reject_is_the_abandonment_on_a_slash_spelled_roster(
-    bridge, datalayer
+def test_a_slash_spelled_managers_reject_is_its_abandonment(
+    bridge, datalayer, proposed_case
 ):
-    """The manager's own Reject is its abandonment however the roster spells it.
+    """The manager's own Reject is its abandonment however its payload spells it.
 
-    ``CaseParticipant.attributed_to`` is an id a peer wrote *inside* an
-    activity, which the extractor does not normalise, and the field is a plain
-    ``NonEmptyString``, so a trailing-slash spelling reaches the store
-    (OID-01-007).  The payload's ``actor`` arrives normalised
-    (:func:`~vultron.core.predicates.addressing.snapshot_actor_id`), so the
-    two spellings meet here and only a tolerant comparison matches them.
-
-    Asking the shared predicate rather than comparing the resolved id is what
-    admits it (ARCH-24-008): the exact comparison this replaced read the
-    roster's spelling literally, sent the manager's own abandonment to the
-    rejection slot, and recorded one participant's DECLINED consent in place
-    of cancelling the proposal (HP-01-005).
+    The roster is canonical: ``CaseParticipant.attributed_to`` refuses a
+    trailing slash (OID-01-006, #5919).  The ledger entry's ``payloadSnapshot``
+    keeps the sender's spelling (OID-01-008), so the node reads its ``actor``
+    normalised (:func:`~vultron.core.predicates.addressing.snapshot_actor_id`)
+    before asking the shared predicate (ARCH-24-008).  An exact read would
+    send the manager's own abandonment to the rejection slot and record one
+    participant's DECLINED consent in place of cancelling the proposal
+    (HP-01-005).
     """
-    for embargo_id in (FIRST_ID, SECOND_ID):
-        datalayer.create(
-            make(
-                EmbargoEvent,
-                id_=embargo_id,
-                context=CASE_ID,
-                end_time=now_utc() + timedelta(days=30),
-            )
-        )
-    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    propose(case, FIRST_ID, SECOND_ID)
-    _participant(
-        datalayer,
-        case,
-        f"{MANAGER_ACTOR_ID}/",
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    datalayer.save(case)
-
+    slashed = f"{MANAGER_ACTOR_ID}/"
     assert (
         _matches(
             bridge,
             IsEmbargoAbandonmentEventNode(name="IsAbandonment"),
             _REJECT,
-            MANAGER_ACTOR_ID,
+            slashed,
         )
         is Status.SUCCESS
     )
@@ -300,7 +278,7 @@ def test_a_reject_is_the_abandonment_on_a_slash_spelled_roster(
             bridge,
             IsRejectEmbargoInviteEventNode(name="IsRejection"),
             _REJECT,
-            MANAGER_ACTOR_ID,
+            slashed,
         )
         is Status.FAILURE
     )
