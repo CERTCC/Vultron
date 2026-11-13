@@ -410,8 +410,23 @@ Issue: #6254.
 
 **Decision.** A refusal notice is `"type": ["Refuse", "Reject"]`: `class
 Refuse(Reject)` in the wire vocabulary, and `vultron:Refuse rdfs:subClassOf
-as:Reject` in the Vultron context. Patterns match `Refuse` before any `Reject`.
-The wire then follows CLP-02-016's *refused* versus *rejected*.
+as:Reject` in the Vultron context. The wire then follows CLP-02-016's *refused*
+versus *rejected* (ADR-0196).
+
+- **The list stays at the wire edge.** One shared resolver narrows a received `type`
+  list to the most specific class the vocabulary knows, in any order; core holds one
+  string (`"Refuse"`). The serializer writes the list for a class that declares a core
+  supertype. Reason: a list in core changes every `type_` and type check for no gain.
+- **Two known, unrelated types in one list are refused** as an unknown type (422). A
+  bare `"Refuse"` is accepted. Reason: neither class is the more specific one.
+- **A resolved `Refuse` matches no `Reject` pattern**, so `RefusalNoticePattern`
+  drops its `Invite`/`Offer` exclusion and a refusal of a request reaches the
+  refusal-notice use case, not the decline. Reason: ADR-0196 replaces ADR-0141's
+  "a refusal of a request reads as a decline".
+- **Refuse versus Reject is by who decides.** The CASE_MANAGER's guard refusal is a
+  `Refuse`, including its answer to the owner's `Leave(VulnerabilityCase)` during an
+  active embargo (CM-23-011). A participant's own `Reject(Invite(EmbargoEvent))` at
+  P/X/A stays a `Reject`: it is the addressee's decline (EMB-01-002).
 
 **AS2 basis.** No AS2 verb fits "I won't admit your act": `Ignore` is ignoring and is
 our RM defer, `Block` targets an actor and is not delivered to it (ActivityPub), `Flag`
@@ -425,8 +440,11 @@ activity inline>)` with `inReplyTo` and `summary` (ADR-0141). A refusal of an
 `Reject(Leave(Case))` falls into `REFUSAL_NOTICE` only because no decline pattern
 matches it.
 
-**Touches.** ADR-0141, MSM-05-001, CLP-02-016, `REFUSAL_NOTICE`, the parse layer
-(`type` as a list; today it is always a string).
+**Touches.** ADR-0141, ADR-0196, MSM-05-001, CLP-02-005, CLP-05-001, CLP-02-016,
+CM-23-011, VM-03, `REFUSAL_NOTICE`, the `OWNER_CLOSE_DECLINE` refusal-notice
+exemption, `docs/ns/context.jsonld`, and the parse layer (`type` as a list; today
+`parse_activity` refuses any non-string `type`, and about 60 sites read a raw body's
+`type` as a string).
 
 ---
 
