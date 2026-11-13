@@ -239,11 +239,11 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
             try:
                 declaration = declared_vultron_property(info)
             except TypeError as error:
-                raise TypeError(f"{where}: {error}") from error
+                raise TypeError(f"the marker on {where}: {error}") from error
             except ValueError as error:
                 # A ``pydantic.ValidationError`` is a ``ValueError`` that
                 # cannot be rebuilt from a message, so re-raise the base type.
-                raise ValueError(f"{where}: {error}") from error
+                raise ValueError(f"the marker on {where}: {error}") from error
             if declaration is None:
                 continue
             wire_name = _wire_name(name, info)
