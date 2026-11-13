@@ -1180,7 +1180,6 @@ groups:
   - id: ARCH-18-012
     priority: MUST
     kind: process
-    verification_debt: '#2571'
     statement: >-
       A pull-request check MUST fail when the pull request's body closes an issue that
       an `# owner: #N` marker on a ratchet baseline under `test/` still cites after the
@@ -1190,6 +1189,11 @@ groups:
       owner, and the closed-owner report (ARCH-18-004) only notices afterwards, without
       failing the build (ARCH-18-009). Refusing the merge keeps an owner open until its
       ratchet is empty. A manual close is still caught by the report.
+    verification: >-
+      `test/metadata/test_ratchet_owner_close_guard.py::test_a_pull_request_job_checks_closed_ratchet_owners`
+      requires a pull-request workflow that runs on a body edit and reads the ratchet
+      markers; it is a strict `xfail` until #6408 builds the job, whose own tests cover
+      a closed owner still cited.
     relationships:
     - rel_type: extends
       spec_id: ARCH-18-003

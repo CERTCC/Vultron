@@ -1298,11 +1298,11 @@ groups:
   - id: VM-10-007
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       Every field that a Vultron object serializes onto the wire MUST have a JSON-LD
-      term: either a context that a Vultron message or actor profile cites defines it,
-      or the field is declared a Vultron property and the context document maps it.
+      term: either a context that a Vultron message or actor profile cites defines it
+      at top level, or within a type-scoped context for a field of that type, or the
+      field is declared a Vultron property and the context document maps it.
       The fields of nested models count, and a field excluded from serialization does
       not.
     rationale: >-
@@ -1310,6 +1310,11 @@ groups:
       JSON-LD processor loses the meaning of a field with no term. An explicit
       declaration makes each new field's author decide whether AS2 already has the
       term (ADR-0194).
+    verification: >-
+      `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
+      fails while a field a `CaseLedgerEntry` declares has no term in the context
+      document; it is a strict `xfail` until #6409 writes the terms, and #6422 replaces
+      it with a check over every wire field.
     adr:
     - ADR-0194
     relationships:
@@ -1318,7 +1323,6 @@ groups:
   - id: VM-10-008
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       A Vultron property declaration MUST carry a one-line definition and its value
       kind.
@@ -1326,37 +1330,30 @@ groups:
       The definition is what makes "one meaning per name" (VM-10-012) checkable, and
       the value kind is what the context document's typed term is written from
       (VM-10-010).
+    verification: >-
+      `test/metadata/test_wire_term_declarations.py::test_a_vultron_property_declaration_carries_a_definition_and_kind`
+      fails while the property marker is a bare flag; it is a strict `xfail` until
+      #6409 makes the marker carry a definition and a value kind.
     adr:
     - ADR-0194
     relationships:
     - rel_type: refines
       spec_id: VM-10-007
-  - id: VM-10-012
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      Two Vultron property declarations that share a wire name MUST carry the same
-      definition and the same value kind.
-    rationale: >-
-      Each wire name has one global term, as in AS2, so one name cannot carry two
-      meanings. A name used for two meanings is renamed apart instead (ADR-0194).
-    adr:
-    - ADR-0194
-    relationships:
-    - rel_type: refines
-      spec_id: VM-10-008
   - id: VM-10-009
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
     statement: >-
       A Vultron property MUST NOT use a wire name that a context Vultron cites already
-      defines.
+      defines at top level.
     rationale: >-
       Vultron's context follows AS2's in `@context`, so a Vultron term with an AS2
       name would silently replace the AS2 meaning for a JSON-LD reader. Where AS2 has
       the term, the field uses it (ADR-0194).
+    verification: >-
+      `test/metadata/test_wire_term_declarations.py::test_a_vultron_field_reuses_no_as2_name`
+      fails while a vulnerability item note sends AS2 `audience` with a CSAF meaning;
+      it is a strict `xfail` until #6416 renames it, and #6422 replaces it with a check
+      against every pinned context's top-level terms.
     adr:
     - ADR-0194
     relationships:
@@ -1365,7 +1362,6 @@ groups:
   - id: VM-10-010
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       The context document MUST type each Vultron property term by its value kind, as
       the AS2 context types its own: an IRI value as `"@type": "@id"`, a received
@@ -1375,8 +1371,12 @@ groups:
       Without a type a JSON-LD reader takes a link for plain text, expands the keys
       inside a verbatim document such as a ledger entry's payload snapshot, reads the
       keys of an IRI-keyed map as properties, and treats an ordered history as an
-      unordered set. AS2 types its terms, so Vultron's terms
-      are no weaker (ADR-0194).
+      unordered set. AS2 types its terms, so Vultron's terms are no weaker
+      (ADR-0194).
+    verification: >-
+      `test/metadata/test_wire_term_declarations.py::test_the_context_types_each_term_by_its_value_kind`
+      requires `payloadSnapshot` to be typed `@json` and `actorParticipantIndex` to be
+      an `@index` container; it is a strict `xfail` until #6409 writes typed terms.
     adr:
     - ADR-0194
     relationships:
@@ -1387,7 +1387,6 @@ groups:
     - phantom_path_ref
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       The term check of VM-10-007 MUST read the terms of each external context Vultron
       cites from a pinned, byte-for-byte local copy under `third_party/jsonld/`, whose
@@ -1399,15 +1398,37 @@ groups:
       The cited contexts are a W3C Recommendation and versioned contexts that do not
       change at their URLs, so no watch job follows them; a copy moves only when its
       pin is moved on purpose.
+    verification: >-
+      `test/metadata/test_jsonld_context_pins.py::test_each_cited_context_has_a_pinned_copy`
+      requires a pin record naming exactly the four cited contexts, each with a local
+      copy; it is a strict `xfail` until #6407 adds the copies.
     adr:
     - ADR-0194
     relationships:
     - rel_type: implements
       spec_id: VM-10-007
+  - id: VM-10-012
+    priority: MUST
+    kind: project
+    statement: >-
+      Two Vultron property declarations that share a wire name MUST carry the same
+      definition and the same value kind.
+    rationale: >-
+      Each wire name has one global term, as in AS2, so one name cannot carry two
+      meanings. A name used for two meanings is renamed apart instead (ADR-0194).
+    verification: >-
+      `test/metadata/test_wire_term_declarations.py::test_one_wire_name_has_one_meaning`
+      fails while `text` is an identifier's value on one class and a note's body on
+      another; it is a strict `xfail` until #6416 renames them apart, and #6422 replaces
+      it with a check over every Vultron property declaration.
+    adr:
+    - ADR-0194
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-008
   - id: VM-10-013
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       A test MUST fail when a pinned external context copy (VM-10-011) differs from the
       digest its pin record holds.
@@ -1415,6 +1436,10 @@ groups:
       The copies are never edited by hand (`third_party/README.md`), so a mismatch
       means the copy no longer is the context it claims to be, and the term check would
       judge fields against the wrong terms.
+    verification: >-
+      `test/metadata/test_jsonld_context_pins.py::test_each_pinned_context_copy_matches_its_digest`
+      hashes each pinned copy and compares it with its recorded digest; it is a strict
+      `xfail` until #6407 adds the copies.
     adr:
     - ADR-0194
     relationships:

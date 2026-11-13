@@ -434,15 +434,19 @@ groups:
       `title` as the item's `name`.
     rationale: >-
       A vulnerability item takes the identity fields of a CSAF vulnerability entry
-      (CM-05-018), so each entry becomes an item with no translation. The identifiers are
+      (CM-05-018), so each entry becomes an item with only its `title` renamed to the AS2
+      `name` that means the same (ADR-0194). The identifiers are
       what later messages and projections refer to (CM-05-003, ADR-0187), so an entry
       with no identifier names no vulnerability and makes no item.
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
       attaches a document with two vulnerabilities, and checks that the case gets a
-      vulnerability item for each, with its `cve`, `ids`, `title`, `notes` and
-      `references`; `::test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item`
-      checks that an entry that names no vulnerability makes no item.
+      vulnerability item for each, with its `cve`, `ids`, `notes` and `references`;
+      `::test_a_vulnerability_with_no_cve_and_no_ids_makes_no_item` checks that an
+      entry that names no vulnerability makes no item.
+      `test/core/services/test_report_case_inputs.py::test_a_csaf_entrys_title_arrives_as_the_items_name`
+      checks that the entry's `title` becomes the item's `name`; it is a strict `xfail`
+      until #6413 moves the title.
     adr:
     - ADR-0184
     - ADR-0187

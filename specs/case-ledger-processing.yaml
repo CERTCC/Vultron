@@ -1036,7 +1036,7 @@ groups:
       the case's genesis entry is the `Create(VulnerabilityCase)` it sends for the case,
       not a second activity built for the ledger. The metadata the CASE_MANAGER adds
       lives on the entry, outside the snapshot: the index, the hashes, the commit and
-      receipt times, and `case_id`.
+      receipt times, and the case it names in its `context`.
     rationale: >-
       The payload snapshot is the replication substrate, and the entry hash covers it, so
       what it holds is what every replica treats as the event. A snapshot rebuilt from the
@@ -1550,7 +1550,7 @@ groups:
       The obligation falls on whoever builds the activity. A received snapshot is the
       body as sent (CLP-07-011), so the CASE_MANAGER neither writes a `context` in nor
       rewrites one; the commit boundary refuses a `context` naming another case, and
-      the entry names its case on the envelope (`case_id`), so a snapshot that names no
+      the entry names its case on the envelope (its `context`), so a snapshot that names no
       `context`, such as the Offer that opened the case, is still that case's entry.
     verification: Integration tests in `test/demo/` confirm that `CaseLedgerEntry`
       objects created after report-to-case promotion carry the case URI (not the report
@@ -4255,7 +4255,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      All entries in a single case ledger MUST share the same `case_id`.
+      All entries in a single case ledger MUST name the same case in their `context`.
     rationale: A ledger mixing entries from multiple cases makes causal comparisons
       meaningless and breaks hash-chain verification (which is scoped per case).
     adr:
@@ -4273,11 +4273,14 @@ groups:
       and breaks hash-chain verification, which is scoped per case. Refusing the entry
       keeps it out of the chain.
     verification: >-
-      Holds by construction: a holder files each entry in the ledger of the case its
-      `case_id` names, so no ledger can take another case's entry.
+      Holds by construction: a holder files each entry in the ledger of the case the
+      entry names, so no ledger can take another case's entry.
       `test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names` in
       `test/core/models/test_clp_14_15_invariants.py` asserts another case's entry
-      moves only that case's ledger.
+      moves only that case's ledger, and
+      `test_clp_14_012_an_entry_names_its_case_in_context` requires the entry to name
+      its case in a required `context` with no `case_id`; it is a strict `xfail` until
+      #6411 moves the case.
     relationships:
     - rel_type: implements
       spec_id: CLP-14-004
@@ -4290,7 +4293,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: log_index values MUST be unique within a single case ledger. No two
-      entries for the same case_id may share a log_index value.
+      entries for the same case may share a log_index value.
     rationale: Duplicate indices would make it impossible to identify which entry
       is causal-order position N, breaking any test or consumer that relies on log_index
       to determine ordering.

@@ -389,7 +389,8 @@ this codebase's own AS2 base classes, so the unmarked `proposedEmbargo`,
 actor profile cites Multikey v1, which does not define `assertionMethod` at top
 level, so the published key is undefined to a JSON-LD reader.
 
-**Field review.** Each row is one ratchet owner in #6422.
+**Field review.** Each row names the Task that fixes it; every row but
+`caseActivity` is a ratchet entry in #6422.
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|
@@ -409,8 +410,8 @@ level, so the published key is undefined to a JSON-LD reader.
 
 Every other field is a Vultron term. `state`, `status` and `kind` are each used once
 on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
-none of them is a clash. `caseActivity` is dead but no rule refuses it, so #6415
-deletes it without a ratchet entry.
+none of them is a clash. `caseActivity` is dead, but once #6409 marks it a Vultron
+term no rule refuses it, so #6415 deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context

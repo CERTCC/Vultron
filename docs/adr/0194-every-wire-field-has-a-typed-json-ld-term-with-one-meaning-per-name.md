@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-13
@@ -69,9 +69,9 @@ A field that the check would refuse today, and that waits on a rename, is listed
 - Good, because a new field cannot reach the wire without a recorded decision about its term.
 - Good, because the AS2 duplicates the review found are renamed to AS2 terms instead of carrying Vultron copies.
 - Bad, because every Vultron field carries a marker, and the colliding names must be renamed on the wire.
-- Bad, because the pinned copies can fall behind their sources; the three contexts change rarely, and a versioned context never changes at its URL.
+- Bad, because the pinned copies can fall behind their sources; the four contexts change rarely, and a versioned context never changes at its URL.
 
-### Confirmation
+## Validation
 
 Tests fail on a wire field with no term, on two declarations of one name that disagree, on a Vultron term that reuses an external term, on an edited pinned copy, and on a ratchet entry that no longer matches a field.
 
