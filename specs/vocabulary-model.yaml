@@ -1401,7 +1401,7 @@ groups:
     verification: >-
       `test/metadata/test_jsonld_context_pins.py::test_each_cited_context_has_a_pinned_copy`
       requires a pin record naming exactly the four cited contexts, each with a local
-      copy; it is a strict `xfail` until #6407 adds the copies.
+      copy.
     adr:
     - ADR-0194
     relationships:
@@ -1438,8 +1438,7 @@ groups:
       judge fields against the wrong terms.
     verification: >-
       `test/metadata/test_jsonld_context_pins.py::test_each_pinned_context_copy_matches_its_digest`
-      hashes each pinned copy and compares it with its recorded digest; it is a strict
-      `xfail` until #6407 adds the copies.
+      hashes each pinned copy and compares it with its recorded digest.
     adr:
     - ADR-0194
     relationships:

@@ -1,10 +1,19 @@
-W3C ActivityStreams 2.0 Vocabulary
+W3C ActivityStreams 2.0 JSON-LD context
+
 Source: https://www.w3.org/ns/activitystreams
-Publisher: World Wide Web Consortium (W3C)
+Copy:   activitystreams.jsonld (byte for byte, as served with
+        Accept: application/ld+json)
 
-This document is published by W3C and is available under the W3C Software and
-Document License:
-https://www.w3.org/copyright/software-license-2023/
+The file carries no copyright or licence notice of its own.
 
-Copyright © 2017-2023 World Wide Web Consortium.
-https://www.w3.org/copyright/document-license-2023/
+W3C states that "unless otherwise stated, documents on the W3C site are
+published under the W3C document license":
+https://www.w3.org/copyright/intellectual-rights/
+https://www.w3.org/copyright/document-license/
+
+The Recommendation that defines the vocabulary,
+https://www.w3.org/TR/activitystreams-vocabulary/, carries this notice:
+"Copyright © 2017 Activity Streams Working Group, IBM & W3C® (MIT, ERCIM,
+Keio, Beihang). W3C liability, trademark and permissive document license
+rules apply." Its permissive document license link is
+https://www.w3.org/Consortium/Legal/2015/copyright-software-and-document

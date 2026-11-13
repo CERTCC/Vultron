@@ -51,14 +51,16 @@ other parties. Each is distributed under its own licence, in a `LICENSE` or
   `third_party/csaf/schemas/json-schema.org/`: BSD-3-Clause. Copyright (c) 2022
   JSON Schema Specification Authors.
 - ActivityStreams 2.0 JSON-LD context (W3C), in
-  `third_party/jsonld/activitystreams.jsonld`: W3C Software and Document License.
-  Copyright © 2017-2023 World Wide Web Consortium.
-- Data Integrity and Multikey JSON-LD contexts (W3C / W3C Credentials Community
-  Group), in `third_party/jsonld/data-integrity-v2.jsonld` and
-  `third_party/jsonld/multikey-v1.jsonld`: W3C Software and Document License.
-- Controlled Identifiers JSON-LD context (W3C), in
-  `third_party/jsonld/cid-v1.jsonld`: W3C Software and Document License.
-  Copyright © World Wide Web Consortium.
+  `third_party/jsonld/activitystreams.jsonld`: the file carries no notice; W3C
+  publishes documents on its site under the W3C Document License unless
+  otherwise stated. Its Recommendation is Copyright © 2017 Activity Streams
+  Working Group, IBM & W3C, under the W3C Software and Document License.
+- Data Integrity and Multikey JSON-LD contexts (W3C Verifiable Credentials
+  Working Group), in `third_party/jsonld/data-integrity-v2.jsonld` and
+  `third_party/jsonld/multikey-v1.jsonld`, and the Controlled Identifiers
+  JSON-LD context (same group), in `third_party/jsonld/cid-v1.jsonld`: the
+  files carry no notice; the Recommendations that list them are Copyright ©
+  2025 World Wide Web Consortium, under the W3C Software and Document License.
 
 Created, in part, with funding and support from the United States Government. (see
 Acknowledgments file).

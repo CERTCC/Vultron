@@ -48,12 +48,16 @@ The JSON-LD context documents that Vultron wire messages and actor profiles cite
 
   | Source | Files | Notice file |
   |---|---|---|
-  | W3C ActivityStreams 2.0 | `activitystreams.jsonld` | `NOTICE-W3C` (W3C Software and Document License) |
-  | W3C Security Vocabulary | `data-integrity-v2.jsonld`, `multikey-v1.jsonld` | `NOTICE-W3C-SECURITY` (W3C Software and Document License) |
-  | W3C Controlled Identifiers | `cid-v1.jsonld` | `NOTICE-W3C-CID` (W3C Software and Document License) |
+  | W3C ActivityStreams 2.0 | `activitystreams.jsonld` | `NOTICE-W3C` |
+  | W3C Verifiable Credential Data Integrity 1.0 | `data-integrity-v2.jsonld`, `multikey-v1.jsonld` | `NOTICE-W3C-SECURITY` |
+  | W3C Controlled Identifiers v1.0 | `cid-v1.jsonld` | `NOTICE-W3C-CID` |
 
-- `vultron/metadata/wire_context/pin.py` provides the loader that extracts terms
-  from these contexts, both top-level and type-scoped. Nothing reads these files
-  at runtime; they supply the term list for the VM-10-007 check.
+  Each copy is the document its URL serves for `Accept: application/ld+json`.
+  The NOTICE file quotes what W3C publishes about its licence; the context
+  files carry no notice of their own.
+- `vultron.metadata.wire_context.pin.load_all_terms()` reads each context's
+  top-level terms and, separately, the terms it defines only inside a scoped
+  context. Nothing reads these files at runtime; they supply the term list for
+  the VM-10-007 check.
 - No watch job: the versioned contexts never change at their URLs, and AS2
   changes rarely and only by addition.

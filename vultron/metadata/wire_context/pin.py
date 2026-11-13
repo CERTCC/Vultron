@@ -20,20 +20,18 @@ them, never the runtime.
 
 from __future__ import annotations
 
-import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    model_validator,
+from pydantic import BaseModel, ConfigDict, Field
+
+from vultron.metadata.pin_record import (
+    PinRecord,
+    RelativePath,
+    Sha256,
+    file_sha256,
 )
-
-from vultron.primitives import NonEmptyString
 
 #   parents[0] = wire_context, [1] = metadata, [2] = vultron, [3] = <repo root>
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -42,55 +40,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 THIRD_PARTY_JSONLD_DIR = _REPO_ROOT / "third_party" / "jsonld"
 #: The pin record.
 PIN_PATH = THIRD_PARTY_JSONLD_DIR / "pin.json"
+#: Separates the term names on the path to a nested scoped context.
+SCOPE_SEPARATOR = "/"
 
 
-def _relative_posix_path(value: str) -> str:
-    """Return *value* when it is a plain relative POSIX path, else raise.
-
-    Every segment must be a real name: no empty, ``.`` or ``..`` segment and no
-    backslash, so the path stays inside the pinned local copy on any platform.
-    """
-    parts = value.split("/")
-    if "\\" in value or any(part in ("", ".", "..") for part in parts):
-        raise ValueError(f"{value!r} is not a relative path inside the copy")
-    return value
-
-
-RelativePath = Annotated[NonEmptyString, AfterValidator(_relative_posix_path)]
-Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-
-
-class JsonLdPin(BaseModel):
+class JsonLdPin(PinRecord):
     """The external JSON-LD contexts Vultron cites, and where they sit locally."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    sources: dict[NonEmptyString, RelativePath] = Field(
-        min_length=1,
-        description=(
-            "Each external context's URL, mapped to its filename inside the "
-            "pinned local copy."
-        ),
-    )
-
-    sha256: dict[RelativePath, Sha256] = Field(
-        description=(
-            "The SHA-256 digest of each file of the pinned local copy, so a "
-            "hand edit to the copy is detected."
-        ),
-    )
-
-    @model_validator(mode="after")
-    def _files_agree(self) -> JsonLdPin:
-        files = set(self.sources.values())
-        if set(self.sha256) != files:
-            raise ValueError("sha256 must list exactly the files in sources")
-        return self
-
-
-def file_sha256(path: Path) -> str:
-    """Return the hex SHA-256 digest of the file at *path*."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def load_pin(path: Path = PIN_PATH) -> JsonLdPin:
@@ -101,77 +56,107 @@ def load_pin(path: Path = PIN_PATH) -> JsonLdPin:
 class ContextTerms(BaseModel):
     """The terms a JSON-LD context defines, separated by scope."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     top_level: frozenset[str] = Field(
-        default_factory=frozenset,
         description="Terms defined at the context's top level.",
     )
     type_scoped: dict[str, frozenset[str]] = Field(
         default_factory=dict,
         description=(
-            "Terms defined inside type-scoped contexts, keyed by type name. "
-            "For example, Multikey's controller and publicKeyMultibase are "
-            "under the Multikey type's scoped context."
+            "Terms defined only inside a scoped context, never at top level, "
+            "keyed by the term that carries the scoped context. A scoped "
+            "context nested in another is keyed by the path of terms, joined "
+            "by ``SCOPE_SEPARATOR``: data-integrity's proof purposes sit under "
+            "``DataIntegrityProof/proofPurpose``, and Multikey's "
+            "``controller`` and ``publicKeyMultibase`` under ``Multikey``."
         ),
     )
 
 
+class UnreadableContextError(ValueError):
+    """A pinned context holds a shape the term loader cannot read."""
+
+
+def _local_context(value: object, where: str) -> Mapping[str, object]:
+    """Return *value* when it is an inline JSON-LD context object, else raise.
+
+    The term check reads terms only from inline definitions; a context given
+    as a URL or a list would hide terms this loader cannot see.
+    """
+    if not isinstance(value, dict):
+        raise UnreadableContextError(
+            f"{where}: @context is a {type(value).__name__}, not an inline "
+            "context object"
+        )
+    return value
+
+
+def _terms_of(context: Mapping[str, object]) -> frozenset[str]:
+    """Return the terms *context* defines: every key not a JSON-LD keyword."""
+    return frozenset(key for key in context if not key.startswith("@"))
+
+
+def _collect_scoped(
+    context: Mapping[str, object],
+    scope: tuple[str, ...],
+    top_level: frozenset[str],
+    found: dict[str, frozenset[str]],
+    where: str,
+) -> None:
+    """Add to *found* every scoped context inside *context*, at any depth."""
+    for term, definition in context.items():
+        if not isinstance(definition, dict) or "@context" not in definition:
+            continue
+        path = (*scope, term)
+        key = SCOPE_SEPARATOR.join(path)
+        scoped = _local_context(definition["@context"], f"{where}: {key}")
+        found[key] = _terms_of(scoped) - top_level
+        _collect_scoped(scoped, path, top_level, found, where)
+
+
 def extract_terms(context_path: Path) -> ContextTerms:
-    """Extract the terms a JSON-LD context defines.
+    """Return the terms the JSON-LD context at *context_path* defines.
 
-    Returns the top-level terms and, for each type that carries a scoped
-    context, the terms that scoped context defines.
+    Raises ``UnreadableContextError`` when the document has no inline
+    ``@context`` object, so a context the loader cannot read never passes as
+    one with no terms.
     """
-    data = json.loads(context_path.read_text())
-    context = data.get("@context", {})
+    where = context_path.name
+    document = json.loads(context_path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or "@context" not in document:
+        raise UnreadableContextError(f"{where}: the document has no @context")
+    context = _local_context(document["@context"], where)
 
-    # Top-level terms are the keys that are not @-prefixed metadata
-    top_level_terms = {key for key in context if not key.startswith("@")}
-
-    # Type-scoped terms: look for keys whose value is a dict with @context
-    type_scoped_terms: dict[str, frozenset[str]] = {}
-    for key, value in context.items():
-        if isinstance(value, dict) and "@context" in value:
-            # This is a type with a scoped context
-            scoped_context = value["@context"]
-            if isinstance(scoped_context, dict):
-                scoped_terms = {
-                    k for k in scoped_context if not k.startswith("@")
-                }
-                type_scoped_terms[key] = frozenset(scoped_terms)
-
-    return ContextTerms(
-        top_level=frozenset(top_level_terms),
-        type_scoped=type_scoped_terms,
-    )
+    top_level = _terms_of(context)
+    type_scoped: dict[str, frozenset[str]] = {}
+    _collect_scoped(context, (), top_level, type_scoped, where)
+    return ContextTerms(top_level=top_level, type_scoped=type_scoped)
 
 
-def load_all_terms(pin: JsonLdPin | None = None) -> dict[str, ContextTerms]:
-    """Load terms from all pinned contexts.
-
-    Returns a dict mapping each context URL to its extracted terms.
-    """
-    if pin is None:
-        pin = load_pin()
-
-    result: dict[str, ContextTerms] = {}
-    for url, filename in pin.sources.items():
-        context_path = THIRD_PARTY_JSONLD_DIR / filename
-        result[url] = extract_terms(context_path)
-
-    return result
+def load_all_terms(
+    pin: JsonLdPin | None = None,
+    copy_dir: Path = THIRD_PARTY_JSONLD_DIR,
+) -> dict[str, ContextTerms]:
+    """Return the terms of each pinned context, keyed by the context's URL."""
+    record = load_pin() if pin is None else pin
+    return {
+        url: extract_terms(copy_dir / filename)
+        for url, filename in record.sources.items()
+    }
 
 
 __all__ = [
-    "THIRD_PARTY_JSONLD_DIR",
     "PIN_PATH",
+    "SCOPE_SEPARATOR",
+    "THIRD_PARTY_JSONLD_DIR",
+    "ContextTerms",
     "JsonLdPin",
+    "UnreadableContextError",
     "RelativePath",
     "Sha256",
-    "ContextTerms",
-    "file_sha256",
-    "load_pin",
     "extract_terms",
+    "file_sha256",
     "load_all_terms",
+    "load_pin",
 ]

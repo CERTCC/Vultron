@@ -14,8 +14,9 @@
 
 The term check reads AS2, data-integrity, Multikey and Controlled Identifiers
 terms from byte-for-byte copies under ``third_party/jsonld/``, recorded in a
-``pin.json`` as ``third_party/csaf/`` records the CSAF schemas.  No copy exists
-yet, so both tests are strict ``xfail`` until #6407 adds them.
+``pin.json`` as ``third_party/csaf/`` records the CSAF schemas.  These tests
+read the record as plain JSON, without the loader, so a loader defect cannot
+hide a missing or edited copy.
 """
 
 import hashlib
@@ -34,8 +35,6 @@ _CITED_CONTEXTS = frozenset(
         "https://www.w3.org/ns/cid/v1",
     }
 )
-
-_TRACKED = "Tracked by #6407."
 
 
 def _pinned_files() -> list[tuple[str, Path, str]]:
