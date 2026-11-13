@@ -27,7 +27,6 @@ from enum import StrEnum
 from typing import Annotated, Any
 
 from pydantic import (
-    BaseModel,
     ConfigDict,
     Field,
     SerializationInfo,
@@ -36,6 +35,7 @@ from pydantic import (
 from pydantic.config import JsonDict
 from pydantic.fields import FieldInfo
 
+from vultron.core.models.base.record import ValidatedAssignmentMixin
 from vultron.primitives import NonEmptyString
 
 #: The ActivityStreams 2.0 namespace.  AS2 Core §2.1 asks every producer to cite
@@ -168,7 +168,7 @@ CONTAINER_KINDS = frozenset(
 ITEM_KINDS = frozenset({PropertyValueKind.PLAIN, PropertyValueKind.IRI})
 
 
-class VultronPropertyDeclaration(BaseModel):
+class VultronPropertyDeclaration(ValidatedAssignmentMixin):
     """What a field's marker declares about its Vultron property (VM-10-008).
 
     ``definition`` is the one-line meaning that two declarations of one wire
