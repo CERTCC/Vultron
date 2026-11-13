@@ -26,8 +26,8 @@ from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.rehydration.slots import materialise_object_slots
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import (
-    find_in_vocabulary,
     is_wire_type_alias,
+    resolve_wire_type,
 )
 
 if TYPE_CHECKING:
@@ -137,9 +137,10 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
         raise ValueError(f"Object {obj} has no 'type_' value.")
     # Wire-only lookup (VM-06-008): this rehydrates a wire tree to wire
     # classes, and a core-only name must be an unknown type here, not a core
-    # class returned as ``as_Object``.
+    # class returned as ``as_Object``.  The shared resolver reads the type
+    # as every reader of a received ``type`` does (ADR-0196).
     try:
-        cls = find_in_vocabulary(obj.type_)
+        cls = resolve_wire_type(obj.type_)
     except KeyError:
         logger.error("Unknown object type: %s.", obj.type_)  # noqa: TRY400  # ruff-baseline #3353
         raise

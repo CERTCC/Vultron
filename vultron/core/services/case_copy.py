@@ -58,6 +58,11 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
 )
 from vultron.core.models.note import VultronNote
+from vultron.core.models.type_terms import (
+    first_named,
+    names_type,
+    type_terms,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import recorded_entries_for_case
 
@@ -205,6 +210,9 @@ def entry_conflicts_with_case_position(
     )
 
 
+#: The case's wire ``type``, as a set for :func:`names_type`.
+_CASE_TYPE: frozenset[str] = frozenset({"VulnerabilityCase"})
+
 #: The record types a case copy names by id but does not carry, by wire
 #: ``type``: an entry that creates one is the only way a replica holds it.
 _NAMED_RECORD_TYPES: dict[str, type[CoreObject]] = {
@@ -234,9 +242,9 @@ def _names_its_case(value: dict[str, Any], key: str, child: Any) -> bool:
     """
     return (
         key in ("object", "object_")
-        and value.get("type") in CASE_NAMING_ACTIVITY_TYPES
+        and names_type(value.get("type"), CASE_NAMING_ACTIVITY_TYPES)
         and isinstance(child, dict)
-        and child.get("type") == "VulnerabilityCase"
+        and names_type(child.get("type"), _CASE_TYPE)
     )
 
 
@@ -244,12 +252,11 @@ def _snapshot_objects(value: Any) -> Iterator[dict[str, Any]]:
     """Every object dict, with an id and a type, inside *value*.
 
     The case an act only names is not descended into
-    (:func:`_names_its_case`).
+    (:func:`_names_its_case`).  A ``type`` may be a list, kept as received
+    (VM-08-002, ADR-0196).
     """
     if isinstance(value, dict):
-        if isinstance(value.get("id"), str) and isinstance(
-            value.get("type"), str
-        ):
+        if isinstance(value.get("id"), str) and type_terms(value.get("type")):
             yield value
         for key, child in value.items():
             if _names_its_case(value, key, child):
@@ -284,7 +291,8 @@ def records_a_reflected_entry_adds(
     found: dict[str, CoreObject] = {}
     for data in _snapshot_objects(entry.payload_snapshot):
         record_id = data["id"]
-        cls = _NAMED_RECORD_TYPES.get(data["type"])
+        named_type = first_named(data["type"], _NAMED_RECORD_TYPES)
+        cls = _NAMED_RECORD_TYPES.get(named_type) if named_type else None
         if (
             cls is None
             or record_id not in named
@@ -294,14 +302,16 @@ def records_a_reflected_entry_adds(
             continue
         try:
             found[record_id] = cls.model_validate(
-                project_wire_snapshot_to_core(cls, data)
+                project_wire_snapshot_to_core(
+                    cls, {**data, "type": named_type}
+                )
             )
         except ValidationError as exc:
             logger.warning(
                 "entry '%s' carries %s '%s' that does not validate, so the"
                 " replica cannot store it: %s",
                 entry.id_,
-                data["type"],
+                named_type,
                 record_id,
                 exc,
             )

@@ -35,11 +35,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from itertools import product
 from typing import Any
 
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.type_terms import body_type_terms
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronCanonicalEntryError
@@ -155,13 +157,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset({"object", "object_"})
 
 
-def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
-    activity_type = snapshot.get("type") or snapshot.get("type_")
-    return (
-        activity_type
-        if isinstance(activity_type, str) and activity_type
-        else None
-    )
+def _snapshot_types(snapshot: dict[str, Any]) -> tuple[str, ...]:
+    """The type names the snapshot's activity carries (ADR-0196)."""
+    return body_type_terms(snapshot)
 
 
 _ACTOR_TYPES: frozenset[str] = frozenset(
@@ -169,29 +167,29 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 ) | {"CoreActor"}
 
 
-def _snapshot_object_type(
+def _snapshot_object_types(
     snapshot: dict[str, Any], case_id: str
-) -> str | None:
+) -> tuple[str, ...]:
     # Invite(Actor)[target=...]: object_ is the actor; use target.type so the
     # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
     # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
     # A target that is the case URI itself names the same thing, so it
-    # resolves the same way.
+    # resolves the same way.  A received ``type`` may be a list, kept as it
+    # arrived (VM-08-002), so each slot yields every name it carries.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
-        return None
-    object_type = obj.get("type") or obj.get("type_")
-    if not isinstance(object_type, str) or not object_type:
-        return None
-    if object_type in _ACTOR_TYPES:
-        target = snapshot.get("target")
-        if isinstance(target, dict):
-            target_type = target.get("type") or target.get("type_")
-            if isinstance(target_type, str) and target_type:
-                return target_type
-        if isinstance(target, str) and target == case_id:
-            return "VulnerabilityCase"
-    return object_type
+        return ()
+    object_types = body_type_terms(obj)
+    if not any(term in _ACTOR_TYPES for term in object_types):
+        return object_types
+    target = snapshot.get("target")
+    if isinstance(target, dict):
+        target_types = body_type_terms(target)
+        if target_types:
+            return target_types
+    if isinstance(target, str) and target == case_id:
+        return ("VulnerabilityCase",)
+    return object_types
 
 
 def _bare_inline_object_path(
@@ -386,9 +384,21 @@ def _validate_canonical_entry(
             f"{semantic_type}: payloadSnapshot.actor must name an actor URI"
         )
 
-    activity_type = _snapshot_type(payload_snapshot)
-    object_type = _snapshot_object_type(payload_snapshot, case_id)
-    signature = (activity_type or "", object_type or "")
+    activity_types = _snapshot_types(payload_snapshot)
+    object_types = _snapshot_object_types(payload_snapshot, case_id)
+    # A list names each of its terms; the parse edge already refused one it
+    # cannot resolve (VM-03-006), so any canonical pair it names is the act.
+    signature = next(
+        (
+            pair
+            for pair in product(activity_types, object_types)
+            if pair in _CANONICAL_PAYLOAD_SIGNATURES
+        ),
+        (
+            activity_types[0] if activity_types else "",
+            object_types[0] if object_types else "",
+        ),
+    )
 
     bare_reference_path = _bare_inline_object_path(payload_snapshot)
     if bare_reference_path is not None:

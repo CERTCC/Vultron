@@ -27,6 +27,14 @@ Every Activity carries these fields:
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
+A Vultron type that refines an AS2 type is sent with that AS2 type too, as the list `["<Vultron type>", "<AS2 type>"]`, so an AS2 receiver that does not know the Vultron type still reads the AS2 type.
+A receiver reads a `type` list, in any order, as the most specific type it knows, and ignores a type name it does not know.
+It refuses a list that names two known types when neither is a subtype of the other, because it cannot tell which one the sender meant.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-03-005", "VM-03-006", "VM-03-007"))
+```
+
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
