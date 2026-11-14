@@ -287,7 +287,7 @@ Four things that look alike and are not:
 
 | Situation | Where it lands |
 |---|---|
-| I read your assertion, understood it, refuse it | refusal notice (`Reject`) to you alone, not recorded (CLP-05-001, CLP-04-007) |
+| I read your assertion, understood it, refuse it | refusal notice (`Refuse`) to you alone, not recorded (CLP-05-001, CLP-04-007) |
 | I read your ask, my answer is no | `Reject` reply, ordinary recorded entry |
 | I could not read what you sent | a fault; the unreadable message is **not** recorded |
 | I read what you sent, but processing it failed | an internal-error fault, once, after the rollback (ASK-07-010, ASK-07-015) |

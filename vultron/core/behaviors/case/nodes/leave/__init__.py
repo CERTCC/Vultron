@@ -38,13 +38,12 @@ by semantic concern (BTND-07-004):
   refuses a Leave from a CASE_MANAGER that is not the Case Owner before the
   receipt commit, since its ``RM.CLOSED`` is the write boundary (CM-23-010).
 
-- :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
-  an owner close blocked by a live embargo (CM-23-011), and the optional reply
-  to a Leave that arrives after the case is fully closed (CM-23-013).
-
-- :mod:`.refuse` — :class:`RefuseOwnerLeaveWhileEmbargoedNode`, the sender-side
-  refusal of the Case Owner's own ``leave-case`` call while its replica records
-  an embargo in force (TRIG-13-003).  It is the only node here that runs on the
+- :mod:`.refuse` — the refusal of the Case Owner's close while an embargo is in
+  force (CM-23-011): :class:`RefuseOwnerCloseWhileEmbargoedNode` at the
+  CASE_MANAGER, whose reason the refusal notice carries (ADR-0196), and
+  :class:`RefuseOwnerLeaveWhileEmbargoedNode`, the sender-side refusal of the
+  Case Owner's own ``leave-case`` call while its replica records an embargo in
+  force (TRIG-13-003).  The second is the only node here that runs on the
   leaving actor, not the CASE_MANAGER.
 
 Re-exported here so existing importers keep working unchanged.
@@ -56,10 +55,6 @@ from vultron.core.behaviors.case.nodes.leave.advance import (
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
 )
-from vultron.core.behaviors.case.nodes.leave.decline import (
-    LATE_LEAVE_DECLINE,
-    EmitRejectCloseCaseNode,
-)
 from vultron.core.behaviors.case.nodes.leave.guard import (
     CaseManagerLeavesOnlyAsCaseOwnerNode,
 )
@@ -67,6 +62,7 @@ from vultron.core.behaviors.case.nodes.leave.record import (
     CommitRMClosureEntriesNode,
 )
 from vultron.core.behaviors.case.nodes.leave.refuse import (
+    RefuseOwnerCloseWhileEmbargoedNode,
     RefuseOwnerLeaveWhileEmbargoedNode,
 )
 from vultron.core.behaviors.case.nodes.leave.settle import (
@@ -78,8 +74,7 @@ __all__ = [
     "AdvanceParticipantToRMClosedNode",
     "CaseManagerLeavesOnlyAsCaseOwnerNode",
     "CommitRMClosureEntriesNode",
-    "EmitRejectCloseCaseNode",
     "ExpirePendingInvitesOnCloseNode",
-    "LATE_LEAVE_DECLINE",
+    "RefuseOwnerCloseWhileEmbargoedNode",
     "RefuseOwnerLeaveWhileEmbargoedNode",
 ]

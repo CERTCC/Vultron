@@ -2186,7 +2186,7 @@ def test_a_case_owner_read_outside_the_sender_guard_states_no_refusal() -> (
     The suggest-actor, Leave, status and embargo trees ask the role to choose
     a branch.  The sender door words its non-match as a refusal citing
     HP-01-006 and logs it at WARNING wherever its FAILURE is the tree's
-    answer, so in the CM-23-011 decline arm or the closed-sender door's
+    answer, so in the CM-23-011 embargo guard or the closed-sender door's
     fallback it would claim a refusal for a sender the guard admitted, or for
     a Leave the handler reports ``SKIPPED``.  The role read states no refusal
     at any placement, so the question is settled by the class, not by where
@@ -2197,7 +2197,7 @@ def test_a_case_owner_read_outside_the_sender_guard_states_no_refusal() -> (
         "factory.py:create_close_case_received_tree",
         "CheckIsCaseOwnerForClose",
     ) in reads, (
-        "no built tree places the CM-23-011 decline arm's role read, so this"
+        "no built tree places the CM-23-011 embargo guard's role read, so this"
         " proved nothing; the corpus or the read has moved"
     )
     doors = {

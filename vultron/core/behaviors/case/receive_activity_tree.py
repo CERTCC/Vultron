@@ -390,7 +390,8 @@ def create_receive_activity_tree(
     that must keep working after close passes ``post_close_exemption``.  A
     tree that answers a late activity passes ``post_close_reply``: emit-only
     nodes run, at the CASE_MANAGER, only when the guard refuses (the
-    close-case tree's ``Reject(Leave)`` under ``PostCloseReply.REJECT``).
+    close-case tree's refusal notice, ``Refuse(Leave)``, under
+    ``PostCloseReply.REJECT``).
     Every other tree drops a late activity with no reply.
 
     With ``refusal_effects`` the guards are wrapped in a
@@ -457,7 +458,7 @@ def create_receive_activity_tree(
     CLP-02-005, CLP-05-001): the factory places it first among the refusal
     effects, so no tree writes its own copy.  A tree whose refusals are
     answered otherwise names a registered ``refusal_notice_exemption`` that
-    says how (the close-case tree's CM-23-011 decline).
+    says how; none is registered (ADR-0196).
     ``refusal_effects`` answer a refusal further — the RSH-06-004
     clarification note for a refused backward RM declaration is the case in
     point, sent alongside the notice.  Refusal effects run only when a

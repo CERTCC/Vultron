@@ -250,14 +250,14 @@ class HasActiveEmbargoNode(DataLayerConditionWithPorts):
 
 
 class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
-    """Guard: an owner's close must be declined because an embargo is live.
+    """Guard: an owner's close must be refused because an embargo is live.
 
     Returns SUCCESS when the case has an active embargo (``active_embargo`` is
     non-None) AND the EM state is ``EM.ACTIVE`` or ``EM.REVISE`` — the
-    CM-23-011 condition under which the Case Actor declines an owner
-    ``Leave(VulnerabilityCase)`` with an ``as:Reject`` instead of running the
-    CM-23-002 closure sequence.  Returns FAILURE otherwise, so the parent
-    Selector falls through to the normal closure effects.
+    CM-23-011 condition under which the CASE_MANAGER refuses an owner
+    ``Leave(VulnerabilityCase)``, answering with the refusal notice, instead
+    of running the CM-23-002 closure sequence.  Returns FAILURE otherwise, so
+    the enclosing guard admits the close.
 
     Reads the EM state from ``result_out["em_before"]`` populated by an
     upstream :class:`~vultron.core.behaviors.embargo.nodes.em_state
@@ -291,7 +291,7 @@ class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
         if active_id is not None and em_before in EM_EMBARGO_ACTIVE:
             self.feedback_message = (
                 f"Case '{self.case_id}' has an active embargo"
-                f" (em_state={em_before}); owner close declined (CM-23-011)"
+                f" (em_state={em_before}); owner close refused (CM-23-011)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS

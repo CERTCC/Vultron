@@ -184,6 +184,8 @@ groups:
       refusal at a door guard gets no `Refuse` — the post-close boundary (CM-23-013),
       the addressee check (HP-01-005), the path stage (HP-01-039) or the closed-sender
       door (CM-23-018) — and neither does a refusal by the sender guard (HP-01-006).
+      The one exception is the optional reply to a late Leave at the post-close
+      boundary (CM-23-040, CM-23-057), which is a `Refuse` too.
     rationale: >-
       The refused participant must learn that it was refused and why, so it can stop
       waiting for its entry. A refusal changes nothing in the case, and a ledgered
@@ -212,6 +214,10 @@ groups:
     - spec_id: HP-01-039
       reason: >-
         a link would close a loop through HP-01-039, HP-01-038, HP-01-035 and CLP-10-010
+    - spec_id: CM-23-040
+      reason: 'context for the reader: the post-close reply that is a Refuse'
+    - spec_id: CM-23-057
+      reason: 'context for the reader: the post-close reply that is a Refuse'
   - id: CLP-02-006
     priority: MUST
     kind: protocol

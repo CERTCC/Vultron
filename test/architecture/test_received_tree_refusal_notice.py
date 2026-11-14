@@ -60,9 +60,6 @@ from vultron.core.behaviors.case.nodes.earlier_run import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
-from vultron.core.behaviors.case.nodes.leave.decline import (
-    EmitRejectCloseCaseNode,
-)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     REFUSAL_NOTICE_EXEMPTIONS,
     EmitRefusalNoticeNode,
@@ -93,22 +90,13 @@ _Site = tuple[str, str]
 # ---------------------------------------------------------------------------
 # 1. Which tree passes which exemption: (constant, module, top-level function).
 # ---------------------------------------------------------------------------
-# permanent: CM-23-011 (the decline arm's Reject(Leave) answers the close arm)
-REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
-    {
-        (
-            "OWNER_CLOSE_DECLINE",
-            f"{_C}/receive_close_case_tree/factory.py",
-            "create_close_case_received_tree",
-        ),
-    }
-)
+# Empty: every guarded commit tree takes the notice.  The close-case tree's
+# CM-23-011 refusal is answered by it too (ADR-0196, #6435).
+REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset()
 
 #: The exemptions whose reason names a node that answers the refusal instead,
 #: and that node: the built tree must hold it.
-STAND_INS: dict[str, type[py_trees.behaviour.Behaviour]] = {
-    "owner-close-decline": EmitRejectCloseCaseNode,
-}
+STAND_INS: dict[str, type[py_trees.behaviour.Behaviour]] = {}
 
 # ---------------------------------------------------------------------------
 # 4. Received trees that commit nothing, and why none refuses an assertion at
@@ -406,23 +394,27 @@ def test_every_guarded_commit_tree_answers_a_refusal_unless_exempt() -> None:
 
 
 @pytest.mark.spec("CLP-02-005")
-@pytest.mark.parametrize("name", sorted(STAND_INS))
-def test_an_exempt_tree_holds_what_answers_it_instead(name: str) -> None:
-    stand_in = STAND_INS[name]
-    exempt = [
-        tree
-        for tree in built_received_trees().values()
-        if any(
-            received.refusal_notice_exemption is not None
-            and received.refusal_notice_exemption.name == name
-            for received in _received_trees(tree)
-        )
-    ]
-    assert exempt, f"no built tree uses the {name} exemption"
-    for tree in exempt:
-        assert any(isinstance(n, stand_in) for n in tree.iterate()), (
-            f"{tree.name} is exempt as {name} but holds no {stand_in.__name__}"
-        )
+def test_an_exempt_tree_holds_what_answers_it_instead() -> None:
+    """Each built tree built with an exemption holds its stand-in.
+
+    Read over the built trees, not over :data:`STAND_INS`, so an exemption
+    a tree uses with no stand-in recorded fails here too.
+    """
+    missing: list[str] = []
+    for tree in built_received_trees().values():
+        for received in _received_trees(tree):
+            exemption = received.refusal_notice_exemption
+            if exemption is None:
+                continue
+            stand_in = STAND_INS.get(exemption.name)
+            if stand_in is None or not any(
+                isinstance(n, stand_in) for n in tree.iterate()
+            ):
+                missing.append(f"{tree.name} [{exemption.name}]")
+    assert missing == [], (
+        f"exempt trees that hold no recorded stand-in: {missing}; record what"
+        " answers the refusal instead in STAND_INS (CLP-02-005)"
+    )
 
 
 @pytest.mark.spec("CLP-02-005")
@@ -477,7 +469,8 @@ def _hand_built(
 @pytest.mark.spec("CLP-02-005")
 def test_the_scan_sees_a_tree_that_breaks_the_rule() -> None:
     """The check sorts a silent, a doubled and an exempt-but-noisy tree."""
-    exemption = next(iter(REFUSAL_NOTICE_EXEMPTIONS.values()))
+    # _classify reads only that an exemption is set, so any one will do.
+    exemption = RefusalNoticeExemption(name="test-exemption", reason="a test")
     unanswered, doubled, exempt_with_notice = _classify(
         {
             "silent": _hand_built("Silent"),

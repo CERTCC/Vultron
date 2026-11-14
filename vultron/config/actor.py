@@ -65,14 +65,15 @@ class PostCloseReply(StrEnum):
     to a late **Leave**:
 
     - ``DROP`` — send nothing (the default).
-    - ``REJECT`` — send ``Reject(Leave(VulnerabilityCase))`` to the sender.
+    - ``REJECT`` — send the refusal notice, ``Refuse(Leave(VulnerabilityCase))``,
+      to the sender (CM-23-057, ADR-0196).
 
     Every other late activity is dropped with no reply under **both** settings.
     A Reject that wraps most other activities already carries a protocol
     meaning for its recipient (``Reject(Invite)`` is a declined invitation,
     ``Reject(Offer(...))`` a declined offer), so a reply to them would be
-    misread.  ``Reject(Leave(VulnerabilityCase))`` already means "close
-    declined" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
+    misread.  ``Refuse(Leave(VulnerabilityCase))`` already means "close
+    refused" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
     """
 
     DROP = "drop"
@@ -179,7 +180,7 @@ class ActorConfig(BaseModel):
         description=(
             "Reply to a Leave(VulnerabilityCase) that arrives after the "
             "case is fully closed: 'drop' (default) sends nothing, 'reject' "
-            "sends Reject(Leave(VulnerabilityCase)). Every other late "
+            "sends Refuse(Leave(VulnerabilityCase)). Every other late "
             "activity is dropped under both settings (CM-23-045)."
         ),
     )

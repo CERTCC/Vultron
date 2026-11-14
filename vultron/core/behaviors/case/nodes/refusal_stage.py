@@ -50,6 +50,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
+from vultron.core.behaviors.case.nodes.earlier_run import (
+    FirstRunOfMessageNode,
+)
 from vultron.core.behaviors.idempotency import repeat_ending_run
 
 logger = logging.getLogger(__name__)
@@ -58,6 +61,7 @@ __all__ = [
     "PreconditionGuardStage",
     "RefusalEffectsBestEffort",
     "enclosing_refusal_reason",
+    "enclosing_refusal_stage",
 ]
 
 
@@ -140,6 +144,22 @@ class PreconditionGuardStage(py_trees.composites.Composite):
     def guards(self) -> py_trees.behaviour.Behaviour:
         """The precondition-guard Sequence."""
         return self.children[0]
+
+    @property
+    def intake_ran(self) -> bool:
+        """Whether the stage sits after intake in its tree.
+
+        Read from the ``first_run`` condition, which is built knowing it.
+        False for the post-close stage, a door ahead of intake (ADR-0154):
+        its refusal effects run before the receiver holds a record of the
+        message, so an effect that embeds the message takes it from the
+        received event.  A stage whose ``first_run`` is not a
+        :class:`FirstRunOfMessageNode` is read as after intake.
+        """
+        first_run = self.first_run
+        if isinstance(first_run, FirstRunOfMessageNode):
+            return first_run.intake_ran
+        return True
 
     @property
     def first_run(self) -> py_trees.behaviour.Behaviour:
@@ -266,6 +286,23 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         self.stop(Status.FAILURE)
 
 
+def enclosing_refusal_stage(
+    node: py_trees.behaviour.Behaviour,
+) -> PreconditionGuardStage | None:
+    """The stage whose refusal effects hold *node*, if any.
+
+    ``None`` when *node* is not inside a :class:`PreconditionGuardStage`'s
+    refusal effects: a node among its guards is not a refusal effect.
+    """
+    child: py_trees.behaviour.Behaviour = node
+    parent = node.parent
+    while parent is not None:
+        if isinstance(parent, PreconditionGuardStage):
+            return parent if child is parent.refusal else None
+        child, parent = parent, parent.parent
+    return None
+
+
 def enclosing_refusal_reason(node: py_trees.behaviour.Behaviour) -> str | None:
     """The refusal reason of the stage whose refusal effects hold *node*.
 
@@ -273,12 +310,7 @@ def enclosing_refusal_reason(node: py_trees.behaviour.Behaviour) -> str | None:
     refusal effects, or the stage holds no reason: a refusal effect placed
     anywhere else is a composition fault its caller reports.
     """
-    child: py_trees.behaviour.Behaviour = node
-    parent = node.parent
-    while parent is not None:
-        if isinstance(parent, PreconditionGuardStage):
-            if child is parent.refusal and parent.refusal_reason:
-                return parent.refusal_reason
-            return None
-        child, parent = parent, parent.parent
-    return None
+    stage = enclosing_refusal_stage(node)
+    if stage is None or not stage.refusal_reason:
+        return None
+    return stage.refusal_reason

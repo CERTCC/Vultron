@@ -154,9 +154,9 @@ What your closure does to the case depends on whether you are the Case Owner.
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
 - If you want your departure recorded, leave **before** the Case Owner does (CM-23-015).
   Once the case is fully closed, the CASE_MANAGER records nothing more for it (CM-23-013).
-  A `Leave(VulnerabilityCase)` you send after that is declined: nothing is recorded and your RM state on the case ledger stays where it was.
+  A `Leave(VulnerabilityCase)` you send after that is refused: nothing is recorded and your RM state on the case ledger stays where it was.
   By default the CASE_MANAGER sends no reply to it.
-  A CASE_MANAGER configured with `post_close_reply: reject` answers it with an `as:Reject` of your `Leave` instead.
+  A CASE_MANAGER configured with `post_close_reply: reject` answers it with a `Refuse` of your `Leave` instead.
 - The CASE_MANAGER drops any other activity that you send for the case after it is fully closed, such as `Add(Note)`.
   Nothing is recorded, and the CASE_MANAGER never replies, whatever its configuration (ADR-0131).
   Do not wait for a reply to an activity sent after the case has closed.
@@ -164,7 +164,7 @@ What your closure does to the case depends on whether you are the Case Owner.
 !!! warning "An owner closure is refused while an embargo is active"
 
     An active embargo is one whose Embargo Management (EM) state is `ACTIVE` or `REVISE`.
-    If you are the Case Owner and the case still holds an active embargo, the CASE_MANAGER declines your `Leave(VulnerabilityCase)` with an `as:Reject`.
+    If you are the Case Owner and the case still holds an active embargo, the CASE_MANAGER refuses your `Leave(VulnerabilityCase)` and answers with a `Refuse` of it.
     It runs no part of the closure sequence (CM-23-011).
     Terminate the embargo first: see [How to Revise or Terminate an Embargo](manage_embargo.md).
 

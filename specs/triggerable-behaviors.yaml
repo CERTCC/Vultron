@@ -1014,9 +1014,9 @@ groups:
       blocked. `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
       the route answers 409.
     rationale: >-
-      The CASE_MANAGER declines the Case Owner's Leave while an embargo is active
+      The CASE_MANAGER refuses the Case Owner's Leave while an embargo is active
       (CM-23-011). Checking first keeps the owner's own systems from acting on a
-      close that would be declined (ADR-0145).
+      close that would be refused (ADR-0145).
     relationships:
     - rel_type: supersedes
       spec_id: TRIG-13-002

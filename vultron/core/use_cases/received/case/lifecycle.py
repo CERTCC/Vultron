@@ -5,7 +5,6 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
-from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.add_report_received_tree import (
@@ -127,8 +126,8 @@ class CloseCaseReceivedUseCase:
 
     A Leave that arrives after the case is fully closed is ``REFUSED`` and
     records nothing (CM-23-013); ``actor_config.post_close_reply`` decides
-    whether the sender gets ``Reject(Leave(VulnerabilityCase))`` or no reply
-    (ADR-0131).
+    whether the sender gets the refusal notice, a ``Refuse`` of its Leave, or
+    no reply (ADR-0131, ADR-0196).
     """
 
     # A participant leaves through the CASE_MANAGER alone; a replica takes
@@ -152,9 +151,10 @@ class CloseCaseReceivedUseCase:
         self._dl = dl
         self._request: CloseCaseReceivedEvent = request
         self._sync_port = sync_port
-        # trigger_activity lets the received-close tree emit an as:Reject when
-        # it must decline an owner close during a live embargo (CM-23-011),
-        # or answer a late Leave under PostCloseReply.REJECT (CM-23-057).
+        # trigger_activity lets the received-close tree send the refusal
+        # notice when it refuses an owner close during a live embargo
+        # (CM-23-011), or a late Leave under PostCloseReply.REJECT
+        # (CM-23-057).
         self._trigger_activity = trigger_activity
         # actor_config carries post_close_reply, the one policy point for the
         # reply to a Leave after the case is fully closed (ADR-0131).
@@ -188,13 +188,12 @@ class CloseCaseReceivedUseCase:
 
         tree = create_close_case_received_tree(
             case_id=case_id,
-            activity_id=request.activity_id,
             sender_actor_id=request.actor_id,
             receiving_actor_id=receiving_actor_id,
             post_close_reply=self._actor_config.post_close_reply,
             sender_rule=self.sender_entitlement,
         )
-        # The whole close-or-decline step is the CASE_MANAGER's: the path
+        # The whole close is the CASE_MANAGER's: the path
         # stage refuses any other receiver (HP-01-005).
         return run_received_tree(
             tree,
@@ -204,21 +203,21 @@ class CloseCaseReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=_read_close(case_id),
+            reader=_read_close(),
         )
 
 
-def _read_close(case_id: str) -> OutcomeReader:
+def _read_close() -> OutcomeReader:
     """The close tree's own reading, asked after the doors.
 
     - A sender already closed repeats a closing act: its effect is in place,
       so it is ``SKIPPED`` whatever its activity id, with nothing committed
       or sent (CM-23-018, ID-05-003).
     - A sender guard refusal is the generic refusal (HP-01-006).
-    - The decline arm ran: the case was left open and the owner was
-      answered with an as:Reject (CM-23-011).  That is a refusal of the
-      close whether or not the Reject itself could be emitted.
-    - Any other failure is refused for the close arm's reason (BT-13-001).
+    - Any other failure is refused for the close's reason (BT-13-001): a
+      guard's refusal, such as the CM-23-011 refusal of the Case Owner's
+      close while its embargo is in force, whether or not the refusal
+      notice that answers it could be sent.
     """
     closed_sender = closed_sender_reader(closes=True)
 
@@ -231,10 +230,6 @@ def _read_close(case_id: str) -> OutcomeReader:
             return closed
         if sender_guard_refused(outcome.tree):
             return None
-        if _close_declined(outcome.tree):
-            reason = f"close of case '{case_id}' declined: embargo active"
-            logger.info("CloseCaseReceivedUseCase: %s (CM-23-011)", reason)
-            return HandlerResult.refused(f"{reason} (CM-23-011)")
         arm = _close_arm(outcome.tree)
         if (
             outcome.succeeded
@@ -250,25 +245,12 @@ def _read_close(case_id: str) -> OutcomeReader:
     return read
 
 
-def _close_declined(tree: py_trees.behaviour.Behaviour) -> bool:
-    """True when the CM-23-011 decline arm decided to decline the close.
-
-    The arm's guards all passing is the decision; the as:Reject emit that
-    follows may still fail (no trigger port), which leaves the case just as
-    unclosed.
-    """
-    arm = find_named(tree, "DeclineOwnerCloseIfEmbargoed")
-    guard = find_named(arm, "IsCloseBlockedByActiveEmbargo") if arm else None
-    return guard is not None and guard.status == Status.SUCCESS
-
-
 def _close_arm(
     tree: py_trees.behaviour.Behaviour,
 ) -> py_trees.behaviour.Behaviour | None:
-    """The close arm, whose failure names why a non-declined close failed.
+    """The close, whose failure names why the close failed (BT-13-001).
 
-    The ``CloseOrDecline`` Selector tries the decline arm last, so on a plain
-    failure the decline arm's "not declining" guard is the last failed child;
-    the cause is in the close arm (BT-13-001).
+    Read below the CASE_MANAGER gate, so the reason is the close's own, not
+    the gate's.
     """
     return find_named(tree, "CloseCaseReceive")

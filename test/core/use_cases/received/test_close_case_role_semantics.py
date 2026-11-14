@@ -704,11 +704,8 @@ class TestNonOwnerLeaveReceivePath:
         self, caplog: pytest.LogCaptureFixture
     ):
         """The CM-23-010 guard refuses the Leave, so every refusal line the run
-        writes cites it.  The decline arm then ticks and reads the sender's
-        CASE_OWNER role to decide whether an embargo blocks the close
-        (CM-23-011); that read admits and refuses no one, so it logs no
-        ``REFUSED`` line of its own, and none cites HP-01-006 for a sender
-        guard that admitted the sender (#5903)."""
+        writes cites it: none cites HP-01-006 for a sender guard that
+        admitted the sender (#5903), at any level."""
         dl = _make_full_dl()
 
         with caplog.at_level(logging.DEBUG):
@@ -727,13 +724,27 @@ class TestNonOwnerLeaveReceivePath:
         assert refusals, "the CM-23-010 refusal logged nothing above DEBUG"
         assert all("CM-23-010" in message for message in refusals), refusals
         # At any level: the demo matcher keys on the group, not on level.
-        decline_read = [
+        assert not [
             record.getMessage()
             for record in caplog.records
-            if record.getMessage().startswith("CheckIsCaseOwnerForClose")
+            if "REFUSED" in record.getMessage()
+            and "CM-23-010" not in record.getMessage()
         ]
-        assert decline_read, "the decline arm's role read logged nothing"
-        assert not [m for m in decline_read if "REFUSED" in m], decline_read
+
+    @pytest.mark.spec("CM-23-010", "CLP-05-001")
+    def test_a_case_manager_refusing_its_own_leave_sends_itself_no_notice(
+        self,
+    ):
+        """The CM-23-010 refusal is of the CASE_MANAGER's own Leave, so the
+        refusal notice, which would go to itself, is not sent."""
+        dl = _make_full_dl()
+
+        result = _close(
+            dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave-notice"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.outbox_list() == []
 
 
 def _close(
@@ -832,7 +843,7 @@ class TestPostCloseBoundary:
         Regression for CONCERN-3400: every demo closed the owner first, so a
         bystander's ``close_case`` landed after the closure, an external
         append past the ADR-0085 write boundary.  The CASE_MANAGER
-        MAY decline with one ``as:Reject`` or MAY drop the Leave with no
+        MAY refuse it with one ``Refuse`` or MAY drop the Leave with no
         reply (CM-23-013); either is accepted, but nothing is recorded.
         """
         dl = _make_full_dl()
@@ -859,19 +870,19 @@ class TestPostCloseBoundary:
         queued = [i for i in dl.outbox_list() if i not in outbox_before]
         assert len(queued) <= 1, (
             "a post-close bystander Leave gets at most one reply, the"
-            f" optional as:Reject (CM-23-013); queued={queued}"
+            f" optional Refuse (CM-23-013); queued={queued}"
         )
         if not queued:
             return
-        reject = dl.read(queued[0])
-        assert getattr(reject, "type_", None) == "Reject", (
-            "a reply to a post-close Leave must be an as:Reject (MSM-05-001);"
-            f" got type_={getattr(reject, 'type_', None)}"
+        refuse = dl.read(queued[0])
+        assert getattr(refuse, "type_", None) == "Refuse", (
+            "a reply to a post-close Leave must be a Refuse (CM-23-040,"
+            f" ADR-0196); got type_={getattr(refuse, 'type_', None)}"
         )
-        assert VENDOR_ID in (getattr(reject, "to", None) or [])
-        inner = getattr(reject, "object_", None)
+        assert VENDOR_ID in (getattr(refuse, "to", None) or [])
+        inner = getattr(refuse, "object_", None)
         assert getattr(inner, "type_", None) == "Leave", (
-            "the as:Reject must decline the Leave activity itself"
+            "the Refuse must refuse the Leave activity itself"
         )
 
     @pytest.mark.spec("CM-23-014")
@@ -1253,7 +1264,8 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-056")
     @pytest.mark.spec("CM-23-057")
     def test_late_leave_follows_the_reply_policy(self, policy, replies):
-        """A late Leave is REFUSED and records nothing; only REJECT replies."""
+        """A late Leave is REFUSED and records nothing; only REJECT replies,
+        with the refusal notice, a ``Refuse`` of the Leave (ADR-0196)."""
         dl = _closed_dl()
         entries_at_close = len(_case_ledger(dl))
         rm_before = _participant_rm_states(dl, VENDOR_ID)
@@ -1270,11 +1282,15 @@ class TestPostCloseWriteBoundary:
         queued = [i for i in dl.outbox_list() if i not in outbox_before]
         assert len(queued) == replies, queued
         if replies:
-            reject = dl.read(queued[0])
-            assert getattr(reject, "type_", None) == "Reject"
-            assert VENDOR_ID in (getattr(reject, "to", None) or [])
-            inner = getattr(reject, "object_", None)
+            refuse = dl.read(queued[0])
+            assert getattr(refuse, "type_", None) == "Refuse"
+            assert getattr(refuse, "to", None) == [VENDOR_ID]
+            assert getattr(refuse, "in_reply_to", None) == (
+                "https://example.org/activities/leave-late"
+            )
+            inner = getattr(refuse, "object_", None)
             assert getattr(inner, "type_", None) == "Leave"
+            assert "CM-23-013" in (getattr(refuse, "summary", "") or "")
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-017")
@@ -2501,7 +2517,7 @@ class TestClosureRMBoundary:
 
 
 # ---------------------------------------------------------------------------
-# CM-23-011: owner close is declined via as:Reject while an embargo is live
+# CM-23-011: owner close is refused, with a Refuse, while an embargo is live
 # ---------------------------------------------------------------------------
 
 
@@ -2553,7 +2569,7 @@ def _case_is_fully_closed(dl: SqliteDataLayer) -> bool:
 
 
 class TestOwnerLeaveDuringActiveEmbargo:
-    """CM-23-011: owner Leave while an embargo is live is declined, not closed."""
+    """CM-23-011: owner Leave while an embargo is live is refused, not closed."""
 
     @pytest.mark.parametrize("em_state", [EM.ACTIVE, EM.REVISE])
     @pytest.mark.spec("CM-23-034")
@@ -2573,7 +2589,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             )
         )
 
-        # HP-01-003: answering with a Reject is a refusal, not "processed".
+        # HP-01-003: a refused close is a refusal, not "processed".
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "embargo" in result.reason
 
@@ -2590,20 +2606,23 @@ class TestOwnerLeaveDuringActiveEmbargo:
         )
 
     @pytest.mark.spec("CM-23-011")
+    @pytest.mark.spec("CLP-02-005")
     @pytest.mark.spec("CLP-05-001")
-    def test_owner_leave_during_embargo_emits_reject_to_owner(self):
-        """The decline is surfaced as an as:Reject of the Leave, addressed back
-        to the owner (AC-2, MSM-05-001).
+    def test_owner_leave_during_embargo_sends_refuse_to_owner(self):
+        """The refusal is answered with the refusal notice, a ``Refuse`` of
+        the Leave, addressed back to the owner (CM-23-011, ADR-0196).
 
-        The decline is the refusal's answer: the close arm adds no refusal
-        notice, so exactly one Reject is queued (CLP-05-001, #4756)."""
+        It is the factory's standard notice, so exactly one is queued: the
+        Leave inline, threaded by ``inReplyTo``, the guard's reason in
+        ``summary`` (CLP-05-001)."""
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
+        request = _make_close_case_event(sender_actor_id=OWNER_ID)
 
         run_in_act(
             CloseCaseReceivedUseCase(
                 dl=dl,
-                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                request=request,
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
@@ -2612,26 +2631,33 @@ class TestOwnerLeaveDuringActiveEmbargo:
 
         outbox = dl.outbox_list()
         assert len(outbox) == 1, (
-            f"Exactly one activity (the as:Reject) must be queued; outbox={outbox}"
+            f"Exactly one activity (the Refuse) must be queued; outbox={outbox}"
         )
-        reject = dl.read(outbox[0])
-        assert reject is not None, "as:Reject must be readable from the outbox"
-        assert getattr(reject, "type_", None) == "Reject", (
-            f"Declined close must be an as:Reject (MSM-05-001);"
-            f" got type_={getattr(reject, 'type_', None)}"
+        refuse = dl.read(outbox[0])
+        assert refuse is not None, (
+            "the Refuse must be readable from the outbox"
         )
-        assert OWNER_ID in (getattr(reject, "to", None) or []), (
-            f"as:Reject must be addressed to the owner; to={getattr(reject, 'to', None)}"
+        assert getattr(refuse, "type_", None) == "Refuse", (
+            f"A refused close must be a Refuse (CM-23-011, ADR-0196);"
+            f" got type_={getattr(refuse, 'type_', None)}"
         )
-        inner = getattr(reject, "object_", None)
+        assert getattr(refuse, "to", None) == [OWNER_ID], (
+            f"the Refuse must be addressed to the owner alone;"
+            f" to={getattr(refuse, 'to', None)}"
+        )
+        assert getattr(refuse, "in_reply_to", None) == request.activity_id
+        inner = getattr(refuse, "object_", None)
         assert getattr(inner, "type_", None) == "Leave", (
-            "as:Reject must decline the Leave activity itself"
+            "the Refuse must refuse the Leave activity itself"
         )
+        assert getattr(inner, "id_", None) == request.activity_id
+        assert "embargo is active" in (getattr(refuse, "summary", "") or "")
+        assert "CM-23-011" in (getattr(refuse, "summary", "") or "")
 
     @pytest.mark.spec("CM-23-035")
     @pytest.mark.spec("CM-23-037")
-    def test_declined_owner_leave_commits_nothing_and_keeps_the_embargo(self):
-        """The decline commits no close_case entry and ends no embargo."""
+    def test_refused_owner_leave_commits_nothing_and_keeps_the_embargo(self):
+        """The refusal commits no close_case entry and ends no embargo."""
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
@@ -2648,12 +2674,12 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "embargo" in result.reason
         assert _case_ledger(dl) == [], (
-            "A declined owner-close commits no close_case entry (CM-23-035)"
+            "A refused owner-close commits no close_case entry (CM-23-035)"
         )
         case = dl.read_case(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         assert case.em_state == EM.ACTIVE, (
-            "Declining the close leaves the embargo active (CM-23-037)"
+            "Refusing the close leaves the embargo active (CM-23-037)"
         )
 
     @pytest.mark.spec("CM-23-036")
@@ -2663,7 +2689,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        # First close: declined while embargoed.
+        # First close: refused while embargoed.
         run_in_act(
             CloseCaseReceivedUseCase(
                 dl=dl,
@@ -2701,18 +2727,19 @@ class TestOwnerLeaveDuringActiveEmbargo:
         )
 
     @pytest.mark.spec("CM-23-034")
-    def test_owner_close_not_closed_when_reject_emit_cannot_run(self):
-        """If the as:Reject emit cannot run (no trigger_activity port), the
-        embargoed owner close must still NOT close the case.
+    def test_owner_close_not_closed_when_refuse_emit_cannot_run(self):
+        """If the refusal notice cannot be sent (no trigger_activity port),
+        the embargoed owner close must still NOT close the case.
 
-        Guards the structural invariant: the decline decision gates the close
-        arm, so an emit failure can never fall through into closing an
-        embargoed case (CM-23-011).
+        Guards the structural invariant: the notice is a refusal effect, run
+        only after the guard has refused, and its failure never changes the
+        verdict, so it can never fall through into closing an embargoed case
+        (CM-23-011, CLP-10-022).
         """
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        # No trigger_activity port → EmitRejectCloseCaseNode fails.
+        # No trigger_activity port → the refusal notice cannot be sent.
         result = run_in_act(
             CloseCaseReceivedUseCase(
                 dl=dl,
@@ -2726,38 +2753,36 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert result.reason is not None and "embargo" in result.reason
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID), (
-            "Owner must NOT reach RM.CLOSED when the decline emit could not run"
+            "Owner must NOT reach RM.CLOSED when the notice could not be sent"
             f" (CM-23-011); rm_states={_participant_rm_states(dl, OWNER_ID)}"
         )
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID), (
-            "CaseActor must NOT reach RM.CLOSED when the decline emit fails"
+            "CaseActor must NOT reach RM.CLOSED when the notice fails"
         )
         assert not _case_is_fully_closed(dl), (
-            "The case must not close when the decline emit fails"
+            "The case must not close when the notice fails"
         )
 
 
-class TestDeclineArmIsCaseManagerGated:
-    """CM-23-011 decline emits only at the CASE_MANAGER (BT-17-001, #3825).
+class TestOwnerCloseRefusalIsCaseManagerGated:
+    """The CM-23-011 refusal is sent only at the CASE_MANAGER (BT-17-001, #3825).
 
-    The decline arm's ``EmitRejectCloseCaseNode`` used to run at every replica
-    that received a copy of the owner's Leave.  A participant cc'd on that
-    Leave while an embargo was live therefore emitted a ``Reject(Leave)`` to
-    the owner as itself — the same ungated-emit defect as #3752 / #3751.  The
-    emit is now gated on the receiver holding ``CVDRole.CASE_MANAGER``.
+    A participant cc'd on the owner's Leave while an embargo is live must not
+    answer it as itself — the ungated-emit defect of #3752 / #3751 and #3825.
+    The path stage refuses the copy at a replica, before anything is sent.
     """
 
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("CM-23-011")
     @pytest.mark.spec("HP-01-005")
-    def test_non_manager_replica_emits_no_reject_during_embargo(self):
-        """A non-manager replica declines nothing: no as:Reject is queued.
+    def test_non_manager_replica_emits_no_refuse_during_embargo(self):
+        """A non-manager replica answers nothing: no Refuse is queued.
 
         Runs the receive tree in the VENDOR's own store (``store_owner_id``)
         and as the VENDOR actor (``receiving_actor_id``), so the executing
         actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
         Owner's Leave arrives while an embargo is live.  Before #3825 this
-        emitted a ``Reject(Leave)``; it must now emit nothing.  The replica's
+        emitted a ``Reject(Leave)``; it must send nothing.  The replica's
         sender guard admits only the CASE_MANAGER, so it refuses this copy
         before the gate; the gate itself is pinned by
         ``test_non_manager_replica_refuses_a_leave_from_the_case_manager``.
@@ -2779,7 +2804,7 @@ class TestDeclineArmIsCaseManagerGated:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == [], (
-            "a non-CASE_MANAGER replica must emit no as:Reject when it"
+            "a non-CASE_MANAGER replica must send nothing when it"
             " receives a copy of the owner's Leave during a live embargo"
             f" (BT-17-001, CM-23-011, #3825); outbox={dl.outbox_list()}"
         )
@@ -2789,7 +2814,7 @@ class TestDeclineArmIsCaseManagerGated:
     def test_non_manager_replica_closes_nothing_during_embargo(self):
         """The replica also writes no closure state and no closure entry.
 
-        The whole close/decline decision is CASE_MANAGER business; a replica
+        The whole close is CASE_MANAGER business; a replica
         archives the Leave and takes any resulting closure from the ledger
         fan-out (RSH-08-003, CLP-10-001).
         """
@@ -2817,7 +2842,7 @@ class TestDeclineArmIsCaseManagerGated:
 
         The Case Owner's Leave above never reaches the gate: the replica's
         sender guard admits only the CASE_MANAGER.  A Leave from the
-        CASE_MANAGER passes that guard, and the gated close-or-decline step
+        CASE_MANAGER passes that guard, and the gated close step
         then does nothing at a replica, so the replica reports the
         misaddressed Leave as a refusal, never as applied (HP-01-005).
         """
