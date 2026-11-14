@@ -17,7 +17,7 @@
 
 When a precondition guard at the CASE_MANAGER refuses an assertion, nothing is
 committed (CLP-04-007), so the participant would never learn its assertion
-had no effect.  :class:`EmitRefusalNoticeNode` tells it: one ``Reject`` of the
+had no effect.  :class:`EmitRefusalNoticeNode` tells it: one ``Refuse`` of the
 refused activity, inline, threaded by ``inReplyTo``, addressed to the asserter
 alone and carrying the refusing guard's reason in ``summary`` (CLP-02-005,
 CLP-05-001).  :class:`ClearRefusedAssertionNode` is the participant's side:

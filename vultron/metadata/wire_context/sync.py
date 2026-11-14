@@ -34,7 +34,9 @@ a model nested in one, declares a Vultron property, each typed by its declared
 value kind (:func:`vultron_property_terms`, VM-10-007, VM-10-010). A type term
 is keyed by the emitted ``type`` *value*, not the class name: a class that
 shares another's ``type`` value needs no separate term, because the value's
-term already resolves it.
+term already resolves it. A type that declares an AS2 core supertype
+(``_as2_core_supertype``) also gets an ``rdfs:subClassOf`` statement in the
+document's ``@graph`` (:func:`vultron_subtype_statements`, ADR-0196).
 
 The same declarations write the "Declared properties" table of
 ``docs/ns/index.md`` (:func:`render_property_table`), so the namespace page
@@ -79,10 +81,16 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import (
     WIRE_TYPE_MAP,
     declared_wire_type,
+    wire_type_value,
 )
 
 #: Repository-relative path of the generated artifact.
 CONTEXT_JSONLD_PATH = "docs/ns/context.jsonld"
+
+#: The ``rdfs:subClassOf`` predicate, as a full IRI: neither the AS2 context
+#: nor Vultron's defines an ``rdfs`` prefix, and adding one would add a term
+#: every message resolves.
+RDFS_SUBCLASS_OF = "http://www.w3.org/2000/01/rdf-schema#subClassOf"
 
 #: Command that regenerates the artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run wire-context --write"
@@ -372,12 +380,37 @@ def _wire_object_classes() -> list[type[BaseModel]]:
     return classes
 
 
+def vultron_subtype_statements() -> dict[str, str]:
+    """Map each Vultron type that refines an AS2 type to that AS2 type.
+
+    The source is the class's one supertype declaration,
+    ``_as2_core_supertype`` (``as_Refuse`` declares ``as_Reject``, so
+    ``Refuse`` maps to ``Reject``), which also makes the serializer write the
+    ``type`` list (ADR-0196).  A subclass that inherits the declaration and
+    its supertype's ``type`` adds nothing.  Keyed and sorted by the Vultron
+    type's wire value.
+    """
+    statements: dict[str, str] = {}
+    # Only a Vultron class may declare one (``_check_as2_core_supertype``).
+    for cls in _all_object_subclasses():
+        supertype = getattr(cls, "_as2_core_supertype", None)
+        value = _concrete_type_value(cls)
+        if supertype is None or value is None:
+            continue
+        statements[value] = wire_type_value(supertype)
+    return dict(sorted(statements.items()))
+
+
 def build_context_document() -> dict[str, object]:
     """Return the full ``context.jsonld`` document as a dict.
 
     The AS2 namespace import stays first in the ``@context`` array so AS2 terms
     resolve against ActivityStreams and only Vultron-specific terms are drawn
-    from the ``vultron:`` namespace (VM-10-002, ADR-0069).
+    from the ``vultron:`` namespace (VM-10-002, ADR-0069).  The ``@graph``
+    beside it says which Vultron type refines which AS2 type
+    (``vultron:Refuse rdfs:subClassOf as:Reject``).  A processor that loads
+    the document as a remote context reads only its ``@context``, so the
+    ``@graph`` changes no term a message resolves.
     """
     type_terms = vultron_context_terms()
     property_terms = vultron_property_terms()
@@ -393,7 +426,11 @@ def build_context_document() -> dict[str, object]:
     }
     term_block.update(type_terms)
     term_block.update(property_terms)
-    return {"@context": [ACTIVITY_STREAMS_NS, term_block]}
+    graph = [
+        {"@id": f"vultron:{term}", RDFS_SUBCLASS_OF: {"@id": f"as:{parent}"}}
+        for term, parent in vultron_subtype_statements().items()
+    ]
+    return {"@context": [ACTIVITY_STREAMS_NS, term_block], "@graph": graph}
 
 
 def render_context_json() -> str:

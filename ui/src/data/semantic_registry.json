@@ -318,7 +318,7 @@
     },
     {
       "semanticType": "refusal_notice",
-      "wire": "Reject(Activity)",
+      "wire": "Refuse(Activity)",
       "phrase": "{actor} refused an assertion"
     },
     {

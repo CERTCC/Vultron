@@ -13,7 +13,7 @@
 
 """Received use case for the CASE_MANAGER's refusal notice (CLP-05-001, ADR-0141).
 
-The notice is a ``Reject`` of an activity this actor sent; the participant
+The notice is a ``Refuse`` of an activity this actor sent; the participant
 closes the pending assertion it recorded for it (CLP-06-006).
 """
 
@@ -74,8 +74,8 @@ def _nothing_to_close_reading(refused_activity_id: str) -> OutcomeReader:
 class RefusalNoticeReceivedUseCase:
     """Read the CASE_MANAGER's refusal notice for an activity this actor sent.
 
-    The notice is a ``Reject`` of the refused activity, inline (CLP-05-001,
-    ADR-0141).  Only the case's CASE_MANAGER sends one, so any other sender,
+    The notice is a ``Refuse`` of the refused activity, inline (CLP-05-001,
+    ADR-0141, ADR-0196).  Only the case's CASE_MANAGER sends one, so any other sender,
     and any notice reaching the CASE_MANAGER itself, is refused (HP-01-006).
     From the CASE_MANAGER, the participant closes the pending assertion it
     recorded for the refused activity (CLP-06-006) and logs the refusal at

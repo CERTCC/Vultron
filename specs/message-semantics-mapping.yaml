@@ -820,21 +820,30 @@ groups:
   - id: MSM-05-001
     priority: MUST
     kind: protocol
-    statement: 'Fault reporting MUST be partitioned by failure mode rather than by state machine, using exactly three
-      mechanisms: `Create(ProcessingFault)` when a message was received but not understood; `as:Reject` when a message was
-      received and understood but declined; and `Add(Note)[target=VulnerabilityCase]`
-      when the condition requires narrative explanation.'
+    statement: >-
+      Fault reporting MUST be partitioned by failure mode rather than by state machine,
+      using exactly three mechanisms: `Create(ProcessingFault)` when a message was
+      received but not understood; `as:Reject` when a message was received and
+      understood but declined; and `Add(Note)[target=VulnerabilityCase]` when the
+      condition requires narrative explanation. A declined message gets a `Reject`
+      when its addressee decides against it, and a `Refuse`, the `vultron:Refuse`
+      subtype of `as:Reject`, when the CASE_MANAGER refuses it because a precondition
+      did not hold.
     rationale: >-
       Failure mode is actionable to a receiver in a way that originating state machine
       is not. Not-understood calls for a format or version fix, declined calls for a
       protocol-level decision, and needs-explanation calls for a human. A partition by
       state machine (RE, EE, CE and GE) carries no such signal, so it would tell the
-      sender only where the fault arose, not what to do about it.
+      sender only where the fault arose, not what to do about it. A `Refuse` is a
+      `Reject`, so it adds no fourth mechanism.
     verification: >-
-      Inspection of the semantic registry confirms `create_processing_fault`,
-      the `as:Reject`-based entries, and the note-scoped entries are all registered.
+      `test_faults_are_partitioned_by_failure_mode_not_state_machine` in
+      `test/test_message_semantics_mapping.py` confirms `create_processing_fault`, a
+      `Reject`-based decline entry, the `Refuse`-based refusal-notice entry and the
+      note-scoped entries are registered, and that no fourth fault semantic exists.
     adr:
     - ADR-0083
+    - ADR-0196
     stories:
     - story_2026_011
   - id: MSM-05-002

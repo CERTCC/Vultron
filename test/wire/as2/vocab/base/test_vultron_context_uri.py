@@ -54,7 +54,11 @@ for _mi in list(pkgutil.iter_modules(_act_pkg.__path__)):
 # Complete set of standard ActivityStreams 2.0 type_ values.
 _DEFAULT_CONTEXT = list(DEFAULT_JSONLD_CONTEXT)
 
-_AS2_VOCAB_TERMS = frozenset({m.value for m in as_AllObjectTypes}) | {
+#: ``Refuse`` sits in the activity-type enum but is a Vultron extension term
+#: (ADR-0196), so it is held to the annotation check below like any other.
+_AS2_VOCAB_TERMS = frozenset(
+    {m.value for m in as_AllObjectTypes} - {"Refuse"}
+) | {
     "Object",
     "Collection",
     "OrderedCollection",

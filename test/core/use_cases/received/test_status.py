@@ -2035,13 +2035,13 @@ class TestParticipantStatusSubjectIsTheSender:
         ]
 
     @staticmethod
-    def _rejects_sent(dl: SqliteDataLayer) -> list[object]:
-        """The refusal notices (``Reject``) queued in the outbox."""
+    def _notices_sent(dl: SqliteDataLayer) -> list[object]:
+        """The refusal notices (``Refuse``) queued in the outbox."""
         return [
             queued
             for queued in (dl.read(i) for i in dl.outbox_list())
             if getattr(queued, "type_", None)
-            == as_TransitiveActivityType.REJECT
+            == as_TransitiveActivityType.REFUSE
         ]
 
     @staticmethod
@@ -2086,7 +2086,7 @@ class TestParticipantStatusSubjectIsTheSender:
         # A sender refusal: the reporter holds none of the rule's standings,
         # and an unentitled sender is sent no notice (HP-01-006, CLP-05-006).
         assert "HP-01-006" in (result.reason or ""), result.reason
-        assert self._rejects_sent(dl) == []
+        assert self._notices_sent(dl) == []
 
     @pytest.mark.spec("RSH-08-007")
     def test_a_participant_writing_an_rm_status_onto_another_record_is_refused(
@@ -2104,7 +2104,7 @@ class TestParticipantStatusSubjectIsTheSender:
             dl, result, ids[_SUBJ_DEPLOYER], status.id_, before
         )
         assert "HP-01-006" in (result.reason or ""), result.reason
-        assert self._rejects_sent(dl) == []
+        assert self._notices_sent(dl) == []
 
     @pytest.mark.spec("RSH-08-007")
     def test_a_participant_asserting_its_own_status_is_admitted(self):
@@ -2194,7 +2194,7 @@ class TestParticipantStatusSubjectIsTheSender:
         )
         assert "PRM-06" in (result.reason or ""), result.reason
         # An entitled sender that asserts too much is answered (CLP-05-001).
-        assert len(self._rejects_sent(dl)) == 1
+        assert len(self._notices_sent(dl)) == 1
 
     @pytest.mark.spec("RSH-08-007")
     def test_on_behalf_that_also_moves_rm_is_refused(self):
@@ -2216,7 +2216,7 @@ class TestParticipantStatusSubjectIsTheSender:
             dl, result, ids[_SUBJ_VENDOR], status.id_, before
         )
         assert "RM: asserts" in (result.reason or ""), result.reason
-        assert len(self._rejects_sent(dl)) == 1
+        assert len(self._notices_sent(dl)) == 1
 
     @pytest.mark.spec("RSH-08-007")
     def test_on_behalf_that_carries_a_case_status_is_refused(self):

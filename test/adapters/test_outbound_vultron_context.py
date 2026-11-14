@@ -38,6 +38,7 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.type_terms import type_terms
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2 import signing
 from vultron.wire.as2.parser import parse_activity
@@ -107,7 +108,9 @@ def test_the_default_context_constant_is_as2_then_vultron():
 
 def test_examples_cover_every_registry_verb():
     """Every verb a registry pattern matches has an example to render."""
-    rendered = {str(body["type"]) for body in _BODIES.values()}
+    rendered = {
+        t for body in _BODIES.values() for t in type_terms(body["type"])
+    }
     assert set(_REGISTRY_VERBS) <= rendered
 
 

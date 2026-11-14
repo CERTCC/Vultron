@@ -248,7 +248,7 @@ def _notices_to(dl: SqliteDataLayer, before: list[str], to: str) -> list[Any]:
         item
         for item in _queued(dl)
         if item.id_ not in before
-        and _type_of(item) == "Reject"
+        and _type_of(item) == "Refuse"
         and getattr(item, "to", None) == [to]
     ]
 
@@ -340,7 +340,9 @@ def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
     assert forward.to == [_TARGET_ID]
     assert _as_id(forward.in_reply_to) == _OFFER_ID
     assert not [
-        item for item in _queued(dl) if _type_of(item) in ("Accept", "Reject")
+        item
+        for item in _queued(dl)
+        if _type_of(item) in ("Accept", "Reject", "Refuse")
     ]
 
 

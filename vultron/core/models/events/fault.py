@@ -59,13 +59,13 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
 
 
 class RefusalNoticeReceivedEvent(LedgerPositionedEvent):
-    """A participant received a ``Reject`` of an activity it sent.
+    """A participant received a ``Refuse`` of an activity it sent.
 
-    The CASE_MANAGER's refusal notice (CLP-05-001, ADR-0141): the refused
-    activity is inline in ``object_``, ``inReplyTo`` names it and
-    ``summary`` carries the refusing guard's reason.  Every ``Reject`` of an
-    inline activity other than an ``Invite`` or an ``Offer`` arrives as this
-    event, including the CASE_MANAGER's decline of a ``Leave`` (CM-23-011).
+    The CASE_MANAGER's refusal notice (CLP-05-001, ADR-0141, ADR-0196): the
+    refused activity is inline in ``object_``, ``inReplyTo`` names it and
+    ``summary`` carries the refusing guard's reason.  Every ``Refuse`` of an
+    inline activity arrives as this event, an ``Invite`` or an ``Offer``
+    included; no ``Reject`` does.
     """
 
     semantic_type: Literal[MessageSemantics.REFUSAL_NOTICE] = (

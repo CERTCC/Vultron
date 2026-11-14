@@ -46,6 +46,7 @@ from vultron.metadata.wire_context import sync
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
     NS_INDEX_PATH,
+    RDFS_SUBCLASS_OF,
     WRITE_COMMAND,
     _all_object_subclasses,
     _concrete_type_value,
@@ -58,6 +59,7 @@ from vultron.metadata.wire_context.sync import (
     render_property_table,
     vultron_context_terms,
     vultron_property_terms,
+    vultron_subtype_statements,
     wire_field_classes,
     write_context,
 )
@@ -269,6 +271,44 @@ def test_generator_terms_match_committed_terms() -> None:
     assert committed == vultron_context_terms() | vultron_property_terms()
 
 
+def test_refuse_is_declared_a_subclass_of_reject() -> None:
+    """The committed ``@graph`` says ``vultron:Refuse rdfs:subClassOf as:Reject``.
+
+    ADR-0196's validation: the one supertype declaration on ``as_Refuse``
+    feeds the context document, beside the ``@context`` it leaves unchanged.
+    """
+    document = _committed_context()
+
+    assert {
+        "@id": "vultron:Refuse",
+        RDFS_SUBCLASS_OF: {"@id": "as:Reject"},
+    } in document["@graph"]
+    assert _term_block(document)["Refuse"] == "vultron:Refuse"
+
+
+def test_every_declared_supertype_has_one_subclass_statement() -> None:
+    """Each class's ``_as2_core_supertype`` is one ``@graph`` statement.
+
+    Enumerated straight from the class declarations, independently of the
+    generator, so a subclass that inherits ``as_Refuse``'s declaration and
+    type (the refusal notice's shape) adds no second statement.
+    """
+    declared = {
+        value: _concrete_type_value(supertype)
+        for cls in _all_object_subclasses()
+        if (supertype := getattr(cls, "_as2_core_supertype", None))
+        and (value := _concrete_type_value(cls)) is not None
+    }
+    graph = build_context_document()["@graph"]
+    assert isinstance(graph, list)
+
+    assert declared == vultron_subtype_statements()
+    assert len(graph) == len(declared)
+    assert {
+        entry["@id"]: entry[RDFS_SUBCLASS_OF]["@id"] for entry in graph
+    } == {f"vultron:{k}": f"as:{v}" for k, v in declared.items()}
+
+
 @pytest.mark.spec("EMB-13-005")
 def test_termination_cause_is_a_declared_vultron_property() -> None:
     """The termination ``Remove``'s ``terminationCause`` resolves (#4857).
@@ -336,6 +376,28 @@ def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
         f"only in the context: {sorted(terms - set(rows))}. "
         f"Regenerate with '{WRITE_COMMAND}' and update the tables to match."
     )
+
+
+def test_namespace_index_page_names_each_types_supertype() -> None:
+    """The "Subtype of" column names exactly the generated supertypes.
+
+    A type row names ``as:<T>`` when the context declares it a subclass of
+    ``as:<T>``, and ``—`` otherwise, so the page cannot advertise a subtype
+    the document does not state, or hide one it does.
+    """
+    rows = re.findall(
+        r"^\|\s*`(\w+)`\s*\|\s*([^|]+?)\s*\|",
+        _ns_page_section("Declared types"),
+        flags=re.MULTILINE,
+    )
+    assert rows, "found no 'Declared types' rows in docs/ns/index.md"
+
+    stated = {term: cell for term, cell in rows if cell != "—"}
+
+    assert stated == {
+        term: f"`as:{parent}`"
+        for term, parent in vultron_subtype_statements().items()
+    }
 
 
 def test_namespace_index_page_lists_exactly_the_reference_rel_values() -> None:
