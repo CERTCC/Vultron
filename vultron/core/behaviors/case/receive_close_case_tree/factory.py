@@ -118,10 +118,10 @@ def create_close_case_received_tree(
                         ├── OwnerLeaveArm (Selector)        # Owner path (CM-23-002)
                         │   ├── Inverter(SenderIsCaseOwnerNode)  # skip: not CASE_OWNER
                         │   └── OwnerLeaveSeq (Sequence)
-                        │       ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
+                        │       ├── ExpirePendingInvitesOnCloseNode   # pending Invites (CM-23-014)
                         │       ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
                         │       ├── CommitRMClosureEntriesNode   # step 1, ledgered (CM-23-022)
-                        │       ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
+                        │       ├── AdvanceCaseActorToRMClosedNode  # step 2: CaseActor
                         │       └── CommitRMClosureEntriesNode   # step 2: the boundary
                         └── NonOwnerLeaveArm (Selector)     # Non-owner (CM-23-003)
                             ├── SenderIsCaseOwnerNode            # skip: sender is CASE_OWNER
