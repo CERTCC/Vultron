@@ -20,7 +20,7 @@ the case's CASE_MANAGER, which decides what the Leave means (CM-23-002,
 CM-23-003).  Before it sends, the leaving actor runs its own pre-close
 integration step, the ``PreCloseAction`` Actuator call-out (TRIG-13-002).  A
 Case Owner whose replica records an embargo in force is refused first, before
-that step runs, because the CASE_MANAGER would decline its Leave (CM-23-011,
+that step runs, because the CASE_MANAGER would refuse its Leave (CM-23-011,
 TRIG-13-003).
 """
 

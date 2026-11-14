@@ -36,7 +36,10 @@ refusals instead: :data:`REFUSAL_NOTICE_EXEMPTIONS` is the whole list, and
 uses each one.
 The factory runs the notice only when a precondition guard refuses, only at
 the case's CASE_MANAGER, never for a sender-guard refusal, a repeat reported
-``SKIPPED`` or a redelivery (CLP-10-042, CLP-10-044).  It writes no state: the notice's
+``SKIPPED`` or a redelivery (CLP-10-042, CLP-10-044).  The close-case tree
+also passes :func:`refusal_notice` as its optional ``post_close_reply``,
+which the post-close stage runs ahead of intake (CM-23-057); the notice then
+embeds the received event's own body.  It writes no state: the notice's
 id is derived from the CASE_MANAGER and the refused activity, so a retry
 queues it once (ID-04-004, OX-06-002).
 
@@ -210,6 +213,24 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
     def initialise(self) -> None:
         super().initialise()
         self._event = self._try_get_input("activity")
+
+    def update(self) -> Status:
+        """Queue the notice, unless the asserter is this CASE_MANAGER itself.
+
+        A CASE_MANAGER that refuses its own activity (a Leave it may not
+        send, CM-23-010) already knows the reason: a notice to itself would
+        only be refused on arrival, so none is sent.
+        """
+        event = self._event
+        if isinstance(event, VultronEvent) and event.actor_id == self.actor_id:
+            self.logger.debug(
+                "CASE_MANAGER '%s' refused its own activity '%s'; no refusal"
+                " notice to itself (CLP-05-001)",
+                self.actor_id,
+                event.activity_id,
+            )
+            return Status.SUCCESS
+        return super().update()
 
     def _call_factory(self) -> tuple[str, str]:
         event = self._event

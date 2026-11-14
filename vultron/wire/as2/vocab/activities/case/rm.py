@@ -12,7 +12,7 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""RM case activities: engage, defer and close a case, and declining a close."""
+"""RM case activities: engage, defer and close a case."""
 
 from pydantic import Field
 

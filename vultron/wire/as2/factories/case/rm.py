@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Factories for the RM case messages: engage, defer, close, and declining a close.
+"""Factories for the RM case messages: engage, defer, and close.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """

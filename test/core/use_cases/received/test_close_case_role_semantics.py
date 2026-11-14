@@ -731,22 +731,20 @@ class TestNonOwnerLeaveReceivePath:
             and "CM-23-010" not in record.getMessage()
         ]
 
-    @pytest.mark.spec("CM-23-010", "CLP-02-005", "CLP-05-001")
-    def test_a_non_owner_case_manager_leave_gets_the_refusal_notice(self):
-        """The CM-23-010 refusal is a precondition refusal at the
-        CASE_MANAGER, so the factory answers it with the refusal notice, a
-        ``Refuse`` of the Leave carrying the guard's reason (ADR-0196)."""
+    @pytest.mark.spec("CM-23-010", "CLP-05-001")
+    def test_a_case_manager_refusing_its_own_leave_sends_itself_no_notice(
+        self,
+    ):
+        """The CM-23-010 refusal is of the CASE_MANAGER's own Leave, so the
+        refusal notice, which would go to itself, is not sent."""
         dl = _make_full_dl()
-        activity_id = "https://example.org/activities/cm-leave-notice"
 
-        _close(dl, CASE_ACTOR_ID, activity_id)
+        result = _close(
+            dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave-notice"
+        )
 
-        (queued,) = dl.outbox_list()
-        refuse = dl.read(queued)
-        assert getattr(refuse, "type_", None) == "Refuse"
-        assert getattr(refuse, "to", None) == [CASE_ACTOR_ID]
-        assert getattr(refuse, "in_reply_to", None) == activity_id
-        assert "CM-23-010" in (getattr(refuse, "summary", "") or "")
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.outbox_list() == []
 
 
 def _close(

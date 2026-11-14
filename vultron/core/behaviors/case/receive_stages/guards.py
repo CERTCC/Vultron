@@ -140,7 +140,6 @@ def refusal_stage(
         first_run=FirstRunOfMessageNode(
             intake_ran=intake_ran, name=f"{stage_name}FirstRun"
         ),
-        intake_ran=intake_ran,
     )
 
 

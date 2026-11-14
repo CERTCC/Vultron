@@ -458,7 +458,7 @@ def create_receive_activity_tree(
     CLP-02-005, CLP-05-001): the factory places it first among the refusal
     effects, so no tree writes its own copy.  A tree whose refusals are
     answered otherwise names a registered ``refusal_notice_exemption`` that
-    says how (the close-case tree's CM-23-011 decline).
+    says how; none is registered (ADR-0196).
     ``refusal_effects`` answer a refusal further — the RSH-06-004
     clarification note for a refused backward RM declaration is the case in
     point, sent alongside the notice.  Refusal effects run only when a
