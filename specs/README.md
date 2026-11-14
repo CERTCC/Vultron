@@ -94,7 +94,7 @@ Load additional files only when the task touches the relevant area. See the
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |
-| Shadow tool (read-only advisor, packaging) | `case-shadow.yaml` |
+| Case shadow (read-only advisor, packaging) | `case-shadow.yaml` |
 | Outside-system case reader port | `case-reader.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
@@ -135,7 +135,7 @@ related requirements across files.
   case shadow: no long-lived copy, id-only logs, runtime-only credential, and
   per-case clearance or sanitization before anything enters the repository
   (VSD-01, VSD-02; ADR-0189)
-- **`case-shadow.yaml`** - The shadow: a standalone, read-only tool that
+- **`case-shadow.yaml`** - The case shadow: a standalone, read-only tool that
   translates one outside-system case on request and shows Vultron's analysis;
   no delivery or write path, no long-lived copy, loopback-only packaging
   (SHD-01, SHD-02; ADR-0190, ADR-0192)
