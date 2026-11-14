@@ -248,13 +248,13 @@ If the CASE_MANAGER refuses the termination, it commits neither entry.
 
 When the CASE_MANAGER refuses an embargo message because the case cannot take it, the CASE_MANAGER commits nothing.
 The CASE_MANAGER tells the sender why with the [refusal notice](faults_and_acknowledgements.md#refusal-notice) (CLP-02-005, CLP-05-001).
-The notice is a `Reject` whose `object` is the refused activity, inline, whose `inReplyTo` names that activity's id, and whose `summary` gives the reason.
+The notice is a `Refuse` whose `object` is the refused activity, inline, whose `inReplyTo` names that activity's id, and whose `summary` gives the reason.
 The notice goes to the sender alone.
 The sender closes its pending request when the notice arrives.
 
 | Message | Refused, with the notice, when |
 |---|---|
-| `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-017). |
+| `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Refuse` of the Invite, which the proposer reads as a refusal, not as a decline (ADR-0196). |
 | `Accept(Invite(EmbargoEvent))` | the case held the `EmbargoEvent`, but it is no longer available: it was decided, replaced, canceled or terminated, or its end time has passed, on time or late (CM-18-003, MSM-07-012). When the case holds current terms, a fresh `Invite` to them goes with the notice (EMB-17-003). |
 | `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-014). |
 | `Add(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002), or the Case Owner declined the terms. The notice tells the Case Owner to accept the invitation first (MSM-07-037). |

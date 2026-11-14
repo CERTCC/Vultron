@@ -107,6 +107,7 @@ from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     em_accept_embargo_activity,
+    rm_close_case_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 
@@ -719,39 +720,53 @@ def test_a_notice_reaching_the_case_manager_is_refused():
     assert verdict.disposition is HandlerDisposition.REFUSED
 
 
+@pytest.mark.spec("CM-23-011")
+@pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-06-006")
 @pytest.mark.spec("CLP-05-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-23-011: the close-case tree still answers the owner's Leave with a"
-        " plain Reject, which no longer reads as a refusal notice (ADR-0196)."
-        " Tracked by #6435."
-    ),
-)
-def test_a_declined_leave_closes_the_owners_pending_leave():
+def test_a_refused_leave_closes_the_owners_pending_leave():
     """CM-23-011's answer to the owner's Leave closes its pending Leave.
 
-    A plain ``Reject(Leave(VulnerabilityCase))`` matches no pattern once the
-    refusal notice is a ``Refuse`` (ADR-0196), so this holds again only when
-    #6435 makes the close-case tree send the standard ``Refuse``.
+    The Case Owner's ``Leave(VulnerabilityCase)`` reaches the CASE_MANAGER
+    while the embargo is active, so the close-case tree refuses it and
+    answers with the standard refusal notice: a ``Refuse`` of the Leave as
+    the owner sent it (ADR-0196).  The owner reads it as a refusal notice and
+    clears the pending Leave.
     """
-    net, _, _ = _network("declined-leave")
+    net = LedgerNetwork("https://example.org/cases/refusal-notice-leave")
     leave_id = f"{OWNER}/leaves/1"
     record_pending_assertion(
         OWNER, net.case_id, "close_case", leave_id, at=now_utc()
     )
-    _, blob = TriggerActivityAdapter(net.stores[MANAGER]).reject_close_case(
-        case_id=net.case_id,
-        actor=MANAGER,
-        close_sender=OWNER,
-        in_reply_to=leave_id,
+    leave = rm_close_case_activity(
+        case=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
+        id_=leave_id,
         at=authored_at(),
     )
-    body = json.loads(blob)
 
-    verdict = net.receive(OWNER, body)
+    refused = net.receive(MANAGER, json.loads(dump_outbound_body(leave)))
 
+    assert refused.disposition is HandlerDisposition.REFUSED
+    assert "CM-23-011" in (refused.reason or "")
+    (notice,) = _notices(net, MANAGER, OWNER)
+    body = read_sealed_body_dict(net.stores[MANAGER], notice.id_)
+    assert body is not None
+    assert body["type"] == ["Refuse", "Reject"]
+    assert body["inReplyTo"] == leave_id
+    assert body["object"]["id"] == leave_id
+    assert body["object"]["type"] == "Leave"
+    assert body["to"] == [OWNER]
+    assert "embargo is active" in str(body["summary"])
+    assert get_pending_assertion_store(OWNER).is_suppressed(
+        net.case_id, "close_case", leave_id, at=now_utc()
+    ), "the owner's Leave is pending until the notice arrives"
+
+    ((type_, verdict),) = net.deliver(MANAGER, to=OWNER, type_="Refuse")
+
+    assert type_ == "Refuse"
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert not get_pending_assertion_store(OWNER).is_suppressed(
         net.case_id,

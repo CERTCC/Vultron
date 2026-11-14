@@ -50,7 +50,7 @@ Blackboard contract (BTND-03-003):
 
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final
 
 import py_trees
 from py_trees.common import Status
@@ -60,6 +60,7 @@ from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
+    enclosing_refusal_stage,
 )
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.helpers import (
@@ -80,7 +81,6 @@ from vultron.primitives import NonEmptyString
 __all__ = [
     "ClearRefusedAssertionNode",
     "EmitRefusalNoticeNode",
-    "OWNER_CLOSE_DECLINE",
     "REFUSAL_NOTICE_EXEMPTIONS",
     "RefusalNoticeExemption",
     "ResumeOutboundSequenceNode",
@@ -104,22 +104,14 @@ class RefusalNoticeExemption(BaseModel):
     reason: NonEmptyString
 
 
-OWNER_CLOSE_DECLINE: Final = RefusalNoticeExemption(
-    name="owner-close-decline",
-    reason=(
-        "The close-case tree's close arm refuses a Case Owner's"
-        " Leave(VulnerabilityCase) only while an embargo is active, and the"
-        " enclosing tree's decline arm answers that refusal with its own"
-        " Reject of the Leave (CM-23-011, MSM-05-001).  The decline is the"
-        " refusal's answer, so a notice would answer it twice (CLP-05-001)."
-    ),
-)
-
 #: Every registered exemption, by name.  The factory refuses any other.
+#: Empty: every received tree that commits to a case and has precondition
+#: guards answers their refusal with the notice.  The close-case tree's
+#: CM-23-011 refusal is answered by the notice too (ADR-0196), so it needs
+#: no exemption.  Registering one is a decision, pinned in
+#: ``test/architecture/test_received_tree_refusal_notice.py``.
 REFUSAL_NOTICE_EXEMPTIONS: Final[Mapping[str, RefusalNoticeExemption]] = (
-    MappingProxyType(
-        {exemption.name: exemption for exemption in (OWNER_CLOSE_DECLINE,)}
-    )
+    MappingProxyType({})
 )
 
 
@@ -236,17 +228,31 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
             actor=self.actor_id,
-            # The body this receiver holds, embedded as the asserter sent
-            # it (CLP-05-001, DL-06-004, ADR-0149).  The notice runs inside
-            # the run, before the outcome stage gives that body up for a
-            # receipt stub, so there is still a body to embed (CLP-10-018).
-            refused_activity=held_received_body(
-                self.datalayer, event.activity_id
-            ),
+            refused_activity=self._refused_body(event),
             asserter=event.actor_id,
             reason=reason,
             at=self._require_act_instant(),
         )
+
+    def _refused_body(self, event: VultronEvent) -> dict[str, Any]:
+        """The refused activity's body, embedded as the asserter sent it.
+
+        After intake, the body this receiver holds (CLP-05-001, DL-06-004,
+        ADR-0149): the notice runs inside the run, before the outcome stage
+        gives that body up for a receipt stub, so there is still a body to
+        embed (CLP-10-018).  A refusal stage ahead of intake (the post-close
+        stage, ADR-0154) runs before the receiver holds any record, so the
+        notice embeds the received event's own body, the one intake would
+        have recorded (CM-23-057).
+
+        Raises:
+            VultronWiringError: There is no body to embed.
+        """
+        assert self.datalayer is not None
+        stage = enclosing_refusal_stage(self)
+        if stage is not None and not stage.intake_ran:
+            return event.received_body()
+        return held_received_body(self.datalayer, event.activity_id)
 
     def _refusal_reason(self) -> str:
         """The reason the notice carries in ``summary`` (CLP-05-001).

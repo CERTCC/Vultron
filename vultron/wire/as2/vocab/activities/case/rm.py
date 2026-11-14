@@ -16,13 +16,11 @@
 
 from pydantic import Field
 
-from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.activities.case.named_case import NamedCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Ignore,
     as_Join,
     as_Leave,
-    as_Reject,
 )
 
 #####
@@ -67,24 +65,5 @@ class _RmCloseCaseActivity(as_Leave):
     """
 
     object_: NamedCase = Field(
-        ..., validation_alias="object", serialization_alias="object"
-    )
-
-
-class _RmRejectCloseCaseActivity(RepliesToObject, as_Reject):
-    """The Case Actor declines an owner's Leave(VulnerabilityCase) close.
-
-    Emitted per CM-23-011: when the Case Owner sends Leave(VulnerabilityCase)
-    while the case still holds an active embargo, the Case Actor declines the
-    closure with an ``as:Reject`` ("received and understood but declined",
-    MSM-05-001) instead of running the CM-23-002 closure sequence.  The owner
-    must terminate the embargo first, then re-issue the close.
-
-    `object_`: the `_RmCloseCaseActivity` (the Leave) being declined (inline
-        typed object required — bare string IDs are rejected at construction
-        time).
-    """
-
-    object_: _RmCloseCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )

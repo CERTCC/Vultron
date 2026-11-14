@@ -25,19 +25,16 @@ from vultron.core.behaviors.case.nodes.held_case import (
     CaseNamedByReference,
 )
 from vultron.core.behaviors.case.nodes.leave import (
-    LATE_LEAVE_DECLINE,
     CaseManagerLeavesOnlyAsCaseOwnerNode,
-    EmitRejectCloseCaseNode,
+    RefuseOwnerCloseWhileEmbargoedNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
-from vultron.core.behaviors.case.nodes.refusal_notice import (
-    OWNER_CLOSE_DECLINE,
-)
+from vultron.core.behaviors.case.nodes.refusal_notice import refusal_notice
 from vultron.core.behaviors.case.owner_close_embargo_guards import (
-    owner_close_blocked_by_embargo_guards,
+    owner_close_not_blocked_by_embargo,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -57,7 +54,6 @@ from vultron.errors import VultronWiringError
 
 def create_close_case_received_tree(
     case_id: str,
-    activity_id: str,
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
     post_close_reply: PostCloseReply = DEFAULT_POST_CLOSE_REPLY,
@@ -73,16 +69,17 @@ def create_close_case_received_tree(
       advance leaving participant to ``RM.CLOSED``, then advance the
       CaseActor to ``RM.CLOSED`` (owner path, CM-23-002).
     - Owner Leave while an embargo is live (``active_embargo`` non-None and EM
-      state ``ACTIVE`` or ``REVISE``) → decline the close with an ``as:Reject``
-      and run **none** of the CM-23-002 closure effects (CM-23-011). The owner
-      must terminate the embargo first, then re-issue the close.
+      state ``ACTIVE`` or ``REVISE``) → the close's guard refuses it, so
+      **none** of the CM-23-002 closure effects runs and nothing is committed;
+      the factory answers the owner with the standard refusal notice, a
+      ``Refuse`` of the Leave (CM-23-011, ADR-0196).  The owner must terminate
+      the embargo first, then send its Leave again.
     - Non-owner Leave → advance only the leaving participant to ``RM.CLOSED``;
       case remains open (non-owner path, CM-23-003, CM-23-030).
     - Any Leave after the case is fully closed → refused by the post-close guard
-      before the ``CloseOrDecline`` decision, so the receipt
-      ``GuardedCommitOrSkip`` never runs: nothing is committed or fanned out
-      (CM-23-013).  The same shape as the CM-23-011 decline: the decision
-      gates the receipt commit itself.
+      before the close, so the receipt ``GuardedCommitOrSkip`` never runs:
+      nothing is committed or fanned out (CM-23-013).  The same shape as the
+      CM-23-011 refusal: the guard gates the receipt commit itself.
 
     When ``sender_actor_id`` is ``None`` (e.g., in legacy paths or tests that
     do not supply it), the tree falls back to the pre-#1901 behaviour: intake
@@ -96,42 +93,41 @@ def create_close_case_received_tree(
         ├── ReceivedPathNode                            # manager path only
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
-        │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
+        │        arm sends the refusal notice at the CASE_MANAGER)
         ├── SenderRuleGuard                             # composed from sender_rule (HP-01-025)
         ├── IntakeReceivedActivityNode                  # record the Leave (CLP-10-017)
         ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-051)
-        └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
-            └── CloseOrDecline (Selector)               # close unless declined
-                ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
-                │   │   (nested=True: no seen-before door or intake, and no
-                │   │    addressee or post-close door: CloseCaseBT's ran first)
+        └── CloseIfCaseManager (CaseManagerGate)        # BT-17-008, #3825
+            └── CloseCaseReceive (Sequence, via create_receive_activity_tree)
+                │   (nested=True: no seen-before door or intake, and no
+                │    addressee or post-close door: CloseCaseBT's ran first)
+                ├── PreconditionGuardStage              # refusal → notice (CLP-02-005)
                 │   ├── CaseManagerLeavesOnlyAsCaseOwner    # guard: CM-23-010
-                │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
-                │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
-                │   │              → IsCloseBlockedByActiveEmbargo
-                │   ├── GuardedCommitOrSkip (Selector)      # Record receipt (CLP-10-006)
-                │   │   ├── Sequence(SkipIfNotCaseManager)
-                │   │   │   └── Inverter(CheckIsCaseManagerNode)
-                │   │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
-                │   └── CloseCaseEffectsIfCaseManager (CaseManagerGate)  # RSH-08-003, #3814
-                │       └── OwnerOrNonOwnerEffects (Sequence)   # one arm per role
-                │           ├── OwnerLeaveArm (Selector)        # Owner path (CM-23-002)
-                │           │   ├── Inverter(SenderIsCaseOwnerNode)  # skip: not CASE_OWNER
-                │           │   └── OwnerLeaveSeq (Sequence)
-                │           │       ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
-                │           │       ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
-                │           │       ├── CommitRMClosureEntriesNode   # step 1, ledgered (CM-23-022)
-                │           │       ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
-                │           │       └── CommitRMClosureEntriesNode   # step 2: the boundary
-                │           └── NonOwnerLeaveArm (Selector)     # Non-owner (CM-23-003)
-                │               ├── SenderIsCaseOwnerNode            # skip: sender is CASE_OWNER
-                │               └── NonOwnerLeaveSeq (Sequence)
-                │                   ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
-                │                   └── CommitRMClosureEntriesNode   # ledgered (CM-23-022)
-                └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
-                    ├── CheckIsCaseOwner → ReadEmState
-                    │        → IsCloseBlockedByActiveEmbargo  # decline decision
-                    └── EmitRejectCloseCase                 # decline via as:Reject
+                │   ├── OwnerCloseNotBlockedByEmbargo (Selector)  # guard: CM-23-011
+                │   │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)
+                │   │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
+                │   │   │              → IsCloseBlockedByActiveEmbargo
+                │   │   └── RefuseOwnerCloseWhileEmbargoed   # FAILURE, the reason
+                │   └── (on refusal) EmitRefusalNotice      # Refuse(Leave) to the sender
+                ├── GuardedCommitOrSkip (Selector)      # Record receipt (CLP-10-006)
+                │   ├── Sequence(SkipIfNotCaseManager)
+                │   │   └── Inverter(CheckIsCaseManagerNode)
+                │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
+                └── CloseCaseEffectsIfCaseManager (CaseManagerGate)  # RSH-08-003, #3814
+                    └── OwnerOrNonOwnerEffects (Sequence)   # one arm per role
+                        ├── OwnerLeaveArm (Selector)        # Owner path (CM-23-002)
+                        │   ├── Inverter(SenderIsCaseOwnerNode)  # skip: not CASE_OWNER
+                        │   └── OwnerLeaveSeq (Sequence)
+                        │       ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
+                        │       ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
+                        │       ├── CommitRMClosureEntriesNode   # step 1, ledgered (CM-23-022)
+                        │       ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
+                        │       └── CommitRMClosureEntriesNode   # step 2: the boundary
+                        └── NonOwnerLeaveArm (Selector)     # Non-owner (CM-23-003)
+                            ├── SenderIsCaseOwnerNode            # skip: sender is CASE_OWNER
+                            └── NonOwnerLeaveSeq (Sequence)
+                                ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
+                                └── CommitRMClosureEntriesNode   # ledgered (CM-23-022)
 
     Intake runs after the doors, ahead of the gate, so the inbound Leave is
     recorded once the doors admit it (CLP-10-010, CLP-10-017); the doors admit
@@ -144,25 +140,19 @@ def create_close_case_received_tree(
     the delivery and its intake recorded it, so an inner intake would meet
     that record and read the first run as a re-run (ADR-0154).
 
-    The ``CloseOrDecline`` Selector is passed as the factory's
-    ``manager_effects``, so the factory wraps the whole close/decline decision
-    in a CASE_MANAGER gate (BT-17-008).  Only the case's CASE_MANAGER declines
-    an owner close (CM-23-011) or runs its closure effects (CM-23-002/003); a
-    replica holding a copy of the Leave is refused at the path stage, emits no
-    ``as:Reject`` (the #3825 defect), writes nothing, and takes any resulting
-    closure from the ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).
-    The two arms stay in one Selector because the close arm FAILS when a
-    decline is warranted and only a Selector lets the decline arm run next.
+    ``CloseCaseReceive`` is passed as the factory's ``manager_effects``, so
+    the factory wraps the whole close in a CASE_MANAGER gate (BT-17-008).
+    Only the case's CASE_MANAGER refuses an owner close (CM-23-011) or runs
+    its closure effects (CM-23-002/003); a replica holding a copy of the
+    Leave is refused at the path stage, sends nothing (the #3825 defect),
+    writes nothing, and takes any resulting closure from the ledger fan-out
+    (CLP-10-001, RSH-08-003, HP-01-005).
 
-    The same decline decision (owner + live embargo) gates both arms: the close
-    arm runs only when the decision is inverted-false, and the decline arm runs
-    only when it is true. So even if the ``as:Reject`` emit fails, the close arm
-    has already been skipped and the case cannot be closed. Suppressing the
-    ``GuardedCommitOrSkip`` receipt commit is essential, because committing and
+    A refused close commits nothing.  That matters, because committing and
     fanning out the ``close_case`` ledger entry is exactly what advances
-    participants to ``RM.CLOSED`` on the replicas (CLP-10-001); declining
-    therefore leaves the case untouched and only emits the ``as:Reject``
-    (CM-23-011).
+    participants to ``RM.CLOSED`` on the replicas (CLP-10-001); so a refused
+    close leaves the case untouched and only sends the refusal notice, and
+    the notice's own failure (no trigger port) cannot let the close run.
 
     The owner arm's ledger order is therefore: ``close_case``, one
     ``TIMED_OUT`` ``Update(EmbargoConsent)`` per pending embargo Invite, the
@@ -179,22 +169,20 @@ def create_close_case_received_tree(
 
     Args:
         case_id: ID of the VulnerabilityCase being closed.
-        activity_id: ID of the inbound Leave activity; the CM-23-011 and
-            CM-23-013 replies thread to it.
         sender_actor_id: Actor URI of the Leave sender (resolved from the
             inbound Leave activity's ``actor`` field).  When provided, the tree
             applies role-discriminating RM closure effects (CM-23-002/003) and
-            the CM-23-011 embargo decline. When ``None``, only intake and
+            the CM-23-011 embargo refusal. When ``None``, only intake and
             the guarded receipt commit run.
         post_close_reply: The CASE_MANAGER's reply policy for a Leave that
             arrives after the case is fully closed (``ActorConfig.post_close_reply``,
-            CM-23-017).  ``REJECT`` answers it with
-            ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
+            CM-23-017).  ``REJECT`` answers it with the refusal notice, a
+            ``Refuse`` of the Leave (CM-23-057, ADR-0196); ``DROP`` sends
+            nothing.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it, on the case, ahead of the
-            close/decline decision (HP-01-008).  A sender with no standing
-            is refused before the CASE_MANAGER writes, declines or replies
-            to anything (HP-01-006).  Required with ``sender_actor_id``.
+            close (HP-01-008).  A sender with no standing is refused before
+            the CASE_MANAGER writes or replies to anything (HP-01-006).  Required with ``sender_actor_id``.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of
             :class:`~vultron.core.behaviors.case.nodes.leave.advance.AdvanceCaseActorToRMClosedNode`
@@ -225,33 +213,22 @@ def create_close_case_received_tree(
         case_id, sender_actor_id, receiving_actor_id
     )
 
-    # CM-23-011 decline decision (read-only): SUCCESS iff the sender is the Case
-    # Owner AND an embargo is live (active_embargo non-None, EM state
-    # ACTIVE/REVISE). This same decision gates BOTH arms below, so once a decline
-    # is warranted the close can NEVER run — not even if the as:Reject emit
-    # fails. That matters because committing and fanning out the close_case
-    # ledger entry is precisely what advances participants to RM.CLOSED on the
-    # replicas (CLP-10-001); a decline must therefore suppress the receipt commit
-    # itself, not merely the local RM effects. The guards are shared with the
-    # leave-case trigger, which makes the same check before it sends
-    # (TRIG-13-003). Each arm gets its own result_out dict since the two guard
-    # chains are distinct node instances.
-
-    # Close arm: run the normal receive-and-close ONLY when the decline decision
-    # does NOT fire. The inverted guard is a read-only precondition of the
-    # receive tree, so it runs before the receipt commit (CLP-10-006) and makes
-    # an emit failure in the decline arm structurally unable to leak through
-    # into closing an embargoed case. The commit records receipt (the
-    # close_case ledger entry that drives replica closure, CLP-10-001/006) and
-    # then the role-discriminating RM closure effects run (CM-23-002/003).
-    close_arm = create_receive_activity_tree(
+    # The close: run the normal receive-and-close unless a guard refuses it.
+    # Both guards are read-only preconditions, so they run before the
+    # receipt commit (CLP-10-006).  A refusal commits nothing: committing and
+    # fanning out the close_case ledger entry is exactly what advances the
+    # participants to RM.CLOSED on the replicas (CLP-10-001), so a refused
+    # close leaves the case untouched.  The factory answers either refusal
+    # with the standard refusal notice to the Leave's sender, a Refuse of the
+    # Leave carrying the guard's reason (CLP-02-005, CLP-05-001, ADR-0196);
+    # the notice's own failure (no trigger port) never lets the close run.
+    # The commit records receipt (CLP-10-001/006), and then the
+    # role-discriminating RM closure effects run (CM-23-002/003).
+    close = create_receive_activity_tree(
         name="CloseCaseReceive",
         case_id=case_id,
         # CloseCaseBT's doors and intake ran for this delivery (ADR-0154).
         nested=True,
-        # The decline arm answers the one refusal the close arm makes, with
-        # the CM-23-011 Reject(Leave), so the factory adds no refusal notice.
-        refusal_notice_exemption=OWNER_CLOSE_DECLINE,
         precondition_guards=[
             # CM-23-010: the CASE_MANAGER's RM.CLOSED is the write boundary,
             # so a CASE_MANAGER that is not the Case Owner cannot leave as an
@@ -261,16 +238,18 @@ def create_close_case_received_tree(
                 sender_actor_id=sender_actor_id,
                 name="CaseManagerLeavesOnlyAsCaseOwner",
             ),
-            py_trees.decorators.Inverter(
-                name="NotOwnerCloseBlockedByEmbargo",
-                child=py_trees.composites.Sequence(
-                    name="OwnerCloseBlockedByEmbargoCheck",
-                    memory=False,
-                    children=owner_close_blocked_by_embargo_guards(
-                        closing_actor_id=sender_actor_id,
-                        case_id=case_id,
-                        result_out={},
-                    ),
+            # CM-23-011: the Case Owner's Leave while an embargo is in force
+            # (active_embargo set, EM ACTIVE or REVISE) is refused.  The
+            # check is shared with the leave-case trigger, which makes it
+            # before it sends (TRIG-13-003).
+            owner_close_not_blocked_by_embargo(
+                "OwnerClose",
+                closing_actor_id=sender_actor_id,
+                case_id=case_id,
+                refusal=RefuseOwnerCloseWhileEmbargoedNode(
+                    case_id=case_id,
+                    sender_actor_id=sender_actor_id,
+                    name="RefuseOwnerCloseWhileEmbargoed",
                 ),
             ),
         ],
@@ -289,59 +268,21 @@ def create_close_case_received_tree(
         addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
     )
 
-    # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is
-    # already recorded by the root intake node.
-    decline_arm = py_trees.composites.Sequence(
-        name="DeclineOwnerCloseIfEmbargoed",
-        memory=False,
-        children=[
-            *owner_close_blocked_by_embargo_guards(
-                closing_actor_id=sender_actor_id,
-                case_id=case_id,
-                result_out={},
-            ),
-            EmitRejectCloseCaseNode(
-                case_id=case_id,
-                close_sender_id=sender_actor_id,
-                close_activity_id=activity_id,
-                name="EmitRejectCloseCase",
-            ),
-        ],
-    )
-
-    # Close first (the common path); fall through to the decline arm only when
-    # the close arm's inverted embargo guard blocks it. Intake sits ahead of
-    # the Selector so both arms leave the record in place (CLP-10-018); no
-    # commit at this level — the receipt commit belongs to the close arm.
-    #
-    # The whole Selector is passed as ``manager_effects`` so the factory wraps
-    # it in a CASE_MANAGER gate (BT-17-008): the decline arm's
-    # ``EmitRejectCloseCaseNode`` is emit-capable, and only the case's
-    # CASE_MANAGER declines an owner close (CM-23-011, BT-17-001). The close
-    # arm's own effects are already CASE_MANAGER-gated internally and its
-    # commit is role-gated; a replica holding a copy of the Leave never gets
-    # here, because the path stage refuses it, and it takes any resulting
-    # closure from the ledger fan-out (CLP-10-001, RSH-08-003). The
-    # close/decline arms stay in one Selector —
-    # the close arm FAILS when a decline is warranted, and only a Selector lets
-    # the decline arm run next, which a side-by-side Sequence placement in
-    # ``replica_effects``/``manager_effects`` could not express. ``case_id`` is
-    # ``None`` (no commit at this level); ``manager_case_id`` names the case
-    # whose CASE_MANAGER gates the Selector.
-    # CM-23-013: a Leave after the case is fully closed is refused by the factory's
-    # post-close guard ahead of the CloseOrDecline decision, so neither arm
-    # runs and the receipt commit is gated by the boundary itself.  The reply
-    # is the one policy point's choice (ADR-0131).
+    # The close is passed as ``manager_effects`` so the factory wraps it in
+    # a CASE_MANAGER gate (BT-17-008): only the case's CASE_MANAGER refuses
+    # an owner close (CM-23-011) or runs its closure effects (CM-23-002/003).
+    # A replica holding a copy of the Leave never gets here, because the
+    # path stage refuses it, and it takes any resulting closure from the
+    # ledger fan-out (CLP-10-001, RSH-08-003).  ``case_id`` is ``None`` (no
+    # commit at this level); ``manager_case_id`` names the case whose
+    # CASE_MANAGER gates the close.
+    # CM-23-013: a Leave after the case is fully closed is refused by the
+    # factory's post-close guard ahead of the close, so it never runs and the
+    # receipt commit is gated by the boundary itself.  The reply is the one
+    # policy point's choice (ADR-0131): under REJECT it is the refusal
+    # notice, a Refuse of the late Leave (CM-23-057, ADR-0196).
     late_leave_reply: list[py_trees.behaviour.Behaviour] = (
-        [
-            EmitRejectCloseCaseNode(
-                case_id=case_id,
-                close_sender_id=sender_actor_id,
-                close_activity_id=activity_id,
-                name="EmitRejectLateLeave",
-                decline_reason=LATE_LEAVE_DECLINE,
-            )
-        ]
+        [refusal_notice(case_id)]
         if post_close_reply is PostCloseReply.REJECT
         else []
     )
@@ -353,8 +294,8 @@ def create_close_case_received_tree(
         # (AKM-03-006).
         held_case=CaseNamedByReference.LEAVE,
         precondition_guards=[],
-        # The leaver asks the CASE_MANAGER alone, which decides the close or
-        # the decline (CM-23-002, PCR-08-001); a participant replica takes
+        # The leaver asks the CASE_MANAGER alone, which closes the case or
+        # refuses the close (CM-23-002, PCR-08-001); a participant replica takes
         # the closure from the ledger fan-out (CLP-10-001, RSH-08-003), so
         # the path stage refuses a copy there (HP-01-005, HP-01-038).  The
         # close arm inside the manager gate declares no paths of its own:
@@ -376,13 +317,7 @@ def create_close_case_received_tree(
             closing_case_owner=True,
         ),
         post_close_reply=late_leave_reply,
-        manager_effects=[
-            py_trees.composites.Selector(
-                name="CloseOrDecline",
-                memory=False,
-                children=[close_arm, decline_arm],
-            ),
-        ],
+        manager_effects=[close],
         manager_case_id=case_id,
-        manager_gate_name="CloseOrDeclineIfCaseManager",
+        manager_gate_name="CloseIfCaseManager",
     )

@@ -134,25 +134,26 @@ Only admitted assertions enter the ledger; there is no disposition field.
 
 - A message that cannot be tied to a case or proto-case is a transport/actor
   diagnostic: Python `logging` only.
-- A case-resolvable message refused by a precondition guard gets a `Reject` sent
+- A case-resolvable message refused by a precondition guard gets a `Refuse` sent
   to the asserting participant alone (CLP-05-001) plus a log event. Nothing enters
   the hash chain (CLP-04-007). Other participants need canonical history, not
   failed attempts.
-- The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
-  guard's reason in `summary` (ADR-0141). `create_receive_activity_tree` adds
+- The `Refuse` wraps the refused activity inline, `inReplyTo` its id, with the
+  guard's reason in `summary` (ADR-0141, ADR-0196). `create_receive_activity_tree` adds
   it to every tree that commits to a case and has precondition guards
-  (CLP-10-022); a tree never sends it itself, nor from `execute()`. A tree whose
-  refusals are answered otherwise names a registered `RefusalNoticeExemption`
-  (`case/nodes/refusal_notice.py`) that says how, pinned by
-  `test_received_tree_refusal_notice.py`. A sender-guard refusal and a
+  (CLP-10-022); a tree never sends it itself, nor from `execute()`, and none
+  needs an answer of its own: the close-case tree's CM-23-011 refusal takes the
+  notice too. A tree whose refusals must be answered otherwise names a
+  registered `RefusalNoticeExemption` (`case/nodes/refusal_notice.py`) that says
+  how, pinned by `test_received_tree_refusal_notice.py`. A sender-guard refusal and a
   `SKIPPED` repeat get none. A guard that can fail as a repeat implements
   `ReportsIdempotentRepeat` (`behaviors/idempotency.py`), or the stage reads its
   repeat as a refusal and answers it. The reason is read by the sender, so it
   names the sender's own standing only.
-- A `Reject(Invite)` or `Reject(Offer)` refusal notice has the shape of a decline;
-  the sender reads it with the decline's use case, which closes the pending entry.
-  Do not add a pattern to tell them apart: the request had no effect either way
-  (CLP-05-001).
+- A refusal notice is a `Refuse`, never a plain `Reject`, so a refusal of an
+  `Invite` or an `Offer` reaches the refusal-notice use case, not the decline's;
+  a participant's `Reject` of a request stays a decline (ADR-0196). Reason: the
+  receiver must tell who decided from the message alone.
 
 The Python log is per-actor and ephemeral; never replicate it or rely on it for
 protocol semantics (ADR-0019).

@@ -58,6 +58,7 @@ __all__ = [
     "PreconditionGuardStage",
     "RefusalEffectsBestEffort",
     "enclosing_refusal_reason",
+    "enclosing_refusal_stage",
 ]
 
 
@@ -128,8 +129,17 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         refusal: py_trees.behaviour.Behaviour,
         *,
         first_run: py_trees.behaviour.Behaviour,
+        intake_ran: bool = True,
     ) -> None:
         super().__init__(name=name, children=[guards, first_run, refusal])
+        self.intake_ran = intake_ran
+        """Whether the stage sits after intake in its tree.
+
+        False for the post-close stage, a door ahead of intake (ADR-0154):
+        its refusal effects run before the receiver holds a record of the
+        message, so an effect that embeds the message takes it from the
+        received event.
+        """
         self.skipped_as_redelivery = False
         self.skipped_as_repeat = False
         self.skipped_as_diversion = False
@@ -266,6 +276,23 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         self.stop(Status.FAILURE)
 
 
+def enclosing_refusal_stage(
+    node: py_trees.behaviour.Behaviour,
+) -> PreconditionGuardStage | None:
+    """The stage whose refusal effects hold *node*, if any.
+
+    ``None`` when *node* is not inside a :class:`PreconditionGuardStage`'s
+    refusal effects: a node among its guards is not a refusal effect.
+    """
+    child: py_trees.behaviour.Behaviour = node
+    parent = node.parent
+    while parent is not None:
+        if isinstance(parent, PreconditionGuardStage):
+            return parent if child is parent.refusal else None
+        child, parent = parent, parent.parent
+    return None
+
+
 def enclosing_refusal_reason(node: py_trees.behaviour.Behaviour) -> str | None:
     """The refusal reason of the stage whose refusal effects hold *node*.
 
@@ -273,12 +300,7 @@ def enclosing_refusal_reason(node: py_trees.behaviour.Behaviour) -> str | None:
     refusal effects, or the stage holds no reason: a refusal effect placed
     anywhere else is a composition fault its caller reports.
     """
-    child: py_trees.behaviour.Behaviour = node
-    parent = node.parent
-    while parent is not None:
-        if isinstance(parent, PreconditionGuardStage):
-            if child is parent.refusal and parent.refusal_reason:
-                return parent.refusal_reason
-            return None
-        child, parent = parent, parent.parent
-    return None
+    stage = enclosing_refusal_stage(node)
+    if stage is None or not stage.refusal_reason:
+        return None
+    return stage.refusal_reason

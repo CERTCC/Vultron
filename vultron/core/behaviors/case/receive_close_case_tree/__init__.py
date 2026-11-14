@@ -25,8 +25,9 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
   CM-23-033).  The CaseActor's own ``RM.CLOSED`` status entry is the last
   entry of the closure and the owner-close write boundary (ADR-0085); no
   entry marks the closure itself (ADR-0152) — **unless** an embargo is still
-  live, in which case the close is declined with an ``as:Reject`` and none of
-  the closure effects run (CM-23-011).
+  live, in which case the close is refused, none of the closure effects run,
+  and the owner gets the refusal notice, a ``Refuse`` of its Leave
+  (CM-23-011, ADR-0196).
 - **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``,
   committing one status entry per RM transition; the case remains open for
   remaining participants (CM-23-003, CM-23-030).
@@ -36,13 +37,14 @@ the ``close_case`` entry that records the Leave.  A replica applies those
 status entries and never works out a closure path itself; applying
 ``close_case`` changes no RM state (CM-23-023, CM-23-024).
 - **Any Leave after the case is fully closed**: the factory's post-close guard
-  refuses it ahead of both arms, so no ``close_case`` entry is committed or
+  refuses it ahead of the close, so no ``close_case`` entry is committed or
   fanned out and no one advances (CM-23-013).  Under
-  ``PostCloseReply.REJECT`` the sender gets ``Reject(Leave(VulnerabilityCase))``;
-  under the default ``DROP`` it gets nothing (ADR-0131).
+  ``PostCloseReply.REJECT`` the sender gets the refusal notice, a ``Refuse``
+  of its Leave (CM-23-057, ADR-0196); under the default ``DROP`` it gets
+  nothing (ADR-0131).
 - **A Leave from a sender with no standing**: the sender guard the factory
-  composes from the use case's declared rule refuses it before the
-  close/decline decision, so nothing is committed, declined or sent
+  composes from the use case's declared rule refuses it before the close,
+  so nothing is committed or sent
   (HP-01-006, HP-01-008).  A Leave from a sender whose closure the case
   already records never reaches this tree: the use case reports it
   ``SKIPPED`` first (CM-23-049, ID-05-003).
