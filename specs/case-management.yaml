@@ -7555,7 +7555,7 @@ groups:
       A Reject that wraps most activities already carries a protocol meaning for its
       recipient: Reject(Invite) is a declined invitation and Reject(Offer(...)) a
       declined offer, so a reply to a late Invite or Offer would be misread as a
-      decision. Reject(Leave(VulnerabilityCase)) already means "close declined"
+      decision. Refuse(Leave(VulnerabilityCase)) already means "close refused"
       (CM-23-011) and cannot be misread. Dropping is the default because it is what an
       exited process does, and CM-23-041 already tells participants not to rely on a
       reply.

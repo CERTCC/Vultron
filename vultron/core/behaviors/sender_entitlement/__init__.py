@@ -117,7 +117,7 @@ does not place one of these nodes: it asks
 ``vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode``, which
 states no refusal (ADR-0153).  A kind check words its non-match as a refusal,
 so placed where its FAILURE is the tree's answer — the last arm of a
-Selector, such as the CM-23-011 decline arm or the closed-sender door's
+Selector, such as the CM-23-011 embargo guard or the closed-sender door's
 fallback — it would log ``REFUSED (HP-01-006)`` at WARNING for a sender the
 guard admitted, or for a Leave the handler reports ``SKIPPED`` (#5903).
 

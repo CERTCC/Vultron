@@ -390,7 +390,8 @@ def create_receive_activity_tree(
     that must keep working after close passes ``post_close_exemption``.  A
     tree that answers a late activity passes ``post_close_reply``: emit-only
     nodes run, at the CASE_MANAGER, only when the guard refuses (the
-    close-case tree's ``Reject(Leave)`` under ``PostCloseReply.REJECT``).
+    close-case tree's refusal notice, ``Refuse(Leave)``, under
+    ``PostCloseReply.REJECT``).
     Every other tree drops a late activity with no reply.
 
     With ``refusal_effects`` the guards are wrapped in a

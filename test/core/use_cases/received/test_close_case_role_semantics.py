@@ -2784,7 +2784,7 @@ class TestOwnerCloseRefusalIsCaseManagerGated:
         and as the VENDOR actor (``receiving_actor_id``), so the executing
         actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
         Owner's Leave arrives while an embargo is live.  Before #3825 this
-        emitted a ``Reject(Leave)``; it must emit nothing.  The replica's
+        emitted a ``Reject(Leave)``; it must send nothing.  The replica's
         sender guard admits only the CASE_MANAGER, so it refuses this copy
         before the gate; the gate itself is pinned by
         ``test_non_manager_replica_refuses_a_leave_from_the_case_manager``.
