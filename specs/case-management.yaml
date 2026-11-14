@@ -7051,7 +7051,7 @@ groups:
     kind: protocol
     statement: >-
       When the Case Owner's `Leave(VulnerabilityCase)` arrives while the case's EM state
-      is `EM.ACTIVE` or `EM.REVISE`, the CASE_MANAGER MUST refuse it and answer with
+      is `EM.ACTIVE` or `EM.REVISE`, the CASE_MANAGER MUST refuse it. Its answer is
       the refusal notice, a `Refuse` of the Leave (CLP-02-005, CLP-05-001).
     rationale: >-
       Owner-close is a hard, terminal write boundary (ADR-0085). VP-13-009 keeps an
@@ -7325,8 +7325,7 @@ groups:
     kind: protocol
     statement: >-
       Once a case is fully closed (CM-23-013), the CASE_MANAGER MAY answer an inbound
-      activity for it with a `Refuse` of the activity (CLP-05-001), or drop it
-      unanswered.
+      activity for it with a `Refuse` (CLP-05-001), or drop it unanswered.
     rationale: >-
       A reply is a courtesy, since nothing reaches the ledger either way. The
       CASE_MANAGER refuses the activity on the post-close boundary; it does not
