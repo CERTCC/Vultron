@@ -67,12 +67,11 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     across the wire→domain extraction boundary so bootstrap trust logic can
     inspect ``CVDRole.CASE_MANAGER`` on the extracted case (CBT-01-014).
 
-    Prefers the wire model's own ``to_core()`` projection, which additionally
-    carries ``participant_statuses`` across the boundary.  Hand-building the
-    domain object drops them, and a ``CaseParticipant`` with no statuses
-    validates to a default ``RM.START`` entry — so a received snapshot would
-    silently report every participant as being at the start of the RM
-    lifecycle regardless of the state it actually announced.
+    Under ARCH-25-003 (ADR-0099) a parsed participant already *is* the core
+    class, so it is returned as received, with its own statuses.  Any other
+    ref goes through its ``to_core()`` projection, or reduces to its id: it is
+    never hand-built, since a rebuild drops the statuses and the core model
+    then seeds a ``START`` status nobody sent (AKM-02-006, #5265).
     """
     if isinstance(ref, str):
         return ref if ref else None
@@ -101,21 +100,6 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
             if isinstance(converted, CaseParticipant):
                 return converted
 
-    roles = getattr(ref, "case_roles", [])
-    attributed = getattr(ref, "attributed_to", None)
-    context_id = _get_id(getattr(ref, "context", None))
-    if roles is not None and attributed is not None and context_id:
-        return CaseParticipant(
-            id_=participant_id,
-            attributed_to=normalise_actor_id(str(attributed)),
-            context=context_id,
-            name=getattr(ref, "name", None),
-            case_roles=list(roles),
-            published=_get_timestamp(ref, "published"),
-            updated=_get_timestamp(ref, "updated"),
-        )
-
-    # Fallback: return as ID string only
     return participant_id
 
 
@@ -308,25 +292,22 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
 
 
 def _build_participant_object(obj: object) -> dict[str, Any]:
-    object_id = _get_id(obj)
-    attributed_to = _actor_id(getattr(obj, "attributed_to", None))
-    participant_context = _get_id(getattr(obj, "context", None))
-    if object_id and attributed_to and participant_context:
-        return {
-            "object_": CaseParticipant(
-                id_=object_id,
-                name=getattr(obj, "name", None),
-                attributed_to=attributed_to,
-                context=participant_context,
-                case_roles=list(getattr(obj, "case_roles", []) or []),
-                participant_case_name=getattr(
-                    obj, "participant_case_name", None
-                ),
-                published=_get_timestamp(obj, "published"),
-                updated=_get_timestamp(obj, "updated"),
-            )
-        }
-    return {}
+    """The received participant *obj*, as received (AKM-02-006, #5265).
+
+    Under ARCH-25-003 (ADR-0099) the parsed or held participant already *is*
+    the core class, so it is kept whole: its statuses, membership, consent
+    rows and removal fact.  It is never rebuilt from a few fields: a rebuild
+    dropped them, and the core model then minted a fresh ``START`` status
+    and a ``joined`` flag no sender asserted.  Anything else yields no
+    object.
+    """
+    if not isinstance(obj, CaseParticipant):
+        return {}
+    if not (
+        _get_id(obj) and _actor_id(obj.attributed_to) and _get_id(obj.context)
+    ):
+        return {}
+    return {"object_": obj.model_copy(deep=True)}
 
 
 def _build_note_object(obj: object) -> dict[str, Any]:
