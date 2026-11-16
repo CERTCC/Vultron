@@ -32,6 +32,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `EmbargoPolicy` | — | Actor-level declaration of embargo preferences |
 | `ParticipantStatus` | — | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
 | `ProcessingFault` | — | Negative acknowledgment returned when a received activity could not be processed |
+| `Redacted` | — | Marker in a preview's field: the field has a value the sender withholds from the recipient, with an optional `summary` giving the reason |
 | `Refuse` | `as:Reject` | The CASE_MANAGER's refusal of an activity a precondition did not admit, sent as `"type": ["Refuse", "Reject"]`; a participant's decline of a request stays a `Reject` |
 | `VulnerabilityCase` | — | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityCaseStub` | — | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |

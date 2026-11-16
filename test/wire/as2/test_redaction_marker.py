@@ -6,10 +6,11 @@ the whole of it; the case stub is the only one today.  A sender may put
 field has a value it withholds.  Anywhere else the marker is refused.
 
 The refusal holds for every declared field of a full object, which refuses a
-marker as a malformed value, and for an activity slot given a marker with no
-``id``.  Accepting the marker in a preview, and refusing one that carries an
-``id`` in an activity slot, need the marker type, so those rows are strict
-``xfail`` until #6372 builds it.
+marker as a malformed value, and for an activity slot, whose type admits no
+``Redacted`` marker (#6557 registered the type).  Accepting the marker in a
+preview, and so refusing a marker that carries the withheld value there, need a
+preview field that admits the marker, so those rows are strict ``xfail`` until
+#6372 builds it.
 """
 
 from typing import Any
@@ -100,8 +101,8 @@ def test_a_marker_in_a_case_stub_identifying_field_is_refused() -> None:
 def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
     """A marker is never an activity's own object or target.
 
-    Today this refusal rests on the marker carrying no ``id`` (OID-01-013),
-    not on the marker itself; the row below with an ``id`` holds the rest.
+    No activity slot admits the marker type; the row below gives the marker
+    an ``id``, so the refusal cannot rest on a missing ``id`` (OID-01-013).
     """
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(_envelope(**{slot: MARKER}))
@@ -109,15 +110,14 @@ def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
     assert _error_locations(exc_info.value) == {slot}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason=f"MV-12-002: a marker with an id parses as a generic object. {TRACKED}",
-)
 @pytest.mark.spec("MV-12-002")
 @pytest.mark.parametrize("slot", ["object", "target"])
 def test_a_marker_with_an_id_in_an_activity_slot_is_refused(slot: str) -> None:
-    """An ``id`` on the marker does not let it stand in an activity slot."""
+    """An ``id`` on the marker does not let it stand in an activity slot.
+
+    The registered type reads the body as a marker, which no activity slot
+    admits, so the refusal does not rest on the ``id`` being absent.
+    """
     marker = {**MARKER, "id": "https://example.org/redactions/1"}
 
     with pytest.raises(VultronParseValidationError) as exc_info:
@@ -129,7 +129,7 @@ def test_a_marker_with_an_id_in_an_activity_slot_is_refused(slot: str) -> None:
 @pytest.mark.xfail(
     strict=True,
     raises=VultronParseValidationError,
-    reason=f"MV-12-001: no Redacted marker type exists yet. {TRACKED}",
+    reason=f"MV-12-001: no preview field admits the marker yet. {TRACKED}",
 )
 @pytest.mark.spec("MV-12-001")
 def test_a_marker_in_a_case_preview_field_parses_as_the_marker() -> None:
@@ -144,7 +144,10 @@ def test_a_marker_in_a_case_preview_field_parses_as_the_marker() -> None:
 @pytest.mark.xfail(
     strict=True,
     raises=VultronParseValidationError,
-    reason=f"MV-12-003, MV-12-005: no Redacted marker type exists yet. {TRACKED}",
+    reason=(
+        "MV-12-003, MV-12-005: no preview field admits the marker yet, "
+        f"so no marker parses. {TRACKED}"
+    ),
 )
 @pytest.mark.spec("MV-12-005")
 @pytest.mark.spec("MV-12-003")

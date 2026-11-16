@@ -103,7 +103,7 @@ by one line in its wire module (`WIRE_TYPE_MAP["VulnerabilityReport"] =
 VulnerabilityReport`); it carries no `_vocab_ns` (ARCH-25-003). A wire-only class
 is annotated `_vocab_ns = VocabNamespace.VULTRON` (§ 4). It is sent with one
 `type` value. Its fields reuse AS2 properties where AS2 has the meaning, so they
-need no term (the planned `Redacted` marker's `summary`, #6372). A class that
+need no term (the `Redacted` marker's `summary`). A class that
 shares another class's `type` value declares `_wire_type_alias = True` and gets no
 term (VM-01-014). Add its canonical example under
 `vultron/wire/as2/vocab/examples/`.
