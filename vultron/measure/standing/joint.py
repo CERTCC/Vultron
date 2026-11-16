@@ -21,7 +21,8 @@ else (:func:`case_prefix`).
   from 1 in the sequences' vendor-awareness order (:func:`vendor_numbers`).
   Each stands at its own report-management state and at the fix path and
   deployment its sequence reaches; every vendor's sequence reaches the same
-  public state.
+  public state.  A vendor not yet notified, at RM Start, is a vendor too,
+  numbered after them, with no fix and no deployment (ADR-0200 rule 1).
 * **The embargo** stands at the case's EM state, and an exited one at the
   cause its exit records: its end time, or fixes ready or deployed, is its
   own terms, a threat signal is a threat signal, and any other cause is
@@ -43,10 +44,10 @@ step, and :class:`NoJointStep` says which.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from vultron.core.models.embargo_termination import TerminationCauseKind
-from vultron.core.states.cs import CS_vf
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
     CSEvent,
@@ -98,11 +99,14 @@ class NoJointStep(ValueError):
     why."""
 
 
-def vendor_numbers(sequences: Iterable[CaseStateSequence]) -> dict[str, int]:
+def vendor_numbers(
+    sequences: Iterable[CaseStateSequence], unaware: Iterable[str] = ()
+) -> dict[str, int]:
     """Each vendor's number in the joint model, by participant: its place,
-    from 1, in vendor-awareness order.  The one numbering every reader of
-    the joint model uses."""
-    return {s.participant: n for n, s in enumerate(sequences, start=1)}
+    from 1, in vendor-awareness order, then each *unaware* vendor in the
+    order given.  The one numbering every reader of the joint model uses."""
+    order = [*(s.participant for s in sequences), *unaware]
+    return {participant: n for n, participant in enumerate(order, start=1)}
 
 
 #: The history kind of each report-management move, by the state it enters.
@@ -205,11 +209,25 @@ def _case_step(
     return frozenset()
 
 
+def _recorded_case_wide(
+    history: CaseEventHistory,
+) -> list[tuple[_Key, frozenset[Event]]]:
+    """The case's P, X and A where the history records them: their place
+    when no vendor's sequence places them."""
+    return [
+        ((event.log_index, position, 0), frozenset({Event(EventKind(kind))}))
+        for position, event in enumerate(history.events)
+        if (kind := event.kind) in _CASE_WIDE
+    ]
+
+
 def case_prefix(
     history: CaseEventHistory,
     sequences: Iterable[CaseStateSequence],
     rm_of: dict[str, RM],
     em: EM,
+    unaware: Sequence[str] = (),
+    pxa: CS_pxa = CS_pxa.pxa,
 ) -> CasePrefix | None:
     """Where the case stands in its joint model; ``None`` with no vendor.
 
@@ -219,11 +237,16 @@ def case_prefix(
             order; their order numbers the vendors.
         rm_of: Each vendor's report-management state, by participant.
         em: The case's EM state.
+        unaware: The vendors not yet notified, numbered after the others:
+            each stands at RM Start with no fix and no deployment
+            (ADR-0200 rule 1: a scope is any vendor, notified or not).
+        pxa: The case's public state, which the joint state takes when no
+            vendor has a sequence to place it.
     """
     vendors = list(sequences)
-    if not vendors:
+    if not vendors and not unaware:
         return None
-    numbers = vendor_numbers(vendors)
+    numbers = vendor_numbers(vendors, unaware)
     keyed: dict[_Key, set[Event]] = {}
     for number, sequence in enumerate(vendors, start=1):
         for key, cs_event in _keyed_sequence(sequence, history):
@@ -233,7 +256,10 @@ def case_prefix(
             keyed.setdefault(key, set()).add(
                 Event(EventKind(cs_event.value), None if case_wide else number)
             )
-    for key, events in _case_steps(history, numbers):
+    steps = _case_steps(history, numbers)
+    if not vendors:
+        steps.extend(_recorded_case_wide(history))
+    for key, events in steps:
         keyed[key] = keyed.get(key, set()) | events
     end = None
     if em is EM.EXITED:
@@ -248,6 +274,7 @@ def case_prefix(
     for sequence in vendors:
         vf, d, pxa = cs_dimensions(replay_cs_history(sequence.kinds))
         paths.append(VendorPath(rm_of[sequence.participant], vf, d))
+    paths.extend(VendorPath(RM.START, CS_vf.vf, CS_d.d) for _ in unaware)
     # Every vendor's sequence holds the case's P, X and A alike, so each
     # reaches the same public state.
     state = JointState(tuple(paths), pxa, em, end)

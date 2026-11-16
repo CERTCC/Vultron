@@ -16,8 +16,8 @@
 and puts each of its open moves in a band, with its layer, its marks and its
 negative parts by vendor.  The record it returns holds everything the page
 shows: the bands in page order, a named colour map for each shaded band, the
-help text and the note on negative shifts.  The page renders it and computes
-nothing (ADR-0190 rule 5).
+help text and the note on negative shifts, so the page can render it without
+recomputing anything (#6369, AC-5 as reworded for Epic #6367).
 
 An *open move* is an allowed move that is a step of the case's joint model,
 so it has an outcome shift for each vendor.  The bands, layers and marks come
@@ -46,10 +46,13 @@ from vultron.measure.advice.bands import (
     MoveAdvice,
     Part,
     advise,
+    band as band_of,
     dominates,
+    harms as harms_of,
 )
 from vultron.measure.advice.shifts import (
     CHANCE_EVENTS,
+    ScopeParts,
     ScopeShift,
     scope_shift,
 )
@@ -213,9 +216,25 @@ class AdvisedMove(BaseModel):
                 "only a trade-off move that is not top says a harm-free move"
                 " dominates it"
             )
+        problems.extend(self._agrees_with_its_shift())
         if problems:
             raise ValueError("; ".join(problems))
         return self
+
+    def _agrees_with_its_shift(self) -> list[str]:
+        """The band and harms the shift sets, where they differ from the
+        record's (:func:`.bands.band`, :func:`.bands.harms`)."""
+        parts = tuple(ScopeParts(s.end, s.embargo) for s in self.shift)
+        problems: list[str] = []
+        if (found := band_of(parts)) is not self.band:
+            problems.append(f"its shift puts it in the {found} band")
+        vendors = [s.vendor for s in self.shift]
+        expected = [
+            (vendors[h.vendor - 1], h.part, h.size) for h in harms_of(parts)
+        ]
+        if [(h.vendor, h.part, h.size) for h in self.harms] != expected:
+            problems.append("its harms are not its shift's negative parts")
+        return problems
 
 
 class UnbandedMove(BaseModel):
@@ -471,9 +490,7 @@ def case_advice(record: StandingRecord) -> CaseAdvice:
             end_confirmed=record.end_confirmed,
             gap=record.gap,
         )
-    vendors = tuple(
-        p.participant for p in record.participants if p.score is not None
-    )
+    vendors = tuple(record.vendors)
     numbers = {vendor: n for n, vendor in enumerate(vendors, start=1)}
     unbanded: list[UnbandedMove] = []
     open_moves: list[ScoredMove] = []

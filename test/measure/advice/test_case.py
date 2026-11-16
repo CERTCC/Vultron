@@ -38,9 +38,11 @@ from test.measure.history.builders import (
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.measure.advice import (
     BAND_ORDER,
+    CHANCE_EVENT,
     DOMINATED_BY_HARM_FREE,
     HARM_NOTE,
     HELP_TEXT,
+    KEEPS_EVERY_STATE,
     AdvisedMove,
     Band,
     BandAdvice,
@@ -257,7 +259,7 @@ def test_moves_that_are_not_steps_are_listed_with_why(two_vendors):
         (u.move.participant, u.move.name): u for u in two_vendors.unbanded
     }
     attacks = reasons[(VENDOR_2, "cs.attacks_are_observed")]
-    assert "No participant chooses" in attacks.reason
+    assert attacks.reason == CHANCE_EVENT
     owner = reasons[(OWNER, "rm.validate")]
     assert "moves no vendor's state" in owner.reason
     banded = {(m.move.participant, m.move.name) for m in two_vendors.moves}
@@ -289,7 +291,7 @@ def test_a_move_that_keeps_every_state_has_no_band():
         if isinstance(u.move, EMMove)
         and u.move.source is u.move.destination is EM.PROPOSED
     ]
-    assert kept and all("keeps every state" in u.reason for u in kept)
+    assert kept and all(u.reason == KEEPS_EVERY_STATE for u in kept)
     assert not [
         m
         for m in advice.moves
@@ -349,6 +351,7 @@ def _publication(two_vendors: CaseAdvice) -> AdvisedMove:
     ("update", "message"),
     [
         ({"layer": None}, "has a layer of 1 up"),
+        ({"layer": 0}, "has a layer of 1 up"),
         ({"band": Band.UNHELPFUL}, "an unhelpful move has no layer"),
         ({"top": True}, "a top move is a shaded move in layer 1"),
         (
@@ -363,6 +366,26 @@ def _publication(two_vendors: CaseAdvice) -> AdvisedMove:
             {"band": Band.HARM_FREE},
             "only a trade-off move that is not top",
         ),
+        (
+            {"layer": 1, "top": True},
+            "only a trade-off move that is not top",
+        ),
+        (
+            {"band": Band.HARM_FREE, "dominated_by_harm_free": None},
+            "its shift puts it in the trade-off band",
+        ),
+        ({"harms": ()}, "its harms are not its shift's negative parts"),
+    ],
+    ids=[
+        "no layer",
+        "layer 0",
+        "unhelpful with a layer",
+        "top outside layer 1",
+        "unhelpful and leading",
+        "message on a harm-free move",
+        "message on a top move",
+        "band its shift does not set",
+        "harms its shift does not hold",
     ],
 )
 def test_an_advised_move_refuses_marks_its_band_cannot_hold(
@@ -385,10 +408,12 @@ def test_a_band_refuses_another_bands_move(two_vendors):
             collapsed=False,
             moves=(_publication(two_vendors),),
         )
-    with pytest.raises(ValidationError, match="only the unhelpful band"):
+    with pytest.raises(ValidationError, match="has no colour map"):
         BandAdvice(
-            band=Band.UNHELPFUL, colour_map=ColourMap.VIRIDIS, collapsed=False
+            band=Band.UNHELPFUL, colour_map=ColourMap.VIRIDIS, collapsed=True
         )
+    with pytest.raises(ValidationError, match="unhelpful band is collapsed"):
+        BandAdvice(band=Band.UNHELPFUL, colour_map=None, collapsed=False)
 
 
 def test_case_advice_refuses_bands_out_of_order_or_a_reading_with_a_gap(
@@ -422,3 +447,75 @@ def test_a_change_the_case_cannot_hold_is_refused(change, message):
     broken = scored.model_copy(update={"changes": (bad,)})
     with pytest.raises(ValueError, match=message):
         case_advice(record.model_copy(update={"moves": [broken]}))
+
+
+def _seat_unnotified(ledger: Ledger, actor: str) -> None:
+    """Seat *actor* as a Vendor still at RM Start: not yet notified."""
+    ledger.seat(
+        participant(
+            actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
+        )
+    )
+
+
+@pytest.mark.spec("SHD-03-001")
+def test_a_vendor_not_yet_notified_is_a_scope_and_its_notice_helps():
+    """A notice raises only the notified vendor's end part, so it is never
+    unhelpful (ADR-0200, P1 of #6450)."""
+    ledger = _one_vendor()
+    _seat_unnotified(ledger, VENDOR_2)
+    advice = case_advice(case_standing(ledger.case_ledger()))
+    assert advice.vendors == (VENDOR, VENDOR_2)
+    for move in advice.moves:
+        assert [s.vendor for s in move.shift] == [VENDOR, VENDOR_2]
+    notice = _move(advice, VENDOR_2, "rm.receive")
+    assert notice.band is Band.HARM_FREE
+    assert _parts(notice, VENDOR_2).end > 0
+    assert _parts(notice, VENDOR) == VendorShift(
+        vendor=VENDOR, end=Fraction(0), embargo=Fraction(0)
+    )
+
+
+def test_a_case_manager_is_a_coordinator_and_its_moves_pool_with_the_owners():
+    """The vendor is also the case's CASE_MANAGER.  Its deployed fix
+    dominates the owner's proposal, so the proposal is not leading among
+    yours, and the fix is (ADR-0200 rule 7)."""
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                OWNER,
+                [status("owner-r", OWNER, "RECEIVED")],
+                roles=("CASE_OWNER",),
+            )
+        ],
+        with_embargo=False,
+    )
+    ledger.seat(
+        participant(
+            VENDOR,
+            [status("vendor-r", VENDOR, "RECEIVED", vf="VF")],
+            roles=("VENDOR", "CASE_MANAGER"),
+        )
+    )
+    ledger.add_status(VENDOR, status("vendor-a", VENDOR, "ACCEPTED", vf="VF"))
+    seat_vendor(ledger, VENDOR_2, "Vf")
+    advice = case_advice(case_standing(ledger.case_ledger()))
+    fix = _move(advice, VENDOR, "cs.fix_is_deployed")
+    proposal = _move(advice, OWNER, "em.propose")
+    assert proposal.band is Band.HARM_FREE
+    assert fix.leading_among_yours
+    assert not proposal.leading_among_yours
+    assert not _move(advice, VENDOR_2, "rm.close").leading_among_yours
+
+
+def test_two_desiderata_that_print_alike_are_refused(monkeypatch):
+    from vultron.measure.advice import case as module
+
+    module._desiderata_by_notation.cache_clear()
+    monkeypatch.setattr(module, "EXTENDED", (module.ORIGINAL[0],))
+    try:
+        with pytest.raises(ValueError, match="two desiderata print as"):
+            module._desiderata_by_notation()
+    finally:
+        module._desiderata_by_notation.cache_clear()

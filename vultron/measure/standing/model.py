@@ -379,6 +379,10 @@ class StandingRecord(BaseModel):
         moves: Every participant's allowed moves, in participant order,
             each with each vendor's change in expected outcome; empty when
             *gap* is set.
+        vendors: The vendors of the case's joint model, notified or not, in
+            the order it numbers them from 1: those with a case-state
+            sequence in vendor-awareness order, then those not yet notified
+            (:func:`~vultron.measure.standing.vendor_numbers`).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -389,12 +393,13 @@ class StandingRecord(BaseModel):
     case: CaseStanding | None = None
     participants: list[ParticipantStanding] = Field(default_factory=list)
     moves: list[ScoredMove] = Field(default_factory=list)
+    vendors: list[NonEmptyString] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _a_reading_or_its_gap(self) -> StandingRecord:
         problems: list[str] = []
         if self.gap is not None and (
-            self.case or self.participants or self.moves
+            self.case or self.participants or self.moves or self.vendors
         ):
             problems.append("a record with a gap holds no reading")
         if self.gap is None and self.case is None:
@@ -402,6 +407,13 @@ class StandingRecord(BaseModel):
         names = [p.participant for p in self.participants]
         if len(set(names)) != len(names):
             problems.append("a participant is listed more than once")
+        if len(set(self.vendors)) != len(self.vendors):
+            problems.append("a vendor is listed more than once")
+        problems.extend(
+            f"vendor {v} is not a participant"
+            for v in self.vendors
+            if v not in names
+        )
         problems.extend(
             f"{p.participant} stands in another case state than the case's"
             for p in self.participants

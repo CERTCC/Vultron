@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import logging
 
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.baselines import (
     Event,
@@ -154,6 +156,17 @@ def _moves_of(
     return (*standing.rm_moves, *standing.cs_moves, *standing.em_moves)
 
 
+def _unaware_vendors(participants: list[ParticipantStanding]) -> list[str]:
+    """The vendors not yet notified: the Vendor role, RM Start, no score."""
+    return [
+        p.participant
+        for p in participants
+        if CVDRole.VENDOR in p.cvd_roles
+        and p.rm is RM.START
+        and p.score is None
+    ]
+
+
 def case_standing(ledger: CaseLedger) -> StandingRecord:
     """Where the case *ledger* records stands at its last entry.
 
@@ -184,13 +197,17 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
         _participant(p, case, scores) for p in reached.participants
     ]
     rm_of = {p.participant: p.rm for p in reached.participants}
-    prefix = case_prefix(history, sequences.sequences, rm_of, em)
-    numbers = vendor_numbers(sequences.sequences)
+    unaware = _unaware_vendors(participants)
+    prefix = case_prefix(
+        history, sequences.sequences, rm_of, em, unaware, reached.pxa
+    )
+    numbers = vendor_numbers(sequences.sequences, unaware)
     return StandingRecord(
         case_id=history.case_id,
         end_confirmed=history.end_confirmed,
         case=case,
         participants=participants,
+        vendors=list(numbers),
         moves=[
             _scored(prefix, numbers, move)
             for p in participants

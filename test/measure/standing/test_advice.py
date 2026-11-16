@@ -353,7 +353,7 @@ def test_every_vendor_and_em_move_of_a_recording_cut_short_is_scored(
         cut.write_text("\n".join(lines[:entries]) + "\n", encoding="utf-8")
         (ledger,) = read_case_ledgers([cut]).cases.values()
         record = case_standing(ledger)
-        vendors = [p.participant for p in record.participants if p.score]
+        vendors = record.vendors
         for move in record.moves:
             vendors_move = move.move.participant in vendors or isinstance(
                 move.move, EMMove
@@ -384,6 +384,65 @@ def test_a_scored_move_holds_a_number_or_a_reason():
     assert ScoredMove(move=advice).advice
 
 
+def _seat_unnotified(ledger: Ledger, actor: str) -> None:
+    """Seat *actor* as a Vendor still at RM Start: not yet notified."""
+    ledger.seat(
+        participant(
+            actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
+        )
+    )
+
+
+def test_a_vendor_not_yet_notified_is_a_vendor_of_the_joint_model():
+    """ADR-0200 rule 1: a scope is any vendor, notified or not."""
+    ledger = _vendor_case()
+    _seat_unnotified(ledger, VENDOR_2)
+    record = case_standing(ledger.case_ledger())
+    assert record.vendors == [VENDOR, VENDOR_2]
+    unnotified = record.for_participant(VENDOR_2)
+    assert unnotified is not None and unnotified.score is None
+    notice = _scored(record, VENDOR_2, "rm.receive")
+    assert notice.changes is not None
+    assert {c.vendor for c in notice.changes} == {VENDOR, VENDOR_2}
+    history, reached = derive_case(ledger.case_ledger())
+    prefix = case_prefix(
+        history,
+        case_state_sequences(history).sequences,
+        {p.participant: p.rm for p in reached.participants},
+        reached.em(),
+        [VENDOR_2],
+    )
+    assert prefix is not None
+    assert prefix.state.vendors[1] == VendorPath(RM.START, CS_vf.vf, CS_d.d)
+
+
+def test_a_case_whose_only_vendor_is_not_yet_notified_has_a_prefix():
+    """No sequence places the case's public awareness, so the prefix takes
+    it where the history records it, and the case's public state."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _seat_unnotified(ledger, VENDOR)
+    publish(ledger, "Pxa")
+    history, reached = derive_case(ledger.case_ledger())
+    prefix = case_prefix(history, [], {}, reached.em(), [VENDOR], reached.pxa)
+    assert prefix is not None
+    assert prefix.state.vendors == (VendorPath(RM.START, CS_vf.vf, CS_d.d),)
+    assert prefix.state.pxa is CS_pxa.Pxa
+    assert prefix.history[-1] == frozenset({Event(EventKind.P)})
+    record = case_standing(ledger.case_ledger())
+    assert record.vendors == [VENDOR]
+    assert _scored(record, VENDOR, "rm.receive").changes is not None
+
+
+def test_a_record_lists_each_vendor_once_and_only_participants():
+    record = case_standing(_vendor_case().case_ledger())
+    fields = {n: getattr(record, n) for n in type(record).model_fields}
+    with pytest.raises(ValidationError, match="listed more than once"):
+        StandingRecord(**(fields | {"vendors": [VENDOR, VENDOR]}))
+    with pytest.raises(ValidationError, match="is not a participant"):
+        StandingRecord(**(fields | {"vendors": [VENDOR_2]}))
+
+
 def test_a_record_with_a_gap_holds_no_scored_move(tmp_path):
     ledger = _vendor_case()
     publish(ledger, "Pxa")
@@ -393,3 +452,4 @@ def test_a_record_with_a_gap_holds_no_scored_move(tmp_path):
     (holed,) = read_case_ledgers([path]).cases.values()
     record = case_standing(holed)
     assert record.gap is not None and record.moves == []
+    assert record.vendors == []
