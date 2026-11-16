@@ -1629,14 +1629,19 @@ groups:
       names. The chain is the activity's object and, when that object is an
       activity, the inner activity's own object, at any depth. An object named by a
       URI, a `Link` or a typed reference (MV-10-011) carries no `context` and is
-      not compared.
+      not compared. The chain ends at a `Refuse`, whose object is the refused act
+      quoted as it arrived (CLP-05-001).
     rationale: >-
       Each `context` says which case the act belongs to. When two parts of one
       message name different cases, the sender has said two things about where the
       act belongs, and acting on either one would ignore the other. Every value
       compared is in the message, so the check needs no receiver state and runs at
       the parse edge, as for any message whose parts contradict each other
-      (ADR-0032). Naming each case lets the sender see the disagreement.
+      (ADR-0032). Naming each case lets the sender see the disagreement. A refusal
+      notice names the case its tree acted on, and the act it quotes may be one
+      refused because its object names another case (HP-08-007). The quote is
+      evidence of what arrived, not a part of the notice, so the participant can
+      still read the notice and close its pending assertion (CLP-06-006).
     note: >-
       Verdicts this rule changes. An `Add(ParticipantStatus)` whose activity and
       status name different cases was refused by its received tree before the
@@ -1649,10 +1654,13 @@ groups:
     verification: >-
       `test/wire/as2/test_context_agreement.py` parses activities whose parts name
       different cases (a plain object, a nested activity, a two-level chain, a
-      `Link` context, a list of objects) and asserts each is refused with every
+      `Link` context, a list `context`) and asserts each is refused with every
       `context` and its case in the reason. It parses activities with one
       `context`, matching contexts, and an object named by a URI, a `Link` or a
       typed reference, and asserts each parses.
+      `test_a_refusal_notice_is_not_compared_with_the_act_it_quotes` in the same
+      file parses a refusal notice whose quoted `Add` carries a note of another
+      case.
       `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_whose_activity_names_another_case_is_refused`
       delivers an `Add(ParticipantStatus)` whose status and target name case A
       while its activity `context` names case B through the inbox ingress, and
@@ -1660,6 +1668,8 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: MV-10-011
+    - rel_type: uses_definition
+      spec_id: CLP-05-001
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

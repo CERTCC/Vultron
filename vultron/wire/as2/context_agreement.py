@@ -29,6 +29,12 @@ chain: the carried object, and for a nested activity its own object, at any
 depth (:func:`object_chain`).  A part that names no case has nothing to
 disagree with, and a part named only by reference names none: a bare URI, a
 ``Link`` and a typed reference carry no ``context`` (MV-10-011).
+
+A ``Refuse`` quotes the act it refuses as it arrived (CLP-05-001), so its
+object is evidence, not a part of the refusal: the chain compared ends at
+the ``Refuse``.  A refusal notice from a tree built on the target case
+quotes an ``Add`` whose object names another case (HP-08-007), and the
+participant must still be able to read it (CLP-06-006).
 """
 
 from collections.abc import Iterator
@@ -37,6 +43,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.extension_activities import as_Refuse
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -109,13 +116,25 @@ def _cases_text(cases: frozenset[str]) -> str:
     return ", ".join(f"case {case!r}" for case in sorted(cases))
 
 
+def _compared_parts(activity: as_Activity) -> Iterator[tuple[str, object]]:
+    """The :func:`object_chain` parts compared, ending at a ``Refuse``.
+
+    A ``Refuse``'s object is the refused act as it arrived, quoted, so it is
+    not compared with the ``Refuse``'s own ``context`` (CLP-05-001).
+    """
+    for path, part in object_chain(activity):
+        yield path, part
+        if isinstance(part, as_Refuse):
+            return
+
+
 def refuse_context_disagreement(activity: as_Activity) -> None:
     """Refuse *activity* when two of its parts' ``context`` name different cases.
 
     Each part that names a case is reported with the case it names, so the
     sender sees every part of the disagreement at once (EH-07-001).  An
     activity with one ``context`` in it, or whose parts all name the same
-    case, passes.
+    case, passes, and the act a ``Refuse`` quotes is not compared.
 
     Raises:
         VultronParseValidationError: Naming the activity, each ``context``
@@ -123,7 +142,7 @@ def refuse_context_disagreement(activity: as_Activity) -> None:
     """
     named = [
         (f"{path}.context" if path else "context", cases)
-        for path, part in object_chain(activity)
+        for path, part in _compared_parts(activity)
         if (cases := cases_named_by_context(part))
     ]
     if len({cases for _, cases in named}) < 2:

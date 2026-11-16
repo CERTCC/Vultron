@@ -26,7 +26,6 @@ from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     EXAMPLE_TIMESTAMP,
     _example_stamp,
-    case,
     vendor,
 )
 from vultron.wire.as2.vocab.examples.status import (
@@ -80,8 +79,6 @@ def refusal_notice() -> as_Refuse:
         " recorded for the Vendor",
         actor=_CASE_ACTOR.id_,
         to=[refused.actor],
-        # The case the refused status names, as the notice's own context
-        # must be for the notice to parse (HP-08-015).
-        context=case().id_,
+        context="https://vultron.example/cases/1",
         at=EXAMPLE_TIMESTAMP,
     )

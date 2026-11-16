@@ -21,12 +21,15 @@ type, with every ``context`` and its case in the reason.  One ``context``,
 matching ones, and an object named by reference keep their verdict.
 """
 
+import json
 from typing import Any
 
 import pytest
 
+from test.support.objects import authored_at
 from vultron.wire.as2.context_agreement import object_chain
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.factories import refusal_notice_activity
 from vultron.wire.as2.parser import parse_activity
 
 _CASE_A = "https://example.org/cases/a"
@@ -179,3 +182,48 @@ def test_object_chain_follows_nested_activities_and_stops_at_objects() -> None:
         "object",
         "object.object",
     ]
+
+
+@pytest.mark.spec("HP-08-015")
+@pytest.mark.spec("CLP-05-001")
+def test_a_refusal_notice_is_not_compared_with_the_act_it_quotes() -> None:
+    """The CASE_MANAGER's notice for an HP-08-007 refusal names the target
+    case A, while the ``Add`` it quotes carries a note of case B.  The quote
+    is evidence of what arrived, so the notice parses (CLP-06-006)."""
+    refused = _activity(
+        "Add",
+        _note(_CASE_B),
+        id_="https://example.org/activities/refused",
+        target=_CASE_A,
+    )
+    notice = refusal_notice_activity(
+        refused,
+        "the note names another case than the target",
+        actor="https://example.org/actors/case-manager",
+        to=["https://example.org/actors/vendor"],
+        context=_CASE_A,
+        at=authored_at(),
+    )
+
+    received = parse_activity(json.loads(notice.to_json()))
+
+    assert received.id_ == notice.id_
+
+
+@pytest.mark.spec("HP-08-015")
+def test_a_refusal_notice_is_still_compared_with_nothing_above_it() -> None:
+    """The Refuse ends the chain compared, but its own ``context`` still
+    counts against an activity that carries it."""
+    notice = refusal_notice_activity(
+        _activity("Add", _note(), id_="https://example.org/activities/r"),
+        "refused",
+        actor="https://example.org/actors/case-manager",
+        to=["https://example.org/actors/vendor"],
+        context=_CASE_B,
+        at=authored_at(),
+    )
+    body = _activity("Announce", json.loads(notice.to_json()), _CASE_A)
+
+    with pytest.raises(VultronParseValidationError) as exc:
+        parse_activity(body)
+    assert f"object.context names case {_CASE_B!r}" in str(exc.value)
