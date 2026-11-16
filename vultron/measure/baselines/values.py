@@ -218,7 +218,7 @@ def _case_model(vendor_count: int) -> JointModel:
 def expected_change(
     prefix: CasePrefix, move: Move[JointState, Event]
 ) -> Values:
-    """Each vendor's expected change, in each desideratum, of the step *move* names from *prefix*.
+    """Each vendor's expected change in each desideratum from the step *move* names.
 
     The value after the step minus the value before it
     (:func:`desiderata_values`): positive when the step makes the
