@@ -6,7 +6,8 @@ description: >
   Pitfalls in the git and GitHub side of agentic development: false-positive
   rebase failures, syncing a worktree, catch-up merges that break or revert
   work silently, integration branches for related fix PRs, ADR number races,
-  verifying acceptance criteria before claiming, the `Closes #N` footer, and
+  verifying acceptance criteria and their premises before claiming, the
+  `Closes #N` footer, and
   never merging on red.
 related_notes:
   - notes/parallel-development.md
@@ -108,6 +109,14 @@ PR that omits it leaves delivered work OPEN, and the next agent re-implements it
   line, on docs and `learn` PRs too.
 - **An existing task branch for the issue** may mean another PR already did the
   work; check `origin/main` before assuming nothing was done.
+- **Read each AC twice: is it done, and does its premise still hold?** An AC
+  names a condition of the code when it was written, such as an optional field, a
+  quoted sentence, or the design of an issue it defers to ("same mechanism as
+  #N"). That condition can move before or during the build, and the pre-claim
+  gate asks only whether the AC is satisfied. When a premise has moved, do what
+  the AC was for, not its letter, and say per AC in the PR body in what form it
+  was met. Re-read a deferred-to issue's current plan and specs again right before
+  pushing, because planning PRs merge as fast as code (#5613).
 
 ## Fix One, Miss the Siblings: Scan Peer Files Before Closing a Bug
 

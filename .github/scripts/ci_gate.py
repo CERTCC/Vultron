@@ -5,10 +5,11 @@ request to ``main``. Nearly every other CI workflow has ``paths`` filters, so a
 ruleset that required one of their jobs would leave a docs-only pull request
 waiting for a status that never arrives. This gate always runs, and passes only
 when every other check passed or was skipped, so it is the one check a ruleset
-requires. ``guard-tests.yml`` is the other unfiltered pull-request workflow,
-for the same reason read the other way round: the gate passes on a skip, so the
-guard tests CI took over from the local mirror need a job that never skips
-(PAD-18-023, PAD-18-031).
+requires. ``guard-tests.yml`` and ``vince-data-check.yml`` are the other
+unfiltered pull-request workflows, for the same reason read the other way
+round: the gate passes on a skip, so the guard tests CI took over from the
+local mirror, and the committed-data check, need a job that never skips
+(PAD-18-023, PAD-18-031, VSD-02-001).
 
 The verdict rules are those of ``.agents/skills/shared/wait-for-ci.sh``:
 ``success``, ``skipped`` and ``neutral`` are green; every other conclusion

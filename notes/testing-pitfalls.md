@@ -22,7 +22,9 @@ description: >
   marker,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
   MagicMock), driving a guard through its production entry point rather than by
-  direct call, the three future-date idioms a sweep must tell apart before
+  direct call, why a patch on a moved name can take and intercept nothing,
+  why gate exit 124 can be slot contention rather than a hang, the three
+  future-date idioms a sweep must tell apart before
   replacing a literal, why turning nesting into sequence moves the skip nobody
   tests,
   why no test may assert over the whole collection now that CI runs the suite
@@ -118,6 +120,15 @@ and the old `thread` timeout method (§ "Per-Test Timeout Guardrail"). Every loc
 gate command also runs under `timeout -k 30 1800` (`GATE_CEILING` in
 `vultron/metadata/planning/targeted_tests/selection.py`), so any hang still left
 ends with exit 124. The run-tests skill's table tells the three outcomes apart.
+
+Exit 124 is not always a hang. A heavy-check slot (`run-heavy.py`) is not a CPU
+reservation: two slot holders on one host each size `pytest -n auto` from the
+cgroup and then share the CPUs, and the ceiling assumes a run that has the machine.
+Read the log before the exit status. A run killed mid-collection or stalled at one
+test is a hang. A run near 100% with no `F`, `E` or traceback, whose log shows a
+`run-heavy` wait line naming another worktree, tripped on contention: rerun the
+same selection, and say in the PR body that the first run tripped and what the
+rerun did (#6028).
 
 ### Per-Test Timeout Guardrail
 
@@ -570,6 +581,24 @@ carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
 reads, so a failed gate leaves the artifact absent and the runner stops the
 story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
 never chain" rule for BT helpers is the same shape seen from the design side.
+
+### A Patch on a Moved Name Can Take and Intercept Nothing
+
+When a step moves out of a module into a shared helper, a test's
+`patch.object(old_module, "name")` still succeeds if `old_module` still imports
+`name`, but the helper resolves `name` in its own module, so the patch replaces
+nothing the code calls. Whether the test then fails depends on whether the real
+call happens to break on a stand-in. Only a name gone from the module entirely
+raises `AttributeError`, so the loud failure is the lucky case. A patch on a
+package `__init__` has the same flaw for a submodule that resolves the name itself.
+
+**How to apply.** Before a change that moves a name, `grep` the whole test tree for
+`patch.object(<old home>,` and `patch("<old dotted path>` and repoint each one to
+where the name is resolved. When the work is split across parallel agents, land
+that repair alone first, as its own commit with the suite green, because it cannot
+be partitioned by module: each agent otherwise meets the break in a file it does
+not own. Check a repaired patch by making the patched collaborator raise and
+asserting the test notices, not by the suite going green (#5536).
 
 ### Drive a Guard Through Its Production Entry Point, Not by Direct Call
 

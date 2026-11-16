@@ -45,6 +45,7 @@ The Foundations group comes after the main pages.
 
 - [What a Case Records](what_a_case_records.md) — The events that a Vultron case records, which events belong to the case or to one participant, the two times on each entry, and the data gaps.
 - [Desiderata from the Process Models](process_model_desiderata.md) — Ordering preferences beyond the original twelve, distilled from the report, embargo, consent, and multi-party process models.
+- [Move Bands Against Pathology Cases](move_bands.md) — A spike that tests move bands, and five scalar aggregates, against pathology cases written first.
 - [Timing Metrics Within a Case](timing_metrics.md) — Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
 - [Open Questions](open_questions.md) — What measuring CVD still leaves open, from transition probabilities and the order of histories to fairness across vendors.
 - [Foundations](foundations/index.md) — The first-principles model of the original research: six events, the histories they allow, and a skill measure against chance.

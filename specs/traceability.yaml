@@ -78,13 +78,16 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Stories with insufficient spec coverage SHOULD be documented as incoming
-      learning files in `plan/incoming/learnings/` with specific technical
-      details describing the gap and concrete steps toward remediation
+      A story that names a need no requirement serves, and that no open issue
+      tracks, SHOULD be recorded as a `type:Idea` issue filed through
+      `create-issue`.
     rationale: >-
-      A gap in the matrix shows only that coverage is missing. It does not show what to
-      do. A learning file goes into the queue that `learn` turns into specs and Issues,
-      so the gap goes to a person who can close it.
+      The matrix already flags every story no requirement cites (TRACE-01-002), so a
+      second record of the same fact can only disagree with it. A flag shows only that
+      coverage is missing, not what to do. An issue can be assigned, scheduled and
+      closed, which a learning file cannot (BW-01), so the need reaches a person who
+      can plan it. A story whose disposition waits on a scope decision, or whose
+      citing work is already scheduled, needs no new record.
 - id: TRACE-03
   title: Story Graph Generation and Catalog Integrity
   description: >-

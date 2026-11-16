@@ -32,6 +32,7 @@ stakeholder_type: [project-contributor]
   Comments and docstrings are held to 88 characters (`max-doc-length`); a growth guard in `test/architecture/test_line_length_ratchet.py` fails each overlong line a change adds, and `W505` stays ignored because older lines predate the limit (PD-10-002).
 - **Selected rule families**: `E`, `W`, `F`, `C90`, `I`, `B`, `UP`, `SIM`, `RUF`, `PL`, `TRY`, `DTZ`, `BLE`, `S`, `TC`, `RET`, `G`, `PYI`.
   Every entry in `ignore` carries a comment stating why it is not enforced (IMPLTS-07-019).
+  `[tool.ruff.per-file-target-version]` keeps a script run by another interpreter at that interpreter's syntax (`.github/scripts/**` at `py312`), so the `py314` formatter does not write PEP 758 `except A, B:` there.
   `PLC0415` (import outside top level) is ignored only per file, for `test/**` and `docs/_scripts/render_trigger_api.py`; `G004` is enforced.
 - **Baselined findings**: residual findings are suppressed inline as `# noqa: <RULE>  # ruff-baseline #<issue>`, citing the issue that removes them; `per-file-ignores` is reserved for permanent, justified exemptions (`notes/lint-tooling.md`).
 - **Type checkers**: mypy (`.mypy.ini`, packages `vultron` and `test`, `python_version = 3.14`) and pyright (`pyrightconfig.json`, `basic` mode, `pythonVersion` `3.14`, includes `vultron` and `test`), each pinned to the `requires-python` floor (IMPLTS-01-009); both run in CI and both must pass, and pyright runs only there (PAD-18-027). Both skip the generated CSAF models in `vultron/wire/csaf/models/` (a `[mypy-vultron.wire.csaf.models.*]` section and a pyright `exclude`), because a few schema defaults there do not match their declared types and a hand edit would break the byte-for-byte freshness check (CSAF-05-003); ruff still covers them.
@@ -57,6 +58,7 @@ stakeholder_type: [project-contributor]
 - **Layer isolation**: `vultron/core/` must not import from `vultron/adapters/`, `vultron/wire/` or `vultron/demo/`; `vultron/config/` must not import from `vultron/adapters/` or `vultron/core/`
 - **Split modules re-export**: a module split into a subpackage re-exports its public names from `__init__.py` (CS-18-003), for example `vultron/adapters/driven/datalayer_sqlite/` and `vultron/core/services/embargo_lifecycle/`
 - **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (ruff `per-file-ignores`)
+- **Secret settings**: a configuration setting that holds a credential is typed `SecretStr` (or `SecretBytes`, `Secret[...]`), and that type is its only declaration: `vultron/config/secrets.py` finds it and refuses a config file that names it, so a secret is read only from the environment (VSD-01-004, SHD-02-003).
 
 ### 3a) BT Node Blackboard Conventions
 
@@ -83,6 +85,9 @@ stakeholder_type: [project-contributor]
   A plain `py_trees` node's `self.logger` takes one pre-rendered message and no lazy arguments, so a helper logging on a node's behalf binds `log = node_logger(node)` from `vultron/core/behaviors/node_logger.py` and calls `log.warning(...)`.
   Lazy arguments defer only rendering, not evaluation, so a guard such as `isEnabledFor(logging.DEBUG)` stays only around a value produced by an expensive call, with a comment saying so.
   The reasoning is in `notes/structured-logging.md` § "Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)".
+- **Correlation ids (SL-02-003, SL-02-004)**: `activity_id` and `actor_id` reach a record as attributes set from ambient context: a processing boundary enters `correlation_context()` from `vultron/logging_correlation.py` once, and an entry point puts `CorrelationFilter` and `CorrelationFormatter` on its handlers with `install_correlation_logging()`.
+  No log call passes them through `extra=` (`test/architecture/test_no_correlation_ids_in_log_extra.py`), and naming an id in the message text does not count.
+  No entry point or boundary calls the module yet; that is #3992.
 - **Sensitive data**: `_log_label()` in `vultron/core/use_cases/_helpers.py` replaces raw actor/activity identifiers with a short hash in some use-case log messages.
   No general redaction policy exists; what a log line may contain is Concern #5607.
 
@@ -112,4 +117,6 @@ stakeholder_type: [project-contributor]
 - `vultron/adapters/driving/fastapi/errors.py`
 - `test/conftest.py`
 - `test/demo/conftest.py`
+- `vultron/logging_correlation.py`
+- `vultron/config/secrets.py`
 - `vultron/wire/as2/AGENTS.md`

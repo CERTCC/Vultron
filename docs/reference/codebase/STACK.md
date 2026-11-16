@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
 | FastAPI | >=0.141.1 | HTTP API server (driving adapter) | `pyproject.toml` |
-| Pydantic v2 | ==2.14.2 | Data validation; domain + wire models | `pyproject.toml` |
+| Pydantic v2 | ==2.14.3 | Data validation; domain + wire models | `pyproject.toml` |
 | email-validator | via `pydantic[email]` (`uv.lock` resolves the version) | `EmailStr` fields of the CSAF 2.1 models generated from the pinned local copy of the schemas (CSAF-05-002) | `pyproject.toml`, `vultron/wire/csaf/models/` |
 | pydantic-settings | >=2.15.0 | Layered settings (YAML, env, defaults) | `pyproject.toml`, `vultron/config/app.py` |
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
@@ -53,12 +53,12 @@ It has no backend; it reads JSON and TypeScript exported from the Python side (`
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| ruff | Linter, formatter and import sorter (>=0.16.9; line-length 79, max complexity 10; ADR-0094). Replaced black, flake8 and isort; scope is declared in `[tool.ruff]`, so every caller runs it bare | `pyproject.toml` `[tool.ruff]`, `[dependency-groups].dev` |
+| ruff | Linter, formatter and import sorter (>=0.16.9; line-length 79, max complexity 10; ADR-0094). Replaced black, flake8 and isort; scope is declared in `[tool.ruff]`, so every caller runs it bare. `[tool.ruff.per-file-target-version]` holds the scripts that run on another `python3` to that interpreter's syntax (`.github/scripts/**` at `py312`, the codebase scan at `py38`, two host-side scripts at `py39`), so the `py314` formatter never writes PEP 758 `except A, B:` into them | `pyproject.toml` `[tool.ruff]`, `[dependency-groups].dev` |
 | mypy | Static type checking (>=2.3.0) over `vultron` and `test` | `.mypy.ini`, `[dependency-groups].dev` |
 | pyright | Static type checking (>=1.1.411, `basic` mode, second pass) over `vultron` and `test`, in CI only (PAD-18-027) | `pyrightconfig.json`, `[dependency-groups].dev` |
 | pre-commit | Git hook runner (>=4.6.2); hooks include codespell, actionlint, markdownlint-cli2, frontmatter validators, generated-artifact sync checks, ruff and spec-lint | `.pre-commit-config.yaml`, `[dependency-groups].dev` |
 | codespell | Spelling floor for docs (en-GB to en-US only) | `pyproject.toml` `[tool.codespell]`, `.pre-commit-config.yaml` |
-| pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
+| pytest | Test runner (>=9.1.1,<9.2; the cap keeps `xdist_group` marks working, #6181) | `pyproject.toml` `[dependency-groups].dev` |
 | pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 120 s integration tier, #5188) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
 | pytest-xdist | Parallel test execution (>=3.8.0) | `[dependency-groups].dev` |
 | pandas-stubs / types-networkx / types-pyyaml | Type stubs for third-party deps | `[dependency-groups].dev` |
@@ -115,7 +115,11 @@ PYTHONPATH= uv run spec-dump --topic CS --text
     The `Makefile` `api_dev` target and `docker/docker-compose.yml` set it to the server's own `http://localhost:7999/api/v2`; `docker/docker-compose-multi-actor.yml` points it at the `case-actor` container.
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
   - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-011, SYNC-20-005).
-  - `VULTRON_VINCE__BASE_URL`, `VULTRON_VINCE__API_TOKEN` — the VINCE API endpoint and credential the shadow's VINCE connector reads (`vultron/config/vince.py`). The credential is a `SecretStr` read only from the environment: a config file that names it is refused at load, and pydantic does not append the input to a config validation error (`hide_input_in_errors`; VSD-01-004, VSD-01-005).
+  - `VULTRON_VINCE__BASE_URL`, `VULTRON_VINCE__API_TOKEN` — the VINCE API endpoint and credential the shadow's VINCE connector reads (`vultron/config/vince.py`).
+    The credential is a `SecretStr` read only from the environment: a config file that names it is refused at load, and pydantic does not append the input to a config validation error (`hide_input_in_errors`; VSD-01-004, VSD-01-005).
+- Secret settings are declared by type alone: any field typed `SecretStr`, `SecretBytes` or `Secret[...]` is found by `secret_setting_paths()` in `vultron/config/secrets.py`, and the YAML source refuses a file that names one (SHD-02-003).
+  `vultron/config/env_names.py` derives each setting's `VULTRON_` variable name from its key path (CFG-03-001, CFG-03-002), and `vultron/config/model_walk.py` walks a settings model's sections and leaf fields for both.
+- `XDG_CACHE_HOME` (default `~/.cache`): the spec-marker reader caches its parse of each test file in `$XDG_CACHE_HOME/vultron/`, keyed by the text's SHA-256 and the reader's code version, so every pytest worker and `spec-lint` run shares one parse (`vultron/metadata/text_cache.py`, #5880).
 - `.env.example` documents only `PROJECT_NAME` (default `vultron`), which the Docker Compose files use for image names.
 - Deployment/runtime constraints: Python 3.14+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
 - Containerized multi-actor demo: `docker/docker-compose.yml` and `docker/docker-compose-multi-actor.yml` (single Dockerfile at `docker/Dockerfile`, entrypoint `docker/demo-entrypoint.sh`, seed configs under `docker/seed-configs/`), used by the `demo-integration.yml` CI workflow.
@@ -133,6 +137,11 @@ PYTHONPATH= uv run spec-dump --topic CS --text
 - `vultron/config/__init__.py`
 - `vultron/config/app.py`
 - `vultron/config/actor.py`
+- `vultron/config/ledger.py`
+- `vultron/config/vince.py`
+- `vultron/config/secrets.py`
+- `vultron/config/env_names.py`
+- `vultron/metadata/text_cache.py`
 - `ui/package.json`
 - `.github/workflows/ui.yml`
 - `.github/actions/setup-python-uv/action.yml`

@@ -263,15 +263,19 @@ cases reach the core through a `CaseReader`, which translates one into a case re
 (ADR-0191, ADR-0197).
 *Avoid*: service domain, external tracker (as a coined name)
 
-**Case shadow**:
+**Case shadow tool**:
 A standalone, read-only tool that reads one case through a case reader on request and
 shows Vultron's analysis of it as a dashboard: where the case stands, which desiderata
 it meets or breaks, and which moves are open. It knows only case ledgers, never the
-source behind them. It advises: this version does not act in the case, write to the
-source, send to participants, or keep the case after the request (ADR-0190).
-*Avoid*: VINCE shadow (the case shadow is not tied to one source), shadow mode as a
-server setting (the case shadow hosts no actor), VINCE observer (Observer is a CVD
-role), VINCE mirror (a case shadow analyses; a mirror only copies)
+source behind them, and can follow a live Vultron case as its ledger grows. It advises:
+this version does not act in the case, write to the source, or send to participants.
+It holds a case in memory, writes it to no persistent storage, and leaves none of it
+on the host after its process exits; a transient working file is allowed only if it is
+gone by then (ADR-0190).
+*Avoid*: case shadow (without "tool"), VINCE shadow (the case shadow tool is not tied
+to one source), shadow mode as a server setting (the case shadow tool hosts no actor),
+VINCE observer (Observer is a CVD role), VINCE mirror (the case shadow tool analyses;
+a mirror only copies)
 
 **Case reader**:
 Anything that answers a request for one case with a case reading: a case ledger, plus
@@ -302,7 +306,8 @@ which direction)
 ## Move Advice
 
 **Scope** (move advice sense):
-One vendor in the case, notified or not, holding the desiderata about that vendor.
+One vendor in the case, notified or not, holding the desiderata about that vendor,
+each group of equivalent desiderata once.
 There is no case-wide scope.
 *Avoid*: dimension, axis
 
