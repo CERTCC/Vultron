@@ -46,7 +46,7 @@ from vultron.core.models.case_reading import (
     CaseReading,
     EntryCitation,
     UnobservableFact,
-    case_reading_problems,
+    ledger_problems,
 )
 from vultron.errors import CaseLedgerFileError, LedgerReadError
 from vultron.measure.ledger import UnusableRow, read_ledger_file
@@ -57,8 +57,11 @@ logger = logging.getLogger(__name__)
 def _summary(exc: ValidationError) -> str:
     """*exc*'s errors on one line, each with the field it is about."""
     return "; ".join(
-        f"{'.'.join(str(part) for part in error['loc']) or 'entry'}: "
-        f"{error['msg']}"
+        (
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            if error["loc"]
+            else error["msg"]
+        )
         for error in exc.errors()
     )
 
@@ -71,8 +74,10 @@ class VultronCaseReader:
 
     Args:
         root: When set, the directory every requested file must resolve
-            inside; a path outside it is refused before it is opened, so an
-            analyst's input cannot probe the host's other files.
+            inside, symbolic links followed; a path outside it is refused
+            before it is opened, so an analyst's input cannot probe the
+            host's other files.  A relative case id is then taken relative
+            to *root*, not to the working directory.
     """
 
     name = "vultron"
@@ -82,6 +87,22 @@ class VultronCaseReader:
 
     def __init__(self, root: Path | None = None) -> None:
         self._root = root.resolve() if root is not None else None
+
+    def _confined(self, case_id: str) -> Path:
+        """The path to open for *case_id*, refused if outside the root."""
+        if self._root is None:
+            return Path(case_id)
+        try:
+            path = (self._root / case_id).resolve()
+        except (OSError, ValueError) as exc:
+            raise CaseLedgerFileError(
+                case_id, [f"it is not a usable path: {exc}"]
+            ) from exc
+        if not path.is_relative_to(self._root):
+            raise CaseLedgerFileError(
+                case_id, [f"it is outside the ledger directory {self._root}"]
+            )
+        return path
 
     def read_case(self, case_id: str) -> CaseReading:
         """Read the case ledger in the file at path *case_id*.
@@ -93,17 +114,15 @@ class VultronCaseReader:
                 entries that are not one case's ledger in log-index order.
                 The error names the file and carries every problem found.
         """
-        path = Path(case_id)
-        if self._root is not None and not path.resolve().is_relative_to(
-            self._root
-        ):
-            raise CaseLedgerFileError(
-                case_id, [f"it is outside the ledger directory {self._root}"]
-            )
+        path = self._confined(case_id)
         try:
             ledger_file = read_ledger_file(path)
         except LedgerReadError as exc:
             raise CaseLedgerFileError(case_id, [str(exc)]) from exc
+        except ValueError as exc:  # a path the OS cannot name, e.g. a NUL
+            raise CaseLedgerFileError(
+                case_id, [f"it is not a usable path: {exc}"]
+            ) from exc
 
         bad_rows: list[UnusableRow] = list(ledger_file.unusable_rows)
         entries: list[CaseLedgerEntry] = []
@@ -121,7 +140,9 @@ class VultronCaseReader:
         problems = [
             row.describe() for row in sorted(bad_rows, key=attrgetter("line"))
         ]
-        problems += case_reading_problems(entries, citations)
+        # The citations are built one per entry, so only the ledger can
+        # disagree with itself (EH-07-002).
+        problems += ledger_problems(entries)
         if not entries and not bad_rows:
             problems.append("it holds no ledger entry")
         if problems:

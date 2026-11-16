@@ -30,13 +30,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.case_reader import projected_history
-from vultron.core.models.case_reading import CaseReading
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_reading import CaseReading, UnobservableFact
 from vultron.core.ports.case_reader import CaseReader
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.errors import CaseLedgerFileError, VultronError
 from vultron.shadow.readers import VultronCaseReader
+from vultron.shadow.readers.vultron_ledger import _summary
 
 _RECORDINGS = sorted(RECORDINGS_DIR.glob("*/case-actor.jsonl"))
 _RECORDING = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
@@ -87,11 +90,13 @@ def test_a_recording_has_nothing_untranslated_inferred_or_unobservable():
 
 
 @pytest.mark.spec("CRD-02-004")
-def test_the_reading_copies_the_readers_empty_declaration():
-    reader = VultronCaseReader()
-    assert (
-        reader.read_case(str(_RECORDING)).unobservable == reader.unobservable
-    )
+def test_the_reading_copies_the_readers_declaration():
+    declared = (UnobservableFact(fact="f", why="w"),)
+
+    class _Declaring(VultronCaseReader):
+        unobservable = declared
+
+    assert _Declaring().read_case(str(_RECORDING)).unobservable == declared
 
 
 @pytest.mark.spec("CRD-01-003")
@@ -174,8 +179,12 @@ def test_a_json_object_that_is_not_a_ledger_entry_is_refused(tmp_path):
 def test_entries_out_of_log_index_order_are_refused(tmp_path):
     good = [json.dumps(row) for row in _rows(_RECORDING)]
     path = _write(tmp_path / "shuffled.jsonl", [good[1], good[0], *good[2:]])
-    with pytest.raises(CaseLedgerFileError, match="log-index order"):
+    with pytest.raises(CaseLedgerFileError) as caught:
         _read(path)
+    first, second = (_rows(_RECORDING)[i]["logIndex"] for i in (0, 1))
+    assert _problems(caught.value) == [
+        f"the ledger is not in log-index order: {first} follows {second}"
+    ]
 
 
 def test_entries_of_two_cases_are_refused(tmp_path):
@@ -225,6 +234,7 @@ def test_a_path_outside_the_readers_root_is_refused_unopened(tmp_path):
     root = tmp_path / "ledgers"
     root.mkdir()
     outside = tmp_path / "elsewhere.jsonl"
+    outside.write_bytes(_RECORDING.read_bytes())
     with pytest.raises(CaseLedgerFileError) as caught:
         VultronCaseReader(root=root).read_case(str(outside))
     assert _problems(caught.value) == [
@@ -238,3 +248,50 @@ def test_a_path_outside_the_readers_root_is_refused_unopened(tmp_path):
 def test_a_path_inside_the_readers_root_is_read():
     reader = VultronCaseReader(root=RECORDINGS_DIR)
     assert reader.read_case(str(_RECORDING)).ledger
+
+
+def test_a_symlink_inside_the_root_to_a_file_outside_it_is_refused(tmp_path):
+    root = tmp_path / "ledgers"
+    root.mkdir()
+    outside = tmp_path / "elsewhere.jsonl"
+    outside.write_bytes(_RECORDING.read_bytes())
+    link = root / "link.jsonl"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("the filesystem refuses symbolic links")
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        VultronCaseReader(root=root).read_case(str(link))
+
+
+def test_a_relative_case_id_is_taken_relative_to_the_root(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    reader = VultronCaseReader(root=RECORDINGS_DIR)
+    relative = str(_RECORDING.relative_to(RECORDINGS_DIR))
+    assert reader.read_case(relative).ledger == _read(str(_RECORDING)).ledger
+
+
+@pytest.mark.parametrize("root", [None, "root"])
+def test_a_path_with_a_nul_byte_raises_the_domain_error(tmp_path, root):
+    reader = VultronCaseReader(root=tmp_path if root else None)
+    with pytest.raises(CaseLedgerFileError) as caught:
+        reader.read_case("bad\x00name.jsonl")
+    assert _problems(caught.value)[0].startswith("it is not a usable path")
+
+
+def test_a_repeated_row_is_reported_once(tmp_path):
+    good = [json.dumps(row) for row in _rows(_RECORDING)]
+    path = _write(tmp_path / "repeat.jsonl", [good[0], good[0], *good[1:]])
+    with pytest.raises(CaseLedgerFileError) as caught:
+        _read(path)
+    problems = _problems(caught.value)
+    assert len(problems) == 1
+    assert problems[0].startswith("the ledger repeats entries")
+
+
+def test_a_model_level_error_is_summarised_without_a_field():
+    with pytest.raises(ValidationError) as caught:
+        CaseLedgerEntry.model_validate([1])
+    assert _summary(caught.value) == caught.value.errors()[0]["msg"]

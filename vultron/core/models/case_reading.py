@@ -181,6 +181,20 @@ def case_reading_problems(
     must report every problem in its input can run them before it builds the
     reading (EH-07-001).  An empty list means the parts agree.
     """
+    return ledger_problems(ledger) + citation_problems(
+        ledger, citations, inferences
+    )
+
+
+def ledger_problems(ledger: Sequence[CaseLedgerEntry]) -> list[str]:
+    """Every reason *ledger* is not one case's ledger in log-index order.
+
+    The ledger half of :func:`case_reading_problems`, for a reader that builds
+    its citations one per entry and so has no citation problem of its own.
+    An entry's id is its case id and log index, so a repeated log index is
+    reported once, as a repeated entry, never again as an order problem
+    (EH-07-002).
+    """
     problems: list[str] = []
     case_ids = sorted({entry.case_id for entry in ledger})
     if len(case_ids) > 1:
@@ -191,10 +205,29 @@ def case_reading_problems(
     )
     if repeated:
         problems.append(f"the ledger repeats entries {repeated}")
-    indices = [entry.log_index for entry in ledger]
-    if any(later <= earlier for earlier, later in pairwise(indices)):
-        problems.append(f"the ledger is not in log-index order: {indices}")
-    known = set(entry_ids)
+    backwards = [
+        f"{later.log_index} follows {earlier.log_index}"
+        for earlier, later in pairwise(ledger)
+        if later.log_index < earlier.log_index
+    ]
+    if backwards:
+        problems.append(
+            "the ledger is not in log-index order: " + ", ".join(backwards)
+        )
+    return problems
+
+
+def citation_problems(
+    ledger: Sequence[CaseLedgerEntry],
+    citations: Sequence[EntryCitation],
+    inferences: Sequence[Inference] = (),
+) -> list[str]:
+    """Every citation or inference that does not match *ledger* one to one.
+
+    The citation half of :func:`case_reading_problems`.
+    """
+    problems: list[str] = []
+    known = {entry.id_ for entry in ledger}
     cited = [citation.entry_id for citation in citations]
     uncited = sorted(known - set(cited))
     if uncited:
@@ -220,6 +253,8 @@ def case_reading_problems(
 __all__ = [
     "CaseReading",
     "case_reading_problems",
+    "citation_problems",
+    "ledger_problems",
     "EntryCitation",
     "Inference",
     "UnobservableFact",
