@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Count a case's path preferences from its event history (ADR-0182 rule 5).
+"""Count a case's path preferences from its event history (ADR-0182).
 
 :func:`path_preferences` reads only the
 :class:`~vultron.measure.history.CaseEventHistory`, never the ledger: the
@@ -195,7 +195,7 @@ def path_preferences(history: CaseEventHistory) -> PathPreferences:
     """Count the path preferences of the case *history* records.
 
     Read-only.  Every participant the history names gets its counts, a
-    reporter or a coordinator as much as a vendor (ADR-0182 rule 4).  A
+    reporter or a coordinator as much as a vendor (ADR-0182).  A
     history with a hole gives wrong counts, not imprecise ones, so a caller
     refuses one first, as the standing record does (CEH-02-006).
 

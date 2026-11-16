@@ -417,7 +417,7 @@ def test_a_record_serializes_as_json():
 
 
 def test_a_record_shows_the_path_preferences_of_every_participant():
-    """ADR-0182 rule 5: the counts sit beside the desiderata, for every
+    """ADR-0182: the counts sit beside the desiderata, for every
     participant the record holds, a reporter included."""
     ledger = _ledger(recording_path("rcv-embargo"))
     record = case_standing(ledger)

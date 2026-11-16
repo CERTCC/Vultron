@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The path-preference counts of one case (ADR-0182 rule 5).
+"""The path-preference counts of one case (ADR-0182).
 
 Each count describes the case and compares it with nothing: no count has a
 chance value, so none is a score (ADR-0182).  A preference about a

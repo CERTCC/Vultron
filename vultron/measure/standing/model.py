@@ -381,7 +381,7 @@ class StandingRecord(BaseModel):
             each with each vendor's change in expected outcome; empty when
             *gap* is set.
         path_preferences: The case's path-preference counts, for every
-            participant and for the case (ADR-0182 rule 5); ``None`` exactly
+            participant and for the case (ADR-0182); ``None`` exactly
             when *gap* is set.
     """
 

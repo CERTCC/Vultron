@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Path-preference counts from hand-built histories (ADR-0182 rule 5).
+"""Path-preference counts from hand-built histories (ADR-0182).
 
 ``docs/topics/measuring_cvd/reward_functions.md`` defines each count.  Entry
 *i* of a hand-built ledger is committed at second ``2 i + 1``, which the
@@ -177,7 +177,7 @@ def test_a_stub_invite_and_an_agreement_with_no_invite_are_not_counted():
 
 @pytest.mark.spec("CM-23-014")
 def test_a_reporter_gets_its_counts():
-    """A participant with no vendor path still has counts (ADR-0182 rule 4)."""
+    """A participant with no vendor path still has counts (ADR-0182)."""
     ledger = Ledger()
     ledger.standard_genesis()
     ledger.invite(REPORTER, EMBARGO_2, _LATER)

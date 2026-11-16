@@ -25,7 +25,8 @@ Joining, embargo start and exit, consent answers and the Case Owner's close
 of the case move no status dimension, so they come from the entry's
 **semantic type and carried object** (CEH-04-005, CEH-04-010, CEH-04-018).
 An embargo invitation comes from a carried consent row that newly reads
-``INVITED`` with an RSVP deadline (CEH-04-017).  ``notes/case-event-history.md`` gives the reasoning.
+``INVITED`` with an RSVP deadline (CEH-04-017).
+``notes/case-event-history.md`` gives the reasoning.
 
 An inert participant — one the CASE_MANAGER seated when it sent a stub Invite
 (CM-11-006) — has not joined, so its seated state is not yet a case event.
