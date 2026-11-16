@@ -1628,7 +1628,6 @@ def _make_announce_event(
     sender_actor_id: str,
     receiver_id: str = VENDOR_ID,
 ) -> AnnounceLogEntryReceivedEvent:
-    from typing import cast
 
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
@@ -2951,20 +2950,6 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
             (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
         ).endswith("CLOSED")
     ]
-
-
-@pytest.mark.spec("HP-01-003")
-def test_close_without_case_id_is_refused():
-    """A Leave with no case id is malformed, so REFUSED (#2255)."""
-    result = run_in_act(
-        CloseCaseReceivedUseCase(
-            dl=_make_full_dl(),
-            request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
-            wire_render_port=As2WireRenderAdapter(),
-        )
-    )
-
-    assert result.disposition == HandlerDisposition.REFUSED
 
 
 class TestCaseActorRMClosedRecordingFailsClosed:

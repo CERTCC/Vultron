@@ -293,14 +293,6 @@ class TestBootstrapCreateNoLink:
         # for it: an untrusted sender is REFUSED (HP-01-003, CBT-01-011).
         assert result.disposition == HandlerDisposition.REFUSED
 
-    @pytest.mark.spec("HP-01-003")
-    def test_create_without_case_object_is_refused(self, dl, create_event):
-        event = create_event.model_copy(update={"object_": None})
-
-        result = run_in_act(CreateCaseReceivedUseCase(dl, event))
-
-        assert result.disposition == HandlerDisposition.REFUSED
-
 
 # ---------------------------------------------------------------------------
 # CBT-05-004: case_manager_id gates subsequent Announce acceptance

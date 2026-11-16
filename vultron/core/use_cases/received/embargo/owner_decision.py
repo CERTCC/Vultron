@@ -71,7 +71,6 @@ class _OwnerDecisionReceivedUseCase(_EmbargoEventReceivedUseCase):
 class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
     """The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (EA / EC)."""
 
-    _label = "Add(EmbargoEvent)"
     _tree_label = "ActivateEmbargoOnCaseBT"
 
     def __init__(
@@ -118,7 +117,6 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
     the participants (EMB-04-002, MSM-07-032).
     """
 
-    _label = "Reject(EmbargoEvent)"
     _tree_label = "RejectEmbargoProposalOnCaseBT"
 
     def __init__(

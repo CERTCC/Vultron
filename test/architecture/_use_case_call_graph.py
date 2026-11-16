@@ -14,8 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Call-graph resolution through the use-case package for the use-case ratchets.
 
-Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020) and
-``test_single_bt_execution_received_side.py`` (CLP-10-005): the classes
+Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020),
+``test_single_bt_execution_received_side.py`` (CLP-10-005) and
+``test_received_use_case_execute.py`` (CLP-10-007): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
 a BT node (BT-22-005), so moving a helper there hides neither its writes nor
@@ -129,6 +130,107 @@ def _is_tree_run_call(node: ast.Call) -> bool:
     ) or (isinstance(func, ast.Name) and func.id in _TREE_RUN_CALLEES)
 
 
+#: The ``HandlerResult`` constructors whose verdict is always ``REFUSED``.
+_REFUSAL_CONSTRUCTORS = frozenset({"refused", "no_use_case_found"})
+
+
+def _names_handler_result(
+    node: ast.expr, handler_result: frozenset[str]
+) -> bool:
+    """True for ``HandlerResult`` itself: a bound name or ``<module>.HandlerResult``."""
+    if isinstance(node, ast.Name):
+        return node.id in handler_result
+    return isinstance(node, ast.Attribute) and node.attr == "HandlerResult"
+
+
+def _is_refusal_call(
+    node: ast.AST | None, handler_result: frozenset[str]
+) -> bool:
+    """True for a call that builds a ``REFUSED`` ``HandlerResult``.
+
+    Seen: ``<HandlerResult>.refused(...)`` and
+    ``<HandlerResult>.no_use_case_found(...)``, and the constructor called with
+    ``disposition=<...>.REFUSED``.  ``<HandlerResult>`` is any name the module
+    binds it to (*handler_result*: its own and any ``import ... as`` alias) or
+    a module-qualified ``<module>.HandlerResult``.
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Attribute) and func.attr in _REFUSAL_CONSTRUCTORS:
+        return _names_handler_result(func.value, handler_result)
+    return _names_handler_result(func, handler_result) and any(
+        keyword.arg == "disposition"
+        and isinstance(keyword.value, ast.Attribute)
+        and keyword.value.attr == "REFUSED"
+        for keyword in node.keywords
+    )
+
+
+def _bound_refusals(
+    func: _FunctionDef, handler_result: frozenset[str]
+) -> set[str]:
+    """Names *func*'s own scope binds to a refusal.
+
+    By plain assignment, annotated assignment or an assignment expression
+    (``:=``), to a plain name or to an attribute (``self._no``), each kept
+    as its source text.
+    """
+    bound: set[str] = set()
+    for node in _walk_own_scope(func):
+        targets: list[ast.expr]
+        value: ast.expr | None
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if _is_refusal_call(value, handler_result):
+            bound.update(
+                ast.unparse(t)
+                for t in targets
+                if isinstance(t, (ast.Name, ast.Attribute))
+            )
+    return bound
+
+
+def _returned_refusals(
+    func: _FunctionDef, handler_result: frozenset[str]
+) -> Iterator[ast.Return]:
+    """Each ``return`` in *func*'s own scope that returns a refusal.
+
+    The verdict a use case decides in Python rather than reads from the run
+    of its tree (ADR-0195).  Seen: a returned refusal call
+    (:func:`_is_refusal_call`); a conditional expression with one in either
+    branch, or a boolean expression with one among its operands; and a name
+    or attribute the same scope bound to one (:func:`_bound_refusals`), then
+    returned.  A refusal a nested reader function returns is the
+    reader's, outside this scope, so it is not seen.  Nor is one built by a
+    helper outside the indexed packages: the walk stops at their boundary.
+    """
+    bound = _bound_refusals(func, handler_result)
+
+    def refuses(value: ast.expr | None) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, ast.IfExp):
+            return refuses(value.body) or refuses(value.orelse)
+        if isinstance(value, ast.NamedExpr):
+            return refuses(value.value)
+        if isinstance(value, ast.BoolOp):
+            return any(refuses(operand) for operand in value.values)
+        if isinstance(value, (ast.Name, ast.Attribute)) and (
+            ast.unparse(value) in bound
+        ):
+            return True
+        return _is_refusal_call(value, handler_result)
+
+    for node in _walk_own_scope(func):
+        if isinstance(node, ast.Return) and refuses(node.value):
+            yield node
+
+
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:
     """Yield all descendants of *node* without crossing nested function scopes.
 
@@ -173,7 +275,8 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Transitive resolution through the use-case package (CLP-10-005, CLP-10-020)
+# Transitive resolution through the use-case package (CLP-10-005, CLP-10-020,
+# CLP-10-007)
 # ---------------------------------------------------------------------------
 
 #: A concrete class ``self`` is bound to: (module name, class name).
@@ -337,6 +440,42 @@ class _UseCaseCorpus:
             cls: self._count_tree_runs(step, (), transitive=transitive)
             for cls, step in self._executes(module)
         }
+
+    def refusals_per_execute(self, module: str) -> dict[str, list[str]]:
+        """The ``return HandlerResult.refused(...)`` each ``execute()`` reaches.
+
+        Keyed by class, as :meth:`tree_runs_per_execute` is; each refusal is
+        named ``module:line``.  ``execute()``'s own body counts, and so does
+        every indexed function or method it reaches, in that definition's own
+        scope (a nested reader's ``return`` is the reader's, not the walk's).
+        """
+        return {
+            cls: sorted(self._refusals_reached(step, set()))
+            for cls, step in self._executes(module)
+        }
+
+    def _refusals_reached(self, step: _Step, seen: set[object]) -> set[str]:
+        seen.add(step[3])
+        module, _, func, _ = step
+        found = {
+            f"{module}:{node.lineno}"
+            for node in _returned_refusals(func, self._handler_result(module))
+        }
+        for _, callee in self._calls(step):
+            if callee is not None and callee[3] not in seen:
+                found |= self._refusals_reached(callee, seen)
+        return found
+
+    def _handler_result(self, module: str) -> frozenset[str]:
+        """The names *module* spells ``HandlerResult`` by."""
+        aliases = {
+            local
+            for local, (_, name) in self._modules[
+                module
+            ].imported_names.items()
+            if name == "HandlerResult"
+        }
+        return frozenset({"HandlerResult", *aliases})
 
     def _executes(self, module: str) -> Iterator[tuple[str, _Step]]:
         """``(class, step)`` for each class in *module* with an ``execute()``."""

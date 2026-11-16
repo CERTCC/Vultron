@@ -1,6 +1,5 @@
 """Use cases for vulnerability case activities."""
 
-import logging
 from typing import ClassVar
 
 from vultron.core.behaviors.case.create_case_received_tree import (
@@ -27,8 +26,6 @@ from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-
-logger = logging.getLogger(__name__)
 
 
 class CreateCaseReceivedUseCase:
@@ -88,24 +85,6 @@ class CreateCaseReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-
-        if request.case is None:
-            logger.warning(
-                "create_case_received: no case domain object in event for "
-                "case '%s'",
-                case_id,
-            )
-            return HandlerResult.refused(
-                "Create(VulnerabilityCase) carries no case object"
-            )
-
-        if case_id is None:
-            logger.warning(
-                "create_case_received: case_id missing in event — refusing"
-            )
-            return HandlerResult.refused(
-                "Create(VulnerabilityCase) case object has no id"
-            )
 
         tree = create_create_case_received_tree(
             request.case,

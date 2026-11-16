@@ -53,6 +53,7 @@ import json
 from typing import Any, TypeVar, cast
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -693,3 +694,18 @@ def assert_held_only_as_received(
     assert _received_into_records(record), (
         f"{activity_id!r} is held but not received: {record.stage}"
     )
+
+
+def named_case(case_id: str) -> CoreObject:
+    """The case *case_id*, named by reference, as the extractor carries a
+    ``target`` or ``context`` that is only an id.
+
+    For a test that builds an event directly: the slot it names is required
+    (ARCH-10-001), so the event needs the reference the message carries.
+    """
+    return make(CoreObject, id_=case_id, type_="VulnerabilityCase")
+
+
+def named_note(note_id: str) -> CoreObject:
+    """The note *note_id*, named by reference, for an event's ``object_``."""
+    return make(CoreObject, id_=note_id, type_="Note")

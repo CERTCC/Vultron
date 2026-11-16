@@ -28,7 +28,6 @@ Who may act is decided in the tree (BT-17-001) and reported by the handler
 of a copy refuses at the tree's addressee door guard (#3752).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.case.received_run import (
@@ -58,8 +57,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class OfferCaseParticipantReceivedUseCase:
@@ -99,18 +96,7 @@ class OfferCaseParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        activity_id = request.activity_id
-        case_id = request.target_id
-
-        if not case_id:
-            logger.warning(
-                "OfferCaseParticipantReceived: missing case_id in event '%s'"
-                " — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(CaseParticipant) names no case"
-            )
+        case_id = request.case_id
 
         tree = create_receive_offer_case_participant_tree(
             case_id=case_id,
@@ -171,17 +157,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
-        case_id = request.target_id or request.inner_target_id
-
-        if not case_id:
-            logger.warning(
-                "AcceptOfferCaseParticipantReceived: missing case_id in"
-                " event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Accept(Offer(CaseParticipant)) is missing its case id"
-            )
+        case_id = request.case_id
 
         # The tree looks up the Offer the Accept names: the invitee, its
         # roles and the recommender are the recorded Offer's, not the
@@ -240,16 +216,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
-        case_id = request.target_id
-        if not case_id:
-            logger.warning(
-                "RejectOfferCaseParticipantReceived: missing case_id in"
-                " event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Reject(Offer(CaseParticipant)) names no case"
-            )
+        case_id = request.case_id
 
         # The tree looks up the Offer the Reject names: the recommender and
         # the recommended actor are the recorded Offer's (CM-16-023).

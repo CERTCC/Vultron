@@ -8,11 +8,12 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.objects import make
-from test.support.received import TEST_SENDER_POSITION
+from test.support.received import TEST_SENDER_POSITION, named_case, named_note
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -117,6 +118,14 @@ _activity = make(
     actor=_ACTOR_URI,
 )
 _obj = make(CoreObject, id_="https://example.org/objects/o1")
+
+
+_stub = make(
+    CaseStubReference,
+    id_=f"{_CASE_URI}/stub",
+    type_="VulnerabilityCaseStub",
+    case_id=_CASE_URI,
+)
 
 
 def _mk(cls, semantic, **fields):
@@ -276,7 +285,7 @@ _CASES = [
     (
         AcceptInviteActorToCaseReceivedEvent,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        {"inner_target": _case, "inner_object": _obj},
+        {"object_": _activity, "inner_target": _stub, "inner_object": _obj},
         [
             ("invitee_id", "inner_object_id"),
             ("invitee", "inner_object"),
@@ -285,7 +294,7 @@ _CASES = [
     (
         RejectInviteActorToCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity, "activity": _activity, "inner_target": _case},
+        {"object_": _activity, "activity": _activity, "inner_target": _stub},
         [
             ("invite_id", "object_id"),
             ("invite", "object_"),
@@ -378,7 +387,11 @@ _CASES = [
     (
         RejectInviteToEmbargoOnCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        {"object_": _activity},
+        {
+            "object_": _activity,
+            "inner_object": _embargo,
+            "inner_context": _case,
+        },
         [("invite_id", "object_id"), ("invite", "object_")],
     ),
     # ── note.py ───────────────────────────────────────────────────────────────
@@ -462,11 +475,6 @@ def test_named_aliases_resolve_to_correct_base_fields(
             MessageSemantics.SUBMIT_REPORT,
             ["report_id", "report"],
         ),
-        (
-            AddNoteToCaseReceivedEvent,
-            MessageSemantics.ADD_NOTE_TO_CASE,
-            ["note_id", "note", "case_id", "case"],
-        ),
     ],
     ids=lambda x: x.__name__ if hasattr(x, "__name__") else str(x),
 )
@@ -481,13 +489,6 @@ def test_aliases_return_none_when_backing_field_is_absent(
         )
 
 
-_stub = make(
-    CaseStubReference,
-    id_=f"{_CASE_URI}/stub",
-    type_="VulnerabilityCaseStub",
-    case_id=_CASE_URI,
-)
-
 _STUB_CASES = [
     (
         InviteActorToCaseReceivedEvent,
@@ -498,7 +499,7 @@ _STUB_CASES = [
     (
         AcceptInviteActorToCaseReceivedEvent,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        {"inner_target": _stub, "inner_object": _obj},
+        {"object_": _activity, "inner_target": _stub, "inner_object": _obj},
         "inner_target",
     ),
     (
@@ -531,12 +532,13 @@ def test_stub_invite_case_id_is_the_case_the_stub_names(
     _STUB_CASES,
     ids=[c[0].__name__ for c in _STUB_CASES],
 )
-def test_stub_invite_case_id_is_none_when_the_slot_holds_no_stub(
+def test_an_invite_whose_stub_slot_holds_no_stub_names_no_case(
     cls, semantic, fields, slot
 ):
-    """A case in the stub's slot names no stub, so no case is derived from it."""
-    event = _mk(cls, semantic, **{**fields, slot: _case})
-    assert event.case_id is None
+    """A case in the stub's slot names no stub, so no case is derived from it,
+    and the event, which requires its case, refuses it (ARCH-10-001)."""
+    with pytest.raises(ValidationError, match="missing its required case_id"):
+        _mk(cls, semantic, **{**fields, slot: _case})
 
 
 @pytest.mark.spec("SYNC-18-007")
@@ -557,6 +559,8 @@ def test_a_stamped_events_accepted_hash(log_index, expected):
         ledger_position=LedgerPosition(
             log_index=log_index, entry_hash="b" * 64
         ),
+        object_=named_note("https://example.org/notes/n"),
+        target=named_case("https://example.org/cases/c"),
     )
 
     assert event.last_accepted_hash == expected

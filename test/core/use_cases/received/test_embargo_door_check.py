@@ -22,7 +22,6 @@ copy (CLP-10-018); nothing else is written to its store or its outbox.
 
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -178,38 +177,4 @@ def test_an_unaddressed_copy_is_refused_before_any_write(
     assert f"to=['{_MANAGER}']" in reason
     # cc has no handler semantics and core does not carry it (ADR-0109).
     assert "cc=" not in reason
-    assert _snapshot(dl) == before
-
-
-@pytest.mark.spec("EP-09-010")
-@pytest.mark.spec("HP-01-006")
-@pytest.mark.parametrize(
-    "use_case",
-    [
-        AcceptInviteToEmbargoOnCaseReceivedUseCase,
-        RejectInviteToEmbargoOnCaseReceivedUseCase,
-    ],
-    ids=["accept", "reject"],
-)
-def test_an_answer_naming_no_invite_is_refused_before_any_write(use_case):
-    """The invitee is read from the recorded Invite, so none means no invitee.
-
-    The refusal comes before any tree: the activity cannot name the Invite
-    whose invitee the sender guard would check (EP-09-010).
-    """
-    dl, _actor, _case, embargo = make_embargo_case_with_actor(
-        _CASE, _SENDER, case_manager_actor_id=_MANAGER
-    )
-    request = MagicMock()
-    request.receiving_actor_id = _MANAGER
-    request.actor_id = _SENDER
-    request.case_id = _CASE
-    request.embargo_id = embargo.id_
-    request.invite_id = None
-    before = _snapshot(dl)
-
-    result = run_in_act(use_case(dl, request))
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "is missing its Invite id" in (result.reason or "")
     assert _snapshot(dl) == before

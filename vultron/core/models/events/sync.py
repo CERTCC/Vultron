@@ -13,7 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Per-semantic inbound domain event types for LedgerFanout/LedgerReconciliation log replication."""
 
-from typing import Literal, cast
+from typing import ClassVar, Literal, cast
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import (
@@ -36,13 +36,14 @@ class AnnounceLogEntryReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY] = (
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("log_entry",)
 
     @property
-    def log_entry(self) -> CaseLedgerEntry | None:
-        """Return the received :class:`CaseLedgerEntry`, or ``None``."""
-        if self.object_ is None:
-            return None
-        return cast(CaseLedgerEntry, self.object_)
+    def log_entry(self) -> CaseLedgerEntry:
+        """The received :class:`CaseLedgerEntry`, inline in the Announce."""
+        return self._required(
+            "log_entry", cast("CaseLedgerEntry | None", self.object_)
+        )
 
     @property
     def log_entry_id(self) -> str | None:
@@ -68,6 +69,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY
     )
     ledger_position: LedgerPosition | None = None
+    required_slots: ClassVar[tuple[str, ...]] = ("rejected_case_id",)
 
     @property
     def rejected_entry(self) -> CaseLedgerEntry | None:
@@ -77,20 +79,21 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         return cast(CaseLedgerEntry, self.object_)
 
     @property
-    def rejected_case_id(self) -> str | None:
-        """The case the rejection is about, or ``None``.
+    def rejected_case_id(self) -> str:
+        """The case the rejection is about.
 
         The rejected entry's case, or, for the Reject that names no entry
         because the peer holds none and asks for a replay from genesis, the
-        case its ``target`` names (SYNC-16-027).
+        case its ``target`` names (SYNC-16-027).  A Reject naming neither
+        fails construction (ARCH-10-001).
         """
         entry = self.rejected_entry
         if entry is not None:
-            return entry.case_id
-        return self.target_id
+            return self._required("rejected_case_id", entry.case_id)
+        return self._required("rejected_case_id", self.target_id)
 
     @property
-    def replay_case_id(self) -> str | None:
+    def replay_case_id(self) -> str:
         """The case whose ledger the peer asks to have replayed.
 
         The name the replay nodes read on every activity that can start a
@@ -128,6 +131,7 @@ class ReadLogEntryReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.READ_CASE_LEDGER_ENTRY] = (
         MessageSemantics.READ_CASE_LEDGER_ENTRY
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("replay_case_id",)
 
     @property
     def stated_entry_id(self) -> str | None:
@@ -135,6 +139,6 @@ class ReadLogEntryReceivedEvent(LedgerPositionedEvent):
         return self.object_id
 
     @property
-    def replay_case_id(self) -> str | None:
+    def replay_case_id(self) -> str:
         """The case the stated position is in, from the ``context``."""
-        return self.context_id
+        return self._required("replay_case_id", self.context_id)

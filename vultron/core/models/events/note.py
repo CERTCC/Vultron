@@ -1,6 +1,6 @@
 """Per-semantic inbound domain event types for note activities."""
 
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from vultron.core.models.events.base import (
     LedgerPositionedEvent,
@@ -21,18 +21,20 @@ class AddNoteToCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.ADD_NOTE_TO_CASE] = (
         MessageSemantics.ADD_NOTE_TO_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("note", "case_id")
 
     @property
     def note_id(self) -> str | None:
         return self.object_id
 
     @property
-    def note(self) -> VultronNote | None:
-        return cast("VultronNote | None", self.object_)
+    def note(self) -> VultronNote:
+        """The note added, inline in the ``Add``."""
+        return self._required("note", cast("VultronNote | None", self.object_))
 
     @property
-    def case_id(self) -> str | None:
-        return self.target_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.target_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:

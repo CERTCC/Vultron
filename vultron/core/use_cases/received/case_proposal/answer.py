@@ -121,15 +121,7 @@ class AcceptCaseProposalReceivedUseCase:
         case_actor_id = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
-        report_id = request.inner_object_id
-        if report_id is None:
-            logger.warning(
-                "accept_case_proposal_received: no report_id available"
-                " — cannot update VultronReportCaseLink (CP-06-003)"
-            )
-            return HandlerResult.refused(
-                "Accept(CaseProposal) carries no inline report"
-            )
+        report_id = request.report_id
 
         tree = create_accept_case_proposal_received_tree(
             report_id=report_id,
@@ -191,15 +183,7 @@ class RejectCaseProposalReceivedUseCase:
         request = self._request
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
-        report_id = request.inner_object_id
-        if report_id is None:
-            logger.warning(
-                "reject_case_proposal_received: no report_id available"
-                " — cannot update VultronReportCaseLink (CP-06-004)"
-            )
-            return HandlerResult.refused(
-                "Reject(CaseProposal) carries no inline report"
-            )
+        report_id = request.report_id
 
         # The rejection reason comes from the Reject activity's summary field.
         rejection_reason: str | None = None

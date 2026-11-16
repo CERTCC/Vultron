@@ -1,6 +1,6 @@
 """Per-semantic inbound domain event types for vulnerability case activities."""
 
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import (
@@ -24,14 +24,18 @@ class CreateCaseReceivedEvent(VultronEvent):
         MessageSemantics.CREATE_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case", "case_id")
 
     @property
-    def case_id(self) -> str | None:
-        return self.object_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.object_id)
 
     @property
-    def case(self) -> VulnerabilityCase | None:
-        return cast("VulnerabilityCase | None", self.object_)
+    def case(self) -> VulnerabilityCase:
+        """The case the sender created, inline in the ``Create``."""
+        return self._required(
+            "case", cast("VulnerabilityCase | None", self.object_)
+        )
 
 
 class EngageCaseReceivedEvent(LedgerPositionedEvent):
@@ -45,10 +49,11 @@ class EngageCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.ENGAGE_CASE] = (
         MessageSemantics.ENGAGE_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
 
     @property
-    def case_id(self) -> str | None:
-        return self.object_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.object_id)
 
 
 class DeferCaseReceivedEvent(LedgerPositionedEvent):
@@ -62,10 +67,11 @@ class DeferCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.DEFER_CASE] = (
         MessageSemantics.DEFER_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
 
     @property
-    def case_id(self) -> str | None:
-        return self.object_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.object_id)
 
 
 class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
@@ -74,18 +80,19 @@ class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.ADD_REPORT_TO_CASE] = (
         MessageSemantics.ADD_REPORT_TO_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("report_id", "case_id")
 
     @property
-    def report_id(self) -> str | None:
-        return self.object_id
+    def report_id(self) -> str:
+        return self._required("report_id", self.object_id)
 
     @property
     def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.object_)
 
     @property
-    def case_id(self) -> str | None:
-        return self.target_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.target_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:
@@ -148,10 +155,11 @@ class CloseCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.CLOSE_CASE] = (
         MessageSemantics.CLOSE_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
 
     @property
-    def case_id(self) -> str | None:
-        return self.object_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.object_id)
 
 
 class UpdateCaseOwnerReceivedEvent(VultronEvent):

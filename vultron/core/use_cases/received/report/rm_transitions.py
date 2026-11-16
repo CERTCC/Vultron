@@ -99,16 +99,6 @@ class ValidateReportReceivedUseCase:
         sender_actor_id = request.actor_id
         report_id = request.report_id
         offer_id = request.offer_id
-        if report_id is None or offer_id is None:
-            logger.warning(
-                "ValidateReportReceivedUseCase: activity '%s' is missing its"
-                " report id or offer id — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Accept(Offer(VulnerabilityReport)) is missing its report id "
-                "or offer id"
-            )
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s'",

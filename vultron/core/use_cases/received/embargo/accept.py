@@ -111,18 +111,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The invitee is read from the recorded Invite (EP-09-010), so an
-        # Accept that names none has no invitee to be.
+        # The invitee is read from the recorded Invite (EP-09-010), so the
+        # event requires the Accept to name it (ARCH-10-001).
         embargo_id, invite_id = request.embargo_id, request.invite_id
-        if embargo_id is None or not invite_id:
-            missing = "embargo id" if embargo_id is None else "Invite id"
-            logger.error(
-                "accept_invite_to_embargo_on_case: missing %s on request",
-                missing,
-            )
-            return HandlerResult.refused(
-                f"Accept(Invite(EmbargoEvent)) is missing its {missing}"
-            )
 
         # A case this store does not hold puts the Accept on the no-case
         # path, which the tree's path stage refuses (HP-01-039); one naming

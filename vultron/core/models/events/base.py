@@ -7,9 +7,9 @@ inherit from.
 
 import json
 from enum import StrEnum, auto
-from typing import Any
+from typing import Any, ClassVar, Self
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
@@ -192,6 +192,35 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # wire activity like the evidence, so intake records them with it.
     # Empty on an event no inbox verified.
     verified_proofs: list[VerifiedProof] = Field(default_factory=list)
+
+    # The slots this message's meaning requires, each named by the property
+    # that reads it.  Each such property reads its value through
+    # :meth:`_required`, so an event missing one fails construction with an
+    # error naming the slot, and the extractor's refusal takes the message
+    # down the unparseable path before dispatch (ARCH-10-001, ADR-0032).
+    required_slots: ClassVar[tuple[str, ...]] = ()
+
+    @model_validator(mode="after")
+    def _require_slots(self) -> Self:
+        """Refuse an event missing a slot its message requires (ARCH-10-001)."""
+        for slot in self.required_slots:
+            getattr(self, slot)
+        return self
+
+    def _required[T](self, slot: str, value: T | None) -> T:
+        """*value*, the required *slot*; raise when it is absent or empty.
+
+        Raises:
+            ValueError: *value* is ``None`` or ``""``.  Raised inside the
+                ``_require_slots`` validator, it fails the event's
+                construction with a reason naming the slot.
+        """
+        if value is None or value == "":
+            raise ValueError(
+                f"{type(self).__name__} {self.activity_id!r} is missing its"
+                f" required {slot} (ARCH-10-001)"
+            )
+        return value
 
     @field_validator("received_evidence")
     @classmethod

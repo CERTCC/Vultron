@@ -208,15 +208,6 @@ class AnnounceLedgerEntryReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         entry = request.log_entry
-        if entry is None:
-            logger.warning(
-                "sync: received ANNOUNCE_CASE_LEDGER_ENTRY activity '%s' "
-                "with no log entry object — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Announce(CaseLedgerEntry) carries no log entry"
-            )
 
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "

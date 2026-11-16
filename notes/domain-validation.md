@@ -73,12 +73,13 @@ if manager_id is None:
     raise VultronValidationError("CASE_MANAGER participant has no attributed_to")
 ```
 
-### A missing case ID is the handler's refusal, not a dispatcher error
+### A missing case ID is the event's refusal, not the dispatcher's or the handler's
 
-The dispatcher routes by semantics alone and extracts no case ID. A received event
-that names no case reaches its handler, which refuses it with a `HandlerResult`
-(HP-05-002). Do not add a routing exception for it: the handler already knows which
-field must carry the case.
+The dispatcher routes by semantics alone and extracts no case ID. A slot a message
+requires, such as its case, is a required slot of its event subtype
+(`VultronEvent.required_slots`), so a message without it fails extraction before
+dispatch (ARCH-10-001, ADR-0032). Do not add a routing exception or a handler check
+for it: the event already names which field must carry the case.
 
 ## Canonical Helper Locations
 

@@ -87,21 +87,9 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.case_id
-        invitee_id = request.object_id
-        if not case_id or not invitee_id:
-            logger.warning(
-                "InviteActorToCase: invite '%s' is missing its case or"
-                " invitee — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Invite is missing its case id or invitee id"
-            )
-
         tree = create_invite_actor_to_case_received_tree(
-            case_id=case_id,
-            invitee_id=invitee_id,
+            case_id=request.case_id,
+            invitee_id=request.invitee_id,
             inviter_id=request.actor_id,
             invite_id=request.activity_id,
             sender_rule=self.sender_entitlement,
@@ -152,17 +140,6 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.case_id
-        invite_id = request.invite_id
-        if case_id is None or request.invitee_id is None or not invite_id:
-            logger.warning(
-                "accept_invite_actor_to_case: missing case_id, invitee_id"
-                " or invite_id"
-            )
-            return HandlerResult.refused(
-                "Accept(Invite) is missing its case id, invitee id or"
-                " Invite id"
-            )
         # The invitee is the reply's sender, never the actor the embedded
         # copy of the Invite names (CM-11-047).
         invitee_id = request.actor_id
@@ -171,9 +148,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
         # any sender that is not the recorded Invite's invitee, so the
         # participant is never taken from the embedded copy (CM-11-017).
         tree = create_accept_invite_actor_to_case_tree(
-            case_id=case_id,
+            case_id=request.case_id,
             invitee_id=invitee_id,
-            invite_id=invite_id,
+            invite_id=request.invite_id,
             sender_rule=self.sender_entitlement,
         )
         # An invitee the case already records as closed (its stub Reject was
@@ -233,19 +210,8 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.actor_id,
             request.invite_id,
         )
-        case_id = request.case_id or ""
-        if not case_id or not request.invite_id:
-            logger.warning(
-                "RejectInviteActorToCase: missing case_id or invite_id for"
-                " invite '%s' — refusing",
-                request.invite_id,
-            )
-            return HandlerResult.refused(
-                "Reject(Invite) is missing its case id or Invite id"
-            )
-
         tree = create_reject_invite_actor_to_case_received_tree(
-            case_id=case_id,
+            case_id=request.case_id,
             invite_id=request.invite_id,
             invitee_id=request.actor_id or None,
             sender_rule=self.sender_entitlement,

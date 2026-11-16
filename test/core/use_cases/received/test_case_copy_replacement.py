@@ -27,8 +27,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
-from test.support.received import TEST_SENDER_POSITION, received_event
-from test.support.signing import signed_body
+from test.support.received import TEST_SENDER_POSITION
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -40,7 +39,6 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
@@ -50,7 +48,6 @@ from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
 from vultron.wire.as2.factories import genesis_replay_reject_activity
-from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -255,31 +252,6 @@ def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
         for state in net.stores[MANAGER].list_objects("ReplicationState")
         if getattr(state, "peer_id", None) == BYSTANDER
     ] == []
-
-
-@pytest.mark.spec("SYNC-16-028")
-def test_a_reject_naming_neither_an_entry_nor_a_case_is_refused() -> None:
-    """The parser admits no such Reject; one that reaches the use case all
-    the same names nothing to replay, and is refused before any tree runs."""
-    net = LedgerNetwork("https://example.org/cases/copy-genesis-nothing")
-    _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
-    event = cast(
-        RejectLogEntryReceivedEvent,
-        received_event(
-            parse_activity(
-                signed_body(_genesis_request(net.case_id, BYSTANDER))
-            ),
-            receiving_actor_id=MANAGER,
-        ),
-    ).model_copy(update={"target": None})
-    assert event.rejected_case_id is None
-    queued = len(net.queued(MANAGER, to=BYSTANDER))
-
-    verdict = net.receive_event(MANAGER, event)
-
-    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
-    assert "names neither" in (verdict.reason or "")
-    assert len(net.queued(MANAGER, to=BYSTANDER)) == queued
 
 
 def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
