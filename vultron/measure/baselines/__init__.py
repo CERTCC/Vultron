@@ -62,6 +62,7 @@ from vultron.measure.baselines.desiderata import (
 )
 from vultron.measure.baselines.joint import (
     ONE_VENDOR_MODEL,
+    RM_EVENTS,
     TWO_VENDOR_MODEL,
     EmbargoEnd,
     Event,
@@ -72,6 +73,7 @@ from vultron.measure.baselines.joint import (
 )
 from vultron.measure.baselines.values import (
     VendorDesideratum,
+    case_model,
     desiderata_values,
     expected_change,
     expected_outcomes,
@@ -104,6 +106,7 @@ __all__ = [
     "NEAR_EQUAL_RATIO",
     "ONE_VENDOR_MODEL",
     "ORIGINAL",
+    "RM_EVENTS",
     "TWO_VENDOR_MODEL",
     "CaseStateModel",
     "ChanceModel",
@@ -127,6 +130,7 @@ __all__ = [
     "WalkNeverEndsError",
     "WalkPrefix",
     "baseline",
+    "case_model",
     "case_state_query",
     "completion_probabilities",
     "desiderata_values",

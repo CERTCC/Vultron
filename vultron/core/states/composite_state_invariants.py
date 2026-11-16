@@ -62,7 +62,7 @@ from vultron.core.states.cs import (
     CS_pxa,
     CS_vf,
 )
-from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
+from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE, EM_Trigger
 from vultron.core.states.rm import RM
 
 # RM states consistent with asserting fix readiness or deployment.
@@ -288,4 +288,32 @@ def violation_pxa_em_entailment(pxa: CS_pxa, em: EM) -> str | None:
             " An active embargo cannot coexist with observed attacks"
             " (rm_em_cs.md § Attacks Observed)."
         )
+    return None
+
+
+def violation_pxa_em_move(
+    pxa: CS_pxa, trigger: EM_Trigger, dest: EM
+) -> str | None:
+    """Return an error string if an EM move under *trigger* to *dest* is
+    refused beside the public state *pxa*.
+
+    The state *dest* must hold beside *pxa*
+    (:func:`violation_pxa_em_entailment`).  A proposal must also be able to
+    go into force: once an active embargo would violate the entailment, no
+    new embargo is proposed (rm_em_cs.md § "Public Awareness": "New
+    embargoes SHALL NOT be sought").  Every reader of the EM moves allowed
+    beside a public state uses this one rule.
+
+    Returns:
+        None when the move is allowed.
+        A descriptive error string when it is refused.
+
+    Spec: CSB-18-002, CSB-18-003, CSB-18-004
+    """
+    if (msg := violation_pxa_em_entailment(pxa, dest)) is not None:
+        return msg
+    if trigger is EM_Trigger.PROPOSE and (
+        msg := violation_pxa_em_entailment(pxa, EM.ACTIVE)
+    ):
+        return f"No embargo is proposed that could never start: {msg}"
     return None
