@@ -84,6 +84,7 @@ The door guards, in order, are the addressee check, the seen-before door, which 
 A receiver on a path the message type does not address is refused at the path stage, so the refusal is about who received the activity rather than about what it asserts, and the sender is owed no answer about its content.
 It sends none for a delivery that an answer of its own replaces, such as the `Reject` of the Invite that answers an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-070](../specs/project.md#clp-10-070)).
 It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
+It sends none when it refuses its own activity, such as a `Leave(VulnerabilityCase)` it may not send, because a notice to itself would be refused on arrival ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005)).
 A refusal is not a case event, so the notice is not ledgered ([CLP-04-007](../vultron-spec/requirements/ledger-replication.md#clp-04-007)).
 
 A participant numbers each case message it sends the CASE_MANAGER, and the CASE_MANAGER judges each sender's messages in that order ([SYNC-21-008](../vultron-spec/requirements/ledger-replication.md#sync-21-008)).
