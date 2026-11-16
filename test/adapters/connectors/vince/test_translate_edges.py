@@ -492,3 +492,150 @@ def test_a_case_status_after_the_embargo_ended_states_it_exited(as_of, em):
         if entry.semantic_type == "add_case_status_to_case"
     ]
     assert published["emState"] == em
+
+
+# -- VINCE-RM-06 needs every vul; anything else is VINCE-RM-07 ---------------
+
+
+def _vendor_outcome(reading: CaseReading, name: str) -> tuple[RM, set[str]]:
+    """*name*'s reached RM and the RM rows its entries name."""
+    actor = actors_by_name(reading)[name]
+    _, reached = projected(reading)
+    (rm,) = [p.rm for p in reached.participants if p.participant == actor]
+    rules = {
+        i.rule_id
+        for entry in reading.ledger
+        if entry.payload_snapshot["actor"] == actor
+        or entry.payload_snapshot.get("object", {}).get("attributedTo")
+        == actor
+        for i in reading.inferences
+        if i.entry_id == entry.id_ and i.rule_id.startswith("VINCE-RM")
+    }
+    return rm, rules
+
+
+def _beta_rows(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in raw["vendors/vuls"]
+        if row["vendor"] == "Synthetic Vendor Beta"
+    ]
+
+
+def test_a_vendor_not_affected_by_every_vul_is_invalid():
+    rm, rules = _vendor_outcome(
+        _translate(reads(ACTIVE)), "Synthetic Vendor Beta"
+    )
+    assert rm is RM.INVALID
+    assert rules == {"VINCE-RM-04", "VINCE-RM-06"}
+
+
+def test_a_vendor_silent_on_a_vul_stays_received():
+    raw = reads(ACTIVE)
+    raw["vendors/vuls"].remove(_beta_rows(raw)[1])
+    reading = _translate(raw)
+    _clean(reading)
+    rm, rules = _vendor_outcome(reading, "Synthetic Vendor Beta")
+    assert rm is RM.RECEIVED
+    assert rules == {"VINCE-RM-04", "VINCE-RM-07"}
+
+
+def test_a_vendor_with_a_dropped_status_stays_received():
+    raw = reads(ACTIVE)
+    _beta_rows(raw)[1]["status"] = "Fixed"
+    reading = _translate(raw)
+    _clean(reading)
+    assert (
+        "case/999901/vendors/vuls/[3]",
+        "status = Fixed",
+        Reason.UNKNOWN_VALUE,
+    ) in _facts(reading)
+    rm, rules = _vendor_outcome(reading, "Synthetic Vendor Beta")
+    assert rm is RM.RECEIVED
+    assert rules == {"VINCE-RM-04", "VINCE-RM-07"}
+
+
+def test_a_vendor_with_no_status_is_any_other_mix():
+    raw = reads(ACTIVE)
+    for row in _beta_rows(raw):
+        raw["vendors/vuls"].remove(row)
+    rm, rules = _vendor_outcome(_translate(raw), "Synthetic Vendor Beta")
+    assert rm is RM.RECEIVED
+    assert rules == {"VINCE-RM-04", "VINCE-RM-07"}
+
+
+# -- a post credits one participant -----------------------------------------
+
+
+def test_a_post_whose_org_two_participants_claim_is_a_rule_conflict():
+    raw = reads(ACTIVE)
+    raw["report"]["contact_org"] = "Synthetic Vendor Alpha"
+    reading = _translate(raw)
+    _clean(reading)
+    assert (
+        "case/999901/posts/[1]",
+        "post whose author's org names more than one participant",
+        Reason.RULE_CONFLICT,
+    ) in _facts(reading)
+    assert [note["content"] for note in records(reading, "Note")] == [
+        raw["posts"][0]["content"]
+    ]
+
+
+# -- a record dated before the case opened ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("read", "index", "field", "source"),
+    [
+        ("vuls", 0, "date_added", "case/999901/vuls/[0]"),
+        ("posts", 0, "created", "case/999901/posts/[0]"),
+        ("note", None, "datefirstpublished", "case/999901/note/"),
+    ],
+)
+def test_a_record_dated_before_the_case_opened_is_a_rule_conflict(
+    read, index, field, source
+):
+    raw = reads(ACTIVE)
+    raw["note"] = dict(
+        reads(INACTIVE)["note"], dateupdated=None, revision=None
+    )
+    record = raw[read] if index is None else raw[read][index]
+    record[field] = "2026-01-01T00:00:00Z"
+    reading = _translate(raw)
+    _clean(reading)
+    assert (
+        source,
+        f"{field} is earlier than the case's created",
+        Reason.RULE_CONFLICT,
+    ) in _facts(reading)
+    assert reading.ledger[0].semantic_type in (
+        "submit_report",
+        "create_case",
+    )
+    assert all(
+        status["rmState"] != "START"
+        for status in records(reading, "ParticipantStatus")
+    )
+
+
+# -- a case read no row can place -------------------------------------------
+
+
+@pytest.mark.parametrize("case", [["999901"], "999901", 7])
+def test_a_case_read_that_is_not_a_record_is_refused_unnamed(case):
+    raw = reads(ACTIVE)
+    raw["case"] = case
+    with pytest.raises(VinceCaseRecordsError) as caught:
+        _translate(raw)
+    assert caught.value.vuid is None
+    assert caught.value.violations
+
+
+def test_a_blank_vuid_names_no_case():
+    raw = reads(ACTIVE)
+    raw["case"]["vuid"] = "  "
+    with pytest.raises(VinceCaseRecordsError) as caught:
+        _translate(raw)
+    assert caught.value.vuid is None
+    assert "vuid" in str(caught.value.violations)

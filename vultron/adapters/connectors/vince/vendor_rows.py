@@ -58,7 +58,7 @@ def vendors(t: CaseTranslation) -> None:
             )
             continue
         participant = Participant(actor=actor, roles=("vendor",), vendor=True)
-        t.orgs.setdefault(vendor.vendor, actor)
+        t.claim_org(vendor.vendor, actor)
         t.seat(
             participant,
             vendor.vendor,
@@ -112,9 +112,11 @@ def vendor_statuses(t: CaseTranslation) -> None:
 
     A status that is unknown, dated before its vendor was added, undated
     where its row needs a time, or of a vendor not on the case is returned
-    untranslated; the rest decide the vendor's RM.
+    untranslated; the rest decide the vendor's RM.  Runs after
+    :func:`~.content_rows.vuls`, since VINCE-RM-06 needs every vul.
     """
     usable: dict[str, list[tuple[str, VinceVendorVul]]] = {}
+    dropped: set[str] = set()
     for index, row in t.items(_STATUSES, VinceVendorVul):
         source = t.ids.record(_STATUSES, index)
         actor = t.ids.vendor(row.vendor)
@@ -125,29 +127,36 @@ def vendor_statuses(t: CaseTranslation) -> None:
                 "status of a vendor that is not on the case",
                 Reason.NO_COUNTERPART,
             )
-        elif row.status not in VENDOR_STATUSES:
-            t.not_translated(
-                source, f"status = {row.status}", Reason.UNKNOWN_VALUE
-            )
-        elif row.statement_date is not None and row.statement_date < seat.at:
-            t.not_translated(
-                source,
-                "statement_date is earlier than the vendor's date_added",
-                Reason.RULE_CONFLICT,
-            )
-        elif row.statement_date is None and row.status in (
-            AFFECTED,
-            NOT_AFFECTED,
-        ):
-            t.not_translated(
-                source,
-                f"status = {row.status} with no statement_date",
-                Reason.NO_TIME,
-            )
+        elif problem := _status_problem(row, seat):
+            t.not_translated(source, *problem)
+            dropped.add(actor)
         else:
             usable.setdefault(actor, []).append((source, row))
-    for actor, rows in usable.items():
-        _vendor_rm(t, t.participants[actor], t.seats[actor], rows)
+    for actor, participant in t.participants.items():
+        if participant.vendor:
+            _vendor_rm(
+                t,
+                participant,
+                t.seats[actor],
+                usable.get(actor, []),
+                complete=actor not in dropped,
+            )
+
+
+def _status_problem(
+    row: VinceVendorVul, seat: Act
+) -> tuple[str, Reason] | None:
+    """Why a vendor status of a seated vendor is untranslated, if it is."""
+    if row.status not in VENDOR_STATUSES:
+        return f"status = {row.status}", Reason.UNKNOWN_VALUE
+    if row.statement_date is not None and row.statement_date < seat.at:
+        return (
+            "statement_date is earlier than the vendor's date_added",
+            Reason.RULE_CONFLICT,
+        )
+    if row.statement_date is None and row.status in (AFFECTED, NOT_AFFECTED):
+        return f"status = {row.status} with no statement_date", Reason.NO_TIME
+    return None
 
 
 def _vendor_rm(
@@ -155,8 +164,15 @@ def _vendor_rm(
     vendor: Participant,
     seat: Act,
     rows: list[tuple[str, VinceVendorVul]],
+    *,
+    complete: bool,
 ) -> None:
-    """One vendor's RM from its usable per-vul statuses."""
+    """One vendor's RM from its usable per-vul statuses.
+
+    VINCE-RM-06 needs a usable ``Not Affected`` for every vul the case
+    lists, so a vendor with a status dropped or a vul unstated is any other
+    mix (VINCE-RM-07), as is a vendor with no usable status at all.
+    """
     dated = sorted(
         (row.statement_date, source, row.status)
         for source, row in rows
@@ -166,7 +182,12 @@ def _vendor_rm(
     if affected:
         at, source, _ = affected[0]
         t.rm_steps(vendor, "ACCEPTED", at, source, ["VINCE-RM-05"], "affected")
-    elif all(row.status == NOT_AFFECTED for _, row in rows):
+    elif (
+        rows
+        and complete
+        and all(row.status == NOT_AFFECTED for _, row in rows)
+        and t.vul_names <= {row.vulnerability for _, row in rows}
+    ):
         at, source, _ = dated[-1]
         t.rm_steps(
             vendor, "INVALID", at, source, ["VINCE-RM-06"], "not-affected"

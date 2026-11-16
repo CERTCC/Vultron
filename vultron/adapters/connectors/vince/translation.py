@@ -60,6 +60,9 @@ class CaseTranslation:
             reads no clock (CRD-02-006).
         seats: The act that seated each participant, by actor.
         orgs: The participant each organization name on a post credits.
+        shared_orgs: The organization names more than one participant
+            claims, which credit no post.
+        vul_names: The name of each vul the case lists (VINCE-RM-06).
         embargo: The embargo VINCE-EM-01 inferred, once it has.
     """
 
@@ -71,6 +74,8 @@ class CaseTranslation:
     participants: dict[str, Participant] = field(default_factory=dict)
     seats: dict[str, Act] = field(default_factory=dict)
     orgs: dict[str, str] = field(default_factory=dict)
+    shared_orgs: set[str] = field(default_factory=set)
+    vul_names: set[str] = field(default_factory=set)
     embargo: EmbargoEvent | None = None
 
     @property
@@ -139,6 +144,26 @@ class CaseTranslation:
             )
             return None
         return parsed
+
+    def claim_org(self, org: str, actor: str) -> None:
+        """Credit *org*'s posts to *actor*, unless another participant
+        claims it too."""
+        if self.orgs.setdefault(org, actor) != actor:
+            self.shared_orgs.add(org)
+
+    def before_opening(
+        self, source_record: str, at: datetime, field_name: str
+    ) -> bool:
+        """Whether *at*, the record's *field_name*, is earlier than the
+        case's ``created``: a rule conflict, returned untranslated."""
+        if at >= self.case.created:
+            return False
+        self.not_translated(
+            source_record,
+            f"{field_name} is earlier than the case's created",
+            UntranslatedReason.RULE_CONFLICT,
+        )
+        return True
 
     # -- writing acts --------------------------------------------------
 

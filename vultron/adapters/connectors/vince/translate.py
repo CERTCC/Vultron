@@ -59,9 +59,11 @@ logger = logging.getLogger(__name__)
 #: seated first because every later row names it, and the report precedes
 #: the case because the case carries the RM state the report gave CERT/CC,
 #: so a report submitted at the case's ``created`` time lands just before
-#: it.  The embargo's exit follows every act that may share its time, so a
-#: vendor added at ``due_date`` agrees before it ends.  The closure and the note come last because each reads CERT/CC's RM
-#: steps the others wrote.
+#: it.  The vuls precede the vendor statuses, which VINCE-RM-06 checks
+#: against every vul.  The embargo's exit follows every act that may share
+#: its time, so a vendor added at ``due_date`` agrees before it ends.  The
+#: closure and the note come last because each reads CERT/CC's RM steps the
+#: others wrote.
 STEPS: tuple[Callable[[CaseTranslation], None], ...] = (
     case_rows.coordinator_seat,
     case_rows.report,
@@ -69,8 +71,8 @@ STEPS: tuple[Callable[[CaseTranslation], None], ...] = (
     case_rows.opening,
     case_rows.case_status,
     vendor_rows.vendors,
-    vendor_rows.vendor_statuses,
     content_rows.vuls,
+    vendor_rows.vendor_statuses,
     content_rows.posts,
     case_rows.embargo_exit,
     case_rows.closure,

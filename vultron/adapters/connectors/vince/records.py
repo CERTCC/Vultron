@@ -57,7 +57,7 @@ def _blank_is_absent(value: object) -> object:
 
 
 #: A VINCE text field: absent when VINCE sends nothing or an empty string.
-Text = Annotated[str | None, BeforeValidator(_blank_is_absent)]
+Text = Annotated[NonEmptyString | None, BeforeValidator(_blank_is_absent)]
 #: A VINCE time: absent when unset; a time with no offset is read as UTC.
 Time = Annotated[datetime | None, BeforeValidator(_blank_is_absent)]
 
@@ -256,9 +256,9 @@ def parse_case(reads: Mapping[str, JsonValue]) -> VinceCase:
         return VinceCase.model_validate(raw)
     except ValidationError as exc:
         vuid = raw.get("vuid") if isinstance(raw, Mapping) else None
-        raise VinceCaseRecordsError(
-            vuid if isinstance(vuid, str) else None, [_problem("case", exc)]
-        ) from exc
+        if not isinstance(vuid, str) or is_blank_string(vuid):
+            vuid = None
+        raise VinceCaseRecordsError(vuid, [_problem("case", exc)]) from exc
 
 
 __all__ = [

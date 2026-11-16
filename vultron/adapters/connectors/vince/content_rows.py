@@ -39,6 +39,7 @@ def vuls(t: CaseTranslation) -> None:
     names: set[str] = set()
     for index, vul in t.items("vuls", VinceVul):
         source = t.ids.record("vuls", index)
+        t.vul_names.add(vul.name)
         if vul.name in names:
             t.not_translated(
                 source,
@@ -48,6 +49,8 @@ def vuls(t: CaseTranslation) -> None:
             continue
         if vul.date_added is None:
             t.not_translated(source, "vul with no date_added", Reason.NO_TIME)
+            continue
+        if t.before_opening(source, vul.date_added, "date_added"):
             continue
         names.add(vul.name)
         t.act(
@@ -100,7 +103,13 @@ def posts(t: CaseTranslation) -> None:
             t.not_translated(source, "pinned = true", Reason.NO_COUNTERPART)
         org = post.author.org if post.author else None
         actor = t.orgs.get(org) if org else None
-        if actor is None:
+        if org in t.shared_orgs:
+            t.not_translated(
+                source,
+                "post whose author's org names more than one participant",
+                Reason.RULE_CONFLICT,
+            )
+        elif actor is None:
             t.not_translated(
                 source,
                 "post whose author's org matches no participant",
@@ -112,7 +121,7 @@ def posts(t: CaseTranslation) -> None:
             )
         elif post.created is None:
             t.not_translated(source, "post with no created", Reason.NO_TIME)
-        else:
+        elif not t.before_opening(source, post.created, "created"):
             t.act(
                 Act(
                     at=post.created,

@@ -19,6 +19,8 @@ The `vultron.errors` module provides exceptions for Vultron
 from collections.abc import Iterable, Sequence
 from typing import NamedTuple
 
+from vultron.primitives import NonEmptyString
+
 
 class Violation(NamedTuple):
     """One violated rule in a rejection that reports every violation.
@@ -814,7 +816,9 @@ class VinceCaseRecordsError(CarriesViolations, VultronError):
         violations: Every reason the case could not be read (EH-07-001).
     """
 
-    def __init__(self, vuid: str | None, problems: Iterable[str]) -> None:
+    def __init__(
+        self, vuid: NonEmptyString | None, problems: Iterable[str]
+    ) -> None:
         self.vuid = vuid
         self.violations = tuple(Violation(problem) for problem in problems)
         named = f"VINCE case {vuid}" if vuid else "a VINCE case"

@@ -56,7 +56,7 @@ def coordinator_seat(t: CaseTranslation) -> None:
     entry that seats it (:func:`the_case`)."""
     cert = Participant(actor=t.ids.coordinator, roles=COORDINATOR_ROLES)
     t.participants[cert.actor] = cert
-    t.orgs[COORDINATOR_ORG] = cert.actor
+    t.claim_org(COORDINATOR_ORG, cert.actor)
 
 
 def the_case(t: CaseTranslation) -> None:
@@ -144,7 +144,7 @@ def report(t: CaseTranslation) -> None:
             or "reporter"
         )
         if record.contact_org:
-            t.orgs.setdefault(record.contact_org, reporter.actor)
+            t.claim_org(record.contact_org, reporter.actor)
         rules = ["VINCE-RM-03"]
     else:
         name, rules = "withheld", ["VINCE-PA-04", "VINCE-RM-03"]
@@ -314,6 +314,8 @@ def note(t: CaseTranslation) -> None:
             "published = true with no datefirstpublished",
             Reason.NO_TIME,
         )
+        return
+    if t.before_opening(source, at, "datefirstpublished"):
         return
     cert = t.coordinator
     status = t.status(cert, cert.rm_at(at), at, "published", pxa=PUBLISHED_PXA)
