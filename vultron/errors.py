@@ -778,7 +778,7 @@ class LedgerReadError(VultronError):
     """
 
 
-class CaseLedgerFileError(VultronError):
+class CaseLedgerFileError(CarriesViolations, VultronError):
     """Raised when a case reader cannot read a case from a case-ledger file.
 
     Raised by the case shadow's Vultron case reader
@@ -789,16 +789,14 @@ class CaseLedgerFileError(VultronError):
 
     Attributes:
         path: The ledger file the reader was asked for, as it was named.
-        problems: Every reason the file was refused, each naming its row
-            where it has one (EH-07-001).
+        violations: Every reason the file was refused, each naming its row
+            where it has one (EH-07-001, EH-07-003).
     """
 
-    def __init__(self, path: str, problems: Sequence[str]) -> None:
+    def __init__(self, path: str, problems: Iterable[str]) -> None:
         self.path = path
-        self.problems = list(problems)
-        super().__init__(
-            f"Cannot read a case from {path}: " + "; ".join(self.problems)
-        )
+        self.violations = tuple(Violation(problem) for problem in problems)
+        super().__init__(f"Cannot read a case from {path}")
 
 
 class CaseHistoryInputError(VultronError):

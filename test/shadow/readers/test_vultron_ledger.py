@@ -153,9 +153,11 @@ def test_every_malformed_row_is_named_and_no_partial_ledger_returns(
     with pytest.raises(CaseLedgerFileError) as caught:
         _read(path)
     assert caught.value.path == path
-    assert len(caught.value.problems) == 2
-    assert f"{path} line 2: Parse error" in caught.value.problems[0]
-    assert f"{path} line 4: Parse error" in caught.value.problems[1]
+    problems = [v.message for v in caught.value.violations]
+    assert len(problems) == 2
+    assert problems[0].startswith(f"{path} line 2: Parse error")
+    assert problems[1].startswith(f"{path} line 4: Parse error")
+    assert all(problem in str(caught.value) for problem in problems)
 
 
 def test_a_json_object_that_is_not_a_ledger_entry_is_refused(tmp_path):
@@ -165,7 +167,7 @@ def test_a_json_object_that_is_not_a_ledger_entry_is_refused(tmp_path):
     )
     with pytest.raises(CaseLedgerFileError) as caught:
         _read(path)
-    [problem] = caught.value.problems
+    [problem] = [v.message for v in caught.value.violations]
     assert problem.startswith(f"{path} line 2: not a case ledger entry")
 
 
