@@ -314,6 +314,11 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # not the previous execution's, or it would commit another
                 # case's Create as its genesis.
                 "create_case_activity_id",
+                # Published by PublishEmbargoProposerNode, read by the embargo
+                # adjudication nodes (CM-24-002).  A run that published none
+                # must find none, not the previous execution's proposer, or
+                # it would record another proposal's proposer's consent.
+                "embargo_proposer_id",
                 # Published by the RM adjudication guards
                 # (CheckParticipantStatusAcceptableNode,
                 # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.

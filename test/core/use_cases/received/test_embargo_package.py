@@ -48,7 +48,6 @@ _FORMER_EXPORTS = (
     "RejectInviteToEmbargoOnCaseReceivedUseCase",
     "RemoveEmbargoEventFromCaseReceivedUseCase",
     "resolve_invitee_id",
-    "resolve_proposer_id",
 )
 
 

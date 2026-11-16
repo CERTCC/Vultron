@@ -61,7 +61,10 @@ from vultron.core.behaviors.case.received_run.reading import (
     ReceivedOutcome,
     read_outcome,
 )
-from vultron.core.behaviors.case.received_run.runner import run_received_tree
+from vultron.core.behaviors.case.received_run.runner import (
+    ReceivedTreeBuilder,
+    run_received_tree,
+)
 from vultron.core.behaviors.case.received_run.sequence import (
     sender_sequence_verdict,
 )
@@ -69,6 +72,7 @@ from vultron.core.behaviors.case.received_run.sequence import (
 __all__ = [
     "OutcomeReader",
     "ReceivedOutcome",
+    "ReceivedTreeBuilder",
     "addressee_refusal",
     "closed_sender_reader",
     "door_guards_admitted",

@@ -64,7 +64,7 @@ def _invite_tree() -> py_trees.behaviour.Behaviour:
         invitee_id=ACTOR_ID,
         invite_id=INVITE_ID,
         embargo_id=EMBARGO_ID,
-        proposer_id=ACTOR_ID,
+        attributed_to=None,
         sender_actor_id=ACTOR_ID,
     )
 

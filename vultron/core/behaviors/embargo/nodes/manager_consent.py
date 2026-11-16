@@ -46,9 +46,15 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
 from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
 )
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    EMBARGO_PROPOSER_INPUT,
+    EMBARGO_PROPOSER_REMAPPING,
+    read_embargo_proposer,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.sender_entitlement import is_case_owner
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -76,17 +82,24 @@ class ManagerHoldsUndecidedEmbargoStakeNode(DataLayerConditionWithPorts):
     owner (EP-09-005), and its row for the embargo is still ``UNINVITED``.
     """
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        **EMBARGO_PROPOSER_INPUT,
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return dict(EMBARGO_PROPOSER_REMAPPING)
+
     def __init__(
         self,
         case_id: str,
         embargo_id: str,
-        proposer_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
-        self._proposer_id = proposer_id
 
     def _skip_reason(self) -> str | None:
         """Why the manager writes no row here, or ``None`` when it does.
@@ -104,7 +117,8 @@ class ManagerHoldsUndecidedEmbargoStakeNode(DataLayerConditionWithPorts):
             raise BtNodePreconditionError(
                 f"{self.name}: case '{self._case_id}' not found"
             )
-        if self.actor_id == self._proposer_id:
+        # The proposer an earlier node of the run published (CM-24-002).
+        if self.actor_id == read_embargo_proposer(self):
             return "the manager is the proposer (ADR-0093)"
         participant_id = case.actor_participant_index.get(self.actor_id)
         participant = (
@@ -210,7 +224,6 @@ def record_manager_embargo_consent_tree(
     *,
     case_id: str,
     embargo_id: str,
-    proposer_id: str,
     cause_id: str,
     call_out: EmbargoCallOutBundle = EMBARGO_DETERMINISTIC,
 ) -> py_trees.behaviour.Behaviour:
@@ -228,9 +241,7 @@ def record_manager_embargo_consent_tree(
             py_trees.decorators.Inverter(
                 name="ManagerHasNoUndecidedStake",
                 child=ManagerHoldsUndecidedEmbargoStakeNode(
-                    case_id=case_id,
-                    embargo_id=embargo_id,
-                    proposer_id=proposer_id,
+                    case_id=case_id, embargo_id=embargo_id
                 ),
             ),
             py_trees.composites.Selector(

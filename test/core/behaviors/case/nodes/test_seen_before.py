@@ -181,7 +181,11 @@ def test_a_resend_of_a_refused_message_is_refused_with_the_stubs_reason(
 
     result = scenario.run(tree, activity=_event())
 
-    verdict = read_outcome(ReceivedOutcome.of(tree, result, "SampleBT"))
+    verdict = read_outcome(
+        ReceivedOutcome.of(
+            tree, result, "SampleBT", receiving_actor_id=RECEIVER
+        )
+    )
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason == STUB_REASON
     assert ran.ticks == 0
@@ -206,7 +210,11 @@ def test_a_resend_of_an_applied_or_waiting_message_is_skipped(
 
     result = scenario.run(tree, activity=_event())
 
-    verdict = read_outcome(ReceivedOutcome.of(tree, result, "SampleBT"))
+    verdict = read_outcome(
+        ReceivedOutcome.of(
+            tree, result, "SampleBT", receiving_actor_id=RECEIVER
+        )
+    )
     assert verdict.disposition is HandlerDisposition.SKIPPED
     door = next(
         n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)

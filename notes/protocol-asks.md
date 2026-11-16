@@ -223,8 +223,8 @@ ended embargo) and a repeat inside the window queues nothing. The store stays a
 duplicate suppressor that never holds case state (CLP-06-002). An announced commit
 clears the entry (SYNC-11-003); a refused proposal is never committed, so only
 the CASE_MANAGER's received `Reject` of it closes the entry, as its `Reject` of
-the Invite does a refused `Accept` (EP-09-019, `close_refused_embargo_ask`,
-`received/_pending_refusal.py`). A duplicate proposal (EP-09-032) is neither
+the Invite does a refused `Accept` (EP-09-019, `ClosePendingEmbargoAskNode`,
+`embargo/nodes/pending_refusal.py`). A duplicate proposal (EP-09-032) is neither
 committed nor refused, so nothing answers it and its entry closes only on the
 timeout (SYNC-11-005).
 

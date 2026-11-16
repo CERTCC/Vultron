@@ -29,7 +29,6 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -173,10 +172,6 @@ class CloseCaseReceivedUseCase:
                 "Leave(VulnerabilityCase) has no case id"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
         # A receipt, not a closure: the Leave names the case (ADR-0165), and
         # the tree's path stage refuses one this store does not hold
         # (AKM-03-006); the closure itself is logged by the tree.
@@ -186,17 +181,21 @@ class CloseCaseReceivedUseCase:
             case_id,
         )
 
-        tree = create_close_case_received_tree(
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            receiving_actor_id=receiving_actor_id,
-            post_close_reply=self._actor_config.post_close_reply,
-            sender_rule=self.sender_entitlement,
-        )
+        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # The receiver closes its own CaseActor RM state on an owner
+            # Leave, so the tree names it (CM-23-033).
+            return create_close_case_received_tree(
+                case_id=case_id,
+                sender_actor_id=request.actor_id,
+                receiving_actor_id=receiving_actor_id,
+                post_close_reply=self._actor_config.post_close_reply,
+                sender_rule=self.sender_entitlement,
+            )
+
         # The whole close is the CASE_MANAGER's: the path
         # stage refuses any other receiver (HP-01-005).
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="CloseCaseBT",
