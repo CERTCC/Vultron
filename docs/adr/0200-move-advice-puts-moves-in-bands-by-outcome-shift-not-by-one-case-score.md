@@ -107,7 +107,7 @@ If the cases show that the sum inside one vendor's scope hides a trade-off that 
 - Good, because the cooperative move comes first: a harm-free move is in a higher band than a trade-off move, and a trade-off move that a harm-free move dominates is not top.
 - Good, because no weight between vendors is chosen.
 - Good, because a move that dominates a harm-free move is also harm-free, so the top harm-free moves are the best moves that harm no vendor.
-- Good, because a move that raises an end desideratum and lowers none dominates every embargo-only move. Thus, given the choice between a fix and an embargo extension, the advice takes the fix.
+- Good, because a move that raises an end desideratum and lowers none dominates every embargo-only move. A vendor's own fix or deployment is not an event in any other vendor's desiderata, so it lowers no end desideratum. Thus, given the choice between a fix and an embargo extension, the advice takes the fix.
 - Bad, because the desiderata inside one vendor's scope are added with the rarity weights of ADR-0182. These weights measure how hard a desideratum is to meet by chance, not how much it matters.
 - Bad, because with many vendors, most moves do not dominate each other, and layer 1 can be large.
 - Bad, because the chance model cannot see that an active embargo protects the end desiderata: each step is equally likely, so an embargo does not make public awareness less likely (#6492).

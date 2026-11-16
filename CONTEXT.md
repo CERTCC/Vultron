@@ -315,7 +315,8 @@ public.
 
 **Outcome shift**:
 A move's expected outcome minus the chance value, for each scope, in an end part and
-an embargo part. The embargo parts count only when every scope's end part is zero.
+an embargo part. The embargo parts decide a band only when every end part is zero,
+and dominance only when the end parts are equal.
 *Avoid*: lift, gain, score delta
 
 **Dominates**:
