@@ -42,10 +42,6 @@ from vultron.wire.as2.typed_reference import (
     reads_as_typed_reference,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-    is_case_reference_shape,
-)
 
 STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
 """Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
@@ -115,10 +111,11 @@ def _dehydrate_data(
     - a field named in *obj*'s ``inline_required_refs`` (or its semantic
       class's, see :func:`_inline_required_refs`), for models whose protocol
       contract is to carry the object rather than reference it;
-    - a typed case reference (:class:`as_VulnerabilityCaseReference`), which
-      names a case and has no record of its own: collapsed to its id, it
-      would be read back as a bare id, and routing could no longer tell its
-      type when the store does not hold the case (ADR-0165).
+    - a typed reference (:class:`as_TypedReference`), a case reference
+      included, which names an object and has no record of its own:
+      collapsed to its id, it would be read back as a bare id, and routing
+      could no longer tell its type when the store does not hold the object
+      (MV-10-011, ADR-0165).
 
     Both exist for the same reason: dehydration is only reversible when the
     nested object has a record of its own to be read back from.  It often does
@@ -158,9 +155,9 @@ def _dehydrate_data(
             # it would store a URI that nothing can resolve.
             result[key] = value
             continue
-        if isinstance(getattr(obj, key, None), as_VulnerabilityCaseReference):
-            # A reference is already the smallest form, and the case it names
-            # need not be held here (ADR-0165).
+        if isinstance(getattr(obj, key, None), as_TypedReference):
+            # A reference is already the smallest form, and the object it
+            # names need not be held here (MV-10-011, ADR-0165).
             result[key] = value
             continue
         if key in ref_fields and isinstance(value, dict):
@@ -200,14 +197,6 @@ def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
         for k, v in raw.items()
         if v is not None
     }
-    if is_case_reference_shape(reference):
-        # A stored case reference reads back as one, never as a sparse case
-        # that fails the case's validation (ADR-0165).
-        if isinstance(
-            getattr(obj, field_name, None), as_VulnerabilityCaseReference
-        ):
-            return None
-        return as_VulnerabilityCaseReference.model_validate(reference)
     try:
         # Both-branch: a stored inline ref may be any persisted type, core
         # records included, so this read path opts into the core fallback
@@ -219,7 +208,9 @@ def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
         return None
     if reads_as_typed_reference(reference, specific_cls):
         # A stored typed reference reads back as one, never as a hollow
-        # object of its type with that class's defaults (MV-10-011).
+        # object of its type with that class's defaults, nor a case
+        # reference as a sparse case that fails the case's validation
+        # (MV-10-011, ADR-0165).
         if isinstance(getattr(obj, field_name, None), as_TypedReference):
             return None
         return as_TypedReference.model_validate(reference)

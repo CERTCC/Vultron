@@ -39,6 +39,8 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.wire.as2.errors import VultronParseUnknownTypeError
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.unknown_keys import resolve_inline_class
 from vultron.wire.as2.vocab import (
     activities as _activities,  # noqa: F401
     objects as _objects,  # noqa: F401
@@ -58,9 +60,6 @@ from vultron.wire.as2.vocab.base.registry import (
     narrow_type_list,
     resolve_wire_type,
     resolved_wire_type_name,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    is_case_reference_shape,
 )
 
 PUBLISHED = "2026-03-04T05:06:07+00:00"
@@ -412,8 +411,14 @@ class TestInboundTypeList:
         assert type(obj_from_item(item)) is as_Note
 
     def test_a_case_reference_list_is_a_case_reference(self):
-        assert is_case_reference_shape(
-            {"type": ["Foo", "VulnerabilityCase"], "id": "https://e.org/c/1"}
+        assert (
+            resolve_inline_class(
+                {
+                    "type": ["Foo", "VulnerabilityCase"],
+                    "id": "https://e.org/c/1",
+                }
+            )
+            is as_TypedReference
         )
 
 

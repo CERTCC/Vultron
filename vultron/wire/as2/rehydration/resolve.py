@@ -26,12 +26,12 @@ from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.rehydration.slots import materialise_object_slots
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_case_reference,
     is_of_kind,
     referenced_class,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import (
-    is_wire_type_alias,
     resolve_wire_type,
 )
 
@@ -214,9 +214,7 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     except KeyError:
         logger.error("Unknown object type: %s.", obj.type_)  # noqa: TRY400  # ruff-baseline #3353
         raise
-    if isinstance(obj, cls) or is_wire_type_alias(type(obj)):
-        # A wire-type alias (the case reference, ADR-0165) shares its
-        # ``type`` with a class it is not, so it is already its own class.
+    if isinstance(obj, cls):
         logger.debug(
             "Object already rehydrated as '%s', skipping.",
             obj.__class__.__name__,
@@ -257,6 +255,8 @@ def rehydrate(
     A typed reference is replaced by the object it names, as held, and one
     the receiver does not hold in a nested ``object_`` is reduced to its bare
     id (MV-10-011, ADR-0198), so no handler reads a reference as the object.
+    A case reference is the exception: it is returned as it arrived, and the
+    handler reads the case from its own store (AKM-03-006, ADR-0165).
 
     Also materialises object-only slots: a bare URI in a slot whose declared
     type cannot hold a URI is resolved through *dl*, or refused.  See
@@ -279,6 +279,12 @@ def rehydrate(
 
     if isinstance(obj, str):
         obj = _resolve_string_id(obj, dl)
+    elif is_case_reference(obj):
+        # An act naming its case is read against the case the receiver holds
+        # by the handler, which refuses one it lacks; the case is never
+        # fetched, so the reference stays as it arrived (AKM-03-006,
+        # ADR-0165).
+        return cast(as_Object, obj)
     elif isinstance(obj, as_TypedReference):
         obj = _resolve_typed_reference(obj, dl)
 

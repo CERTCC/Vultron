@@ -30,11 +30,13 @@ import logging
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.semantic_registry import extract_event, find_matching_semantics
@@ -45,14 +47,15 @@ from vultron.wire.as2.errors import (
 from vultron.wire.as2.extractor._builders import proposed_embargo_from
 from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_case_reference,
+)
+from vultron.wire.as2.vocab.activities.case.rm import _RmEngageCaseActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-)
 
 ACTOR = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
@@ -404,13 +407,39 @@ def test_an_actor_reference_is_still_read_as_the_actor() -> None:
 
 
 @pytest.mark.spec("MV-10-011")
-def test_a_case_reference_is_still_the_case_reference() -> None:
-    """The typed case reference keeps its own class (ADR-0165)."""
+def test_a_case_reference_is_a_typed_reference() -> None:
+    """The case reference is the generic typed reference (ADR-0165, ADR-0198).
+
+    No class of its own is registered under ``VulnerabilityCase``: the shape,
+    not the registry, tells it from a case (VM-01-017).
+    """
     reference = {"id": CASE_ID, "type": "VulnerabilityCase"}
 
     parsed = parse_activity(_body(reference, "Join"))
 
-    assert isinstance(_object_of(parsed), as_VulnerabilityCaseReference)
+    named = _as_typed_reference(_object_of(parsed))
+    assert named.type_ == "VulnerabilityCase"
+    assert named.id_ == CASE_ID
+    assert find_in_vocabulary("VulnerabilityCase") is VulnerabilityCase
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_an_act_naming_its_case_refuses_a_reference_to_another_type() -> None:
+    """The object of an act on a case is the case, never another reference.
+
+    The case reference is the generic typed reference, so the slot checks
+    the type it names (ADR-0165).
+    """
+    note = {"id": "https://example.org/notes/n1", "type": "Note"}
+    case = {"id": CASE_ID, "type": "VulnerabilityCase"}
+    body = _body(note, "Join", updated=PUBLISHED)
+
+    named = _RmEngageCaseActivity.model_validate(
+        _body(case, "Join", updated=PUBLISHED)
+    ).object_
+    assert is_case_reference(named)
+    with pytest.raises(ValidationError, match="names no case"):
+        _RmEngageCaseActivity.model_validate(body)
 
 
 @pytest.mark.spec("MV-10-011")

@@ -39,13 +39,13 @@
    skips it) yet is stored concretely as `type_="Actor"`, and a core domain
    class, which is not an `as_Base` subclass, so its wire module registers it
    in one line (`WIRE_TYPE_MAP["VulnerabilityReport"] = VulnerabilityReport`,
-   ARCH-25-003). If a new class shares an existing class's `type` value,
-   declare `_wire_type_alias: ClassVar[bool] = True` on it rather than letting
-   import order decide who owns the key; it is still listed in `VOCABULARY`
-   under its class name, but no wire `type` value resolves to it. The only
-   unflagged sharers are the five `as_Vultron*` actor shadows, enumerated in the
-   ratchet `test/architecture/test_vocab_registry_keys.py`, which fails on any
-   other collision.
+   ARCH-25-003). A new class MUST NOT share an existing class's `type` value:
+   when a core class owns it, the wire name is an alias of the core class
+   (`as_Document = AttachedDocument`, ADR-0099), and a typed reference
+   (`as_TypedReference`) declares no default `type_`, so it claims no key
+   (VM-01-017). The only sharers are the five `as_Vultron*` actor shadows,
+   enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
+   which fails on any other collision.
 
 4. A new Vultron type, a subtype of an AS2 type, a new Vultron property, or the
    retirement of one is declared by the rule in

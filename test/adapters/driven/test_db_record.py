@@ -1206,9 +1206,7 @@ def test_a_case_reference_round_trips_as_a_reference():
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.wire.as2.factories import rm_engage_case_activity
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseReference,
-    )
+    from vultron.wire.as2.typed_reference import is_case_reference
 
     case_id = "urn:uuid:case-reference-roundtrip"
     join = rm_engage_case_activity(
@@ -1219,10 +1217,7 @@ def test_a_case_reference_round_trips_as_a_reference():
     assert isinstance(stored, dict) and stored.get("id") == case_id
     # The row reads back as a base ``Join``, whose object a case's own
     # validation would refuse; it is retyped as the reference it is.
-    assert isinstance(
-        getattr(record.to_obj(), "object_", None),
-        as_VulnerabilityCaseReference,
-    )
+    assert is_case_reference(getattr(record.to_obj(), "object_", None))
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     try:
@@ -1231,9 +1226,7 @@ def test_a_case_reference_round_trips_as_a_reference():
         assert dl.read(case_id) is None
     finally:
         dl.close()
-    assert isinstance(
-        getattr(back, "object_", None), as_VulnerabilityCaseReference
-    )
+    assert is_case_reference(getattr(back, "object_", None))
 
 
 @pytest.mark.spec("OID-02-003")

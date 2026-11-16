@@ -201,7 +201,11 @@ def test_a_report_keeps_a_file_attached_beside_its_documents(
 def test_the_core_classes_own_the_file_types_whatever_the_import_order() -> (
     None
 ):
-    """VM-01-014: the wire file classes are aliases, so no import order wins."""
+    """VM-01-013: the file types have one owner, so no import order wins.
+
+    The wire names are the core classes (ADR-0099), and no wire class
+    declares those ``type`` values.
+    """
     import subprocess
     import sys
 

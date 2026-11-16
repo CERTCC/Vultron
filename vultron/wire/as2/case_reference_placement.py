@@ -44,26 +44,34 @@ from pydantic import BaseModel
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.typed_reference import is_case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 
 #: Whether *parent*'s field *field_name* is a slot the form may sit in.
 _SlotPredicate = Callable[[BaseModel, str], bool]
 
+#: Whether a value is the form whose slots are checked.
+_FormPredicate = Callable[[object], bool]
+
+
+def _is_case_stub(value: object) -> bool:
+    """Whether *value* is a case stub (MV-10-002)."""
+    return isinstance(value, as_VulnerabilityCaseStub)
+
 
 def _misplaced(
-    value: object, path: str, form: type, admits: _SlotPredicate
+    value: object, path: str, is_form: _FormPredicate, admits: _SlotPredicate
 ) -> Iterator[str]:
-    """The paths below *path* that hold *form* in a slot *admits* refuses."""
+    """The paths below *path* that hold the form in a slot *admits* refuses."""
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _misplaced(item, f"{path}[{index}]", form, admits)
+            yield from _misplaced(item, f"{path}[{index}]", is_form, admits)
         return
-    if isinstance(value, form):
+    if is_form(value):
         yield path
         return
     # Inline domain objects are core models, not ``as_Base`` (ARCH-25-004),
@@ -72,12 +80,12 @@ def _misplaced(
         return
     for field_name, info in type(value).model_fields.items():
         child = getattr(value, field_name, None)
-        if isinstance(child, form) and admits(value, field_name):
+        if is_form(child) and admits(value, field_name):
             continue
         # The key the sender wrote, so the refusal names the slot it used.
         key = info.serialization_alias or field_name.rstrip("_")
         child_path = f"{path}.{key}" if path else key
-        yield from _misplaced(child, child_path, form, admits)
+        yield from _misplaced(child, child_path, is_form, admits)
 
 
 def _names_case_by_reference(parent: BaseModel, field_name: str) -> bool:
@@ -118,7 +126,7 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
         _misplaced(
             activity,
             "",
-            as_VulnerabilityCaseReference,
+            is_case_reference,
             _names_case_by_reference,
         )
     )
@@ -142,7 +150,7 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
         _misplaced(
             activity,
             "",
-            as_VulnerabilityCaseStub,
+            _is_case_stub,
             _is_case_invitation_target,
         )
     )

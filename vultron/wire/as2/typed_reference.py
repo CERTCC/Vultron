@@ -16,16 +16,18 @@ This module is the one place that reads that shape:
 - :func:`refuse_undefined_preview` refuses a preview for a type that defines
   none (MV-10-012);
 - :class:`as_TypedReference` is what the parser reads one as, for every type
-  that has no reference form of its own (:func:`reads_as_typed_reference`).
+  that has no reference form of its own (:func:`reads_as_typed_reference`);
+- :func:`case_reference` builds the typed reference a participant's act on a
+  case names it by, and :func:`is_case_reference` recognizes one (ADR-0165).
 
-Two types keep the reference forms they had before this rule generalized
-them: an actor reference is the actor's own class carrying only its ``id``
-(AKM-05-017, ADR-0159), and a case reference is
-:class:`~vultron.wire.as2.vocab.objects.vulnerability_case.as_VulnerabilityCaseReference`
-(ADR-0165).  A collection carrying only its ``id`` is the address of an
-actor's endpoint (AKM-02-006), and a case stub keeps its own shape and
-position rules (MV-10-001, MV-10-002) until the stub moves into a case
-reference's ``preview`` (ADR-0205).
+A typed reference shares the ``type`` of the object it names, so it claims no
+``WIRE_TYPE_MAP`` key: the shape, not the registry, tells it from a whole
+object of that type (VM-01-017).  An actor reference keeps the form it had
+before this rule generalized it: the actor's own class carrying only its
+``id`` (AKM-05-017, ADR-0159).  A collection carrying only its ``id`` is the
+address of an actor's endpoint (AKM-02-006), and a case stub keeps its own
+shape and position rules (MV-10-001, MV-10-002) until the stub moves into a
+case reference's ``preview`` (ADR-0205).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -49,6 +51,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
+from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -61,7 +64,6 @@ from vultron.wire.as2.vocab.base.registry import (
     resolved_wire_type_name,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 
@@ -140,8 +142,9 @@ def reads_as_typed_reference(
     True for a typed reference shape whose class has no reference form of
     its own.  An actor's class is its actor reference (AKM-05-017), a
     collection naming only its ``id`` is an endpoint's address, and a
-    ``Link`` is not an object; the case's reference is resolved before this
-    is asked (ADR-0165).  A case stub keeps its own rules (MV-10-001).
+    ``Link`` is not an object.  A case stub keeps its own rules (MV-10-001).
+    A case is read here like any other type: its ``{id, type}`` shape is the
+    case reference (ADR-0165).
     """
     if cls is None or not is_typed_reference_shape(value):
         return False
@@ -152,7 +155,6 @@ def reads_as_typed_reference(
             CoreActor,
             as_Collection,
             as_Link,
-            as_VulnerabilityCaseReference,
             as_VulnerabilityCaseStub,
         ),
     )
@@ -171,7 +173,7 @@ class as_TypedReference(as_Object):
     object first (AKM-05-007, AKM-05-010).
 
     It claims no ``WIRE_TYPE_MAP`` key: its ``type`` is the referenced
-    object's, any type at all, so it declares no ``Literal``.
+    object's, any type at all, so it declares no ``Literal`` (VM-01-017).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -186,6 +188,26 @@ class as_TypedReference(as_Object):
     # process's clock (AKM-02-006, ADR-0159).
     published: datetime | None = None
     updated: datetime | None = None
+
+
+def case_reference(case_id: str) -> as_TypedReference:
+    """Return the typed reference that names the case *case_id*.
+
+    A participant's ``Join``, ``Ignore`` and ``Leave`` of a case and the
+    ownership-transfer ``Offer`` name the case by this reference rather than
+    carry a copy of it (AKM-03-003, ADR-0165).
+    """
+    return as_TypedReference(
+        type_=VO_type.VULNERABILITY_CASE.value, id_=case_id
+    )
+
+
+def is_case_reference(value: object) -> bool:
+    """Whether *value* is a typed reference that names a case (ADR-0165)."""
+    return (
+        isinstance(value, as_TypedReference)
+        and value.type_ == VO_type.VULNERABILITY_CASE
+    )
 
 
 #: Core classes that are a kind of an AS2 base type without subclassing its
@@ -232,6 +254,8 @@ __all__ = [
     "TYPES_WITH_DEFINED_PREVIEW",
     "as_TypedReference",
     "carries_preview",
+    "case_reference",
+    "is_case_reference",
     "is_of_kind",
     "is_typed_reference_shape",
     "reads_as_typed_reference",

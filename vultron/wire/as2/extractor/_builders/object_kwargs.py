@@ -33,12 +33,12 @@ from vultron.wire.as2.extractor._builders.statuses import (
     _build_case_status_object,
     _build_participant_status_object,
 )
-from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_case_reference,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-)
 
 # ---------------------------------------------------------------------------
 # Activity snapshot builder
@@ -185,7 +185,7 @@ def _build_object_kwargs(
 
     if _obj_type == str(VOtype.VULNERABILITY_REPORT):
         kw.update(_build_report_object(obj))
-    elif isinstance(obj, as_VulnerabilityCaseReference):
+    elif is_case_reference(obj):
         # A case named by typed reference reaches core as its id and type
         # only (ADR-0165); the receiver reads the case from its own store.
         kw["object_"] = _to_domain_obj(obj)
