@@ -523,6 +523,32 @@ class TestRefusedStatusIsRefusedWhole:
         ):
             assert fragment in reason, reason
 
+    @pytest.mark.spec("SL-03-003", "SL-03-004")
+    def test_the_refusal_is_one_debug_fact_from_the_check(
+        self, store_for, make_payload, caplog
+    ):
+        """The acceptance check logs the refused dimensions as a DEBUG fact;
+        the received runner logs the refusal (#6477)."""
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.Pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        _seed_case(dl, current, asserted)
+
+        with caplog.at_level(logging.DEBUG):
+            result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+
+        assert result.status == Status.FAILURE
+        lines = [
+            r
+            for r in caplog.records
+            if r.name.endswith(".CheckParticipantStatusAcceptableNode")
+            and "refused for participant" in r.getMessage()
+        ]
+        assert [r.levelno for r in lines] == [logging.DEBUG]
+        assert "rm: ACCEPTED → VALID moves RM backwards" in (
+            lines[0].getMessage()
+        )
+
     @pytest.mark.spec("RSH-09-002", "CM-23-018")
     def test_a_closed_participants_later_update_is_refused(
         self, store_for, make_payload

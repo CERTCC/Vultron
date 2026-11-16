@@ -41,6 +41,10 @@ from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.node_logger import (
+    fail_with_fault,
+    fail_with_reason,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -125,9 +129,7 @@ class CommitParticipantStatusEntriesNode(
 
     def _refuse(self, reason: str) -> Status:
         """Fail with *reason*; the act's transaction takes the statuses back."""
-        self.feedback_message = f"{self.name}: {reason}"
-        self.logger.warning("%s", self.feedback_message)
-        return Status.FAILURE
+        return fail_with_reason(self, f"{self.name}: {reason}", prefix="")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -195,9 +197,13 @@ class CommitParticipantStatusEntriesNode(
         for status_id in self._status_ids:
             status = self.datalayer.read(status_id)
             if not isinstance(status, ParticipantStatus):
-                return self._refuse(
-                    f"status '{status_id}' of '{self._subject_actor_id}'"
-                    " not found or wrong type"
+                # A status this act stored cannot be read back: a store
+                # fault, which keeps its WARNING (SL-03-001).
+                return fail_with_fault(
+                    self,
+                    f"{self.name}: status '{status_id}' of"
+                    f" '{self._subject_actor_id}' not found or wrong type",
+                    prefix="",
                 )
             reason = self._commit_status(status, participant)
             if reason is not None:

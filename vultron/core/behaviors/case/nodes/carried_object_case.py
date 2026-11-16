@@ -18,6 +18,7 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models._helpers import _as_id
 
 
@@ -60,15 +61,14 @@ class CarriedObjectInTargetCaseNode(DataLayerConditionWithPorts):
         context = _as_id(getattr(attached, "context", None))
         if context == self.case_id:
             return Status.SUCCESS
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"'{self.object_id}' belongs to case '{context}', not the"
             f" target case '{self.case_id}' — REFUSED (HP-08-007)"
             if context
             else f"'{self.object_id}' names no case; it cannot be attached"
-            f" to case '{self.case_id}' — REFUSED (HP-08-007)"
+            f" to case '{self.case_id}' — REFUSED (HP-08-007)",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 __all__ = ["CarriedObjectInTargetCaseNode"]

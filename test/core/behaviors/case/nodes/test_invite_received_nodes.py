@@ -144,18 +144,22 @@ class TestRecordInviteTrustAnchorNodeAC1:
         result = scenario.run(_anchor_node(invitee_id=INVITEE_ID))
         assert result.internal_error is False
 
-    def test_ac1_failure_logs_at_warning(self, caplog):
-        """A misaddressed Invite is logged at WARNING (PCR-03-007)."""
+    @pytest.mark.spec("SL-03-003")
+    def test_ac1_failure_logs_its_fact_at_debug(self, caplog):
+        """A misaddressed Invite is a DEBUG fact naming the invitee
+        (PCR-03-007); the received runner logs the refusal."""
         different_receiver = "https://example.org/actors/vendor"
         scenario = BTTestScenario(actor_id=different_receiver)
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             scenario.run(_anchor_node(invitee_id=INVITEE_ID))
-        warnings = [
+        facts = [
             r
             for r in caplog.records
-            if r.levelno == logging.WARNING and INVITEE_ID in r.getMessage()
+            if r.levelno == logging.DEBUG
+            and "refusing trust anchor" in r.getMessage()
+            and INVITEE_ID in r.getMessage()
         ]
-        assert warnings, "Expected a WARNING naming the mismatched invitee id"
+        assert facts, "Expected a DEBUG line naming the mismatched invitee id"
 
     def test_ac1_failure_no_record_written(self):
         """No VultronPendingCaseInbox is created when AC-1 fails."""
@@ -231,20 +235,25 @@ class TestRecordInviteTrustAnchorNodeAC3:
         result = scenario.run(_anchor_node(case_actor_id=OTHER_CASE_ACTOR_ID))
         assert result.internal_error is False
 
-    def test_ac3_conflicting_second_invite_logs_warning(self, caplog):
-        """The conflict is logged at WARNING naming both CaseActor ids."""
+    @pytest.mark.spec("SL-03-003")
+    def test_ac3_conflicting_second_invite_logs_its_fact_at_debug(
+        self, caplog
+    ):
+        """The conflict is a DEBUG fact naming both CaseActor ids; the
+        received runner logs the refusal."""
         scenario = self._accepted_scenario()
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             scenario.run(_anchor_node(case_actor_id=OTHER_CASE_ACTOR_ID))
-        warnings = [
+        facts = [
             r
             for r in caplog.records
-            if r.levelno == logging.WARNING
+            if r.levelno == logging.DEBUG
+            and "Trust anchor conflict" in r.getMessage()
             and CASE_ACTOR_ID in r.getMessage()
             and OTHER_CASE_ACTOR_ID in r.getMessage()
         ]
-        assert warnings, (
-            "Expected a WARNING naming both CaseActor ids (existing and conflicting)"
+        assert facts, (
+            "Expected a DEBUG line naming both CaseActor ids (existing and conflicting)"
         )
 
     def test_ac3_conflicting_second_invite_anchor_unchanged(self):

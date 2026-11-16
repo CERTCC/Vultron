@@ -212,7 +212,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         case_actor_id = self._trusted_case_manager(case_id, case)
 
         if case_actor_id is None and self._anchored:
-            return self._refuse_by_placement(
+            return self._fail_with_reason(
                 f"No CASE_MANAGER is known for case '{case_id}' to"
                 f" match sender '{sender_id}' — REFUSED (HP-01-006,"
                 " PCR-03-004)"
@@ -224,7 +224,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 if case is None
                 else f"case '{case_id}' names no CASE_MANAGER"
             )
-            return self._refuse_by_placement(
+            return self._fail_with_reason(
                 f"Sender '{sender_id}' has no standing: {held} — REFUSED"
                 " (PCR-03-001, HP-01-006)"
             )
@@ -247,7 +247,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{sender_id}' is not the CASE_MANAGER for case"
             f" '{case_id}', which is '{case_actor_id}'"
             " — REFUSED (HP-01-006)"

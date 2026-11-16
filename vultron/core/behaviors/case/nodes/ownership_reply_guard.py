@@ -41,6 +41,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     recorded_ownership_offer,
@@ -179,9 +180,7 @@ class OwnershipOfferOpenNode(
         the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str, spec: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED ({spec})"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_reason(self, f"{reason} — REFUSED ({spec})")
 
     def _refuse_late(self, offer: RecordedOwnershipOffer) -> Status:
         deadline = (
@@ -295,14 +294,13 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
         )
         if why is None:
             return Status.SUCCESS
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"the transferee '{offer.transferee_id}' of ownership-transfer"
             f" Offer '{offer.offer_id}' {why}, so it may no longer act on"
             f" case '{self._case_id}' and may not take ownership"
-            " — REFUSED (CM-21-022, CM-10-004)"
+            " — REFUSED (CM-21-022, CM-10-004)",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 def case_manager_ownership_offer_open_guard(
