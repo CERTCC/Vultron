@@ -173,10 +173,8 @@ def _is_inline_object_of(value: object, cls: type[BaseModel]) -> bool:
 
 
 def _wire_name(cls: type[BaseModel]) -> str:
-    """The wire ``type`` *cls* is registered under, or its class name."""
-    field = cls.model_fields.get("type_")
-    default = None if field is None else field.default
-    return str(default) if isinstance(default, str) else cls.__name__
+    """The wire ``type`` of *cls*, a defined preview's pinned ``type_``."""
+    return str(cls.model_fields["type_"].default)
 
 
 def reads_as_typed_reference(

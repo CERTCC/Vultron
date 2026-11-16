@@ -150,6 +150,9 @@ def test_a_case_reference_carrying_the_stub_parses_as_a_previewed_reference(
             {"type": "Note", "content": "a vul", "published": _PUBLISHED},
             id="another-type",
         ),
+        pytest.param(
+            {"type": "NoSuchType", "summary": "a vul"}, id="unknown-type"
+        ),
     ],
 )
 def test_a_case_reference_whose_preview_is_not_the_stub_is_refused(
@@ -239,8 +242,11 @@ def test_a_whole_object_pattern_refuses_every_reference_form() -> None:
         as_TypedReference(id_=case_id, type_="VulnerabilityCase"),
     )
 
+    as_link = parse_activity(_invite({"type": "Link", "href": case_id}, n=3))
+
     assert not pattern.match(as_uri)
     assert not pattern.match(as_reference)
+    assert not pattern.match(as_link)
 
 
 @pytest.mark.spec("SE-01-009")
