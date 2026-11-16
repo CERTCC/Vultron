@@ -357,6 +357,10 @@ For embargo times, the measure connects the embargo register and the consent row
     For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
     A desideratum whose scope the case never enters counts as met.
     A move that changes no state is listed as advice, with no number.
+    The record also gives the path-preference counts of [Reward Functions](reward_functions.md#the-path-preferences) (`vultron/measure/preferences/`).
+    For each participant, the counts give the embargo Invites answered before their RSVP deadline, the Invites that timed out at the deadline, and the Invites that the case's close timed out before the deadline.
+    For the case, the counts give the embargo revisions, and whether a negotiated embargo replaced the default embargo.
+    They also give the embargo duration against the time until the last fix, or the reason that this ratio is not defined.
     A ledger with a gap in its history gives a record that names the gap and holds no score.
 
 ## Further reading
