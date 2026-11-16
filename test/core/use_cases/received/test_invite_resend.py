@@ -317,6 +317,12 @@ def test_an_inert_joiner_is_resent_its_invites_and_still_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not an active participant" in (result.reason or "")
     assert "SYNC-17-002" in (result.reason or "")
+    # The active check declares the whole reason (#5775).
+    assert result.reason == (
+        f"sender '{JOINER}' is not an active participant of case"
+        f" '{case_id}'; no replication state recorded and no entry"
+        " replayed (SYNC-17-002)"
+    )
     state_id = VultronReplicationState(
         case_id=case_id, peer_id=JOINER, updated_at=ACT_AT
     ).id_

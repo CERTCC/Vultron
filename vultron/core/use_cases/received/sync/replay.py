@@ -25,22 +25,10 @@ from typing import ClassVar
 
 import py_trees
 
-from vultron.core.behaviors.case.received_run import (
-    OutcomeReader,
-    ReceivedOutcome,
-    find_node,
-    node_failed,
-    run_received_tree,
-)
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
-)
-from vultron.core.behaviors.sync.nodes.ledger_position import (
-    PeerActiveParticipantNode,
-)
-from vultron.core.behaviors.sync.nodes.position_statement import (
-    CheckStatedPositionInLedgerNode,
 )
 from vultron.core.behaviors.sync.read_tree import create_read_log_entry_tree
 from vultron.core.behaviors.sync.reject_tree import (
@@ -86,7 +74,6 @@ class _LedgerReplayRequestUseCase:
         request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
         *,
         label: str,
-        reader: OutcomeReader | None = None,
     ) -> HandlerResult:
         """Run *tree* once for *request* and read its verdict.
 
@@ -102,7 +89,6 @@ class _LedgerReplayRequestUseCase:
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
-            reader=reader,
         )
 
 
@@ -245,35 +231,7 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        return self._run(
-            tree,
-            request,
-            label="ReadLogEntryReceivedBT",
-            reader=_read_reading,
-        )
-
-
-def _read_reading(outcome: ReceivedOutcome) -> HandlerResult | None:
-    """Name the check a failed ``ReadLogEntryReceivedBT`` run ended at.
-
-    A position the ledger does not hold fails the position check, which
-    already logged it at WARNING (SYNC-17-005); it is refused with that
-    reason.  An inert sender fails the active check after its owed Invites
-    were resent, and is refused (SYNC-17-002, SYNC-20-001).  ``None`` for
-    any other run, which the runner reads.
-    """
-    tree = outcome.tree
-    if node_failed(tree, CheckStatedPositionInLedgerNode):
-        check = find_node(tree, CheckStatedPositionInLedgerNode)
-        assert check is not None  # it ran: node_failed found it
-        return HandlerResult.refused(
-            f"{check.feedback_message}; nothing recorded or sent (SYNC-17-005)"
-        )
-    if node_failed(tree, PeerActiveParticipantNode):
-        active = find_node(tree, PeerActiveParticipantNode)
-        assert active is not None  # it ran: node_failed found it
-        return HandlerResult.refused(
-            f"{active.feedback_message}; no replication state recorded and"
-            " no entry replayed (SYNC-17-002)"
-        )
-    return None
+        # A position the ledger does not hold, and an inert sender, are
+        # refused by the checks that find them, which name the reason
+        # (SYNC-17-005, SYNC-17-002).
+        return self._run(tree, request, label="ReadLogEntryReceivedBT")

@@ -637,6 +637,10 @@ class TestStatusUseCases:
         assert result.reason is not None
         assert "ParticipantStatus refused" in result.reason
         assert "rm: ACCEPTED → VALID moves RM backwards" in result.reason
+        # The guard declares the whole reason (#5775).
+        assert result.reason.startswith(
+            "ParticipantStatus refused (RSH-09-008): ParticipantStatus '"
+        )
 
     def test_add_case_status_refuses_an_em_move_the_register_has_not_made(
         self, monkeypatch, make_payload
