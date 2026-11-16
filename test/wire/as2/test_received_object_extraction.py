@@ -33,13 +33,21 @@ from test.support.received import TEST_SENDER_POSITION
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant.participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.semantic_registry import extract_event, find_matching_semantics
+from vultron.wire.as2.extractor._builders.objects import (
+    _build_participant_object,
+    _participant_ref_to_domain,
+)
 from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
@@ -255,6 +263,12 @@ def test_a_whole_participant_reaches_core_with_the_statuses_it_carries(
         context=case_id,
         joined=False,
         removal_activity="https://example.org/activities/remove-0",
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id="https://example.org/embargoes/1",
+                state=EmbargoConsentState.DECLINED,
+            )
+        ],
         participant_statuses=[
             make(
                 ParticipantStatus,
@@ -281,6 +295,7 @@ def test_a_whole_participant_reaches_core_with_the_statuses_it_carries(
     assert received.participant_statuses == sent.participant_statuses
     assert received.joined is False
     assert received.removal_activity == sent.removal_activity
+    assert received.embargo_consents == sent.embargo_consents
 
 
 @pytest.mark.spec("AKM-02-006")
@@ -315,3 +330,23 @@ def test_a_received_participant_status_keeps_its_engagement(
     received = event.object_
     assert isinstance(received, ParticipantStatus)
     assert received == status
+
+
+class _ParticipantLike:
+    """A participant-shaped object that is not the core class."""
+
+    id_ = "https://example.org/participants/not-core"
+    attributed_to = "https://example.org/actors/finder"
+    context = "https://example.org/cases/1"
+    case_roles: list[str] = []
+    participant_statuses: list[ParticipantStatus] = []
+
+
+@pytest.mark.spec("AKM-02-006")
+def test_a_participant_that_is_not_the_core_class_is_not_rebuilt() -> None:
+    """Nothing hand-builds a participant from a few fields, so no ``START``
+    status or ``joined`` flag is minted for one (#5265)."""
+    ref = _ParticipantLike()
+
+    assert _build_participant_object(ref) == {}
+    assert _participant_ref_to_domain(ref) == ref.id_
