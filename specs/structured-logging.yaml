@@ -188,9 +188,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The received runner MUST log exactly one WARNING line for each received
-      delivery it reports `REFUSED`, carrying the reason it reports, the activity
-      id and the sending actor's id.
+      The received runner MUST log one WARNING line per delivery it reports
+      `REFUSED`, with the reported reason, the activity id and the sender's id.
     rationale: >-
       Only the runner reads the delivery's verdict, so only it knows whether a
       FAILURE refused anything. A node guessed it from the tree's shape, and each
@@ -220,12 +219,11 @@ groups:
     rationale: >-
       A node cannot know whether its FAILURE is the delivery's verdict: a later
       Selector arm may admit the sender, and the verdict reading may report the run
-      SKIPPED. Its line is diagnostic detail under SL-03-001, and the refusal, when
-      there is one, is the runner's line (SL-03-002). Logging the reason at DEBUG
-      keeps its facts, including the CASE_MANAGER a sender check resolved, for
-      whoever debugs the run (#5460, #6477). A fault is not a refusal reason: a
-      malformed activity, an unreadable ledger entry or a store error keeps the
-      level SL-03-001 gives it.
+      SKIPPED. Its line is diagnostic detail under SL-03-001; the refusal, when
+      there is one, is the runner's line (SL-03-002). At DEBUG the facts stay for
+      whoever debugs the run (#6477). A fault (a malformed activity, an unreadable
+      ledger entry, a store error) is not a refusal reason and keeps its
+      SL-03-001 level.
     verification: >-
       `test/core/behaviors/test_sender_guard.py` ticks every declared any-of side
       with a sender none of its arms admits, the lone CASE_MANAGER and CASE_OWNER
