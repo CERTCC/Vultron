@@ -64,7 +64,9 @@ groups:
     verification: >-
       A test runs the tool over a synthetic case whose content holds a marker
       string, lets the process exit, then asserts the marker is in no file under
-      the tool's working and temporary directories or `~/.streamlit`.
+      the tool's working and temporary directories or `~/.streamlit`. The test
+      asserts the same when a read fails partway and when the process is stopped
+      with SIGTERM while it holds the case.
   - id: SHD-01-004
     priority: MUST
     kind: project
@@ -154,7 +156,7 @@ groups:
     - ADR-0190
     statement: >-
       The live Vultron case reader MUST NOT send a node any request other than a
-      GET of the case ledger read endpoints.
+      GET of a case's ledger list endpoint or its ledger event-stream endpoint.
     relationships:
     - rel_type: refines
       spec_id: SHD-01-001
@@ -178,9 +180,8 @@ groups:
     rationale: >-
       The read fails when the node cannot be reached, does not serve the case
       ledger read endpoints, which exist only on a node in prototype mode, or
-      holds no such case. An error that
-      names the node and the case tells the analyst which of the three failed,
-      instead of a dashboard that shows an empty case.
+      holds no such case. An error that names the node and the case tells the
+      analyst where to look, instead of a dashboard that shows an empty case.
     verification: >-
       A test gives the reader an unreachable node, a node that answers 404 for
       the endpoint, and a node that holds no such case, and asserts each raises
@@ -236,4 +237,6 @@ groups:
     verification: >-
       A dashboard test follows a case whose stream sends a valid entry, then an
       invalid one, then a close event, and asserts the page keeps the first
-      reading, shows the error, and then marks the reading as no longer live.
+      reading, shows the error, and then marks the reading as no longer live. A
+      second run whose connection drops without a close event asserts the page
+      keeps the last accepted reading and marks it as no longer live.

@@ -5,7 +5,7 @@ description: >-
   reader: what logs may carry, how the API credential is read, and the only ways
   it may enter the repository or a publication. Readers and retention add no
   requirement: each VINCE user runs the shadow with their own credential, and
-  nothing is kept after a request (ADR-0189).
+  nothing is left on the host after the tool's process exits (SHD-01-003).
 scope:
 - prototype
 - production
