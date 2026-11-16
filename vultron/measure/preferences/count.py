@@ -75,6 +75,13 @@ def _invitations(
     An Invite is open from its row's ``CONSENT_INVITED`` event until the
     row's next answer or timeout, which ends it.  A row invited again after
     a timeout opens a new Invite (CM-18-003, EMB-17-003).
+
+    Any agreement that ends an open Invite counts as answered: the
+    participant's own reply, and also the Case Owner's agreement when it
+    activates the embargo, and a signatory carried over to a revision that
+    ends no later (CM-10-001).  The history records no actor on a consent
+    event, so those cannot be told from a reply.  An actor field is added
+    only if research needs the stricter count.
     """
     open_rows: set[str] = set()
     answered = timed_out = closed_out = 0
