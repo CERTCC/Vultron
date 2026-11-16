@@ -61,3 +61,6 @@ execution" to cover being handed an unproduced value? The nesting-versus-guard
 remedy is already written in `notes/demo-scenario-authoring.md` and
 `vultron/demo/AGENTS.md` rule 10; what is missing is the normative statement
 those two pieces of guidance implement.
+
+**Promoted**: 2026-11-16 — new requirement EDF-06-014 (no demo step runs on a placeholder), verified by the ratchet test.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -60,3 +60,6 @@ worktree from argv items rather than from a written command. Any requirement
 that forbids an *act* should say which call site performs it, because a
 whole-file-or-whole-step prohibition picks up legitimate neighbours — and a
 guard for one should assert the act, not a precondition of it.
+
+**Promoted**: 2026-11-16 — PAD-18-025 verification scoped to the conflict check, PAD-18-024's names the act (spec half of #6099).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -48,3 +48,6 @@ When a requirement states a CI trigger as a path, read the entry point the job
 runs and list what it opens. Where the two sets differ, implement the superset
 (a wider trigger never violates a stated one) and record the difference, as
 this file does, rather than narrowing the job to match the prose.
+
+**Promoted**: 2026-11-16 — DEMOCI-11-054 names both recorder inputs: vultron/demo/ and the compose file.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

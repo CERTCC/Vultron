@@ -46,3 +46,6 @@ ledger records acts, which is what makes the pair of traces complementary
 **How to apply meanwhile.** Read the two docstrings before changing either
 file, and keep them as the statement of subject until the requirements carry
 it.
+
+**Promoted**: 2026-11-16 — DEMOCI-11-057 (a read is a GET) and DEMOCI-11-070 (ids the run draws) narrowed to the implemented subject.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -45,3 +45,6 @@ from "patched and inert" — for instance, asserting that a patched name is
 actually called at least once per test that patches it, or that every
 `patch.object` target in `test/demo/` names a module that both imports *and*
 references the name in the function under test.
+
+**Promoted**: 2026-11-16 — corroborated with #5536; captured in notes/testing-pitfalls.md § A Patch on a Moved Name Can Take and Intercept Nothing.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

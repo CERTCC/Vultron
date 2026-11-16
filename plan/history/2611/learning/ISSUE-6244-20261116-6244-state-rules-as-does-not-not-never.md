@@ -28,3 +28,6 @@ which this does not change.
 
 **What would confirm it.** The maintainer asks for a "never" to be softened in a
 later review.
+
+**Already closed**: 2026-11-16 — already in .agents/skills/shared/asking-the-user.md § 8 / notes-writing-guide.md and the ADR template.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

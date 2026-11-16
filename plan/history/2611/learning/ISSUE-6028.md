@@ -57,3 +57,6 @@ tripped the ceiling and what the rerun did — a bare "rerun and it passed" is
 the flaky claim `completeness-doctrine.md` § "Never Merge on Red" refuses. If
 the pair turns out to be systematic, the fix is one of the two numbers: fewer
 slots, or a ceiling that assumes it shares the host.
+
+**Promoted**: 2026-11-16 — confirmed against run-heavy.py and GATE_CEILING; captured in notes/testing-pitfalls.md § A Dead xdist Worker Hung the Run.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.
