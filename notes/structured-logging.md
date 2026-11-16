@@ -257,7 +257,7 @@ DEBUG and every other error to WARNING; it re-raises `INTERNAL_FAULTS` first, as
 a refusal is never a bug's answer (ADR-0095).
 `test/architecture/test_node_failure_line_ratchet.py` fails on a new
 hand-written `.warning(..., feedback_message)` under `core/behaviors/`; the older
-sites are a shrinking baseline that #6507 sorts.
+sites are a shrinking baseline that #6590, #6591 and #6592 sort.
 
 **Only the runner's line carries the group (SL-03-004).** A node, the bridge's
 run summary and tree dump, the receipt-stub line and the refusal-notice lines

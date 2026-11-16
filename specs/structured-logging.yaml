@@ -238,7 +238,7 @@ groups:
       refusal and status acceptance lines are pinned in their own tests.
       `test/architecture/test_node_failure_line_ratchet.py` fails on a new node
       that logs its `feedback_message` at WARNING by hand; the sites that predate
-      the rule are a shrinking baseline owned by #6507.
+      the rule are a shrinking baseline owned by #6592.
     relationships:
     - rel_type: refines
       spec_id: SL-03-001
