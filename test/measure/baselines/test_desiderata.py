@@ -32,7 +32,11 @@ from vultron.measure.baselines import (
     implications,
     implies,
 )
-from vultron.measure.baselines.desiderata import _candidates, count_once
+from vultron.measure.baselines.desiderata import (
+    _candidates,
+    count_once,
+    weight,
+)
 from vultron.measure.baselines.render import (
     _exact,
     extended_baseline_table,
@@ -153,6 +157,11 @@ def test_only_the_equivalent_pairs_count_twice():
     # The largest share of a strict implication is well under the threshold.
     strict = [i.share for i in implications() if not i.equivalent]
     assert max(strict) < NEAR_EQUAL_RATIO
+
+
+def test_a_weight_is_one_less_the_baseline():
+    for desideratum in EXTENDED:
+        assert weight(desideratum) == 1 - baseline(desideratum)
 
 
 def test_counting_once_keeps_the_first_of_each_equivalent_group():

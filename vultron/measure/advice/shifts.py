@@ -44,11 +44,10 @@ from vultron.measure.baselines import (
     JointState,
     Step,
     VendorDesideratum,
-    baseline,
     expected_outcomes,
     outcome_change,
 )
-from vultron.measure.baselines.desiderata import count_once
+from vultron.measure.baselines.desiderata import count_once, weight
 from vultron.measure.baselines.values import CasePrefix, case_model
 from vultron.measure.baselines.walk import Move
 
@@ -93,7 +92,7 @@ def scope_desiderata() -> frozenset[Desideratum]:
 
 @cache
 def _weight(key: VendorDesideratum) -> Fraction:
-    return 1 - baseline(key.desideratum)
+    return weight(key.desideratum)
 
 
 def _in_scope(key: VendorDesideratum) -> bool:

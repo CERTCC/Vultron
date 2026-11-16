@@ -96,13 +96,13 @@ def test_a_part_weighs_each_desideratum_by_one_less_its_baseline():
     case = _case("ready-unready embargo")
     ready = outcome_shift(case.prefix, case.move(_K.P))[0]
 
-    def weight(notation: str) -> Fraction:
+    def w(notation: str) -> Fraction:
         return 1 - baseline(_named(notation))
 
     assert ready.end == (
-        -weight(r"$\evD \prec \evP$") / 3
-        + weight(r"$\evP \prec \evX$") / 2
-        + weight(r"$\evP \prec \evA$") / 3
+        -w(r"$\evD \prec \evP$") / 3
+        + w(r"$\evP \prec \evX$") / 2
+        + w(r"$\evP \prec \evA$") / 3
     )
 
 

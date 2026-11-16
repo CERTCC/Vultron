@@ -355,6 +355,17 @@ def baseline(desideratum: Desideratum) -> Fraction:
     return value
 
 
+def weight(desideratum: Desideratum) -> Fraction:
+    """The weight ``1 - f_d`` a met desideratum adds to a score (ADR-0182).
+
+    The rarer the desideratum is by chance, the more meeting it counts.
+
+    Raises:
+        ValueError: as for :func:`baseline`.
+    """
+    return 1 - baseline(desideratum)
+
+
 def _in_one_vendor_model(desideratum: Desideratum) -> Query | None:
     """*desideratum* over the one-vendor model, or ``None`` if it relates two vendors."""
     if desideratum.model is ModelName.TWO_VENDOR:
