@@ -18,7 +18,12 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import ClassVar
 
-from vultron.core.behaviors.case.received_run import run_received_tree
+import py_trees
+
+from vultron.core.behaviors.case.received_run import (
+    ReceivedOutcome,
+    run_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -39,9 +44,9 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 from vultron.core.use_cases.received.fault.responses import (
     ARCHIVE_ONLY,
+    FaultReading,
     FaultResponse,
     _case_diverged_tree,
     _hash_mismatch_tree,
@@ -98,9 +103,12 @@ class CreateProcessingFaultReceivedUseCase:
     responses: ClassVar[Mapping[str, FaultResponse]] = MappingProxyType(
         {
             VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED: FaultResponse(
-                build_tree=_case_diverged_tree, read_verdict=_reseed_verdict
+                label="CaseDivergedFaultReceivedBT",
+                build_tree=_case_diverged_tree,
+                read_verdict=_reseed_verdict,
             ),
             VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH: FaultResponse(
+                label="HashMismatchFaultReceivedBT",
                 build_tree=_hash_mismatch_tree,
                 read_verdict=_hash_mismatch_verdict,
             ),
@@ -134,41 +142,56 @@ class CreateProcessingFaultReceivedUseCase:
             request.activity_id,
         )
         response = self.responses.get(request.failure_class, ARCHIVE_ONLY)
-        refused_entry = (
-            self._refused_entry() if response.reads_refused_entry else None
-        )
-        tree = response.build_tree(
-            refused_entry, request, self.sender_entitlement
-        )
-        reading = response.read_verdict(refused_entry)
+        readings: list[FaultReading] = []
+
+        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # The entry is read for the receiver the runner resolved: only an
+            # Announce it sent counts.  The read moves into the tree with
+            # the run-time case id (#6476).
+            refused_entry = (
+                self._refused_entry(receiving_actor_id)
+                if response.reads_refused_entry
+                else None
+            )
+            readings.append(response.read_verdict(refused_entry))
+            return response.build_tree(
+                refused_entry, request, self.sender_entitlement
+            )
+
+        def read(outcome: ReceivedOutcome) -> HandlerResult | None:
+            (reading,) = readings
+            return reading.reader(outcome)
+
+        def judges() -> bool:
+            (reading,) = readings
+            return reading.judges
+
         # Only the case's CASE_MANAGER acts on a fault about its ledger: the
         # tree declares the manager path alone, so its path stage refuses any
         # other receiver (HP-01-005).
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
-            label=reading.label,
+            label=response.label,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=reading.reader,
-            judges=reading.judges,
+            reader=read,
+            judges=judges,
         )
 
-    def _refused_entry(self) -> CaseLedgerEntry | None:
-        """The entry the fault's ``inReplyTo`` announce carried, if this
-        store sent it; read-only."""
+    def _refused_entry(
+        self, receiving_actor_id: str
+    ) -> CaseLedgerEntry | None:
+        """The entry the fault's ``inReplyTo`` announce carried, if
+        *receiving_actor_id* sent it; read-only."""
         failed_id = self._request.failed_activity_id
         if failed_id is None:
             return None
         try:
             return announced_ledger_entry(
-                self._dl,
-                failed_id,
-                resolve_receiving_actor_id(
-                    self._dl, self._request.receiving_actor_id
-                ),
+                self._dl, failed_id, receiving_actor_id
             )
         except VultronNotFoundError:
             return None

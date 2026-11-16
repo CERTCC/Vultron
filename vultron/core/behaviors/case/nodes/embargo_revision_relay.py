@@ -126,7 +126,6 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         super().__init__(
             case_id="",
             embargo_id="",
-            proposer_id="",
             name=name or self.__class__.__name__,
             actor_config=actor_config,
             answers=proposal_id,

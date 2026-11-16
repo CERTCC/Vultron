@@ -36,6 +36,7 @@ import py_trees
 
 from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
+    ReceivedTreeBuilder,
     run_received_tree,
 )
 from vultron.core.models.events.base import VultronEvent
@@ -57,7 +58,7 @@ def run_offer_reply_tree(
     *,
     dl: CaseOutboxPersistence,
     request: VultronEvent,
-    tree: py_trees.behaviour.Behaviour,
+    tree: py_trees.behaviour.Behaviour | ReceivedTreeBuilder,
     label: str,
     case_id: str | None,
     subject: str,
@@ -73,7 +74,8 @@ def run_offer_reply_tree(
         dl: The receiving actor's store.
         request: The received reply.
         tree: The reply's received tree, as its factory composed it for
-            the case the reply names (or names none).
+            the case the reply names (or names none), or its builder when
+            the tree names the receiving actor.
         label: The tree's name, for the verdict and the logs.
         case_id: The case the reply names, for the logs.
         subject: The Offer, as a log names it, e.g. ``"role offer"``.

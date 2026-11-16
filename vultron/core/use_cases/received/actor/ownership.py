@@ -3,6 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -24,7 +26,6 @@ from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
 from vultron.core.use_cases.received._offer_reply import (
     run_offer_reply_tree,
 )
@@ -347,35 +348,35 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         proposal_id = request.proposal_id
-        # The Undo names the owner's proposal; the CASE_MANAGER withdraws the
-        # Offer it made from it, whose id it derives the way it did when it
-        # made it (CM-21-037, ADR-0148).  At a replica the derivation names
-        # no Offer it holds, but the path stage refuses it there first, so
-        # nothing is read for it.
-        offer_id = (
-            ownership_offer_id(
-                resolve_receiving_actor_id(
-                    self._dl, request.receiving_actor_id
-                ),
-                case_id,
-                proposal_id,
-                request.proposer_id,
-            )
-            if case_id is not None and proposal_id is not None
-            else None
-        )
 
-        tree = create_undo_ownership_transfer_tree(
-            case_id=case_id,
-            offer_id=offer_id,
-            sender_id=request.actor_id,
-            undo_id=request.activity_id,
-            sender_rule=self.sender_entitlement,
-        )
+        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # The Undo names the owner's proposal; the CASE_MANAGER withdraws
+            # the Offer it made from it, whose id it derives the way it did
+            # when it made it (CM-21-037, ADR-0148).  At a replica the
+            # derivation names no Offer it holds, but the path stage refuses
+            # it there first, so nothing is read for it.
+            offer_id = (
+                ownership_offer_id(
+                    receiving_actor_id,
+                    case_id,
+                    proposal_id,
+                    request.proposer_id,
+                )
+                if case_id is not None and proposal_id is not None
+                else None
+            )
+            return create_undo_ownership_transfer_tree(
+                case_id=case_id,
+                offer_id=offer_id,
+                sender_id=request.actor_id,
+                undo_id=request.activity_id,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            tree=build,
             case_id=case_id,
             subject="ownership transfer offer",
             label="UndoOwnershipTransferBT",

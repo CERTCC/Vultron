@@ -417,10 +417,9 @@ def test_embargo_invite_still_reaches_non_signatory(datalayer) -> None:
             datalayer=datalayer,
             trigger_activity=MagicMock(spec=TriggerActivityPort),
         ),
-        tree=CollectEmbargoInviteRecipientsNode(
-            case_id=CASE_ID, proposer_id=SIGNATORY_ID
-        ),
+        tree=CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
+        embargo_proposer_id=SIGNATORY_ID,
     )
 
     assert result.status == Status.SUCCESS
