@@ -18,9 +18,10 @@ onto a :class:`~vultron.measure.baselines.WalkPrefix` here, and nowhere
 else (:func:`case_prefix`).
 
 * **The vendors** are the participants with a case-state sequence, numbered
-  from 1 in the sequences' vendor-awareness order (:func:`vendor_numbers`).  Each stands at its own
-  report-management state and at the fix path and deployment its sequence
-  reaches; every vendor's sequence reaches the same public state.
+  from 1 in the sequences' vendor-awareness order (:func:`vendor_numbers`).
+  Each stands at its own report-management state and at the fix path and
+  deployment its sequence reaches; every vendor's sequence reaches the same
+  public state.
 * **The embargo** stands at the case's EM state, and an exited one at the
   cause its exit records: its end time, or fixes ready or deployed, is its
   own terms, a threat signal is a threat signal, and any other cause is
