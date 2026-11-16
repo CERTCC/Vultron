@@ -14,8 +14,9 @@
 """The extended desiderata, scored for each vendor and each case-wide group (#6457).
 
 An incomplete case is scored through its completions (ADR-0182), in each
-scope: each vendor, the embargo group and the multi-party group (ADR-0200).  The hand-checked values use the baselines of
-``process_model_desiderata.md`` § "The baselines".
+scope: each vendor, the embargo group and the multi-party group (ADR-0200).
+The hand-checked values use the baselines of ``process_model_desiderata.md``
+§ "The baselines".
 """
 
 from datetime import UTC, datetime, timedelta
