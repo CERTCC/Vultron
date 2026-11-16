@@ -51,7 +51,6 @@ from vultron.metadata.wire_context.sync import (
     _all_object_subclasses,
     _concrete_type_value,
     _term_definition,
-    _wire_name,
     as2_term_values,
     build_context_document,
     is_stale,
@@ -61,6 +60,7 @@ from vultron.metadata.wire_context.sync import (
     vultron_property_terms,
     vultron_subtype_statements,
     wire_field_classes,
+    wire_name,
     write_context,
 )
 from vultron.wire.as2.vocab.base.base import (
@@ -342,7 +342,7 @@ def test_a_property_term_is_the_field_wire_name(
     info: FieldInfo, expected: str
 ) -> None:
     """A marked field's term is the name it travels under."""
-    assert _wire_name("field_name", info) == expected
+    assert wire_name("field_name", info) == expected
 
 
 def test_render_is_deterministic_and_sorted() -> None:

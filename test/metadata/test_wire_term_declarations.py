@@ -154,7 +154,7 @@ def test_every_wire_field_of_a_vultron_object_has_a_term() -> None:
 def test_the_real_walk_refuses_a_probe_with_no_term() -> None:
     """A check that found nothing would pass vacuously: a termless probe
     added to the real classes, against the real pinned contexts, fails."""
-    classes = [*wire_field_classes(), _Probe]
+    classes: list[type[BaseModel]] = [*wire_field_classes(), _Probe]
     keys = {v.key for v in term_violations(classes, load_all_terms())}
     assert "_Probe.caseId: VM-10-007" in keys
     assert VulnerabilityCase in wire_field_classes()
