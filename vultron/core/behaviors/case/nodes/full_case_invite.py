@@ -32,7 +32,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
-from vultron.core.behaviors.node_logger import fail_with_reason
+from vultron.core.behaviors.node_logger import (
+    fail_with_fault,
+    fail_with_reason,
+)
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
@@ -174,8 +177,10 @@ class CheckFullCaseReplyNode(DataLayerCondition):
             )
         floor = stored_invite_floor(invite)
         if floor is None:
-            return self._refuse(
-                f"Invite '{self.invite_id}' carries no ledger position"
+            # Our own stored Invite lacks the position it must carry: a
+            # fault, which keeps its WARNING (SL-03-001).
+            return fail_with_fault(
+                self, f"Invite '{self.invite_id}' carries no ledger position"
             )
         participant_id = case.actor_participant_index.get(self.replier_id)
         participant = (

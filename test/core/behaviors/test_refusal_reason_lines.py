@@ -19,11 +19,15 @@ Each guard family that fails through ``fail_with_reason`` is ticked, or its
 refusal helper called, with every record captured from DEBUG up.  Its line
 keeps the facts and drops the ``REFUSED (IDs)`` group, while the
 ``feedback_message`` the handler reports keeps it (SL-03-003, SL-03-004,
-#6477).  The inbox stage line that repeats a reason is pinned here too.
+#6477).  A fault the same nodes meet (a record not found, a stored record
+missing a field, a malformed number) keeps its WARNING (SL-03-001), and an
+internal fault is raised rather than refused.  The inbox stage line that
+repeats a reason is pinned here too.
 """
 
 import logging
 from collections.abc import Callable
+from types import SimpleNamespace
 
 import py_trees
 import pytest
@@ -33,6 +37,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes import full_case_invite
 from vultron.core.behaviors.case.nodes.activity_context import (
     ActivityContextMatchesObjectNode,
 )
@@ -51,6 +56,9 @@ from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
 from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
     OwnershipOfferOpenNode,
 )
+from vultron.core.behaviors.case.nodes.participant.status_entries import (
+    CommitParticipantStatusEntriesNode,
+)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
     EmitRefusalNoticeNode,
@@ -65,6 +73,7 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
 from vultron.core.behaviors.case.nodes.suggest_actor.admission import (
     refusal_status,
 )
+from vultron.core.behaviors.embargo.nodes import activation_commit
 from vultron.core.behaviors.embargo.nodes.activation_commit import (
     CommitAndApplyEmbargoActivationNode,
 )
@@ -79,12 +88,29 @@ from vultron.core.behaviors.embargo.nodes.termination_commit import (
 )
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
 from vultron.core.behaviors.inbox.nodes.pipeline import ParsePayloadNode
-from vultron.core.behaviors.node_logger import fail_with_reason, node_logger
+from vultron.core.behaviors.node_logger import (
+    fail_with_error,
+    fail_with_fault,
+    fail_with_reason,
+    node_logger,
+)
 from vultron.core.behaviors.status.nodes.target_participant import (
     TargetParticipantInCaseNode,
 )
-from vultron.core.models.refusal_wording import carries_refusal_group
-from vultron.errors import VultronError
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SequenceAdmitsNode,
+)
+from vultron.core.models.refusal_wording import (
+    carries_refusal_group,
+    without_refusal_group,
+)
+from vultron.core.services.sender_sequence_order import SequenceStanding
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronEntryRefusedError,
+    VultronError,
+    VultronNotFoundError,
+)
 
 _CASE = "https://example.org/cases/refusal-lines"
 _OTHER = "https://example.org/cases/other"
@@ -198,7 +224,9 @@ def _full_case_reply() -> py_trees.behaviour.Behaviour:
     return node
 
 
-_REGISTER_REFUSAL = VultronError("the register refuses — REFUSED (EP-08-004)")
+_REGISTER_REFUSAL = VultronEntryRefusedError(
+    "the register refuses — REFUSED (EP-08-004)"
+)
 
 
 @_case("embargo-activation-commit")
@@ -229,6 +257,32 @@ def _revision_replica() -> py_trees.behaviour.Behaviour:
     return node
 
 
+@_case("participant-status-entries")
+def _status_entries() -> py_trees.behaviour.Behaviour:
+    node = _bare(CommitParticipantStatusEntriesNode)
+    assert node._refuse("not the manager — REFUSED (CLP-07-013)") is (
+        Status.FAILURE
+    )
+    return node
+
+
+def _sequence_admits(standing: SequenceStanding) -> SequenceAdmitsNode:
+    classify = SimpleNamespace(
+        standing=standing,
+        refusal_reason=lambda: (
+            f"numbered out of order ({standing.name}) — REFUSED (SYNC-21-014)"
+        ),
+    )
+    return SequenceAdmitsNode(classify)  # type: ignore[arg-type]
+
+
+@_case("sender-sequence-late")
+def _sequence_late() -> py_trees.behaviour.Behaviour:
+    node = _sequence_admits(SequenceStanding.LATE)
+    assert node.update() is Status.FAILURE
+    return node
+
+
 @_case("fail-with-reason")
 def _plain() -> py_trees.behaviour.Behaviour:
     node = py_trees.behaviours.Success(name="Probe")
@@ -256,7 +310,9 @@ def test_a_guards_refusal_is_one_debug_fact_without_the_group(
         and r.name.endswith(type(node).__name__)
     ]
     assert [r.levelno for r in lines] == [logging.DEBUG]
-    assert node.name in lines[0].getMessage()
+    assert without_refusal_group(node.feedback_message) in (
+        lines[0].getMessage()
+    )
     assert not [
         r.getMessage()
         for r in caplog.records
@@ -329,3 +385,177 @@ def test_the_received_refusal_notice_line_drops_the_group(
     messages = [r.getMessage() for r in caplog.records]
     assert any("stale" in m and "refused activity" in m for m in messages)
     assert not [m for m in messages if carries_refusal_group(m)]
+
+
+def _warning_lines(
+    caplog: pytest.LogCaptureFixture, node: py_trees.behaviour.Behaviour
+) -> list[logging.LogRecord]:
+    """The node's own records at WARNING or above."""
+    return [
+        r
+        for r in caplog.records
+        if r.name == node_logger(node).name and r.levelno >= logging.WARNING
+    ]
+
+
+#: (label, a callable that makes one node fail on a fault and returns it).
+_FAULTS: list[tuple[str, Callable[[], py_trees.behaviour.Behaviour]]] = []
+
+
+def _fault(label: str):
+    def register(make: Callable[[], py_trees.behaviour.Behaviour]):
+        _FAULTS.append((label, make))
+        return make
+
+    return register
+
+
+@_fault("embargo-activation-store-fault")
+def _activation_store_fault() -> py_trees.behaviour.Behaviour:
+    node = _bare(CommitAndApplyEmbargoActivationNode, _result_out={})
+    exc = VultronNotFoundError("EmbargoEvent", "urn:embargo")
+    assert node._refuse(exc) is Status.FAILURE
+    assert node._result_out["error"] is exc
+    return node
+
+
+@_fault("embargo-termination-store-fault")
+def _termination_store_fault() -> py_trees.behaviour.Behaviour:
+    node = _bare(CommitAndApplyEmbargoTerminationNode, _result_out={})
+    assert node._refuse(
+        VultronNotFoundError("EmbargoEvent", "urn:embargo")
+    ) is (Status.FAILURE)
+    return node
+
+
+@_fault("embargo-revision-replica-store-fault")
+def _revision_replica_store_fault() -> py_trees.behaviour.Behaviour:
+    node = _bare(ApplyAnnouncedEmbargoRevisionNode)
+    assert node._refuse(VultronError("not an EmbargoEvent")) is Status.FAILURE
+    return node
+
+
+@_fault("participant-status-not-stored")
+def _status_not_stored() -> py_trees.behaviour.Behaviour:
+    node = _with_store(
+        _bare(
+            CommitParticipantStatusEntriesNode,
+            _status_ids=["urn:uuid:never-stored"],
+            _subject_actor_id="urn:actor",
+        )
+    )
+    assert node._record(object()) is Status.FAILURE  # type: ignore[arg-type]
+    return node
+
+
+@_fault("sender-sequence-missing")
+def _sequence_missing() -> py_trees.behaviour.Behaviour:
+    node = _sequence_admits(SequenceStanding.MISSING)
+    assert node.update() is Status.FAILURE
+    return node
+
+
+@_fault("fail-with-fault")
+def _plain_fault() -> py_trees.behaviour.Behaviour:
+    node = py_trees.behaviours.Success(name="Probe")
+    assert fail_with_fault(node, "store unreadable") is Status.FAILURE
+    return node
+
+
+@pytest.mark.spec("SL-03-001", "SL-03-003", "SL-03-004")
+@pytest.mark.parametrize(
+    "make",
+    [make for _, make in _FAULTS],
+    ids=[label for label, _ in _FAULTS],
+)
+def test_a_fault_keeps_its_warning(
+    caplog: pytest.LogCaptureFixture,
+    make: Callable[[], py_trees.behaviour.Behaviour],
+) -> None:
+    """A fault a refusal arm meets is not a refusal reason: it keeps its
+    SL-03-001 WARNING, with its facts and no ``REFUSED (IDs)`` group."""
+    with caplog.at_level(logging.DEBUG):
+        node = make()
+    lines = _warning_lines(caplog, node)
+    assert [r.levelno for r in lines] == [logging.WARNING]
+    assert without_refusal_group(node.feedback_message) in (
+        lines[0].getMessage()
+    )
+    assert not [
+        r.getMessage()
+        for r in caplog.records
+        if carries_refusal_group(r.getMessage())
+    ]
+
+
+@pytest.mark.spec("SL-03-001", "SL-03-003")
+def test_fail_with_error_reads_the_level_from_the_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A state-transition refusal is a DEBUG fact; any other error a WARNING;
+    the status and the feedback are the same either way."""
+    node = py_trees.behaviours.Success(name="Probe")
+    with caplog.at_level(logging.DEBUG):
+        refused = fail_with_error(node, _REGISTER_REFUSAL)
+        refused_feedback = node.feedback_message
+        faulted = fail_with_error(
+            node, VultronNotFoundError("Case", "urn:gone")
+        )
+    assert refused is faulted is Status.FAILURE
+    assert refused_feedback == str(_REGISTER_REFUSAL)
+    assert "urn:gone" in node.feedback_message
+    mine = [r for r in caplog.records if r.name == node_logger(node).name]
+    assert [r.levelno for r in mine] == [logging.DEBUG, logging.WARNING]
+
+
+@pytest.mark.spec("SL-03-001")
+def test_a_stored_invite_without_a_position_is_a_fault(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CASE_MANAGER's own stored Invite lacks the ledger position it
+    must carry: a fault, logged at WARNING, not a refusal's DEBUG fact."""
+    actor = "https://example.org/actors/manager"
+    node = _bare(
+        CheckFullCaseReplyNode,
+        case_id=_CASE,
+        invite_id="urn:invite",
+        replier_id="urn:replier",
+        actor_id=actor,
+    )
+    node.datalayer = SimpleNamespace(  # type: ignore[attr-defined]
+        read=lambda _id: SimpleNamespace(actor=actor)
+    )
+    monkeypatch.setattr(
+        node, "_require_case", lambda _case_id: (object(), None)
+    )
+    monkeypatch.setattr(
+        full_case_invite, "stored_invite_floor", lambda _: None
+    )
+    with caplog.at_level(logging.DEBUG):
+        assert node.update() is Status.FAILURE
+    (line,) = _warning_lines(caplog, node)
+    assert "carries no ledger position" in line.getMessage()
+
+
+@pytest.mark.spec("SL-03-001", "ARCH-15-001")
+def test_an_internal_fault_in_the_activation_commit_is_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bug under the activation commit escapes ``update()``: it is never
+    turned into a refusal (ADR-0095), as its sibling check already does."""
+    node = _with_store(
+        _bare(
+            CommitAndApplyEmbargoActivationNode,
+            _result_out={},
+            _case_id=_CASE,
+            actor_id="https://example.org/actors/r",
+        )
+    )
+
+    def _boom(*_: object) -> None:
+        raise VultronBTInternalError("a nested commit failed")
+
+    monkeypatch.setattr(activation_commit, "read_embargo_case_file", _boom)
+    with pytest.raises(VultronBTInternalError):
+        node.update()
+    assert "error" not in node._result_out

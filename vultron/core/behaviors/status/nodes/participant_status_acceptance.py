@@ -42,6 +42,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.status.nodes.rm_rule import (
     BB_RM_ANOMALY,
     rm_anomaly,
@@ -345,14 +346,12 @@ class CheckParticipantStatusAcceptableNode(
         if not refusals:
             return Status.SUCCESS
 
-        self.feedback_message = (
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        fail_with_reason(
+            self,
             f"ParticipantStatus '{self.status_id}' refused for participant"
             f" '{self.participant_id}': "
-            + "; ".join(f"{r.dimension}: {r.reason}" for r in refusals)
-        )
-        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
-        self.logger.debug(
-            "%s: %s (RSH-09-001)", self.name, self.feedback_message
+            + "; ".join(f"{r.dimension}: {r.reason}" for r in refusals),
         )
         return self._refuse(
             f"ParticipantStatus refused (RSH-09-008): {self.feedback_message}"

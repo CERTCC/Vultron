@@ -98,7 +98,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     .SenderEntitlementConditionNode._fail_with_reason`, the rule every
     kind check takes: its one line is DEBUG without the ``REFUSED``
     wording, and the received runner logs the refusal when the tree's
-    verdict is one (SL-03-002, SL-03-003).
+    verdict is one (SL-03-002 to SL-03-004).
 
     It is the sender door only, placed by the composed guard.  A tree that
     picks an arm on whether an actor holds the role — the status adoption
@@ -114,7 +114,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
 
     Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
 
-    Spec: RSH-01-002, HP-01-006, SL-03-002, SL-03-003.
+    Spec: RSH-01-002, HP-01-006, SL-03-002, SL-03-003, SL-03-004.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (

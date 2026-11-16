@@ -188,8 +188,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The received runner MUST log one WARNING line per delivery it reports
-      `REFUSED`, with the reported reason, the activity id and the sender's id.
+      The received runner MUST log exactly one WARNING line per delivery it
+      reports `REFUSED`, with the reported reason, the activity id and the
+      sender's id.
     rationale: >-
       Only the runner reads the delivery's verdict, so only it knows whether a
       FAILURE refused anything. A node guessed it from the tree's shape, and each
@@ -201,8 +202,8 @@ groups:
     verification: >-
       `test/core/behaviors/case/test_received_run.py` runs refused, SKIPPED and
       APPLIED trees through `run_received_tree` with every record captured from
-      DEBUG up, and asserts a refused run logs one record carrying a `REFUSED
-      (IDs)` group, from the runner's logger at WARNING, ending with the reason it
+      DEBUG up, and asserts a refused run logs exactly one record carrying a
+      `REFUSED (IDs)` group, from the runner's logger at WARNING, ending with the reason it
       reports and naming the activity and sender, while a SKIPPED or APPLIED run
       logs none. A composed any-of sender guard refusing a stranger is among the
       refused runs. The demo runs assert no such runner line cites HP-01-006
@@ -230,9 +231,14 @@ groups:
       sides, an overruled CASE_MANAGER arm and the closed-sender check in both its
       placements, and asserts every sender check's line is DEBUG and keeps the
       facts its reason states. `test/core/behaviors/test_refusal_reason_lines.py`
-      ticks a refusing instance of each other guard family that fails through
-      `fail_with_reason` and asserts one DEBUG line with the facts and no
-      `REFUSED (IDs)` group, while its `feedback_message` keeps the group.
+      makes each other guard family refuse, by a tick or a call of its refusal
+      helper, and asserts one DEBUG line with the facts and no `REFUSED (IDs)`
+      group, while its `feedback_message` keeps the group; it also asserts that
+      the faults those nodes meet keep their WARNING. The path stage, replica
+      refusal and status acceptance lines are pinned in their own tests.
+      `test/architecture/test_node_failure_line_ratchet.py` fails on a new node
+      that logs its `feedback_message` at WARNING by hand; the sites that predate
+      the rule are a shrinking baseline owned by #6507.
     relationships:
     - rel_type: refines
       spec_id: SL-03-001

@@ -9,7 +9,7 @@ description: >
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
   demotion list (SL-04-007), why only the received runner logs a refusal
   (SL-03-002) while nodes log facts at DEBUG (SL-03-003) without the `REFUSED`
-  group (SL-03-004), why a role read that picks an arm is not a sender check,
+  group (SL-03-004) while a fault keeps WARNING (`fail_with_fault`), why a role read that picks an arm is not a sender check,
   and where new narrative lines go so INFO logs read as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
@@ -235,7 +235,20 @@ facts at DEBUG. Sender checks reach it through
 `SenderEntitlementConditionNode._fail_with_reason`; a check that composes its own
 citation does it in a `_refuse_citing` that delegates, never a `_refuse`, which
 would shadow a base method of that name with neither mypy nor pyright reporting
-it (#5786).
+it (#5786). Context before the reason (the receiver, the path) goes in its
+`prefix`, so the line keeps it and the helper still writes it.
+
+**A fault fails through `fail_with_fault`, never `fail_with_reason` (SL-03-001).**
+A record this receiver holds that cannot be read, a stored record missing a
+field it must carry, or a malformed number is not a refusal reason, so it keeps
+WARNING whatever verdict the handler reports. A refusal arm that catches
+`VultronError` broadly calls `fail_with_error(node, exc)`, which sends a
+`VultronInvalidStateTransitionError` (the register's refusals among them) to
+DEBUG and every other error to WARNING; it re-raises `INTERNAL_FAULTS` first, as
+a refusal is never a bug's answer (ADR-0095).
+`test/architecture/test_node_failure_line_ratchet.py` fails on a new
+hand-written `.warning(..., feedback_message)` under `core/behaviors/`; the older
+sites are a shrinking baseline that #6507 sorts.
 
 **Only the runner's line carries the group (SL-03-004).** A node, the bridge's
 run summary and tree dump, the receipt-stub line and the refusal-notice lines

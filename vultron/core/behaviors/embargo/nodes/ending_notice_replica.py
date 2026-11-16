@@ -43,7 +43,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
-from vultron.core.behaviors.node_logger import fail_with_reason
+from vultron.core.behaviors.node_logger import fail_with_error
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -251,7 +251,7 @@ class _ObservedRevisionActivationNode(
         return Status.SUCCESS
 
     def _refuse(self, exc: VultronError) -> Status:
-        return fail_with_reason(self, str(exc))
+        return fail_with_error(self, exc)
 
 
 class ApplyAnnouncedEmbargoRevisionNode(_ObservedRevisionActivationNode):
