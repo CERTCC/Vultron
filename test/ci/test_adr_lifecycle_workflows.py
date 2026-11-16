@@ -71,13 +71,16 @@ def test_edit_check_runs_when_only_a_spec_or_test_changes():
 def test_edit_check_has_the_history_it_needs_and_no_write_scope():
     workflow = load_workflow(_EDIT)
     assert "issues" not in workflow["permissions"]
-    checkout = next(
-        s
-        for job in workflow["jobs"].values()
-        for s in job["steps"]
+    steps = [s for job in workflow["jobs"].values() for s in job["steps"]]
+    at = next(
+        i
+        for i, s in enumerate(steps)
         if s.get("uses", "").startswith("actions/checkout")
     )
-    assert checkout["with"]["fetch-depth"] == 0
+    # The merge commit and its first parent, which the shared action makes
+    # the base, rather than a full-history checkout (#6390).
+    assert steps[at]["with"]["fetch-depth"] == 2
+    assert steps[at + 1].get("uses") == "./.github/actions/fetch-merge-base"
 
 
 @pytest.mark.spec("MS-14-022")

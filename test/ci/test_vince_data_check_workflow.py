@@ -33,12 +33,16 @@ def test_ci_runs_the_check_on_every_pull_request() -> None:
     assert "paths" not in pull_request
     assert "paths-ignore" not in pull_request
     steps = workflow["jobs"]["vince-data"]["steps"]
-    assert [s.get("run") for s in steps if "run" in s] == [
-        f'{_COMMAND} --history "origin/$BASE_REF"'
+    [run] = [s["run"] for s in steps if "run" in s]
+    # --history reads each branch commit, so the step deepens the shallow
+    # checkout to the real merge base first (#6535), then runs the check.
+    assert run.splitlines()[-2:] == [
+        'bash .github/scripts/fetch-merge-base.sh "$BASE_REF" >/dev/null',
+        f'{_COMMAND} --history "origin/$BASE_REF"',
     ]
     checkout = steps[0]
     assert checkout["uses"].startswith("actions/checkout@")
-    assert checkout["with"]["fetch-depth"] == 0
+    assert "fetch-depth" not in (checkout.get("with") or {})
 
 
 def _hook() -> dict[str, object]:

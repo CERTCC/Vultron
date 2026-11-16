@@ -130,8 +130,6 @@ jobs:
           # The head commit itself, not the merge commit GitHub synthesizes:
           # the comparison's two sides are this pull request's own endpoints.
           ref: ${{ github.event.pull_request.head.sha }}
-          # Full history, so the merge base with the base branch resolves.
-          fetch-depth: 0
 
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
@@ -166,9 +164,9 @@ jobs:
           set -euo pipefail
           # The merge base, not the base branch's tip: a tip that moved ahead
           # would attribute `main`'s own verdict changes to this pull request.
-          git fetch --no-tags --prune origin \
-            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-          base_sha="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          # The script deepens the shallow checkout only as far as the merge
+          # base, rather than fetching every branch's history (#6535).
+          base_sha="$(bash .github/scripts/fetch-merge-base.sh "${BASE_REF}")"
           echo "Merge base with ${BASE_REF}: ${base_sha}"
           git worktree add --detach "$BASE_TREE" "$base_sha"
           if [ ! -f "$BASE_TREE/vultron/demo/recordings/compare.py" ]; then
