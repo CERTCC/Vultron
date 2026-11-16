@@ -16,7 +16,8 @@
 own: the event history and the states reached come from one derivation
 (:func:`~vultron.measure.history.derive_case`), the per-vendor sequences from
 :func:`~vultron.measure.sequences.case_state_sequences`, and their scores
-from :func:`~vultron.measure.scoring.score_case`.
+from :func:`~vultron.measure.scoring.score_case`, and its path-preference
+counts from :func:`~vultron.measure.preferences.path_preferences`.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from vultron.measure.history import (
     derive_case,
 )
 from vultron.measure.ledger import CaseLedger
+from vultron.measure.preferences import path_preferences
 from vultron.measure.scoring import CaseScoreSummary, score_case
 from vultron.measure.sequences import (
     UnprojectableParticipant,
@@ -196,4 +198,5 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
             for p in participants
             for move in _moves_of(p)
         ],
+        path_preferences=path_preferences(history),
     )

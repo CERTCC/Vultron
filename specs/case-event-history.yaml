@@ -884,6 +884,49 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CEH-04-015
+  - id: CEH-04-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The layer MUST emit an invitation event each time a participant's consent row for
+      an embargo register entry becomes `INVITED` with an RSVP deadline, carrying that
+      deadline.
+    rationale: >-
+      A measure of Invites answered before their deadline counts Invites, not rows at
+      their last status: a row invited again after a timeout holds two Invites
+      (CM-18-003, EMB-17-003), and only the invitation shows which answer ends which
+      Invite. A stub Invite's row carries no RSVP deadline and can never time out at
+      one (CM-23-014), so it is no embargo invitation.
+    verification: >-
+      `test/measure/history/test_derive.py::test_an_embargo_invite_is_an_event_carrying_its_rsvp_deadline`
+      asserts one event per invitation, a re-invitation included, each carrying its
+      deadline;
+      `test/measure/history/test_derive.py::test_a_stub_invites_row_is_no_invitation_event`
+      asserts a stub Invite's row yields none.
+    relationships:
+    - rel_type: extends
+      spec_id: CEH-04-008
+  - id: CEH-04-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The layer MUST emit one case-closed event for the case, derived from the Case
+      Owner's `Leave(VulnerabilityCase)` entry.
+    rationale: >-
+      The owner's Leave closes the case (CM-23-002), and the CASE_MANAGER then times out
+      every Invite still awaiting a reply without waiting for its deadline (CM-23-014).
+      A measure has to tell those timeouts from a pocket veto, and has to know whether
+      the case is still open, so it needs the close's log index and commit stamp. Any
+      other participant's Leave closes only its own report, which its status entries
+      already record.
+    verification: >-
+      `test/measure/history/test_derive.py::test_the_case_owners_leave_closes_the_case_once`
+      asserts a participant's Leave yields no close and the owner's yields one, and
+      `test/measure/history/test_derive.py::test_the_case_close_follows_an_ownership_transfer`
+      asserts the new owner's Leave is the close.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-23-002
 - id: CEH-05
   title: Per-Participant Case-State Sequences
   specs:

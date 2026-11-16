@@ -67,6 +67,10 @@ class EventKind(StrEnum):
     REPORT_CLOSED = "report_closed"
     #: A participant accepted its invitation to the case (CEH-04-010).
     JOINED = "joined"
+    #: A participant was sent an embargo Invite to one embargo register
+    #: entry: its consent row became ``INVITED`` with an RSVP deadline
+    #: (CEH-04-017).  A stub Invite's row carries no deadline and is none.
+    CONSENT_INVITED = "consent_invited"
     #: A participant agreed to one embargo register entry (CEH-04-008).
     CONSENT_AGREED = "consent_agreed"
     #: A participant declined one embargo register entry.
@@ -77,6 +81,9 @@ class EventKind(StrEnum):
     EMBARGO_START = "embargo_start"
     #: The embargo in force ended (CEH-04-005, CEH-04-006).
     EMBARGO_EXIT = "embargo_exit"
+    #: The Case Owner closed the case with its ``Leave(VulnerabilityCase)``
+    #: (CEH-04-018, CM-23-002).
+    CASE_CLOSED = "case_closed"
 
 
 #: The closed enumeration of event kinds (CEH-03-002).
@@ -95,6 +102,7 @@ RM_EVENT_KINDS: dict[RM, EventKind] = {
 
 CONSENT_KINDS: frozenset[EventKind] = frozenset(
     {
+        EventKind.CONSENT_INVITED,
         EventKind.CONSENT_AGREED,
         EventKind.CONSENT_DECLINED,
         EventKind.CONSENT_TIMED_OUT,
@@ -105,9 +113,9 @@ EMBARGO_KINDS: frozenset[EventKind] = frozenset(
 )
 
 #: The kinds that belong to the case rather than to one participant: the
-#: public state and the embargo (SDO-03-001, ADR-0122).
+#: public state, the embargo and the case's close (SDO-03-001, ADR-0122).
 CASE_KINDS: frozenset[CaseEventKind] = frozenset(
-    {CSEvent.P, CSEvent.X, CSEvent.A, *EMBARGO_KINDS}
+    {CSEvent.P, CSEvent.X, CSEvent.A, *EMBARGO_KINDS, EventKind.CASE_CLOSED}
 )
 
 
@@ -164,6 +172,9 @@ class CaseEvent(BaseModel):
             (CEH-03-010).
         deadline: A deadline the ledger states that bounds the event's real
             time better than its stamp (CEH-03-015).
+        rsvp_deadline: For an embargo Invite, the RSVP deadline its consent
+            row carries.  Required there and absent on every other kind
+            (CEH-04-017).
         embargo_id: The embargo register entry a consent answer answers, or
             the embargo that started or ended (CEH-04-009).  Required on
             those kinds and absent on every other.
@@ -186,6 +197,7 @@ class CaseEvent(BaseModel):
     claimed_at: datetime | None = None
     gaps: list[GapLabel] = Field(default_factory=list)
     deadline: datetime | None = None
+    rsvp_deadline: datetime | None = None
     embargo_id: NonEmptyString | None = None
     replaces_embargo_id: NonEmptyString | None = None
     exit_reason: TerminationReason | None = None
@@ -193,7 +205,7 @@ class CaseEvent(BaseModel):
 
     #: Every time serializes in the one fixed form (CS-13-007, ADR-0167).
     _serialize_times = timestamp_serializer(
-        "committed_at", "claimed_at", "deadline"
+        "committed_at", "claimed_at", "deadline", "rsvp_deadline"
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -243,6 +255,11 @@ class CaseEvent(BaseModel):
             and self.replaces_embargo_id is not None
         ):
             problems.append("only an embargo start replaces an embargo")
+        invitation = kind is EventKind.CONSENT_INVITED
+        if invitation and self.rsvp_deadline is None:
+            problems.append("an invitation must carry its RSVP deadline")
+        if not invitation and self.rsvp_deadline is not None:
+            problems.append("only an invitation carries an RSVP deadline")
         return problems
 
 

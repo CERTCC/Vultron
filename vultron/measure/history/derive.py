@@ -90,6 +90,7 @@ logger = logging.getLogger(__name__)
 
 #: The consent answer each answered row state records (CEH-04-008).
 _CONSENT_EVENT_KINDS: dict[EmbargoConsentState, EventKind] = {
+    EmbargoConsentState.INVITED: EventKind.CONSENT_INVITED,
     EmbargoConsentState.AGREED: EventKind.CONSENT_AGREED,
     EmbargoConsentState.DECLINED: EventKind.CONSENT_DECLINED,
     EmbargoConsentState.TIMED_OUT: EventKind.CONSENT_TIMED_OUT,
@@ -110,6 +111,7 @@ _PXA_FLAGS: tuple[tuple[str, CSEvent], ...] = (
 
 _VENDOR = "VENDOR"
 _DEPLOYER = "DEPLOYER"
+_CASE_OWNER = "CASE_OWNER"
 
 
 def _flags(
@@ -152,6 +154,7 @@ class _Entry:
         participant: str | None = None,
         gaps: Iterable[GapLabel] = (),
         deadline: datetime | None = None,
+        rsvp_deadline: datetime | None = None,
         embargo_id: str | None = None,
         replaces_embargo_id: str | None = None,
         exit_reason: TerminationReason | None = None,
@@ -170,6 +173,7 @@ class _Entry:
             claimed_at=self.claimed_at,
             gaps=[label for label in GapLabel if label in labels],
             deadline=deadline,
+            rsvp_deadline=rsvp_deadline,
             embargo_id=embargo_id,
             replaces_embargo_id=replaces_embargo_id,
             exit_reason=exit_reason,
@@ -217,6 +221,7 @@ class _Deriver:
     active_embargo: str | None = None
     started: set[str] = field(default_factory=set)
     exited: set[str] = field(default_factory=set)
+    closed: bool = False
     #: Each embargo register entry's status as the ledger's steps leave it.
     register: RebuiltRegister = field(default_factory=RebuiltRegister)
 
@@ -332,6 +337,26 @@ class _Deriver:
 
     def _on_termination(self, context: _Entry, obj: object) -> None:
         self._exit(context, obj)
+
+    def _on_close(self, context: _Entry, obj: object) -> None:
+        """A ``Leave(VulnerabilityCase)``: the Case Owner's closes the case,
+        once (CEH-04-018, CM-23-002).
+
+        Any other participant's ``Leave`` closes only its own report, which
+        its status entries record.  The owner is read from the roles the
+        history holds for the sender when the entry is read, so an ownership
+        transfer earlier in the ledger moves the close to the new owner.
+        """
+        tracker = self.participants.get(context.actor or "")
+        if self.closed or tracker is None:
+            return
+        roles = (
+            tracker.roles if tracker.case_roles is None else tracker.case_roles
+        )
+        if _CASE_OWNER not in roles:
+            return
+        self.closed = True
+        self.events.append(context.event(EventKind.CASE_CLOSED))
 
     def _on_stub_accept(self, context: _Entry, invite: object) -> None:
         invitee = _invitee(invite) or context.actor
@@ -555,8 +580,16 @@ class _Deriver:
         deadline = parse_time(
             first_present(row, "rsvpDeadline", "rsvp_deadline")
         )
+        key = (participant, embargo_id)
+        if (
+            state is EmbargoConsentState.INVITED
+            and self.consent.get(key) is not state
+        ):
+            # A new invitation: its own deadline, or none for a stub Invite's
+            # row, never the deadline of an earlier invitation of this row.
+            self.rsvp_deadlines.pop(key, None)
         if deadline is not None:
-            self.rsvp_deadlines[(participant, embargo_id)] = deadline
+            self.rsvp_deadlines[key] = deadline
         self._answer(context, participant, embargo_id, state)
 
     def _answer(
@@ -566,9 +599,11 @@ class _Deriver:
         embargo_id: str,
         state: EmbargoConsentState,
     ) -> None:
-        """Record *state* on a consent row, emitting it when it is a new answer.
+        """Record *state* on a consent row, emitting it when it changes.
 
-        A timed-out invitation is the CASE_MANAGER's sweep when it next
+        An embargo Invite carries its row's RSVP deadline (CEH-04-017); a
+        row invited with none is a stub Invite's, and yields no event.  A
+        timed-out invitation is the CASE_MANAGER's sweep when it next
         handled the case (CM-28-015), and carries the RSVP deadline recorded
         on the earlier ``INVITED`` row (CEH-03-013, CEH-03-015).
         """
@@ -579,12 +614,20 @@ class _Deriver:
         if kind is None or previous is state:
             return
         timed_out = state is EmbargoConsentState.TIMED_OUT
+        invited = state is EmbargoConsentState.INVITED
+        if invited and key not in self.rsvp_deadlines:
+            # A stub Invite's row: the invitation to the case, which carries
+            # no RSVP deadline (CM-23-014), is no embargo Invite.
+            return
         self.events.append(
             context.event(
                 kind,
                 participant=participant,
                 embargo_id=embargo_id,
                 deadline=self.rsvp_deadlines.get(key) if timed_out else None,
+                rsvp_deadline=self.rsvp_deadlines.get(key)
+                if invited
+                else None,
                 gaps=[GapLabel.STAMPED_WHEN_NEXT_HANDLED] if timed_out else [],
             )
         )
@@ -820,6 +863,7 @@ _ACT_HANDLERS: dict[MessageSemantics, _Handler] = {
     MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: _Deriver._on_stub_reject,
     MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: _Deriver._on_embargo_reply,
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: _Deriver._on_embargo_reply,
+    MessageSemantics.CLOSE_CASE: _Deriver._on_close,
 }
 
 
