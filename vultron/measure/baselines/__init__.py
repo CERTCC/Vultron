@@ -20,7 +20,8 @@ the protocol, and writes nothing (CEH-01-001, CEH-01-002).
 
 * :mod:`~vultron.measure.baselines.walk` — the walk as an absorbing Markov
   chain: :func:`frequency` for one query, :func:`implies` for whether one
-  query implies another.
+  query implies another, and :class:`ChanceValues` for a query's value from
+  any :class:`WalkPrefix`, not only the start.
 * :mod:`~vultron.measure.baselines.case_state` — the six-event case-state
   model, with per-history and from-a-prefix probabilities for scoring an
   incomplete sequence.
@@ -29,6 +30,12 @@ the protocol, and writes nothing (CEH-01-001, CEH-01-002).
   invariants.
 * :mod:`~vultron.measure.baselines.desiderata` — every desideratum with its
   model, its baseline, and the implication pairs.
+* :mod:`~vultron.measure.baselines.values` — each vendor's desiderata
+  values from any point of a joint walk (:func:`desiderata_values`), and a
+  step's expected change (:func:`expected_change`); the chance each scope is
+  entered (:func:`scope_chances`), and the expected outcome that counts a
+  scope never entered as met (:func:`expected_outcomes`,
+  :func:`outcome_change`).
 * :mod:`~vultron.measure.baselines.render` — the Markdown tables the
   Measuring CVD pages print.
 """
@@ -63,15 +70,32 @@ from vultron.measure.baselines.joint import (
     JointState,
     VendorPath,
 )
+from vultron.measure.baselines.values import (
+    VendorDesideratum,
+    desiderata_values,
+    expected_change,
+    expected_outcomes,
+    outcome_change,
+    scope_chances,
+    vendor_desiderata,
+)
 from vultron.measure.baselines.walk import (
     ChanceModel,
+    ChanceReading,
+    ChanceValues,
+    Move,
     Ordering,
     OrderingQuery,
     Step,
     WalkNeverEndsError,
+    WalkPrefix,
+    expected_outcome,
+    find_step,
     frequency,
     implies,
     ordering,
+    replay,
+    take_step,
 )
 
 __all__ = [
@@ -83,6 +107,8 @@ __all__ = [
     "TWO_VENDOR_MODEL",
     "CaseStateModel",
     "ChanceModel",
+    "ChanceReading",
+    "ChanceValues",
     "Desideratum",
     "EmbargoEnd",
     "Event",
@@ -92,19 +118,32 @@ __all__ = [
     "JointModel",
     "JointState",
     "ModelName",
+    "Move",
     "Ordering",
     "OrderingQuery",
     "Step",
+    "VendorDesideratum",
     "VendorPath",
     "WalkNeverEndsError",
+    "WalkPrefix",
     "baseline",
     "case_state_query",
     "completion_probabilities",
+    "desiderata_values",
+    "expected_change",
+    "expected_outcome",
+    "expected_outcomes",
+    "find_step",
     "frequency",
     "history_probability",
     "implies",
     "implications",
     "ordering",
+    "outcome_change",
     "prefix_probability",
+    "replay",
+    "scope_chances",
     "step_probability",
+    "take_step",
+    "vendor_desiderata",
 ]
