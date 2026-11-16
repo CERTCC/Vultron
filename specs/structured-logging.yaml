@@ -203,11 +203,11 @@ groups:
       `test/core/behaviors/case/test_received_run.py` runs refused, SKIPPED and
       APPLIED trees through `run_received_tree` with every record captured from
       DEBUG up, and asserts a refused run logs exactly one record carrying a
-      `REFUSED (IDs)` group, from the runner's logger at WARNING, ending with the reason it
-      reports and naming the activity and sender, while a SKIPPED or APPLIED run
-      logs none. A composed any-of sender guard refusing a stranger is among the
-      refused runs. The demo runs assert no such runner line cites HP-01-006
-      through `expect_no_sender_refusals`.
+      `REFUSED (IDs)` group, from the runner's logger at WARNING, ending with the
+      reason it reports and naming the activity and sender, while a SKIPPED or
+      APPLIED run logs none. A composed any-of sender guard refusing a stranger
+      is among the refused runs. The demo runs assert no such runner line cites
+      HP-01-006 through `expect_no_sender_refusals`.
     relationships:
     - rel_type: refines
       spec_id: SL-03-001
