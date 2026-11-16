@@ -122,6 +122,7 @@ stakeholder_type: [project-contributor]
   - `msm-occasions` → `vultron.metadata.msm.occasions:main` (generates and checks the occasion table and its fragments, ADR-0128, MSM-06-001)
   - `nav-usability` → `vultron.metadata.docs.nav_usability:main` (the scripted stages of the navigation usability test, ADR-0136)
   - `ratchet-owners` → `vultron.metadata.ratchet_owners:main` (ratchet baselines whose `# owner: #N` issue is not open, ARCH-18-004)
+  - `ratchet-close-guard` → `vultron.metadata.ratchet_close_guard:main` (fails a pull request whose body closes an issue a non-empty ratchet still names as its owner, ARCH-18-012)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.
   The `Makefile` `api_dev` target runs the same app with `--reload` on port 7999 and sets `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` to that server.
