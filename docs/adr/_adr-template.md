@@ -4,7 +4,9 @@
 # Values: proposed | accepted | accepted-provisional | deprecated | rejected
 #         | superseded by (link to new ADR)
 # Record what stays invariant: never state a decision already known to become
-# obsolete. Write the stable principle with room for a foreseeable change, and
+# obsolete.
+# Write rules in the present tense ("does not"), not as a commitment about the
+# future ("never"), unless the decision is a permanent prohibition. Write the stable principle with room for a foreseeable change, and
 # keep the current, changeable policy in the specs and notes that cite this ADR
 # (notes/specs-vs-adrs.md "An ADR records what stays invariant").
 # Cardinal rule (lint-enforced, MS-14): status and prose MUST agree. If the body
