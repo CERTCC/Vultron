@@ -96,9 +96,9 @@ logger = logging.getLogger(__name__)
 
 def accept_invite_to_embargo_tree(
     case_id: str | None,
-    embargo_id: str | None,
+    embargo_id: str,
     accepting_actor_id: str,
-    invite_id: str | None,
+    invite_id: str,
     *,
     sender_rule: SenderRule,
     accept_id: str | None = None,
@@ -163,21 +163,17 @@ def accept_invite_to_embargo_tree(
     is answered with the refusal notice (CLP-02-005); a diverted delivery is
     answered by its diversion, and a repeat gets nothing.
 
-    An Accept missing its embargo id or Invite id (the invitee is read from
-    the recorded Invite, EP-09-010), or naming no case, has nothing to
-    answer: the tree is the incomplete-activity one, whose guard refuses it
-    after intake records it (CLP-10-018).  A case the CASE_MANAGER does not
-    hold puts it on the no-case path, which the path stage refuses
-    (HP-01-039).
+    An Accept that names no case has no case to answer it in: the tree is
+    the incomplete-activity one, whose guard refuses it after intake records
+    it (CLP-10-018).  A case the CASE_MANAGER does not hold puts it on the
+    no-case path, which the path stage refuses (HP-01-039).
 
     Args:
         case_id: ID of the VulnerabilityCase; ``None`` when the Accept names
             none.
-        embargo_id: ID of the EmbargoEvent being accepted; ``None`` when
-            the Accept names none.
+        embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
-        invite_id: ID of the InviteToEmbargoOnCase activity; ``None`` or
-            empty when the Accept names none.
+        invite_id: ID of the InviteToEmbargoOnCase activity.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
         accept_id: The Accept's own id; a re-invite's id derives from it,
@@ -191,12 +187,6 @@ def accept_invite_to_embargo_tree(
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
-    if embargo_id is None or not invite_id:
-        missing = "embargo id" if embargo_id is None else "Invite id"
-        return create_incomplete_activity_received_tree(
-            "AcceptInviteToEmbargoBT",
-            f"Accept(Invite(EmbargoEvent)) is missing its {missing}",
-        )
     if not case_id:
         return create_incomplete_activity_received_tree(
             "AcceptInviteToEmbargoBT",
@@ -289,10 +279,10 @@ def accept_invite_to_embargo_tree(
 
 
 def reject_invite_to_embargo_tree(
-    case_id: str | None,
+    case_id: str,
     rejecting_actor_id: str,
-    invite_id: str | None,
-    embargo_id: str | None,
+    invite_id: str,
+    embargo_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -335,38 +325,18 @@ def reject_invite_to_embargo_tree(
     ``Reject(EmbargoEvent)[target=VulnerabilityCase]``
     (``reject_embargo_proposal_on_case_tree``).
 
-    A Reject naming no case, no embargo (which terms are refused decides the
-    consent effect, MSM-07-004) or no Invite (the invitee is read from the
-    recorded Invite, EP-09-010) gets the incomplete-activity tree instead:
-    its guard refuses the activity after the doors admit it and intake
-    records it (CLP-10-018).
-
     Args:
-        case_id: ID of the VulnerabilityCase; ``None`` or empty when the
-            Reject names none.
+        case_id: ID of the VulnerabilityCase.
         rejecting_actor_id: Actor ID of the participant rejecting.
-        invite_id: ID of the InviteToEmbargoOnCase activity; ``None`` or
-            empty when the Reject names none.
-        embargo_id: ID of the EmbargoEvent the Reject names; ``None`` or
-            empty when it names none.
+        invite_id: ID of the InviteToEmbargoOnCase activity.
+        embargo_id: ID of the EmbargoEvent the Reject names (required: which
+            terms are refused decides the consent effect, MSM-07-004).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
-    if not case_id or not embargo_id or not invite_id:
-        missing = (
-            "does not name a case"
-            if not case_id
-            else "does not name an embargo"
-            if not embargo_id
-            else "is missing its Invite id"
-        )
-        return create_incomplete_activity_received_tree(
-            "RejectInviteToEmbargoBT",
-            f"Reject(Invite(EmbargoEvent)) {missing}",
-        )
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,

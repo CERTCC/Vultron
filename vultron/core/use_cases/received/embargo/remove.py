@@ -66,17 +66,17 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # A Remove missing its embargo id or case id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).  One tree: its
-        # door guards refuse a closed case, an unaddressed copy (HP-01-005,
-        # ADR-0118) and a sender without standing first.
+        embargo_id = request.embargo_id
+        case_id = request.case_id
+        # One tree: its door guards refuse a closed case, an unaddressed
+        # copy (HP-01-005, ADR-0118) and a sender without standing first.
         # The tree embeds the guarded commit as its final step (ADR-0021,
         # CLP-09-001, CLP-10-003).  The runner runs it as the receiving actor,
         # so CheckIsCaseManagerNode naturally fires only when the receiving
         # actor holds the CASE_MANAGER role — no identity comparison in Python.
         tree = remove_embargo_from_case_tree(
-            case_id=request.case_id,
-            embargo_id=request.embargo_id,
+            case_id=case_id,
+            embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
             termination_reason=request.termination_reason,
             termination_cause=request.termination_cause,

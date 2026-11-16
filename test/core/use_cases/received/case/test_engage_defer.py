@@ -141,33 +141,16 @@ class TestEngageDeferCaseBTFailureReason:
     @pytest.mark.parametrize(
         "use_case", [EngageCaseReceivedUseCase, DeferCaseReceivedUseCase]
     )
-    @pytest.mark.spec("CLP-10-018")
-    def test_missing_case_id_is_refused(self, dl, actor_id, case_id, use_case):
-        """HP-01-003: an Engage/Defer with no case id is malformed.
+    def test_missing_case_id_is_refused(self, dl, use_case):
+        """HP-01-003: an Engage/Defer with no case id is malformed."""
+        from unittest.mock import MagicMock
 
-        The tree's incomplete-activity guard refuses it (CLP-10-018).
-        """
-        from unittest.mock import PropertyMock, patch
+        event = MagicMock()
+        event.case_id = None
 
-        engage = use_case is EngageCaseReceivedUseCase
-        event = (
-            self._engage_event(actor_id, case_id)
-            if engage
-            else self._defer_event(actor_id, case_id)
-        )
-
-        with patch.object(
-            type(event),
-            "case_id",
-            new_callable=PropertyMock,
-            return_value=None,
-        ):
-            result = run_in_act(use_case(dl, event))
+        result = run_in_act(use_case(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason == (
-            f"{'Engage' if engage else 'Defer'} activity has no case id"
-        )
 
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog

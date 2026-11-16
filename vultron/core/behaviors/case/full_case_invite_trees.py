@@ -18,9 +18,6 @@ See CM-11-010, CM-11-011, CM-11-012, ADR-0121, RSH-06-006.
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     CheckFullCaseReplyNode,
     LogFullCaseInviteReceivedNode,
@@ -49,8 +46,8 @@ from vultron.core.states.rm import RM
 
 
 def create_invite_actor_to_full_case_received_tree(
-    case_id: str | None,
-    invitee_id: str | None,
+    case_id: str,
+    invitee_id: str,
     inviter_id: str,
     floor: LedgerPosition,
     *,
@@ -78,16 +75,7 @@ def create_invite_actor_to_full_case_received_tree(
         ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
         └── InviteeRecordsFullCaseInvite     # not the CASE_MANAGER
             └── LogFullCaseInviteReceivedNode
-
-    An Invite missing its case id or invitee id gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
     """
-    if not case_id or not invitee_id:
-        return create_incomplete_activity_received_tree(
-            "InviteActorToFullCaseReceivedBT",
-            "Invite is missing its case id or invitee id",
-        )
     return create_receive_activity_tree(
         name="InviteActorToFullCaseReceivedBT",
         case_id=case_id,
@@ -128,8 +116,8 @@ def create_invite_actor_to_full_case_received_tree(
 
 def create_full_case_invite_reply_received_tree(
     name: str,
-    case_id: str | None,
-    invite_id: str | None,
+    case_id: str,
+    invite_id: str,
     replier_id: str,
     position: LedgerPosition,
     rm_state: RM,
@@ -160,15 +148,7 @@ def create_full_case_invite_reply_received_tree(
     The guards sit in the factory's ``PreconditionGuardStage``: when the
     adjudication refuses a regression, its refusal-effects stage posts the
     same note at the CASE_MANAGER before the tree fails (CLP-10-022).
-
-    A reply missing its case id or Invite id gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
     """
-    if not case_id or not invite_id:
-        return create_incomplete_activity_received_tree(
-            name, "reply is missing its case id or Invite id"
-        )
     return create_receive_activity_tree(
         name=name,
         case_id=case_id,

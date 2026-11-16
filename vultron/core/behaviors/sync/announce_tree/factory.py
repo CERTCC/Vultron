@@ -17,9 +17,6 @@
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -65,7 +62,7 @@ OFF_CASE_MANAGER = "ProcessAnnouncedEntry"
 
 
 def create_announce_log_entry_tree(
-    *, carries_entry: bool = True, sender_rule: SenderRule
+    *, sender_rule: SenderRule
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for an inbound ``Announce(CaseLedgerEntry)``.
 
@@ -84,21 +81,9 @@ def create_announce_log_entry_tree(
     of the case yet, and the two branches are the stage's answer read back,
     never a second role question (ADR-0153).
 
-    An ``Announce`` that carries no log entry gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
-
     Args:
-        carries_entry: ``False`` when the ``Announce`` carries no inline
-            log entry; the tree's nodes read the entry itself off the
-            activity when it runs.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    if not carries_entry:
-        return create_incomplete_activity_received_tree(
-            "AnnounceLogEntryReceivedBT",
-            "Announce(CaseLedgerEntry) carries no log entry",
-        )
     log_entry_event_effects = create_log_entry_event_effects()
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail
     # reconstruction fails and no tail_hash is available for the mismatch check.

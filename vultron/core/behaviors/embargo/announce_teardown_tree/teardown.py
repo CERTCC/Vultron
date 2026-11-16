@@ -29,9 +29,6 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -123,8 +120,8 @@ def _teardown_if_active(
 
 
 def remove_embargo_from_case_tree(
-    case_id: str | None,
-    embargo_id: str | None,
+    case_id: str,
+    embargo_id: str,
     sender_actor_id: str,
     termination_reason: TerminationReason,
     terminated_at: datetime | None,
@@ -169,15 +166,9 @@ def remove_embargo_from_case_tree(
     teardown was needed).  BT returns FAILURE when the case is not found or a
     teardown step fails.
 
-    A ``Remove`` missing its embargo id or case id gets the
-    incomplete-activity tree instead: its guard refuses the activity after
-    the doors admit it and intake records it (CLP-10-018).
-
     Args:
-        case_id: ID of the VulnerabilityCase to update; ``None`` when the
-            ``Remove`` names none.
-        embargo_id: ID of the EmbargoEvent being removed; ``None`` when the
-            ``Remove`` names none.
+        case_id: ID of the VulnerabilityCase to update.
+        embargo_id: ID of the EmbargoEvent being removed.
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
@@ -203,11 +194,6 @@ def remove_embargo_from_case_tree(
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
     """
-    if embargo_id is None or case_id is None:
-        return create_incomplete_activity_received_tree(
-            "RemoveEmbargoFromCaseBT",
-            "Remove(EmbargoEvent) is missing its embargo id or case id",
-        )
     # The Case Owner asked for the teardown, so the notices credit it
     # (CM-24-002); the CASE_MANAGER's own Remove credits nobody else.  Both
     # run only in the CASE_MANAGER arm: a replica sends no notice.

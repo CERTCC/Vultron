@@ -76,13 +76,13 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # An Add missing its report id or case id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).  A case this
-        # store does not hold puts it on the no-case path, which the tree's
-        # path stage refuses (HP-01-039).
+        report_id = request.report_id
+        case_id = request.case_id
+        # A case this store does not hold puts it on the no-case path, which
+        # the tree's path stage refuses (HP-01-039).
         tree = create_add_report_to_case_received_tree(
-            report_id=request.report_id,
-            case_id=request.case_id,
+            report_id=report_id,
+            case_id=case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
@@ -159,8 +159,6 @@ class CloseCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # A Leave naming no case gets the incomplete-activity tree, whose
-        # guard refuses it (CLP-10-018).
         case_id = request.case_id
 
         # A receipt, not a closure: the Leave names the case (ADR-0165), and

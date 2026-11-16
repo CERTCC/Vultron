@@ -26,6 +26,7 @@ related_specs:
   - specs/vultron-as2-mapping.yaml
   - specs/received-status-handling.yaml
   - specs/actor-knowledge-model.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -605,14 +606,16 @@ and an inner factory per arm that commits, built `nested=True` so it runs no
 seen-before door or intake of its own: a second intake would read the first
 run as a re-run (ADR-0154). Intake
 records nothing when the event carries no activity, so
-a semantic-registry entry must set `include_activity=True`. An activity that
-lacks a value its tree needs to be built (a case id, a participant id) is
-refused inside the one tree: its factory returns
-`create_incomplete_activity_received_tree` (intake, then an
-`ActivityIncompleteNode` guard), never a separate refusal run (CLP-10-005)
-and never a `HandlerResult.refused(...)` returned from `execute()` before the
-run: `test/architecture/test_received_use_case_execute.py` fails on one
-(CLP-10-007).
+a semantic-registry entry must set `include_activity=True`. A slot a
+message's meaning requires (its case id, its inline object) is a required slot
+of its event subtype (`required_slots`, read through `VultronEvent._required`),
+so a message without it fails extraction before dispatch and leaves no receipt
+stub (ARCH-10-001, ADR-0032). Never refuse it from `execute()`:
+`test/architecture/test_received_use_case_execute.py` fails on a
+`HandlerResult.refused(...)` returned before the run (CLP-10-007). Factories that
+still refuse a missing value return `create_incomplete_activity_received_tree`
+(intake, then an `ActivityIncompleteNode` guard), never a separate refusal run
+(CLP-10-005); a new required slot goes on the event instead.
 
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload

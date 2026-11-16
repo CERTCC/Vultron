@@ -12,7 +12,6 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import normalise_actor_id
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -76,17 +75,6 @@ class OfferActorToCaseReceivedUseCase:
         request = self._request
         activity_id = request.activity_id
         recommender_id = request.actor_id
-        case_id = request.target_id
-        # Offer(Actor)[target=VulnerabilityCase]: object_ is an as_Actor; object_id is
-        # the actor URI directly.
-        # It is looked up and stored as the invitee, so it is normalised
-        # where it is extracted (OID-01-006).
-        recommended_id = (
-            normalise_actor_id(request.object_id)
-            if request.object_id
-            else None
-        )
-
         offer_content = getattr(request.activity, "content", None)
         if offer_content is not None and not isinstance(offer_content, str):
             logger.warning(
@@ -110,13 +98,11 @@ class OfferActorToCaseReceivedUseCase:
         ):
             suggested_roles = None
 
-        # An Offer missing its recommended actor or case gets the
-        # incomplete-activity tree, whose guard refuses it (CLP-10-018).
         tree = create_recommend_actor_to_case_received_tree(
             recommendation_id=activity_id,
             recommender_id=recommender_id,
-            recommended_id=recommended_id,
-            case_id=case_id,
+            recommended_id=request.recommended_id,
+            case_id=request.case_id,
             offer_content=offer_content,
             suggested_roles=suggested_roles,
             actor_config=self._actor_config,

@@ -23,9 +23,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.participant.status_entries import (
     CommitParticipantStatusEntriesNode,
 )
@@ -52,8 +49,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_validate_report_received_tree(
-    report_id: str | None,
-    offer_id: str | None,
+    report_id: str,
+    offer_id: str,
     sender_actor_id: str,
     case_id: str | None = None,
     *,
@@ -116,15 +113,9 @@ def create_validate_report_received_tree(
     caller could not distinguish from a real one (ARCH-15-001) — including the
     ISSUE-2548 case where the sender's case replica had not arrived yet.
 
-    An Accept missing its report id or offer id gets the
-    incomplete-activity tree instead: its guard refuses the activity after
-    the doors admit it and intake records it (CLP-10-018).
-
     Args:
-        report_id: ID of the VulnerabilityReport being validated; ``None``
-            when the Accept names none.
-        offer_id: ID of the Offer activity that carried the report; ``None``
-            when the Accept names none.
+        report_id: ID of the VulnerabilityReport being validated.
+        offer_id: ID of the Offer activity that carried the report.
         sender_actor_id: Actor ID of the message sender (the validating actor).
             Used by validation nodes instead of the blackboard ``actor_id``.
         case_id: ID of the VulnerabilityCase linked to this report, which
@@ -136,12 +127,6 @@ def create_validate_report_received_tree(
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
     """
-    if report_id is None or offer_id is None:
-        return create_incomplete_activity_received_tree(
-            "ValidateReportReceivedBT",
-            "Accept(Offer(VulnerabilityReport)) is missing its report id "
-            "or offer id",
-        )
     written: list[str] = []
     validation = create_validate_report_subtree(
         report_id=report_id,

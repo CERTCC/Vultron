@@ -69,13 +69,14 @@ class AddNoteToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # An Add missing its inline note or case id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).  A case this
-        # store does not hold puts it on the no-case path, which the tree's
-        # path stage refuses (HP-01-039).
+        note = request.note
+        case_id = request.case_id
+
+        # A case this store does not hold puts it on the no-case path, which
+        # the tree's path stage refuses (HP-01-039).
         tree = create_add_note_to_case_received_tree(
-            note_obj=request.note,
-            case_id=request.case_id,
+            note_obj=note,
+            case_id=case_id,
             sender_id=request.actor_id,
             activity_id=request.activity_id,
             sender_rule=self.sender_entitlement,

@@ -16,7 +16,7 @@
 
 Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020),
 ``test_single_bt_execution_received_side.py`` (CLP-10-005) and
-``test_received_use_case_execute.py`` (CLP-10-018): the classes
+``test_received_use_case_execute.py`` (CLP-10-007): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
 a BT node (BT-22-005), so moving a helper there hides neither its writes nor
@@ -266,7 +266,7 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
 
 # ---------------------------------------------------------------------------
 # Transitive resolution through the use-case package (CLP-10-005, CLP-10-020,
-# CLP-10-018)
+# CLP-10-007)
 # ---------------------------------------------------------------------------
 
 #: A concrete class ``self`` is bound to: (module name, class name).

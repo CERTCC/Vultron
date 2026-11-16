@@ -70,27 +70,18 @@ class _EmbargoEventReceivedUseCase:
         self._wire_render_port = wire_render_port
 
     def _build_tree(
-        self, case_id: str | None, embargo_id: str | None, sender_actor_id: str
+        self, case_id: str, embargo_id: str, sender_actor_id: str
     ) -> py_trees.behaviour.Behaviour:
-        """The tree for the activity; an incomplete one when an id is missing.
-
-        A subclass's factory refuses an activity missing its embargo id or
-        case id with the incomplete-activity guard (CLP-10-018).
-        """
         raise NotImplementedError
 
-    def _applied_message(
-        self, embargo_id: str | None, case_id: str | None
-    ) -> str | None:
+    def _applied_message(self, embargo_id: str, case_id: str) -> str | None:
         """An INFO line for an applied run, or ``None`` for none."""
         return None
 
     def execute(self) -> HandlerResult:
         request = self._request
         embargo_id, case_id = request.embargo_id, request.case_id
-        # An activity missing its embargo id or case id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).  The tree's
-        # door guards refuse a closed case, an unaddressed copy
+        # The tree's door guards refuse a closed case, an unaddressed copy
         # (HP-01-005, ADR-0118) and a sender without standing first.  Only
         # the CASE_MANAGER applies: each tree declares the manager path
         # alone, so its path stage refuses a replica, which learns the

@@ -87,11 +87,9 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # An Invite missing its case id or invitee id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
         tree = create_invite_actor_to_case_received_tree(
             case_id=request.case_id,
-            invitee_id=request.object_id,
+            invitee_id=request.invitee_id,
             inviter_id=request.actor_id,
             invite_id=request.activity_id,
             sender_rule=self.sender_entitlement,
@@ -143,16 +141,16 @@ class AcceptInviteActorToCaseReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         # The invitee is the reply's sender, never the actor the embedded
-        # copy of the Invite names (CM-11-047): the tree's sender guard
-        # refuses any sender that is not the recorded Invite's invitee, so
-        # the participant is never taken from the embedded copy (CM-11-017).
-        # An Accept missing its case id, embedded invitee or Invite id gets
-        # the incomplete-activity tree, whose guard refuses it (CLP-10-018).
+        # copy of the Invite names (CM-11-047).
+        invitee_id = request.actor_id
+
+        # The reply's sender is the invitee: the tree's sender guard refuses
+        # any sender that is not the recorded Invite's invitee, so the
+        # participant is never taken from the embedded copy (CM-11-017).
         tree = create_accept_invite_actor_to_case_tree(
             case_id=request.case_id,
-            invitee_id=request.actor_id,
+            invitee_id=invitee_id,
             invite_id=request.invite_id,
-            embedded_invitee_id=request.invitee_id,
             sender_rule=self.sender_entitlement,
         )
         # An invitee the case already records as closed (its stub Reject was
@@ -212,8 +210,6 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.actor_id,
             request.invite_id,
         )
-        # A Reject missing its case id or Invite id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=request.case_id,
             invite_id=request.invite_id,

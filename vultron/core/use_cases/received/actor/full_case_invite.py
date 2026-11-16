@@ -69,8 +69,6 @@ class InviteActorToFullCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # An Invite missing its case id or invitee id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
         tree = create_invite_actor_to_full_case_received_tree(
             case_id=request.case_id,
             invitee_id=request.invitee_id,
@@ -125,8 +123,6 @@ class _FullCaseInviteReplyReceivedUseCase:
 
     def _tree(self) -> py_trees.composites.Sequence:
         request = self._request
-        # A reply missing its case id or Invite id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
         return create_full_case_invite_reply_received_tree(
             name=self.tree_name,
             case_id=request.case_id,

@@ -53,17 +53,19 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # A Reject naming no case, no embargo (MSM-07-004) or no Invite
-        # (EP-09-010) gets the incomplete-activity tree, whose guard refuses
-        # it (CLP-10-018).  One tree: its door guards refuse a closed case,
-        # an unaddressed copy (HP-01-005, ADR-0118) and a sender that is not
-        # the recorded Invite's invitee (EP-09-010, HP-01-006, ADR-0115)
-        # before anything is written.
+        rejecting_actor_id = request.actor_id
+        invite_id = request.invite_id
+
+        case_id, embargo_id = request.case_id, request.embargo_id
+
+        # One tree: its door guards refuse a closed case, an unaddressed copy
+        # (HP-01-005, ADR-0118) and a sender that is not the recorded Invite's
+        # invitee (EP-09-010, HP-01-006, ADR-0115) before anything is written.
         tree = reject_invite_to_embargo_tree(
-            case_id=request.case_id,
-            rejecting_actor_id=request.actor_id,
-            invite_id=request.invite_id,
-            embargo_id=request.embargo_id,
+            case_id=case_id,
+            rejecting_actor_id=rejecting_actor_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
             sender_rule=self.sender_entitlement,
         )
         # A repeat of a Reject already recorded is refused by the tree's

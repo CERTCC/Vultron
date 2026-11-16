@@ -208,24 +208,21 @@ class AnnounceLedgerEntryReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         entry = request.log_entry
-        if entry is not None:
-            logger.info(
-                "sync: received log-entry announcement '%s' for case '%s' "
-                "from actor '%s' (log_index=%d)",
-                request.activity_id,
-                entry.case_id,
-                request.actor_id,
-                entry.log_index,
-            )
-        # An Announce carrying no log entry gets the incomplete-activity
-        # tree, whose guard refuses it (CLP-10-018).  The tree replays a held
-        # successor's ``Announce`` through the inbox via *inbox_replay*
-        # rather than running it here (SYNC-14-009), and builds the
-        # replica's fault about a refused entry through the trigger port
-        # (RSH-09-006, SYNC-03-007, SYNC-16-001).
+
+        logger.info(
+            "sync: received log-entry announcement '%s' for case '%s' "
+            "from actor '%s' (log_index=%d)",
+            request.activity_id,
+            entry.case_id,
+            request.actor_id,
+            entry.log_index,
+        )
+        # The tree replays a held successor's ``Announce`` through the inbox
+        # via *inbox_replay* rather than running it here (SYNC-14-009), and
+        # builds the replica's fault about a refused entry through the
+        # trigger port (RSH-09-006, SYNC-03-007, SYNC-16-001).
         tree = create_announce_log_entry_tree(
-            carries_entry=entry is not None,
-            sender_rule=self.sender_entitlement,
+            sender_rule=self.sender_entitlement
         )
         verdict = run_received_tree(
             tree,
@@ -235,11 +232,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=(
-                None
-                if entry is None
-                else _announce_reading(entry, request.actor_id)
-            ),
+            reader=_announce_reading(entry, request.actor_id),
             inbox_replay=self._inbox_replay,
         )
         if verdict.disposition is HandlerDisposition.DEFERRED:
@@ -250,9 +243,8 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
         # A copy the door guards refused (an unaddressed one, HP-01-005, or a
         # closed case, CM-23-013) acts on nothing: the pending assertion it
-        # does not confirm stays pending, as does any for an Announce that
-        # carries no entry, which confirms none.
-        if entry is None or door_refusal(tree) is not None:
+        # does not confirm stays pending.
+        if door_refusal(tree) is not None:
             return verdict
 
         # Clear pending assertion for this entry whatever the tree decided

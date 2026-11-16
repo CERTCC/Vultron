@@ -13,6 +13,7 @@
 """Tests for note-related use-case classes."""
 
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -532,12 +533,10 @@ class TestNoteUseCases:
         assert note_id in refreshed.notes
         assert dl.read(activity.id_) is None, "held only as received"
 
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.spec("HP-01-005")
     def test_add_note_without_an_inline_note_is_refused(self, make_payload):
-        """An Add(Note) event with no note object is refused by its tree's
-        incomplete-activity guard, after the doors and intake, with nothing
-        committed: there is no note to store or attach (#4706, #6493)."""
+        """An Add(Note) event with no note object is refused before any
+        tree runs: there is no note to store or attach (#4706)."""
         case_actor_id = "https://example.org/cases/case_n1e/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n1e"
@@ -568,11 +567,7 @@ class TestNoteUseCases:
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason == (
-            "Add(Note)[target=VulnerabilityCase] is missing its inline note"
-            " or case id"
-        )
-        assert dl.list_objects("CaseLedgerEntry") == []
+        assert result.reason is not None and "inline note" in result.reason
 
     @pytest.mark.spec("HP-08-006")
     @pytest.mark.spec("CM-13-007")
@@ -891,6 +886,27 @@ class TestNoteUseCases:
         stored = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert note.id_ in stored.notes
         assert dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.parametrize(
+        "use_case",
+        [AddNoteToCaseReceivedUseCase],
+    )
+    def test_note_membership_change_without_ids_is_refused(self, use_case):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = MagicMock()
+        # Neither handler has the id it needs: the Add no inline note, the
+        # Remove no note id.
+        event.note = None
+        event.note_id = None
+        event.case_id = "https://example.org/cases/c"
+
+        result = run_in_act(use_case(dl, event))
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):

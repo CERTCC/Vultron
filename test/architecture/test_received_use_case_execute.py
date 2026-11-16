@@ -20,15 +20,15 @@ question of every received use case that runs a tree, over the same
 transitive walk the CLP-10-005 and CLP-10-020 ratchets use
 (:mod:`test.architecture._use_case_call_graph`).
 
-- **No refusal before the tree runs (CLP-10-007, CLP-10-018).**  An activity that lacks
-  a value its tree needs (its inline object, the case it names) is refused
-  by the tree's incomplete-activity guard
-  (``create_incomplete_activity_received_tree``), so the doors run and
-  intake records the activity first.  An ``execute()`` that returns
-  ``HandlerResult.refused(...)`` itself, or reaches an indexed helper that
-  does, decides a refusal outside the tree.  There is no exemption set: a
-  use case that runs no tree at all (``UnknownUseCase``) is outside this
-  rule and is named in CLP-10-005's exact ``RUNS_NO_TREE`` set instead.
+- **No refusal before the tree runs (CLP-10-007, ARCH-10-001).**  A
+  slot a message's meaning requires (its case id, its inline object) is a
+  required slot of its event subtype, so a message without it fails event
+  construction in the inbox's extraction step and never reaches a use case
+  (ADR-0032).  An ``execute()`` that returns ``HandlerResult.refused(...)``
+  itself, or reaches an indexed helper that does, decides a refusal outside
+  the tree.  There is no exemption set: a use case that runs no tree at all
+  (``UnknownUseCase``) is outside this rule and is named in CLP-10-005's
+  exact ``RUNS_NO_TREE`` set instead.
   A refusal a nested reader returns after the run is read from the run and
   is not this rule's (#6494 turns those into node declarations).
 """
@@ -65,9 +65,9 @@ def test_no_received_execute_refuses_before_its_tree_runs() -> None:
     violations = {name: sites for name, sites in refusals.items() if sites}
     assert not violations, (
         "received execute() methods returning HandlerResult.refused(...)"
-        " outside their tree — refuse a missing field in the tree factory"
-        " with create_incomplete_activity_received_tree (CLP-10-018,"
-        " ADR-0195):\n"
+        " outside their tree — make a missing slot a required slot of the"
+        " event subtype, so extraction refuses it (ARCH-10-001, ADR-0032),"
+        " and leave every other refusal to the tree (ADR-0195):\n"
         + "\n".join(
             f"  {name}: {', '.join(sites)}"
             for name, sites in sorted(violations.items())

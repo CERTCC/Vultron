@@ -4,7 +4,7 @@ Covers suggest-actor, ownership-transfer, and invite-actor-to-case semantics.
 """
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from pydantic import field_validator
 
@@ -34,6 +34,19 @@ class OfferActorToCaseReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.OFFER_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("recommended_id", "case_id")
+
+    @property
+    def recommended_id(self) -> str:
+        """The actor recommended, normalised: it is looked up and stored as
+        the invitee (OID-01-006)."""
+        object_id = self._required("recommended_id", self.object_id)
+        return normalise_actor_id(object_id)
+
+    @property
+    def case_id(self) -> str:
+        """The case the actor is recommended to."""
+        return self._required("case_id", self.target_id)
 
 
 class OfferCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
@@ -261,11 +274,17 @@ class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id", "invitee_id")
 
     @property
-    def case_id(self) -> str | None:
+    def case_id(self) -> str:
         """The case the Invite's stub names (CM-11-003), not the stub's ID."""
-        return stub_case_id(self.target)
+        return self._required("case_id", stub_case_id(self.target))
+
+    @property
+    def invitee_id(self) -> str:
+        """The actor invited: the Invite's ``object``."""
+        return self._required("invitee_id", self.object_id)
 
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
@@ -274,21 +293,28 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "invite_id",
+        "case_id",
+        "invitee_id",
+    )
 
     @property
-    def case_id(self) -> str | None:
+    def case_id(self) -> str:
         """The case the nested Invite's stub names (CM-11-003)."""
-        return stub_case_id(self.inner_target)
+        return self._required("case_id", stub_case_id(self.inner_target))
 
     @property
-    def invite_id(self) -> str | None:
+    def invite_id(self) -> str:
         """The Invite the reply answers; the CASE_MANAGER's record of it, not
         the copy embedded here, governs the reply (CM-11-017)."""
-        return self.object_id
+        return self._required("invite_id", self.object_id)
 
     @property
-    def invitee_id(self) -> str | None:
-        return self.inner_object_id
+    def invitee_id(self) -> str:
+        """The invitee the embedded Invite names.  The participant is the
+        reply's sender (CM-11-047); this only has to be present."""
+        return self._required("invitee_id", self.inner_object_id)
 
     @property
     def invitee(self) -> CoreObject | None:
@@ -302,19 +328,20 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("invite_id", "case_id")
 
     @property
-    def invite_id(self) -> str | None:
-        return self.object_id
+    def invite_id(self) -> str:
+        return self._required("invite_id", self.object_id)
 
     @property
     def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
-    def case_id(self) -> str | None:
+    def case_id(self) -> str:
         """The case the nested Invite's stub names (CM-11-003)."""
-        return stub_case_id(self.inner_target)
+        return self._required("case_id", stub_case_id(self.inner_target))
 
 
 class InviteActorToFullCaseReceivedEvent(LedgerPositionedEvent):
@@ -331,14 +358,15 @@ class InviteActorToFullCaseReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id", "invitee_id")
 
     @property
-    def case_id(self) -> str | None:
-        return self.target_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.target_id)
 
     @property
-    def invitee_id(self) -> str | None:
-        return self.object_id
+    def invitee_id(self) -> str:
+        return self._required("invitee_id", self.object_id)
 
 
 class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
@@ -350,14 +378,15 @@ class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
     """
 
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("invite_id", "case_id")
 
     @property
-    def invite_id(self) -> str | None:
-        return self.object_id
+    def invite_id(self) -> str:
+        return self._required("invite_id", self.object_id)
 
     @property
-    def case_id(self) -> str | None:
-        return self.inner_target_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.inner_target_id)
 
     @property
     def invitee_id(self) -> str | None:
@@ -412,6 +441,12 @@ class OfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.OFFER_CASE_PARTICIPANT
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
+
+    @property
+    def case_id(self) -> str:
+        """The case the Offer names as its ``target``."""
+        return self._required("case_id", self.target_id)
 
 
 class AcceptOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
@@ -426,6 +461,14 @@ class AcceptOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
+
+    @property
+    def case_id(self) -> str:
+        """The case: the Accept's ``target``, else the accepted Offer's."""
+        return self._required(
+            "case_id", self.target_id or self.inner_target_id
+        )
 
 
 class RejectOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
@@ -440,6 +483,12 @@ class RejectOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    required_slots: ClassVar[tuple[str, ...]] = ("case_id",)
+
+    @property
+    def case_id(self) -> str:
+        """The case the Offer names as its ``target``."""
+        return self._required("case_id", self.target_id)
 
 
 class AcceptActorRecommendationReceivedEvent(LedgerPositionedEvent):

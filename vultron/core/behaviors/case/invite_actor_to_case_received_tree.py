@@ -22,9 +22,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.invite_received import (
     LogInviteReceivedNode,
     RecordInviteTrustAnchorNode,
@@ -49,8 +46,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_reject_invite_actor_to_case_received_tree(
-    case_id: str | None,
-    invite_id: str | None,
+    case_id: str,
+    invite_id: str,
     invitee_id: str | None = None,
     *,
     sender_rule: SenderRule,
@@ -67,31 +64,23 @@ def create_reject_invite_actor_to_case_received_tree(
     The sender must be the invitee of the stub Invite this store recorded for
     the case, or the Reject is refused before anything is written (CM-11-017,
     HP-01-006, ADR-0115).  The factory composes that guard from the use
-    case's declared rule (HP-01-008).  A Reject missing its case id or
-    Invite id gets the incomplete-activity tree instead: its guard refuses
-    the activity after the doors admit it and intake records it
-    (CLP-10-018), so the rule needs no side for an activity outside any
-    case.
+    case's declared rule (HP-01-008); the handler refuses a Reject that names
+    no case before it builds this tree, so the rule needs no side for an
+    activity outside any case.
 
     Args:
-        case_id: ID of the VulnerabilityCase referenced by the invite;
-            ``None`` or empty when the Reject names none.
+        case_id: ID of the VulnerabilityCase referenced by the invite; never
+            empty.
         invitee_id: Actor ID of the rejecting invitee (the reply's sender).
             Required for AC-3 effects; omit only when the invitee cannot be
             resolved, in which case the sender guard refuses.
-        invite_id: ID of the recorded stub Invite the Reject answers;
-            ``None`` or empty when the Reject names none.
+        invite_id: ID of the recorded stub Invite the Reject answers.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
     """
-    if not case_id or not invite_id:
-        return create_incomplete_activity_received_tree(
-            "RejectInviteActorToCaseReceivedBT",
-            "Reject(Invite) is missing its case id or Invite id",
-        )
     manager_effects: list[py_trees.behaviour.Behaviour] = []
     if invitee_id:
         manager_effects.append(
@@ -129,8 +118,8 @@ def create_reject_invite_actor_to_case_received_tree(
 
 
 def create_invite_actor_to_case_received_tree(
-    case_id: str | None,
-    invitee_id: str | None,
+    case_id: str,
+    invitee_id: str,
     inviter_id: str,
     invite_id: str,
     *,
@@ -170,15 +159,9 @@ def create_invite_actor_to_case_received_tree(
     (the bootstrap window) and the trust-anchor rules of PCR-03-004 decide
     what the Invite may record.
 
-    An Invite missing its case id or invitee id gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
-
     Args:
-        case_id: ID of the case the Invite's stub names (its ``target``);
-            ``None`` or empty when it names none.
-        invitee_id: The invited actor (the Invite's ``object``); ``None``
-            or empty when it names none.
+        case_id: ID of the case the Invite's stub names (its ``target``).
+        invitee_id: The invited actor (the Invite's ``object``).
         inviter_id: The Invite's sender, recorded as the case's expected
             CASE_MANAGER.
         invite_id: The Invite's id, recorded so the invitee's Accept of it
@@ -189,11 +172,6 @@ def create_invite_actor_to_case_received_tree(
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.
     """
-    if not case_id or not invitee_id:
-        return create_incomplete_activity_received_tree(
-            "InviteActorToCaseReceivedBT",
-            "Invite is missing its case id or invitee id",
-        )
     return create_receive_activity_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,

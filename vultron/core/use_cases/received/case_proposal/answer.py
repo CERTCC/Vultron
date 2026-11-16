@@ -61,7 +61,7 @@ def _no_link_reader(
     node_type: (
         type[RecordCaseActorAcceptanceNode | RecordCaseProposalRejectionNode]
     ),
-    report_id: str | None,
+    report_id: str,
 ) -> OutcomeReader:
     """``SKIPPED`` when there was no report link to record the answer on.
 
@@ -121,9 +121,7 @@ class AcceptCaseProposalReceivedUseCase:
         case_actor_id = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
-        # An Accept that carries no inline report gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
-        report_id = request.inner_object_id
+        report_id = request.report_id
 
         tree = create_accept_case_proposal_received_tree(
             report_id=report_id,
@@ -185,9 +183,7 @@ class RejectCaseProposalReceivedUseCase:
         request = self._request
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
-        # A Reject that carries no inline report gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
-        report_id = request.inner_object_id
+        report_id = request.report_id
 
         # The rejection reason comes from the Reject activity's summary field.
         rejection_reason: str | None = None

@@ -73,7 +73,7 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
         )
 
     def _build_tree(
-        self, case_id: str | None, embargo_id: str | None, sender_actor_id: str
+        self, case_id: str, embargo_id: str, sender_actor_id: str
     ) -> py_trees.behaviour.Behaviour:
         return withdraw_from_embargo_on_case_tree(
             case_id=case_id,
@@ -83,9 +83,7 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
             sender_rule=self.sender_entitlement,
         )
 
-    def _applied_message(
-        self, embargo_id: str | None, case_id: str | None
-    ) -> str:
+    def _applied_message(self, embargo_id: str, case_id: str) -> str:
         return (
             f"'{self._request.actor_id}' withdrew from embargo"
             f" '{embargo_id}' on case '{case_id}'"

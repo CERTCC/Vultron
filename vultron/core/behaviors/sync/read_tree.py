@@ -6,9 +6,6 @@ case's ledger up to the entry it names (ADR-0155).  The tree here answers it
 at the CASE_MANAGER; ``state_positions_tree`` sends one (SYNC-17-007).
 """
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -34,7 +31,7 @@ from vultron.core.behaviors.sync.nodes.sender_sequence import (
 
 
 def create_read_log_entry_tree(
-    case_id: str | None,
+    case_id: str,
     *,
     sender_id: str,
     sender_rule: SenderRule,
@@ -76,21 +73,11 @@ def create_read_log_entry_tree(
     ledger already holds, so it keeps working after the case closes
     (ADR-0085, CM-23-013).
 
-    A ``Read`` naming no case in its ``context`` gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
-
     Args:
-        case_id: The case the ``Read`` names in its ``context``; ``None``
-            when it names none.
+        case_id: The case the ``Read`` names in its ``context``.
         sender_id: The ``Read``'s ``actor``.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    if case_id is None:
-        return create_incomplete_activity_received_tree(
-            "ReadLogEntryReceivedBT",
-            "Read(CaseLedgerEntry) names no case in its context",
-        )
     return create_receive_activity_tree(
         name="ReadLogEntryReceivedBT",
         case_id=None,

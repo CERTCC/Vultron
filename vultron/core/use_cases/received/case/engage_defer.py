@@ -53,8 +53,6 @@ class EngageCaseReceivedUseCase:
         request = self._request
 
         actor_id = request.actor_id
-        # A Join naming no case gets the incomplete-activity tree, whose
-        # guard refuses it (CLP-10-018).
         case_id = request.case_id
 
         # The Join names the case (ADR-0165): the tree's path stage refuses
@@ -119,8 +117,6 @@ class DeferCaseReceivedUseCase:
         request = self._request
 
         actor_id = request.actor_id
-        # An Ignore naming no case gets the incomplete-activity tree, whose
-        # guard refuses it (CLP-10-018).
         case_id = request.case_id
 
         # The Ignore names the case, as the Join does (AKM-03-006).  A

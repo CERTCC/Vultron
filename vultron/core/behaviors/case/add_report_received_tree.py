@@ -24,9 +24,6 @@ replica (CM-30-002, CM-30-005, PCR-03-001, ADR-0115).
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -42,8 +39,8 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 
 def create_add_report_to_case_received_tree(
-    report_id: str | None,
-    case_id: str | None,
+    report_id: str,
+    case_id: str,
     sender_id: str,
     *,
     sender_rule: SenderRule,
@@ -69,25 +66,13 @@ def create_add_report_to_case_received_tree(
     is committed, so a re-delivery ledgers nothing; the handler reports it as
     ``SKIPPED``.
 
-    An ``Add`` missing its report id or case id gets the
-    incomplete-activity tree instead: its guard refuses the activity after
-    the doors admit it and intake records it (CLP-10-018).
-
     Args:
-        report_id: ID of the report being added; ``None`` when the ``Add``
-            names none.
-        case_id: ID of the case receiving the report; ``None`` when the
-            ``Add`` names none.
+        report_id: ID of the report being added.
+        case_id: ID of the case receiving the report.
         sender_id: The activity's sender.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
     """
-    if report_id is None or case_id is None:
-        return create_incomplete_activity_received_tree(
-            "GuardedAttachReportAndCommitBT",
-            "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
-            "missing its report id or case id",
-        )
     return create_receive_activity_tree(
         name="GuardedAttachReportAndCommitBT",
         # The Case Owner asks the CASE_MANAGER alone to attach the report

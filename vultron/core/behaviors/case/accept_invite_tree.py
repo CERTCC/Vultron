@@ -63,9 +63,6 @@ consent resolved). BT-06-001, BT-15-001, BT-17-001.
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     EmitInviteActorToFullCaseNode,
 )
@@ -158,11 +155,10 @@ class _TrySignEmbargoConsentSequence(py_trees.composites.Sequence):
 
 
 def create_accept_invite_actor_to_case_tree(
-    case_id: str | None,
+    case_id: str,
     invitee_id: str,
-    invite_id: str | None,
+    invite_id: str,
     *,
-    embedded_invitee_id: str | None,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Return the BT for handling an inbound ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``.
@@ -212,22 +208,12 @@ def create_accept_invite_actor_to_case_tree(
     stub Invite this store recorded for the case, before anything is written
     (CM-11-017, HP-01-006, ADR-0115).
 
-    An Accept missing its case id, the invitee its embedded Invite names, or
-    that Invite's id gets the incomplete-activity tree instead: its guard
-    refuses the activity after the doors admit it and intake records it
-    (CLP-10-018).
-
     Args:
-        case_id: ID of the VulnerabilityCase the invitee accepted; ``None``
-            when the Accept names none.
+        case_id: ID of the VulnerabilityCase the invitee accepted.
         invitee_id: Actor ID of the actor who accepted the invitation (the
             reply's sender).
         invite_id: ID of the recorded stub Invite being accepted; its roles,
             not the reply's embedded copy, become the participant's.
-            ``None`` or empty when the Accept names none.
-        embedded_invitee_id: The invitee the Accept's embedded Invite names,
-            only checked for presence: the participant is the reply's sender
-            (CM-11-047).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -235,11 +221,6 @@ def create_accept_invite_actor_to_case_tree(
         Configured ``Sequence`` ready for execution via
         :class:`~vultron.core.behaviors.bridge.BTBridge`.
     """
-    if case_id is None or embedded_invitee_id is None or not invite_id:
-        return create_incomplete_activity_received_tree(
-            "AcceptInviteActorToCaseBT",
-            "Accept(Invite) is missing its case id, invitee id or Invite id",
-        )
     return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
         # The invitee accepts to the CASE_MANAGER that invited it, which

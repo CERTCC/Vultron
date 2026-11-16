@@ -2211,8 +2211,8 @@ groups:
       directly in `execute()`. `test/architecture/test_received_use_case_execute.py`
       fails when a received `execute()` that runs a tree returns
       `HandlerResult.refused(...)` itself or through a use-case helper it reaches,
-      with no exemption set, so a missing field is refused by the tree's
-      incomplete-activity guard (CLP-10-018).
+      with no exemption set. A slot a message requires is a required slot of its
+      event subtype, refused when the extractor builds the event (ARCH-10-001).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-005

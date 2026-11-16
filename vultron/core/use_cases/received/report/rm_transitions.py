@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _already_valid_reader(report_id: str | None) -> OutcomeReader:
+def _already_valid_reader(report_id: str) -> OutcomeReader:
     """``SKIPPED`` when the Selector's idempotency exit found it VALID."""
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
@@ -99,8 +99,7 @@ class ValidateReportReceivedUseCase:
         sender_actor_id = request.actor_id
         report_id = request.report_id
         offer_id = request.offer_id
-        # An Accept missing its report id or offer id gets the incomplete-
-        # activity tree, whose guard refuses it (CLP-10-018).
+
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s'",
             sender_actor_id,

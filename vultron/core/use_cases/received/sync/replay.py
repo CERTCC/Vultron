@@ -137,9 +137,8 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         # because the peer holds none, the case it names as its target; the
         # parser admits that form only with a position naming no entry, so
         # it asks for a replay from genesis (SYNC-16-027).
-        # A Reject naming neither gets the incomplete-activity tree, whose
-        # guard refuses it (CLP-10-018).
         case_id = request.rejected_case_id
+
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
             "for case '%s', last_accepted_hash=%.16s…",
@@ -196,9 +195,8 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # A Read naming no case gets the incomplete-activity tree, whose
-        # guard refuses it (CLP-10-018).
         case_id = request.replay_case_id
+
         position = request.ledger_position
         logger.info(
             "sync: received Read(CaseLedgerEntry) '%s' from peer '%s' for"

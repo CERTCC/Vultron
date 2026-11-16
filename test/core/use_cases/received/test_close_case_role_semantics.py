@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock
 
 import py_trees
 import pytest
@@ -1622,6 +1622,7 @@ def _make_announce_event(
     sender_actor_id: str,
     receiver_id: str = VENDOR_ID,
 ) -> AnnounceLogEntryReceivedEvent:
+    from typing import cast
 
     wire_entry = WireCaseLedgerEntry.model_validate(
         with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
@@ -2947,29 +2948,17 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
 
 
 @pytest.mark.spec("HP-01-003")
-@pytest.mark.spec("CLP-10-018")
 def test_close_without_case_id_is_refused():
-    """A Leave with no case id is malformed, so REFUSED (#2255).
-
-    The tree's incomplete-activity guard refuses it (CLP-10-018).
-    """
-    event = _make_close_case_event(OWNER_ID)
-    with patch.object(
-        CloseCaseReceivedEvent,
-        "case_id",
-        new_callable=PropertyMock,
-        return_value=None,
-    ):
-        result = run_in_act(
-            CloseCaseReceivedUseCase(
-                dl=_make_full_dl(),
-                request=event,
-                wire_render_port=As2WireRenderAdapter(),
-            )
+    """A Leave with no case id is malformed, so REFUSED (#2255)."""
+    result = run_in_act(
+        CloseCaseReceivedUseCase(
+            dl=_make_full_dl(),
+            request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
+            wire_render_port=As2WireRenderAdapter(),
         )
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == "Leave(VulnerabilityCase) has no case id"
 
 
 class TestCaseActorRMClosedRecordingFailsClosed:

@@ -29,9 +29,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -53,8 +50,8 @@ logger = logging.getLogger(__name__)
 
 
 def withdraw_from_embargo_on_case_tree(
-    case_id: str | None,
-    embargo_id: str | None,
+    case_id: str,
+    embargo_id: str,
     withdrawing_actor_id: str,
     activity_id: str,
     *,
@@ -89,15 +86,9 @@ def withdraw_from_embargo_on_case_tree(
     CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, then applies them by
     copying (CLP-07-013); it moves no register entry.
 
-    A ``Leave`` missing its embargo id or case id gets the
-    incomplete-activity tree instead: its guard refuses the activity after
-    the doors admit it and intake records it (CLP-10-018).
-
     Args:
-        case_id: ID of the VulnerabilityCase (the Leave's ``context``);
-            ``None`` when the Leave names none.
-        embargo_id: ID of the EmbargoEvent the Leave names; ``None`` when
-            it names none.
+        case_id: ID of the VulnerabilityCase (the Leave's ``context``).
+        embargo_id: ID of the EmbargoEvent the Leave names.
         withdrawing_actor_id: The Leave's ``actor``: the participant
             withdrawing.  Read from the message, never from the receiving
             store (ADR-0022).
@@ -109,11 +100,6 @@ def withdraw_from_embargo_on_case_tree(
     Returns:
         Root node of the ``WithdrawFromEmbargoOnCaseBT`` Sequence.
     """
-    if embargo_id is None or case_id is None:
-        return create_incomplete_activity_received_tree(
-            "WithdrawFromEmbargoOnCaseBT",
-            "Leave(EmbargoEvent) is missing its embargo id or case id",
-        )
     root = create_receive_activity_tree(
         name="WithdrawFromEmbargoOnCaseBT",
         case_id=case_id,

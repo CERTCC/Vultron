@@ -409,26 +409,23 @@ class TestOfferCaseParticipantReceivedUseCase:
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
 
-    @pytest.mark.spec("CLP-10-018")
     def test_skips_when_missing_case_id(self, caplog):
-        """An activity naming no case is refused by the tree's
-        incomplete-activity guard, after the doors and intake (CLP-10-018)."""
         dl, _ = _seed_dl_for_case_owner()
-        event = self._event(at=dl).model_copy(update={"target": None})
-        assert event.target_id is None
+        mock_event = MagicMock()
+        mock_event.activity_id = "https://example.org/activities/bad"
+        mock_event.target_id = None
+        mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
                 OfferCaseParticipantReceivedUseCase(
                     dl,
-                    event,
+                    mock_event,
                     wire_render_port=As2WireRenderAdapter(),
                     sync_port=SyncActivityAdapter(dl),
                 )
             )
-        reason = "Offer(CaseParticipant) names no case"
-        assert any(reason in r.message for r in caplog.records)
+        assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason == reason
 
 
 # ---------------------------------------------------------------------------
@@ -709,28 +706,24 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
 
-    @pytest.mark.spec("CLP-10-018")
     def test_skips_when_missing_case_id(self, caplog):
-        """An activity naming no case is refused by the tree's
-        incomplete-activity guard, after the doors and intake (CLP-10-018)."""
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(at=dl).model_copy(
-            update={"target": None, "inner_target": None}
-        )
-        assert event.target_id is None
+        mock_event = MagicMock()
+        mock_event.activity_id = "https://example.org/activities/bad-accept"
+        mock_event.target_id = None
+        mock_event.inner_target_id = None
+        mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
                 AcceptOfferCaseParticipantReceivedUseCase(
                     dl,
-                    event,
+                    mock_event,
                     wire_render_port=As2WireRenderAdapter(),
                     sync_port=SyncActivityAdapter(dl),
                 )
             )
-        reason = "Accept(Offer(CaseParticipant)) is missing its case id"
-        assert any(reason in r.message for r in caplog.records)
+        assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason == reason
 
     @pytest.mark.spec("CM-16-019")
     @pytest.mark.spec("CLP-10-018")
@@ -1146,26 +1139,23 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
 
-    @pytest.mark.spec("CLP-10-018")
     def test_skips_when_missing_case_id(self, caplog):
-        """An activity naming no case is refused by the tree's
-        incomplete-activity guard, after the doors and intake (CLP-10-018)."""
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(at=dl).model_copy(update={"target": None})
-        assert event.target_id is None
+        mock_event = MagicMock()
+        mock_event.activity_id = "https://example.org/activities/bad-reject"
+        mock_event.target_id = None
+        mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = run_in_act(
                 RejectOfferCaseParticipantReceivedUseCase(
                     dl,
-                    event,
+                    mock_event,
                     wire_render_port=As2WireRenderAdapter(),
                     sync_port=SyncActivityAdapter(dl),
                 )
             )
-        reason = "Reject(Offer(CaseParticipant)) names no case"
-        assert any(reason in r.message for r in caplog.records)
+        assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason == reason
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted on reject; recommender from core state.

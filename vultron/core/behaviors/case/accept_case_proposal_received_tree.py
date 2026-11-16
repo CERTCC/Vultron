@@ -26,9 +26,6 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -117,7 +114,7 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
 
 
 def create_accept_case_proposal_received_tree(
-    report_id: str | None,
+    report_id: str,
     case_actor_id: str,
     *,
     sender_rule: SenderRule,
@@ -128,13 +125,8 @@ def create_accept_case_proposal_received_tree(
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap step can
     validate the sender (CP-06-003, CBT-01-006).
 
-    An Accept that carries no inline report gets the incomplete-activity
-    tree instead: its guard refuses the activity after the doors admit it
-    and intake records it (CLP-10-018).
-
     Args:
-        report_id: URI of the VulnerabilityReport linked to the proposal;
-            ``None`` when the activity carries no inline report.
+        report_id: URI of the VulnerabilityReport linked to the proposal.
         case_actor_id: URI of the case-actor service that accepted the
             proposal (the ``actor`` of the inbound ``Accept`` activity).
         sender_rule: The use case's declared sender rule; the factory
@@ -145,11 +137,6 @@ def create_accept_case_proposal_received_tree(
         A py_trees Sequence behaviour (sender guard, then the record)
         ready for ``BTBridge.execute_with_setup``.
     """
-    if report_id is None:
-        return create_incomplete_activity_received_tree(
-            "AcceptCaseProposalReceivedBT",
-            "Accept(CaseProposal) carries no inline report",
-        )
     return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",
         # The Accept answers a proposal made before any case exists, so the
