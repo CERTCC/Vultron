@@ -22,8 +22,9 @@ site that omits it writes a record with no correlation.
 
 The scan walks ``vultron/`` with ``ast`` and flags a log call (as
 ``test/architecture/_log_calls.py`` recognises one) whose ``extra=`` names a
-correlation field as a key of a dict literal or a keyword of a ``dict(...)``
-call.  An ``extra=`` built elsewhere and passed as a variable is not seen.
+correlation field as a key of a dict literal (beside any ``**spread``) or a
+keyword of a ``dict(...)`` call.  An ``extra=`` built elsewhere and passed as a
+variable, or a key that only a ``**spread`` brings in, is not seen.
 """
 
 import ast
@@ -116,3 +117,17 @@ def test_detector_ignores_other_extra_keys_and_non_log_calls() -> None:
         'build(extra={"actor_id": b})\n'
     )
     assert _violations_in("<inline>", _corpus.parse_inline(source)) == []
+
+
+def test_detector_sees_keys_beside_a_spread_but_not_through_a_variable() -> (
+    None
+):
+    """The documented limits: a ``**spread`` hides only its own keys."""
+    source = (
+        'logger.info("x", extra={**base, "actor_id": b})\n'
+        'logger.info("x", extra={**base})\n'
+        'logger.info("x", extra=fields)\n'
+    )
+    assert _violations_in("<inline>", _corpus.parse_inline(source)) == [
+        "<inline>:1: actor_id",
+    ]

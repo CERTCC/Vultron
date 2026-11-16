@@ -27,8 +27,9 @@ Coverage limits — deliberate, but worth knowing before trusting a green run:
   (``self.logger.info``), or a call to a function in :data:`LOGGER_FACTORIES`
   (``logging.getLogger(__name__).info``, ``node_logger(node).info``).  A logger
   bound to any other name is not matched.
-- :func:`first_argument_text` reads only the *first* argument, so a message
-  pre-built with ``%`` or ``.format()`` and passed as a variable is not matched.
+- :func:`message_text` reads only the message argument (the second one for
+  ``.log(level, msg)``), so a message pre-built with ``%`` or ``.format()`` and
+  passed as a variable is not matched.
 
 Extend these rather than assume a ratchet already covers a new shape.
 """
@@ -93,17 +94,24 @@ def is_logger_info_call(node: ast.Call) -> bool:
     return is_log_call(node, frozenset({"info"}))
 
 
-def first_argument_text(node: ast.Call) -> str:
-    """Return the literal text of *node*'s first argument, or ``""``.
+def message_text(node: ast.Call) -> str:
+    """Return the literal text of *node*'s message argument, or ``""``.
+
+    The message is the first argument, or the second for ``.log(level, msg)``.
 
     Handles plain string literals, implicitly-concatenated literals (which
     ``ast`` folds into one ``Constant``), and f-strings, whose literal
     segments are concatenated so fragments spanning an interpolation are
     still detected.
     """
-    if not node.args:
+    position = (
+        1
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "log"
+        else 0
+    )
+    if len(node.args) <= position:
         return ""
-    first = node.args[0]
+    first = node.args[position]
     if isinstance(first, ast.Constant) and isinstance(first.value, str):
         return first.value
     if isinstance(first, ast.JoinedStr):

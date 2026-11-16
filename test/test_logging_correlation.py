@@ -245,7 +245,7 @@ def test_format_without_ids_matches_the_base_format():
     record = _record()
     assert CorrelationFormatter(DEFAULT_LOG_FORMAT).format(
         record
-    ) == logging.Formatter(DEFAULT_LOG_FORMAT).format(_record())
+    ) == logging.Formatter(DEFAULT_LOG_FORMAT).format(record)
 
 
 def _raise_bad() -> None:

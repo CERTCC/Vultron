@@ -45,26 +45,21 @@ from contextvars import ContextVar, Token
 
 from vultron.primitives import require_non_empty
 
-#: The record attributes this module sets, in the order the formatter prints
-#: them.
-CORRELATION_FIELDS: tuple[str, ...] = ("activity_id", "actor_id")
-
 #: The plain-text line format entry points use: timestamp, level, component
 #: (the logger name, SL-01-003) and message.  :class:`CorrelationFormatter`
 #: appends whichever correlation ids are set after the message.
 DEFAULT_LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
 
-_ACTIVITY_ID: ContextVar[str | None] = ContextVar(
-    "vultron_log_activity_id", default=None
-)
-_ACTOR_ID: ContextVar[str | None] = ContextVar(
-    "vultron_log_actor_id", default=None
-)
-
+#: One context variable per correlation field, keyed by the record attribute
+#: it fills.  The one place the field names are spelled.
 _CONTEXT_VARS: dict[str, ContextVar[str | None]] = {
-    "activity_id": _ACTIVITY_ID,
-    "actor_id": _ACTOR_ID,
+    name: ContextVar(f"vultron_log_{name}", default=None)
+    for name in ("activity_id", "actor_id")
 }
+
+#: The record attributes this module sets, in the order the formatter prints
+#: them.
+CORRELATION_FIELDS: tuple[str, ...] = tuple(_CONTEXT_VARS)
 
 
 def current_correlation() -> dict[str, str]:

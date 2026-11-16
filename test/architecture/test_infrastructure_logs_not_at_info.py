@@ -37,8 +37,8 @@ import ast
 
 from test.architecture import _corpus
 from test.architecture._log_calls import (
-    first_argument_text,
     is_logger_info_call,
+    message_text,
 )
 
 _PACKAGE_ROOT = _corpus.REPO_ROOT / "vultron"
@@ -74,7 +74,7 @@ def _find_violations() -> list[str]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call) or not is_logger_info_call(node):
                 continue
-            message = first_argument_text(node)
+            message = message_text(node)
             for fragment in DEMOTED_FRAGMENTS:
                 if fragment in message:
                     rel = path.relative_to(_corpus.REPO_ROOT)
@@ -103,7 +103,7 @@ def test_detector_recognises_a_violation() -> None:
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
     assert len(calls) == 1
     assert is_logger_info_call(calls[0])
-    assert "DataLayer stored" in first_argument_text(calls[0])
+    assert "DataLayer stored" in message_text(calls[0])
 
 
 def test_detector_recognises_fstring_and_self_logger() -> None:
@@ -112,7 +112,7 @@ def test_detector_recognises_fstring_and_self_logger() -> None:
     tree = _corpus.parse_inline(source)
     call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
     assert is_logger_info_call(call)
-    assert "BT structure" in first_argument_text(call)
+    assert "BT structure" in message_text(call)
 
 
 def test_detector_ignores_debug_calls() -> None:
@@ -140,3 +140,23 @@ def test_detector_recognises_inline_and_factory_loggers() -> None:
     ]
     assert len(calls) == 3
     assert all(is_logger_info_call(call) for call in calls)
+
+
+def test_message_text_reads_the_message_of_a_log_call() -> None:
+    """``.log(level, msg)`` carries its message second, not first."""
+    source = (
+        'logger.log(logging.INFO, "DataLayer stored %s", x)\n'
+        "logger.log(logging.INFO)\n"
+    )
+    tree = _corpus.parse_inline(source)
+    calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "log"
+    ]
+    assert [message_text(call) for call in calls] == [
+        "DataLayer stored %s",
+        "",
+    ]
