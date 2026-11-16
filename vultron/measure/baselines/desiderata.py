@@ -34,6 +34,7 @@ from fractions import Fraction
 from functools import cache
 from typing import NamedTuple
 
+from vultron.core.states.cs import CS
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.baselines.case_state import CASE_STATE_MODEL
 from vultron.measure.baselines.joint import (
@@ -41,11 +42,13 @@ from vultron.measure.baselines.joint import (
     TWO_VENDOR_MODEL,
     Event,
     EventKind,
+    JointState,
 )
 from vultron.measure.baselines.walk import (
+    ChanceValues,
     Ordering,
     OrderingQuery,
-    frequency,
+    WalkPrefix,
     implies,
 )
 
@@ -146,7 +149,8 @@ _ORIGINAL_ORDER: tuple[tuple[CSEvent, CSEvent], ...] = tuple(
 """The twelve original desiderata, most desirable first (``twelve_desiderata.md``)."""
 
 
-_JOINT_TO_CS: dict[Event, CSEvent] = {v: k for k, v in _CS_TO_JOINT.items()}
+JOINT_TO_CS: dict[Event, CSEvent] = {v: k for k, v in _CS_TO_JOINT.items()}
+"""Each of vendor 1's joint-model case-state events, and the case's, as its six-event one."""
 
 
 def _symbol(event: CSEvent) -> str:
@@ -267,20 +271,54 @@ def case_state_query(query: Query) -> OrderingQuery[CSEvent]:
     """
     return OrderingQuery(
         tuple(
-            Ordering(_JOINT_TO_CS[o.before], _JOINT_TO_CS[o.after])
+            Ordering(JOINT_TO_CS[o.before], JOINT_TO_CS[o.after])
             for o in query.orderings
         ),
-        frozenset(_JOINT_TO_CS[e] for e in query.given),
+        frozenset(JOINT_TO_CS[e] for e in query.given),
     )
 
 
 @cache
-def _frequency(model: ModelName, query: Query) -> Fraction:
-    if model is ModelName.CASE_STATE:
-        return frequency(CASE_STATE_MODEL, case_state_query(query))
+def joint_values(
+    model: ModelName, query: Query
+) -> ChanceValues[JointState, Event]:
+    """The solved table of *query* over the joint model *model* names, shared process-wide.
+
+    Raises:
+        ValueError: *model* is the six-event model (:func:`case_state_values`).
+    """
     if model is ModelName.ONE_VENDOR:
-        return frequency(ONE_VENDOR_MODEL, query)
-    return frequency(TWO_VENDOR_MODEL, query)
+        return ChanceValues(ONE_VENDOR_MODEL, query)
+    if model is ModelName.TWO_VENDOR:
+        return ChanceValues(TWO_VENDOR_MODEL, query)
+    raise ValueError(f"{model} is not a joint model")
+
+
+@cache
+def case_state_values(query: Query) -> ChanceValues[CS, CSEvent]:
+    """The solved table of *query*, restated over the six-event model, shared process-wide."""
+    return ChanceValues(CASE_STATE_MODEL, case_state_query(query))
+
+
+def _frequency(model: ModelName, query: Query) -> Fraction:
+    """*query*'s chance frequency in *model*, from the shared solved table.
+
+    Raises:
+        ValueError: no walk on the model meets every given event.
+    """
+    if model is ModelName.CASE_STATE:
+        value = case_state_values(query).at(
+            WalkPrefix(CASE_STATE_MODEL.initial)
+        )
+    else:
+        table = joint_values(model, query)
+        value = table.at(WalkPrefix(table.model.initial))
+    if value is None:
+        raise ValueError(
+            f"no walk on the {model} model meets every given event of"
+            f" {query!r}"
+        )
+    return value
 
 
 def baseline(desideratum: Desideratum) -> Fraction:

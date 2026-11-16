@@ -13,19 +13,27 @@
 
 """The exact indifference walk on small hand-built models (ADR-0182)."""
 
+from collections.abc import Callable
 from fractions import Fraction
 from typing import NamedTuple
 
 import pytest
 
+import vultron.measure.baselines.walk as walk_module
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.baselines.walk import (
+    ChanceValues,
     Ordering,
     OrderingQuery,
     Step,
     WalkNeverEndsError,
+    WalkPrefix,
+    difference,
+    find_step,
     frequency,
     implies,
     ordering,
+    replay,
 )
 
 
@@ -135,3 +143,93 @@ def test_a_state_that_steps_to_itself_is_a_cycle():
     model = _Graph("s", {"s": (("stay", "s", _NONE), ("x", "end", _NONE))})
     assert frequency(model, ordering("stay", "x")) == Fraction(1, 2)
     assert frequency(model, ordering("x", "stay")) == Fraction(1, 2)
+
+
+def test_values_from_the_start_are_the_frequency():
+    for query in (
+        ordering("x", "y"),
+        ordering("y", "x"),
+        ordering("back", "x"),
+    ):
+        values = ChanceValues(_LOOP, query)
+        assert values.at(WalkPrefix("s")) == frequency(_LOOP, query)
+
+
+def test_a_value_from_inside_a_cycle_is_solved_there():
+    # From t: back to s (then 2/3 as from the start) or y, each 1/2.
+    values = ChanceValues(_LOOP, ordering("x", "y"))
+    assert values.at(replay(_LOOP, ["go"])) == Fraction(1, 3)
+
+
+def test_a_value_reads_what_the_history_already_settled():
+    # Both walks stand at "end"; only the order the history took differs.
+    values = ChanceValues(_FORK, ordering("a", "b"))
+    assert values.at(replay(_FORK, ["a", "b"])) == 1
+    assert values.at(replay(_FORK, ["b", "a"])) == 0
+    assert values.at(replay(_FORK, ["a"])) == 1
+
+
+def test_an_ended_walk_has_its_own_outcome_or_none_outside_its_scope():
+    assert (
+        ChanceValues(_LOOP, ordering("x", "y")).at(replay(_LOOP, ["x"])) == 1
+    )
+    scoped = ChanceValues(_LOOP, ordering("x", "y", given=["y"]))
+    assert scoped.at(replay(_LOOP, ["x"])) is None
+    assert scoped.at(replay(_LOOP, ["go", "y"])) == 0
+
+
+def test_a_steps_change_is_the_value_after_minus_the_value_before():
+    values = ChanceValues(_LOOP, ordering("x", "y"))
+    start = WalkPrefix("s")
+    assert values.change(start, "x") == 1 - Fraction(2, 3)
+    assert values.change(start, "go") == Fraction(1, 3) - Fraction(2, 3)
+
+
+def test_a_change_is_none_where_a_value_is_undefined():
+    scoped = ChanceValues(_LOOP, ordering("x", "y", given=["y"]))
+    assert scoped.change(WalkPrefix("s"), "x") is None
+    assert difference(Fraction(1), None) is None
+    assert difference(None, Fraction(1)) is None
+
+
+def test_values_are_kept_between_lookups(monkeypatch):
+    searches: list[object] = []
+    search: Callable[..., list[list[object]]] = walk_module._strongly_connected
+
+    def counting(
+        start: object, successors: Callable[[object], list[object]]
+    ) -> list[list[object]]:
+        searches.append(start)
+        return search(start, successors)
+
+    monkeypatch.setattr(walk_module, "_strongly_connected", counting)
+    values = ChanceValues(_LOOP, ordering("x", "y"))
+    values.at(WalkPrefix("s"))
+    # t is reachable from s, so it was solved with it.
+    assert values.at(replay(_LOOP, ["go"])) == Fraction(1, 3)
+    values.at(WalkPrefix("s"))
+    assert len(searches) == 1
+
+
+def test_a_step_not_allowed_is_refused():
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="not allowed"
+    ):
+        find_step(_FORK, "s", "missing")
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="not allowed"
+    ):
+        ChanceValues(_FORK, ordering("a", "b")).change(WalkPrefix("A"), "a")
+
+
+def test_a_step_named_twice_is_refused_as_ambiguous():
+    model = _Graph("s", {"s": (("a", "t", _NONE), ("a", "u", _NONE))})
+    with pytest.raises(VultronInvalidStateTransitionError, match="ambiguous"):
+        replay(model, ["a"])
+
+
+def test_a_prefix_records_each_steps_events_together():
+    model = _Graph("s", {"s": (("a", "end", frozenset({"b"})),)})
+    prefix = replay(model, ["a"])
+    assert prefix == WalkPrefix("end", (frozenset({"a", "b"}),))
+    assert ChanceValues(model, ordering("a", "b")).at(prefix) == 0
