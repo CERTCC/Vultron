@@ -678,7 +678,8 @@ def test_removed_participant_is_not_invited_to_an_embargo_revision() -> None:
     assert VENDOR in removal.read_case().actor_participant_index
 
     scenario.run(
-        CollectEmbargoInviteRecipientsNode(case_id=CASE_ID, proposer_id=OWNER)
+        CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+        embargo_proposer_id=OWNER,
     )
 
     recipients = cast(

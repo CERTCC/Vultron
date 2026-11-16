@@ -16,15 +16,24 @@
 """Run a received tree once, as the receiver, and read its verdict (ADR-0195).
 
 A received use case builds its one tree (CLP-10-005) and hands it to
-:func:`run_received_tree`.  The runner wires the bridge and the ports, runs
-the tree once as the receiving actor (BT-17-005, BT-17-009), and reads the
-``HandlerResult`` from what the tree's nodes recorded
-(:func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`).
+:func:`run_received_tree`.  The runner resolves the receiving actor, wires
+the bridge and the ports, runs the tree once as that actor (BT-17-005,
+BT-17-009), and reads the ``HandlerResult`` from what the tree's nodes
+recorded (:func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`).
 Nothing in it reads or writes the DataLayer around the run: a verdict that
-needs a fact the tree did not record needs a node, not code here.
+needs a fact the tree did not record needs a node, not code here.  (A
+handler's builder may still read the store to pick its tree until #6476
+moves the last such reads into the trees.)
+
+The runner is the one place a received use case's receiver is resolved, so
+no handler resolves it.  A tree whose shape names the receiver is handed
+over as a :data:`ReceivedTreeBuilder`, which the runner calls with the actor
+it resolved; a reading finds it on
+:attr:`~vultron.core.behaviors.case.received_run.reading.ReceivedOutcome.receiving_actor_id`.
 """
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import py_trees
@@ -51,9 +60,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Builds a received tree whose shape names the receiving actor, from the
+#: actor the runner resolved for the run (BT-17-009).
+type ReceivedTreeBuilder = Callable[[str], py_trees.behaviour.Behaviour]
+
 
 def run_received_tree(
-    tree: py_trees.behaviour.Behaviour,
+    tree: py_trees.behaviour.Behaviour | ReceivedTreeBuilder,
     *,
     dl: CasePersistence,
     request: VultronEvent,
@@ -62,13 +75,15 @@ def run_received_tree(
     sync_port: SyncActivityPort | None = None,
     wire_render_port: WireRenderPort | None = None,
     reader: OutcomeReader | None = None,
-    judges: bool = True,
+    judges: bool | Callable[[], bool] = True,
     **context: Any,
 ) -> HandlerResult:
     """Run *tree* once as the receiver of *request* and return its verdict.
 
     Args:
-        tree: The received tree the use case built.
+        tree: The received tree the use case built, or the builder of one
+            whose shape names the receiving actor, called once with the
+            actor this run resolved.
         dl: The receiving actor's store.
         request: The received event; placed on the blackboard as
             ``/activity``.
@@ -80,7 +95,8 @@ def run_received_tree(
             the doors (see ``read_outcome``).  It receives only the run.
         judges: ``False`` for a tree that only stores or commits what the
             handler accepted; a failure no door, reader or declared repeat
-            answers then raises.
+            answers then raises.  A callable is asked once the tree is
+            built, for a builder that chooses the tree.
         **context: Further blackboard keys for the run.
 
     Raises:
@@ -90,6 +106,8 @@ def run_received_tree(
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
     )
+    if not isinstance(tree, py_trees.behaviour.Behaviour):
+        tree = tree(receiving_actor_id)
     result = BTBridge(
         datalayer=dl,
         trigger_activity=trigger_activity,
@@ -102,7 +120,11 @@ def run_received_tree(
         **context,
     )
     verdict = read_outcome(
-        ReceivedOutcome.of(tree, result, label), reader=reader, judges=judges
+        ReceivedOutcome.of(
+            tree, result, label, receiving_actor_id=receiving_actor_id
+        ),
+        reader=reader,
+        judges=judges if isinstance(judges, bool) else judges(),
     )
     # A REFUSED HandlerResult always carries its reason (validated at
     # construction), so the second test only narrows the type.
@@ -136,4 +158,4 @@ def _log_refusal(
     )
 
 
-__all__ = ["run_received_tree"]
+__all__ = ["ReceivedTreeBuilder", "run_received_tree"]

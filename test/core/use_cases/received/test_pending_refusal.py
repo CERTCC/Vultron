@@ -25,14 +25,20 @@ from datetime import timedelta
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from test.support.act_clock import recorded_clock_reads
-from test.support.act_runner import run_in_act
+from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
 from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.nodes.pending_refusal import (
+    ClosePendingEmbargoAskNode,
+    close_refused_embargo_ask,
+)
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
@@ -43,11 +49,11 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
-from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.use_cases.received._pending_refusal import (
-    close_refused_embargo_ask,
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -136,12 +142,14 @@ def _reject_event(
     proposal: as_Invite,
     case_id: str,
     rejecting_actor_id: str,
+    *,
+    to: str = _PROPOSER,
 ) -> RejectInviteToEmbargoOnCaseReceivedEvent:
     reject = em_reject_embargo_activity(
         proposal=proposal,
         context=case_id,
         actor=rejecting_actor_id,
-        to=[_PROPOSER],
+        to=[to],
         at=authored_at(),
     )
     return cast(
@@ -157,9 +165,11 @@ def _receive_reject(
     proposal: as_Invite,
     case_id: str,
     rejecting_actor_id: str,
-) -> None:
-    event = _reject_event(dl, proposal, case_id, rejecting_actor_id)
-    run_in_act(
+    *,
+    to: str = _PROPOSER,
+) -> HandlerResult:
+    event = _reject_event(dl, proposal, case_id, rejecting_actor_id, to=to)
+    return run_in_act(
         RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         )
@@ -189,6 +199,47 @@ def test_case_managers_reject_closes_the_pending_proposal() -> None:
     assert not _pending(case.id_, proposal.id_)
 
 
+@pytest.mark.spec("EP-09-019")
+@pytest.mark.spec("HP-01-005")
+def test_a_reject_the_doors_refuse_leaves_the_proposal_pending() -> None:
+    """The close runs past the doors: a copy of the manager's Reject not
+    addressed to this receiver is refused there and closes nothing."""
+    dl, case, proposal = _proposer_with_pending_proposal()
+
+    verdict = _receive_reject(dl, proposal, case.id_, _MANAGER, to=_OTHER)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert _pending(case.id_, proposal.id_)
+
+
+@pytest.mark.spec("EP-09-019")
+@pytest.mark.parametrize(
+    ("rejecting_actor_id", "says"),
+    [
+        (_MANAGER, "closed the pending ask"),
+        (_OTHER, "is not the CASE_MANAGER"),
+    ],
+    ids=["manager", "participant"],
+)
+def test_the_close_node_succeeds_either_way_and_says_which(
+    rejecting_actor_id: str, says: str
+) -> None:
+    """The node decides nothing: it succeeds whoever sent the Reject, and its
+    message says whether it closed the ask."""
+    dl, case, proposal = _proposer_with_pending_proposal()
+    node = ClosePendingEmbargoAskNode(
+        case_id=case.id_,
+        invite_id=proposal.id_,
+        rejecting_actor_id=rejecting_actor_id,
+    )
+
+    result = run_tree(BTBridge(datalayer=dl), tree=node, actor_id=_PROPOSER)
+
+    assert result.status is Status.SUCCESS
+    assert says in node.feedback_message
+    assert _pending(case.id_, proposal.id_) is (rejecting_actor_id != _MANAGER)
+
+
 @pytest.mark.spec("EP-09-017")
 @pytest.mark.spec("ARCH-24-008")
 def test_participants_reject_leaves_the_proposal_pending() -> None:
@@ -204,7 +255,10 @@ def test_participants_reject_leaves_the_proposal_pending() -> None:
 
     close_refused_embargo_ask(
         dl,
-        _reject_event(dl, proposal, case.id_, _OTHER),
+        receiving_actor_id=_PROPOSER,
+        case_id=case.id_,
+        invite_id=proposal.id_,
+        rejecting_actor_id=_OTHER,
         at=now_utc(),
     )
 
@@ -238,7 +292,10 @@ def test_a_reject_closes_the_ask_only_from_the_resolved_manager(
 
     close_refused_embargo_ask(
         dl,
-        _reject_event(dl, proposal, case.id_, rejecting_actor_id),
+        receiving_actor_id=_PROPOSER,
+        case_id=case.id_,
+        invite_id=proposal.id_,
+        rejecting_actor_id=rejecting_actor_id,
         at=now_utc(),
     )
 

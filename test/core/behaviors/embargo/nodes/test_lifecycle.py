@@ -15,7 +15,7 @@
 
 """Unit tests for embargo lifecycle and state-machine nodes (lifecycle.py)."""
 
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -36,7 +36,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.em_state import (
     ValidateEmbargoRevisionStateNode,
@@ -686,13 +686,17 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         return dl, case, revision.id_
 
     def _run(
-        self, dl: SqliteDataLayer, node: ProposeEmbargoLifecycleNode
-    ) -> py_trees.common.Status:
+        self,
+        dl: SqliteDataLayer,
+        node: ProposeEmbargoLifecycleNode,
+        **context: Any,
+    ) -> BTExecutionResult:
         return run_tree(
             BTBridge(datalayer=dl, sync_port=SyncActivityAdapter(dl)),
             tree=node,
             actor_id=CASE_MANAGER_ACTOR,
-        ).status
+            **context,
+        )
 
     def _accepted(self, dl: SqliteDataLayer, case_id: str, actor: str):
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -714,12 +718,10 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         status = self._run(
             dl,
             ProposeEmbargoLifecycleNode(
-                case_id=case.id_,
-                embargo_id=revision_id,
-                result_out=result_out,
-                proposer_id=self.PROPOSER,
+                case_id=case.id_, embargo_id=revision_id, result_out=result_out
             ),
-        )
+            embargo_proposer_id=self.PROPOSER,
+        ).status
         assert status is py_trees.common.Status.SUCCESS
         assert result_out["em_after"] is EM.REVISE
         assert revision_id in self._accepted(dl, case.id_, self.PROPOSER)
@@ -727,16 +729,35 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
             dl, case.id_, CASE_MANAGER_ACTOR
         )
 
-    def test_without_a_proposer_the_executing_actor_proposes(self):
+    def test_the_executing_actor_proposes_when_it_publishes_itself(self):
+        """The trigger side: the manager proposes its own terms."""
         dl, case, revision_id = self._case()
         status = self._run(
             dl,
             ProposeEmbargoLifecycleNode(
                 case_id=case.id_, embargo_id=revision_id, result_out={}
             ),
-        )
+            embargo_proposer_id=CASE_MANAGER_ACTOR,
+        ).status
         assert status is py_trees.common.Status.SUCCESS
         assert revision_id in self._accepted(dl, case.id_, CASE_MANAGER_ACTOR)
+
+    @pytest.mark.spec("CM-24-002")
+    def test_a_run_that_published_no_proposer_is_a_wiring_fault(self):
+        """No node published the proposer: an internal error, nothing
+        recorded, never the executing actor guessed in its place."""
+        dl, case, revision_id = self._case()
+        result = self._run(
+            dl,
+            ProposeEmbargoLifecycleNode(
+                case_id=case.id_, embargo_id=revision_id, result_out={}
+            ),
+        )
+        assert result.status is py_trees.common.Status.FAILURE
+        assert result.internal_error
+        assert revision_id not in self._accepted(
+            dl, case.id_, CASE_MANAGER_ACTOR
+        )
 
 
 class TestLifecycleNodeInternalFaults:
@@ -772,6 +793,7 @@ class TestLifecycleNodeInternalFaults:
             BTBridge(datalayer=dl, sync_port=SyncActivityAdapter(dl)),
             tree=node,
             actor_id=CASE_MANAGER_ACTOR,
+            embargo_proposer_id=CASE_MANAGER_ACTOR,
         )
 
         assert result.status is py_trees.common.Status.FAILURE

@@ -18,6 +18,7 @@ Tree tests: they read outcomes through ``core/behaviors`` alone, never
 through ``use_cases`` (#5774).
 """
 
+import functools
 import logging
 
 import py_trees
@@ -196,7 +197,7 @@ def _read(
     if result is None:
         result = _SUCCEEDED if tree.status == Status.SUCCESS else _FAILED
     return read_outcome(
-        ReceivedOutcome.of(tree, result, _LABEL),
+        ReceivedOutcome.of(tree, result, _LABEL, receiving_actor_id=_RECEIVER),
         **kwargs,  # type: ignore[arg-type]
     )
 
@@ -749,7 +750,9 @@ def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
 
 
 def _closed(tree: py_trees.behaviour.Behaviour, label: str) -> ReceivedOutcome:
-    return ReceivedOutcome.of(tree, _FAILED, label)
+    return ReceivedOutcome.of(
+        tree, _FAILED, label, receiving_actor_id=_RECEIVER
+    )
 
 
 @pytest.mark.spec("CM-23-018", "ID-05-003")
@@ -804,7 +807,10 @@ def test_a_crash_at_the_closed_sender_door_raises(closes: bool):
     with pytest.raises(VultronBTInternalError, match="owner check exploded"):
         read_outcome(
             ReceivedOutcome.of(
-                _closed_door_tree(sender_closed=True), crashed, "Leave"
+                _closed_door_tree(sender_closed=True),
+                crashed,
+                "Leave",
+                receiving_actor_id=_RECEIVER,
             ),
             reader=closed_sender_reader(closes=closes),
         )
@@ -1054,3 +1060,83 @@ def test_the_runner_hands_its_reader_only_the_finished_run():
     assert outcome.tree is tree
     assert outcome.label == "ProbeBT"
     assert outcome.succeeded
+    assert outcome.receiving_actor_id == _RECEIVER
+
+
+@pytest.mark.spec("BT-17-009")
+@pytest.mark.parametrize(
+    "stamp", [_RECEIVER, None], ids=["stamped", "store-owner"]
+)
+def test_the_runner_builds_a_receiver_named_tree_for_the_actor_it_resolved(
+    stamp: str | None,
+):
+    """A builder is called once, with the actor the run executes as, so no
+    handler resolves the receiver itself."""
+    probe = _Records()
+    built_for: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built_for.append(receiving_actor_id)
+        return _probe_tree(probe)
+
+    verdict = run_received_tree(
+        build,
+        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+        request=_event(stamp),
+        label="ProbeBT",
+    )
+    assert verdict == HandlerResult.applied()
+    assert built_for == [_RECEIVER]
+    assert probe.ticks == 1
+    assert probe.seen["actor_id"] == _RECEIVER
+
+
+@pytest.mark.parametrize(
+    ("judges", "raises"), [(True, False), (False, True)], ids=["judges", "not"]
+)
+def test_the_runner_asks_a_lazy_judges_once_the_tree_is_built(
+    judges: bool, raises: bool
+):
+    """A builder that chooses its tree says whether it judges once built:
+    a failure of a tree that judges nothing raises, never refuses."""
+    built: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built.append(receiving_actor_id)
+        return _probe_tree(_Records(Status.FAILURE))
+
+    def judges_of_built() -> bool:
+        assert built, "asked before the tree was built"
+        return judges
+
+    run = functools.partial(
+        run_received_tree,
+        build,
+        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+        request=_event(_RECEIVER),
+        label="ProbeBT",
+        judges=judges_of_built,
+    )
+    if raises:
+        with pytest.raises(VultronBTInternalError):
+            run()
+    else:
+        assert run() == HandlerResult.refused("ProbeBT: the probe refused")
+
+
+@pytest.mark.spec("BT-17-009")
+def test_the_runner_raises_before_building_when_no_receiver_resolves():
+    built: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built.append(receiving_actor_id)
+        return _probe_tree(_Records())
+
+    with pytest.raises(VultronValidationError):
+        run_received_tree(
+            build,
+            dl=_NoOwnerStore(),  # type: ignore[arg-type]
+            request=_event(None),
+            label="ProbeBT",
+        )
+    assert built == []
