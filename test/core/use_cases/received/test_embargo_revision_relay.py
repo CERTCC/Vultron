@@ -1396,7 +1396,10 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
 
     caplog.set_level("WARNING")
     assert _proposer_of(event, dl) == MANAGER
-    assert any("holds no case" in r.message for r in caplog.records)
+    assert any(
+        "only the case's CASE_MANAGER relays" in r.message
+        for r in caplog.records
+    )
 
 
 @pytest.mark.spec("OID-01-006")
