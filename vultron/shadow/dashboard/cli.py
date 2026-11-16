@@ -17,9 +17,12 @@
 
 Runs :mod:`~vultron.shadow.dashboard.app` under ``streamlit run`` with the
 settings the tool needs whatever the host's Streamlit configuration says:
-headless, no file watcher, and no usage statistics, because Streamlit's
+headless, no file watcher, no usage statistics and no welcome message.  The
 usage statistics are a request to a host that is neither the configured
-outside system nor a Vultron node (SHD-01-001).
+outside system nor a Vultron node (SHD-01-001), and so is the welcome
+message: a headless start prints an "External URL" it looks up at
+``checkip.amazonaws.com``.  The browser address is pinned to loopback, the
+only address the page is published on.
 
 The page listens on ``127.0.0.1`` unless told otherwise.  The Compose
 service listens on every interface inside its container and publishes the
@@ -52,6 +55,10 @@ def streamlit_args(address: str, port: int) -> list[str]:
         "none",
         "--browser.gatherUsageStats",
         "false",
+        "--browser.serverAddress",
+        "127.0.0.1",
+        "--logger.hideWelcomeMessage",
+        "true",
         "--global.developmentMode",
         "false",
     ]

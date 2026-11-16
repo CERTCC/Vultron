@@ -16,7 +16,7 @@ from collections.abc import Iterator
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from vultron.config import config_override
+from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
@@ -244,6 +244,21 @@ def test_a_connector_that_is_not_installed_stops_the_page_with_why():
     assert not at.exception
     (error,) = _texts(at.error)
     assert "'no-such-connector'" in error
+    assert not at.selectbox and not at.text_input
+
+
+def test_a_setting_that_does_not_load_stops_the_page_with_why(monkeypatch):
+    """A blank connector fails the config load itself, inside the page."""
+    monkeypatch.setenv("VULTRON_SHADOW__CONNECTOR", "")
+    clear_config_cache()
+    try:
+        at = AppTest.from_file(str(APP_PATH), default_timeout=_TIMEOUT).run()
+    finally:
+        monkeypatch.delenv("VULTRON_SHADOW__CONNECTOR")
+        clear_config_cache()
+    assert not at.exception
+    (error,) = _texts(at.error)
+    assert "shadow.connector" in error
     assert not at.selectbox and not at.text_input
 
 

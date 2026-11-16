@@ -133,6 +133,20 @@ def test_desiderata_rows_give_each_scored_vendor_its_own_column():
     assert rows[0]["Vendor"] in view.DESIDERATUM_BADGES.values()
 
 
+def test_vendors_that_share_a_label_keep_their_own_columns():
+    analysis = _analysis()
+    assert analysis.standing is not None
+    vendors = [p for p in analysis.standing.participants if p.desiderata]
+    same = {p.participant: "Events" for p in vendors}
+    rows = view.desiderata_rows(analysis.standing.participants, same)
+    assert set(rows[0]) == {
+        "Desideratum",
+        "Events",
+        *(f"Events ({p.participant})" for p in vendors),
+    }
+    assert rows[0]["Events"] == view.desideratum_code(vendors[0].desiderata[0])
+
+
 def test_no_scored_vendor_gives_no_desiderata_rows():
     assert view.desiderata_rows([], {}) == []
 

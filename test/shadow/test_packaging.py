@@ -21,6 +21,8 @@ from typing import Any
 import pytest
 import yaml
 from click.testing import CliRunner
+from streamlit import config as st_config, net_util
+from streamlit.web import bootstrap
 
 from test.support.child_env import child_env
 from vultron.config.vince import VINCE_API_TOKEN_ENV_VAR
@@ -120,8 +122,39 @@ def test_the_launcher_turns_streamlit_usage_statistics_off():
         "--server.headless": "true",
         "--server.fileWatcherType": "none",
         "--browser.gatherUsageStats": "false",
+        "--browser.serverAddress": "127.0.0.1",
+        "--logger.hideWelcomeMessage": "true",
         "--global.developmentMode": "false",
     }
+
+
+@pytest.mark.spec("SHD-01-001")
+def test_a_start_on_every_interface_looks_up_no_address(monkeypatch):
+    """A headless start's welcome message looks up the host's external IP
+    at checkip.amazonaws.com; the launcher's settings skip it."""
+    args = streamlit_args(_IN_CONTAINER, DEFAULT_PORT)
+    settings = dict(zip(args[2::2], args[3::2], strict=True))
+    lookups: list[str] = []
+    monkeypatch.setattr(
+        net_util, "get_external_ip", lambda: lookups.append("external")
+    )
+    monkeypatch.setattr(
+        net_util, "get_internal_ip", lambda: lookups.append("internal")
+    )
+    saved = {
+        key: st_config.get_option(key.removeprefix("--")) for key in settings
+    }
+    try:
+        for key, value in settings.items():
+            st_config.set_option(
+                key.removeprefix("--"),
+                {"true": True, "false": False}.get(value, value),
+            )
+        bootstrap._print_url(is_running_hello=False)
+    finally:
+        for key, value in saved.items():
+            st_config.set_option(key.removeprefix("--"), value)
+    assert lookups == []
 
 
 def _imports(path: Path) -> set[str]:

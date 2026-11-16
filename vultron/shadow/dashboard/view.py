@@ -163,6 +163,27 @@ def participant_rows(
     return rows
 
 
+def _vendor_columns(
+    scored: Sequence[ParticipantStanding], names: Mapping[str, str]
+) -> list[str]:
+    """One column name per scored vendor, never one another's or a fixed one.
+
+    A vendor's short label names its column.  A label two vendors share, or
+    that a fixed column already uses, takes the vendor's actor id as well,
+    so no vendor's column overwrites another's.
+    """
+    labels = [friendly_actor_name(p.participant, names) for p in scored]
+    taken = Counter(labels) + Counter(_DESIDERATA_COLUMNS)
+    return [
+        label if taken[label] == 1 else f"{label} ({p.participant})"
+        for label, p in zip(labels, scored, strict=True)
+    ]
+
+
+#: The desiderata table's own columns, before one column per vendor.
+_DESIDERATA_COLUMNS = ("Desideratum", "Events")
+
+
 def desiderata_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
@@ -170,16 +191,21 @@ def desiderata_rows(
     scored = [p for p in participants if p.desiderata]
     if not scored:
         return []
+    columns = _vendor_columns(scored, names)
     rows: list[Row] = []
     for position, desideratum in enumerate(scored[0].desiderata):
-        row: Row = {
-            "Desideratum": desideratum_label(desideratum),
-            "Events": desideratum_code(desideratum),
-        }
-        for p in scored:
-            row[friendly_actor_name(p.participant, names)] = (
-                DESIDERATUM_BADGES[p.desiderata[position].status]
+        row: Row = dict(
+            zip(
+                _DESIDERATA_COLUMNS,
+                (
+                    desideratum_label(desideratum),
+                    desideratum_code(desideratum),
+                ),
+                strict=True,
             )
+        )
+        for column, p in zip(columns, scored, strict=True):
+            row[column] = DESIDERATUM_BADGES[p.desiderata[position].status]
         rows.append(row)
     return rows
 

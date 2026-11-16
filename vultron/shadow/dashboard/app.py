@@ -28,6 +28,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
+from pydantic import ValidationError
 
 from vultron.config import get_config
 from vultron.config.shadow import ShadowConfig
@@ -61,10 +62,13 @@ def _reader(config: ShadowConfig) -> CaseReader:
 def main() -> None:
     """Draw the case shadow tool's page."""
     st.set_page_config(page_title=TITLE, page_icon="🔍", layout="wide")
-    config = get_config().shadow
     try:
+        config = get_config().shadow
         reader = _reader(config)
-    except VultronConfigError as exc:
+    except (VultronConfigError, ValidationError) as exc:
+        # A setting the run cannot use, such as a blank
+        # VULTRON_SHADOW__CONNECTOR, stops the page with its reason.  The
+        # configuration hides input values in its errors (VSD-01-005).
         st.title(TITLE)
         st.error(str(exc))
         return
