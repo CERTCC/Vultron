@@ -49,7 +49,7 @@ names a case by exactly its ``id`` and ``type`` (ADR-0205).
 from collections.abc import Mapping
 from datetime import datetime
 from types import MappingProxyType
-from typing import Any, TypeIs
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -244,12 +244,26 @@ class as_TypedReference(as_Object):
 
     @model_validator(mode="after")
     def _preview_names_this_case(self) -> as_TypedReference:
-        """Refuse a case preview that names another case (MV-10-012).
+        """Refuse a preview its type does not define, or one naming another
+        case (MV-10-012).
 
-        A stub names its case in ``caseId`` (CM-11-013), so a preview whose
-        ``caseId`` is not the reference's ``id`` previews a different case.
+        The parser refuses an undefined preview before this runs, but a
+        stored row is read without the parser, so the class holds the rule
+        itself.  A stub names its case in ``caseId`` (CM-11-013), so a
+        preview whose ``caseId`` is not the reference's ``id`` previews a
+        different case.
         """
-        if self.preview is not None and self.preview.case_id != self.id_:
+        if self.preview is None:
+            return self
+        type_name = resolved_wire_type_name(self.type_, include_core=True)
+        defined = DEFINED_PREVIEWS.get(type_name or "")
+        if defined is None or type(self.preview) is not defined:
+            # Pydantic reports a ValueError raised here as a validation error.
+            raise ValueError(
+                f"a {self.type_} reference's preview is not that type's"
+                " defined preview (MV-10-012, ADR-0205)"
+            )
+        if self.preview.case_id != self.id_:
             # Pydantic reports a ValueError raised here as a validation error.
             raise ValueError(
                 f"the preview of case reference {self.id_!r} names case"
@@ -259,7 +273,7 @@ class as_TypedReference(as_Object):
         return self
 
 
-def is_previewed_reference(value: object) -> TypeIs[as_TypedReference]:
+def is_previewed_reference(value: object) -> TypeGuard[as_TypedReference]:
     """Whether *value* is a typed reference that carries a preview.
 
     A receiver reads such a reference as received (MV-10-011, ADR-0205).

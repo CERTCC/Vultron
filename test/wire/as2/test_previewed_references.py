@@ -459,3 +459,17 @@ def test_a_malformed_stored_preview_fails_its_read() -> None:
 
     with pytest.raises(ValidationError):
         record_to_object(record)
+
+
+@pytest.mark.spec("MV-10-012")
+def test_a_stored_preview_on_a_type_without_one_fails_its_read() -> None:
+    """The stored read skips the parse edge, so the reference class refuses
+    a preview its type does not define on its own."""
+    activity = parse_activity(
+        _invite(_previewed("https://example.org/cases/c1"))
+    )
+    record = object_to_record(activity)
+    record.data_["object_"]["type"] = "Note"
+
+    with pytest.raises(ValidationError, match="MV-10-012"):
+        record_to_object(record)

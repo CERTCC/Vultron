@@ -168,7 +168,8 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
   the stored row, and `bare_object_id()` names nothing for it, so no fetch
   (MV-10-013). It matches only a pattern with
   `object_form=ObjectForm.PREVIEWED_REFERENCE`; a pattern with no form never
-  matches it, and `WHOLE_OBJECT` refuses every reference form (SE-01-009).
+  matches it, and `WHOLE_OBJECT` refuses every reference form, an actor or
+  collection given only its identity included (SE-01-009).
 
 ## Accepting an Embargo Accepts the Invite
 
