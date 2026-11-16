@@ -116,14 +116,29 @@ def _rehydrate_nested_object_field(
         )
         if isinstance(obj_with_object.object_, as_TypedReference):
             # A typed reference is never read as the object (MV-10-011):
-            # one the receiver does not hold goes on as its bare id, so the
-            # inbox fetches the object before any handler reads it, and a
-            # failed fetch is refused by the path that needs the object
-            # (AKM-05-007, AKM-05-010, AKM-05-015).
+            # one the receiver does not hold, or holds as another type, goes
+            # on as its bare id.  No pattern matches that, so an object the
+            # receiver lacks is fetched before any handler reads it, and a
+            # failed fetch, or a held object of another type, is refused by
+            # the path that needs the object (AKM-05-007, AKM-05-015).
             object.__setattr__(
                 obj_with_object, "object_", obj_with_object.object_.id_
             )
         return None
+
+
+def _is_of_named_type(held: object, reference: as_TypedReference) -> bool:
+    """Whether *held* is an object of the type *reference* names.
+
+    The store returns core classes (ADR-0034) where the reference resolves a
+    wire class (``VultronNote`` for ``as_Note``), so the held object's own
+    ``type`` is compared first; the class check admits a subtype, such as an
+    ``EmbargoEvent`` for an ``Event`` reference.
+    """
+    if getattr(held, "type_", None) == reference.type_:
+        return True
+    kind = referenced_class(reference)
+    return kind is not None and isinstance(held, kind)
 
 
 def _resolve_typed_reference(
@@ -140,8 +155,7 @@ def _resolve_typed_reference(
             another type.
     """
     held = _resolve_string_id(reference.id_, dl)
-    kind = referenced_class(reference)
-    if kind is None or not isinstance(held, kind):
+    if not _is_of_named_type(held, reference):
         logger.warning(
             "Typed reference '%s' names a %s, but the object held under that"
             " id is a %s; not reading it as the object (MV-10-011).",
@@ -149,7 +163,7 @@ def _resolve_typed_reference(
             reference.type_,
             type(held).__name__,
         )
-        raise ValueError(  # a lookup outcome, not a type fault
+        raise ValueError(
             f"Object '{reference.id_}' is held as a {type(held).__name__},"
             f" not the {reference.type_} its reference names"
         )

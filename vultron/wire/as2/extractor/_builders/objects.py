@@ -27,6 +27,7 @@ from vultron.wire.as2.extractor._builders.fields import (
     _get_id_list,
     _get_timestamp,
 )
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
 logger = logging.getLogger(__name__)
@@ -277,7 +278,7 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
     ``Invite(EmbargoEvent)``'s object is.  A bare reference is *not* a
     proposal: the sender inlines what it introduces (ADR-0107), and a
     receiver that fetched terms nobody sent would be inventing them — so a
-    string is logged and read as absent (receive side, Postel's maxim).
+    string, or a typed reference, is logged and read as absent (receive side, Postel's maxim).
     """
     raw = getattr(carrier, "proposed_embargo", None)
     if raw is None:
@@ -287,6 +288,9 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
         return None
     if isinstance(raw, EmbargoEvent):
         return raw
+    if isinstance(raw, as_TypedReference):
+        # A typed reference claims no terms (MV-10-011): read as its id.
+        raw = raw.id_
     if isinstance(raw, str):
         logger.warning(
             "extract_intent: activity '%s' names its proposed embargo by"

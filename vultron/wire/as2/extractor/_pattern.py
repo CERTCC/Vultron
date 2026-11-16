@@ -37,8 +37,9 @@ class ActivityPattern(BaseModel):
     (SE-01-006).  ``find_matching_semantics()`` then returns
     ``UNKNOWN_UNRESOLVABLE_OBJECT``, which the inbox answers by fetching the
     object (AKM-05-007).  A typed reference, by contrast, carries its type,
-    and satisfies a type constraint as the whole object would (MV-10-011).  ``accepts_bare_object`` opts a pattern out of
-    that rule; only a pattern a field other than the object's type tells
+    and satisfies a type constraint as the whole object would (MV-10-011).
+    ``accepts_bare_object`` opts a pattern out of the bare-URI rule; only a
+    pattern a field other than the object's type tells
     apart from every other pattern of its verb may set it, as
     ``LedgerPositionReadPattern`` does with ``ledgerPosition``.
 

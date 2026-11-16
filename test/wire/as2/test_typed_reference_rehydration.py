@@ -27,6 +27,7 @@ from test.support.case_manager import (
     CASE_MANAGER_ID,
     make_case_with_case_manager,
 )
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import (
@@ -34,6 +35,7 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.core.models.case_participant.participant import CaseParticipant
+from vultron.core.models.note import VultronNote
 from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
@@ -179,3 +181,27 @@ def test_a_stored_reference_reads_back_as_a_reference(
     assert isinstance(inner, as_TransitiveActivity)
     assert isinstance(inner.object_, as_TypedReference)
     assert inner.object_.id_ == reference["id"]
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_to_a_held_note_is_replaced_by_it(
+    held: tuple[SqliteDataLayer, str, CaseParticipant],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The store holds the core note while the reference resolves the wire
+    class, so the held object's own ``type`` decides (no spurious refusal)."""
+    dl, case_id, _ = held
+    note = make(VultronNote, content="the vendor confirmed", context=case_id)
+    dl.create(note)
+    activity = parse_activity(
+        _remove(case_id, {"id": note.id_, "type": "Note"})
+    )
+
+    with caplog.at_level(logging.WARNING):
+        rehydrated = rehydrate(activity, dl=dl)
+
+    assert isinstance(rehydrated, as_TransitiveActivity)
+    # Read as a bare id's held note is: cast to the wire note, content kept.
+    assert not isinstance(rehydrated.object_, as_TypedReference)
+    assert getattr(rehydrated.object_, "content", None) == note.content
+    assert not [r for r in caplog.records if "MV-10-011" in r.getMessage()]

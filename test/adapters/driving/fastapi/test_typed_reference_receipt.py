@@ -182,3 +182,34 @@ def test_a_reference_whose_fetch_fails_goes_on_as_its_bare_id(type_: str):
     assert getattr(event, "unresolved_object_id", None) == missing
     assert _fetches(dl) == []
     assert not _held(dl, payload["id"])
+
+
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.spec("SYNC-02-005")
+def test_a_ledger_entry_announced_by_reference_carries_no_entry():
+    """An ``Announce`` of a ledger entry by reference is not read as the
+    inline entry replication carries: it goes on as a bare id, and nothing is
+    fetched for it (AKM-05-007)."""
+    dl, case = _replica()
+    entry_id = f"{case.id_}/log/7"
+    payload = signed_body(
+        {
+            "type": "Announce",
+            "id": "https://example.org/activities/announce-ref-1",
+            "published": _PUBLISHED,
+            "actor": CASE_MANAGER_ID,
+            "object": {"id": entry_id, "type": "CaseLedgerEntry"},
+            "context": case.id_,
+            "to": [_REPLICA],
+            "ledgerPosition": _POSITION,
+        }
+    )
+    fetcher = _FakeFetcher({})
+    dispatcher, seen = _recording_dispatcher()
+
+    _run(dl, _REPLICA, payload, fetcher, dispatcher)
+
+    (event,) = seen
+    assert event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    assert getattr(event, "unresolved_object_id", None) == entry_id
+    assert fetcher.asked == []

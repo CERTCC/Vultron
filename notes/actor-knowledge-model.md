@@ -15,6 +15,7 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/message-validation.yaml
 relevant_packages:
+  - vultron/wire/as2
   - vultron/wire/as2/factories
   - vultron/core/behaviors
   - vultron/core/use_cases

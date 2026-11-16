@@ -26,6 +26,7 @@ tests still waiting on an implementation Task are strict xfails; each reason
 names its Task, so the known-gaps page links it.
 """
 
+import logging
 from typing import Any
 
 import pytest
@@ -37,6 +38,7 @@ from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
 )
+from vultron.wire.as2.extractor._builders import proposed_embargo_from
 from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference
@@ -405,3 +407,49 @@ def test_a_case_reference_is_still_the_case_reference() -> None:
     parsed = parse_activity(_body(reference, "Join"))
 
     assert isinstance(_object_of(parsed), as_VulnerabilityCaseReference)
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_in_a_slot_needing_the_whole_object_says_so() -> None:
+    """A slot that admits only a whole object refuses a reference, and the
+    refusal names the slot and why."""
+    proposal = {
+        "id": "https://example.org/proposals/1",
+        "type": "CaseProposal",
+        "published": PUBLISHED,
+        "attributedTo": ACTOR,
+        "inReplyTo": {"id": "https://example.org/offers/1", "type": "Offer"},
+    }
+
+    with pytest.raises(VultronParseError, match="MV-10-011") as raised:
+        parse_activity(_body(proposal, "Create"))
+
+    assert "'object.inReplyTo'" in str(raised.value)
+
+
+@pytest.mark.spec("EP-04-004")
+@pytest.mark.spec("MV-10-011")
+def test_a_proposed_embargo_by_reference_is_no_proposal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reference claims no terms, so it is read as a bare id would be:
+    logged, and no proposal."""
+    carrier = parse_activity(
+        _body(
+            {
+                "id": "https://example.org/reports/1",
+                "type": "VulnerabilityReport",
+            },
+            "Offer",
+            proposedEmbargo={
+                "id": "https://example.org/embargoes/1",
+                "type": "EmbargoEvent",
+            },
+        )
+    )
+
+    with caplog.at_level(logging.WARNING):
+        found = proposed_embargo_from(carrier, activity_id="a-1")
+
+    assert found is None
+    assert any("by reference" in r.getMessage() for r in caplog.records)
