@@ -32,6 +32,7 @@ from test.measure.history.builders import (
     embargo,
     participant,
     publish,
+    seat_unnotified_vendor,
     seat_vendor,
     status,
 )
@@ -449,21 +450,12 @@ def test_a_change_the_case_cannot_hold_is_refused(change, message):
         case_advice(record.model_copy(update={"moves": [broken]}))
 
 
-def _seat_unnotified(ledger: Ledger, actor: str) -> None:
-    """Seat *actor* as a Vendor still at RM Start: not yet notified."""
-    ledger.seat(
-        participant(
-            actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
-        )
-    )
-
-
 @pytest.mark.spec("SHD-03-001")
 def test_a_vendor_not_yet_notified_is_a_scope_and_its_notice_helps():
     """A notice raises only the notified vendor's end part, so it is never
     unhelpful (ADR-0200, P1 of #6450)."""
     ledger = _one_vendor()
-    _seat_unnotified(ledger, VENDOR_2)
+    seat_unnotified_vendor(ledger, VENDOR_2)
     advice = case_advice(case_standing(ledger.case_ledger()))
     assert advice.vendors == (VENDOR, VENDOR_2)
     for move in advice.moves:

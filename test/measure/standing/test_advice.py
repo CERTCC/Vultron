@@ -31,6 +31,7 @@ from test.measure.history.builders import (
     embargo,
     participant,
     publish,
+    seat_unnotified_vendor,
     seat_vendor,
     status,
 )
@@ -384,19 +385,10 @@ def test_a_scored_move_holds_a_number_or_a_reason():
     assert ScoredMove(move=advice).advice
 
 
-def _seat_unnotified(ledger: Ledger, actor: str) -> None:
-    """Seat *actor* as a Vendor still at RM Start: not yet notified."""
-    ledger.seat(
-        participant(
-            actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
-        )
-    )
-
-
 def test_a_vendor_not_yet_notified_is_a_vendor_of_the_joint_model():
     """SHD-03-001: a scope is any vendor, notified or not."""
     ledger = _vendor_case()
-    _seat_unnotified(ledger, VENDOR_2)
+    seat_unnotified_vendor(ledger, VENDOR_2)
     record = case_standing(ledger.case_ledger())
     assert record.vendors == [VENDOR, VENDOR_2]
     unnotified = record.for_participant(VENDOR_2)
@@ -421,7 +413,7 @@ def test_a_case_whose_only_vendor_is_not_yet_notified_has_a_prefix():
     it where the history records it, and the case's public state."""
     ledger = Ledger()
     ledger.standard_genesis()
-    _seat_unnotified(ledger, VENDOR)
+    seat_unnotified_vendor(ledger, VENDOR)
     publish(ledger, "Pxa")
     history, reached = derive_case(ledger.case_ledger())
     prefix = case_prefix(history, [], {}, reached.em(), [VENDOR], reached.pxa)
@@ -453,3 +445,31 @@ def test_a_record_with_a_gap_holds_no_scored_move(tmp_path):
     record = case_standing(holed)
     assert record.gap is not None and record.moves == []
     assert record.vendors == []
+
+
+OTHER = "https://example.org/actors/other"
+
+
+def test_a_participant_at_rm_start_that_is_no_vendor_is_no_vendor():
+    """Only the Vendor role makes a not-yet-notified participant a vendor
+    of the joint model; a reporter at RM Start is none."""
+    ledger = _vendor_case()
+    ledger.seat(
+        participant(
+            OTHER,
+            [status("other-s", OTHER, "START")],
+            roles=("REPORTER",),
+        )
+    )
+    record = case_standing(ledger.case_ledger())
+    assert record.vendors == [VENDOR]
+
+
+def test_a_case_whose_vendors_are_all_unnotified_needs_its_public_state():
+    """With no sequence to place P, X and A, the caller must give them."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_unnotified_vendor(ledger, VENDOR)
+    history, reached = derive_case(ledger.case_ledger())
+    with pytest.raises(ValueError, match="public state"):
+        case_prefix(history, [], {}, reached.em(), [VENDOR])

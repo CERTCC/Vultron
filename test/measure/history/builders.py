@@ -305,6 +305,15 @@ def seat_vendor(
     )
 
 
+def seat_unnotified_vendor(ledger: Ledger, actor: str) -> int:
+    """Seat *actor* as a Vendor still at RM Start: not yet notified."""
+    return ledger.seat(
+        participant(
+            actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
+        )
+    )
+
+
 def publish(ledger: Ledger, pxa: str) -> int:
     """The CASE_MANAGER adopts public state *pxa*."""
     return ledger.add(

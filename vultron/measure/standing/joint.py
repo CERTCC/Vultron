@@ -221,13 +221,37 @@ def _recorded_case_wide(
     ]
 
 
+def _vendor_paths(
+    vendors: Sequence[CaseStateSequence],
+    rm_of: dict[str, RM],
+    unaware: Sequence[str],
+    pxa: CS_pxa | None,
+) -> tuple[tuple[VendorPath, ...], CS_pxa]:
+    """Each vendor's path, and the case's public state: the one every
+    vendor's sequence reaches, or *pxa* when no vendor has a sequence."""
+    paths = []
+    public = pxa
+    for sequence in vendors:
+        vf, d, sequence_pxa = cs_dimensions(replay_cs_history(sequence.kinds))
+        paths.append(VendorPath(rm_of[sequence.participant], vf, d))
+        # Every vendor's sequence holds the case's P, X and A alike, so each
+        # reaches the same public state, and it places the case's.
+        public = sequence_pxa
+    paths.extend(VendorPath(RM.START, CS_vf.vf, CS_d.d) for _ in unaware)
+    if public is None:
+        raise ValueError(
+            "a case whose vendors are all unnotified needs its public state"
+        )
+    return tuple(paths), public
+
+
 def case_prefix(
     history: CaseEventHistory,
     sequences: Iterable[CaseStateSequence],
     rm_of: dict[str, RM],
     em: EM,
     unaware: Sequence[str] = (),
-    pxa: CS_pxa = CS_pxa.pxa,
+    pxa: CS_pxa | None = None,
 ) -> CasePrefix | None:
     """Where the case stands in its joint model; ``None`` with no vendor.
 
@@ -241,7 +265,10 @@ def case_prefix(
             each stands at RM Start with no fix and no deployment
             (SHD-03-001: a scope is any vendor, notified or not).
         pxa: The case's public state, which the joint state takes when no
-            vendor has a sequence to place it.
+            vendor has a sequence to place it; required then.
+
+    Raises:
+        ValueError: *unaware* vendors and no sequence, with no *pxa*.
     """
     vendors = list(sequences)
     if not vendors and not unaware:
@@ -270,14 +297,8 @@ def case_prefix(
             position = history.events.index(exit_)
             key = (exit_.log_index, position, 0)
             keyed[key] = keyed.get(key, set()) | _exit_events(end)
-    paths = []
-    for sequence in vendors:
-        vf, d, pxa = cs_dimensions(replay_cs_history(sequence.kinds))
-        paths.append(VendorPath(rm_of[sequence.participant], vf, d))
-    paths.extend(VendorPath(RM.START, CS_vf.vf, CS_d.d) for _ in unaware)
-    # Every vendor's sequence holds the case's P, X and A alike, so each
-    # reaches the same public state.
-    state = JointState(tuple(paths), pxa, em, end)
+    paths, public = _vendor_paths(vendors, rm_of, unaware, pxa)
+    state = JointState(paths, public, em, end)
     return WalkPrefix(
         state, tuple(frozenset(keyed[key]) for key in sorted(keyed))
     )
