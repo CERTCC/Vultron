@@ -7,9 +7,10 @@ and has no method that writes to VINCE (ADR-0191, ARCH-05-005).  The VINCE
 case reader itself is built in #5963.  This example declares no entry point,
 so the connector loader never finds it.
 
-Read mappings (not yet implemented), by VINCE crosswalk row; the rows, their
-caveats and their times are in ``docs/reference/vince_crosswalk.md``
-(CRD-03-001):
+Read mappings, by VINCE crosswalk row, which the VINCE translation
+(:func:`vultron.adapters.connectors.vince.translate_case`, #6444) applies;
+the rows, their caveats and their times are in
+``docs/reference/vince_crosswalk.md`` (CRD-03-001):
 
 - The case (``VINCE-CA``): the case itself becomes the
   ``VulnerabilityCase``, with an ``issue-tracking`` case reference to its
@@ -31,34 +32,10 @@ A VINCE value no row names comes back as an untranslated fact with the
 unknown-value reason, never as a refused case (CRD-03-003, CRD-03-004).
 """
 
+from vultron.adapters.connectors.vince import VINCE_UNOBSERVABLE
 from vultron.core.models.case_reading import CaseReading, UnobservableFact
 
-#: What the VINCE API never exposes, for any case (crosswalk § Unobservable).
-VINCE_UNOBSERVABLE: tuple[UnobservableFact, ...] = (
-    UnobservableFact(
-        fact="Fix ready (F), fix deployed (D)",
-        why="No VINCE field records them.",
-    ),
-    UnobservableFact(
-        fact="A vendor was notified, a vendor viewed the case",
-        why=(
-            "VINCE records these in its case activity log, which only the"
-            " coordinator web pages show."
-        ),
-    ),
-    UnobservableFact(
-        fact="CERT/CC's own RM steps after the case opens, other than closure",
-        why="The case activity log holds them.",
-    ),
-    UnobservableFact(
-        fact="A message, a task or a publish event in the case activity log",
-        why="The case activity log holds them.",
-    ),
-    UnobservableFact(
-        fact="When due_date was set or changed",
-        why="VINCE stores only the case's last modified time.",
-    ),
-)
+__all__ = ["VINCE_UNOBSERVABLE", "VinceCaseReader"]
 
 
 class VinceCaseReader:
