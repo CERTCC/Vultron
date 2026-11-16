@@ -104,7 +104,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.use_cases.received.fault import RefusalNoticeReceivedUseCase
-from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     em_accept_embargo_activity,
@@ -547,11 +546,15 @@ def test_a_notice_whose_reason_source_gave_none_fails_and_queues_nothing():
 
 
 def test_a_notice_with_no_received_activity_is_a_wiring_fault():
-    node = unscoped(refusal_notice("https://example.org/cases/1"))
-    assert isinstance(node, EmitRefusalNoticeNode)
+    net, _, _ = _network("no-received-activity")
+    tree = refusal_notice(net.case_id)
+    assert isinstance(unscoped(tree), EmitRefusalNoticeNode)
 
-    with pytest.raises(VultronWiringError, match="no received activity"):
-        node._call_factory()
+    result = _run(net, MANAGER, tree, None)
+
+    assert result.status == Status.FAILURE
+    assert "no received activity" in result.feedback_message
+    assert _notices(net, MANAGER, BYSTANDER) == []
 
 
 # ---------------------------------------------------------------------------

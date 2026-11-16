@@ -102,6 +102,7 @@ def test_sender_guard_seeds_the_membership_node(kind, cls):
         ),
         SenderCheckContext(sender_id=SENDER, case_id=CASE),
     )
+    assert guard is not None
     _assert_seeded(_all_of(guard, cls))
 
 

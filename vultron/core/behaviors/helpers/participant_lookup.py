@@ -15,15 +15,12 @@
 
 """Resolve a case participant by actor ID (BTND-04-005 shared node)."""
 
-from typing import Any
-
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerConditionWithPorts,
 )
-from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.models.case_participant import CaseParticipant
 
 
@@ -54,19 +51,14 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
         "participant": PortInformation(data_type=object, required=True),
     }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            # A subclass's domain ports (a ``/case_id`` input, BTND-01-006)
-            # are wired beside the lookup's own.
-            port_remappings={
-                **self._domain_port_remappings(),
-                **self._instance_port_remappings(),
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "participant": f"/{self.participant_key}",
-            },
-            logger=port_wiring_logger(),
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        # The base ``setup`` wires the shared ports and a subclass's domain
+        # ports (a ``/case_id`` input, BTND-01-006); the output key is this
+        # instance's.
+        return {
+            **super()._instance_port_remappings(),
+            "participant": f"/{self.participant_key}",
+        }
 
     def _participant_actor_id(self, participant: CaseParticipant) -> str:
         actor_ref = participant.attributed_to
