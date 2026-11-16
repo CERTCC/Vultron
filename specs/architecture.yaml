@@ -298,7 +298,11 @@ groups:
   - id: ARCH-05-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/adapters/connectors/test_base.py` asserts `ConnectorPlugin` declares only
+      `name`, that `CaseReader` is in `CONNECTOR_PORTS`, and that
+      `ports_implemented_by` reports no port for a plugin with a name and no port
+      and `CaseReader` for a case reader.
     adr:
     - ADR-0191
     statement: >-
@@ -316,7 +320,11 @@ groups:
   - id: ARCH-05-005
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/adapters/connectors/example/test_vince.py` asserts the VINCE example's public
+      members are its name and the members of the ports it implements, and
+      `test/adapters/connectors/test_base.py` asserts a raising write stub beside a read
+      port is reported as surplus.
     statement: >-
       A connector plugin MUST NOT expose a method of a port the core declares for
       outside systems that it does not implement, including a stub that raises,

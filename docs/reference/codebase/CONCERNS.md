@@ -24,7 +24,7 @@ stakeholder_type: [project-contributor]
 |-----------|---------------|-------|-----------------|---------------|
 | `transitions` state machine library in core | Core state machines wrap `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs/`, `participant_embargo_consent.py`; `vultron/core/services/embargo_lifecycle/base.py` | Library API changes affect core domain directly | Decided 2026-11-02: no issue until `transitions` blocks a migration; then encapsulate it behind a domain-owned state-machine port |
 | `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but the boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Decided 2026-11-02: no issue. Only `vultron/metadata/` (dev tooling) imports demo code, and `test/architecture/test_core_no_demo_imports.py` guards core |
-| Unimplemented adapter stubs | Production delivery, shared inbox and connector loading are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py`, `vultron/adapters/connectors/loader.py` | No production-ready transport or plugin path | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is #5610 (ARCH-05-003), ahead of a planned VINCE connector; the Jira and VINCE modules are examples |
+| Unimplemented adapter stubs | Production delivery, shared inbox and connector loading are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py`, `vultron/adapters/connectors/loader.py` | No production-ready transport or plugin path | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is #5610 (ARCH-05-003), ahead of the VINCE case reader (#5963); the VINCE module is an example |
 
 ### 3) Security Concerns
 
@@ -71,7 +71,7 @@ Each answer is recorded here so a later scan does not raise it again.
 2. Production database: tracked in #511; the backend choice belongs there.
 3. Personal and embargoed data in logs: Concern #5607.
 4. Coverage target: set by TB-02-001 and TB-02-002; tooling in #4014.
-5. Connector adapters: the Jira and VINCE modules are examples; the entry-point loader is #5610, ahead of a planned VINCE connector.
+5. Connector adapters: the VINCE module is an example `CaseReader`; the entry-point loader is #5610, ahead of the VINCE case reader (#5963).
 6. `scipy`: keep it, though nothing imports it.
    networkx computes `nx.pagerank()` with it, and `vultron/core/case_states/hypercube/model.py` calls that; the `pyproject.toml` comment says so (#5599).
 7. Oversized modules: split issues go under Epic #5417.

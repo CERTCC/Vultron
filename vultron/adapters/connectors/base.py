@@ -1,43 +1,65 @@
-"""
-ConnectorPlugin Protocol — base interface for bidirectional connector adapters.
+#!/usr/bin/env python
 
-A connector translates between an external system's events and Vultron domain
-events. Connectors differ from pure driving or driven adapters in that they
-may both receive events from and push events to an external system (e.g., an
-issue tracker, mailing list, or vulnerability database).
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""The connector plugin base, and which core ports a plugin implements.
+
+A connector plugin integrates one outside system.  Its directions are the
+core ports it implements for outside systems (ADR-0191, ARCH-05-004):
+:data:`CONNECTOR_PORTS` lists them, and today there is one,
+:class:`~vultron.core.ports.case_reader.CaseReader`.  Besides those ports a
+plugin carries only its :attr:`ConnectorPlugin.name`.
+
+A plugin implements only the ports it serves, and carries no method, not
+even a raising stub, of a port it does not (ARCH-05-005).  The loader
+(``loader.py``, still a stub until #5610) is to ask
+:func:`ports_implemented_by` which ports a discovered plugin implements and
+to refuse one that implements none (ARCH-05-006).
 """
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
+
+from vultron.core.ports.case_reader import CaseReader
+
+#: Every port the core declares for outside systems, in the order
+#: :func:`ports_implemented_by` reports them.  A new port joins this tuple
+#: when the core declares it (ARCH-05-004).
+CONNECTOR_PORTS: Final[tuple[type, ...]] = (CaseReader,)
 
 
 @runtime_checkable
 class ConnectorPlugin(Protocol):
-    """
-    Interface that all Vultron connector plugins must satisfy.
+    """What every connector plugin has besides its ports: a name.
 
-    Plugins are discovered via Python entry points under the
-    ``vultron.connectors`` group (see ``loader.py``).
+    Plugins are discovered through Python entry points under the
+    ``vultron.connectors`` group (ARCH-05-003, ``loader.py``).
     """
 
     #: Human-readable name used in logs and configuration.
     name: str
 
-    def on_inbound_event(self, event: object) -> None:
-        """
-        Called when the external system emits an event that should be
-        translated into a Vultron domain event and forwarded to the core.
 
-        ``event`` is the raw external payload — the connector is responsible
-        for validating and translating it before calling a core use case.
-        """
+def ports_implemented_by(plugin: object) -> tuple[type, ...]:
+    """Return each port of :data:`CONNECTOR_PORTS` that *plugin* implements.
 
-    def on_outbound_event(self, event: object) -> None:
-        """
-        Called when a Vultron domain event should be forwarded to the
-        external system.
+    A port counts as implemented when *plugin* has every member the port
+    declares.  An empty tuple means the plugin implements no port, which the
+    loader is to refuse (ARCH-05-006, #5610).
+    """
+    return tuple(port for port in CONNECTOR_PORTS if isinstance(plugin, port))
 
-        ``event`` is a serialized domain event — the connector is responsible
-        for translating it into the external system's format and delivering it.
-        """
+
+__all__ = ["CONNECTOR_PORTS", "ConnectorPlugin", "ports_implemented_by"]
