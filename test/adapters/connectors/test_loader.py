@@ -74,6 +74,10 @@ _PLUGIN_SOURCE = textwrap.dedent(
         name = "  "
 
 
+    class NumberName(Reader):
+        name = 5
+
+
     class NameOnly:
         name = "name-only"
 
@@ -127,6 +131,20 @@ def install(
     return _install
 
 
+def _own(dist: str) -> list[EntryPoint]:
+    """The entry points the fake distribution *dist* declares.
+
+    They are found through :mod:`importlib.metadata`, as the loader's
+    default finds them, but without any connector the environment has
+    installed, so a real installed connector cannot change the result.
+    """
+    return [
+        ep
+        for ep in entry_points(group=ENTRY_POINT_GROUP)
+        if ep.dist is not None and ep.dist.name == dist
+    ]
+
+
 def _refused(
     excinfo: pytest.ExceptionInfo[ConnectorRefusedError],
 ) -> dict[str, str]:
@@ -170,16 +188,18 @@ def test_no_entry_points_load_no_connectors():
 def test_an_entry_point_that_is_not_a_connector_plugin_is_refused_by_name(
     install: Install,
 ):
-    dist = install({"nameless": ":NoName", "blank": ":BlankName"})
+    dist = install(
+        {"nameless": ":NoName", "blank": ":BlankName", "number": ":NumberName"}
+    )
 
     with pytest.raises(ConnectorRefusedError) as excinfo:
-        load_connectors()
+        load_connectors(_own(dist))
 
     refused = _refused(excinfo)
-    assert set(refused) == {"nameless", "blank"}
+    assert set(refused) == {"nameless", "blank", "number"}
     assert all("not a connector plugin" in r for r in refused.values())
     message = str(excinfo.value)
-    assert "nameless" in message and "blank" in message and dist in message
+    assert all(name in message for name in refused) and dist in message
 
 
 @pytest.mark.spec("ARCH-05-006")
@@ -189,7 +209,7 @@ def test_an_entry_point_implementing_no_core_port_is_refused_by_name(
     dist = install({"portless": ":NameOnly"})
 
     with pytest.raises(ConnectorRefusedError) as excinfo:
-        load_connectors()
+        load_connectors(_own(dist))
 
     assert set(_refused(excinfo)) == {"portless"}
     assert "implements no core port" in _refused(excinfo)["portless"]
@@ -201,7 +221,7 @@ def test_an_entry_point_implementing_no_core_port_is_refused_by_name(
 def test_one_refusal_refuses_the_whole_load_and_names_every_bad_entry(
     install: Install,
 ):
-    install(
+    dist = install(
         {
             "good": ":Reader",
             "portless": ":NameOnly",
@@ -211,7 +231,7 @@ def test_one_refusal_refuses_the_whole_load_and_names_every_bad_entry(
     )
 
     with pytest.raises(ConnectorRefusedError) as excinfo:
-        load_connectors()
+        load_connectors(_own(dist))
 
     refused = _refused(excinfo)
     assert set(refused) == {"portless", "missing", "needs-args"}
@@ -220,10 +240,10 @@ def test_one_refusal_refuses_the_whole_load_and_names_every_bad_entry(
 
 
 def test_a_plugin_whose_name_raises_is_refused_by_name(install: Install):
-    install({"raising": ":RaisingName"})
+    dist = install({"raising": ":RaisingName"})
 
     with pytest.raises(ConnectorRefusedError) as excinfo:
-        load_connectors()
+        load_connectors(_own(dist))
 
     assert "RuntimeError: no name today" in _refused(excinfo)["raising"]
 
@@ -231,13 +251,13 @@ def test_a_plugin_whose_name_raises_is_refused_by_name(install: Install):
 def test_a_load_failure_logs_its_traceback(
     install: Install, caplog: pytest.LogCaptureFixture
 ):
-    install({"needs-args": ":NeedsArguments"})
+    dist = install({"needs-args": ":NeedsArguments"})
 
     with (
         caplog.at_level(logging.WARNING),
         pytest.raises(ConnectorRefusedError),
     ):
-        load_connectors()
+        load_connectors(_own(dist))
 
     [record] = [r for r in caplog.records if "needs-args" in r.getMessage()]
     assert record.levelno == logging.WARNING
@@ -287,8 +307,8 @@ def test_a_refused_load_is_a_configuration_fault():
 
 
 def test_two_entry_points_with_one_plugin_name_both_load(install: Install):
-    install({"first": ":Reader", "second": ":Reader"})
+    dist = install({"first": ":Reader", "second": ":Reader"})
 
-    plugins = load_connectors()
+    plugins = load_connectors(_own(dist))
 
     assert set(plugins) == {"first", "second"}
