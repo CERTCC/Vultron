@@ -168,7 +168,7 @@ from vultron.core.behaviors.sender_guard import (
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     LedgerPositionExemption,
 )
-from vultron.core.behaviors.sync.nodes.sender_sequence import (
+from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
     SenderSequenceExemption,
 )
 

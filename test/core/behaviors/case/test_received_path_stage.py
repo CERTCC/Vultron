@@ -21,6 +21,7 @@ reason composed in one place and true of the receiver it refuses; and the
 sender guard's addressee arms read that answer instead of asking again.
 """
 
+import logging
 from collections.abc import Collection
 from datetime import datetime
 
@@ -841,3 +842,27 @@ def test_the_type_that_precedes_its_case_declares_the_no_case_branch() -> None:
 
     assert stage.resolved_path is ReceivedPath.NO_CASE
     assert stage.status is Status.SUCCESS
+
+
+@pytest.mark.spec("SL-03-003", "SL-03-004")
+def test_an_undeclared_path_logs_one_debug_fact_naming_the_declaration(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The stage logs its refusal reason as a DEBUG fact naming the path it
+    resolved and the paths the type declares; the received runner logs the
+    refusal (#6477)."""
+    path = ReceivedPath.PARTICIPANT_REPLICA
+    declared = ALL_PATHS - {path}
+    with caplog.at_level(logging.DEBUG):
+        stage = _run_stage(path, declared)
+    lines = [
+        r
+        for r in caplog.records
+        if r.name.endswith(".ReceivedPathNode") and "refused" in r.getMessage()
+    ]
+    assert [r.levelno for r in lines] == [logging.DEBUG]
+    assert lines[0].getMessage() == (
+        f"ProofBT: refused at '{_ACTOR_ON_PATH[path]}' on the {path.value}"
+        f" path; ProofBT handles {sorted(p.value for p in declared)} only:"
+        f" {stage.feedback_message}"
+    )

@@ -31,6 +31,10 @@ tree build, so Vultron nodes hand ``setup_ports`` the shared
 import logging
 
 import py_trees.behaviour
+from py_trees.common import Status
+
+from vultron.core.models.refusal_wording import without_refusal_group
+from vultron.errors import VultronError, VultronInvalidStateTransitionError
 
 
 def node_logger(node: py_trees.behaviour.Behaviour) -> logging.Logger:
@@ -42,6 +46,93 @@ def node_logger(node: py_trees.behaviour.Behaviour) -> logging.Logger:
     """
     cls = type(node)
     return logging.getLogger(f"{cls.__module__}.{cls.__name__}")
+
+
+def fail_with_reason(
+    node: py_trees.behaviour.Behaviour,
+    reason: str,
+    *,
+    prefix: str | None = None,
+) -> Status:
+    """Record *reason* as *node*'s failure reason, log its facts; ``FAILURE``.
+
+    *reason* becomes ``feedback_message``, which is what
+    ``BTBridge.get_failure_reason`` reports (BT-13-001), so a reason worded
+    as a refusal keeps its ``— REFUSED (IDs)`` group there.  The node's own
+    line is DEBUG and drops that group: a node does not know whether its
+    FAILURE is the delivery's verdict — a later Selector arm may admit the
+    sender, or the reading may report the run ``SKIPPED`` — so the received
+    runner, which does, logs the one ``REFUSED`` line (SL-03-002 to
+    SL-03-004).
+
+    The line reads ``<prefix>: <reason>``.  *prefix* defaults to the node's
+    name; a node that states context before the reason (the receiver, the
+    path) passes it here, and ``""`` logs the reason alone, for a reason
+    that already starts with the node's name.
+
+    Writes through :func:`node_logger`, so the line lands where the node's
+    own ``self.logger`` lines land (SL-01-005).
+    """
+    node.feedback_message = reason
+    node_logger(node).debug("%s%s", *_line(node, reason, prefix))
+    return Status.FAILURE
+
+
+def _line(
+    node: py_trees.behaviour.Behaviour, reason: str, prefix: str | None
+) -> tuple[str, str]:
+    """The ``<prefix>: `` lead and *reason* without its ``REFUSED`` group."""
+    shown = node.name if prefix is None else prefix
+    return (f"{shown}: " if shown else "", without_refusal_group(reason))
+
+
+def fail_with_fault(
+    node: py_trees.behaviour.Behaviour,
+    reason: str,
+    *,
+    prefix: str | None = None,
+) -> Status:
+    """Record *reason* as *node*'s failure reason, log it at WARNING; ``FAILURE``.
+
+    For a FAILURE that is our own fault or a malformed input rather than a
+    refusal reason: a record this receiver holds that cannot be read or is
+    the wrong type, a stored record missing a field it must carry, an
+    activity carrying a malformed value.  It keeps its SL-03-001 level
+    whatever verdict the handler reports, so it is never hidden at DEBUG
+    the way a refusal's facts are (SL-03-003).  The line still drops a
+    ``— REFUSED (IDs)`` group: only the received runner's line carries one
+    (SL-03-004).  *prefix* is as for :func:`fail_with_reason`.
+    """
+    node.feedback_message = reason
+    node_logger(node).warning("%s%s", *_line(node, reason, prefix))
+    return Status.FAILURE
+
+
+#: The errors a node's refusal arm reports as a refusal: the act asks for
+#: a transition the case's state does not allow, or the register refuses
+#: the entry (``VultronEntryRefusedError`` is a subclass).  Every other
+#: :class:`~vultron.errors.VultronError` a refusal arm catches (a record
+#: not found, a record of the wrong type) is a fault.
+REFUSAL_ERRORS: tuple[type[VultronError], ...] = (
+    VultronInvalidStateTransitionError,
+)
+
+
+def fail_with_error(
+    node: py_trees.behaviour.Behaviour, exc: VultronError
+) -> Status:
+    """Fail *node* for *exc*: a refusal's facts at DEBUG, a fault at WARNING.
+
+    For a node that catches :class:`~vultron.errors.VultronError` broadly
+    and turns it into ``FAILURE``: :data:`REFUSAL_ERRORS` go through
+    :func:`fail_with_reason`, every other error through
+    :func:`fail_with_fault`, so the node's status and ``feedback_message``
+    are the same either way and only the level follows what the error is
+    (SL-03-001, SL-03-003).
+    """
+    if isinstance(exc, REFUSAL_ERRORS):
+        return fail_with_reason(node, str(exc))
+    return fail_with_fault(node, str(exc))
 
 
 #: The logger py_trees' typed-ports layer writes to for Vultron nodes.

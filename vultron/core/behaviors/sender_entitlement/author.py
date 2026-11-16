@@ -95,7 +95,7 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
         ):
             return Status.SUCCESS
 
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{self.sender_actor_id}' is not the author of note"
             f" '{self.note_id}' (author: '{author}') or not an active"
             f" participant of case '{self.case_id}' that has not left it"
@@ -172,7 +172,7 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
         for proposer in self._recorded_proposers():
             if same_actor_id(proposer, self.sender_actor_id):
                 continue
-            return self._refuse_by_placement(
+            return self._fail_with_reason(
                 f"Sender '{self.sender_actor_id}' is not the author of"
                 f" CaseProposal '{self.proposal_id}', which this store"
                 f" recorded for '{proposer}' — REFUSED"
@@ -221,13 +221,13 @@ class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
         self.case_id = case_id
 
     def _refuse_citing(self, why: str) -> Status:
-        """Compose the reason around *why*, then refuse by placement.
+        """Compose the reason around *why*, then fail with it.
 
         One ``_refuse_citing`` per citation across the family, never a
         ``_refuse``: see
-        :meth:`SenderEntitlementConditionNode._refuse_by_placement`.
+        :meth:`SenderEntitlementConditionNode._fail_with_reason`.
         """
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{self.sender_actor_id}' may not add a status to"
             f" participant record '{self.participant_id}': {why} — REFUSED"
             " (RSH-08-007, HP-01-006)"

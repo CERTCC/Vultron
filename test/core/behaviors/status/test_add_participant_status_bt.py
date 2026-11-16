@@ -232,9 +232,8 @@ def populated_bridge(populated_dl):
 class TestSenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -243,9 +242,8 @@ class TestSenderIsParticipantNode:
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=OUTSIDER_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=OUTSIDER_ID), CASE_ID
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -254,9 +252,9 @@ class TestSenderIsParticipantNode:
 
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id="https://example.org/cases/nonexistent",
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=ACTOR_ID),
+            "https://example.org/cases/nonexistent",
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
@@ -264,10 +262,7 @@ class TestSenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_fails(self, populated_bridge):
         """With no case to check the sender against, the guard fails."""
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=None,
-        )
+        node = SenderIsParticipantNode(sender_actor_id=ACTOR_ID)
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )

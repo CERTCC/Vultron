@@ -35,6 +35,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.narrative_log import log_invite_received
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.predicates.addressing import same_actor_id
 
@@ -127,13 +128,12 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
 
         # AC-1: The Invite's object must be the receiving actor.
         if not same_actor_id(self.invitee_id, self.actor_id or ""):
-            self.feedback_message = (
+            return fail_with_reason(
+                self,
                 f"Invite object '{self.invitee_id}' is not the receiving"
                 f" actor '{self.actor_id}' — refusing trust anchor"
-                f" (PCR-03-007)"
+                f" (PCR-03-007)",
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
         existing = self.datalayer.read(
             VultronPendingCaseInbox.build_id(self.case_id)
@@ -161,14 +161,13 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
             self._repeat_from_anchored_case_actor(existing)
         elif existing.invite_anchored and existing.invite_accepted:
             # AC-3: the invitee accepted the anchoring Invite — refuse.
-            self.feedback_message = (
+            return fail_with_reason(
+                self,
                 f"Trust anchor conflict for case '{self.case_id}':"
                 f" existing CaseActor '{existing.case_actor_id}', whose"
                 f" Invite was accepted, new Invite's actor"
-                f" '{self.case_actor_id}' — refusing (PCR-03-010)"
+                f" '{self.case_actor_id}' — refusing (PCR-03-010)",
             )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         else:
             self._replace_unfixed_anchor(existing)
 

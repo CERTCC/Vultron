@@ -355,6 +355,17 @@ def baseline(desideratum: Desideratum) -> Fraction:
     return value
 
 
+def weight(desideratum: Desideratum) -> Fraction:
+    """The weight ``1 - f_d`` a met desideratum adds to a score (ADR-0182).
+
+    The rarer the desideratum is by chance, the more meeting it counts.
+
+    Raises:
+        ValueError: as for :func:`baseline`.
+    """
+    return 1 - baseline(desideratum)
+
+
 def _in_one_vendor_model(desideratum: Desideratum) -> Query | None:
     """*desideratum* over the one-vendor model, or ``None`` if it relates two vendors."""
     if desideratum.model is ModelName.TWO_VENDOR:
@@ -449,3 +460,26 @@ def implications() -> tuple[Implication, ...]:
                 Implication(strong, weak, strong_f, weak_f, equivalent)
             )
     return tuple(found)
+
+
+def count_once(desiderata: Iterable[Desideratum]) -> tuple[Desideratum, ...]:
+    """*desiderata* less each one equivalent to one listed before it.
+
+    Equivalent desiderata hold in exactly the same histories
+    (:func:`implications`): an embargo starts, and ends on its own terms,
+    only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
+    ``E ≺ A`` are one desideratum, and so are the three ``Ex_own`` ones
+    (``process_model_desiderata.md`` § "The desiderata are not
+    independent").  A sum that adds each of them adds the same skill three
+    times.  The first of each group, in the order given, is kept.
+    """
+    equivalent = {
+        frozenset((i.stronger, i.weaker))
+        for i in implications()
+        if i.equivalent
+    }
+    kept: list[Desideratum] = []
+    for desideratum in desiderata:
+        if all(frozenset((k, desideratum)) not in equivalent for k in kept):
+            kept.append(desideratum)
+    return tuple(kept)

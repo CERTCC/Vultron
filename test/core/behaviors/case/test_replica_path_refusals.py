@@ -23,6 +23,8 @@ path stage's own (HP-01-005, HP-01-039).  No handler reads the
 DataLayer after the run to decide them.
 """
 
+import logging
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -191,3 +193,24 @@ def test_an_unsupported_activity_is_refused_with_its_reason_whole() -> None:
     assert refusal is not None
     assert refusal.disposition is HandlerDisposition.REFUSED
     assert refusal.reason == reason
+
+
+@pytest.mark.spec("SL-03-003", "SL-03-004")
+def test_a_replica_refusal_logs_one_debug_fact_naming_the_receiver(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The node logs its reason as a DEBUG fact, prefixed with the receiver
+    it refused at; the received runner logs the refusal (#6477)."""
+    node = ReplicaRefusalNode(CASE_ID)
+    with caplog.at_level(logging.DEBUG):
+        _run(_replica(with_manager=True), node)
+    lines = [
+        r
+        for r in caplog.records
+        if r.name.endswith(".ReplicaRefusalNode")
+        and "refused" in r.getMessage()
+    ]
+    assert [r.levelno for r in lines] == [logging.DEBUG]
+    assert lines[0].getMessage() == (
+        f"ReplicaRefusalNode: refused at '{VENDOR_ID}': {NOT_MANAGER}"
+    )

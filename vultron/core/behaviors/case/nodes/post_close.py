@@ -37,6 +37,9 @@ from enum import StrEnum
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     sorted_case_ledger_entries,
@@ -109,7 +112,9 @@ def _candidate_case_ids(event: object) -> list[str]:
     return [c for c in candidates if isinstance(c, str) and c]
 
 
-class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
+class CaseOpenToExternalWritesNode(
+    CaseIdInputPortMixin, DataLayerConditionWithPorts
+):
     """FAILURE when the executing CASE_MANAGER's case is fully closed.
 
     Returns:
@@ -124,18 +129,19 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
         ``REFUSED``.  The drop is logged at INFO with the activity id, the
         sender's actor id and the case id.
 
-    ``case_id`` is the case the tree names.  When it is ``None`` (a tree with
-    no commit stage), the case is resolved from the received activity on the
-    blackboard.
+    The case is read from the ``/case_id`` port, which the factory seeds
+    with the case the tree names (BTND-01-006).  When nothing seeds or
+    publishes it (a tree with no commit stage), the case is resolved from
+    the received activity on the blackboard.
 
     Store errors propagate rather than returning a status: either status here
     would be a guess, and only a whole-tree failure neither admits nor
     silently refuses the activity.
     """
 
-    def __init__(self, case_id: str | None = None, name: str | None = None):
+    def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id: str | None = None
         self._activity: object | None = None
         self.refused_case_id: str | None = None
 
@@ -146,7 +152,7 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {**super()._domain_port_remappings(), "activity": "/activity"}
 
     def initialise(self) -> None:
         super().initialise()

@@ -480,9 +480,9 @@ GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 #: Empty: a tree that picks an arm on an actor's role asks
 #: ``ActorHoldsRoleInCaseNode`` through ``has_role``, the one sanctioned way
 #: to ask about a role (ADR-0153), which states no refusal.  A sender node
-#: placed there would log ``REFUSED (HP-01-006)`` for a door that admitted
-#: the sender wherever its FAILURE is the tree's answer (SL-03-002, #5903),
-#: so a new entry is a regression.
+#: placed there would have the handler report its ``REFUSED (HP-01-006)``
+#: reason for a door that admitted the sender wherever its FAILURE is the
+#: tree's answer (#5903), so a new entry is a regression.
 STANDING_READS: dict[Site, Listed] = {}
 
 
@@ -583,7 +583,7 @@ _VIOLATIONS = {
         "from vultron.core.behaviors.sender_entitlement import"
         " SenderIsParticipantNode\n"
         "def build():\n"
-        "    return SenderIsParticipantNode(sender_actor_id='a', case_id='c')\n"
+        "    return SenderIsParticipantNode(sender_actor_id='a')\n"
     ),
     "import-alias": (
         "from vultron.core.behaviors.sender_entitlement import"

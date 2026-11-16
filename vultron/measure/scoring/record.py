@@ -63,7 +63,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.rm import RM
 from vultron.measure.baselines import (
-    RM_EVENT,
+    RM_EVENTS,
     EmbargoEnd,
     Event,
     EventKind,
@@ -228,7 +228,7 @@ def _vendor_positions(
     for event in history.for_participant(sequence.participant):
         rm = _recorded_rm(event)
         if rm is not None and rm is not RM.RECEIVED:
-            _first(found, RM_EVENT[rm], event.log_index)
+            _first(found, RM_EVENTS[rm], event.log_index)
     return found
 
 

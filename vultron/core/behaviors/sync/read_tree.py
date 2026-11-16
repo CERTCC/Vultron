@@ -25,7 +25,7 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
     STATED_POSITION_ANSWERED_BY_TREE,
     PeerActiveParticipantNode,
 )
-from vultron.core.behaviors.sync.nodes.sender_sequence import (
+from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
     LEDGER_REQUEST_TAKES_NO_NUMBER,
 )
 

@@ -29,7 +29,8 @@ twelve's ``F ≺ P`` for each vendor, which the vendor's score already counts,
 and move advice does not use ``V_i ≺ F_j`` (ADR-0200 rule 1, #6502).
 
 A part counts each group of equivalent desiderata once
-(:func:`scope_desiderata`): an embargo starts, and ends on its own terms,
+(:func:`scope_desiderata`, through
+:func:`~vultron.measure.baselines.desiderata.count_once`): an embargo starts, and ends on its own terms,
 only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
 ``E ≺ A`` are one desideratum, and so are the three ``Ex_own`` ones
 (``process_model_desiderata.md`` § "The desiderata are not independent").
@@ -59,7 +60,6 @@ from typing import NamedTuple
 
 from vultron.measure.baselines import (
     EXTENDED,
-    ONE_VENDOR_MODEL,
     Desideratum,
     Event,
     Group,
@@ -67,11 +67,14 @@ from vultron.measure.baselines import (
     ModelName,
     OrderingQuery,
     WalkPrefix,
-    baseline,
-    implications,
+    case_model,
     reachable_ends,
 )
-from vultron.measure.baselines.desiderata import joint_values
+from vultron.measure.baselines.desiderata import (
+    count_once,
+    joint_values,
+    weight,
+)
 from vultron.measure.baselines.values import CasePrefix
 from vultron.measure.scoring.model import (
     ExtendedScore,
@@ -92,22 +95,6 @@ class ScopeDesiderata(NamedTuple):
     """The embargo desiderata, ``F_i ≺ Ex_own`` included."""
 
 
-def _count_once(
-    desiderata: Iterable[Desideratum],
-) -> tuple[Desideratum, ...]:
-    """*desiderata* less each one equivalent to one listed before it."""
-    equivalent = {
-        frozenset((i.stronger, i.weaker))
-        for i in implications()
-        if i.equivalent
-    }
-    kept: list[Desideratum] = []
-    for desideratum in desiderata:
-        if all(frozenset((k, desideratum)) not in equivalent for k in kept):
-            kept.append(desideratum)
-    return tuple(kept)
-
-
 @cache
 def scope_desiderata() -> ScopeDesiderata:
     """The extended desiderata a vendor's scope scores, by part, each group
@@ -121,8 +108,8 @@ def scope_desiderata() -> ScopeDesiderata:
         if d.model is ModelName.ONE_VENDOR and d.group is not Group.MULTI_PARTY
     ]
     return ScopeDesiderata(
-        end=_count_once(d for d in held if d.group is not Group.EMBARGO),
-        embargo=_count_once(d for d in held if d.group is Group.EMBARGO),
+        end=count_once(d for d in held if d.group is not Group.EMBARGO),
+        embargo=count_once(d for d in held if d.group is Group.EMBARGO),
     )
 
 
@@ -170,7 +157,7 @@ def _walk(
     spans: list[tuple[Fraction, frozenset[Event], range]] = []
     start = 0
     for desideratum in desiderata:
-        weight = 1 - baseline(desideratum)
+        term_weight = weight(desideratum)
         reading = joint_values(
             ModelName.ONE_VENDOR, desideratum.query
         ).reading(prefix)
@@ -179,13 +166,17 @@ def _walk(
                 notation=desideratum.notation,
                 group=desideratum.group,
                 vendors=(vendor,),
-                weight=weight,
+                weight=term_weight,
                 met=reading.outcome,
             )
         )
         count = len(desideratum.query.orderings)
         spans.append(
-            (weight, desideratum.query.given, range(start, start + count))
+            (
+                term_weight,
+                desideratum.query.given,
+                range(start, start + count),
+            )
         )
         start += count
     outcomes = [
@@ -197,7 +188,7 @@ def _walk(
             ),
             Fraction(0),
         )
-        for seen, met in _ends(ONE_VENDOR_MODEL, joined, prefix)
+        for seen, met in _ends(case_model(1), joined, prefix)
     ]
     return WalkScore(
         terms=tuple(scored), best=max(outcomes), worst=min(outcomes)

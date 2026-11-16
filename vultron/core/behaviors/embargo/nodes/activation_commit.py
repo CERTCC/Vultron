@@ -69,6 +69,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.node_logger import fail_with_error
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.embargo_apply import ConsentRowChange
 from vultron.core.models.events.base import VultronEvent
@@ -211,9 +212,7 @@ class CommitAndApplyEmbargoActivationNode(
 
     def _refuse(self, exc: VultronError) -> Status:
         self._result_out["error"] = exc
-        self.feedback_message = str(exc)
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_error(self, exc)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -230,8 +229,8 @@ class CommitAndApplyEmbargoActivationNode(
             commit_and_apply_embargo_entries(
                 dl, self._case_id, self._planned(decision)
             )
-        except VultronWiringError:
-            raise  # a composition fault, never a refusal (ARCH-15-001)
+        except INTERNAL_FAULTS:
+            raise  # a composition fault or a bug, never a refusal (ARCH-15-001)
         except VultronError as exc:
             return self._refuse(exc)
 
@@ -304,9 +303,7 @@ class ActivationAppliesNode(DataLayerConditionWithPorts):
         except INTERNAL_FAULTS:
             raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return fail_with_error(self, exc)
         return Status.SUCCESS
 
 

@@ -59,12 +59,16 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
 from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
     enclosing_refusal_stage,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -76,6 +80,7 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
 )
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.services.received_activity import held_received_body
 from vultron.core.sync_helpers import resume_sender_sequence_at
 from vultron.errors import VultronWiringError
@@ -166,7 +171,7 @@ def refusal_effects_with_notice(
     return refusal_effects
 
 
-class EmitRefusalNoticeNode(_EmitSingleActivityBase):
+class EmitRefusalNoticeNode(CaseIdInputPortMixin, _EmitSingleActivityBase):
     """Queue the refusal notice for the received activity a guard refused.
 
     Reads the received event from ``/activity`` and the refusing guard's
@@ -193,17 +198,16 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {**super()._domain_port_remappings(), "activity": "/activity"}
 
     def __init__(
         self,
-        case_id: str | None,
         name: str | None = None,
         *,
         reason_from: py_trees.behaviour.Behaviour | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id: str | None = None
         self._reason_from = reason_from
         self._event: object | None = None
         self._asserter: str | None = None
@@ -307,18 +311,23 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
             self._asserter,
             self._refused_id,
             self._case_id,
-            self._reason,
+            # The receiver's runner logged the refusal; this line is the
+            # notice going out, so it keeps the facts without the group.
+            self._reason and without_refusal_group(self._reason),
         )
 
 
-def refusal_notice(case_id: str | None) -> EmitRefusalNoticeNode:
+def refusal_notice(case_id: str | None) -> py_trees.behaviour.Behaviour:
     """The refusal notice, for a received tree's ``refusal_effects``.
 
     Args:
         case_id: The case the refused activity concerns; the notice's
             ``context``.
     """
-    return EmitRefusalNoticeNode(case_id=case_id, name="EmitRefusalNotice")
+    # The node reads its case from ``/case_id``, seeded here (BTND-01-006).
+    return with_case_id(
+        EmitRefusalNoticeNode(name="EmitRefusalNotice"), case_id
+    )
 
 
 class ClearRefusedAssertionNode(DataLayerActionWithPorts):
@@ -375,7 +384,9 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
             self.refused_activity_id,
             self.actor_id,
             self.case_id,
-            self.reason or "no reason given",
+            # The refusal is the CASE_MANAGER's, logged by its runner; here
+            # it is a fact the notice carried (SL-03-004).
+            without_refusal_group(self.reason or "no reason given"),
             len(self.cleared),
         )
         return Status.SUCCESS

@@ -49,6 +49,7 @@ from vultron.core.behaviors.case.nodes.submit_report import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -323,14 +324,16 @@ class TestUnaddressedCopyReason:
     @pytest.mark.spec("HP-10-002")
     def test_a_cc_only_receiver_is_told_cc_is_not_supported(self, caplog):
         """A ``cc``-only copy arrives with a ``to`` that names someone else
-        (ADR-0109); the door's WARNING names ``cc`` (HP-10-002)."""
-        with caplog.at_level("WARNING"):
+        (ADR-0109); the door's reason names ``cc`` (HP-10-002), and its own
+        line is a DEBUG fact: the received runner logs the refusal
+        (SL-03-003)."""
+        with caplog.at_level("DEBUG"):
             node = _run(_event([_OTHER], [_MANAGER]), _MANAGER)
 
         assert node.status is Status.FAILURE
         assert "only in cc" in node.feedback_message
         assert any(
-            r.levelname == "WARNING" and "only in cc" in r.getMessage()
+            r.levelname == "DEBUG" and "only in cc" in r.getMessage()
             for r in caplog.records
         )
 
@@ -365,14 +368,15 @@ class TestActivityAddressedToReceiverNode:
         assert node.status is Status.SUCCESS
 
     @pytest.mark.spec("HP-01-005")
-    def test_an_unaddressed_copy_fails_and_warns(self, caplog):
-        with caplog.at_level("WARNING"):
+    @pytest.mark.spec("SL-03-003")
+    def test_an_unaddressed_copy_fails_and_logs_its_fact(self, caplog):
+        with caplog.at_level("DEBUG"):
             node = _run(_event([_MANAGER]), _BYSTANDER)
 
         assert node.status is Status.FAILURE
         assert "neither the sender nor a recipient" in node.feedback_message
         assert any(
-            r.levelname == "WARNING" and _BYSTANDER in r.getMessage()
+            r.levelname == "DEBUG" and _BYSTANDER in r.getMessage()
             for r in caplog.records
         )
 
@@ -394,7 +398,7 @@ def test_the_factory_places_it_first_ahead_of_the_seen_before_door():
     assert isinstance(tree.children[0], ActivityAddressedToReceiverNode)
     assert tree.children[0].label == "Probe"
     assert tree.children[1].name == "ActivityNotSeenBeforeNode"
-    assert isinstance(tree.children[2], CaseOpenToExternalWritesNode)
+    assert isinstance(unscoped(tree.children[2]), CaseOpenToExternalWritesNode)
     assert tree.children[3].name == "SenderIsParticipantNode"
     assert tree.children[0] in tree.door_guards
 

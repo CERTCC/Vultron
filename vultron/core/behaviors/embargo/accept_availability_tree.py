@@ -56,6 +56,7 @@ from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     EmitRefusalNoticeNode,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.accept_availability import (
     CaseHoldsAvailableTermsNode,
     EmbargoAvailabilityIsNode,
@@ -167,10 +168,11 @@ def unavailable_embargo_refusal(
             ActTransaction(
                 name="UnavailableEmbargoRefusalAct",
                 children=[
-                    EmitRefusalNoticeNode(
-                        case_id=case_id,
-                        name="EmitRefusalNotice",
-                        reason_from=condition,
+                    with_case_id(
+                        EmitRefusalNoticeNode(
+                            name="EmitRefusalNotice", reason_from=condition
+                        ),
+                        case_id,
                     ),
                     reinvite_where_terms_held,
                 ],

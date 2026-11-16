@@ -61,6 +61,7 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.node_logger import fail_with_error
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_apply import RegisterStep
@@ -74,6 +75,7 @@ from vultron.core.services.embargo_lifecycle import (
     decide_termination,
 )
 from vultron.errors import (
+    INTERNAL_FAULTS,
     BtNodePreconditionError,
     VultronEntryRefusedError,
     VultronError,
@@ -166,9 +168,7 @@ class CommitAndApplyEmbargoTerminationNode(
 
     def _refuse(self, exc: VultronError) -> Status:
         self._result_out["error"] = exc
-        self.feedback_message = str(exc)
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_error(self, exc)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -190,6 +190,8 @@ class CommitAndApplyEmbargoTerminationNode(
             step = decide_termination(
                 dl, case, termination, self._require_act_instant()
             )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             return self._refuse(exc)
         self._step = step
