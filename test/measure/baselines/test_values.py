@@ -28,11 +28,14 @@ from vultron.measure.baselines import (
     Event,
     EventKind,
     JointModel,
+    Step,
     VendorDesideratum,
     WalkPrefix,
     baseline,
     desiderata_values,
     expected_change,
+    replay,
+    take_step,
     vendor_desiderata,
 )
 from vultron.measure.baselines.desiderata import (
@@ -41,6 +44,7 @@ from vultron.measure.baselines.desiderata import (
     joint_values,
 )
 from vultron.measure.baselines.joint import JointState
+from vultron.measure.baselines.walk import difference
 
 _K = EventKind
 
@@ -56,19 +60,28 @@ _V_BEFORE_P = _desideratum(r"$\evV \prec \evP$")
 _E_BEFORE_P = _desideratum(r"$\evE \prec \evP$")
 
 
+def _active_start(
+    model: JointModel, state: JointState
+) -> Step[JointState, Event]:
+    """Accepting the pending proposal, the embargo starting as ``ACTIVE``."""
+    (step,) = [
+        s
+        for s in model.steps(state)
+        if s.event == Event(_K.EMBARGO_START) and s.state.em is EM.ACTIVE
+    ]
+    return step
+
+
 def _walk(
     model: JointModel, events: list[Event]
 ) -> WalkPrefix[JointState, Event]:
     """The prefix *events* reach, an embargo starting as ``ACTIVE``."""
     prefix: WalkPrefix[JointState, Event] = WalkPrefix(model.initial)
     for event in events:
-        (step,) = [
-            s
-            for s in model.steps(prefix.state)
-            if s.event == event
-            and (event.kind is not _K.EMBARGO_START or s.state.em is EM.ACTIVE)
-        ]
-        prefix = prefix.then(step)
+        move: Event | Step[JointState, Event] = event
+        if event.kind is _K.EMBARGO_START:
+            move = _active_start(model, prefix.state)
+        prefix = prefix.then(take_step(model, prefix.state, move))
     return prefix
 
 
@@ -131,7 +144,8 @@ def test_a_shared_event_moves_every_vendors_values():
         proposal[VendorDesideratum(_E_BEFORE_P, vendor)] for vendor in (1, 2)
     }
     assert len(shifts) == 1
-    assert shifts.pop() > 0
+    shift = shifts.pop()
+    assert shift is not None and shift > 0
 
 
 def test_notifying_a_vendor_raises_its_own_awareness_value():
@@ -209,7 +223,10 @@ def test_a_three_vendor_case_takes_each_value_from_its_own_model():
         assert value == baseline(key.desideratum), key
     notify = expected_change(prefix, Event(_K.V, 3))
     assert notify[VendorDesideratum(_V_BEFORE_P, 3)] == 1 - Fraction(1, 3)
-    assert notify[VendorDesideratum(_V_BEFORE_F_J, 3, 1)] > 0
+    # V_3 has occurred and F_1 has not: met, whatever comes next.
+    assert notify[VendorDesideratum(_V_BEFORE_F_J, 3, 1)] == 1 - baseline(
+        _V_BEFORE_F_J
+    )
     # Vendor 3's step is no step in the projections that leave it out.
     for untouched in (
         VendorDesideratum(_V_BEFORE_F_J, 1, 2),
@@ -237,3 +254,40 @@ def test_a_baseline_no_walk_can_scope_is_refused():
 def test_the_event_map_cannot_be_changed():
     with pytest.raises(TypeError):
         JOINT_TO_CS[Event(_K.V, 1)] = JOINT_TO_CS[Event(_K.P)]  # type: ignore[index]
+
+
+def test_a_pair_value_seats_the_vendor_first_and_the_other_second():
+    # V_1 alone has occurred.  For vendor 2 against vendor 1 the ordering
+    # V_2 ≺ F_1 is still open; it is the same question as V_1 ≺ F_2 after
+    # V_2 alone, with the vendors' seats swapped.
+    after_v1 = desiderata_values(replay(TWO_VENDOR_MODEL, [Event(_K.V, 1)]))
+    after_v2 = desiderata_values(replay(TWO_VENDOR_MODEL, [Event(_K.V, 2)]))
+    open_pair = after_v1[VendorDesideratum(_V_BEFORE_F_J, 2, 1)]
+    assert open_pair == Fraction(93, 100)
+    assert open_pair == after_v2[VendorDesideratum(_V_BEFORE_F_J, 1, 2)]
+    three = desiderata_values(replay(JointModel(3), [Event(_K.V, 1)]))
+    assert three[VendorDesideratum(_V_BEFORE_F_J, 2, 1)] == open_pair
+    assert three[VendorDesideratum(_V_BEFORE_F_J, 3, 1)] == open_pair
+    assert three[VendorDesideratum(_V_BEFORE_F_J, 2, 3)] == Fraction(393, 400)
+
+
+def test_values_and_changes_need_a_vendor():
+    empty = WalkPrefix(TWO_VENDOR_MODEL.initial._replace(vendors=()))
+    with pytest.raises(ValueError, match="at least one vendor"):
+        desiderata_values(empty)
+    with pytest.raises(ValueError, match="at least one vendor"):
+        expected_change(empty, Event(_K.P))
+
+
+def test_accepting_an_embargo_is_valued_by_the_step_it_takes():
+    proposed = replay(ONE_VENDOR_MODEL, [Event(_K.EMBARGO_PROPOSED)])
+    with pytest.raises(VultronInvalidStateTransitionError, match="ambiguous"):
+        expected_change(proposed, Event(_K.EMBARGO_START))
+    accept = _active_start(ONE_VENDOR_MODEL, proposed.state)
+    change = expected_change(proposed, accept)
+    after = desiderata_values(proposed.then(accept))
+    before = desiderata_values(proposed)
+    assert change == {
+        key: difference(after[key], before[key]) for key in before
+    }
+    assert any(value for value in change.values())

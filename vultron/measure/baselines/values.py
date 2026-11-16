@@ -65,9 +65,10 @@ from vultron.measure.baselines.joint import (
     JointState,
 )
 from vultron.measure.baselines.walk import (
+    Move,
     WalkPrefix,
     difference,
-    find_step,
+    take_step,
 )
 
 type CasePrefix = WalkPrefix[JointState, Event]
@@ -90,6 +91,14 @@ class VendorDesideratum(NamedTuple):
     other: int | None = None
 
 
+def _require_vendors(vendor_count: int) -> None:
+    """Raise ``ValueError`` unless a case of *vendor_count* vendors has one."""
+    if vendor_count < 1:
+        raise ValueError(
+            f"a case needs at least one vendor, not {vendor_count}"
+        )
+
+
 def vendor_desiderata(vendor_count: int) -> tuple[VendorDesideratum, ...]:
     """Every desideratum for each vendor of a case with *vendor_count* vendors.
 
@@ -99,10 +108,7 @@ def vendor_desiderata(vendor_count: int) -> tuple[VendorDesideratum, ...]:
     Raises:
         ValueError: *vendor_count* is less than one.
     """
-    if vendor_count < 1:
-        raise ValueError(
-            f"a case needs at least one vendor, not {vendor_count}"
-        )
+    _require_vendors(vendor_count)
     vendors = range(1, vendor_count + 1)
     found: list[VendorDesideratum] = []
     for vendor in vendors:
@@ -184,7 +190,7 @@ def desiderata_values(prefix: CasePrefix) -> Values:
     is the case's own outcome.
 
     The history is taken as given, not replayed against the state: a caller
-    that holds only the events uses :func:`.replay` or
+    that holds only the moves uses :func:`.replay` or
     :meth:`.WalkPrefix.then` to build the prefix.
 
     Raises:
@@ -200,27 +206,36 @@ def _case_model(vendor_count: int) -> JointModel:
     """The joint model a case of *vendor_count* vendors steps through.
 
     Only its steps from a given state are read, never a walk over it.
+
+    Raises:
+        ValueError: *vendor_count* is less than one.
     """
+    _require_vendors(vendor_count)
     shared = {1: ONE_VENDOR_MODEL, 2: TWO_VENDOR_MODEL}
     return shared.get(vendor_count) or JointModel(vendor_count)
 
 
-def expected_change(prefix: CasePrefix, event: Event) -> Values:
-    """Each vendor's expected change, in each desideratum, of the step *event* from *prefix*.
+def expected_change(
+    prefix: CasePrefix, move: Move[JointState, Event]
+) -> Values:
+    """Each vendor's expected change, in each desideratum, of the step *move* names from *prefix*.
 
     The value after the step minus the value before it
     (:func:`desiderata_values`): positive when the step makes the
     desideratum likelier to hold than leaving the case to chance from
-    *prefix*.  ``None`` where either value is undefined.
+    *prefix*.  ``None`` where either value is undefined.  *move* is an
+    event, or the :class:`.Step` itself where the event alone is ambiguous,
+    as accepting an embargo proposal is (it can start the embargo as
+    ``ACTIVE`` or as ``REVISE``).
 
     Raises:
         ValueError: ``prefix.state`` holds no vendor.
-        VultronInvalidStateTransitionError: *event* is not one allowed step
-            from the prefix's state in the case's joint model, or more than
-            one (:func:`.find_step`).
+        VultronInvalidStateTransitionError: *move* is not one allowed step
+            from the prefix's state in the case's joint model, or is an
+            event that names more than one (:func:`.take_step`).
     """
     model = _case_model(len(prefix.state.vendors))
-    after = prefix.then(find_step(model, prefix.state, event))
+    after = prefix.then(take_step(model, prefix.state, move))
     return _difference(desiderata_values(after), desiderata_values(prefix))
 
 

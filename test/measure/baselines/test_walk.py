@@ -34,6 +34,7 @@ from vultron.measure.baselines.walk import (
     implies,
     ordering,
     replay,
+    take_step,
 )
 
 
@@ -145,12 +146,13 @@ def test_a_state_that_steps_to_itself_is_a_cycle():
     assert frequency(model, ordering("x", "stay")) == Fraction(1, 2)
 
 
-def test_values_from_the_start_are_the_frequency():
-    for query in (
+def test_values_from_the_start_are_the_frequency() -> None:
+    queries: list[OrderingQuery[str]] = [
         ordering("x", "y"),
         ordering("y", "x"),
         ordering("back", "x"),
-    ):
+    ]
+    for query in queries:
         values = ChanceValues(_LOOP, query)
         assert values.at(WalkPrefix("s")) == frequency(_LOOP, query)
 
@@ -161,14 +163,64 @@ def test_a_value_from_inside_a_cycle_is_solved_there():
     assert values.at(replay(_LOOP, ["go"])) == Fraction(1, 3)
 
 
-def test_solving_from_mid_walk_first_leaves_the_start_value_exact():
-    for model, events, query in (
+# From s, loop with t or leave to u; from u, loop with w or end by y.
+#   s <-> t, s -> u ; u <-> w, u -> y-end
+_TWO_CYCLES = _Graph(
+    "s",
+    {
+        "s": (("go", "t", _NONE), ("x", "u", _NONE)),
+        "t": (("back", "s", _NONE), ("y", "done", _NONE)),
+        "u": (("on", "w", _NONE), ("y", "done", _NONE)),
+        "w": (("off", "u", _NONE), ("x", "done", _NONE)),
+    },
+)
+
+
+def test_solving_from_mid_walk_first_leaves_the_start_value_exact() -> None:
+    cases: list[tuple[_Graph, list[str], OrderingQuery[str]]] = [
         (_LOOP, ["go"], ordering("x", "y")),
         (_FORK, ["a"], ordering("a", "b")),
-    ):
+        # u's cycle is solved first; s's cycle then exits into it.
+        (_TWO_CYCLES, ["x"], ordering("x", "y")),
+    ]
+    for model, events, query in cases:
         values = ChanceValues(model, query)
         values.at(replay(model, events))
         assert values.at(WalkPrefix(model.initial)) == frequency(model, query)
+
+
+def test_a_cycle_whose_exit_was_solved_earlier_reads_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    starts: list[object] = []
+    search: Callable[..., list[list[object]]] = walk_module._strongly_connected
+
+    def counting(
+        start: object, successors: Callable[[object], list[object]]
+    ) -> list[list[object]]:
+        components = search(start, successors)
+        starts.append(start)
+        # The second search stops at the solved u: w, inside u's cycle,
+        # is never reached again.
+        if len(starts) == 2:
+            reached = {
+                n.state
+                for c in components
+                for n in c
+                if isinstance(n, walk_module._Node)
+            }
+            assert "u" in reached
+            assert "w" not in reached
+        return components
+
+    monkeypatch.setattr(walk_module, "_strongly_connected", counting)
+    values = ChanceValues(_TWO_CYCLES, ordering("x", "y"))
+    # From u: y ends at once (x met first, so 1), or into w, whose x ends
+    # it (1) — every walk from u meets x ≺ y.
+    assert values.at(replay(_TWO_CYCLES, ["x"])) == 1
+    from_start = values.at(WalkPrefix("s"))
+    assert len(starts) == 2  # u first, then s
+    assert from_start == frequency(_TWO_CYCLES, ordering("x", "y"))
 
 
 def test_a_value_reads_what_the_history_already_settled():
@@ -245,3 +297,19 @@ def test_a_prefix_records_each_steps_events_together():
     prefix = replay(model, ["a"])
     assert prefix == WalkPrefix("end", (frozenset({"a", "b"}),))
     assert ChanceValues(model, ordering("a", "b")).at(prefix) == 0
+
+
+def test_a_step_given_whole_picks_one_of_an_ambiguous_event():
+    model = _Graph("s", {"s": (("a", "t", _NONE), ("a", "u", _NONE))})
+    to_u = Step("a", "u")
+    assert take_step(model, "s", to_u) is to_u
+    assert replay(model, [to_u]) == WalkPrefix("u", (frozenset({"a"}),))
+    values = ChanceValues(model, ordering("a", "b"))
+    assert values.change(WalkPrefix("s"), to_u) == 0
+
+
+def test_a_step_given_whole_must_be_allowed():
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="not allowed"
+    ):
+        take_step(_FORK, "s", Step("a", "B"))

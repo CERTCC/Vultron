@@ -28,7 +28,7 @@ model it takes chance from (ADR-0182, on the smallest model that holds it):
 by search over the model rather than by argument.
 """
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Hashable, Iterable, Mapping
 from enum import StrEnum
 from fractions import Fraction
 from functools import cache
@@ -43,6 +43,7 @@ from vultron.measure.baselines.joint import (
     TWO_VENDOR_MODEL,
     Event,
     EventKind,
+    JointModel,
     JointState,
 )
 from vultron.measure.baselines.walk import (
@@ -282,6 +283,19 @@ def case_state_query(query: Query) -> OrderingQuery[CSEvent]:
     )
 
 
+def _joint_model(model: ModelName) -> JointModel:
+    """The joint model *model* names.
+
+    Raises:
+        ValueError: *model* is the six-event model.
+    """
+    if model is ModelName.ONE_VENDOR:
+        return ONE_VENDOR_MODEL
+    if model is ModelName.TWO_VENDOR:
+        return TWO_VENDOR_MODEL
+    raise ValueError(f"{model} is not a joint model")
+
+
 @cache
 def joint_values(
     model: ModelName, query: Query
@@ -291,11 +305,7 @@ def joint_values(
     Raises:
         ValueError: *model* is the six-event model (:func:`case_state_values`).
     """
-    if model is ModelName.ONE_VENDOR:
-        return ChanceValues(ONE_VENDOR_MODEL, query)
-    if model is ModelName.TWO_VENDOR:
-        return ChanceValues(TWO_VENDOR_MODEL, query)
-    raise ValueError(f"{model} is not a joint model")
+    return ChanceValues(_joint_model(model), query)
 
 
 @cache
@@ -313,9 +323,13 @@ def _frequency(model: ModelName, query: Query) -> Fraction:
     """
     if model is ModelName.CASE_STATE:
         return frequency(CASE_STATE_MODEL, case_state_query(query))
-    if model is ModelName.ONE_VENDOR:
-        return frequency(ONE_VENDOR_MODEL, query)
-    return frequency(TWO_VENDOR_MODEL, query)
+    return frequency(_joint_model(model), query)
+
+
+def _at_start[S: Hashable, E: Hashable](
+    table: ChanceValues[S, E],
+) -> Fraction | None:
+    return table.at(WalkPrefix(table.model.initial))
 
 
 def baseline(desideratum: Desideratum) -> Fraction:
@@ -328,13 +342,11 @@ def baseline(desideratum: Desideratum) -> Fraction:
         ValueError: no walk on the model meets every given event.
     """
     query = desideratum.query
-    if desideratum.model is ModelName.CASE_STATE:
-        value = case_state_values(query).at(
-            WalkPrefix(CASE_STATE_MODEL.initial)
-        )
-    else:
-        table = joint_values(desideratum.model, query)
-        value = table.at(WalkPrefix(table.model.initial))
+    value = (
+        _at_start(case_state_values(query))
+        if desideratum.model is ModelName.CASE_STATE
+        else _at_start(joint_values(desideratum.model, query))
+    )
     if value is None:
         raise ValueError(
             f"no walk on the {desideratum.model} model meets every given"

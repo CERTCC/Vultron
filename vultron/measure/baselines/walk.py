@@ -105,6 +105,33 @@ def find_step[S: Hashable, E: Hashable](
     return matches[0]
 
 
+type Move[S: Hashable, E: Hashable] = E | Step[S, E]
+"""A step named by its event, or given whole where the event alone is ambiguous."""
+
+
+def take_step[S: Hashable, E: Hashable](
+    model: ChanceModel[S, E], state: S, move: Move[S, E]
+) -> Step[S, E]:
+    """The step *move* names from *state*.
+
+    A :class:`Step` is taken as given once the model allows it from *state*;
+    an event is looked up with :func:`find_step`.  Pass the step itself where
+    one event allows several, such as an embargo starting as ``ACTIVE`` or as
+    ``REVISE``.
+
+    Raises:
+        VultronInvalidStateTransitionError: the model allows no such step
+            from *state*, or *move* is an event that names more than one.
+    """
+    if isinstance(move, Step):
+        if move not in model.steps(state):
+            raise VultronInvalidStateTransitionError(
+                f"{move.event} to {move.state} is not allowed from {state}"
+            )
+        return move
+    return find_step(model, state, move)
+
+
 class WalkPrefix[S: Hashable, E: Hashable](NamedTuple):
     """A walk partway: the state it is in, and what each step taken so far emitted.
 
@@ -124,17 +151,20 @@ class WalkPrefix[S: Hashable, E: Hashable](NamedTuple):
 
 
 def replay[S: Hashable, E: Hashable](
-    model: ChanceModel[S, E], events: Iterable[E]
+    model: ChanceModel[S, E], moves: Iterable[Move[S, E]]
 ) -> WalkPrefix[S, E]:
-    """The prefix reached from the model's start by the steps *events* name, in order.
+    """The prefix reached from the model's start by the steps *moves* name, in order.
+
+    Each move is an event, or the :class:`Step` itself where the event alone
+    is ambiguous (:func:`take_step`).
 
     Raises:
-        VultronInvalidStateTransitionError: some event is not one allowed
-            step from the state reached before it (:func:`find_step`).
+        VultronInvalidStateTransitionError: some move is not one allowed
+            step from the state reached before it (:func:`take_step`).
     """
     prefix: WalkPrefix[S, E] = WalkPrefix(model.initial)
-    for event in events:
-        prefix = prefix.then(find_step(model, prefix.state, event))
+    for move in moves:
+        prefix = prefix.then(take_step(model, prefix.state, move))
     return prefix
 
 
@@ -441,19 +471,24 @@ class ChanceValues[S: Hashable, E: Hashable]:
         )
         return None if scoped == 0 else held / scoped
 
-    def change(self, prefix: WalkPrefix[S, E], event: E) -> Fraction | None:
-        """The expected change of the step *event* from *prefix*.
+    def change(
+        self, prefix: WalkPrefix[S, E], move: Move[S, E]
+    ) -> Fraction | None:
+        """The expected change of the step *move* names from *prefix*.
 
         The value after the step minus the value before it; positive when the
         step makes the query likelier to hold than leaving the case to chance.
-        ``None`` when either value is undefined.
+        ``None`` when either value is undefined.  *move* is an event, or the
+        :class:`Step` itself where the event alone is ambiguous.
 
         Raises:
-            VultronInvalidStateTransitionError: *event* is not one allowed
-                step from the prefix's state (:func:`find_step`).
+            VultronInvalidStateTransitionError: *move* is not one allowed
+                step from the prefix's state (:func:`take_step`).
+            WalkNeverEndsError: the walk from either prefix can circulate
+                forever.
         """
         after = self.at(
-            prefix.then(find_step(self._model, prefix.state, event))
+            prefix.then(take_step(self._model, prefix.state, move))
         )
         before = self.at(prefix)
         return difference(after, before)

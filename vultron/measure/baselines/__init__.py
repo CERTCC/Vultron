@@ -76,6 +76,7 @@ from vultron.measure.baselines.values import (
 from vultron.measure.baselines.walk import (
     ChanceModel,
     ChanceValues,
+    Move,
     Ordering,
     OrderingQuery,
     Step,
@@ -86,6 +87,7 @@ from vultron.measure.baselines.walk import (
     implies,
     ordering,
     replay,
+    take_step,
 )
 
 __all__ = [
@@ -107,6 +109,7 @@ __all__ = [
     "JointModel",
     "JointState",
     "ModelName",
+    "Move",
     "Ordering",
     "OrderingQuery",
     "Step",
@@ -128,5 +131,6 @@ __all__ = [
     "prefix_probability",
     "replay",
     "step_probability",
+    "take_step",
     "vendor_desiderata",
 ]
