@@ -20,7 +20,7 @@ the case's CASE_MANAGER, which decides what the Leave means (CM-23-002,
 CM-23-003).  Before it sends, the leaving actor runs its own pre-close
 integration step, the ``PreCloseAction`` Actuator call-out (TRIG-13-002).  A
 Case Owner whose replica records an embargo in force is refused first, before
-that step runs, because the CASE_MANAGER would decline its Leave (CM-23-011,
+that step runs, because the CASE_MANAGER would refuse its Leave (CM-23-011,
 TRIG-13-003).
 """
 
@@ -38,7 +38,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     RefuseOwnerLeaveWhileEmbargoedNode,
 )
 from vultron.core.behaviors.case.owner_close_embargo_guards import (
-    owner_close_blocked_by_embargo_guards,
+    owner_close_not_blocked_by_embargo,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
@@ -72,9 +72,9 @@ def create_leave_case_trigger_tree(
         ├─ PreCloseAction                              # Actuator call-out
         └─ SenderSideBT                                # resolve CM, build, queue
 
-    The embargo check is the one the CASE_MANAGER makes on receipt
+    The embargo guard is the one the CASE_MANAGER composes on receipt
     (:func:`~vultron.core.behaviors.case.owner_close_embargo_guards
-    .owner_close_blocked_by_embargo_guards`), so a participant that is not
+    .owner_close_not_blocked_by_embargo`), so a participant that is not
     the owner is never blocked by it.  The check sits in a refusal arm, so a
     guard that cannot answer must not admit: a store error raises out of the
     guard and fails the whole trigger, with the call-out not run and nothing
@@ -101,28 +101,15 @@ def create_leave_case_trigger_tree(
     """
     bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
 
-    embargo_guard = py_trees.composites.Selector(
-        name="OwnerLeaveNotBlockedByEmbargo",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="NotOwnerLeaveBlockedByEmbargo",
-                child=py_trees.composites.Sequence(
-                    name="OwnerLeaveBlockedByEmbargoCheck",
-                    memory=False,
-                    children=owner_close_blocked_by_embargo_guards(
-                        closing_actor_id=actor_id,
-                        case_id=case_id,
-                        result_out={},
-                    ),
-                ),
-            ),
-            RefuseOwnerLeaveWhileEmbargoedNode(
-                actor_id=actor_id,
-                case_id=case_id,
-                result_out=result_out,
-            ),
-        ],
+    embargo_guard = owner_close_not_blocked_by_embargo(
+        "OwnerLeave",
+        closing_actor_id=actor_id,
+        case_id=case_id,
+        refusal=RefuseOwnerLeaveWhileEmbargoedNode(
+            actor_id=actor_id,
+            case_id=case_id,
+            result_out=result_out,
+        ),
     )
 
     root = py_trees.composites.Sequence(

@@ -29,6 +29,9 @@ the vendor's listing (rule conflict), and a timeless record with no fallback
 
 The payload objects come from the measures' hand-built ledger builders, so
 the fake's ledger is one the event-history projection reads.
+
+:func:`projected_history` is that projection check, shared by every reader's
+tests: it runs a reading's ledger through the measures' event history.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from test.support.objects import make
@@ -49,6 +53,12 @@ from vultron.core.models.case_reading import (
     UntranslatedReason as Reason,
 )
 from vultron.errors import VultronNotFoundError
+from vultron.measure.history import CaseEventHistory, case_event_history
+from vultron.measure.ledger import (
+    LedgerFile,
+    LedgerRow,
+    case_ledgers_from_files,
+)
 
 FAKE_CASE = "urn:uuid:case-1"
 
@@ -123,6 +133,26 @@ FAKE_UNOBSERVABLE: tuple[UnobservableFact, ...] = (
         fact="Fix deployed (D)", why="The fake source has no such field."
     ),
 )
+
+
+def projected_history(reading: CaseReading) -> CaseEventHistory:
+    """The event history the measures project from *reading*'s ledger.
+
+    Core has no entries-to-case apply function yet, so the measures'
+    projection stands in for "the core's projection accepts the ledger"
+    (CRD-01-003).
+    """
+    path = Path("case-reading.jsonl")
+    rows = [
+        LedgerRow(
+            path=path,
+            line=i + 1,
+            data=entry.model_dump(by_alias=True, mode="json"),
+        )
+        for i, entry in enumerate(reading.ledger)
+    ]
+    read = case_ledgers_from_files([LedgerFile(path=path, rows=rows)])
+    return case_event_history(read.cases[reading.ledger[0].case_id])
 
 
 def _entry(

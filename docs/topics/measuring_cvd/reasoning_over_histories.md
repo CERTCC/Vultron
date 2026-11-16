@@ -318,4 +318,5 @@ The case gets one more score for the embargo group and one more for the multi-pa
 The walk for these desiderata starts at the state of the case now, not at the start of the model.
 Each walk uses one vendor, or one pair of vendors for $\evV_i \prec \evF_j$, so the scorer never combines the sequences of two vendors.
 A group of equivalent desiderata, such as $\evE \prec \evP$, $\evE \prec \evX$ and $\evE \prec \evA$, counts only once.
+A desideratum whose scope the case never enters counts as met: a report that is never validated does not lose the desiderata for valid reports.
 When a score adds up more than one walk, its best and worst scores are bounds, because the walks share the events of the case.

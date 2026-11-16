@@ -3,6 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.case import receive_report_case_tree
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
@@ -40,14 +42,10 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
-
 logger = logging.getLogger(__name__)
 
 
-def _submit_report_reader(
-    report_id: str | None, receiving_actor_id: str
-) -> OutcomeReader:
+def _submit_report_reader(report_id: str | None) -> OutcomeReader:
     """Classify the one ``Offer(VulnerabilityReport)`` tree's outcome (#2255).
 
     The factory's doors come first, read by the runner: a copy not addressed
@@ -72,7 +70,7 @@ def _submit_report_reader(
                 "SubmitReportReceivedUseCase: auto_create_case disabled for"
                 " actor '%s' — kept report '%s' and Offer without creating a"
                 " case (pre-case ACK path)",
-                receiving_actor_id,
+                outcome.receiving_actor_id,
                 report_id,
             )
             return HandlerResult.skipped("auto_create_case disabled")
@@ -165,30 +163,28 @@ class SubmitReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolved before anything else, so the log lines name the receiver
-        # and a delivery with no resolvable receiver raises as a wiring fault
-        # (BT-17-009, #2667); the runner resolves it again for the run.
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-        if request.report_id:
-            logger.info(
-                "Actor '%s' receiving report '%s' — running case-creation BT",
-                receiving_actor_id,
-                request.report_id,
+
+        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # Built for the receiver the runner resolved, so the log line
+            # names it (BT-17-009, #2667).
+            if request.report_id:
+                logger.info(
+                    "Actor '%s' receiving report '%s' — running case-creation"
+                    " BT",
+                    receiving_actor_id,
+                    request.report_id,
+                )
+            return receive_report_case_tree.create_submit_report_received_tree(
+                request, actor_config=self._actor_config
             )
-        tree = receive_report_case_tree.create_submit_report_received_tree(
-            request, actor_config=self._actor_config
-        )
+
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="ReceiveReportCaseBT",
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=_submit_report_reader(
-                request.report_id, receiving_actor_id
-            ),
+            reader=_submit_report_reader(request.report_id),
         )

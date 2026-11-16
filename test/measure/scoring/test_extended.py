@@ -44,9 +44,12 @@ from vultron.measure.baselines import (
     Event,
     EventKind,
     Group,
+    WalkPrefix,
     baseline,
+    expected_outcome,
     implications,
 )
+from vultron.measure.baselines.desiderata import joint_values
 from vultron.measure.history import (
     CaseEvent,
     CaseEventHistory,
@@ -197,8 +200,8 @@ def test_a_recorded_vendors_score_includes_its_report_handling_desiderata():
     28 and the embargo ends on that threat signal at 29.
 
     So every report-handling desideratum is met, and ``F_i ≺ Ex_own`` is
-    out of scope for good: an embargo that ended on a threat signal never
-    ends on its own terms.
+    out of scope for good, which counts as met: an embargo that ended on a
+    threat signal never ends on its own terms.
     """
     (vendor,) = _recording("rcv").vendors
     extended = vendor.extended
@@ -206,13 +209,16 @@ def test_a_recorded_vendors_score_includes_its_report_handling_desiderata():
     accepted_before_public = _term(extended, r"\evAc_i \prec \evP")
     assert accepted_before_public.met == 1
     assert accepted_before_public.weight == 1 - Fraction(5, 96)
-    assert _term(extended, r"\evExOwn").met == 0
+    fix_first = _term(extended, r"\evExOwn")
+    assert fix_first.met == 1
+    assert fix_first.weight == 1 - Fraction(11515607, 250253192)
     by_hand = (
         (1 - Fraction(5, 96))  # Ac_i ≺ P
         + (1 - Fraction(16, 81))  # Ac_i ≺ X
         + (1 - Fraction(2, 9))  # Ac_i ≺ A
         + (1 - Fraction(1, 6))  # Va_i ≺ P
         + (1 - Fraction(1, 3))  # Ac_i ≺ F_i
+        + (1 - Fraction(11515607, 250253192))  # F_i ≺ Ex_own, out of scope
     )
     assert extended.expected == extended.best == extended.worst == by_hand
     assert vendor.expected == vendor.score.expected + by_hand
@@ -278,21 +284,49 @@ def test_an_open_embargo_is_scored_through_its_completions():
     assert embargo.worst == _E_WEIGHT
 
 
-def test_an_open_scope_event_still_has_to_occur():
-    """The vendor's fix is ready under an embargo still in force, so
-    ``F_i ≺ Ex_own`` counts once the embargo ends on its own terms, with
-    the same 1/5."""
+def test_a_scope_the_case_may_never_enter_counts_as_met_when_not_entered():
+    """The vendor's fix is ready under an embargo still in force.  The
+    embargo ends on its own terms with probability 1/5, and then the fix
+    came first; otherwise ``Ex_own`` never comes and the scope is never
+    entered.  Both count as met, so ``F_i ≺ Ex_own`` is met for sure."""
     (vendor,) = score_case(_vendor_done_embargo_active()).vendors
     extended = vendor.extended
     assert isinstance(extended, ScopeScore)
-    fix_first = _term(extended, r"\evExOwn")
-    assert fix_first.met == Fraction(1, 5)
-    others = [t for t in extended.terms if t is not fix_first]
-    assert all(t.met == 1 for t in others)
-    settled = sum((t.weight for t in others), Fraction(0))
-    assert extended.expected == settled + fix_first.weight / 5
-    assert extended.best == settled + fix_first.weight
-    assert extended.worst == settled
+    assert all(t.met == 1 for t in extended.terms)
+    total = sum((t.weight for t in extended.terms), Fraction(0))
+    assert extended.expected == extended.best == extended.worst == total
+
+
+def test_an_open_scope_combines_its_chance_and_its_conditional_value():
+    """A vendor aware, its report only received: ``Va_i ≺ P`` is in scope
+    only if the report reaches Valid, so its outcome is
+    P(not entered) + P(entered) * P(met | entered)."""
+    history = _history(
+        _start(0),
+        _event(1, RecordKind.REPORT_RECEIVED, _V1),
+        _event(1, CSEvent.V, _V1),
+    )
+    record = CaseRecord(history, case_state_sequences(history).sequences)
+    (vendor,) = score_case(history).vendors
+    extended = vendor.extended
+    assert isinstance(extended, ScopeScore)
+    (desideratum,) = [
+        d for d in scope_desiderata().vendor if r"\evVa_i" in d.notation
+    ]
+    prefix = WalkPrefix(
+        record.state((record.path(_V1),)),
+        (frozenset({Event(EventKind.V, 1)}),),
+    )
+    reading = joint_values(desideratum.model, desideratum.query).reading(
+        prefix
+    )
+    assert 0 < reading.entered < 1
+    assert reading.value is not None
+    assert 0 < reading.value < 1
+    term = _term(extended, r"\evVa_i")
+    assert term.met == expected_outcome(reading.entered, reading.value)
+    assert term.met == 1 - reading.entered + reading.entered * reading.value
+    assert extended.worst < extended.expected < extended.best
 
 
 def test_a_case_whose_events_have_all_happened_has_one_score():

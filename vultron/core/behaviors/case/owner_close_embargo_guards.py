@@ -16,14 +16,16 @@
 """The one check that an owner's Leave is blocked by a live embargo (CM-23-011).
 
 The CASE_MANAGER makes it on receipt of the Case Owner's
-``Leave(VulnerabilityCase)`` and declines the close
+``Leave(VulnerabilityCase)`` and refuses the close, answering it with the
+refusal notice
 (:func:`~vultron.core.behaviors.case.receive_close_case_tree
-.create_close_case_received_tree`).  The ``leave-case`` trigger makes the same
+.create_close_case_received_tree`, ADR-0196).  The ``leave-case`` trigger makes the same
 check on the leaving actor's own replica before it runs its pre-close step or
 sends anything (TRIG-13-003,
 :func:`~vultron.core.behaviors.case.leave_case_trigger_tree
-.create_leave_case_trigger_tree`).  Both compose the guards built here, so the
-two sides cannot drift apart.
+.create_leave_case_trigger_tree`).  Both compose the guard
+:func:`owner_close_not_blocked_by_embargo` builds here, each with its own
+refusal node, so the two sides cannot drift apart.
 """
 
 import py_trees
@@ -84,3 +86,48 @@ def owner_close_blocked_by_embargo_guards(
             name="IsCloseBlockedByActiveEmbargo",
         ),
     ]
+
+
+def owner_close_not_blocked_by_embargo(
+    subject: str,
+    closing_actor_id: str,
+    case_id: str,
+    refusal: py_trees.behaviour.Behaviour,
+) -> py_trees.composites.Selector:
+    """A guard that passes unless *closing_actor_id*'s close is embargo-blocked.
+
+    ``Selector(Inverter(Sequence(<the check>)), refusal)``: SUCCESS when the
+    check of :func:`owner_close_blocked_by_embargo_guards` fails, else
+    whatever *refusal* returns.  *refusal* always fails and names why, so the
+    Selector's failure reason is the refusal's (CM-23-011).
+
+    Args:
+        subject: Names the nodes: ``<subject>NotBlockedByEmbargo`` (the
+            Selector), ``Not<subject>BlockedByEmbargo`` and
+            ``<subject>BlockedByEmbargoCheck``.
+        closing_actor_id: The actor whose close is checked.
+        case_id: The case being closed.
+        refusal: The node that refuses the blocked close.
+
+    Returns:
+        The guard Selector.
+    """
+    return py_trees.composites.Selector(
+        name=f"{subject}NotBlockedByEmbargo",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name=f"Not{subject}BlockedByEmbargo",
+                child=py_trees.composites.Sequence(
+                    name=f"{subject}BlockedByEmbargoCheck",
+                    memory=False,
+                    children=owner_close_blocked_by_embargo_guards(
+                        closing_actor_id=closing_actor_id,
+                        case_id=case_id,
+                        result_out={},
+                    ),
+                ),
+            ),
+            refusal,
+        ],
+    )

@@ -49,6 +49,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    attributed_proposer_id,
+)
 from vultron.core.behaviors.status.nodes import ThreatTerminationBranchNode
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
@@ -67,6 +70,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -76,7 +80,6 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
-    resolve_proposer_id,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
@@ -608,6 +611,20 @@ def _participant_of(
     case = cast(VulnerabilityCase, dl.read(case_id))
     return cast(
         CaseParticipant, dl.read(case.actor_participant_index[actor_id])
+    )
+
+
+def _proposer_of(event, dl: SqliteDataLayer) -> str:
+    """The proposer the received Invite tree publishes for *event*."""
+    attributed_to = event.activity.attributed_to
+    return attributed_proposer_id(
+        dl,
+        sender_id=event.actor_id,
+        attributed_to=(
+            normalise_actor_id(attributed_to) if attributed_to else None
+        ),
+        case_id=event.context_id,
+        activity_id=event.activity_id,
     )
 
 
@@ -1378,8 +1395,13 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     event = make_payload(invite, receiving_actor_id=OTHER_A, at=dl)
 
     caplog.set_level("WARNING")
-    assert resolve_proposer_id(event, dl) == MANAGER
-    assert any("holds no case" in r.message for r in caplog.records)
+    assert _proposer_of(event, dl) == MANAGER
+    assert any(
+        "only the case's CASE_MANAGER relays" in r.message
+        and "or holds no such case" in r.message
+        and case_id in r.message
+        for r in caplog.records
+    )
 
 
 @pytest.mark.spec("OID-01-006")
@@ -1401,7 +1423,7 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
     )
 
     assert (
-        resolve_proposer_id(
+        _proposer_of(
             make_payload(invite, receiving_actor_id=MANAGER, at=dl), dl
         )
         == PROPOSER
@@ -1458,7 +1480,7 @@ def test_only_the_resolved_manager_may_attribute_a_proposal(
     invite = _proposal(revision, case_id, actor=sender, attributed_to=PROPOSER)
 
     assert (
-        resolve_proposer_id(
+        _proposer_of(
             make_payload(invite, receiving_actor_id=OTHER_B, at=dl), dl
         )
         == proposer

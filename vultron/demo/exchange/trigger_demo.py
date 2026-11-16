@@ -199,7 +199,7 @@ def demo_invalidate_and_close(
     Workflow:
     1. Reporter submits a report that the vendor deems invalid.
     2. Vendor calls ``POST .../trigger/invalidate-report`` to mark it invalid.
-    3. Vendor ends the case's embargo, which would decline its close
+    3. Vendor ends the case's embargo, which would refuse its close
        (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
        opened for the report on receipt: a ``Leave(VulnerabilityCase)``, since
        the case's owner never sends ``Reject(Offer(VulnerabilityReport))`` for

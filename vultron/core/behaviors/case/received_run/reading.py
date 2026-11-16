@@ -94,11 +94,14 @@ class ReceivedOutcome:
         tree: The root of the tree that ran.
         result: What ``BTBridge`` returned for it.
         label: Names the handler's step in a reason, e.g. ``"EngageCaseBT"``.
+        receiving_actor_id: The actor the tree ran as, which the runner
+            resolved (BT-17-009); a reading names it in its logs.
     """
 
     tree: py_trees.behaviour.Behaviour
     result: BTExecutionResult
     label: str
+    receiving_actor_id: str
 
     @classmethod
     def of(
@@ -106,9 +109,16 @@ class ReceivedOutcome:
         tree: py_trees.behaviour.Behaviour | _HasRoot,
         result: BTExecutionResult,
         label: str,
+        *,
+        receiving_actor_id: str,
     ) -> ReceivedOutcome:
         """The outcome of *tree*'s run, from the tree or its wrapper."""
-        return cls(tree=_root(tree), result=result, label=label)
+        return cls(
+            tree=_root(tree),
+            result=result,
+            label=label,
+            receiving_actor_id=receiving_actor_id,
+        )
 
     @property
     def succeeded(self) -> bool:

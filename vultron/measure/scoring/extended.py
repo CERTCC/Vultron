@@ -36,15 +36,18 @@ only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
 (``process_model_desiderata.md`` § "The desiderata are not independent").
 
 A desideratum the record has settled is met or not; one it has not is met
-with the probability the walk gives it from where the case stands
-(:class:`~vultron.measure.baselines.StartedAt`), the way an incomplete
-case-state sequence is scored through its completions (ADR-0182).  Each
-term adds its weight ``1 - f_d`` when met, as the twelve original
-desiderata do (:func:`.history_score`), and nothing otherwise.  That holds
-for a term out of its scope too: a report that never reaches Valid meets no
-desideratum scoped to Valid reports, so it adds nothing, as a history that
-fails a desideratum adds nothing, and a scoping event that has not yet
-occurred must still occur for the term to count.
+with the probability the walk gives it from where the case stands, the way
+an incomplete case-state sequence is scored through its completions
+(ADR-0182).  The case's record is the walk's history
+(:class:`~vultron.measure.baselines.WalkPrefix`), and the chance comes from
+the desideratum's solved table
+(:meth:`~vultron.measure.baselines.ChanceValues.reading`).  Each term adds
+its weight ``1 - f_d`` times its expected outcome
+(:func:`~vultron.measure.baselines.expected_outcome`), in which a scope the
+case never enters counts as met: a report that never reaches Valid does not
+lose the desiderata scoped to Valid reports, because not taking a path that
+needs a desideratum is not failing it.  The best and worst count it the same
+way, at each end the walk can still reach.
 
 Every walk reads one vendor, or one pair, never all of them: the vendors'
 events are never combined into one sequence (CEH-05-006).  The embargo
@@ -65,19 +68,17 @@ from vultron.measure.baselines import (
     TWO_VENDOR_MODEL,
     Desideratum,
     Event,
-    EventKind,
     Group,
     JointModel,
-    JointState,
     ModelName,
-    Ordering,
     OrderingQuery,
-    StartedAt,
+    WalkPrefix,
     baseline,
-    frequency,
     implications,
     reachable_ends,
 )
+from vultron.measure.baselines.desiderata import joint_values
+from vultron.measure.baselines.values import CasePrefix
 from vultron.measure.scoring.model import (
     ScopeScore,
     TermScore,
@@ -89,13 +90,6 @@ from vultron.measure.scoring.record import (
     CaseRecord,
     NotAJointStateError,
 )
-
-_NEVER = Event(EventKind.V, 0)
-"""An event no step emits: no joint model has a vendor 0.
-
-``g ≺ _NEVER`` holds exactly when ``g`` occurs, so a scoping event that has
-not yet occurred becomes one more ordering of the walk's query.
-"""
 
 
 def _names_a_vendor(desideratum: Desideratum) -> bool:
@@ -161,56 +155,26 @@ _MODELS: dict[ModelName, JointModel] = {
 }
 
 
-def _holds(
-    ordering: Ordering[Event], at: Callable[[Event], int | None]
-) -> bool:
-    """Whether the record meets *ordering*, given each event's position.
-
-    ``a ≺ b`` holds when ``a`` occurred strictly before ``b``, or ``a``
-    occurred and ``b`` did not, as in the walk.
-    """
-    before, after = at(ordering.before), at(ordering.after)
-    return before is not None and (after is None or before < after)
-
-
-def _remaining(
-    desideratum: Desideratum, at: Callable[[Event], int | None]
-) -> OrderingQuery[Event] | None:
-    """What the walk must still do for *desideratum* to be met.
-
-    ``None`` when the record already fails it.  A settled ordering drops
-    out; an open one stays; a scoping event not yet occurred becomes an
-    ordering before :data:`_NEVER`.  An empty query is already met.
-    """
-    open_orderings: list[Ordering[Event]] = []
-    for ordering in desideratum.query.orderings:
-        if at(ordering.before) is None and at(ordering.after) is None:
-            open_orderings.append(ordering)
-        elif not _holds(ordering, at):
-            return None
-    pending = [
-        Ordering(event, _NEVER)
-        for event in sorted(desideratum.query.given, key=str)
-        if at(event) is None
-    ]
-    return OrderingQuery((*open_orderings, *pending))
-
-
-@cache
-def _chance(
-    model: JointModel, state: JointState, query: OrderingQuery[Event]
-) -> Fraction:
-    """The probability *query* holds on the walk from *state*."""
-    if not query.orderings:
-        return Fraction(1)
-    return frequency(StartedAt(model, state), query)
+def _history(
+    record: CaseRecord,
+    events: Iterable[Event],
+    vendors: tuple[str, ...],
+) -> tuple[frozenset[Event], ...]:
+    """*events* the record holds, as the walk's history: one entry per
+    position, in order, so events of one ledger entry are simultaneous."""
+    by_position: dict[int, set[Event]] = {}
+    for event in events:
+        position = record.position(event, vendors)
+        if position is not None:
+            by_position.setdefault(position, set()).add(event)
+    return tuple(frozenset(by_position[p]) for p in sorted(by_position))
 
 
 @cache
 def _ends(
-    model: JointModel, state: JointState, query: OrderingQuery[Event]
-) -> frozenset[frozenset[int]]:
-    return reachable_ends(StartedAt(model, state), query)
+    model: JointModel, query: OrderingQuery[Event], prefix: CasePrefix
+) -> frozenset[tuple[frozenset[Event], frozenset[int]]]:
+    return reachable_ends(model, query, prefix)
 
 
 def _walk(
@@ -223,61 +187,56 @@ def _walk(
 
     The walk's vendor slots hold *paths*' vendors, or, when *paths* is
     ``None``, one vendor not yet aware.  Every desideratum takes the same
-    model, the one each of them names.
+    model, the one each of them names.  The case's record is the walk's
+    history, so an ordering it already settles stays settled.
 
     Raises:
         NotAJointStateError: the case stands in no state of the model.
     """
-    (model,) = {_MODELS[d.model] for d in desiderata}
+    (name,) = {d.model for d in desiderata}
+    model = _MODELS[name]
     state = record.state(
         (UNAWARE,)
         if paths is None
         else tuple(record.path(vendor) for vendor in paths)
     )
-
-    def at(event: Event) -> int | None:
-        return record.position(event, vendors)
-
+    joined = OrderingQuery(
+        tuple(o for d in desiderata for o in d.query.orderings),
+        frozenset().union(*(d.query.given for d in desiderata)),
+    )
+    prefix: CasePrefix = WalkPrefix(
+        state, _history(record, joined.watched, vendors)
+    )
     scored: list[TermScore] = []
-    certain = Fraction(0)
-    joined: list[Ordering[Event]] = []
-    spans: list[tuple[Fraction, range]] = []
+    spans: list[tuple[Fraction, frozenset[Event], range]] = []
+    start = 0
     for desideratum in desiderata:
         weight = 1 - baseline(desideratum)
-        remaining = _remaining(desideratum, at)
+        reading = joint_values(name, desideratum.query).reading(prefix)
         scored.append(
             TermScore(
                 notation=desideratum.notation,
                 group=desideratum.group,
                 vendors=vendors,
                 weight=weight,
-                met=(
-                    Fraction(0)
-                    if remaining is None
-                    else _chance(model, state, remaining)
-                ),
+                met=reading.outcome,
             )
         )
-        if remaining is None:
-            continue
-        if not remaining.orderings:
-            certain += weight
-            continue
-        start = len(joined)
-        joined.extend(remaining.orderings)
-        spans.append((weight, range(start, len(joined))))
-    ends = (
-        _ends(model, state, OrderingQuery(tuple(joined)))
-        if joined
-        else frozenset({frozenset[int]()})
-    )
+        count = len(desideratum.query.orderings)
+        spans.append(
+            (weight, desideratum.query.given, range(start, start + count))
+        )
+        start += count
     outcomes = [
-        certain
-        + sum(
-            (w for w, span in spans if all(i in end for i in span)),
+        sum(
+            (
+                weight
+                for weight, given, span in spans
+                if not given <= seen or all(i in met for i in span)
+            ),
             Fraction(0),
         )
-        for end in ends
+        for seen, met in _ends(model, joined, prefix)
     ]
     return WalkScore(
         terms=tuple(scored), best=max(outcomes), worst=min(outcomes)

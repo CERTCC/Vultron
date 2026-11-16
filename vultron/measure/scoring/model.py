@@ -207,9 +207,11 @@ class TermScore(BaseModel):
             empty when it names only the case's events.
         weight: What meeting it adds to the score, ``1 - f_d`` for its
             baseline ``f_d`` (ADR-0182).
-        met: The walk's probability that it is met, from where the case
-            stands: 1 once the record meets it, 0 once the record fails it
-            or puts it out of its scope for good.
+        met: The walk's expected outcome for it, from where the case
+            stands, a scope never entered counting as met
+            (:func:`~vultron.measure.baselines.expected_outcome`): 1 once
+            the record meets it or leaves its scope for good, 0 once the
+            record fails it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")

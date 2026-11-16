@@ -419,8 +419,8 @@ The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leav
 It sends each of these entries to every active participant that has not already left.
 No separate entry marks the closure, because every node that holds the case and its ledger can already see it ([ADR-0152](../../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
-The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/vultron-spec/requirements/case-management.md#cm-23-011)).
-It records nothing for the declined close.
+The CASE_MANAGER refuses the close while an embargo is still active ([CM-23-011](../../reference/vultron-spec/requirements/case-management.md#cm-23-011)).
+It records nothing for the refused close, and it answers the Case Owner with a `Refuse` of the `Leave`, the same refusal notice it sends for every other refused act ([ADR-0196](../../adr/0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md)).
 The Case Owner must end the embargo first and then leave again.
 
 Closing the case does not close every participant.
@@ -439,15 +439,15 @@ The boundary has to be absolute to be useful.
 Suppose some kinds of message were still accepted after close.
 Then every implementation would draw the line in a different place, and the history of a closed case would keep growing.
 
-The CASE_MANAGER may reply to a late message with `Reject`, or send nothing.
+The CASE_MANAGER may reply to a late message with `Refuse`, or send nothing.
 A participant must not rely on getting a reply ([CM-23-041](../../reference/vultron-spec/requirements/case-management.md#cm-23-041)).
 The reference implementation sends nothing by default ([ADR-0131](../../adr/0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md)).
-A setting lets it answer a late `Leave(VulnerabilityCase)` with `Reject(Leave(VulnerabilityCase))`, and every other late message is still dropped without a reply.
+A setting lets it answer a late `Leave(VulnerabilityCase)` with `Refuse(Leave(VulnerabilityCase))`, and every other late message is still dropped without a reply.
 
 A general `Reject` reply is not safe, because many `Reject` messages already mean a decision.
 `Reject(Invite)` is a declined invitation.
 A sender that received one after close would read it as an answer to its request, not as "the case is closed".
-`Reject(Leave)` already means "close declined", so it cannot be misread.
+`Refuse(Leave)` already means "close refused", so it cannot be misread.
 
 A new case proposal is not a late message about the case, because it names a report, not a case.
 When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-014](../../reference/vultron-spec/requirements/case-management.md#cp-05-014), [CP-05-015](../../reference/vultron-spec/requirements/case-management.md#cp-05-015), [CP-05-018](../../reference/vultron-spec/requirements/case-management.md#cp-05-018), [CP-05-019](../../reference/vultron-spec/requirements/case-management.md#cp-05-019)).
