@@ -68,6 +68,16 @@ These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
   is derived from the register, and the stamp is only a copy written when a case
   status is added (ADR-0122); in `rcv-embargo` the stamp reads `ACTIVE` while a
   proposal holds the register in `REVISE`.
+- **An invitation is a row newly `INVITED` with an RSVP deadline.** Emit it with
+  the deadline, and emit nothing for a row invited with none (CEH-04-017). Reason:
+  the answered-before-deadline count counts Invites, and a row can hold several
+  (EMB-17-003). The first stub Invite records no deadline on the row, so it yields
+  no event; a re-issued stub (CM-11-016) and an embargo Invite relayed to an inert
+  invitee record one, so each yields an event before the invitee joins.
+- **The case closes at the Case Owner's `Leave`**, read against the roles the walk
+  holds at that entry (CEH-04-018). Reason: the close's sweep times Invites out
+  before their deadline (CM-23-014), which a measure must tell from a pocket veto,
+  and after an ownership transfer the closing owner is the new one.
 
 ## Score Through the Measure Layer's Entry Points
 
@@ -167,6 +177,8 @@ which states only the boundary that nothing in the protocol path imports the lay
   `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
   a sibling of `ledger/`, never part of it. The per-vendor case-state sequences are
   `vultron/measure/sequences/` (`case_state_sequences`), reading only the history.
+  The path-preference counts (`vultron/measure/preferences/`,
+  `path_preferences`) read only the history, never the ledger (ADR-0182).
   The chance baselines (`vultron/measure/baselines/`) read only
   `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the

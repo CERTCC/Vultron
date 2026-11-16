@@ -112,8 +112,10 @@ The Case Owner is the participant that created the case, or that later received 
 | Fix deployed | The deployer | A status update with a new deployment state, sent by the deployer, or by the CASE_MANAGER or the Case Owner for the deployer |
 | Public awareness, public exploit, attacks observed | The case | The CASE_MANAGER's own `Add(CaseStatus)`, written when the CASE_MANAGER accepts a participant's report as the state of the case (adoption) |
 | Embargo proposed, accepted, rejected, ended | The case | The proposal's `Invite(EmbargoEvent)`, the answers to the proposal, and the termination's `Remove(EmbargoEvent)` |
+| Invited to an embargo | The participant, per embargo | The CASE_MANAGER's `Update(EmbargoConsent)` that sets the participant's consent row to `INVITED`, with the RSVP deadline of the Invite |
 | Consent given, refused, or timed out | The participant, per embargo | The participant's `Accept` or `Reject` of the embargo Invite, or the CASE_MANAGER's `Update(EmbargoConsent)` |
 | A note added or removed | The case | The `Add` or `Remove` of the note |
+| Case closed | The case | The Case Owner's `Leave(VulnerabilityCase)` |
 | Case ownership transferred | The case | The transfer offer, the answer to the offer, and the CASE_MANAGER's `Update(VulnerabilityCase)` that names the new owner |
 
 The ledger is thus a history of the case in time order.
@@ -355,6 +357,10 @@ For embargo times, the measure connects the embargo register and the consent row
     For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
     A desideratum whose scope the case never enters counts as met.
     A move that changes no state is listed as advice, with no number.
+    The record also gives the path-preference counts of [Reward Functions](reward_functions.md#the-path-preferences) (`vultron/measure/preferences/`).
+    For each participant, the counts give the embargo Invites answered before their RSVP deadline, the Invites that timed out at the deadline, and the Invites that the case's close timed out before the deadline.
+    For the case, the counts give the embargo revisions, and whether a negotiated embargo replaced the default embargo.
+    They also give the embargo duration against the time until the last fix, or the reason that this ratio is not defined.
     A ledger with a gap in its history gives a record that names the gap and holds no score.
 
 ## Further reading
