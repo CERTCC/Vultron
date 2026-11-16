@@ -48,8 +48,8 @@ from vultron.measure.scoring import (
     met_desiderata,
     model,
     score,
+    score_case,
     score_prefix,
-    score_sequence,
 )
 from vultron.measure.sequences import Placement, case_state_sequences
 
@@ -327,7 +327,7 @@ def test_a_vendor_sequence_is_scored_with_its_implied_events():
     (sequence,) = case_state_sequences(ledger.history()).sequences
     assert Placement.IMPLIED in {m.placement for m in sequence.events}
 
-    scored = score_sequence(sequence)
+    (scored,) = score_case(ledger.history()).vendors
     assert scored.participant == VENDOR
     assert scored.score == score_prefix("VXPA")
 
@@ -339,9 +339,12 @@ _RECORDINGS = sorted(RECORDINGS_DIR.glob("*/case-actor.jsonl"))
 @pytest.mark.parametrize("path", _RECORDINGS, ids=lambda p: p.parent.name)
 def test_every_vendor_of_a_recording_gets_a_score_and_a_range(path):
     (history,) = read_case_event_histories([path]).histories.values()
-    for sequence in case_state_sequences(history).sequences:
-        scored = score_sequence(sequence)
-        assert scored.participant == sequence.participant
+    sequences = case_state_sequences(history).sequences
+    vendors = score_case(history).vendors
+    assert [v.participant for v in vendors] == [
+        s.participant for s in sequences
+    ]
+    for sequence, scored in zip(sequences, vendors, strict=True):
         assert scored.score.prefix == sequence.kinds
         assert scored.score.worst <= scored.score.expected <= scored.score.best
 

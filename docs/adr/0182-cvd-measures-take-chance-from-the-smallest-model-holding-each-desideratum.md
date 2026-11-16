@@ -3,7 +3,7 @@ status: proposed
 date: 2026-11-06
 created: 2026-11-06
 updated: 2026-11-16
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Epic #5068; Ideas #5072, #5143, #5828, #5142; ADR-0174;
@@ -64,11 +64,17 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    Its valid completions are weighted by the probability the same walk gives them from where the case stands.
    The case reports the expected score over those completions, and the best and worst score it can still reach.
    A sequence the event-history layer derived from a ledger with holes never reaches the scorer, because that layer refuses it (ADR-0174).
-4. **A multi-party case reports per-vendor scores.**
-   The case reports each vendor's score, and their unweighted median and spread.
+4. **A case reports each vendor's score, with an end part and an embargo part.**
+   A scope is one vendor, and there is no case-wide scope (ADR-0200).
+   A vendor's end part adds up the twelve original desiderata and the report-handling desiderata.
+   Its embargo part adds up the embargo desiderata, `F_i ≺ Ex_own` included, each in that vendor's one-vendor model.
+   A vendor's score does not count the multi-party desiderata: `F_i ≺ P` is the twelve's `F ≺ P` for that vendor, and move advice does not use `V_i ≺ F_j`.
+   A desideratum whose scope the case never enters counts as met, because not taking a path that needs a desideratum is not failing it.
+   A group of equivalent desiderata counts once in a part, such as `E ≺ P`, `E ≺ X` and `E ≺ A`.
+   The case also reports the unweighted median and spread of the vendors' total scores.
    The spread is read as how evenly the case served its vendors, not as a statistical sample, because the vendors share events.
    It measures evenness across vendors, not across users: weighting by users or risk stays an open question.
-   A two-party case reduces to its one vendor's score.
+   A two-party case has one vendor's score, with zero spread.
    A participant with no vendor path has no score of its own until it has desiderata of its own and those desiderata have chance values, but the counts of rule 5 for each participant still apply.
 5. **Path preferences are simple counts.**
    A preference about the shape of a history is a count or ratio read from the event history.

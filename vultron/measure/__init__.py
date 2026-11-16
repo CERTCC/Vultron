@@ -20,8 +20,9 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
   desiderata, from the indifference walk over the smallest model holding each
   (ADR-0182).  It reads only the state tables, never a ledger.
 * :mod:`vultron.measure.scoring` — the desiderata score of a vendor's
-  sequence, complete or not, through its valid completions, and a case's
-  per-vendor scores with their median and spread (ADR-0182).
+  sequence, complete or not, through its valid completions; the extended
+  desiderata, scored for each vendor in an end part and an embargo part;
+  and a case's per-vendor scores with their median and spread (ADR-0182).
 * :mod:`vultron.measure.standing` — where a case stands at its ledger's last
   entry: each participant's states, the desiderata each vendor's case has
   met, broken or left open, and the moves the state machines allow from

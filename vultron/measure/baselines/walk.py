@@ -571,6 +571,39 @@ def ordering[E: Hashable](
     return OrderingQuery((Ordering(before, after),), frozenset(given))
 
 
+def reachable_ends[S: Hashable, E: Hashable](
+    model: ChanceModel[S, E],
+    query: OrderingQuery[E],
+    prefix: WalkPrefix[S, E] | None = None,
+) -> frozenset[tuple[frozenset[E], frozenset[int]]]:
+    """What *query* remembers at each end the walk can still reach.
+
+    Each member is one reachable end's watched events seen and indices into
+    ``query.orderings`` met, the walk taken from *prefix*, or from the
+    model's start when it is ``None``.  ``given`` is not applied: an end at
+    which some ``given`` event did not occur is listed too, so a caller can
+    tell a scope never entered from an ordering broken.  Every finite
+    history of the walk has positive probability, so an end is reachable
+    exactly when some history reaches it, and the search needs no
+    probabilities.
+    """
+    walk = _AugmentedWalk(model, query)
+    start = walk.start if prefix is None else walk.node(prefix)
+    seen_nodes = {start}
+    pending = [start]
+    ends: set[tuple[frozenset[E], frozenset[int]]] = set()
+    while pending:
+        node = pending.pop()
+        nexts = walk.successors(node)
+        if not nexts:
+            ends.add((node.seen, node.met))
+        for n in nexts:
+            if n not in seen_nodes:
+                seen_nodes.add(n)
+                pending.append(n)
+    return frozenset(ends)
+
+
 def implies[S: Hashable, E: Hashable](
     model: ChanceModel[S, E],
     stronger: OrderingQuery[E],
@@ -579,30 +612,16 @@ def implies[S: Hashable, E: Hashable](
     """Whether every walk on *model* that meets *stronger* also meets *weaker*.
 
     Both are judged among walks in which every ``given`` event of either
-    occurs.  Every finite history of the walk has positive probability, so
-    this is a search for one history that meets *stronger* and fails
-    *weaker*; it needs no probabilities and holds exactly when the chance
-    frequency of *stronger* and of the two together are equal.
+    occurs.  This is a search for one reachable end that meets *stronger*
+    and fails *weaker* (:func:`reachable_ends`); it holds exactly when the
+    chance frequency of *stronger* and of the two together are equal.
     """
     joined = OrderingQuery(
         stronger.orderings + weaker.orderings, stronger.given | weaker.given
     )
     needed = frozenset(range(len(stronger.orderings)))
     every = frozenset(range(len(joined.orderings)))
-    walk = _AugmentedWalk(model, joined)
-    seen_nodes = {walk.start}
-    pending = [walk.start]
-    while pending:
-        node = pending.pop()
-        nexts = walk.successors(node)
-        if not nexts and (
-            joined.given <= node.seen
-            and needed <= node.met
-            and node.met != every
-        ):
-            return False
-        for n in nexts:
-            if n not in seen_nodes:
-                seen_nodes.add(n)
-                pending.append(n)
-    return True
+    return not any(
+        joined.given <= seen and needed <= met and met != every
+        for seen, met in reachable_ends(model, joined)
+    )
