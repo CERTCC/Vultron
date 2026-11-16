@@ -74,6 +74,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.received_run import find_node
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
@@ -516,7 +517,7 @@ def test_a_notice_takes_the_reason_its_diversion_names():
     net, _, invite_id = _network("reason-from")
     source = py_trees.behaviours.Success(name="Condition")
     source.feedback_message = "the embargo is moot (MSM-07-012)"
-    node = EmitRefusalNoticeNode(net.case_id, reason_from=source)
+    node = with_case_id(EmitRefusalNoticeNode(reason_from=source), net.case_id)
     # Intake holds the received body the notice embeds (CLP-10-017).
     tree = py_trees.composites.Sequence(
         name="Diverted",
@@ -534,7 +535,7 @@ def test_a_notice_takes_the_reason_its_diversion_names():
 def test_a_notice_whose_reason_source_gave_none_fails_and_queues_nothing():
     net, _, invite_id = _network("reason-from-empty")
     source = py_trees.behaviours.Success(name="Condition")
-    node = EmitRefusalNoticeNode(net.case_id, reason_from=source)
+    node = with_case_id(EmitRefusalNoticeNode(reason_from=source), net.case_id)
 
     result = _run(net, MANAGER, node, _accept_event(net, invite_id))
 

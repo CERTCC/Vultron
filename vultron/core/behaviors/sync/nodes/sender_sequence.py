@@ -56,6 +56,9 @@ from pydantic import BaseModel, ConfigDict
 
 from vultron.config.app import get_config
 from vultron.core.behaviors.case.nodes.addressee import named_in_to
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -148,7 +151,9 @@ def _recipient_ids(to: object) -> list[str]:
     return [rid for rid in (_as_id(value) for value in values) if rid]
 
 
-class ClassifySequenceNumberNode(DataLayerActionWithPorts):
+class ClassifySequenceNumberNode(
+    CaseIdInputPortMixin, DataLayerActionWithPorts
+):
     """Say what the received activity's ``senderSequence`` is, once.
 
     The activity must be numbered when its sender numbers it: it states a
@@ -163,7 +168,8 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
 
     The node reads the order record and the ledger and writes nothing; it
     always succeeds.  :attr:`standing`, :attr:`order` and :attr:`number`
-    are what the arms after it act on.
+    are what the arms after it act on.  The case is read from the
+    ``/case_id`` port, which the stage builder seeds (BTND-01-006).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -173,16 +179,15 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
+        return {**super()._domain_port_remappings(), "activity": "/activity"}
 
     def __init__(
         self,
-        case_id: str,
         sender_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+        self._case_id: str | None = None
         self.sender_id = sender_id
         self.activity: object | None = None
         self.standing: SequenceStanding = SequenceStanding.NOT_NUMBERED
@@ -200,6 +205,21 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
     def activity_id(self) -> str:
         """The received activity's id."""
         return str(getattr(self.activity, "activity_id", ""))
+
+    @property
+    def case_id(self) -> str:
+        """The case the stage judges the number on, read from ``/case_id``.
+
+        Raises:
+            VultronWiringError: Nothing seeded the port; the stage builder
+                always does (BTND-01-006).
+        """
+        if not self._case_id:
+            raise VultronWiringError(
+                f"{self.name}: no case seeded on /case_id for the sender"
+                " sequence stage (BTND-01-006)"
+            )
+        return self._case_id
 
     def _takes_a_number(self, dl: CasePersistence) -> bool:
         event = self.activity
@@ -249,7 +269,7 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
             self.name,
             event.activity_id,
             self.sender_id,
-            self.case_id,
+            self._case_id,
             self.number,
             self.order.next_expected,
             self.standing,
@@ -261,7 +281,7 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
         expected = self.order.next_expected if self.order else 1
         what = (
             f"activity '{self.activity_id}' from '{self.sender_id}' on case"
-            f" '{self.case_id}'"
+            f" '{self._case_id}'"
         )
         reasons = {
             SequenceStanding.AHEAD: (
@@ -390,7 +410,9 @@ class HoldPastGapNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class EmitSequenceRefusalNoticeNode(_EmitSingleActivityBase):
+class EmitSequenceRefusalNoticeNode(
+    CaseIdInputPortMixin, _EmitSingleActivityBase
+):
     """Queue the refusal notice for an activity refused for its number.
 
     One ``Refuse`` of the received activity to its sender, as every refusal
@@ -398,16 +420,17 @@ class EmitSequenceRefusalNoticeNode(_EmitSingleActivityBase):
     expects as ``expectedSenderSequence`` so the sender resumes there
     (SYNC-21-015, SYNC-21-007).  It writes no state; its id is derived from
     the CASE_MANAGER and the refused activity, so a retry queues it once.
+    The case is read from the ``/case_id`` port, which the stage builder
+    seeds (BTND-01-006).
     """
 
     def __init__(
         self,
-        case_id: str,
         classify: ClassifySequenceNumberNode,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        self._case_id: str | None = None
         self._classify = classify
 
     def _call_factory(self) -> tuple[str, str]:

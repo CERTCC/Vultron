@@ -49,6 +49,7 @@ from vultron.core.behaviors.case.nodes.submit_report import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -394,7 +395,7 @@ def test_the_factory_places_it_first_ahead_of_the_seen_before_door():
     assert isinstance(tree.children[0], ActivityAddressedToReceiverNode)
     assert tree.children[0].label == "Probe"
     assert tree.children[1].name == "ActivityNotSeenBeforeNode"
-    assert isinstance(tree.children[2], CaseOpenToExternalWritesNode)
+    assert isinstance(unscoped(tree.children[2]), CaseOpenToExternalWritesNode)
     assert tree.children[3].name == "SenderIsParticipantNode"
     assert tree.children[0] in tree.door_guards
 

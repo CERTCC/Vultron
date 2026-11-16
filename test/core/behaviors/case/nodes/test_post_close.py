@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     case_is_fully_closed,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -75,9 +76,9 @@ def _late_note_event():
 
 
 def _run(dl: SqliteDataLayer, actor_id: str, case_id: str | None = None):
-    node = CaseOpenToExternalWritesNode(case_id=case_id)
+    node = CaseOpenToExternalWritesNode()
     tree = py_trees.composites.Sequence(
-        name="Probe", memory=False, children=[node]
+        name="Probe", memory=False, children=[with_case_id(node, case_id)]
     )
     result = run_tree(
         BTBridge(datalayer=dl),

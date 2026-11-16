@@ -1468,7 +1468,8 @@ class TestPostCloseWriteBoundary:
         )
 
         dl = _closed_dl()
-        node = CaseOpenToExternalWritesNode(case_id=CASE_ID)
+        node = CaseOpenToExternalWritesNode()
+        node._case_id = CASE_ID  # the case a seeding scope would give it
         node.datalayer = dl
         node.actor_id = VENDOR_ID
         assert node.update() == py_trees.common.Status.SUCCESS
