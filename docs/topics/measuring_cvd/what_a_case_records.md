@@ -352,6 +352,9 @@ For embargo times, the measure connects the embargo register and the consent row
     The record lists the moves that the state machines allow from each state, and names each move by its machine and its trigger.
     Each move names the participant who can make it.
     In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
+    For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
+    A desideratum whose scope the case never enters counts as met.
+    A move that changes no state is listed as advice, with no number.
     A ledger with a gap in its history gives a record that names the gap and holds no score.
 
 ## Further reading

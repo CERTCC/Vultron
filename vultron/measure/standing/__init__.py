@@ -23,14 +23,20 @@ ledger through the layers below it and adds no rule of its own.
   score.
 * :mod:`~vultron.measure.standing.model` — the standing record, and the gap
   a ledger with a hole yields in its place.
-* :mod:`~vultron.measure.standing.read` — :func:`case_standing`.
+* :mod:`~vultron.measure.standing.joint` — the standing as a point of the
+  case's joint walk, and the joint step each move takes there.
+* :mod:`~vultron.measure.standing.read` — :func:`case_standing`, each
+  allowed move with each vendor's change in expected outcome (#6449).
 """
 
+from vultron.measure.standing.joint import case_prefix, joint_step
 from vultron.measure.standing.model import (
     CaseStanding,
+    DesideratumChange,
     DesideratumStanding,
     DesideratumStatus,
     ParticipantStanding,
+    ScoredMove,
     StandingGap,
     StandingRecord,
     desiderata_standing,
@@ -48,16 +54,20 @@ from vultron.measure.standing.read import case_standing
 __all__ = [
     "CSMove",
     "CaseStanding",
+    "DesideratumChange",
     "DesideratumStanding",
     "DesideratumStatus",
     "EMMove",
     "ParticipantStanding",
     "RMMove",
+    "ScoredMove",
     "StandingGap",
     "StandingRecord",
+    "case_prefix",
     "case_standing",
     "cs_moves",
     "desiderata_standing",
     "em_moves",
+    "joint_step",
     "rm_moves",
 ]

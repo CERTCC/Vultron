@@ -32,6 +32,7 @@ hole is wrong, not imprecise (CEH-02-006).
 from __future__ import annotations
 
 from enum import StrEnum
+from fractions import Fraction
 
 from pydantic import (
     BaseModel,
@@ -254,6 +255,69 @@ class ParticipantStanding(BaseModel):
         return () if self.score is None else self.score.prefix
 
 
+class DesideratumChange(BaseModel):
+    """One vendor's change in one desideratum's expected outcome.
+
+    Fields:
+        vendor: The vendor the desideratum is scored for.
+        other_vendor: The second vendor of the two-vendor desideratum
+            ``V_i ≺ F_j``; ``None`` for every other desideratum.
+        notation: The desideratum as the Measuring CVD pages print it.
+        change: The expected outcome after the move minus before it
+            (:func:`~vultron.measure.baselines.outcome_change`): positive
+            when the move makes the desideratum likelier to be met than
+            leaving the case to chance.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    vendor: NonEmptyString
+    other_vendor: NonEmptyString | None = None
+    notation: NonEmptyString
+    change: Fraction
+
+
+class ScoredMove(BaseModel):
+    """One allowed move, with each vendor's change in expected outcome.
+
+    Fields:
+        move: The move, naming the participant who can make it.
+        changes: Each vendor's change in each desideratum's expected
+            outcome if the move came next, for a move that changes state
+            and names a step of the case's joint model.
+        unscored: Why a move that changes state carries no number: the case
+            has no vendor, or the move moves no vendor's state.
+
+    A move that keeps every state, as a second embargo proposal while one is
+    open does, is :attr:`advice`: it carries neither a number nor a reason.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    move: RMMove | CSMove | EMMove
+    changes: tuple[DesideratumChange, ...] | None = None
+    unscored: NonEmptyString | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def advice(self) -> bool:
+        """Whether the move keeps every state, so it is advice with no
+        number."""
+        return self.move.source == self.move.destination
+
+    @model_validator(mode="after")
+    def _a_number_or_why_not(self) -> ScoredMove:
+        if self.advice:
+            if self.changes is not None or self.unscored is not None:
+                raise ValueError("advice carries no number and no reason")
+        elif (self.changes is None) == (self.unscored is None):
+            raise ValueError(
+                "a move that changes state carries its changes or the"
+                " reason it has none"
+            )
+        return self
+
+
 class StandingGap(BaseModel):
     """What keeps a ledger from yielding a standing record (CEH-02-006).
 
@@ -312,6 +376,9 @@ class StandingRecord(BaseModel):
         case: The case's own standing; ``None`` exactly when *gap* is set.
         participants: Each participant's standing, in the order the ledger
             first records each; empty when *gap* is set.
+        moves: Every participant's allowed moves, in participant order,
+            each with each vendor's change in expected outcome; empty when
+            *gap* is set.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -321,11 +388,14 @@ class StandingRecord(BaseModel):
     gap: StandingGap | None = None
     case: CaseStanding | None = None
     participants: list[ParticipantStanding] = Field(default_factory=list)
+    moves: list[ScoredMove] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _a_reading_or_its_gap(self) -> StandingRecord:
         problems: list[str] = []
-        if self.gap is not None and (self.case or self.participants):
+        if self.gap is not None and (
+            self.case or self.participants or self.moves
+        ):
             problems.append("a record with a gap holds no reading")
         if self.gap is None and self.case is None:
             problems.append("a record with no gap holds the case's standing")

@@ -250,7 +250,7 @@ def expected_outcomes(prefix: CasePrefix) -> Outcomes:
 
 
 @cache
-def _case_model(vendor_count: int) -> JointModel:
+def case_model(vendor_count: int) -> JointModel:
     """The joint model a case of *vendor_count* vendors steps through.
 
     Only its steps from a given state are read, never a walk over it.
@@ -265,7 +265,7 @@ def _case_model(vendor_count: int) -> JointModel:
 
 def _after(prefix: CasePrefix, move: Move[JointState, Event]) -> CasePrefix:
     """*prefix* extended by the step *move* names in the case's joint model."""
-    model = _case_model(len(prefix.state.vendors))
+    model = case_model(len(prefix.state.vendors))
     return prefix.then(take_step(model, prefix.state, move))
 
 

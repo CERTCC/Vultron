@@ -192,7 +192,9 @@ class JointState(NamedTuple):
     embargo_end: EmbargoEnd | None = None
 
 
-_RM_EVENT: dict[RM, EventKind] = {
+#: The event a vendor's report-management move into each state is; entering
+#: ``RECEIVED`` is vendor awareness, one step with report receipt.
+RM_EVENTS: dict[RM, EventKind] = {
     RM.RECEIVED: EventKind.V,
     RM.INVALID: EventKind.INVALIDATED,
     RM.VALID: EventKind.VALIDATED,
@@ -358,7 +360,7 @@ class JointModel:
         if source is not dest and not is_valid_cs_transition(source, dest):
             return None
         if after.rm is not before.rm:
-            kind = _RM_EVENT[after.rm]
+            kind = RM_EVENTS[after.rm]
         else:
             cs_event = cs_transition_event(source, dest)
             assert cs_event is not None

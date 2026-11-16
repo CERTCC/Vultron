@@ -24,6 +24,12 @@ from __future__ import annotations
 import logging
 
 from vultron.errors import VultronInvalidStateTransitionError
+from vultron.measure.baselines import (
+    Event,
+    JointState,
+    Step,
+    outcome_change,
+)
 from vultron.measure.history import (
     CaseEventHistory,
     ReachedParticipant,
@@ -36,12 +42,20 @@ from vultron.measure.sequences import (
     UnprojectableReason,
     case_state_sequences,
 )
+from vultron.measure.standing.joint import (
+    CasePrefix,
+    case_prefix,
+    joint_step,
+)
 from vultron.measure.standing.model import (
     CaseStanding,
+    DesideratumChange,
     ParticipantStanding,
+    ScoredMove,
     StandingGap,
     StandingRecord,
 )
+from vultron.measure.standing.moves import CSMove, EMMove, RMMove
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +107,54 @@ def _participant(
     )
 
 
+def _changes(
+    prefix: CasePrefix,
+    step: Step[JointState, Event],
+    vendors: dict[int, str],
+) -> tuple[DesideratumChange, ...]:
+    """Each vendor's change in expected outcome from *step*
+    (:func:`~vultron.measure.baselines.outcome_change`)."""
+    return tuple(
+        DesideratumChange(
+            vendor=vendors[key.vendor],
+            other_vendor=None if key.other is None else vendors[key.other],
+            notation=key.desideratum.notation,
+            change=change,
+        )
+        for key, change in outcome_change(prefix, step).items()
+    )
+
+
+def _scored(
+    prefix: CasePrefix | None,
+    numbers: dict[str, int],
+    move: RMMove | CSMove | EMMove,
+) -> ScoredMove:
+    """*move* with each vendor's change in expected outcome, if it has one."""
+    if move.source == move.destination:
+        return ScoredMove(move=move)
+    if prefix is None:
+        return ScoredMove(
+            move=move, unscored="the case has no vendor to score a move for"
+        )
+    step = joint_step(prefix, numbers, move)
+    if step is None:
+        return ScoredMove(
+            move=move,
+            unscored=f"{move.name} by {move.participant} moves no vendor's"
+            " state in the case's joint model",
+        )
+    vendors = {n: participant for participant, n in numbers.items()}
+    return ScoredMove(move=move, changes=_changes(prefix, step, vendors))
+
+
+def _moves_of(
+    standing: ParticipantStanding,
+) -> tuple[RMMove | CSMove | EMMove, ...]:
+    """Every move *standing* allows, RM first, then CS, then EM."""
+    return (*standing.rm_moves, *standing.cs_moves, *standing.em_moves)
+
+
 def case_standing(ledger: CaseLedger) -> StandingRecord:
     """Where the case *ledger* records stands at its last entry.
 
@@ -116,13 +178,25 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     gap = StandingGap.of(history)
     if gap is not None:
         return _gapped(history, gap)
-    scores = score_case(case_state_sequences(history))
+    sequences = case_state_sequences(history)
+    scores = score_case(sequences)
     case = CaseStanding(em=em, pxa=reached.pxa)
+    participants = [
+        _participant(p, case, scores) for p in reached.participants
+    ]
+    rm_of = {p.participant: p.rm for p in reached.participants}
+    prefix = case_prefix(history, sequences.sequences, rm_of, em)
+    numbers = {
+        s.participant: n for n, s in enumerate(sequences.sequences, start=1)
+    }
     return StandingRecord(
         case_id=history.case_id,
         end_confirmed=history.end_confirmed,
         case=case,
-        participants=[
-            _participant(p, case, scores) for p in reached.participants
+        participants=participants,
+        moves=[
+            _scored(prefix, numbers, move)
+            for p in participants
+            for move in _moves_of(p)
         ],
     )
