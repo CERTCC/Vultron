@@ -310,6 +310,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0203 An Embargo's End Is an Update of the Embargo, Announced to Every Signatory](0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0122-per-embargo-participant-consent.md
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0205 Invites Use AS2's Slots, and the Stub Is the Case's Preview](0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md
+- [ADR-0206 Each App Resolves Its Own Configuration](0206-each-app-resolves-its-own-configuration.md)
 
 ## Rejected ADRs
 
