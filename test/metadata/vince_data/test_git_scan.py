@@ -100,7 +100,14 @@ def test_a_response_added_in_a_merge_commit_is_refused(
     git(root, "checkout", "-q", "work")
     (root / "work.json").write_text("{}", "utf-8")
     commit_all(root, "work")
-    git(root, "merge", "-q", "--no-commit", "--no-ff", "side")
+    # A merge records its committer even with --no-commit; CI has no
+    # global identity.
+    git(
+        root,
+        "-c", "user.email=t@example.org",
+        "-c", "user.name=t",
+        "merge", "-q", "--no-commit", "--no-ff", "side",
+    )  # fmt: skip
     (root / "leak.json").write_text(_CASE, "utf-8")
     commit_all(root, "merge side")
     (root / "leak.json").unlink()
