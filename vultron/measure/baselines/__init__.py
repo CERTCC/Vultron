@@ -58,6 +58,7 @@ from vultron.measure.baselines.desiderata import (
 )
 from vultron.measure.baselines.joint import (
     ONE_VENDOR_MODEL,
+    RM_EVENT,
     TWO_VENDOR_MODEL,
     EmbargoEnd,
     Event,
@@ -84,6 +85,7 @@ __all__ = [
     "NEAR_EQUAL_RATIO",
     "ONE_VENDOR_MODEL",
     "ORIGINAL",
+    "RM_EVENT",
     "TWO_VENDOR_MODEL",
     "CaseStateModel",
     "ChanceModel",

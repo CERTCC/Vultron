@@ -15,12 +15,12 @@
 
 A case that has already happened in part is scored through its completions:
 the walk goes on from the state the case is in, not from the model's start
-(ADR-0182 rule 3).  :class:`StartedAt` is a model whose walk starts at a
-given state, so :func:`~vultron.measure.baselines.walk.frequency` over it is
-the chance that a query holds from there.  :func:`reachable_ends` answers the
-other half of rule 3, the best and the worst a case can still reach: the sets
-of orderings met at every end the walk can reach from the start, found by
-search, with no probabilities.
+(ADR-0182).  :class:`StartedAt` is a model whose walk starts at a given
+state, so :func:`~vultron.measure.baselines.walk.frequency` over it is the
+chance that a query holds from there.  :func:`reachable_ends` answers the
+other half of that scoring, the best and the worst a case can still reach:
+the sets of orderings met at every end the walk can reach from the start,
+found by search, with no probabilities.
 
 Both read the walk of :mod:`~vultron.measure.baselines.walk`, so an ordering
 here means what it means for a baseline.

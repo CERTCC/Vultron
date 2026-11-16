@@ -15,7 +15,7 @@
 
 A case is never scored as one sequence: each vendor's sequence is scored
 on its own, and several vendors' sequences are never combined (CEH-05-006).
-:func:`score_case` scores every scope of ADR-0200 rule 2: each vendor, on
+:func:`score_case` scores every scope of ADR-0200: each vendor, on
 the twelve original desiderata and its own extended ones, and each
 case-wide group of extended desiderata, the embargo group and the
 multi-party group (:mod:`~vultron.measure.scoring.extended`).  The case
@@ -198,7 +198,7 @@ class CaseScoreSummary(BaseModel):
 
 
 def score_case(history: CaseEventHistory) -> CaseScoreSummary:
-    """Score every scope of the case *history* records (ADR-0200 rule 2).
+    """Score every scope of the case *history* records (ADR-0200).
 
     The history is projected onto one sequence per vendor (CEH-05).  Every
     vendor is scored alone: its sequence through its completions

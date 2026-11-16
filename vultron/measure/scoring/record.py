@@ -29,8 +29,11 @@ for each vendor, as the events of
 * **Where does the case stand?**  :meth:`CaseRecord.state` gives the joint
   state the walk goes on from: each vendor's report-management state, fix
   path and deployment, the case's public state, and its embargo state with
-  the cause of its exit.  A state the joint model has no place for, such as
-  a fix ready before the report is accepted, is refused with its reason
+  the cause of its exit.  Public awareness, a public exploit or observed
+  attacks end an embargo in force at once, as a threat signal, even before
+  the ledger records the exit.  A state the joint model has no place for,
+  such as a fix ready before the report is accepted, or an embargo that
+  starts after publication, is refused with its reason
   (:class:`NotAJointStateError`), never scored.
 
 The embargo exit splits by cause as ``process_model_desiderata.md``
@@ -42,7 +45,7 @@ embargo proposal, so a case with none in force is read as ``EM.NONE``.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 
 from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.states.composite_state_invariants import (
@@ -59,6 +62,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.rm import RM
 from vultron.measure.baselines import (
+    RM_EVENT,
     EmbargoEnd,
     Event,
     EventKind,
@@ -80,16 +84,6 @@ _RM_OF_KIND: dict[RecordKind, RM] = {
     kind: rm for rm, kind in RM_EVENT_KINDS.items()
 }
 
-_RM_EVENT: dict[RM, EventKind] = {
-    RM.RECEIVED: EventKind.V,
-    RM.INVALID: EventKind.INVALIDATED,
-    RM.VALID: EventKind.VALIDATED,
-    RM.DEFERRED: EventKind.DEFERRED,
-    RM.ACCEPTED: EventKind.ACCEPTED,
-    RM.CLOSED: EventKind.CLOSED,
-}
-"""The joint event each recorded RM state is; ``RECEIVED`` is ``V``'s."""
-
 _OWN_TERMS_CAUSES = frozenset(
     {TerminationCauseKind.FIX_READY, TerminationCauseKind.FIX_DEPLOYED}
 )
@@ -100,17 +94,8 @@ _EXIT_EVENT: dict[EmbargoEnd, EventKind] = {
     EmbargoEnd.OTHER: EventKind.EXIT_OTHER,
 }
 
-_PUBLIC: dict[CSEvent, EventKind] = {
-    CSEvent.P: EventKind.P,
-    CSEvent.X: EventKind.X,
-    CSEvent.A: EventKind.A,
-}
-
-_VENDOR_PATH: dict[CSEvent, EventKind] = {
-    CSEvent.V: EventKind.V,
-    CSEvent.F: EventKind.F,
-    CSEvent.D: EventKind.D,
-}
+_VENDOR_PATH = frozenset({CSEvent.V, CSEvent.F, CSEvent.D})
+"""The case-state events that belong to a vendor; the others are the case's."""
 
 
 class NotAJointStateError(ValueError):
@@ -139,6 +124,8 @@ def exit_end(event: CaseEvent) -> EmbargoEnd:
     if event.exit_reason is TerminationReason.END_TIME_REACHED:
         return EmbargoEnd.OWN_TERMS
     cause = (event.exit_cause or {}).get("kind")
+    if not isinstance(cause, str):
+        return EmbargoEnd.OTHER
     if cause in _OWN_TERMS_CAUSES:
         return EmbargoEnd.OWN_TERMS
     if cause == TerminationCauseKind.THREAT_SIGNAL:
@@ -158,7 +145,7 @@ def _case_positions(history: CaseEventHistory) -> dict[EventKind, int]:
             continue
         index = event.log_index
         if isinstance(event.kind, CSEvent):
-            _first(found, _PUBLIC[event.kind], index)
+            _first(found, EventKind(event.kind.value), index)
         elif event.kind is RecordKind.EMBARGO_START:
             _first(found, EventKind.EMBARGO_START, index)
         elif event.kind is RecordKind.EMBARGO_EXIT:
@@ -190,12 +177,12 @@ def _vendor_positions(
     for member in sequence.events:
         if member.placement is Placement.RECORDED:
             position = member.log_index
-        if isinstance(member.kind, CSEvent) and member.kind in _VENDOR_PATH:
-            _first(found, _VENDOR_PATH[member.kind], position)
+        if member.kind in _VENDOR_PATH:
+            _first(found, EventKind(member.kind.value), position)
     for event in history.for_participant(sequence.participant):
         rm = _recorded_rm(event)
         if rm is not None and rm is not RM.RECEIVED:
-            _first(found, _RM_EVENT[rm], event.log_index)
+            _first(found, RM_EVENT[rm], event.log_index)
     return found
 
 
@@ -208,14 +195,18 @@ def _vendor_rm(history: CaseEventHistory, participant: str) -> RM:
     rm = RM.RECEIVED
     for event in history.for_participant(participant):
         recorded = _recorded_rm(event)
-        if recorded is not None and recorded is not RM.START:
+        if recorded is not None:
             rm = recorded
     return rm
 
 
-def _public_state(positions: Mapping[EventKind, int]) -> CS_pxa:
+def _public_state(public: Iterable[EventKind]) -> CS_pxa:
+    """The public state once *public* have occurred; ``X`` brings ``P``."""
+    seen = set(public)
+    if EventKind.X in seen:
+        seen.add(EventKind.P)
     name = "".join(
-        letter.upper() if kind in positions else letter
+        letter.upper() if kind in seen else letter
         for letter, kind in (
             ("p", EventKind.P),
             ("x", EventKind.X),
@@ -228,14 +219,29 @@ def _public_state(positions: Mapping[EventKind, int]) -> CS_pxa:
 def _embargo_state(
     history: CaseEventHistory,
 ) -> tuple[EM, EmbargoEnd | None]:
-    """The embargo state the last embargo event leaves, with its exit's cause."""
-    state: tuple[EM, EmbargoEnd | None] = (EM.NONE, None)
+    """The embargo state at the end of *history*, with its exit's cause.
+
+    A public-state event that leaves no room for an embargo in force ends
+    it as a threat signal at once (CSB-18-002 to CSB-18-004), as the joint
+    model couples them, whether or not the ledger records the exit yet; a
+    later exit of an embargo already ended changes nothing.
+    """
+    em, end = EM.NONE, None
+    public: set[EventKind] = set()
     for event in history.events:
         if event.kind is RecordKind.EMBARGO_START:
-            state = (EM.ACTIVE, None)
-        elif event.kind is RecordKind.EMBARGO_EXIT:
-            state = (EM.EXITED, exit_end(event))
-    return state
+            em, end = EM.ACTIVE, None
+        elif event.kind is RecordKind.EMBARGO_EXIT and em is EM.ACTIVE:
+            em, end = EM.EXITED, exit_end(event)
+        elif isinstance(event.kind, CSEvent) and event.participant is None:
+            public.add(EventKind(event.kind.value))
+            if (
+                em is EM.ACTIVE
+                and violation_pxa_em_entailment(_public_state(public), em)
+                is not None
+            ):
+                em, end = EM.EXITED, EmbargoEnd.THREAT_SIGNAL
+    return em, end
 
 
 class CaseRecord:
@@ -277,11 +283,15 @@ class CaseRecord:
         vendor 1 is ``vendors[0]``.
 
         Raises:
-            KeyError: *event* names a vendor not among *vendors*, or one this
-                record did not read.
+            KeyError: *event* names a vendor number *vendors* has no vendor
+                for, or a vendor this record did not read.
         """
         if event.vendor is None:
             return self._case.get(event.kind)
+        if not 1 <= event.vendor <= len(vendors):
+            raise KeyError(
+                f"vendor {event.vendor} of {event} is not among {vendors}"
+            )
         return self._vendors[vendors[event.vendor - 1]].get(event.kind)
 
     def path(self, vendor: str) -> VendorPath:

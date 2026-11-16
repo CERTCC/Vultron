@@ -31,7 +31,7 @@ never from a second walk, and validates through
   the case stands in.
 * :mod:`~vultron.measure.scoring.extended` — the extended desiderata of
   ``process_model_desiderata.md``, scored in their scopes: each vendor, the
-  embargo group and the multi-party group (ADR-0200 rule 2).
+  embargo group and the multi-party group (ADR-0200).
 * :mod:`~vultron.measure.scoring.case` — :func:`score_case`, every scope of
   a case, with the vendors' unweighted median and spread.
 """
@@ -43,11 +43,10 @@ from vultron.measure.scoring.case import (
 )
 from vultron.measure.scoring.complete import history_score, met_desiderata
 from vultron.measure.scoring.extended import (
-    EMBARGO_DESIDERATA,
-    MULTI_PARTY_DESIDERATA,
-    VENDOR_DESIDERATA,
+    ScopeDesiderata,
     embargo_scope,
     multi_party_scope,
+    scope_desiderata,
     vendor_scope,
 )
 from vultron.measure.scoring.model import (
@@ -70,15 +69,13 @@ from vultron.measure.scoring.score import (
 )
 
 __all__ = [
-    "EMBARGO_DESIDERATA",
-    "MULTI_PARTY_DESIDERATA",
-    "VENDOR_DESIDERATA",
     "AcrossVendors",
     "CaseRecord",
     "CaseScoreSummary",
     "Completion",
     "NotAHistoryPrefixError",
     "NotAJointStateError",
+    "ScopeDesiderata",
     "ScopeScore",
     "SequenceScore",
     "TermScore",
@@ -92,5 +89,6 @@ __all__ = [
     "multi_party_scope",
     "score_case",
     "score_prefix",
+    "scope_desiderata",
     "vendor_scope",
 ]

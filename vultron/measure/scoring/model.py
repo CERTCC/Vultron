@@ -19,7 +19,7 @@ prefix stands and its desiderata score.  The expected, best and worst scores
 are read from them, never stored beside them, so they cannot disagree.
 
 The extended desiderata of ``process_model_desiderata.md`` are scored in
-their scopes (ADR-0200 rule 2): each vendor, and each case-wide group.  A
+their scopes (ADR-0200): each vendor, and each case-wide group.  A
 :class:`TermScore` is one desideratum for its vendors, with the chance it is
 met from where the case stands; a :class:`WalkScore` is the terms one walk
 scores, with the best and worst they can still reach together; a
@@ -243,7 +243,7 @@ def _sum(values: Iterable[Fraction]) -> Fraction:
 
 
 class WalkScore(BaseModel):
-    """The terms one walk scores, from one joint state (ADR-0182 rule 3).
+    """The terms one walk scores, from one joint state (ADR-0182).
 
     The best and worst are what the terms can still reach together, at one
     end of the walk, so they can be closer together than the terms' own
@@ -295,10 +295,10 @@ class WalkScore(BaseModel):
 
 
 class ScopeScore(BaseModel):
-    """One scope's extended desiderata, scored (ADR-0200 rule 2).
+    """One scope's extended desiderata, scored (ADR-0200).
 
     A scope's terms can take more than one walk: the multi-party group walks
-    each vendor and each pair of vendors on its own (ADR-0182 rule 2).  Its
+    each vendor and each pair of vendors on its own (ADR-0182).  Its
     expected score is exact, the sum of the walks'.  Its best and worst add
     up each walk's, so with more than one walk they bound what the case can
     reach rather than state it: the walks share the case's events, and no
@@ -355,8 +355,11 @@ class VendorScore(BaseModel):
     Its score adds up the twelve original desiderata, scored on its
     case-state sequence, and the extended desiderata of its own scope:
     report handling and its fix before the embargo ends on its own terms.
-    The two take chance from different models (ADR-0182 rule 2), so the
-    best and worst add up each one's.
+    The two take chance from different models, each the smallest that
+    holds its desiderata (ADR-0182), so the best and worst add up each
+    one's.  They are a bound on what the vendor can still reach, not a
+    score it can reach: the two walks share the vendor's events and the
+    case's.
 
     Fields:
         participant: The vendor the sequence belongs to.
@@ -389,11 +392,12 @@ class VendorScore(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def best(self) -> Fraction | None:
-        """The vendor's best score."""
+        """The vendor's best score: a bound, the two parts' best added."""
         return self._total(lambda part: part.best)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def worst(self) -> Fraction | None:
-        """The vendor's worst score."""
+        """The vendor's worst score: a bound, the two parts' worst
+        added."""
         return self._total(lambda part: part.worst)

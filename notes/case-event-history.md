@@ -279,10 +279,20 @@ per-vendor scores with their unweighted median and spread (`score_case`).
 Score each extended desideratum in the scope it states: each vendor (report handling,
 `F_i ≺ Ex_own`), the embargo group, and the multi-party group, walked once per vendor
 and once per ordered pair (`vultron/measure/scoring/extended.py`). Reason: move bands
-compare outcome shifts scope by scope (ADR-0200 rule 2), and a walk that reads one
-vendor or one pair never combines the vendors (CEH-05-006). Read a scope's best and
-worst over several walks as a bound, not a reachable score: the walks share P, X and
-A, and no whole-case walk exists to state it.
+compare outcome shifts scope by scope (ADR-0200), and a walk that reads one vendor or
+one pair never combines the vendors (CEH-05-006). Read a best and worst summed over
+several walks (a multi-party group, or a vendor's original and extended parts) as a
+bound, not a reachable score: the walks share events, and no whole-case walk exists
+to state it.
+
+Count each group of equivalent desiderata once in a scope (`scope_desiderata`, from
+`implications()`). Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the
+three `Ex_own` ones, so counting each adds the same skill three times
+(`process_model_desiderata.md` § "The desiderata are not independent").
+
+Score a term out of its scope as unmet: zero, never dropped. Reason: the score adds
+`1 − f_d` only for a desideratum met, as for the twelve original ones (ADR-0182), so a
+report that never reaches Valid adds nothing on the Valid-scoped desiderata.
 
 Take the spread as the range (highest minus lowest), never a variance. Reason: the
 vendors share P, X and A, so their scores are not a sample, and the spread reads as

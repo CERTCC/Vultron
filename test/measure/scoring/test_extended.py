@@ -13,9 +13,8 @@
 
 """The extended desiderata, scored for each vendor and each case-wide group (#6457).
 
-ADR-0182 rule 3 scores an incomplete case through its completions; ADR-0200
-rule 2 names the scopes: each vendor, the embargo group and the multi-party
-group.  The hand-checked values use the baselines of
+An incomplete case is scored through its completions (ADR-0182), in each
+scope: each vendor, the embargo group and the multi-party group (ADR-0200).  The hand-checked values use the baselines of
 ``process_model_desiderata.md`` § "The baselines".
 """
 
@@ -45,6 +44,7 @@ from vultron.measure.baselines import (
     EventKind,
     Group,
     baseline,
+    implications,
 )
 from vultron.measure.history import (
     CaseEvent,
@@ -55,9 +55,6 @@ from vultron.measure.history import (
 )
 from vultron.measure.ledger import LedgerSource
 from vultron.measure.scoring import (
-    EMBARGO_DESIDERATA,
-    MULTI_PARTY_DESIDERATA,
-    VENDOR_DESIDERATA,
     CaseRecord,
     CaseScoreSummary,
     ScopeScore,
@@ -65,7 +62,10 @@ from vultron.measure.scoring import (
     UnscoredScope,
     WalkScore,
     exit_end,
+    multi_party_scope,
+    scope_desiderata,
     score_case,
+    vendor_scope,
 )
 from vultron.measure.sequences import case_state_sequences
 
@@ -158,18 +158,32 @@ def _term(scope, notation_part: str, vendors: tuple[str, ...] | None = None):
 # ---------------------------------------------------------------------------
 
 
-def test_every_extended_desideratum_is_in_exactly_one_scope():
-    scopes = (VENDOR_DESIDERATA, EMBARGO_DESIDERATA, MULTI_PARTY_DESIDERATA)
+def test_every_extended_desideratum_is_scored_once_in_one_scope():
+    """Each lands in one scope, unless an equivalent one is listed before
+    it: the embargo group keeps ``E ≺ P`` and ``Ex_own ≺ P``."""
+    scopes = scope_desiderata()
     listed = [d for scope in scopes for d in scope]
-    assert sorted(listed, key=EXTENDED.index) == list(EXTENDED)
-    assert {d.group for d in VENDOR_DESIDERATA} == {
+    assert len(set(listed)) == len(listed)
+    equivalent = {
+        frozenset((i.stronger, i.weaker))
+        for i in implications()
+        if i.equivalent
+    }
+    for d in EXTENDED:
+        assert d in listed or any(
+            frozenset((d, kept)) in equivalent for kept in listed
+        ), d.notation
+    assert [d.notation for d in scopes.embargo] == [
+        r"$\evE \prec \evP$",
+        r"$\evExOwn \prec \evP$",
+    ]
+    assert {d.group for d in scopes.vendor} == {
         Group.REPORT_HANDLING,
         Group.EMBARGO,
     }
-    assert [
-        d.notation for d in VENDOR_DESIDERATA if d.group is Group.EMBARGO
-    ] == [r"$\evF_i \prec \evExOwn$"]
-    assert {d.group for d in EMBARGO_DESIDERATA} == {Group.EMBARGO}
+    assert [d.notation for d in scopes.vendor if d.group is Group.EMBARGO] == [
+        r"$\evF_i \prec \evExOwn$"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +228,7 @@ def test_every_recorded_vendor_and_group_is_scored(path):
     for vendor in summary.vendors:
         assert isinstance(vendor.extended, ScopeScore)
         assert [t.notation for t in vendor.extended.terms] == [
-            d.notation for d in VENDOR_DESIDERATA
+            d.notation for d in scope_desiderata().vendor
         ]
     assert isinstance(summary.embargo, ScopeScore)
     if summary.vendors:
@@ -235,7 +249,7 @@ def test_a_recorded_case_scores_its_embargo_and_multi_party_groups():
     assert isinstance(embargo, ScopeScore)
     assert _term(embargo, r"\evE \prec \evP").met == 1
     assert _term(embargo, r"\evExOwn \prec \evP").met == 0
-    assert embargo.expected == embargo.best == embargo.worst == 3 * _E_WEIGHT
+    assert embargo.expected == embargo.best == embargo.worst == _E_WEIGHT
     multi_party = summary.multi_party
     assert isinstance(multi_party, ScopeScore)
     (term,) = multi_party.terms
@@ -249,22 +263,18 @@ def test_a_recorded_case_scores_its_embargo_and_multi_party_groups():
 
 
 def test_an_open_embargo_is_scored_through_its_completions():
-    """From an active embargo with nothing public, five steps settle the
-    ``Ex_own`` desiderata — ``P``, ``X``, ``A``, an own-terms exit and
-    another exit — and a revision only delays them.  So each is met with
-    probability 1/5, and the three are met or failed together."""
+    """From an active embargo with nothing public, five steps settle
+    ``Ex_own ≺ P`` — ``P``, ``X``, ``A``, an own-terms exit and another
+    exit — and a revision only delays them.  So it is met with probability
+    1/5; ``E ≺ P`` is already met."""
     summary = score_case(_vendor_done_embargo_active())
     embargo = summary.embargo
     assert isinstance(embargo, ScopeScore)
-    for after in ("P", "X", "A"):
-        assert _term(embargo, rf"\evE \prec \ev{after}").met == 1
-        assert _term(embargo, rf"\evExOwn \prec \ev{after}").met == Fraction(
-            1, 5
-        )
-    settled = 3 * _E_WEIGHT
-    assert embargo.expected == settled + 3 * _EX_OWN_WEIGHT / 5
-    assert embargo.best == settled + 3 * _EX_OWN_WEIGHT
-    assert embargo.worst == settled
+    assert _term(embargo, r"\evE \prec \evP").met == 1
+    assert _term(embargo, r"\evExOwn \prec \evP").met == Fraction(1, 5)
+    assert embargo.expected == _E_WEIGHT + _EX_OWN_WEIGHT / 5
+    assert embargo.best == _E_WEIGHT + _EX_OWN_WEIGHT
+    assert embargo.worst == _E_WEIGHT
 
 
 def test_an_open_scope_event_still_has_to_occur():
@@ -326,7 +336,7 @@ def test_a_pair_term_weighs_the_two_vendor_baseline():
     multi_party = summary.multi_party
     assert isinstance(multi_party, ScopeScore)
     (pair_desideratum,) = [
-        d for d in MULTI_PARTY_DESIDERATA if "F_j" in d.notation
+        d for d in scope_desiderata().multi_party if "F_j" in d.notation
     ]
     for term in multi_party.terms:
         if len(term.vendors) == 2:
@@ -356,6 +366,7 @@ def test_a_pair_term_weighs_the_two_vendor_baseline():
         ),
         (TerminationReason.EARLY, {"kind": "OTHER"}, EmbargoEnd.OTHER),
         (TerminationReason.EARLY, None, EmbargoEnd.OTHER),
+        (TerminationReason.EARLY, {"kind": ["FIX_READY"]}, EmbargoEnd.OTHER),
     ],
 )
 def test_an_embargo_exit_splits_by_its_cause(reason, cause, end):
@@ -405,20 +416,71 @@ def test_a_fix_ready_before_acceptance_is_not_scored():
     assert (vendor.expected, vendor.best, vendor.worst) == (None, None, None)
 
 
-def test_public_awareness_beside_an_embargo_in_force_is_not_scored():
-    """Public awareness ends the embargo (CSB-18-002); a ledger that records
-    no exit stands nowhere the model can walk from."""
+def test_public_awareness_ends_an_embargo_in_force_at_once():
+    """Public awareness ends the embargo as a threat signal (CSB-18-002),
+    so a ledger that has not yet recorded the exit is read as ended."""
     ledger = Ledger()
     ledger.standard_genesis()
     seat_vendor(ledger, VENDOR, "Vf")
     publish(ledger, "Pxa")
-    summary = score_case(ledger.history())
-    assert isinstance(summary.embargo, UnscoredScope)
-    assert isinstance(summary.multi_party, UnscoredScope)
+    before = score_case(ledger.history())
     exit_embargo(ledger, cause={"kind": "THREAT_SIGNAL", "signals": ["P"]})
-    summary = score_case(ledger.history())
+    after = score_case(ledger.history())
+    assert isinstance(before.embargo, ScopeScore)
+    assert before.embargo == after.embargo
+    assert before.multi_party == after.multi_party
+    assert _term(before.embargo, r"\evExOwn \prec \evP").met == 0
+
+
+def test_an_embargo_that_starts_after_publication_is_not_scored():
+    """No embargo is in force beside public awareness (CSB-18-002)."""
+    history = _history(
+        _event(1, CSEvent.V, _V1),
+        _event(2, CSEvent.P),
+        _start(3),
+    )
+    summary = score_case(history)
+    assert isinstance(summary.embargo, UnscoredScope)
+    assert "no joint-model state" in summary.embargo.reason
+    assert isinstance(summary.multi_party, UnscoredScope)
+
+
+def test_one_vendor_the_model_cannot_walk_leaves_the_group_unscored():
+    """The second vendor's fix comes before its report is accepted, so the
+    multi-party group, which walks it too, has no score, while the first
+    vendor keeps its own."""
+    v2 = "https://example.org/actors/vendor-2"
+    history = _history(
+        _start(0),
+        _event(1, CSEvent.V, _V1),
+        _event(2, CSEvent.V, v2),
+        _event(3, CSEvent.F, v2),
+    )
+    summary = score_case(history)
+    first, second = summary.vendors
+    assert isinstance(first.extended, ScopeScore)
+    assert isinstance(second.extended, UnscoredScope)
+    assert isinstance(summary.multi_party, UnscoredScope)
     assert isinstance(summary.embargo, ScopeScore)
-    assert isinstance(summary.multi_party, ScopeScore)
+
+
+def test_a_vendor_the_record_did_not_read_is_refused():
+    history = _vendor_done_embargo_active()
+    record = CaseRecord(history, case_state_sequences(history).sequences)
+    with pytest.raises(KeyError):
+        vendor_scope(record, "https://example.org/actors/nobody")
+    with pytest.raises(KeyError, match="not among"):
+        record.position(Event(EventKind.F, 2), (_V1,))
+    with pytest.raises(KeyError, match="not among"):
+        record.position(Event(EventKind.F, 0), (_V1,))
+    with pytest.raises(KeyError):
+        record.position(Event(EventKind.F, 1), ("https://example.org/x",))
+
+
+def test_a_case_with_no_vendor_has_no_multi_party_group():
+    history = _history(_start(0))
+    record = CaseRecord(history, ())
+    assert multi_party_scope(record) is None
 
 
 # ---------------------------------------------------------------------------
