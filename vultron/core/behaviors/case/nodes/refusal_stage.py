@@ -54,6 +54,7 @@ from vultron.core.behaviors.case.nodes.earlier_run import (
     FirstRunOfMessageNode,
 )
 from vultron.core.behaviors.idempotency import repeat_ending_run
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -153,13 +154,21 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         False for the post-close stage, a door ahead of intake (ADR-0154):
         its refusal effects run before the receiver holds a record of the
         message, so an effect that embeds the message takes it from the
-        received event.  A stage whose ``first_run`` is not a
-        :class:`FirstRunOfMessageNode` is read as after intake.
+        received event.
+
+        Raises:
+            VultronWiringError: The stage's ``first_run`` is not a
+                :class:`FirstRunOfMessageNode`, so nothing says where the
+                stage sits.
         """
         first_run = self.first_run
-        if isinstance(first_run, FirstRunOfMessageNode):
-            return first_run.intake_ran
-        return True
+        if not isinstance(first_run, FirstRunOfMessageNode):
+            raise VultronWiringError(
+                f"{self.name}: first_run '{first_run.name}' is not a"
+                " FirstRunOfMessageNode, so the stage cannot say whether"
+                " intake ran (CLP-10-017)"
+            )
+        return first_run.intake_ran
 
     @property
     def first_run(self) -> py_trees.behaviour.Behaviour:

@@ -146,7 +146,9 @@ Only admitted assertions enter the ledger; there is no disposition field.
   notice too. A tree whose refusals must be answered otherwise names a
   registered `RefusalNoticeExemption` (`case/nodes/refusal_notice.py`) that says
   how, pinned by `test_received_tree_refusal_notice.py`. A sender-guard refusal and a
-  `SKIPPED` repeat get none. A guard that can fail as a repeat implements
+  `SKIPPED` repeat get none, and neither does a CASE_MANAGER's refusal of its own
+  activity (`EmitRefusalNoticeNode` skips it): a notice to itself is refused on
+  arrival (CLP-02-005). A guard that can fail as a repeat implements
   `ReportsIdempotentRepeat` (`behaviors/idempotency.py`), or the stage reads its
   repeat as a refusal and answers it. The reason is read by the sender, so it
   names the sender's own standing only.

@@ -192,7 +192,10 @@ groups:
       refusal would put a non-event into every replica's hash chain. A sender that is
       not entitled to make the assertion is owed no answer (HP-01-006, ADR-0141). A
       closed case's CASE_MANAGER acts like an exited process, and a `Reject` of a late
-      activity could read as a protocol decision (CM-23-013, ADR-0131).
+      activity could read as a protocol decision (CM-23-013, ADR-0131). The asserter
+      is another actor: a CASE_MANAGER that refuses its own activity (a Leave under
+      CM-23-010, or under CM-23-011 when it is also the Case Owner) already knows the
+      reason, and a notice to itself would be refused on arrival, so it sends none.
     adr:
     - ADR-0131
     - ADR-0141

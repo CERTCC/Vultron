@@ -176,13 +176,14 @@ def create_close_case_received_tree(
             the guarded receipt commit run.
         post_close_reply: The CASE_MANAGER's reply policy for a Leave that
             arrives after the case is fully closed (``ActorConfig.post_close_reply``,
-            CM-23-017).  ``REJECT`` answers it with the refusal notice, a
+            CM-23-017).  ``REFUSE`` answers it with the refusal notice, a
             ``Refuse`` of the Leave (CM-23-057, ADR-0196); ``DROP`` sends
             nothing.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it, on the case, ahead of the
             close (HP-01-008).  A sender with no standing is refused before
-            the CASE_MANAGER writes or replies to anything (HP-01-006).  Required with ``sender_actor_id``.
+            the CASE_MANAGER writes or replies to anything (HP-01-006).
+            Required with ``sender_actor_id``.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of
             :class:`~vultron.core.behaviors.case.nodes.leave.advance.AdvanceCaseActorToRMClosedNode`
@@ -279,7 +280,7 @@ def create_close_case_received_tree(
     # CM-23-013: a Leave after the case is fully closed is refused by the
     # factory's post-close guard ahead of the close, so it never runs and the
     # receipt commit is gated by the boundary itself.  The reply is the one
-    # policy point's choice (ADR-0131): under REJECT it is the refusal
+    # policy point's choice (ADR-0131): under REFUSE it is the refusal
     # notice, a Refuse of the late Leave (CM-23-057, ADR-0196).
     late_leave_reply: list[py_trees.behaviour.Behaviour] = (
         [refusal_notice(case_id)]

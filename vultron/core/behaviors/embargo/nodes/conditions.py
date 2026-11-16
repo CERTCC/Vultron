@@ -293,7 +293,8 @@ class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
                 f"Case '{self.case_id}' has an active embargo"
                 f" (em_state={em_before}); owner close refused (CM-23-011)"
             )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
+            # An input the refusing node overrules: DEBUG (SL-03-002).
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
         self.feedback_message = (

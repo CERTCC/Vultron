@@ -733,18 +733,27 @@ class TestNonOwnerLeaveReceivePath:
 
     @pytest.mark.spec("CM-23-010", "CLP-05-001")
     def test_a_case_manager_refusing_its_own_leave_sends_itself_no_notice(
-        self,
+        self, caplog: pytest.LogCaptureFixture
     ):
         """The CM-23-010 refusal is of the CASE_MANAGER's own Leave, so the
-        refusal notice, which would go to itself, is not sent."""
+        refusal notice, which would go to itself, is not sent.  The notice
+        node skips on purpose: no refusal effect failed."""
         dl = _make_full_dl()
 
-        result = _close(
-            dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave-notice"
-        )
+        with caplog.at_level(logging.DEBUG):
+            result = _close(
+                dl,
+                CASE_ACTOR_ID,
+                "https://example.org/activities/cm-leave-notice",
+            )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == []
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("no refusal notice to itself" in m for m in messages)
+        assert not [
+            m for m in messages if "refusal effect" in m and "failed" in m
+        ]
 
 
 def _close(
@@ -1264,7 +1273,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-056")
     @pytest.mark.spec("CM-23-057")
     def test_late_leave_follows_the_reply_policy(self, policy, replies):
-        """A late Leave is REFUSED and records nothing; only REJECT replies,
+        """A late Leave is REFUSED and records nothing; only REFUSE replies,
         with the refusal notice, a ``Refuse`` of the Leave (ADR-0196)."""
         dl = _closed_dl()
         entries_at_close = len(_case_ledger(dl))
@@ -1368,7 +1377,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-057")
     def test_a_late_reply_is_answered_at_most_once(self):
-        """A redelivered late Leave is not answered again under REJECT.
+        """A redelivered late Leave is not answered again under REFUSE.
 
         The first refusal leaves a receipt stub (the inbox's outcome stage),
         and the seen-before door refuses the redelivery from it before the

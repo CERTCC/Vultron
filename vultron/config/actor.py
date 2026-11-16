@@ -66,9 +66,8 @@ class PostCloseReply(StrEnum):
 
     - ``DROP`` — send nothing (the default).
     - ``REFUSE`` — send the refusal notice, ``Refuse(Leave(VulnerabilityCase))``,
-      to the sender (CM-23-057, ADR-0196).  The value was ``reject`` before
-      ADR-0196; no alias is kept, so a config that says ``reject`` is refused
-      on load (ADR-0175's stance on old names).
+      to the sender (CM-23-057, ADR-0196).  No other value is accepted, so a
+      config naming any other reply is refused on load (ADR-0175).
 
     Every other late activity is dropped with no reply under **both** settings.
     A Reject that wraps most other activities already carries a protocol
