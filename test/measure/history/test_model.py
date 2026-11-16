@@ -159,3 +159,30 @@ def test_an_embargo_exit_must_carry_its_reason_and_only_it_may():
 def test_only_an_embargo_start_replaces_an_embargo():
     with pytest.raises(ValidationError, match="only an embargo start"):
         CaseEvent(**_fields(replaces_embargo_id="urn:uuid:embargo-0"))
+
+
+@pytest.mark.spec("CEH-04-017")
+def test_an_invitation_carries_its_rsvp_deadline_and_only_it_may():
+    invited = _fields(
+        kind=EventKind.CONSENT_INVITED, embargo_id="urn:uuid:embargo-1"
+    )
+    with pytest.raises(ValidationError, match="carry its RSVP deadline"):
+        CaseEvent(**invited)
+    event = CaseEvent(**invited, rsvp_deadline=_AT)
+    assert event.rsvp_deadline == _AT
+    with pytest.raises(ValidationError, match="only an invitation"):
+        CaseEvent(**_fields(rsvp_deadline=_AT))
+
+
+@pytest.mark.spec("CEH-04-018")
+def test_the_case_close_belongs_to_the_case():
+    event = CaseEvent(
+        **_fields(
+            kind=EventKind.CASE_CLOSED,
+            participant=None,
+            semantic_type=MessageSemantics.CLOSE_CASE,
+        )
+    )
+    assert event.scope is EventScope.CASE
+    with pytest.raises(ValidationError, match="must not name a participant"):
+        CaseEvent(**_fields(kind=EventKind.CASE_CLOSED))

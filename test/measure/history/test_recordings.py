@@ -213,6 +213,15 @@ def test_a_recording_yields_the_events_its_narrative_requires(scenario):
     assert {narrative.owner, CASE_ACTOR, *narrative.joiners} <= seated
     assert seated.isdisjoint(narrative.declined)
     assert set(_participants_with(history, EventKind.REPORT_CLOSED)) == seated
+    # The Case Owner's Leave closes the case, once, before the CASE_MANAGER's
+    # own report closes (CM-23-002).
+    (close,) = history.of_kind(EventKind.CASE_CLOSED)
+    (manager_closed,) = [
+        e
+        for e in history.for_participant(CASE_ACTOR)
+        if e.kind is EventKind.REPORT_CLOSED
+    ]
+    assert close.log_index < manager_closed.log_index
 
     # One joiner's joining and report-received events share a log index.
     for joiner in narrative.joiners:

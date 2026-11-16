@@ -59,6 +59,13 @@ from vultron.measure.ledger import (
     first_present,
     read_case_ledgers,
 )
+from vultron.measure.preferences import (
+    CasePathCounts,
+    DurationUndefined,
+    EmbargoDuration,
+    PathPreferences,
+    path_preferences,
+)
 from vultron.measure.scoring import (
     met_desiderata,
     score_case,
@@ -330,6 +337,7 @@ def test_a_ledger_with_a_hole_names_the_gap_and_scores_nothing(tmp_path):
     assert record.gap.missing_log_indices == [10, 11]
     assert record.case is None
     assert record.participants == []
+    assert record.path_preferences is None
 
 
 def test_a_broken_register_names_the_gap(tmp_path):
@@ -367,6 +375,27 @@ def test_a_record_holds_a_reading_or_its_gap():
         StandingRecord(case_id="c", end_confirmed=False, gap=gap, case=case)
     with pytest.raises(ValidationError, match="holds the case's standing"):
         StandingRecord(case_id="c", end_confirmed=False)
+    counts = PathPreferences(
+        case_id="c",
+        case=CasePathCounts(
+            duration=EmbargoDuration(undefined=DurationUndefined.NO_EMBARGO)
+        ),
+    )
+    with pytest.raises(ValidationError, match="holds no reading"):
+        StandingRecord(
+            case_id="c", end_confirmed=False, gap=gap, path_preferences=counts
+        )
+    with pytest.raises(ValidationError, match="its path preferences"):
+        StandingRecord(case_id="c", end_confirmed=False, case=case)
+    assert (
+        StandingRecord(
+            case_id="c",
+            end_confirmed=False,
+            case=case,
+            path_preferences=counts,
+        ).path_preferences
+        == counts
+    )
 
 
 def test_a_participant_is_scored_or_says_why_not():
@@ -383,6 +412,21 @@ def test_a_record_serializes_as_json():
     assert vendor["case_state"] == "VFdPxa"
     assert len(vendor["desiderata"]) == len(ORIGINAL)
     assert data["case"]["pxa"] == "Pxa"
+    assert data["path_preferences"]["case"]["duration"]["ratio"] is not None
+
+
+def test_a_record_shows_the_path_preferences_of_every_participant():
+    """ADR-0182: the counts sit beside the desiderata, for every
+    participant the record holds, a reporter included."""
+    ledger = _ledger(recording_path("rcv-embargo"))
+    record = case_standing(ledger)
+    (history,) = read_case_event_histories(
+        [recording_path("rcv-embargo")]
+    ).histories.values()
+    assert record.path_preferences == path_preferences(history)
+    assert record.path_preferences is not None
+    counted = {p.participant for p in record.path_preferences.participants}
+    assert {p.participant for p in record.participants} == counted
 
 
 def _write(path: Path, entries: list[dict[str, Any]]) -> Path:

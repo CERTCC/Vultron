@@ -264,6 +264,47 @@ class Ledger:
             "target": {"id": CASE, "activeEmbargo": embargo()},
         }
 
+    def invite(self, actor: str, embargo_id: str, rsvp_deadline: str) -> int:
+        """The CASE_MANAGER's ``Update(EmbargoConsent)`` inviting *actor*."""
+        return self.add(
+            "update_embargo_consent",
+            "Update",
+            CM,
+            consent(actor, "INVITED", embargo_id, rsvp_deadline=rsvp_deadline),
+        )
+
+    def time_out(self, actor: str, embargo_id: str) -> int:
+        """The CASE_MANAGER's ``Update(EmbargoConsent)`` timing *actor* out."""
+        return self.add(
+            "update_embargo_consent",
+            "Update",
+            CM,
+            consent(actor, "TIMED_OUT", embargo_id),
+        )
+
+    def answer(self, actor: str, embargo_id: str, *, accept: bool) -> int:
+        """*actor*'s ``Accept`` or ``Reject`` of an embargo Invite."""
+        verb = "accept" if accept else "reject"
+        return self.add(
+            f"{verb}_invite_to_embargo_on_case",
+            verb.capitalize(),
+            actor,
+            {
+                "id": f"urn:uuid:invite-{embargo_id}",
+                "type": "Invite",
+                "object": embargo(embargo_id),
+            },
+        )
+
+    def leave(self, actor: str) -> int:
+        """*actor*'s ``Leave(VulnerabilityCase)``."""
+        return self.add(
+            "close_case",
+            "Leave",
+            actor,
+            {"id": CASE, "type": "VulnerabilityCase"},
+        )
+
     def history(self) -> CaseEventHistory:
         """The event history of the entries so far."""
         return case_event_history(self.case_ledger())

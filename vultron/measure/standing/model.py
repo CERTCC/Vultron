@@ -57,6 +57,7 @@ from vultron.measure.history import (
     UnreadableEntry,
 )
 from vultron.measure.ledger import UnusableRow
+from vultron.measure.preferences import PathPreferences
 from vultron.measure.scoring import SequenceScore, met_desiderata
 from vultron.measure.sequences import UnprojectableParticipant
 from vultron.measure.standing.moves import (
@@ -383,6 +384,9 @@ class StandingRecord(BaseModel):
             the order it numbers them from 1: those with a case-state
             sequence in vendor-awareness order, then those not yet notified
             (:func:`~vultron.measure.standing.vendor_numbers`).
+        path_preferences: The case's path-preference counts, for every
+            participant and for the case (ADR-0182); ``None`` exactly
+            when *gap* is set.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -394,16 +398,26 @@ class StandingRecord(BaseModel):
     participants: list[ParticipantStanding] = Field(default_factory=list)
     moves: list[ScoredMove] = Field(default_factory=list)
     vendors: list[NonEmptyString] = Field(default_factory=list)
+    path_preferences: PathPreferences | None = None
 
     @model_validator(mode="after")
     def _a_reading_or_its_gap(self) -> StandingRecord:
         problems: list[str] = []
         if self.gap is not None and (
-            self.case or self.participants or self.moves or self.vendors
+            self.case
+            or self.participants
+            or self.moves
+            or self.vendors
+            or self.path_preferences
         ):
             problems.append("a record with a gap holds no reading")
-        if self.gap is None and self.case is None:
-            problems.append("a record with no gap holds the case's standing")
+        if self.gap is None and (
+            self.case is None or self.path_preferences is None
+        ):
+            problems.append(
+                "a record with no gap holds the case's standing and its"
+                " path preferences"
+            )
         names = [p.participant for p in self.participants]
         if len(set(names)) != len(names):
             problems.append("a participant is listed more than once")

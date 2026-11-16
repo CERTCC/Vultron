@@ -59,17 +59,6 @@ def _is_case_state(event: CaseEvent) -> bool:
     return isinstance(event.kind, CSEvent)
 
 
-def _participants(history: CaseEventHistory) -> list[str]:
-    """Every participant of *history*, in first-event order."""
-    return list(
-        dict.fromkeys(
-            event.participant
-            for event in history.events
-            if event.participant is not None
-        )
-    )
-
-
 def _project_one(
     history: CaseEventHistory, participant: str
 ) -> CaseStateSequence | UnprojectableParticipant:
@@ -200,7 +189,7 @@ def case_state_sequences(history: CaseEventHistory) -> CaseStateSequences:
     """
     sequences: list[CaseStateSequence] = []
     unprojectable: list[UnprojectableParticipant] = []
-    for participant in _participants(history):
+    for participant in history.participants():
         result = _project_one(history, participant)
         if isinstance(result, CaseStateSequence):
             sequences.append(result)

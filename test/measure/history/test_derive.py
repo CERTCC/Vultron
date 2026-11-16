@@ -23,6 +23,7 @@ from datetime import datetime
 import pytest
 
 from test.measure.history.builders import (
+    CASE,
     CM,
     DEPLOYER,
     EMBARGO,
@@ -576,6 +577,113 @@ def test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline():
     (event,) = ledger.history().of_kind(EventKind.CONSENT_TIMED_OUT)
     assert event.deadline == datetime.fromisoformat(stamp(500))
     assert event.gaps == [GapLabel.STAMPED_WHEN_NEXT_HANDLED]
+
+
+@pytest.mark.spec("CEH-04-017")
+def test_an_embargo_invite_is_an_event_carrying_its_rsvp_deadline():
+    """Each invitation of a row is one event, a re-invitation after a
+    timeout included (EMB-17-003); a restated row is none."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    _proposal(ledger)
+    first = len(ledger.entries) - 1
+    ledger.invite(VENDOR, EMBARGO_2, stamp(500))  # a restatement
+    ledger.time_out(VENDOR, EMBARGO_2)
+    again = ledger.invite(VENDOR, EMBARGO_2, stamp(900))
+    invitations = ledger.history().of_kind(EventKind.CONSENT_INVITED)
+    assert [
+        (e.participant, e.embargo_id, e.log_index, e.rsvp_deadline)
+        for e in invitations
+    ] == [
+        (VENDOR, EMBARGO_2, first, datetime.fromisoformat(stamp(500))),
+        (VENDOR, EMBARGO_2, again, datetime.fromisoformat(stamp(900))),
+    ]
+    assert all(e.deadline is None for e in invitations)
+
+
+@pytest.mark.spec("CEH-04-017")
+def test_a_row_invited_again_with_no_deadline_keeps_none_from_before():
+    """A new invitation takes its own deadline, never the earlier one."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.invite(VENDOR, EMBARGO_2, stamp(4))
+    ledger.time_out(VENDOR, EMBARGO_2)
+    ledger.add(
+        "update_embargo_consent",
+        "Update",
+        CM,
+        consent(VENDOR, "INVITED", EMBARGO_2),
+    )
+    (invitation,) = ledger.history().of_kind(EventKind.CONSENT_INVITED)
+    assert invitation.rsvp_deadline == datetime.fromisoformat(stamp(4))
+
+
+@pytest.mark.spec("CEH-04-017")
+def test_a_stub_invites_row_is_no_invitation_event():
+    """A first stub Invite's ``INVITED`` row carries no RSVP deadline
+    (CM-23-014)."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _invited(ledger)
+    assert ledger.history().of_kind(EventKind.CONSENT_INVITED) == []
+
+
+@pytest.mark.spec("CEH-04-017")
+def test_a_reissued_stub_invites_row_is_an_invitation_event():
+    """A stub Invite re-issued after the embargo changed records its deadline
+    on the inert invitee's row for the embargo now in force (CM-11-016)."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _invited(ledger)
+    reissued = ledger.invite(INVITEE, EMBARGO_2, stamp(9))
+    (invitation,) = ledger.history().of_kind(EventKind.CONSENT_INVITED)
+    assert (
+        invitation.participant,
+        invitation.embargo_id,
+        invitation.log_index,
+        invitation.rsvp_deadline,
+    ) == (INVITEE, EMBARGO_2, reissued, datetime.fromisoformat(stamp(9)))
+
+
+@pytest.mark.spec("CEH-04-018")
+def test_the_case_owners_leave_closes_the_case_once():
+    """A participant's ``Leave`` closes only its own report, and one from an
+    actor the history never seated closes nothing; the Case Owner's closes
+    the case, and a repeat of it is no second close."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.leave("urn:uuid:never-seated")
+    ledger.leave(REPORTER)
+    closed = ledger.leave(OWNER)
+    ledger.leave(OWNER)
+    (event,) = ledger.history().of_kind(EventKind.CASE_CLOSED)
+    assert (event.log_index, event.participant) == (closed, None)
+    assert event.semantic_type is MessageSemantics.CLOSE_CASE
+
+
+@pytest.mark.spec("CEH-04-018")
+def test_the_case_close_follows_an_ownership_transfer():
+    """The owner is read when the ``Leave`` is: the new one closes the case."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add(
+        "update_case_owner",
+        "Update",
+        CM,
+        {
+            "id": CASE,
+            "type": "VulnerabilityCase",
+            "caseParticipants": [
+                participant(OWNER, [], roles=()),
+                participant(REPORTER, [], roles=("REPORTER", "CASE_OWNER")),
+            ],
+        },
+    )
+    ledger.leave(OWNER)
+    closed = ledger.leave(REPORTER)
+    (event,) = ledger.history().of_kind(EventKind.CASE_CLOSED)
+    assert event.log_index == closed
 
 
 @pytest.mark.spec("CEH-04-005")
