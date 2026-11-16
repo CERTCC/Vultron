@@ -65,18 +65,20 @@ class PostCloseReply(StrEnum):
     to a late **Leave**:
 
     - ``DROP`` — send nothing (the default).
-    - ``REJECT`` — send ``Reject(Leave(VulnerabilityCase))`` to the sender.
+    - ``REFUSE`` — send the refusal notice, ``Refuse(Leave(VulnerabilityCase))``,
+      to the sender (CM-23-057, ADR-0196).  No other value is accepted, so a
+      config naming any other reply is refused on load (ADR-0175).
 
     Every other late activity is dropped with no reply under **both** settings.
     A Reject that wraps most other activities already carries a protocol
     meaning for its recipient (``Reject(Invite)`` is a declined invitation,
     ``Reject(Offer(...))`` a declined offer), so a reply to them would be
-    misread.  ``Reject(Leave(VulnerabilityCase))`` already means "close
-    declined" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
+    misread.  ``Refuse(Leave(VulnerabilityCase))`` already means "close
+    refused" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
     """
 
     DROP = "drop"
-    REJECT = "reject"
+    REFUSE = "refuse"
 
 
 DEFAULT_POST_CLOSE_REPLY = PostCloseReply.DROP
@@ -116,7 +118,7 @@ class ActorConfig(BaseModel):
             is never a minimum on agreed terms (EP-04-006, EP-04-007).
         post_close_reply: The one policy point for replies after the case
             closes: whether the CASE_MANAGER answers a late
-            ``Leave(VulnerabilityCase)`` with an ``as:Reject`` or drops it.
+            ``Leave(VulnerabilityCase)`` with a ``Refuse`` or drops it.
             Every other late activity is dropped under either setting
             (CM-23-017, CM-23-045, ADR-0131).  See :class:`PostCloseReply`.
         call_out_time_budget: How long one call-out backend may take to
@@ -178,8 +180,8 @@ class ActorConfig(BaseModel):
         default=DEFAULT_POST_CLOSE_REPLY,
         description=(
             "Reply to a Leave(VulnerabilityCase) that arrives after the "
-            "case is fully closed: 'drop' (default) sends nothing, 'reject' "
-            "sends Reject(Leave(VulnerabilityCase)). Every other late "
+            "case is fully closed: 'drop' (default) sends nothing, 'refuse' "
+            "sends Refuse(Leave(VulnerabilityCase)). Every other late "
             "activity is dropped under both settings (CM-23-045)."
         ),
     )

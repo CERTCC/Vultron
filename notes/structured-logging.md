@@ -265,7 +265,7 @@ no group.
 non-match as a refusal citing HP-01-006. A tree that picks an arm on an actor's
 role (the status adoption bypass, the Leave, suggest-actor and embargo trees)
 asks `ActorHoldsRoleInCaseNode`, the `has_role` read (ADR-0153), which states no
-refusal: placed as the CM-23-011 decline arm, a sender check made the handler
+refusal: placed as the CM-23-011 embargo check, a sender check made the handler
 report an HP-01-006 reason for a sender the guard admitted (#5903).
 `test/core/behaviors/test_sender_guard.py` fails on a `SenderIsCaseOwnerNode`
 placed outside a composed sender guard in any built tree.

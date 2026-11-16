@@ -103,7 +103,7 @@ def test_a_sender_node_deeper_in_the_tree_is_not_the_guard() -> None:
     sender (the close-case tree's owner arm, say)."""
     guard = _guard(SenderRule.in_case(SenderEntitlementKind.PARTICIPANT))
     effects = py_trees.composites.Sequence(
-        name="CloseOrDeclineIfCaseManager",
+        name="CloseIfCaseManager",
         memory=False,
         children=[case_owner_guard(CASE_ID, SENDER_ID)],
     )
