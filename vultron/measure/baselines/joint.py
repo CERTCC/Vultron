@@ -93,7 +93,7 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE, EM_TRANSITIONS
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.errors import VultronInvalidStateTransitionError
-from vultron.measure.baselines.walk import Step
+from vultron.measure.baselines.walk import Step, find_step
 
 
 class EmbargoEnd(StrEnum):
@@ -294,13 +294,7 @@ class JointModel:
                 several pending proposals starts the embargo as ``ACTIVE``
                 or as ``REVISE``).
         """
-        matches = [s.state for s in self.steps(state) if s.event == event]
-        if len(matches) != 1:
-            reason = "is not allowed" if not matches else "is ambiguous"
-            raise VultronInvalidStateTransitionError(
-                f"joint model: {event} {reason} from {state}"
-            )
-        return matches[0]
+        return find_step(self, state, event).state
 
     def _required(self, state: JointState) -> frozenset[Event]:
         """The events an ephemeral vendor projection requires next."""

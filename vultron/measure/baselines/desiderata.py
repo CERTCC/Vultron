@@ -28,12 +28,14 @@ model it takes chance from (ADR-0182, on the smallest model that holds it):
 by search over the model rather than by argument.
 """
 
-from collections.abc import Iterable
+from collections.abc import Hashable, Iterable, Mapping
 from enum import StrEnum
 from fractions import Fraction
 from functools import cache
+from types import MappingProxyType
 from typing import NamedTuple
 
+from vultron.core.states.cs import CS
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.baselines.case_state import CASE_STATE_MODEL
 from vultron.measure.baselines.joint import (
@@ -41,10 +43,14 @@ from vultron.measure.baselines.joint import (
     TWO_VENDOR_MODEL,
     Event,
     EventKind,
+    JointModel,
+    JointState,
 )
 from vultron.measure.baselines.walk import (
+    ChanceValues,
     Ordering,
     OrderingQuery,
+    WalkPrefix,
     frequency,
     implies,
 )
@@ -146,7 +152,10 @@ _ORIGINAL_ORDER: tuple[tuple[CSEvent, CSEvent], ...] = tuple(
 """The twelve original desiderata, most desirable first (``twelve_desiderata.md``)."""
 
 
-_JOINT_TO_CS: dict[Event, CSEvent] = {v: k for k, v in _CS_TO_JOINT.items()}
+JOINT_TO_CS: Mapping[Event, CSEvent] = MappingProxyType(
+    {v: k for k, v in _CS_TO_JOINT.items()}
+)
+"""Each of vendor 1's joint-model case-state events, and the case's, as its six-event one."""
 
 
 def _symbol(event: CSEvent) -> str:
@@ -267,25 +276,83 @@ def case_state_query(query: Query) -> OrderingQuery[CSEvent]:
     """
     return OrderingQuery(
         tuple(
-            Ordering(_JOINT_TO_CS[o.before], _JOINT_TO_CS[o.after])
+            Ordering(JOINT_TO_CS[o.before], JOINT_TO_CS[o.after])
             for o in query.orderings
         ),
-        frozenset(_JOINT_TO_CS[e] for e in query.given),
+        frozenset(JOINT_TO_CS[e] for e in query.given),
     )
+
+
+def _joint_model(model: ModelName) -> JointModel:
+    """The joint model *model* names.
+
+    Raises:
+        ValueError: *model* is the six-event model.
+    """
+    if model is ModelName.ONE_VENDOR:
+        return ONE_VENDOR_MODEL
+    if model is ModelName.TWO_VENDOR:
+        return TWO_VENDOR_MODEL
+    raise ValueError(f"{model} is not a joint model")
+
+
+@cache
+def joint_values(
+    model: ModelName, query: Query
+) -> ChanceValues[JointState, Event]:
+    """The solved table of *query* over the joint model *model* names, shared process-wide.
+
+    Raises:
+        ValueError: *model* is the six-event model (:func:`case_state_values`).
+    """
+    return ChanceValues(_joint_model(model), query)
+
+
+@cache
+def case_state_values(query: Query) -> ChanceValues[CS, CSEvent]:
+    """The solved table of *query*, restated over the six-event model, shared process-wide."""
+    return ChanceValues(CASE_STATE_MODEL, case_state_query(query))
 
 
 @cache
 def _frequency(model: ModelName, query: Query) -> Fraction:
+    """*query*'s chance frequency in *model*, keeping only the number.
+
+    :func:`implications` asks many scoped queries once each, from the start
+    only, so their solved tables are not kept.
+    """
     if model is ModelName.CASE_STATE:
         return frequency(CASE_STATE_MODEL, case_state_query(query))
-    if model is ModelName.ONE_VENDOR:
-        return frequency(ONE_VENDOR_MODEL, query)
-    return frequency(TWO_VENDOR_MODEL, query)
+    return frequency(_joint_model(model), query)
+
+
+def _at_start[S: Hashable, E: Hashable](
+    table: ChanceValues[S, E],
+) -> Fraction | None:
+    return table.at(WalkPrefix(table.model.initial))
 
 
 def baseline(desideratum: Desideratum) -> Fraction:
-    """The exact chance frequency ``f_d`` of *desideratum* in its own model."""
-    return _frequency(desideratum.model, desideratum.query)
+    """The exact chance frequency ``f_d`` of *desideratum* in its own model.
+
+    Read from the desideratum's shared solved table, the one that values
+    from any later point of the walk come from too.
+
+    Raises:
+        ValueError: no walk on the model meets every given event.
+    """
+    query = desideratum.query
+    value = (
+        _at_start(case_state_values(query))
+        if desideratum.model is ModelName.CASE_STATE
+        else _at_start(joint_values(desideratum.model, query))
+    )
+    if value is None:
+        raise ValueError(
+            f"no walk on the {desideratum.model} model meets every given"
+            f" event of {query!r}"
+        )
+    return value
 
 
 def _in_one_vendor_model(desideratum: Desideratum) -> Query | None:
