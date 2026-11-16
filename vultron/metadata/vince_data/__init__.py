@@ -14,10 +14,12 @@
 rest (VSD-02, ADR-0189).
 
 - :mod:`.marker` holds the fixture directory, the synthetic marker and the
-  names of the two tools that may write it: the generator and the sanitizer
-  (#6348).
+  names of the two tools that may write it: the generator and the
+  sanitizer.
 - :mod:`.shape` tells a VINCE API response apart from other JSON.
 - :mod:`.generator` writes the synthetic fixtures (``vince-data generate``).
+- :mod:`.sanitizer` turns a test-instance VINCE case into a synthetic case
+  of the same shape (``vince-data sanitize``).
 - :mod:`.cleared` reads the cleared-case list.
 - :mod:`.check` is the committed-data check (``vince-data check``), run by
   pre-commit and by the ``VINCE Data Check`` workflow.
