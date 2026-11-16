@@ -23,6 +23,9 @@ from typing import ClassVar
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
@@ -48,7 +51,9 @@ from vultron.errors import VultronError
 # ---------------------------------------------------------------------------
 
 
-class SenderIsParticipantNode(FindParticipantByActorIdNode):
+class SenderIsParticipantNode(
+    CaseIdInputPortMixin, FindParticipantByActorIdNode
+):
     """Guard: sender must have a participant record on the case.
 
     Not a :class:`SenderEntitlementConditionNode`: it reuses the participant
@@ -67,9 +72,10 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
     Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
     REFUSED outcome.
 
-    With no ``case_id`` there is no case to check the sender against, so it
-    fails (DEMOMA-07-003 step 1); the status use case resolves the case from
-    the stored status before it builds its tree.
+    The case is read from the ``/case_id`` port, which the sender guard's
+    composer seeds with the case the context names (BTND-01-006).  With no
+    case there is nothing to check the sender against, so it fails
+    (DEMOMA-07-003 step 1).
 
     Merged from ``VerifySenderIsParticipantNode`` (ADR-0115, AC-2); it was
     ``SenderIsActiveParticipantNode`` until the ``PARTICIPANT`` kind split
@@ -85,23 +91,22 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
     def __init__(
         self,
         sender_actor_id: str,
-        case_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(
-            case_id=case_id or "",
+            case_id="",
             target_actor_id=sender_actor_id,
             participant_key="sender_participant",
             name=name or self.__class__.__name__,
         )
         self.sender_actor_id = sender_actor_id
-        self._case_id_hint = case_id or None
+        self._case_id: str | None = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case_id = self._case_id_hint
+        case_id = self._case_id
         if case_id is None:
             return fail_with_reason(
                 self,
@@ -146,7 +151,9 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 # ---------------------------------------------------------------------------
 
 
-class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
+class SenderIsActiveParticipantNode(
+    CaseIdInputPortMixin, SenderEntitlementConditionNode
+):
     """Guard: sender must be an active participant whose closure is not recorded.
 
     The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018, CM-23-020).  Active means
@@ -158,9 +165,11 @@ class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
     invitee, a removed participant, a closed participant and a sender the
     case does not list all fail.  A closed participant's resync request is
     the ``LEDGER_PEER`` kind's instead
-    (:class:`SenderIsActiveLedgerParticipantNode`).  With no ``case_id``, or
-    a case this store does not hold, there is no standing to check, so the
-    sender is refused (Regime 1, ADR-0087).
+    (:class:`SenderIsActiveLedgerParticipantNode`).  The case is read from
+    the ``/case_id`` port, seeded by the sender guard's composer
+    (BTND-01-006).  With no case, or a case this store does not hold,
+    there is no standing to check, so the sender is refused (Regime 1,
+    ADR-0087).
 
     Spec: CM-23-018, CM-10-004, HP-01-006, HP-01-009.
     """
@@ -172,32 +181,31 @@ class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
     def __init__(
         self,
         sender_actor_id: str,
-        case_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.sender_actor_id = sender_actor_id
-        self.case_id = case_id or None
+        self._case_id: str | None = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        if self.case_id is None:
+        if self._case_id is None:
             # An activity that names no case is a routine refusal, as
             # SenderIsParticipantNode reports it, not a Regime 1 anomaly.
             return self._fail_with_reason(
                 f"No case in this store to check sender"
                 f" '{self.sender_actor_id}' against — REFUSED (HP-01-006)"
             )
-        case, failure = self._require_case(self.case_id)
+        case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: no case, so no standing to check
         if may_act_on_case(case, self.datalayer, self.sender_actor_id):
             return Status.SUCCESS
         return self._fail_with_reason(
             f"Sender '{self.sender_actor_id}' is not an active participant"
-            f" of case '{self.case_id}', or has left it — REFUSED"
+            f" of case '{self._case_id}', or has left it — REFUSED"
             " (HP-01-006, CM-10-004, CM-23-018)"
         )
 

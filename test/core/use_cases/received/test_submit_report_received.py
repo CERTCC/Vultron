@@ -1011,7 +1011,7 @@ class TestSubmitReportDisposition:
             _submit_report_reader,
         )
 
-        guard = CaseOpenToExternalWritesNode(case_id=None)
+        guard = CaseOpenToExternalWritesNode()
         guard.status = Status.FAILURE
         guard.feedback_message = "case is fully closed (CM-23-013)"
         tree = py_trees.composites.Sequence(

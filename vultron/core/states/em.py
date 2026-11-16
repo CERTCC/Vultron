@@ -22,11 +22,13 @@ rule the derivation must obey, not a second way to set EM.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from enum import StrEnum, auto
 from types import MappingProxyType
 
 from transitions import Machine
+
+from vultron.enums.roles import CVDRole
 
 
 class EM(StrEnum):
@@ -108,6 +110,30 @@ EM_TRANSITIONS: Mapping[EM_Trigger, frozenset[tuple[EM, EM]]] = (
         }
     )
 )
+
+
+#: Who may make a move under each EM trigger: the case role that may, or
+#: ``None`` when any participant may.  Any participant may propose an embargo;
+#: the Case Owner, who decides whether embargo terms are accepted, accepts,
+#: rejects and terminates (#6368).  A reader that names who can make an EM move
+#: reads this table, never a role list of its own.
+EM_TRIGGER_ROLES: Mapping[EM_Trigger, CVDRole | None] = MappingProxyType(
+    {
+        EM_Trigger.PROPOSE: None,
+        EM_Trigger.ACCEPT: CVDRole.CASE_OWNER,
+        EM_Trigger.REJECT: CVDRole.CASE_OWNER,
+        EM_Trigger.TERMINATE: CVDRole.CASE_OWNER,
+    }
+)
+
+
+def may_make_em_move(trigger: EM_Trigger, roles: Iterable[CVDRole]) -> bool:
+    """True when a participant holding *roles* may make a *trigger* move.
+
+    Reads :data:`EM_TRIGGER_ROLES`.
+    """
+    role = EM_TRIGGER_ROLES[trigger]
+    return role is None or role in set(roles)
 
 
 def is_em_transition(trigger: EM_Trigger, source: EM, dest: EM) -> bool:

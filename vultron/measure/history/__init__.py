@@ -18,8 +18,11 @@ Read through :mod:`vultron.measure.ledger`, never beside it:
   and gap enumerations, and the history that carries the ledger's holes.
 * :mod:`~vultron.measure.history.snapshot` — the state-bearing records of one
   payload snapshot, recommendations and offers left out (CEH-04-014).
+* :mod:`~vultron.measure.history.reached` — the states the ledger has
+  reached at its last entry, from the same walk.
 * :mod:`~vultron.measure.history.derive` — the derivation:
-  :func:`case_event_history` for one selected case ledger, and
+  :func:`case_event_history` for one selected case ledger,
+  :func:`derive_case` for that history with the states reached, and
   :func:`read_case_event_histories` for the files a caller names.
 * :mod:`~vultron.measure.history.render` — the history as JSON or as a
   friendly-named Markdown table (:func:`case_history_report`, CEH-01-005).
@@ -29,6 +32,7 @@ Read through :mod:`vultron.measure.ledger`, never beside it:
 
 from vultron.measure.history.derive import (
     case_event_history,
+    derive_case,
     read_case_event_histories,
 )
 from vultron.measure.history.model import (
@@ -45,12 +49,19 @@ from vultron.measure.history.model import (
     UnreadableEntry,
     scope_of,
 )
+from vultron.measure.history.reached import (
+    BY_NAME,
+    PxaName,
+    ReachedParticipant,
+    ReachedState,
+)
 from vultron.measure.history.render import (
     HistoryFormat,
     case_history_report,
 )
 
 __all__ = [
+    "BY_NAME",
     "CASE_KINDS",
     "RM_EVENT_KINDS",
     "CaseEvent",
@@ -62,9 +73,13 @@ __all__ = [
     "ExcludedState",
     "GapLabel",
     "HistoryFormat",
+    "PxaName",
+    "ReachedParticipant",
+    "ReachedState",
     "UnreadableEntry",
     "case_event_history",
     "case_history_report",
+    "derive_case",
     "read_case_event_histories",
     "scope_of",
 ]

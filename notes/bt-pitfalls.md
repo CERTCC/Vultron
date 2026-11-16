@@ -492,8 +492,9 @@ A tree that knows the case at build time seeds the port, two ways:
 
 `with_case_id(node, None)` returns the node unwrapped, so a tree that names no
 case leaves the port to an earlier node of the same execution. Only
-`ReceivedPathNode` and `CheckIsCaseManagerNode` then fall back to the case the
-activity names (`activity_case_id`), as their documented resolution step.
+`ReceivedPathNode`, `CheckIsCaseManagerNode` and the post-close door
+`CaseOpenToExternalWritesNode` then fall back to the case the activity names,
+as their documented resolution step.
 
 A seeded node sits one level below where it used to. Code that reads a tree's
 shape sees through the scope with `unscoped(node)`, and reads the seeded case

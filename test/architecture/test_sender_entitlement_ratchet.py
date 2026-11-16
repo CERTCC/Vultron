@@ -583,7 +583,7 @@ _VIOLATIONS = {
         "from vultron.core.behaviors.sender_entitlement import"
         " SenderIsParticipantNode\n"
         "def build():\n"
-        "    return SenderIsParticipantNode(sender_actor_id='a', case_id='c')\n"
+        "    return SenderIsParticipantNode(sender_actor_id='a')\n"
     ),
     "import-alias": (
         "from vultron.core.behaviors.sender_entitlement import"

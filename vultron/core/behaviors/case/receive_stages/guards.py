@@ -48,6 +48,7 @@ from vultron.core.behaviors.case.receive_stages.effects import (
     check_replica_effects,
     node_types,
 )
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -98,10 +99,13 @@ def refusal_stage(
             CASE_MANAGER's own note (RSH-06-004), which commits its own
             ``add_note_to_case`` entry before it attaches the note.
     """
+    # A node that reads its case from ``/case_id`` arrives in the scope that
+    # seeds it; the check is about the node, so it looks through the scope
+    # (BTND-01-006).
     not_emitters = [
-        type(n).__name__
+        type(unscoped(n)).__name__
         for n in refusal_effects
-        if not isinstance(n, EmitCapable)
+        if not isinstance(unscoped(n), EmitCapable)
     ]
     writers = sorted(
         {

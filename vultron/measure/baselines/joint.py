@@ -73,6 +73,7 @@ from typing import NamedTuple
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
     violation_pxa_em_entailment,
+    violation_pxa_em_move,
 )
 from vultron.core.states.cs import (
     CS,
@@ -192,7 +193,9 @@ class JointState(NamedTuple):
     embargo_end: EmbargoEnd | None = None
 
 
-_RM_EVENT: dict[RM, EventKind] = {
+#: The event a vendor's report-management move into each state is; entering
+#: ``RECEIVED`` is vendor awareness, one step with report receipt.
+RM_EVENTS: dict[RM, EventKind] = {
     RM.RECEIVED: EventKind.V,
     RM.INVALID: EventKind.INVALIDATED,
     RM.VALID: EventKind.VALIDATED,
@@ -358,7 +361,7 @@ class JointModel:
         if source is not dest and not is_valid_cs_transition(source, dest):
             return None
         if after.rm is not before.rm:
-            kind = _RM_EVENT[after.rm]
+            kind = RM_EVENTS[after.rm]
         else:
             cs_event = cs_transition_event(source, dest)
             assert cs_event is not None
@@ -406,7 +409,7 @@ class JointModel:
 
     def _em_steps(self, state: JointState) -> list[Step[JointState, Event]]:
         found = []
-        for moves in EM_TRANSITIONS.values():
+        for trigger, moves in EM_TRANSITIONS.items():
             for source, dest in moves:
                 if source is not state.em or dest is source:
                     continue
@@ -420,13 +423,7 @@ class JointModel:
                             )
                         )
                     continue
-                if violation_pxa_em_entailment(state.pxa, dest) is not None:
-                    continue
-                if (
-                    dest is EM.PROPOSED
-                    and violation_pxa_em_entailment(state.pxa, EM.ACTIVE)
-                    is not None
-                ):
+                if violation_pxa_em_move(state.pxa, trigger, dest) is not None:
                     continue
                 found.append(
                     Step(

@@ -93,6 +93,8 @@ class ParticipantRecord(BaseModel):
         actor: The participant's actor.
         joined: ``False`` for an inert participant; ``None`` when unstated.
         roles: Its case roles, upper-cased.
+        roles_stated: Whether the record states its case roles, so that
+            *roles* is the participant's whole role set then.
         statuses: Its participant statuses, in recorded order.
         consents: Its embargo consent rows, in recorded order.
     """
@@ -102,6 +104,7 @@ class ParticipantRecord(BaseModel):
     actor: str
     joined: bool | None = None
     roles: set[str] = Field(default_factory=set)
+    roles_stated: bool = False
     statuses: list[dict[str, Any]] = Field(default_factory=list)
     consents: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -185,10 +188,12 @@ def _participant_record(node: Mapping[str, Any]) -> ParticipantRecord | None:
     if actor is None:
         return None
     joined = node.get("joined")
+    case_roles = first_present(node, "caseRoles", "case_roles")
     return ParticipantRecord(
         actor=actor,
         joined=joined if isinstance(joined, bool) else None,
-        roles=roles_of(first_present(node, "caseRoles", "case_roles")),
+        roles=roles_of(case_roles),
+        roles_stated=isinstance(case_roles, list),
         statuses=_dicts(
             first_present(node, "participantStatuses", "participant_statuses")
         ),
