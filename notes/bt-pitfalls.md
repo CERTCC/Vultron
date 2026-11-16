@@ -474,9 +474,12 @@ enforced by `test/architecture/test_participant_status_validation.py`.
 A node that declares a `case_id` input port reads it from that port in every
 tree, never also from a constructor argument (BTND-01-006, BTND-01-007): a
 constructor value with a port fallback is the dual channel that let a stale
-`/case_id` decide a later delivery above. A value every tree knows at build time
-stays a constructor argument, and then the node declares no port (BTND-01-004).
-Ratchet: `test/architecture/test_case_id_one_channel.py`.
+`/case_id` decide a later delivery above. Ratchet:
+`test/architecture/test_case_id_one_channel.py`. A per-act value is never a
+constructor argument, even one every tree knows at build time (BTND-01-008,
+BTND-01-009): the migration to named keys is planned in
+[bt-integration](bt-integration.md) § "One Fixed-Shape Tree per Act", and
+`with_case_id` below is the interim seeding it removes.
 
 A tree that knows the case at build time seeds the port, two ways:
 
