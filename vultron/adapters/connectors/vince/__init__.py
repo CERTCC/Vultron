@@ -20,16 +20,14 @@ The translation (:func:`translate_case`) follows the VINCE crosswalk,
 fetches a case's records and calls it is built in #5963.
 """
 
+from vultron.adapters.connectors.vince.case_rows import ISSUE_TRACKING_REL
 from vultron.adapters.connectors.vince.crosswalk import (
     INFERRED_ROWS,
     VINCE_UNOBSERVABLE,
 )
+from vultron.adapters.connectors.vince.ids import vince_case_url
 from vultron.adapters.connectors.vince.records import READS
-from vultron.adapters.connectors.vince.translate import (
-    ISSUE_TRACKING_REL,
-    translate_case,
-    vince_case_url,
-)
+from vultron.adapters.connectors.vince.translate import translate_case
 
 __all__ = [
     "INFERRED_ROWS",

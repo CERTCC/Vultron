@@ -33,24 +33,25 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
-    Field,
+    JsonValue,
     ValidationError,
     field_validator,
 )
 
 from vultron.core.models._helpers import as_utc
 from vultron.errors import VinceCaseRecordsError
+from vultron.primitives import NonEmptyString, is_blank_string
 
 
 def _blank_is_absent(value: object) -> object:
     """Read VINCE's empty string for an unset field as absent."""
-    if isinstance(value, str) and not value.strip():
+    if isinstance(value, str) and is_blank_string(value):
         return None
     return value
 
@@ -61,7 +62,7 @@ Text = Annotated[str | None, BeforeValidator(_blank_is_absent)]
 Time = Annotated[datetime | None, BeforeValidator(_blank_is_absent)]
 
 
-class _Record(BaseModel):
+class Record(BaseModel):
     """One VINCE record: frozen, and blind to fields no row reads."""
 
     model_config = ConfigDict(frozen=True, extra="ignore")
@@ -72,10 +73,10 @@ class _Record(BaseModel):
         return as_utc(value) if isinstance(value, datetime) else value
 
 
-class VinceCase(_Record):
+class VinceCase(Record):
     """``case/<vuid>/``: the case itself (VINCE-CA, VINCE-EM)."""
 
-    vuid: str = Field(min_length=1)
+    vuid: NonEmptyString
     pk: int
     created: datetime
     modified: Time = None
@@ -85,7 +86,7 @@ class VinceCase(_Record):
     due_date: Time = None
 
 
-class VinceReport(_Record):
+class VinceReport(Record):
     """``case/<vuid>/report/``: the original report (VINCE-PA-03/04,
     VINCE-RM-01/03, VINCE-CS-01 to VINCE-CS-03, VINCE-CT-03)."""
 
@@ -118,13 +119,13 @@ class VinceReport(_Record):
         )
 
 
-class VincePostAuthor(_Record):
+class VincePostAuthor(Record):
     """The author of a post, as the post serializer nests it."""
 
     org: Text = None
 
 
-class VincePost(_Record):
+class VincePost(Record):
     """One item of ``case/<vuid>/posts/`` (VINCE-CT-02, VINCE-CT-04)."""
 
     created: Time = None
@@ -133,33 +134,33 @@ class VincePost(_Record):
     content: Text = None
 
 
-class VinceVul(_Record):
+class VinceVul(Record):
     """One item of ``case/<vuid>/vuls/`` (VINCE-CT-01)."""
 
-    name: str = Field(min_length=1)
+    name: NonEmptyString
     cve: Text = None
     description: Text = None
     date_added: Time = None
 
 
-class VinceVendor(_Record):
+class VinceVendor(Record):
     """One item of ``case/<vuid>/vendors/`` (VINCE-PA-02, VINCE-RM-04)."""
 
-    vendor: str = Field(min_length=1)
+    vendor: NonEmptyString
     date_added: Time = None
 
 
-class VinceVendorVul(_Record):
+class VinceVendorVul(Record):
     """One item of ``case/<vuid>/vendors/vuls/`` (VINCE-RM-05 to
     VINCE-RM-07)."""
 
-    vendor: str = Field(min_length=1)
+    vendor: NonEmptyString
     vulnerability: Text = None
     status: Text = None
     statement_date: Time = None
 
 
-class VinceNote(_Record):
+class VinceNote(Record):
     """``case/<vuid>/note/``: the vulnerability note (VINCE-CS-04,
     VINCE-CT-04)."""
 
@@ -185,7 +186,7 @@ def _problem(read: str, exc: ValidationError) -> str:
 
 
 @dataclass(frozen=True)
-class ParsedRead[R: _Record]:
+class ParsedRead[R: Record]:
     """The items of one list read, each with its index in the read.
 
     Attributes:
@@ -197,7 +198,7 @@ class ParsedRead[R: _Record]:
     problems: tuple[tuple[int, str], ...] = ()
 
 
-def parse_list[R: _Record](
+def parse_list[R: Record](
     read: str, raw: object, model: type[R]
 ) -> ParsedRead[R]:
     """Parse the list read *read* item by item.
@@ -219,7 +220,7 @@ def parse_list[R: _Record](
     return ParsedRead(items=tuple(items), problems=tuple(problems))
 
 
-def parse_one[R: _Record](
+def parse_one[R: Record](
     read: str, raw: object, model: type[R]
 ) -> R | str | None:
     """Parse the single-record read *read*: the record, ``None`` for a
@@ -232,7 +233,7 @@ def parse_one[R: _Record](
         return _problem(read, exc)
 
 
-def parse_case(reads: Mapping[str, Any]) -> VinceCase:
+def parse_case(reads: Mapping[str, JsonValue]) -> VinceCase:
     """The case record of *reads*.
 
     Raises:
@@ -242,19 +243,19 @@ def parse_case(reads: Mapping[str, Any]) -> VinceCase:
     raw = reads.get("case")
     if raw is None:
         raise VinceCaseRecordsError(None, ["case: the case read is missing"])
-    parsed = parse_one("case", raw, VinceCase)
-    if isinstance(parsed, str):
+    try:
+        return VinceCase.model_validate(raw)
+    except ValidationError as exc:
         vuid = raw.get("vuid") if isinstance(raw, Mapping) else None
         raise VinceCaseRecordsError(
-            vuid if isinstance(vuid, str) else None, [parsed]
-        )
-    assert parsed is not None
-    return parsed
+            vuid if isinstance(vuid, str) else None, [_problem("case", exc)]
+        ) from exc
 
 
 __all__ = [
     "READS",
     "ParsedRead",
+    "Record",
     "VinceCase",
     "VinceNote",
     "VincePost",

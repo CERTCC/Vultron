@@ -311,3 +311,126 @@ def test_a_case_with_no_status_adds_nothing():
     raw["case"]["status"] = None
     reading = _translate(raw)
     assert all(u.source_record != "case/999903/" for u in reading.untranslated)
+
+
+def _two_of_each(raw: dict[str, Any]) -> dict[str, Any]:
+    """999901 with Gamma Affected like Alpha and a second all-Not-Affected
+    vendor like Beta, so two vendors take each of VINCE-RM-05 and -06."""
+    raw["vendors"].append({**raw["vendors"][1], "vendor": "Synthetic Beta 2"})
+    for row in list(raw["vendors/vuls"]):
+        if row["vendor"] == "Synthetic Vendor Gamma":
+            row["status"] = "Affected"
+        if row["vendor"] == "Synthetic Vendor Beta":
+            raw["vendors/vuls"].append({**row, "vendor": "Synthetic Beta 2"})
+    return raw
+
+
+def test_every_entry_and_status_has_its_own_id():
+    reading = _translate(_two_of_each(reads(ACTIVE)))
+    rules = [i.rule_id for i in reading.inferences]
+    assert rules.count("VINCE-RM-05") == 4  # Valid and Accepted, twice
+    assert rules.count("VINCE-RM-06") == 2
+    activity_ids = [entry.log_object_id for entry in reading.ledger]
+    assert len(set(activity_ids)) == len(activity_ids)
+    status_ids = {s["id"] for s in records(reading, "ParticipantStatus")}
+    statuses = [
+        entry.payload_snapshot["object"]["id"]
+        for entry in reading.ledger
+        if entry.semantic_type == "add_participant_status_to_participant"
+    ]
+    assert len(set(statuses)) == len(statuses)
+    assert set(statuses) <= status_ids
+    _clean(reading)
+
+
+@pytest.mark.parametrize("absent", ["null", "missing"])
+def test_a_list_read_vince_answered_404_holds_nothing(absent):
+    raw = reads(ACTIVE)
+    if absent == "null":
+        raw["posts"] = None
+    else:
+        del raw["posts"]
+    reading = _translate(raw)
+    assert records(reading, "Note") == []
+    assert all("posts" not in u.source_record for u in reading.untranslated)
+
+
+def test_an_unpublished_note_states_no_public_awareness():
+    raw = reads(INACTIVE)
+    raw["note"]["published"] = False
+    reading = _translate(raw)
+    _, reached = projected(reading)
+    assert reached.pxa.name == "pxa"
+    assert all(
+        entry.semantic_type != "add_case_status_to_case"
+        for entry in reading.ledger
+    )
+
+
+@pytest.mark.parametrize(
+    ("cleared", "name"),
+    [
+        ((), "Example Research Lab"),
+        (("contact_org",), "Synthetic Reporter"),
+        (("contact_org", "contact_name"), "reporter@example.org"),
+        (("contact_org", "contact_name", "contact_email"), "reporter"),
+    ],
+)
+def test_a_shared_reporter_is_named_by_its_contact(cleared, name):
+    raw = reads(ACTIVE)
+    for key in cleared:
+        raw["report"][key] = ""
+    reading = _translate(raw)
+    assert name in actors_by_name(reading)
+    assert "VINCE-PA-04" not in {i.rule_id for i in reading.inferences}
+
+
+def test_the_reporter_s_id_carries_no_contact_detail():
+    shared = reads(ACTIVE)
+    other = reads(ACTIVE)
+    other["report"]["contact_email"] = "someone.else@example.org"
+    withheld = reads(ACTIVE)
+    for key in (
+        "contact_name",
+        "contact_email",
+        "contact_phone",
+        "contact_org",
+    ):
+        del withheld["report"][key]
+
+    def reporter(raw: dict[str, Any]) -> str:
+        (record,) = [
+            r
+            for r in records(_translate(raw), "CaseParticipant")
+            if r["caseRoles"] == ["reporter"]
+        ]
+        return str(record["attributedTo"])
+
+    assert reporter(shared) == reporter(other)
+    assert reporter(shared) != reporter(withheld)
+
+
+def test_a_vul_with_no_description_has_no_notes():
+    raw = reads(ACTIVE)
+    raw["vuls"][0]["description"] = None
+    items = records(_translate(raw), "VulnerabilityItem")
+    assert "notes" not in items[0] or items[0]["notes"] == []
+
+
+def test_a_vul_listed_twice_is_a_rule_conflict():
+    raw = reads(ACTIVE)
+    raw["vuls"].append(dict(raw["vuls"][0]))
+    reading = _translate(raw)
+    assert (
+        "case/999901/vuls/[2]",
+        "vul listed more than once on the case",
+        Reason.RULE_CONFLICT,
+    ) in _facts(reading)
+    assert len(records(reading, "VulnerabilityItem")) == 2
+
+
+def test_a_blank_vendor_name_does_not_parse():
+    raw = reads(ACTIVE)
+    raw["vendors"][2]["vendor"] = "   "
+    facts = {(s, reason) for s, _, reason in _facts(_translate(raw))}
+    assert ("case/999901/vendors/[2]", Reason.UNKNOWN_VALUE) in facts
