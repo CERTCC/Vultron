@@ -31,7 +31,82 @@ from test.measure.advice.pathologies import (
     truth,
 )
 
-FAILS: dict[tuple[str, str], frozenset[str]] = {}
+_EVERY = frozenset(c.name for c in ALL_CASES)
+_EMBARGO = frozenset(c.name for c in ALL_CASES if c.embargo)
+_THREE = "ready-unready embargo, three coordinator moves"
+_WITH_UNAWARE = frozenset(
+    {
+        "ready-unready-unaware embargo",
+        "ready-unready-unaware no-embargo",
+        "deployed-ready-unready-unaware embargo",
+        "deployed-ready-unready-unaware no-embargo",
+    }
+)
+_UNAWARE_NO_EMBARGO = frozenset(
+    {
+        "ready-unready-unaware no-embargo",
+        "deployed-ready-unready-unaware no-embargo",
+    }
+)
+_MEAN_LIKE = {
+    # A notified vendor starts below the others' mean, so notifying it
+    # lowers the mean of the notified vendors' scores.
+    "P1": _WITH_UNAWARE,
+    # One number names no vendor.
+    "P3": _EVERY,
+    "P5": _EMBARGO,
+    # Notifying a vendor dominates the embargo proposal but scores lower.
+    "P4": _UNAWARE_NO_EMBARGO,
+    # The embargo revision changes nothing, so it is unhelpful, and it
+    # still outscores every other coordinator move.
+    "P6": frozenset({"unready-unready embargo", _THREE}),
+    # Notifying a vendor scores below ending the embargo, even early.
+    "P7": _WITH_UNAWARE,
+}
+
+FAILS: dict[tuple[str, str], frozenset[str]] = {
+    # The chance model gives an embargo revision no effect (#6492).
+    ("bands", "P2"): frozenset({"unready-unready embargo"}),
+    **{
+        (method, pathology): cases
+        for method in ("mean", "median", "mean then spread")
+        for pathology, cases in _MEAN_LIKE.items()
+    },
+    ("maximin", "P1"): _WITH_UNAWARE,
+    ("maximin", "P3"): _EVERY,
+    ("maximin", "P5"): _EMBARGO,
+    # A fix or a notice for one vendor leaves the lowest vendor where it
+    # was, so it does not beat an embargo move that raises them all.
+    ("maximin", "P4"): frozenset(
+        {
+            "ready-unready no-embargo",
+            "unready-unready no-embargo",
+            *_UNAWARE_NO_EMBARGO,
+        }
+    ),
+    ("maximin", "P6"): frozenset(
+        {
+            "ready-unready embargo",
+            "unready-unready embargo",
+            "ready-unready-unaware embargo",
+            "deployed-ready-unready-unaware embargo",
+            _THREE,
+        }
+    ),
+    ("maximin", "P7"): frozenset(
+        {
+            "ready-unready no-embargo",
+            "unready-unready no-embargo",
+            *_WITH_UNAWARE,
+        }
+    ),
+    ("Nash product", "P3"): _EVERY,
+    ("Nash product", "P5"): _EMBARGO,
+    ("Nash product", "P6"): frozenset({"unready-unready embargo", _THREE}),
+    ("Nash product", "P7"): frozenset(
+        {"deployed-ready-unready-unaware embargo"}
+    ),
+}
 """The cases each (method, pathology) fails; a pair not listed fails none."""
 
 

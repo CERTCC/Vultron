@@ -158,7 +158,7 @@ CASES: tuple[Case, ...] = tuple(
 with and without an active embargo."""
 
 NO_HARM_FREE = Case(
-    "ready-unready embargo, coordinator's publication and embargo moves",
+    "ready-unready embargo, three coordinator moves",
     ("ready", "unready"),
     True,
     frozenset({_K.P, _K.REVISION_PROPOSED, _K.EXIT_OTHER}),
