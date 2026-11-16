@@ -319,6 +319,19 @@ repos:
         files: ^(third_party/csaf/.*|vultron/wire/csaf/.*|vultron/metadata/csaf/(regenerate|pin)\.py|vultron/metadata/generated_files\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
+      - id: vince-data-check
+        name: No VINCE API data committed unless synthetic or cleared
+        # ADR-0189 rules 3 and 4, VSD-02-001 to VSD-02-005. Reads every
+        # tracked JSON file, not only the staged ones: the target set must
+        # never be empty, and a fixture or the cleared-case list can change the
+        # verdict on a file the commit did not touch. Watched: any JSON file, the
+        # fixture directory with its cleared-case list, and the check and
+        # generator. In CI, vince-data-check.yml runs it on every pull request.
+        entry: uv run vince-data check
+        language: system
+        files: (\.(json|jsonl|ndjson)$|^test/fixtures/vince/|^vultron/metadata/(vince_data/.*|base|file_loading|generated_files|git_runner)\.py$)
+        pass_filenames: false
+
       - id: ruff
         name: ruff (lint + format check)
         # Invoked directly, not through run-if-changed.sh: the whole-tree run

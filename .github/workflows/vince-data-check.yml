@@ -1,0 +1,43 @@
+# The committed-data check, on every pull request, whatever it changed
+# (ADR-0189 rules 3 and 4, VSD-02-001 to VSD-02-005).
+#
+# `uv run vince-data check` reads every tracked JSON file and refuses one that
+# holds a VINCE API response unless it lies in test/fixtures/vince/ and is
+# either synthetic (marked, and vouched for by the generator or the sanitizer)
+# or from a case id on the committed cleared-case list. It fails on an empty
+# target set. The pre-commit hook `vince-data-check` runs the same command.
+#
+# No `paths` filter, on purpose: a recorded response can arrive in any file,
+# so the check's input is the whole tracked tree, and the `CI gate` passes a
+# skipped check (PAD-18-031, notes/ci-workflow-authoring.md).
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to main or a schedule. Every merge into `main`
+# passes through a pull request this job gated.
+
+name: "VINCE Data Check"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vince-data:
+    name: VINCE data check (VSD-02)
+    runs-on: ubuntu-latest
+    # The check takes a few seconds; the cap keeps a hang from holding a
+    # runner for GitHub's 6-h default (TB-14-006).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check committed VINCE data
+        run: uv run vince-data check
