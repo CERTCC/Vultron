@@ -223,7 +223,7 @@ Not Processed").
 
 ## Invites Use the Spec's Slots, and the Stub Is the Case's Preview
 
-Issue: #6244.
+Issue: #6244. Record: ADR-0205.
 
 **Decision.**
 
@@ -238,8 +238,15 @@ Issue: #6244.
    `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron
    `caseId` is dropped: the case is named by the reference's own `id`. The full-case
    Invite carries the full case.
-3. **A preview is never the case.** Only a full case is a case: no receiver seeds or
+3. **A preview is not the case.** Only a full case is a case: no receiver seeds or
    updates a replica from a reference that carries a preview.
+4. **A receiver tells the two case Invites apart by the object's form**, as received:
+   a typed reference carrying a preview, or the whole case. A pattern can require
+   either form. Lookup of held objects does not expand a previewed reference, and a
+   receiver does not fetch the case such a reference names, so an invitee answers
+   from the preview alone and a CASE_MANAGER holding the case still reads an Accept
+   of the stub Invite as the stub answer (ADR-0205). Keeping a stub type, or a
+   Vultron Invite subtype, was considered and rejected there.
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
@@ -265,7 +272,8 @@ stub is its own type and its own object" part), ADR-0165,
 
 **Parse-edge rule.** ADR-0198 settles it: an object with exactly `id` and `type`,
 with or without `preview`, is a typed reference; any other key makes it a whole
-case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it.
+case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it, and
+the no-fetch rule above narrows MV-10-011's "or fetches it" for a previewed case.
 
 ---
 

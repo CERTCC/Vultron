@@ -215,7 +215,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md, 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
-- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)* — partially superseded by 0172-an-active-participant-is-not-closed.md
+- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)* — partially superseded by 0172-an-active-participant-is-not-closed.md, 0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)* — partially superseded by 0172-an-active-participant-is-not-closed.md
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
@@ -303,6 +303,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 2)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 - [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 2)*
+- [ADR-0205 Invites Use AS2's Slots, and the Stub Is the Case's Preview](0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md
 
 ## Rejected ADRs
 
