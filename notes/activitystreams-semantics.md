@@ -82,6 +82,13 @@ The changes these rules imply for today's code are tracked in
   App. B maps the AS1 "post" verb to `Create` without a target and to `Add` with one,
   so a `Create` carrying a `target` reads as "added to". Creating a record and seating
   it in a case are two acts, each with its own verb (#6260).
+- **A notice of a change announces the act that made it**: `Announce(<the act>)`,
+  not `Announce(<the changed object>)`. The notice then carries who acted, why, and
+  the act's id, so a receiver that also replays the ledger entry sees an id it has
+  applied and changes nothing (ADR-0203).
+- **An object stores the facts about itself.** When a message must say an object
+  changed, the changed field lives on that object, never on a side record the message
+  cannot name (ADR-0202).
 - **`result` names what an act caused, set by the actor that caused it** (Primer:
   "changes of state or indirect outcomes"). It is not the created object, which is a
   `Create`'s `object`.
