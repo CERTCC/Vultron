@@ -21,9 +21,9 @@ which tool wrote the file, at the top level of the file's one document::
 A marker alone proves nothing, since anyone can type it. So the check asks
 the named producer to vouch for the file (:data:`ProducerVerifier`): the
 generator vouches for a file only when a fresh generation writes the same
-bytes to the same path. The sanitizer (#6348) registers its own verifier
-under :data:`SANITIZER`; until it does, a file marked with that producer is
-refused.
+bytes to the same path, and the sanitizer (:mod:`.sanitizer`) vouches for
+a file only when sanitizing it again, as the case it names, writes the
+same bytes to the path it writes that case to.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ PRODUCER_KEY = "producer"
 #: The committed fixture generator, :mod:`.generator` (#5961).
 GENERATOR = "generator"
 
-#: The sanitizer of test-instance responses (#6348), reserved here.
+#: The sanitizer of a test-instance VINCE case, :mod:`.sanitizer` (#6348).
 SANITIZER = "sanitizer"
 
 #: Vouches for a marked file: given its repository-relative path and exact

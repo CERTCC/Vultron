@@ -46,7 +46,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          # The merge commit and its parents: the first parent is the base.
+          fetch-depth: 2
+      # Both checks diff against the merge base with the base branch; fetch
+      # only that, not every branch's history (#6390).
+      - uses: ./.github/actions/fetch-merge-base
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       # Both checks judge the edit, never the record's existing text, so a

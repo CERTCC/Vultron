@@ -180,7 +180,7 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     if gap is not None:
         return _gapped(history, gap)
     sequences = case_state_sequences(history)
-    scores = score_case(sequences)
+    scores = score_case(history)
     case = CaseStanding(em=em, pxa=reached.pxa)
     participants = [
         _participant(p, case, scores) for p in reached.participants

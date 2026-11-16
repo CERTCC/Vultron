@@ -96,6 +96,7 @@ from vultron.measure.baselines.walk import (
     frequency,
     implies,
     ordering,
+    reachable_ends,
     replay,
     take_step,
 )
@@ -141,6 +142,7 @@ __all__ = [
     "frequency",
     "history_probability",
     "implies",
+    "reachable_ends",
     "implications",
     "ordering",
     "outcome_change",

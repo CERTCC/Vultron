@@ -24,6 +24,11 @@ from pydantic import ValidationError
 from vultron.core.models.base import CoreObject
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.rehydration.slots import materialise_object_slots
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_of_kind,
+    referenced_class,
+)
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import (
     is_wire_type_alias,
@@ -110,7 +115,72 @@ def _rehydrate_nested_object_field(
             getattr(obj_with_object.object_, "id_", obj_with_object.object_),
             obj.type_,
         )
+        if isinstance(obj_with_object.object_, as_TypedReference):
+            # A typed reference is never read as the object (MV-10-011):
+            # one the receiver does not hold, or holds as another type, goes
+            # on as its bare id.  No pattern matches that, so an object the
+            # receiver lacks is fetched before any handler reads it, and a
+            # failed fetch, or a held object of another type, is refused by
+            # the path that needs the object (AKM-05-007, AKM-05-015).
+            object.__setattr__(
+                obj_with_object, "object_", obj_with_object.object_.id_
+            )
         return None
+
+
+def _is_of_named_type(held: object, reference: as_TypedReference) -> bool:
+    """Whether *held* is an object of the type *reference* names.
+
+    The store returns core classes (ADR-0034) where the reference resolves a
+    wire class (``VultronNote`` for ``as_Note``), so the held object's own
+    ``type`` is compared first.  Otherwise the class the held object's
+    ``type`` names, or its own class, must be a kind of the referenced class
+    (:func:`is_of_kind`), so a held ``EmbargoEvent`` answers an ``Event``
+    reference and a held ``Offer`` an ``Activity`` one, as a pattern routes
+    them (MV-10-011).
+    """
+    held_type = getattr(held, "type_", None)
+    if held_type == reference.type_:
+        return True
+    kind = referenced_class(reference)
+    if kind is None:
+        return False
+    if is_of_kind(type(held), kind):
+        return True
+    try:
+        named = resolve_wire_type(held_type)
+    except KeyError:
+        return False
+    return is_of_kind(named, kind)
+
+
+def _resolve_typed_reference(
+    reference: as_TypedReference, dl: DataLayer
+) -> as_Object:
+    """The object *reference* names, as the receiver holds it.
+
+    A typed reference names an object and claims nothing else about it, so
+    the held object takes its place (MV-10-011, ADR-0198).  A held object of
+    another type than the reference names is not the object it names.
+
+    Raises:
+        ValueError: If the receiver holds no such object, or holds one of
+            another type.
+    """
+    held = _resolve_string_id(reference.id_, dl)
+    if not _is_of_named_type(held, reference):
+        logger.warning(
+            "Typed reference '%s' names a %s, but the object held under that"
+            " id is a %s; not reading it as the object (MV-10-011).",
+            reference.id_,
+            reference.type_,
+            type(held).__name__,
+        )
+        raise ValueError(
+            f"Object '{reference.id_}' is held as a {type(held).__name__},"
+            f" not the {reference.type_} its reference names"
+        )
+    return held
 
 
 def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
@@ -184,6 +254,10 @@ def rehydrate(
         dl: DataLayer used to resolve string ID references.
         depth: Current recursion depth (callers should not set this).
 
+    A typed reference is replaced by the object it names, as held, and one
+    the receiver does not hold in a nested ``object_`` is reduced to its bare
+    id (MV-10-011, ADR-0198), so no handler reads a reference as the object.
+
     Also materialises object-only slots: a bare URI in a slot whose declared
     type cannot hold a URI is resolved through *dl*, or refused.  See
     :func:`materialise_object_slots` (VM-06-007, ARCH-25-009; ADR-0099).
@@ -205,6 +279,8 @@ def rehydrate(
 
     if isinstance(obj, str):
         obj = _resolve_string_id(obj, dl)
+    elif isinstance(obj, as_TypedReference):
+        obj = _resolve_typed_reference(obj, dl)
 
     rehydrated_nested = None
     # The genesis-replay Reject names no object by design (SYNC-16-027);

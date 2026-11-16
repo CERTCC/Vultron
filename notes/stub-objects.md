@@ -29,7 +29,8 @@ the protocol permits (MV-10-001, narrowed by ADR-0090). Requirements: MV-10 in
 `specs/message-validation.yaml`. A typed reference is not a stub: it claims only
 the `id` and `type` its sender knows (MV-10-011, ADR-0198). The actor reference
 of AKM-05-017 is its built case; for other types it is a receiver-side rule only
-(#6455), since this codebase's senders keep inlining (AKM-03-003). Explicit
+(`vultron/wire/as2/typed_reference.py`), since this codebase's senders keep
+inlining (AKM-03-003). Explicit
 redaction is not built: see [selective-disclosure.md](selective-disclosure.md).
 
 ## Why Only `VulnerabilityCase`

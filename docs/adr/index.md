@@ -301,7 +301,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0169 Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position](0169-case-roles-split-into-position-authority-and-standing.md) — partially supersedes 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
-- [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 3)*
+- [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 4)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 - [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 3)*
 - [ADR-0199 An Owner's Request Is an Offer of the Act, Which the CASE_MANAGER Accepts and Makes](0199-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
@@ -311,6 +311,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0205 Invites Use AS2's Slots, and the Stub Is the Case's Preview](0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md
 - [ADR-0206 Each App Resolves Its Own Configuration](0206-each-app-resolves-its-own-configuration.md)
+- [ADR-0207 A Tree Has a Fixed Shape, and Every Act Runs One](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md)
 
 ## Rejected ADRs
 

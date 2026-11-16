@@ -41,12 +41,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Full history: --history walks origin/<base>..HEAD.
-          fetch-depth: 0
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Check committed VINCE data
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: uv run vince-data check --history "origin/$BASE_REF"
+        # --history reads each commit in origin/<base>..HEAD, so the checkout
+        # is deepened to the real merge base rather than fetching every
+        # branch's history (#6535).
+        run: |
+          set -euo pipefail
+          bash .github/scripts/fetch-merge-base.sh "$BASE_REF" >/dev/null
+          uv run vince-data check --history "origin/$BASE_REF"

@@ -34,6 +34,7 @@ from vultron.metadata.vince_data.marker import (
     ProducerVerifier,
     marker_for,
 )
+from vultron.metadata.vince_data.sanitizer import verify_sanitized
 
 _STEM = "999901-active-embargoed"
 _GENERATED_PATH = f"{FIXTURE_DIR}/{_STEM}.json"
@@ -288,10 +289,10 @@ def test_a_generator_marker_on_a_file_it_did_not_write_is_refused() -> None:
 
 
 @pytest.mark.spec("VSD-02-005")
-def test_a_sanitizer_marker_is_refused_until_the_sanitizer_vouches() -> None:
+def test_a_sanitizer_marker_on_a_file_it_did_not_write_is_refused() -> None:
     path = f"{FIXTURE_DIR}/sanitized/one.json"
     [fault] = _faults(path, _bundle("123456", producer=SANITIZER))
-    assert "cannot vouch for a file yet" in fault
+    assert "marked synthetic by 'sanitizer'" in fault
 
 
 @pytest.mark.spec("VSD-02-005")
@@ -331,8 +332,9 @@ def test_a_marker_that_names_no_single_tool_is_refused(marker: object) -> None:
     assert "malformed synthetic marker" in fault
 
 
-def test_the_sanitizer_name_is_reserved() -> None:
-    assert check_module.PRODUCER_VERIFIERS[SANITIZER] is None
+def test_the_sanitizer_vouches_in_the_tree_and_in_history() -> None:
+    assert check_module.PRODUCER_VERIFIERS[SANITIZER] is verify_sanitized
+    assert check_module.HISTORY_VERIFIERS[SANITIZER] is verify_sanitized
 
 
 # The cleared-case list (AC-4, VSD-02-002, VSD-02-003) ------------------

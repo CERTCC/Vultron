@@ -74,7 +74,6 @@ from vultron.measure.scoring import (
 from vultron.measure.sequences import (
     UnprojectableParticipant,
     UnprojectableReason,
-    case_state_sequences,
 )
 from vultron.measure.standing import (
     CaseStanding,
@@ -189,7 +188,7 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
     (history,) = read_case_event_histories(
         [recording_path(scenario)]
     ).histories.values()
-    summary = score_case(case_state_sequences(history))
+    summary = score_case(history)
     scored = [p for p in record.participants if p.score is not None]
     assert sorted(p.participant for p in scored) == sorted(
         v.participant for v in summary.vendors

@@ -29,9 +29,9 @@ from vultron.core.states.cs_invariants import CSEvent, ensure_valid_cs_history
 from vultron.measure.baselines import (
     ORIGINAL,
     Desideratum,
-    baseline,
     case_state_query,
 )
+from vultron.measure.baselines.desiderata import weight
 
 
 def _meets(desideratum: Desideratum, history: Sequence[CSEvent]) -> bool:
@@ -79,5 +79,5 @@ def _score_of(history: tuple[CSEvent, ...]) -> Fraction:
     keeps the 70 histories from being re-scored on every read.
     """
     return sum(
-        (1 - baseline(d) for d in ORIGINAL if _meets(d, history)), Fraction(0)
+        (weight(d) for d in ORIGINAL if _meets(d, history)), Fraction(0)
     )

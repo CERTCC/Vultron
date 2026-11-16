@@ -75,6 +75,12 @@ Json = dict[str, Any]
 COORDINATOR_ORG = "CERT/CC"
 
 
+def synthetic_pk(vuid: str) -> int:
+    """The ``pk`` a synthetic case *vuid* gets: small, as VINCE's are, and
+    tied to the id so equal cases get equal keys."""
+    return int(vuid) - 990000
+
+
 def _case(
     vuid: str, *, status: str, due_date: str | None, modified: str
 ) -> Json:
@@ -87,7 +93,7 @@ def _case(
         "title": f"Synthetic Widget flaw {vuid}",
         "due_date": due_date,
         "modified": modified,
-        "pk": int(vuid) - 990000,
+        "pk": synthetic_pk(vuid),
     }
 
 
@@ -405,6 +411,7 @@ __all__ = [
     "COORDINATOR_ORG",
     "SYNTHETIC_CASES",
     "fixture_path",
+    "synthetic_pk",
     "generated_fixtures",
     "verify_generated",
 ]

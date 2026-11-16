@@ -20,7 +20,18 @@ from typing import NamedTuple
 import pytest
 
 import vultron.measure.baselines.walk as walk_module
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.errors import VultronInvalidStateTransitionError
+from vultron.measure.baselines.joint import (
+    ONE_VENDOR_MODEL,
+    EmbargoEnd,
+    Event,
+    EventKind,
+    JointState,
+    VendorPath,
+)
 from vultron.measure.baselines.walk import (
     ChanceReading,
     ChanceValues,
@@ -35,6 +46,7 @@ from vultron.measure.baselines.walk import (
     frequency,
     implies,
     ordering,
+    reachable_ends,
     replay,
     take_step,
 )
@@ -343,3 +355,47 @@ def test_an_expected_outcome_weighs_the_value_by_the_scope_chance() -> None:
     assert expected_outcome(Fraction(1, 4), Fraction(1, 2)) == Fraction(7, 8)
     assert expected_outcome(Fraction(0), None) == 1
     assert expected_outcome(Fraction(1), Fraction(0)) == 0
+
+
+# ---------------------------------------------------------------------------
+# The ends the walk can still reach
+# ---------------------------------------------------------------------------
+
+
+def _end_states():
+    done = VendorPath(RM.CLOSED, CS_vf.VF, CS_d.D)
+    active = JointState((done,), CS_pxa.pxa, EM.ACTIVE)
+    ended = JointState(
+        (done,), CS_pxa.PXA, EM.EXITED, EmbargoEnd.THREAT_SIGNAL
+    )
+    ex_own, p = Event(EventKind.EXIT_OWN_TERMS), Event(EventKind.P)
+    return ONE_VENDOR_MODEL, active, ended, ex_own, p
+
+
+def test_the_reachable_ends_are_found_from_a_prefix():
+    model, active, ended, ex_own, p = _end_states()
+    query = ordering(ex_own, p)
+    met_sets = {
+        met for _, met in reachable_ends(model, query, WalkPrefix(active))
+    }
+    assert met_sets == {frozenset(), frozenset({0})}
+    assert {
+        met for _, met in reachable_ends(model, query, WalkPrefix(ended))
+    } == {frozenset()}
+
+
+def test_a_reachable_end_outside_the_scope_is_listed_with_what_it_saw():
+    """``given`` is not applied: the caller tells a scope never entered
+    from an ordering broken."""
+    model, _, ended, ex_own, p = _end_states()
+    ends = reachable_ends(
+        model, ordering(p, p, given=[ex_own]), WalkPrefix(ended)
+    )
+    assert ends
+    assert all(ex_own not in seen for seen, _ in ends)
+
+
+def test_reachable_ends_from_the_start_decide_implies():
+    model, _, _, ex_own, p = _end_states()
+    assert implies(model, ordering(ex_own, p), ordering(ex_own, p))
+    assert not implies(model, ordering(p, ex_own), ordering(ex_own, p))

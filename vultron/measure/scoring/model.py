@@ -16,13 +16,25 @@
 A :class:`SequenceScore` holds a prefix and every valid completion of it,
 each a :class:`Completion` with the walk's probability of it from where the
 prefix stands and its desiderata score.  The expected, best and worst scores
-are read from them, never stored beside them, so they cannot disagree.  A
-:class:`VendorScore` is one vendor's :class:`SequenceScore`, the unit a
-case-level summary reads (#6069).
+are read from them, never stored beside them, so they cannot disagree.
+
+The extended desiderata of ``process_model_desiderata.md`` are scored in
+each vendor's scope (ADR-0200).  A :class:`TermScore` is one
+desideratum for its vendor, with the chance it is met from where the case
+stands; a :class:`WalkScore` is the terms one walk scores, with the best and
+worst they can still reach together; an :class:`ExtendedScore` is a
+vendor's two walks, its end part and its embargo part (ADR-0200).
+A vendor the joint model cannot walk from is an :class:`UnscoredScope`,
+with its reason.
+
+A :class:`VendorScore` is one vendor's :class:`SequenceScore` and its
+extended desiderata, the unit a case-level summary reads (#6069): its end
+part and its embargo part, each a :class:`PartScore`, and their total.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from fractions import Fraction
 
 from pydantic import (
@@ -42,7 +54,7 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
-from vultron.measure.baselines import completion_probabilities
+from vultron.measure.baselines import Group, completion_probabilities
 from vultron.measure.scoring.complete import history_score
 from vultron.primitives import NonEmptyString
 
@@ -186,15 +198,224 @@ class SequenceScore(BaseModel):
         return min(c.score for c in self.completions)
 
 
+class TermScore(BaseModel):
+    """One extended desideratum for its vendors, scored from where the case stands.
+
+    Fields:
+        notation: The desideratum as ``process_model_desiderata.md`` writes
+            it.
+        group: Its group on that page.
+        vendors: The vendors its vendor numbers stand for, vendor 1 first;
+            empty when it names only the case's events.
+        weight: What meeting it adds to the score, ``1 - f_d`` for its
+            baseline ``f_d`` (ADR-0182).
+        met: The walk's expected outcome for it, from where the case
+            stands, a scope never entered counting as met
+            (:func:`~vultron.measure.baselines.expected_outcome`): 1 once
+            the record meets it or leaves its scope for good, 0 once the
+            record fails it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    notation: NonEmptyString
+    group: Group
+    vendors: tuple[NonEmptyString, ...] = ()
+    weight: Fraction
+    met: Fraction
+
+    @model_validator(mode="after")
+    def _is_a_weighted_chance(self) -> TermScore:
+        problems: list[str] = []
+        if not 0 <= self.weight <= 1:
+            problems.append(f"weight {self.weight} is not in [0, 1]")
+        if not 0 <= self.met <= 1:
+            problems.append(f"probability {self.met} is not in [0, 1]")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def expected(self) -> Fraction:
+        """What the term is expected to add, if the case goes on by chance."""
+        return self.weight * self.met
+
+
+def _sum(values: Iterable[Fraction]) -> Fraction:
+    return sum(values, Fraction(0))
+
+
+class WalkScore(BaseModel):
+    """The terms one walk scores, from one joint state (ADR-0182).
+
+    The best and worst are what the terms can still reach together, at one
+    end of the walk, so they can be closer together than the terms' own
+    extremes added up.
+
+    Fields:
+        terms: The terms, in catalog order.
+        best: The highest sum of the terms' weights met at one reachable
+            end.
+        worst: The lowest such sum.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    terms: tuple[TermScore, ...] = Field(min_length=1)
+    best: Fraction
+    worst: Fraction
+
+    @model_validator(mode="after")
+    def _ends_bound_the_expectation(self) -> WalkScore:
+        """Refuse a best or worst no end could have, or out of order."""
+        problems: list[str] = []
+        reachable = _sum(t.weight for t in self.terms if t.met > 0)
+        certain = _sum(t.weight for t in self.terms if t.met == 1)
+        if not self.worst <= self.expected <= self.best:
+            problems.append(
+                f"the expected score {self.expected} is not between the"
+                f" worst {self.worst} and the best {self.best}"
+            )
+        if self.best > reachable:
+            problems.append(
+                f"the best {self.best} is more than the terms that can still"
+                f" be met add up to, {reachable}"
+            )
+        if self.worst < certain:
+            problems.append(
+                f"the worst {self.worst} is less than the terms already met"
+                f" add up to, {certain}"
+            )
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def expected(self) -> Fraction:
+        """The score expected if the case went on by chance from here."""
+        return _sum(t.expected for t in self.terms)
+
+
+class ExtendedScore(BaseModel):
+    """A vendor's extended desiderata, in its two parts (ADR-0200).
+
+    Each part is one walk of the one-vendor model from where the vendor
+    stands, so each part's best and worst are exact.
+
+    Fields:
+        end: The report-handling desiderata.
+        embargo: The embargo desiderata, ``F_i ≺ Ex_own`` included.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    end: WalkScore
+    embargo: WalkScore
+
+
+class UnscoredScope(BaseModel):
+    """A scope with no score, because the walk cannot go on from the case.
+
+    Fields:
+        reason: Why: the joint state the case stands in breaks a rule of the
+            joint model, named.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    reason: NonEmptyString
+
+
+class PartScore(BaseModel):
+    """An expected, best and worst score, added up from scored parts.
+
+    Fields:
+        expected: The score expected if the case went on by chance.
+        best: The highest score reachable, or, added from parts scored on
+            different walks, a bound on it.
+        worst: The lowest such score, or a bound on it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    expected: Fraction
+    best: Fraction
+    worst: Fraction
+
+    @model_validator(mode="after")
+    def _ends_bound_the_expectation(self) -> PartScore:
+        if not self.worst <= self.expected <= self.best:
+            raise ValueError(
+                f"the expected score {self.expected} is not between the"
+                f" worst {self.worst} and the best {self.best}"
+            )
+        return self
+
+    @classmethod
+    def of(
+        cls, parts: Iterable[SequenceScore | WalkScore | PartScore]
+    ) -> PartScore:
+        """*parts*' expected, best and worst scores, each added up."""
+        listed = list(parts)
+        return cls(
+            expected=_sum(p.expected for p in listed),
+            best=_sum(p.best for p in listed),
+            worst=_sum(p.worst for p in listed),
+        )
+
+
 class VendorScore(BaseModel):
-    """One vendor's case-state sequence, scored (ADR-0182).
+    """One vendor, scored on every desideratum in its scope (ADR-0200).
+
+    Its score has two parts (ADR-0200).  The end part adds up the
+    twelve original desiderata, scored on its case-state sequence, and the
+    report-handling desiderata; the embargo part is the embargo
+    desiderata, ``F_i ≺ Ex_own`` included.  The original twelve and the
+    extended desiderata take chance from different models, each the
+    smallest that holds its desiderata (ADR-0182), so the end part's best
+    and worst add up each one's: a bound on what the vendor can still
+    reach, not a score it can reach, because the walks share the vendor's
+    events and the case's.  The total adds up both parts, and is a bound
+    the same way.
 
     Fields:
         participant: The vendor the sequence belongs to.
-        score: Its sequence scored through its completions.
+        score: Its sequence scored through its completions, on the twelve
+            original desiderata.
+        extended: Its extended desiderata, or why they have no score.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     participant: NonEmptyString
     score: SequenceScore
+    extended: ExtendedScore | UnscoredScope
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def end(self) -> PartScore | None:
+        """The end part: the original twelve and report handling;
+        ``None`` with the extended desiderata unscored."""
+        if isinstance(self.extended, UnscoredScope):
+            return None
+        return PartScore.of((self.score, self.extended.end))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def embargo(self) -> PartScore | None:
+        """The embargo part; ``None`` with the extended desiderata
+        unscored."""
+        if isinstance(self.extended, UnscoredScope):
+            return None
+        return PartScore.of((self.extended.embargo,))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total(self) -> PartScore | None:
+        """Both parts added up; ``None`` with the extended desiderata
+        unscored."""
+        if self.end is None or self.embargo is None:
+            return None
+        return PartScore.of((self.end, self.embargo))

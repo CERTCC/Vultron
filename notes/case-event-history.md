@@ -94,6 +94,26 @@ Take the spread as the range (highest minus lowest), never a variance. Reason: t
 vendors share P, X and A, so their scores are not a sample, and the spread reads as
 evenness across vendors, not across users (ADR-0182).
 
+Score each one-vendor extended desideratum in every vendor's scope, on that vendor's
+one-vendor walk, in two parts: the end part (the original twelve and report handling)
+and the embargo part (the embargo desiderata, `F_i ≺ Ex_own` included)
+(`vultron/measure/scoring/extended.py`). Reason: a scope is one vendor and move
+advice compares the end part first (ADR-0200), and a walk that reads one vendor
+never combines the vendors (CEH-05-006). Leave the multi-party desiderata out:
+`F_i ≺ P` is the twelve's `F ≺ P`, and `V_i ≺ F_j` is contested (#6502). Read a best
+and worst summed over two walks (the end part, or the total) as a bound, not a
+reachable score: the walks share events.
+
+Count each group of equivalent desiderata once in a part, through `count_once`.
+Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the three `Ex_own`
+ones, so counting each adds the same skill three times (`process_model_desiderata.md`
+§ "The desiderata are not independent").
+
+Score a case term whose scope the case never enters as met: it adds its full
+`1 − f_d`, and an open term adds `1 − f_d` times its `ChanceReading.outcome`. Reason:
+the move-advice rule below, and one combining function, `expected_outcome`, serves
+both case scoring and move advice.
+
 Score through `vultron.measure.baselines`, never a second walk: its
 `completion_probabilities(prefix)` weights each six-event completion from where the
 case stands, and `frequency` serves any joint-model query. Reason: one walk keeps

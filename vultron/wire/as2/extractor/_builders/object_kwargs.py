@@ -33,6 +33,7 @@ from vultron.wire.as2.extractor._builders.statuses import (
     _build_case_status_object,
     _build_participant_status_object,
 )
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -95,7 +96,13 @@ def _build_activity_snapshot(
         published=_get_timestamp(activity, "published"),
         updated=_get_timestamp(activity, "updated"),
         object_=obj,
-        target=target,
+        # A typed reference names its target and is never the object
+        # (MV-10-011), so core gets it as a minimal reference, as a stub is.
+        target=(
+            _to_domain_obj(target)
+            if isinstance(target, as_TypedReference)
+            else target
+        ),
         origin=_get_id(origin),
         context=_get_id(context),
         in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),

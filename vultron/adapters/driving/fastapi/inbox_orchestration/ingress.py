@@ -34,6 +34,7 @@ from vultron.core.services.received_activity import held_received_record
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,15 @@ def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
 
     Used to select the in-memory rehydration path that does not depend on the
     entry being pre-stored (SYNC-13-002/003).  Detected structurally via the
-    inline object's ``type_`` so no domain import is needed here.
+    inline object's ``type_`` so no domain import is needed here.  A typed
+    reference to an entry carries no entry (MV-10-011), so it takes the staged
+    path, where rehydration reads the held entry or leaves its bare id.
     """
     if getattr(activity, "type_", None) != "Announce":
         return False
     nested = getattr(activity, "object_", None)
+    if isinstance(nested, as_TypedReference):
+        return False
     return getattr(nested, "type_", None) == "CaseLedgerEntry"
 
 

@@ -23,8 +23,9 @@ description: >
   has no concurrency group and never judges a cancelled run over a survivor,
   how to read the red checks its log names, why the ruleset requiring the gate
   admits no bypass actor, why a new pull-request check is verified on later
-  pull requests rather than its own, and why a conflicting pull request starts
-  no workflow at all.
+  pull requests rather than its own, why a conflicting pull request starts
+  no workflow at all, and why a pull-request check fetches the merge base
+  rather than the whole history.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -196,6 +197,25 @@ other steps, so a capped step still needs a job cap.
 A job that calls a reusable workflow (`uses: ./.github/workflows/...`) cannot
 carry `timeout-minutes`; GitHub rejects the key there. Cap the called
 workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
+
+## A Pull-Request Check Fetches the Merge Base, Not the Whole History
+
+A pull-request checkout is GitHub's merge commit, whose first parent is the base
+tip it merged against, so a job that diffs against the base checks out with
+`fetch-depth: 2` and adds `uses: ./.github/actions/fetch-merge-base` right after
+it; the action points `origin/<base>` at that parent and fetches nothing. A job
+that checks out the head commit itself, or reads every branch commit rather
+than the diff, calls `.github/scripts/fetch-merge-base.sh <base>`, which
+deepens only as far as the real merge base, under a timeout and a retry. Do not
+set `fetch-depth: 0` on a pull-request checkout: it fetches every branch's
+history and every tag, and when that fetch hangs the job cap cancels it before
+any test runs, which turns the `CI gate` red (#6535).
+`test/ci/test_fetch_merge_base.py` fails a pull-request workflow with a literal
+`fetch-depth: 0`. A `--deepen` fetch names the base tip by its id as well as by
+refspec: git 2.56 drops an up-to-date ref from its wants and never deepens it.
+The release, publish and tag workflows keep full history
+because they read it, and so does the shared `build-site` action, whose build
+must match the publish build (DOCBW-06-004).
 
 ## A Split Test Job Derives Its Last Part From the Others' Claims
 
