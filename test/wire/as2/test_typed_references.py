@@ -346,8 +346,9 @@ def test_a_reference_no_pattern_matches_names_the_object_to_fetch() -> None:
 def test_a_preview_is_refused_for_every_type_naming_its_position(
     type_: str, slot: str
 ) -> None:
-    """No type defines a preview yet, so every typed reference carrying one
-    is refused, and the refusal names where it sat."""
+    """No type but the case defines a preview, and a case's preview is an
+    inline stub, so each of these references is refused, and the refusal
+    names where it sat."""
     reference = {
         "id": f"https://example.org/objects/{type_}",
         "type": type_,

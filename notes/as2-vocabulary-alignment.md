@@ -273,10 +273,12 @@ stub is its own type and its own object" part), ADR-0165,
 `vultron/wire/as2/case_reference_placement.py`, the examples under
 `vultron/wire/as2/vocab/examples/`, `docs/reference/messages/`.
 
-**Parse-edge rule.** ADR-0198 settles it: an object with exactly `id` and `type`,
-with or without `preview`, is a typed reference; any other key makes it a whole
-case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it, and
-the no-fetch rule above narrows MV-10-011's "or fetches it" for a previewed case.
+**Parse-edge rule.** A case reference `{id, type, preview}` whose `preview` is an
+inline stub parses as an `as_TypedReference` (MV-10-012), only as an `Invite`'s
+`object` (MV-10-002), and is read as received (MV-10-013). A pattern tells it from
+the whole case with `object_form` (`ObjectForm`, SE-01-009); a pattern without one
+never matches it. The stub Invite patterns that set it, and the preview type that
+replaces the stub's own `type`, `/stub` id and `caseId`, are #6497.
 
 ---
 

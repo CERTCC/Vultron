@@ -185,9 +185,11 @@ def _build_object_kwargs(
 
     if _obj_type == str(VOtype.VULNERABILITY_REPORT):
         kw.update(_build_report_object(obj))
-    elif isinstance(obj, as_VulnerabilityCaseReference):
+    elif isinstance(obj, (as_VulnerabilityCaseReference, as_TypedReference)):
         # A case named by typed reference reaches core as its id and type
         # only (ADR-0165); the receiver reads the case from its own store.
+        # A reference carrying a preview stays one too: a preview is not
+        # the object, so no case is built from it (MV-10-011, ADR-0205).
         kw["object_"] = _to_domain_obj(obj)
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))

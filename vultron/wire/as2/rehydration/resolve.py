@@ -27,6 +27,7 @@ from vultron.wire.as2.rehydration.slots import materialise_object_slots
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
     is_of_kind,
+    is_previewed_reference,
     referenced_class,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -257,6 +258,9 @@ def rehydrate(
     A typed reference is replaced by the object it names, as held, and one
     the receiver does not hold in a nested ``object_`` is reduced to its bare
     id (MV-10-011, ADR-0198), so no handler reads a reference as the object.
+    A typed reference that carries a preview is returned as received, at any
+    depth, even when the receiver holds the object it names: neither the
+    held object nor a fetch replaces it (MV-10-011, ADR-0205).
 
     Also materialises object-only slots: a bare URI in a slot whose declared
     type cannot hold a URI is resolved through *dl*, or refused.  See
@@ -277,6 +281,10 @@ def rehydrate(
             f"Maximum rehydration depth of {MAX_REHYDRATION_DEPTH} exceeded."
         )
 
+    if is_previewed_reference(obj):
+        # Read as received (MV-10-011, ADR-0205): a preview is not the
+        # object, so the held object never takes its place.
+        return cast(as_Object, obj)
     if isinstance(obj, str):
         obj = _resolve_string_id(obj, dl)
     elif isinstance(obj, as_TypedReference):
