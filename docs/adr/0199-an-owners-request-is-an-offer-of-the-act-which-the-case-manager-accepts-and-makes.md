@@ -41,8 +41,8 @@ How does the Case Owner ask the CASE_MANAGER for an act on the case, and how doe
 - Distinct actors communicate only through the protocol. Where they run, on one server or two, changes nothing on the wire or in the ledger (ADR-0109).
 - An answer names what it answers (VOC `inReplyTo`).
 - An Offer is answered with an Accept or a Reject, as ActivityPub answers a Follow. The Accept is a decision, not a receipt: delivery is acknowledged by the HTTP response.
-- One fact has one activity, so a peer never counts two removals where one happened.
-- What the CASE_MANAGER tells the Owner never contradicts what its ledger records.
+- One fact has one activity, so a peer does not count two removals where one happened.
+- What the CASE_MANAGER tells the Owner does not contradict what its ledger records.
 
 ## Considered Options
 
@@ -66,7 +66,7 @@ A reinstatement reuses that record, which keeps the participant's history and co
 The CASE_MANAGER refuses a request that breaks its rules with a refusal notice (ADR-0196), changing nothing.
 Otherwise it sends the Owner an `Accept` of the Offer and makes the act itself: `actor` is the CASE_MANAGER, `attributedTo` the Owner, and `inReplyTo` the Owner's Offer.
 The Accept says the CASE_MANAGER decided to carry the request out; the act says it was carried out.
-The Accept and the act commit together, so the Owner never holds an Accept for an act that did not happen.
+The Accept and the act commit together, so the Owner does not hold an Accept for an act that did not happen.
 
 The act the CASE_MANAGER makes is the ledger entry, and the same activity, with the same id, goes directly to the actor it names.
 There is no second, unledgered notice.
