@@ -56,7 +56,11 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
+            # A subclass's domain ports (a ``/case_id`` input, BTND-01-006)
+            # are wired beside the lookup's own.
             port_remappings={
+                **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "participant": f"/{self.participant_key}",

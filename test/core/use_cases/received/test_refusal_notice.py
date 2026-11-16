@@ -74,7 +74,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.received_run import find_node
-from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.case_id_scope import unscoped, with_case_id
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
@@ -85,7 +85,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -530,6 +530,8 @@ def test_a_notice_takes_the_reason_its_diversion_names():
     assert result.status == Status.SUCCESS, node.feedback_message
     (notice,) = _notices(net, MANAGER, BYSTANDER)
     assert notice.summary == "the embargo is moot (MSM-07-012)"
+    # The node read its case from the port its scope seeded (BTND-01-006).
+    assert _as_id(notice.context) == net.case_id
 
 
 def test_a_notice_whose_reason_source_gave_none_fails_and_queues_nothing():
@@ -545,7 +547,8 @@ def test_a_notice_whose_reason_source_gave_none_fails_and_queues_nothing():
 
 
 def test_a_notice_with_no_received_activity_is_a_wiring_fault():
-    node = refusal_notice("https://example.org/cases/1")
+    node = unscoped(refusal_notice("https://example.org/cases/1"))
+    assert isinstance(node, EmitRefusalNoticeNode)
 
     with pytest.raises(VultronWiringError, match="no received activity"):
         node._call_factory()

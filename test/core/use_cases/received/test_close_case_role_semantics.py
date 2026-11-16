@@ -1463,18 +1463,23 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     def test_a_replica_still_processes_after_close(self):
         """The guard binds only the CASE_MANAGER: a replica's store passes it."""
+        from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.case.nodes.post_close import (
             CaseOpenToExternalWritesNode,
         )
+        from vultron.core.behaviors.case_id_scope import with_case_id
 
         dl = _closed_dl()
-        node = CaseOpenToExternalWritesNode()
-        node._case_id = CASE_ID  # the case a seeding scope would give it
-        node.datalayer = dl
-        node.actor_id = VENDOR_ID
-        assert node.update() == py_trees.common.Status.SUCCESS
-        node.actor_id = CASE_ACTOR_ID
-        assert node.update() == py_trees.common.Status.FAILURE
+
+        def run(actor_id: str) -> py_trees.common.Status:
+            # The tree's case reaches the guard through its seeded port.
+            guard = with_case_id(CaseOpenToExternalWritesNode(), CASE_ID)
+            return run_tree(
+                BTBridge(datalayer=dl), tree=guard, actor_id=actor_id
+            ).status
+
+        assert run(VENDOR_ID) == py_trees.common.Status.SUCCESS
+        assert run(CASE_ACTOR_ID) == py_trees.common.Status.FAILURE
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-045")

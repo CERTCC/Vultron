@@ -167,8 +167,9 @@ class SenderIsActiveParticipantNode(
     the ``LEDGER_PEER`` kind's instead
     (:class:`SenderIsActiveLedgerParticipantNode`).  The case is read from
     the ``/case_id`` port, seeded by the sender guard's composer
-    (BTND-01-006).  With no case, or a case this store does not hold, there is no standing to check, so the
-    sender is refused (Regime 1, ADR-0087).
+    (BTND-01-006).  With no case, or a case this store does not hold,
+    there is no standing to check, so the sender is refused (Regime 1,
+    ADR-0087).
 
     Spec: CM-23-018, CM-10-004, HP-01-006, HP-01-009.
     """

@@ -20,6 +20,7 @@ imported from the consolidated sender_entitlement module.
 Per DEMOMA-07-003 step 1.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -122,6 +123,31 @@ class TestSenderIsParticipantNode:
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("BTND-01-006")
+    def test_an_unseeded_node_reads_the_case_an_earlier_node_published(
+        self, populated_bridge
+    ):
+        """No seed, so the node reads the ``/case_id`` an earlier node of
+        the run published, as a tree that finds its case at run time
+        publishes it (BTND-01-006)."""
+        tree = py_trees.composites.Sequence(
+            name="PublishThenCheck",
+            memory=False,
+            children=[
+                py_trees.behaviours.SetBlackboardVariable(
+                    name="PublishCase",
+                    variable_name="/case_id",
+                    variable_value=CASE_ID,
+                    overwrite=True,
+                ),
+                SenderIsParticipantNode(sender_actor_id=ACTOR_ID),
+            ],
+        )
+        result = run_tree(
+            populated_bridge, tree=tree, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -239,7 +265,7 @@ class TestParticipantKindsDiffer:
             SenderIsActiveParticipantNode,
         ):
             caplog.clear()
-            node = node_cls(sender_actor_id=ACTOR_ID, case_id=None)
+            node = node_cls(sender_actor_id=ACTOR_ID)
             with caplog.at_level("WARNING"):
                 result = run_tree(
                     populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
