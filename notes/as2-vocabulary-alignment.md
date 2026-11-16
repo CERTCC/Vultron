@@ -503,9 +503,11 @@ external term counts only when a context in `CITED_CONTEXTS` defines it: AS2,
 data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
 profile's `assertionMethod` has no term until #6418 cites it. Each field the check
 refuses today is an entry in its owner's ratchet in
-`test/metadata/wire_term_ratchets.py`; the item `title` is one, because only the
-note's `title` is marked, so until #6413 renames the item's field to `name` it
-resolves to the note's meaning.
+`test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
+resolves to the marked one's meaning until its owner renames it: the item `title`
+takes the note's (#6413), and the policy's and the item's `notes` take the case's
+list of Note ids (#6410, #6416). The check walks computed fields too, so the case's
+derived `activeParticipants` is marked.
 
 **Field review.** Each row names the Task that fixes it. A row is a ratchet entry
 only when a rule refuses the field. `inbox`, the note's `audience` and

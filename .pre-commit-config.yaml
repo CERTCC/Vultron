@@ -288,9 +288,10 @@ repos:
         pass_filenames: false
 
       - id: wire-context-sync
-        name: JSON-LD @context in sync with wire vocabulary
-        # Console script, not `python -m ...`: the package re-exports from
-        # `sync`, so `-m` would run the module twice and print a RuntimeWarning.
+        name: JSON-LD @context in sync, and every wire field has a term
+        # Console script, not `python -m ...`: the package re-exports `main`
+        # from `cli`, so `-m` would run the module twice and print a
+        # RuntimeWarning.
         entry: uv run wire-context --check
         language: system
         # Two kinds of input make the artifacts stale (VM-10-001/002/010): the
@@ -303,8 +304,9 @@ repos:
         # that changes vultron/; the test is also the backstop for a deletion,
         # which pre-commit's staged-file list cannot match.
         # The term check (VM-10-007) also reads the owners' ratchets, the
-        # pinned external contexts and the cited-context constants.
-        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/core/models/.*\.py|vultron/metadata/wire_context/.*\.py|vultron/wire/as2/signing\.py|test/metadata/wire_term_ratchets\.py|third_party/jsonld/.*|docs/ns/(context\.jsonld|index\.md))$
+        # pinned external contexts, the cited-context constants and the
+        # ratchet-marker parser that reads the ratchets.
+        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/core/models/.*\.py|vultron/metadata/wire_context/.*\.py|vultron/metadata/(base|file_loading|ratchet_markers)\.py|vultron/wire/as2/signing\.py|test/metadata/wire_term_ratchets\.py|third_party/jsonld/.*|docs/ns/(context\.jsonld|index\.md))$
         pass_filenames: false
 
       - id: csaf-models-sync

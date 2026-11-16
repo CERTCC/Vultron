@@ -340,6 +340,37 @@ def _read_markers(
     return tuple(owners), tuple(permanent), tuple(malformed)
 
 
+@dataclass(frozen=True)
+class RatchetBinding:
+    """One module-level binding of a ratchet-named constant.
+
+    ``mutated`` is whether a module-level statement grows the name in place,
+    so its literal is not its value.
+    """
+
+    node: ast.stmt
+    name: str
+    value: ast.expr
+    mutated: bool
+
+
+def ratchet_bindings(tree: ast.Module) -> list[RatchetBinding]:
+    """Every ratchet-named module-level binding in *tree*, in source order.
+
+    The one walk of module-level statements and their bindings, shared by
+    :func:`baselines_in` and by a caller that reads a baseline's value (the
+    JSON-LD term check, :mod:`vultron.metadata.wire_context.terms`).
+    """
+    statements = list(_module_statements(tree.body))
+    mutated = {name for node in statements for name in _mutated_names(node)}
+    return [
+        RatchetBinding(node, name, value, name in mutated)
+        for node in statements
+        for name, value in _bindings(node)
+        if is_ratchet_name(name)
+    ]
+
+
 def baselines_in(tree: ast.AST, source: str, path: Path) -> list[Baseline]:
     """Every ratchet-named module-level constant in *tree*, with its markers.
 
@@ -353,27 +384,23 @@ def baselines_in(tree: ast.AST, source: str, path: Path) -> list[Baseline]:
     if not isinstance(tree, ast.Module):
         return []
     comments, alone = _comments(source)
-    statements = list(_module_statements(tree.body))
-    mutated = {name for node in statements for name in _mutated_names(node)}
     found: list[Baseline] = []
-    for node in statements:
-        for name, value in _bindings(node):
-            if not is_ratchet_name(name):
-                continue
-            owners, permanent, malformed = _read_markers(
-                _marker_comments(comments, alone, node.lineno)
+    for binding in ratchet_bindings(tree):
+        owners, permanent, malformed = _read_markers(
+            _marker_comments(comments, alone, binding.node.lineno)
+        )
+        found.append(
+            Baseline(
+                path=path,
+                name=binding.name,
+                line=binding.node.lineno,
+                terminal=not binding.mutated
+                and is_terminal_value(binding.value),
+                owners=owners,
+                permanent=permanent,
+                malformed_owners=malformed,
             )
-            found.append(
-                Baseline(
-                    path=path,
-                    name=name,
-                    line=node.lineno,
-                    terminal=name not in mutated and is_terminal_value(value),
-                    owners=owners,
-                    permanent=permanent,
-                    malformed_owners=malformed,
-                )
-            )
+        )
     return found
 
 

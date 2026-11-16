@@ -129,7 +129,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: PYTHONPATH='' uv run demo-scenarios --check
 
-      - name: JSON-LD context in sync with the wire vocabulary (VM-10-001)
+      - name: JSON-LD context in sync, every wire field has a term (VM-10-001, VM-10-007)
         if: ${{ !cancelled() }}
         run: PYTHONPATH='' uv run wire-context --check
 

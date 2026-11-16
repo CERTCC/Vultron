@@ -57,7 +57,7 @@ from pathlib import Path
 from typing import TypeAliasType
 
 from pydantic import BaseModel
-from pydantic.fields import FieldInfo
+from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
 from vultron.core.models.base import (
@@ -202,10 +202,31 @@ def vultron_context_terms() -> dict[str, str]:
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 
-def _wire_name(name: str, info: FieldInfo) -> str:
+#: A field a model serializes: a declared field or a ``@computed_field``.
+type WireField = FieldInfo | ComputedFieldInfo
+
+
+def serialized_fields(
+    cls: type[BaseModel],
+) -> Iterator[tuple[str, WireField]]:
+    """Each field *cls* serializes, by Python name.
+
+    Its declared fields, less those ``exclude=True``, and its computed
+    fields, which a dump writes too: a case publishes its derived
+    ``activeParticipants`` (CM-31-003).
+    """
+    for name, info in cls.model_fields.items():
+        if not info.exclude:
+            yield name, info
+    yield from cls.model_computed_fields.items()
+
+
+def wire_name(name: str, info: WireField) -> str:
     """The name a field travels under: its serialization alias, else its
     alias, else its Python name."""
-    return info.serialization_alias or info.alias or name
+    if isinstance(info, FieldInfo) and info.serialization_alias:
+        return info.serialization_alias
+    return info.alias or name
 
 
 def vultron_property_terms() -> dict[str, str | dict[str, str]]:
@@ -237,9 +258,7 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
     """
     declared: dict[str, tuple[VultronPropertyDeclaration, str]] = {}
     for cls in wire_field_classes():
-        for name, info in cls.model_fields.items():
-            if info.exclude:
-                continue
+        for name, info in serialized_fields(cls):
             where = f"{cls.__module__}.{cls.__qualname__}.{name}"
             try:
                 declaration = declared_vultron_property(info)
@@ -251,16 +270,16 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
                 raise ValueError(f"the marker on {where}: {error}") from error
             if declaration is None:
                 continue
-            wire_name = _wire_name(name, info)
-            first = declared.setdefault(wire_name, (declaration, where))
+            term = wire_name(name, info)
+            first = declared.setdefault(term, (declaration, where))
             if first[0] != declaration:
                 raise ValueError(
-                    f"two declarations of the Vultron property {wire_name!r} "
+                    f"two declarations of the Vultron property {term!r} "
                     f"disagree (VM-10-012): {first[1]} declares "
                     f"{first[0].as_json()}, {where} declares "
                     f"{declaration.as_json()}. Share one declaration."
                 )
-    return {name: declaration for name, (declaration, _) in declared.items()}
+    return {term: declaration for term, (declaration, _) in declared.items()}
 
 
 #: The term that maps the ``vultron:`` prefix to the namespace (VM-10-002).
@@ -350,9 +369,14 @@ def wire_field_classes() -> list[type[BaseModel]]:
         if cls in seen or not _serializes_its_fields(cls):
             continue
         seen.add(cls)
-        for info in cls.model_fields.values():
-            if not info.exclude:
-                pending.extend(_nested_models(info.annotation))
+        for _, info in serialized_fields(cls):
+            pending.extend(
+                _nested_models(
+                    info.annotation
+                    if isinstance(info, FieldInfo)
+                    else info.return_type
+                )
+            )
     return sorted(seen, key=lambda c: f"{c.__module__}.{c.__qualname__}")
 
 

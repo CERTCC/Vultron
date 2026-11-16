@@ -13,8 +13,9 @@
 """Refuse a Vultron wire field with no JSON-LD term (VM-10-007, ADR-0194).
 
 Three rules apply to every field that a wire class, or a model nested in one,
-serializes (:func:`~vultron.metadata.wire_context.sync.wire_field_classes`),
-unless the field is ``exclude=True``:
+serializes (:func:`~vultron.metadata.wire_context.sync.wire_field_classes`,
+:func:`~vultron.metadata.wire_context.sync.serialized_fields`), computed
+fields included, unless the field is ``exclude=True``:
 
 - **VM-10-007, no term.** The field is a marked Vultron property, or its wire
   name is a top-level term of a context Vultron cites
@@ -34,6 +35,26 @@ reports both what is left and every entry that no longer matches a violation
 (ARCH-18-001, ARCH-18-006).  The constants are read from the source by
 ``ast``, not imported, because ``vultron/`` does not import ``test/``.
 ``uv run wire-context --check`` and the unit test both call it.
+
+An entry is ``<declaring class>.<wire name>: <rule>``, so it excuses only the
+rule it was filed for: a field that moves from one rule to another fails as a
+new violation, and its old entry as stale.
+
+Loose readings, and whether each can miss or invent a violation:
+
+- **A class is named by its qualified name, without its module** (misses):
+  two classes of one name in two modules share an entry, so one entry could
+  excuse both.  No two wire classes share a name today.
+- **A model with a plain whole-model serializer is not walked** (misses): its
+  fields are not its wire keys, but a custom serializer could still write a
+  key the walk never sees.  Fields added by a ``model_serializer`` in
+  ``wrap`` mode, or by hand after a dump, are not seen either.
+- **An unmarked field whose wire name is another class's Vultron property**
+  is reported as having no term (neither): the context gives it the other
+  class's meaning, which the message notes, but the fix is the same.
+- **The first declaration of a name, in qualified-name order, is the
+  reference for VM-10-012** (neither): every later one that disagrees is
+  reported, and the first is named in each message.
 """
 
 from __future__ import annotations
@@ -47,7 +68,6 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
-from pydantic.fields import FieldInfo
 
 from vultron.core.models._helpers.class_annotations import own_annotations
 from vultron.core.models.base import (
@@ -56,9 +76,13 @@ from vultron.core.models.base import (
 )
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import MetadataLoadError, read_utf8
-from vultron.metadata.ratchet_markers import baselines_in, is_ratchet_name
+from vultron.metadata.ratchet_markers import baselines_in, ratchet_bindings
 from vultron.metadata.wire_context.pin import ContextTerms, load_all_terms
-from vultron.metadata.wire_context.sync import wire_field_classes
+from vultron.metadata.wire_context.sync import (
+    serialized_fields,
+    wire_field_classes,
+    wire_name,
+)
 from vultron.wire.as2.signing import DATA_INTEGRITY_CONTEXT, MULTIKEY_CONTEXT
 from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
 from vultron.wire.as2.vocab.base.registry import declared_wire_type
@@ -118,8 +142,8 @@ class TermViolation:
 
     @property
     def key(self) -> str:
-        """The ratchet entry that excuses it: ``<Class>.<wireName>``."""
-        return f"{self.owner}.{self.wire_name}"
+        """The ratchet entry that excuses it: ``<Class>.<wireName>: <rule>``."""
+        return f"{self.owner}.{self.wire_name}: {self.rule.value}"
 
     def message(self) -> str:
         """The failure line: field, class and rule."""
@@ -130,14 +154,14 @@ class TermViolation:
         )
 
 
-def _wire_name(name: str, info: FieldInfo) -> str:
-    return info.serialization_alias or info.alias or name
-
-
 def _declaring_class(cls: type[BaseModel], name: str) -> type:
-    """The class in *cls*'s MRO that itself declares field *name*."""
+    """The class in *cls*'s MRO that itself declares field *name*.
+
+    A field is declared by an annotation, a computed field by a property in
+    the class body.
+    """
     for klass in cls.__mro__:
-        if name in own_annotations(klass):
+        if name in own_annotations(klass) or name in vars(klass):
             return klass
     return cls
 
@@ -206,6 +230,7 @@ def term_violations(
     """
     terms = _Terms.of(pinned, cited)
     found: set[TermViolation] = set()
+    unmarked: list[tuple[str, str]] = []
     declared: dict[str, tuple[VultronPropertyDeclaration, str]] = {}
     for cls in sorted(
         classes, key=lambda c: f"{c.__module__}.{c.__qualname__}"
@@ -216,10 +241,8 @@ def term_violations(
             if scope
             else frozenset()
         )
-        for name, info in cls.model_fields.items():
-            if info.exclude:
-                continue
-            wire = _wire_name(name, info)
+        for name, info in serialized_fields(cls):
+            wire = wire_name(name, info)
             owner = _declaring_class(cls, name).__qualname__
             declaration = declared_vultron_property(info)
             if declaration is None:
@@ -228,7 +251,7 @@ def term_violations(
                     or wire in terms.cited_top_level
                     or wire in scoped
                 ):
-                    found.add(TermViolation(owner, wire, TermRule.NO_TERM))
+                    unmarked.append((owner, wire))
                 continue
             if wire in terms.pinned_top_level:
                 found.add(TermViolation(owner, wire, TermRule.EXTERNAL_NAME))
@@ -245,6 +268,13 @@ def term_violations(
                         f" {owner} declares {declaration.as_json()}",
                     )
                 )
+    for owner, wire in unmarked:
+        detail = (
+            f"the context gives it {declared[wire][1]}'s meaning"
+            if wire in declared
+            else ""
+        )
+        found.add(TermViolation(owner, wire, TermRule.NO_TERM, detail))
     return sorted(found)
 
 
@@ -293,31 +323,41 @@ def _entries(name: str, value: ast.expr, line: int) -> frozenset[str]:
 
 
 def load_ratchets(root: Path | None = None) -> list[Ratchet]:
-    """Read every ``KNOWN_*`` constant of :data:`RATCHET_PATH`."""
+    """Read every ratchet-named constant of :data:`RATCHET_PATH`.
+
+    Uses the marker parser's own walk of module-level bindings
+    (:func:`~vultron.metadata.ratchet_markers.ratchet_bindings`), so this
+    reads every constant ARCH-18-003 sees.  Raises ``MetadataLoadError`` for
+    one this check cannot read exactly: a value that is not a ``frozenset``
+    literal of strings, a name bound twice, or one grown in place.
+    """
     base = root or repo_root()
     path = base / RATCHET_PATH
     source = read_utf8(path, RATCHET_PATH)
     tree = ast.parse(source, filename=str(path))
     owners = {
-        b.name: b.owners
+        (b.name, b.line): b.owners
         for b in baselines_in(tree, source, Path(RATCHET_PATH))
     }
     ratchets: list[Ratchet] = []
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target, value = node.targets[0], node.value
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            target, value = node.target, node.value
-        else:
-            continue
-        if isinstance(target, ast.Name) and is_ratchet_name(target.id):
-            ratchets.append(
-                Ratchet(
-                    target.id,
-                    owners.get(target.id, ()),
-                    _entries(target.id, value, node.lineno),
-                )
+    seen: set[str] = set()
+    for binding in ratchet_bindings(tree):
+        line = binding.node.lineno
+        if binding.mutated or binding.name in seen:
+            raise MetadataLoadError(
+                f"{binding.name} is bound more than once or grown in place;"
+                " bind each ratchet once, to its literal",
+                path=RATCHET_PATH,
+                line=line,
             )
+        seen.add(binding.name)
+        ratchets.append(
+            Ratchet(
+                binding.name,
+                owners.get((binding.name, line), ()),
+                _entries(binding.name, binding.value, line),
+            )
+        )
     return ratchets
 
 

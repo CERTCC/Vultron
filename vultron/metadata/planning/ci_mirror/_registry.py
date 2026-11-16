@@ -279,7 +279,8 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             ),
             (
                 "wire-context",
-                "JSON-LD context in sync with the wire vocabulary (VM-10-001)",
+                "JSON-LD context in sync, every wire field has a term "
+                "(VM-10-001, VM-10-007)",
             ),
             (
                 "drafts-register",

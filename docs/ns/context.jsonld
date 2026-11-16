@@ -23,6 +23,11 @@
         "@id": "vultron:activeEmbargo",
         "@type": "@id"
       },
+      "activeParticipants": {
+        "@id": "vultron:activeParticipants",
+        "@type": "@id",
+        "@container": "@set"
+      },
       "actorParticipantIndex": {
         "@id": "vultron:actorParticipantIndex",
         "@type": "@id",

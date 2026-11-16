@@ -51,6 +51,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | Property name | Value kind | Description |
 |---------------|------------|-------------|
 | `activeEmbargo` | iri | The embargo active on a case, as its case stub carries it: an EmbargoEvent or its id |
+| `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
 | `caseActivity` | set of iri | The ids of activities about a case |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |

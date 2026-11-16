@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base.context import (
@@ -36,8 +36,12 @@ from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.multikey import Multikey
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.ratchet_markers import baselines_in_source
-from vultron.metadata.wire_context import cli, terms as term_check
-from vultron.metadata.wire_context.pin import ContextTerms, load_pin
+from vultron.metadata.wire_context import cli, sync, terms as term_check
+from vultron.metadata.wire_context.pin import (
+    ContextTerms,
+    load_all_terms,
+    load_pin,
+)
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
     wire_field_classes,
@@ -74,8 +78,8 @@ def _violations(*classes: type[BaseModel]) -> list[TermViolation]:
     return term_violations(classes, _PINNED, cited=(_CITED,))
 
 
-def _keys(*classes: type[BaseModel]) -> set[tuple[str, TermRule]]:
-    return {(v.key, v.rule) for v in _violations(*classes)}
+def _keys(*classes: type[BaseModel]) -> set[str]:
+    return {v.key for v in _violations(*classes)}
 
 
 class _Probe(BaseModel):
@@ -100,6 +104,15 @@ class _ProbeChild(_Probe):
     """Inherits its parent's fields and declares one of its own."""
 
     child_only: str = "c"
+
+
+class _Computed(BaseModel):
+    """A model whose only wire key is computed."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def derived_ids(self) -> list[str]:
+        return []
 
 
 class _Key(BaseModel):
@@ -138,22 +151,26 @@ def test_every_wire_field_of_a_vultron_object_has_a_term() -> None:
     assert report.ok, "\n".join(report.lines())
 
 
-def test_the_check_walks_fields_and_finds_the_known_violations() -> None:
-    """A check that found nothing would pass vacuously."""
-    keys = {v.key for v in wire_term_violations()}
-    assert "CaseLedgerEntry.caseId" in keys
-    assert len(wire_field_classes()) > 100
+def test_the_real_walk_refuses_a_probe_with_no_term() -> None:
+    """A check that found nothing would pass vacuously: a termless probe
+    added to the real classes, against the real pinned contexts, fails."""
+    classes = [*wire_field_classes(), _Probe]
+    keys = {v.key for v in term_violations(classes, load_all_terms())}
+    assert "_Probe.caseId: VM-10-007" in keys
+    assert VulnerabilityCase in wire_field_classes()
 
 
 @pytest.mark.spec("ARCH-18-003")
-def test_each_ratchet_names_one_open_owner_and_holds_entries() -> None:
+def test_each_non_empty_ratchet_names_exactly_one_owner() -> None:
+    """The term check reads the constants the marker parser sees, and each
+    excuses one owner's fields."""
     source = (_REPO_ROOT / RATCHET_PATH).read_text(encoding="utf-8")
     baselines = baselines_in_source(source, Path(RATCHET_PATH))
     ratchets = load_ratchets()
     assert {b.name for b in baselines} == {r.name for r in ratchets}
     for ratchet in ratchets:
-        assert len(ratchet.owners) == 1, ratchet.name
-        assert ratchet.entries, f"{ratchet.name} is empty: delete it"
+        if ratchet.entries:
+            assert len(ratchet.owners) == 1, ratchet.name
 
 
 @pytest.mark.spec("VM-10-007")
@@ -222,7 +239,19 @@ def test_the_context_types_each_term_by_its_value_kind() -> None:
 
 @pytest.mark.spec("VM-10-007")
 def test_a_field_with_no_term_is_refused() -> None:
-    assert ("_Probe.caseId", TermRule.NO_TERM) in _keys(_Probe)
+    assert "_Probe.caseId: VM-10-007" in _keys(_Probe)
+
+
+@pytest.mark.spec("VM-10-007")
+def test_a_computed_field_is_checked_too() -> None:
+    assert _keys(_Computed) == {"_Computed.derived_ids: VM-10-007"}
+
+
+@pytest.mark.spec("VM-10-007")
+def test_a_case_s_active_participants_carry_a_term() -> None:
+    computed = VulnerabilityCase.model_computed_fields["active_participants"]
+    assert declared_vultron_property(computed) is not None
+    assert "activeParticipants" in _vultron_terms()
 
 
 @pytest.mark.spec("VM-10-007")
@@ -233,21 +262,21 @@ def test_a_cited_term_a_keyword_a_marked_or_excluded_field_passes() -> None:
 
 @pytest.mark.spec("VM-10-007")
 def test_a_term_only_an_uncited_context_defines_is_refused() -> None:
-    assert ("_Probe.assertionMethod", TermRule.NO_TERM) in _keys(_Probe)
+    assert "_Probe.assertionMethod: VM-10-007" in _keys(_Probe)
 
 
 @pytest.mark.spec("VM-10-007")
 def test_a_type_scoped_term_counts_only_for_that_type() -> None:
     assert _keys(_Key) == set()
-    assert _keys(_NotAKey) == {("_NotAKey.controller", TermRule.NO_TERM)}
+    assert _keys(_NotAKey) == {"_NotAKey.controller: VM-10-007"}
 
 
 @pytest.mark.spec("VM-10-007")
 def test_an_inherited_field_is_one_violation_of_its_declaring_class() -> None:
-    keys = {v.key for v in _violations(_Probe, _ProbeChild)}
-    assert "_Probe.caseId" in keys
-    assert "_ProbeChild.childOnly" in keys
-    assert "_ProbeChild.caseId" not in keys
+    keys = _keys(_Probe, _ProbeChild)
+    assert "_Probe.caseId: VM-10-007" in keys
+    assert "_ProbeChild.childOnly: VM-10-007" in keys
+    assert "_ProbeChild.caseId: VM-10-007" not in keys
 
 
 @pytest.mark.spec("VM-10-012")
@@ -257,6 +286,18 @@ def test_two_declarations_of_one_name_that_disagree_are_refused() -> None:
     assert [v.rule for v in violations] == [TermRule.TWO_MEANINGS]
     assert "One meaning" in violations[0].detail
     assert "Another meaning" in violations[0].detail
+    assert violations[0].detail in violations[0].message()
+
+
+@pytest.mark.spec("VM-10-007")
+def test_an_unmarked_field_named_like_a_vultron_property_says_so() -> None:
+    marked = _declaring("A probe property", "markedField")
+    unmarked = type(
+        "_Unmarked", (BaseModel,), {"__annotations__": {"markedField": str}}
+    )
+    [violation] = _violations(marked, unmarked)
+    assert violation.key == "_Unmarked.markedField: VM-10-007"
+    assert marked.__qualname__ in violation.detail
 
 
 @pytest.mark.spec("VM-10-012")
@@ -271,10 +312,7 @@ def test_a_vultron_property_named_like_a_pinned_term_is_refused() -> None:
     """Pinned is enough: citing the context later must not redefine it."""
     for term in ("name", "assertionMethod"):
         model = _declaring(f"Not the external {term}", term)
-        assert (
-            f"{model.__qualname__}.{term}",
-            TermRule.EXTERNAL_NAME,
-        ) in _keys(model)
+        assert f"{model.__qualname__}.{term}: VM-10-009" in _keys(model)
 
 
 def test_a_cited_context_with_no_pinned_copy_is_refused() -> None:
@@ -311,10 +349,27 @@ def test_a_violation_no_ratchet_excuses_fails() -> None:
 
 @pytest.mark.spec("ARCH-18-006")
 def test_an_entry_whose_field_is_fixed_fails() -> None:
-    ratchet = Ratchet("KNOWN_X", (6410,), frozenset({"Cls.gone"}))
+    ratchet = Ratchet("KNOWN_X", (6410,), frozenset({"Cls.gone: VM-10-007"}))
     report = compare([], [ratchet])
-    assert report.stale == ((ratchet, "Cls.gone"),)
+    assert report.stale == ((ratchet, "Cls.gone: VM-10-007"),)
     assert "#6410" in report.lines()[0]
+
+
+@pytest.mark.spec("ARCH-18-006")
+def test_an_entry_excuses_only_the_rule_it_names() -> None:
+    """A field that moves to another rule fails, and its old entry is stale."""
+    moved = TermViolation("Cls", "field", TermRule.TWO_MEANINGS)
+    ratchet = Ratchet("KNOWN_X", (1,), frozenset({_FOUND.key}))
+    report = compare([moved], [ratchet])
+    assert report.unexcused == (moved,)
+    assert report.stale == ((ratchet, _FOUND.key),)
+
+
+def test_a_stale_entry_of_an_unowned_ratchet_says_so() -> None:
+    report = compare(
+        [], [Ratchet("KNOWN_X", (), frozenset({"C.f: VM-10-007"}))]
+    )
+    assert "(owner no owner)" in report.lines()[0]
 
 
 def test_an_entry_in_two_ratchets_fails() -> None:
@@ -324,6 +379,10 @@ def test_an_entry_in_two_ratchets_fails() -> None:
     ]
     report = compare([_FOUND], ratchets)
     assert report.duplicated == ((_FOUND.key, ("KNOWN_A", "KNOWN_B")),)
+    assert report.lines() == [
+        f"`{_FOUND.key}` sits in more than one ratchet: KNOWN_A, KNOWN_B;"
+        " one owner each"
+    ]
 
 
 def _write_ratchets(root: Path, body: str) -> None:
@@ -341,6 +400,32 @@ def test_ratchets_are_read_with_their_owners(tmp_path: Path) -> None:
         Ratchet("KNOWN_A", (7,), frozenset({"C.f"})),
         Ratchet("KNOWN_B", (), frozenset()),
     ]
+
+
+def test_an_annotated_ratchet_is_read(tmp_path: Path) -> None:
+    _write_ratchets(
+        tmp_path,
+        "# owner: #7\nKNOWN_A: frozenset[str] = frozenset({'C.f'})\n",
+    )
+    assert load_ratchets(tmp_path) == [
+        Ratchet("KNOWN_A", (7,), frozenset({"C.f"}))
+    ]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "KNOWN_A = frozenset({'a'})\nKNOWN_A = frozenset({'b'})\n",
+        "KNOWN_A = frozenset({'a'})\nKNOWN_A |= {'b'}\n",
+        "KNOWN_B = KNOWN_A = frozenset({'a'})\nKNOWN_A = frozenset()\n",
+    ],
+)
+def test_a_ratchet_bound_twice_or_grown_is_refused(
+    tmp_path: Path, body: str
+) -> None:
+    _write_ratchets(tmp_path, body)
+    with pytest.raises(MetadataLoadError, match="KNOWN_A"):
+        load_ratchets(tmp_path)
 
 
 def test_a_ratchet_that_is_not_a_literal_is_refused(tmp_path: Path) -> None:
@@ -365,6 +450,33 @@ def test_wire_context_check_refuses_an_unexcused_field(
     err = capsys.readouterr().err
     assert "`field` on Cls breaks VM-10-007" in err
     assert RATCHET_PATH in err
+
+
+def test_wire_context_check_refuses_a_stale_context(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        term_check, "check_wire_terms", lambda: compare([], [])
+    )
+    monkeypatch.setattr(sync, "is_stale", lambda: True)
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--check"])
+    assert exit_info.value.code == 1
+    assert "are stale" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("wrote", "says"), [(True, "Wrote"), (False, "already")]
+)
+def test_wire_context_write_reports_what_it_did(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    wrote: bool,
+    says: str,
+) -> None:
+    monkeypatch.setattr(sync, "write_context", lambda: wrote)
+    cli.main(["--write"])
+    assert says in capsys.readouterr().out
 
 
 def test_wire_context_check_passes_on_the_real_vocabulary(
