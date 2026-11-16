@@ -109,6 +109,11 @@
       },
       "maximumDuration": "vultron:maximumDuration",
       "minimumDuration": "vultron:minimumDuration",
+      "notes": {
+        "@id": "vultron:notes",
+        "@type": "@id",
+        "@container": "@list"
+      },
       "parentCases": {
         "@id": "vultron:parentCases",
         "@type": "@id",

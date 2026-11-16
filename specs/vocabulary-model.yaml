@@ -1388,11 +1388,14 @@ groups:
       term (ADR-0194).
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
-      fails when a field a `CaseLedgerEntry` declares has no term in the context
-      document, and tests marked `VM-10-007` in
-      `test/wire/as2/vocab/test_context_jsonld.py` assert that the generator reaches
-      nested models and skips an excluded field. #6422 replaces the sampled fields
-      with a check over every wire field.
+      runs the term check of `vultron/metadata/wire_context/terms.py` over every
+      field of every wire class and nested model, and fails on a field that has no
+      term and that no owner's ratchet in `test/metadata/wire_term_ratchets.py`
+      excuses. An external term counts only when a context in `CITED_CONTEXTS`
+      defines it. `uv run wire-context --check` runs the same check in the
+      pre-commit hook. Tests marked `VM-10-007` in that file prove each arm fires,
+      and those in `test/wire/as2/vocab/test_context_jsonld.py` assert that the
+      walk reaches nested models and skips an excluded field.
     adr:
     - ADR-0194
     relationships:
@@ -1431,10 +1434,12 @@ groups:
       name would silently replace the AS2 meaning for a JSON-LD reader. Where AS2 has
       the term, the field uses it (ADR-0194).
     verification: >-
-      `test/metadata/test_wire_term_declarations.py::test_a_vultron_field_reuses_no_as2_name`
-      fails while a vulnerability item note sends AS2 `audience` with a CSAF meaning;
-      it is a strict `xfail` until #6416 renames it, and #6422 replaces it with a check
-      against every pinned context's top-level terms.
+      The term check that
+      `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
+      runs fails on a Vultron property whose wire name is a top-level term of any
+      pinned context, cited or not, so citing one later cannot redefine a Vultron
+      term; `test_a_vultron_property_named_like_a_pinned_term_is_refused` proves it
+      fires.
     adr:
     - ADR-0194
     relationships:
@@ -1500,10 +1505,11 @@ groups:
       Each wire name has one global term, as in AS2, so one name cannot carry two
       meanings. A name used for two meanings is renamed apart instead (ADR-0194).
     verification: >-
-      `test/metadata/test_wire_term_declarations.py::test_one_wire_name_has_one_meaning`
-      fails while `text` is an identifier's value on one class and a note's body on
-      another; it is a strict `xfail` until #6416 renames them apart, and #6422 replaces
-      it with a check over every Vultron property declaration.
+      The term check that
+      `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
+      runs compares every Vultron property declaration of one wire name and fails
+      when two differ in definition or value kind;
+      `test_two_declarations_of_one_name_that_disagree_are_refused` proves it fires.
     adr:
     - ADR-0194
     relationships:
