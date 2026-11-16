@@ -27,7 +27,8 @@ outside the repository checkout. Every field of every read is classified in
   vul names, CVE ids) a synthetic one. Equal source values get equal
   replacements, so ids and names that pointed at one object still do;
 - **shifted**: every timestamp moves by one whole number of days, so their
-  order and spacing stay and the earliest lands on :data:`ANCHOR_DATE`.
+  order and spacing stay, to the second, and the earliest lands on
+  :data:`ANCHOR_DATE`. Each is written in UTC to the second, in one spelling.
 
 A field the map does not classify is refused with an error naming it
 (VSD-02-007): a new API field fails closed. An error names a field by its
@@ -39,8 +40,11 @@ value first appears in, a word count, the synthetic case id. So sanitizing
 its own output changes nothing, and that is how the check knows the
 sanitizer wrote a file (:func:`verify_sanitized`): a fresh sanitization of
 the file, for the case id it names, must write it byte for byte. A
-hand-made file passes only if it holds nothing the sanitizer would not
-write, which leaves no room for case content.
+hand-made file passes only if every string in it is one the sanitizer
+writes for that structure, so no free text, name, contact or id fits in
+it. What a file can still hold freely is what the sanitizer keeps: list
+lengths, booleans, word counts, a note revision up to
+:data:`MAX_REVISION`, and the time of day and spacing of its timestamps.
 
 Usage::
 
@@ -54,10 +58,11 @@ import logging
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from vultron.metadata.generated_files import serialize_json, write_generated
+from vultron.metadata.vince_data.generator import synthetic_pk
 from vultron.metadata.vince_data.marker import (
     FIXTURE_DIR,
     SANITIZER,
@@ -165,20 +170,49 @@ _STATUSES: Mapping[Leaf, frozenset[str]] = {
 }
 
 _TIMESTAMP = re.compile(
-    r"(\d{4}-\d{2}-\d{2})((?:T[0-9:.]+)?(?:Z|[+-][0-9:]+)?)"
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9:.]+(?:Z|[+-][0-9:]+)?)?"
 )
 
+#: The highest note revision the sanitizer keeps: a count, never an id.
+MAX_REVISION = 999
 
-def _parse_day(value: str) -> tuple[date, str] | None:
-    """The date and the rest of timestamp *value*, or ``None``."""
-    match = _TIMESTAMP.fullmatch(value)
-    if match is None:
+Moment = date | datetime
+
+
+def _parse_time(value: str) -> Moment | None:
+    """Timestamp *value* in UTC to the second, a date for a date, or
+    ``None``. The parse error, which repeats *value*, is not kept."""
+    if _TIMESTAMP.fullmatch(value) is None:
         return None
     try:
-        datetime.fromisoformat(value)
-        return date.fromisoformat(match.group(1)), match.group(2)
+        if "T" not in value:
+            return date.fromisoformat(value)
+        moment = datetime.fromisoformat(value).replace(microsecond=0)
     except ValueError:
         return None
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(UTC)
+    return moment
+
+
+def _require_time(value: object, where: str) -> Moment:
+    moment = _parse_time(_string(value, where))
+    if moment is None:
+        raise _refuse_type(where, "an ISO 8601 timestamp")
+    return moment
+
+
+def _day_of(moment: Moment) -> date:
+    return moment.date() if isinstance(moment, datetime) else moment
+
+
+def _format_time(moment: Moment) -> str:
+    """One spelling per moment, so the time part carries no source text."""
+    if not isinstance(moment, datetime):
+        return moment.isoformat()
+    utc = moment.tzinfo is not None
+    text = moment.replace(tzinfo=None).isoformat(timespec="seconds")
+    return text + "Z" if utc else text
 
 
 @dataclass
@@ -211,6 +245,18 @@ def _refuse_type(where: str, wanted: str) -> SanitizeError:
     return SanitizeError(f"{where}: expected {wanted}")
 
 
+#: A key the sanitizer names in an error: shaped like a serializer field.
+#: Any other key could be content, such as an address used as a key.
+_FIELD_NAME = re.compile(r"[a-z][a-z0-9_/]{0,63}")
+
+
+def _key_name(key: object, obj: Mapping[object, object]) -> str:
+    """*key* when it is shaped like a field name, else its position."""
+    if isinstance(key, str) and _FIELD_NAME.fullmatch(key):
+        return key
+    return f"<key {list(obj).index(key) + 1}>"
+
+
 def _walk(shape: Shape, value: object, where: str, visit: Visit) -> object:
     if value is None:
         return None
@@ -227,7 +273,7 @@ def _walk(shape: Shape, value: object, where: str, visit: Visit) -> object:
         raise _refuse_type(where, "an object")
     for key in value:
         if key not in shape.fields:
-            raise UnclassifiedField(f"{where}.{key}")
+            raise UnclassifiedField(f"{where}.{_key_name(key, value)}")
     return {
         key: _walk(child, value[key], f"{where}.{key}", visit)
         for key, child in shape.fields.items()
@@ -240,7 +286,7 @@ def _walk_reads(reads: object, visit: Visit) -> dict[str, object]:
         raise _refuse_type("reads", "an object")
     for key in reads:
         if key not in READS:
-            raise UnclassifiedField(f"reads.{key}")
+            raise UnclassifiedField(f"reads.{_key_name(key, reads)}")
     missing = [key for key in READS if key not in reads]
     if missing:
         raise SanitizeError(f"reads.{missing[0]}: a per-case read is missing")
@@ -260,10 +306,7 @@ def _string(value: object, where: str) -> str:
 
 def _days(leaf: Leaf, value: object, where: str) -> Iterator[date]:
     if leaf is Leaf.TIME:
-        parsed = _parse_day(_string(value, where))
-        if parsed is None:
-            raise _refuse_type(where, "an ISO 8601 timestamp")
-        yield parsed[0]
+        yield _day_of(_require_time(value, where))
 
 
 def _timestamp_days(reads: object) -> list[date]:
@@ -290,17 +333,22 @@ def _keep_bool(state: _Replacements, value: object, where: str) -> object:
 
 
 def _keep_count(state: _Replacements, value: object, where: str) -> object:
-    return _integer(value, where, "an integer")
+    count = _integer(value, where, "an integer")
+    if not 0 <= count <= MAX_REVISION:
+        raise SanitizeError(
+            f"{where}: a count outside 0 to {MAX_REVISION}, too large to be "
+            "kept as a count"
+        )
+    return count
 
 
 def _new_pk(state: _Replacements, value: object, where: str) -> object:
     _integer(value, where, "an integer id")
-    return int(state.vuid) - 990000
+    return synthetic_pk(state.vuid)
 
 
 def _new_vuid(state: _Replacements, value: object, where: str) -> object:
-    if isinstance(value, int) and not isinstance(value, bool):
-        return int(state.vuid)
+    # ``Case.vuid`` is a CharField; a number here is not the API's shape.
     _string(value, where)
     return state.vuid
 
@@ -319,11 +367,17 @@ def _lorem_text(state: _Replacements, value: object, where: str) -> object:
 
 
 def _shift_time(state: _Replacements, value: object, where: str) -> object:
-    parsed = _parse_day(_string(value, where))
-    if parsed is None:
-        raise _refuse_type(where, "an ISO 8601 timestamp")
-    day, rest = parsed
-    return (day + timedelta(days=state.day_offset)).isoformat() + rest
+    moment = _require_time(value, where)
+    try:
+        shifted = moment + timedelta(days=state.day_offset)
+    except OverflowError:
+        shifted = None
+    if shifted is None:
+        raise SanitizeError(
+            f"{where}: the case's timestamps span too many years to shift "
+            "onto the anchor date"
+        )
+    return _format_time(shifted)
 
 
 Handler = Callable[[_Replacements, object, str], object]
@@ -362,7 +416,9 @@ def _replace(state: _Replacements) -> Visit:
 def _identity(state: _Replacements, leaf: Leaf, text: str) -> str:
     """A name, contact, organization or id: kept when the API defines it,
     empty when empty, a fake otherwise."""
-    if not text.strip() or text in _KEPT.get(leaf, frozenset()):
+    if not text.strip():
+        return ""
+    if text in _KEPT.get(leaf, frozenset()):
         return text
     if leaf is Leaf.POST_ORG:
         if text in POST_ORG_LABELS:
@@ -375,7 +431,7 @@ def _identity(state: _Replacements, leaf: Leaf, text: str) -> str:
 
 
 def _check_vuid(vuid: str) -> None:
-    if not vuid.isdigit() or int(vuid) not in SANITIZED_VUIDS:
+    if not re.fullmatch(r"[0-9]{6}", vuid) or int(vuid) not in SANITIZED_VUIDS:
         raise SanitizeError(
             f"case id {vuid}: a sanitized case id must be one of "
             f"{SANITIZED_VUIDS.start} to {SANITIZED_VUIDS.stop - 1}"
@@ -467,7 +523,7 @@ def sanitize(source: object, vuid: str) -> str:
         raise _refuse_type("the source", "a per-case bundle object")
     for key in source:
         if key not in _SOURCE_KEYS:
-            raise UnclassifiedField(str(key))
+            raise UnclassifiedField(_key_name(key, source))
     if "reads" not in source:
         raise SanitizeError("reads: the source bundle has no reads")
     reads = source["reads"]
@@ -482,8 +538,19 @@ def sanitize(source: object, vuid: str) -> str:
     return render(sanitized)
 
 
-def _inside(path: Path, root: Path) -> bool:
-    return path.resolve().is_relative_to(root.resolve())
+def _in_a_checkout(path: Path, root: Path) -> bool:
+    """Whether *path* lies in the checkout at *root*, or in any git
+    checkout, such as another worktree of this repository.
+
+    Each ancestor is compared with ``samefile``, so a path spelled in
+    another case on a case-insensitive filesystem is still caught.
+    """
+    for ancestor in path.resolve().parents:
+        if (ancestor / ".git").exists():
+            return True
+        if root.exists() and ancestor.exists() and ancestor.samefile(root):
+            return True
+    return False
 
 
 def sanitize_file(source: Path, root: Path, vuid: str) -> str:
@@ -491,14 +558,16 @@ def sanitize_file(source: Path, root: Path, vuid: str) -> str:
     checkout at *root*; return the repository-relative path written.
 
     Raises:
-        SanitizeError: When *source* lies inside the checkout, where a
-            source case must never be put (#6348 AC-4), when it cannot be
+        SanitizeError: When *source* lies inside the checkout or any git
+            checkout, where a source case must never be put (#6348 AC-4),
+            when it cannot be
             read as JSON, or when :func:`sanitize` refuses it.
     """
-    if _inside(source, root):
+    if _in_a_checkout(source, root):
         raise SanitizeError(
-            "the source case lies inside the repository checkout; keep it "
-            "outside, so it cannot be committed (ADR-0189)"
+            "the source case lies inside the repository checkout or another "
+            "git checkout; keep it outside any, so it cannot be committed "
+            "(ADR-0189)"
         )
     # The refusal is raised outside the ``except``, so the decode error,
     # whose ``doc`` holds the whole source, is not chained to it.

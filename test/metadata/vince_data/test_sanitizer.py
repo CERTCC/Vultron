@@ -9,9 +9,10 @@ import copy
 import json
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -40,6 +41,11 @@ from vultron.metadata.vince_data.sanitizer import (
 )
 
 _SOURCES = ("999901-active-embargoed", "999902-inactive-published")
+
+#: An edit of a parsed JSON source in place; JSON is untyped, hence ``Any``.
+Edit = Callable[[Any], object]
+#: An edit of a written file's text.
+TextEdit = Callable[[str], str]
 _VUID = "998001"
 
 #: The values the VINCE API itself defines (``vinny/models.py``:
@@ -103,6 +109,13 @@ def _reads(stem: str = _SOURCES[0]) -> dict[str, object]:
 
 def _source(stem: str = _SOURCES[0]) -> dict[str, object]:
     return {"reads": _reads(stem)}
+
+
+def _note(**fields: object) -> dict[str, object]:
+    """The published note of the generator's case 999902, with *fields*,
+    under case 999901's id."""
+    note = dict(_reads(_SOURCES[1])["note"])  # type: ignore[call-overload]
+    return {**note, "vuid": "999901", **fields}
 
 
 def _outside(tmp_path: Path, document: object) -> Path:
@@ -169,7 +182,16 @@ def _sensitive(reads: object) -> set[str | int]:
             found.add(value)
         if where.endswith((".vuid", ".pk")):
             found |= {str(value), int(value)}  # type: ignore[call-overload]
-    return found
+    return found | (_keys(reads) - _keys(dict(SYNTHETIC_CASES)))
+
+
+def _keys(value: object) -> set[str | int]:
+    """Every object key in *value*: a key may carry content too."""
+    if isinstance(value, dict):
+        return set(value) | {k for v in value.values() for k in _keys(v)}
+    if isinstance(value, list):
+        return {k for v in value for k in _keys(v)}
+    return set()
 
 
 # AC-1: the same shape -----------------------------------------------------
@@ -229,6 +251,7 @@ def test_timestamps_keep_their_order_and_spacing(stem: str) -> None:
 @pytest.mark.spec("VSD-02-006")
 @pytest.mark.parametrize("stem", _SOURCES)
 def test_free_text_is_lorem_and_names_are_fakes(stem: str) -> None:
+    checked: set[str] = set()
     for where, value in _leaves(_sanitized(stem)):
         field = re.sub(r"\[\d+\]$", "", where.rsplit(".", 1)[-1])
         if not isinstance(value, str) or not value:
@@ -238,10 +261,16 @@ def test_free_text_is_lorem_and_names_are_fakes(stem: str) -> None:
             assert all(_LOREM_WORD.fullmatch(w) for w in words), where
         elif field in {"org", "vendor", "vendor_name", "contact_org"}:
             assert re.fullmatch(r"Example Org \w+", value), where
-        elif field in {"name", "contact_name"} and "author" in where:
+        elif field in {"name", "contact_name"} and "vuls" not in where:
             assert re.fullmatch(r"Example Person \w+", value), where
         elif field in {"email", "contact_email"}:
             assert re.fullmatch(r"person-\d+@example\.com", value), where
+        elif field == "contact_phone":
+            assert re.fullmatch(r"\+1-555-0199 x\d+", value), where
+        elif field == "cve":
+            assert re.fullmatch(r"CVE-2098-\d{4}", value), where
+        checked.add(field)
+    assert {"contact_name", "contact_phone", "cve", "content"} & checked
 
 
 @pytest.mark.spec("VSD-02-008")
@@ -277,7 +306,9 @@ def test_ids_are_synthetic_and_consistent_across_the_case() -> None:
         (lambda r: r, "reads.leaked_field"),
     ],
 )
-def test_an_unclassified_field_is_refused_by_name(place, named: str) -> None:  # type: ignore[no-untyped-def]
+def test_an_unclassified_field_is_refused_by_name(
+    place: Callable[[Any], Any], named: str
+) -> None:
     source = _source()
     place(source["reads"])["leaked_field"] = "Sensitive Detail 4242"
     with pytest.raises(UnclassifiedField) as raised:
@@ -315,11 +346,29 @@ def test_the_kept_values_are_the_ones_vince_defines() -> None:
         (lambda r: r["case"].update(title=["Secret Title"]), "a string"),
         (lambda r: r.update(posts={"Secret": 1}), "a list"),
         (lambda r: r.pop("note"), "read is missing"),
+        (lambda r: r["case"].update(vuid=998001), "a string"),
+        (lambda r: r.update(note=_note(revision=True)), "an integer"),
+        (lambda r: r.update(case=["Secret Case"]), "an object"),
+        (lambda r: r.update(report=["Secret Report"]), "an object"),
+        (lambda r: r["vendors"].append("Secret Vendor"), "an object"),
+        (lambda r: r.update(note=_note(revision="Secret 7")), "an integer"),
+        (
+            lambda r: r.update(note=_note(revision=4155551234)),
+            "a count outside",
+        ),
+        (lambda r: r.update(note=_note(references="Secret Ref")), "list of"),
+        (lambda r: r.update(note=_note(references=[7])), "a string"),
+        (
+            lambda r: r["case"].update(
+                created="0001-01-01T00:00:00Z", modified="9999-12-30T00:00:00Z"
+            ),
+            "span too many years",
+        ),
         (lambda r: r.update(case=None), "case read is missing"),
     ],
 )
-def test_a_value_of_the_wrong_kind_is_refused_without_its_value(  # type: ignore[no-untyped-def]
-    edit, message: str
+def test_a_value_of_the_wrong_kind_is_refused_without_its_value(
+    edit: Edit, message: str
 ) -> None:
     source = _source()
     edit(source["reads"])
@@ -327,6 +376,7 @@ def test_a_value_of_the_wrong_kind_is_refused_without_its_value(  # type: ignore
         sanitize(source, _VUID)
     assert "Secret" not in str(raised.value)
     assert "Pending" not in str(raised.value)
+    assert "4155551234" not in str(raised.value)
 
 
 def test_a_case_with_a_status_vince_does_not_define_is_refused() -> None:
@@ -334,7 +384,17 @@ def test_a_case_with_a_status_vince_does_not_define_is_refused() -> None:
         sanitize(_source("999903-unknown-values"), _VUID)
 
 
-@pytest.mark.parametrize("vuid", ["999901", "12", "abc", "999000"])
+@pytest.mark.parametrize(
+    "vuid",
+    [
+        "999901",
+        "12",
+        "abc",
+        "999000",
+        "0998001",
+        "\u0669\u0669\u0668\u0660\u0660\u0661",
+    ],
+)
 def test_a_case_id_outside_the_sanitizer_range_is_refused(vuid: str) -> None:
     with pytest.raises(SanitizeError, match="sanitized case id"):
         sanitize(_source(), vuid)
@@ -363,6 +423,58 @@ def test_the_api_labels_of_a_post_author_are_kept() -> None:
     assert out["posts"][0]["author"] == posts[0]["author"]
     vendor = out["vendors"][0]["vendor"]
     assert out["posts"][1]["author"]["org"] == f"{vendor} (Inactive User)"
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        (["Secret"], "a per-case bundle object"),
+        ({"synthetic": {"producer": "generator"}}, "has no reads"),
+        ({"reads": ["Secret"]}, "expected an object"),
+    ],
+)
+def test_a_source_that_is_not_a_bundle_is_refused(
+    source: object, message: str
+) -> None:
+    with pytest.raises(SanitizeError, match=message) as raised:
+        sanitize(source, _VUID)
+    assert "Secret" not in str(raised.value)
+
+
+def test_blank_names_contacts_and_text_become_empty() -> None:
+    source = _source()
+    report = source["reads"]["report"]  # type: ignore[index]
+    report |= {"contact_name": "  ", "contact_phone": "\t", "vul_impact": " "}
+    out = json.loads(sanitize(source, _VUID))["reads"]["report"]
+    assert (out["contact_name"], out["contact_phone"], out["vul_impact"]) == (
+        "",
+        "",
+        "",
+    )
+
+
+def test_timestamps_are_written_in_utc_to_the_second() -> None:
+    source = _source()
+    case = source["reads"]["case"]  # type: ignore[index]
+    case["modified"] = "2026-02-10T04:30:00.123456-05:00"
+    case["due_date"] = "2026-04-06"
+    out = json.loads(sanitize(source, _VUID))["reads"]["case"]
+    assert out["modified"] == "2090-02-09T09:30:00Z"
+    assert out["due_date"] == "2090-04-05"
+    assert (
+        verify_sanitized(sanitized_path(_VUID), sanitize(source, _VUID))
+        is None
+    )
+
+
+@pytest.mark.spec("VSD-02-007")
+def test_a_key_shaped_like_content_is_named_by_position() -> None:
+    source = _source()
+    source["reads"]["case"]["alice@realvendor.example"] = 1  # type: ignore[index]
+    with pytest.raises(UnclassifiedField) as raised:
+        sanitize(source, _VUID)
+    assert raised.value.field == "reads.case.<key 9>"
+    assert "alice" not in str(raised.value)
 
 
 # AC-3: the leak test ------------------------------------------------------
@@ -438,10 +550,11 @@ def test_no_source_value_reaches_the_output_or_any_log(
         lambda r: r["case"].update(leaked_field="Sensitive Detail 4242"),
         lambda r: r["case"].update(created="Sensitive Detail 4242"),
         lambda r: r["vendors"][0].update(status="Sensitive Detail 4242"),
+        lambda r: r["case"].update({"Sensitive Detail 4242": 1}),
     ],
 )
-def test_a_refused_run_leaks_no_source_value(  # type: ignore[no-untyped-def]
-    edit,
+def test_a_refused_run_leaks_no_source_value(
+    edit: Edit,
     tmp_path: Path,
     every_log: tuple[pytest.LogCaptureFixture, _Everything],
     capsys: pytest.CaptureFixture[str],
@@ -472,6 +585,30 @@ def test_a_source_inside_the_checkout_is_refused(tmp_path: Path) -> None:
     with pytest.raises(SanitizeError, match="inside the repository"):
         sanitize_file(inside, root, _VUID)
     assert not (root / sanitized_path(_VUID)).exists()
+
+
+def test_a_source_in_another_git_checkout_is_refused(tmp_path: Path) -> None:
+    other = tmp_path / "other-worktree"
+    (other / "cases").mkdir(parents=True)
+    (other / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+    source = other / "cases" / "case.json"
+    source.write_text(json.dumps(_source()), encoding="utf-8")
+    with pytest.raises(SanitizeError, match="another git checkout"):
+        sanitize_file(source, _checkout(tmp_path), _VUID)
+
+
+@pytest.mark.parametrize(
+    ("content", "reason"),
+    [(None, "FileNotFoundError"), (b"\xff\xfe{", "UnicodeDecodeError")],
+)
+def test_a_source_that_cannot_be_read_is_refused(
+    tmp_path: Path, content: bytes | None, reason: str
+) -> None:
+    source = tmp_path / "outside.json"
+    if content is not None:
+        source.write_bytes(content)
+    with pytest.raises(SanitizeError, match=reason):
+        sanitize_file(source, _checkout(tmp_path), _VUID)
 
 
 def test_a_source_that_is_not_json_is_refused(tmp_path: Path) -> None:
@@ -526,7 +663,9 @@ def test_sanitizing_the_output_again_changes_nothing(stem: str) -> None:
         (lambda t: t[:-3], "does not parse"),
     ],
 )
-def test_an_edited_sanitizer_file_is_refused(edit, reason: str) -> None:  # type: ignore[no-untyped-def]
+def test_an_edited_sanitizer_file_is_refused(
+    edit: TextEdit, reason: str
+) -> None:
     text = edit(_written())
     fault = verify_sanitized(sanitized_path(_VUID), text)
     assert fault is not None and reason in fault
