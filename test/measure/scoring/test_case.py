@@ -155,7 +155,7 @@ def test_the_summary_reports_each_scores_median_and_spread(which):
 
 def test_a_vendors_score_has_an_end_part_and_an_embargo_part():
     """The end part adds the original twelve to report handling; the
-    total adds the end part to the embargo part (ADR-0200 rule 3)."""
+    total adds the end part to the embargo part (ADR-0200)."""
     for vendor in score_case(_multi_party_ledger().history()).vendors:
         extended = vendor.extended
         assert isinstance(extended, ExtendedScore)

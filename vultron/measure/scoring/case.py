@@ -190,8 +190,8 @@ def score_case(history: CaseEventHistory) -> CaseScoreSummary:
     vendor is scored alone: its sequence through its completions
     (:func:`.score_prefix`), and its extended desiderata, in an end part and
     an embargo part, on the one-vendor walk from where it stands.  No
-    case-wide sequence is built (CEH-05-006).  Every unprojectable participant is carried over with its
-    reason (CEH-05-007).
+    case-wide sequence is built (CEH-05-006).  Every unprojectable
+    participant is carried over with its reason (CEH-05-007).
     """
     sequences = case_state_sequences(history)
     record = CaseRecord(history, sequences.sequences)

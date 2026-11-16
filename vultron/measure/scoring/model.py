@@ -19,11 +19,11 @@ prefix stands and its desiderata score.  The expected, best and worst scores
 are read from them, never stored beside them, so they cannot disagree.
 
 The extended desiderata of ``process_model_desiderata.md`` are scored in
-each vendor's scope (ADR-0200 rule 1).  A :class:`TermScore` is one
+each vendor's scope (ADR-0200).  A :class:`TermScore` is one
 desideratum for its vendor, with the chance it is met from where the case
 stands; a :class:`WalkScore` is the terms one walk scores, with the best and
 worst they can still reach together; an :class:`ExtendedScore` is a
-vendor's two walks, its end part and its embargo part (ADR-0200 rule 3).
+vendor's two walks, its end part and its embargo part (ADR-0200).
 A vendor the joint model cannot walk from is an :class:`UnscoredScope`,
 with its reason.
 
@@ -299,7 +299,7 @@ class WalkScore(BaseModel):
 
 
 class ExtendedScore(BaseModel):
-    """A vendor's extended desiderata, in its two parts (ADR-0200 rule 3).
+    """A vendor's extended desiderata, in its two parts (ADR-0200).
 
     Each part is one walk of the one-vendor model from where the vendor
     stands, so each part's best and worst are exact.
@@ -369,7 +369,7 @@ class PartScore(BaseModel):
 class VendorScore(BaseModel):
     """One vendor, scored on every desideratum in its scope (ADR-0200).
 
-    Its score has two parts (ADR-0200 rule 3).  The end part adds up the
+    Its score has two parts (ADR-0200).  The end part adds up the
     twelve original desiderata, scored on its case-state sequence, and the
     report-handling desiderata; the embargo part is the embargo
     desiderata, ``F_i ≺ Ex_own`` included.  The original twelve and the

@@ -13,11 +13,11 @@
 
 """The extended desiderata, scored in each vendor's scope (ADR-0182, ADR-0200).
 
-A scope is one vendor (ADR-0200 rule 1): there is no case-wide scope.  Each
+A scope is one vendor (ADR-0200): there is no case-wide scope.  Each
 extended desideratum of ``process_model_desiderata.md``
 (:data:`vultron.measure.baselines.EXTENDED`) that the one-vendor model holds
 is scored for every vendor, on that vendor's one-vendor walk, in one of two
-parts (ADR-0200 rule 3):
+parts (ADR-0200):
 
 * **The end part**: the report-handling desiderata.  The original twelve
   join it in :class:`~vultron.measure.scoring.model.VendorScore`.
@@ -26,11 +26,12 @@ parts (ADR-0200 rule 3):
 
 The multi-party desiderata are left out.  ``F_i ≺ P`` is the original
 twelve's ``F ≺ P`` for each vendor, which the vendor's score already counts,
-and move advice does not use ``V_i ≺ F_j`` (ADR-0200 rule 1, #6502).
+and move advice does not use ``V_i ≺ F_j`` (ADR-0200, #6502).
 
 A part counts each group of equivalent desiderata once
 (:func:`scope_desiderata`, through
-:func:`~vultron.measure.baselines.desiderata.count_once`): an embargo starts, and ends on its own terms,
+:func:`~vultron.measure.baselines.desiderata.count_once`): an embargo
+starts, and ends on its own terms,
 only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
 ``E ≺ A`` are one desideratum, and so are the three ``Ex_own`` ones
 (``process_model_desiderata.md`` § "The desiderata are not independent").

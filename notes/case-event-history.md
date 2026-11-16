@@ -293,14 +293,14 @@ Score each one-vendor extended desideratum in every vendor's scope, on that vend
 one-vendor walk, in two parts: the end part (the original twelve and report handling)
 and the embargo part (the embargo desiderata, `F_i ≺ Ex_own` included)
 (`vultron/measure/scoring/extended.py`). Reason: a scope is one vendor and move
-advice compares the end part first (ADR-0200 rules 1 and 3), and a walk that reads
+advice compares the end part first (ADR-0200), and a walk that reads
 one vendor never combines the vendors (CEH-05-006). Leave the multi-party
 desiderata out: `F_i ≺ P` is the twelve's `F ≺ P`, and `V_i ≺ F_j` is contested
 (#6502). Read a best and worst summed over two walks (the end part, or the total) as
 a bound, not a reachable score: the walks share events.
 
-Count each group of equivalent desiderata once in a part (`scope_desiderata`, from
-`implications()`). Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the
+Count each group of equivalent desiderata once in a part (`scope_desiderata`, through
+`count_once`). Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the
 three `Ex_own` ones, so counting each adds the same skill three times
 (`process_model_desiderata.md` § "The desiderata are not independent").
 

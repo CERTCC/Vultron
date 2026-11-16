@@ -163,7 +163,7 @@ def _extended(vendor) -> ExtendedScore:
 def test_every_one_vendor_extended_desideratum_is_scored_once():
     """Each lands in one part, unless an equivalent one is listed before
     it: the embargo part keeps ``E ≺ P`` and ``Ex_own ≺ P``.  The
-    multi-party desiderata are in neither part (ADR-0200 rule 1)."""
+    multi-party desiderata are in neither part (ADR-0200)."""
     scopes = scope_desiderata()
     listed = [d for part in scopes for d in part]
     assert len(set(listed)) == len(listed)
@@ -264,7 +264,7 @@ def test_a_recorded_vendors_score_has_an_end_part_and_an_embargo_part():
 
 def test_no_vendor_is_scored_on_a_multi_party_desideratum():
     """``F_i ≺ P`` is the original twelve's ``F ≺ P``, already counted, and
-    move advice does not use ``V_i ≺ F_j`` (ADR-0200 rule 1, #6502)."""
+    move advice does not use ``V_i ≺ F_j`` (ADR-0200, #6502)."""
     for vendor in _recording("rvv").vendors:
         extended = _extended(vendor)
         terms = extended.end.terms + extended.embargo.terms
