@@ -799,6 +799,28 @@ class CaseLedgerFileError(CarriesViolations, VultronError):
         super().__init__(f"Cannot read a case from {path}")
 
 
+class VinceCaseRecordsError(CarriesViolations, VultronError):
+    """Raised when the VINCE translation cannot read a case at all.
+
+    Raised by :mod:`vultron.adapters.connectors.vince` when the records of a
+    VINCE case hold no case record, or one without the ``vuid``, ``pk`` or
+    ``created`` time every crosswalk row needs.  Any other record the
+    translation cannot read is returned as an untranslated fact instead
+    (CRD-01-005).  No violation quotes a VINCE value, so the error is safe to
+    log (VSD-01-003).
+
+    Attributes:
+        vuid: The case's VINCE id, when the records name one.
+        violations: Every reason the case could not be read (EH-07-001).
+    """
+
+    def __init__(self, vuid: str | None, problems: Iterable[str]) -> None:
+        self.vuid = vuid
+        self.violations = tuple(Violation(problem) for problem in problems)
+        named = f"VINCE case {vuid}" if vuid else "a VINCE case"
+        super().__init__(f"Cannot translate {named}")
+
+
 class CaseHistoryInputError(VultronError):
     """Raised when the case event history command is handed input it cannot dump.
 
