@@ -32,7 +32,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
@@ -46,12 +46,12 @@ from vultron.wire.as2.errors import (
 )
 from vultron.wire.as2.extractor._builders import proposed_embargo_from
 from vultron.wire.as2.extractor._pattern import bare_object_id
+from vultron.wire.as2.factories import rm_engage_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
     is_case_reference,
 )
-from vultron.wire.as2.vocab.activities.case.rm import _RmEngageCaseActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -430,16 +430,13 @@ def test_an_act_naming_its_case_refuses_a_reference_to_another_type() -> None:
     The case reference is the generic typed reference, so the slot checks
     the type it names (ADR-0165).
     """
+    join = rm_engage_case_activity(CASE_ID, actor=ACTOR, at=authored_at())
+    assert is_case_reference(join.object_)
     note = {"id": "https://example.org/notes/n1", "type": "Note"}
-    case = {"id": CASE_ID, "type": "VulnerabilityCase"}
-    body = _body(note, "Join", updated=PUBLISHED)
+    body = join.model_dump(by_alias=True, mode="json") | {"object": note}
 
-    named = _RmEngageCaseActivity.model_validate(
-        _body(case, "Join", updated=PUBLISHED)
-    ).object_
-    assert is_case_reference(named)
     with pytest.raises(ValidationError, match="names no case"):
-        _RmEngageCaseActivity.model_validate(body)
+        type(join).model_validate(body)
 
 
 @pytest.mark.spec("MV-10-011")
