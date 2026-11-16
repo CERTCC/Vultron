@@ -26,19 +26,25 @@ the dashboard's; this function only makes the choice.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from vultron.core.ports.case_reader import CaseReader
 from vultron.shadow.readers.vultron_ledger import VultronCaseReader
 
 
-def select_case_reader(outside: CaseReader | None = None) -> CaseReader:
+def select_case_reader(
+    outside: CaseReader | None = None, *, ledger_root: Path | None = None
+) -> CaseReader:
     """Return *outside*, or the Vultron case reader when it is ``None``.
 
     Args:
         outside: The outside-system case reader the run is configured with,
             or ``None`` when no outside system is configured.
+        ledger_root: The directory the Vultron case reader confines its
+            ledger files to, when one is set.
     """
     if outside is None:
-        return VultronCaseReader()
+        return VultronCaseReader(root=ledger_root)
     return outside
 
 

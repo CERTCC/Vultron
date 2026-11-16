@@ -153,7 +153,7 @@ def test_every_malformed_row_is_named_and_no_partial_ledger_returns(
     with pytest.raises(CaseLedgerFileError) as caught:
         _read(path)
     assert caught.value.path == path
-    problems = [v.message for v in caught.value.violations]
+    problems = _problems(caught.value)
     assert len(problems) == 2
     assert problems[0].startswith(f"{path} line 2: Parse error")
     assert problems[1].startswith(f"{path} line 4: Parse error")
@@ -167,7 +167,7 @@ def test_a_json_object_that_is_not_a_ledger_entry_is_refused(tmp_path):
     )
     with pytest.raises(CaseLedgerFileError) as caught:
         _read(path)
-    [problem] = [v.message for v in caught.value.violations]
+    [problem] = _problems(caught.value)
     assert problem.startswith(f"{path} line 2: not a case ledger entry")
 
 
@@ -185,3 +185,56 @@ def test_entries_of_two_cases_are_refused(tmp_path):
     path = _write(tmp_path / "mixed.jsonl", [json.dumps(r) for r in rows])
     with pytest.raises(CaseLedgerFileError, match="holds entries of"):
         _read(path)
+
+
+def _problems(error: CaseLedgerFileError) -> list[str]:
+    return [violation.message for violation in error.violations]
+
+
+def test_both_kinds_of_bad_row_are_reported_in_line_order(tmp_path):
+    good = [json.dumps(row) for row in _rows(_RECORDING)]
+    path = _write(
+        tmp_path / "both.jsonl",
+        [good[0], json.dumps({"id": "x"}), "{not json", *good[1:]],
+    )
+    with pytest.raises(CaseLedgerFileError) as caught:
+        _read(path)
+    problems = _problems(caught.value)
+    assert [p.split(":")[0] for p in problems] == [
+        f"{path} line 2",
+        f"{path} line 3",
+    ]
+    assert "not a case ledger entry" in problems[0]
+    assert "Parse error" in problems[1]
+
+
+def test_a_bad_row_and_an_out_of_order_pair_are_both_reported(tmp_path):
+    good = [json.dumps(row) for row in _rows(_RECORDING)]
+    path = _write(
+        tmp_path / "worse.jsonl", ["{not json", good[1], good[0], *good[2:]]
+    )
+    with pytest.raises(CaseLedgerFileError) as caught:
+        _read(path)
+    problems = _problems(caught.value)
+    assert len(problems) == 2
+    assert problems[0].startswith(f"{path} line 1: Parse error")
+    assert problems[1].startswith("the ledger is not in log-index order")
+
+
+def test_a_path_outside_the_readers_root_is_refused_unopened(tmp_path):
+    root = tmp_path / "ledgers"
+    root.mkdir()
+    outside = tmp_path / "elsewhere.jsonl"
+    with pytest.raises(CaseLedgerFileError) as caught:
+        VultronCaseReader(root=root).read_case(str(outside))
+    assert _problems(caught.value) == [
+        f"it is outside the ledger directory {root.resolve()}"
+    ]
+    escape = root / ".." / "elsewhere.jsonl"
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        VultronCaseReader(root=root).read_case(str(escape))
+
+
+def test_a_path_inside_the_readers_root_is_read():
+    reader = VultronCaseReader(root=RECORDINGS_DIR)
+    assert reader.read_case(str(_RECORDING)).ledger

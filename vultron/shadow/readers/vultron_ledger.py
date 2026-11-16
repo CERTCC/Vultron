@@ -36,6 +36,7 @@ a partial ledger.
 from __future__ import annotations
 
 import logging
+from operator import attrgetter
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -45,6 +46,7 @@ from vultron.core.models.case_reading import (
     CaseReading,
     EntryCitation,
     UnobservableFact,
+    case_reading_problems,
 )
 from vultron.errors import CaseLedgerFileError, LedgerReadError
 from vultron.measure.ledger import UnusableRow, read_ledger_file
@@ -66,6 +68,11 @@ class VultronCaseReader:
 
     The case id it is given is the file's path.  It reads the file on every
     request and keeps nothing between requests (ADR-0190 rule 3).
+
+    Args:
+        root: When set, the directory every requested file must resolve
+            inside; a path outside it is refused before it is opened, so an
+            analyst's input cannot probe the host's other files.
     """
 
     name = "vultron"
@@ -73,17 +80,26 @@ class VultronCaseReader:
     #: is declared unobservable (CRD-02-004).
     unobservable: tuple[UnobservableFact, ...] = ()
 
+    def __init__(self, root: Path | None = None) -> None:
+        self._root = root.resolve() if root is not None else None
+
     def read_case(self, case_id: str) -> CaseReading:
         """Read the case ledger in the file at path *case_id*.
 
         Raises:
-            CaseLedgerFileError: The file is missing or unreadable, holds no
-                ledger entry, holds a row that is not a valid ledger entry,
-                or holds entries that are not one case's ledger in
-                log-index order.  The error names the file and every
-                problem found.
+            CaseLedgerFileError: The path is outside the reader's root, or
+                the file is missing or unreadable, holds no ledger entry,
+                holds a row that is not a valid ledger entry, or holds
+                entries that are not one case's ledger in log-index order.
+                The error names the file and carries every problem found.
         """
         path = Path(case_id)
+        if self._root is not None and not path.resolve().is_relative_to(
+            self._root
+        ):
+            raise CaseLedgerFileError(
+                case_id, [f"it is outside the ledger directory {self._root}"]
+            )
         try:
             ledger_file = read_ledger_file(path)
         except LedgerReadError as exc:
@@ -98,36 +114,31 @@ class VultronCaseReader:
                 bad_rows.append(
                     row.unusable(f"not a case ledger entry: {_summary(exc)}")
                 )
-        if bad_rows:
-            raise CaseLedgerFileError(
-                case_id,
-                [row.describe() for row in sorted(bad_rows, key=_line)],
-            )
-        if not entries:
-            raise CaseLedgerFileError(case_id, ["it holds no ledger entry"])
+        citations = tuple(
+            EntryCitation(entry_id=entry.id_, source_record=entry.id_)
+            for entry in entries
+        )
+        problems = [
+            row.describe() for row in sorted(bad_rows, key=attrgetter("line"))
+        ]
+        problems += case_reading_problems(entries, citations)
+        if not entries and not bad_rows:
+            problems.append("it holds no ledger entry")
+        if problems:
+            raise CaseLedgerFileError(case_id, problems)
 
-        try:
-            reading = CaseReading(
-                ledger=tuple(entries),
-                citations=tuple(
-                    EntryCitation(entry_id=entry.id_, source_record=entry.id_)
-                    for entry in entries
-                ),
-                unobservable=self.unobservable,
-            )
-        except ValidationError as exc:
-            raise CaseLedgerFileError(case_id, [_summary(exc)]) from exc
-        logger.info(
+        reading = CaseReading(
+            ledger=tuple(entries),
+            citations=citations,
+            unobservable=self.unobservable,
+        )
+        logger.debug(
             "Read case %s: %d ledger entries from %s",
             entries[0].case_id,
             len(entries),
             path,
         )
         return reading
-
-
-def _line(row: UnusableRow) -> int:
-    return row.line
 
 
 __all__ = ["VultronCaseReader"]

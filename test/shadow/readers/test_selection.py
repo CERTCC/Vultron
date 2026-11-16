@@ -15,8 +15,11 @@
 
 """The case shadow's reader choice: Vultron's unless an outside one is set (#6441)."""
 
+import pytest
+
 from test.support.case_reader import FakeCaseReader
 from vultron.core.ports.case_reader import CaseReader
+from vultron.errors import CaseLedgerFileError
 from vultron.shadow.readers import VultronCaseReader, select_case_reader
 
 
@@ -31,3 +34,9 @@ def test_a_configured_outside_reader_is_the_one_used():
     reader = select_case_reader(outside)
     assert reader is outside
     assert isinstance(reader, CaseReader)
+
+
+def test_the_default_reader_keeps_to_the_ledger_root(tmp_path):
+    reader = select_case_reader(ledger_root=tmp_path)
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        reader.read_case(str(tmp_path.parent / "other.jsonl"))
