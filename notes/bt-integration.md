@@ -11,7 +11,8 @@ description: >
   stages including the path stage that asks the receiver's role once, declares
   the paths a message type handles and composes the refusal an undeclared path
   gets, why the authority boolean has one source and the two ingredient
-  spellings that are forbidden, and how to translate a simulator tree.
+  spellings that are forbidden, why a tree's shape is fixed by its act and a
+  node never runs a tree of its own, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -241,6 +242,23 @@ Two shapes look like a second tree and are not:
   tree's internal error (SYNC-14-009). `ReplayHeldSuccessorNode` does this
   through `InboxReplayPort`, passed to the bridge as the `inbox_replay` context
   key; the port only queues.
+
+### One Fixed-Shape Tree per Act (ADR-0207)
+
+A tree's shape is fixed by the act; which case, which object and how many
+entries are data, read from the blackboard (BT-25). Reason: a tree built from its
+data must be rebuilt for each item, so nodes end up building and running trees
+mid-run, which hides internal errors and leaves subtrees no walk can reach.
+
+- **A node never runs a tree** (BT-25-001). Compose the subtree as a child, and
+  turn the parent's "branch on the nested result" into a Selector or Sequence.
+- **A run-time count is a loop over a work list** (BT-25-002/003). An upstream
+  node writes the list; the loop puts each item on the blackboard and ticks one
+  fixed subtree per item. The ledger commit is such a subtree.
+- **Build per act, release at the end of the run** (BT-25-004, BT-25-005). A reused
+  tree carries node attributes across acts; py_trees releases no blackboard
+  client, so the runner unregisters every client the tree registered with
+  `clear=False`, leaving key restore to the bridge (BT-17-007).
 
 ### The Received-Side Stages (ADR-0135, ADR-0154)
 

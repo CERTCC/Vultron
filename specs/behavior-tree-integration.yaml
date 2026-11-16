@@ -3331,3 +3331,97 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: BT-23-014
+- id: BT-25
+  title: One Fixed-Shape Tree per Act
+  description: >-
+    Requirements for the shape and lifetime of a behavior tree: its shape is fixed by
+    the act, data reaches its nodes through the blackboard, every act runs one tree,
+    and a run releases every blackboard client it registered (ADR-0207).
+  specs:
+  - id: BT-25-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A BT node, and any function or method a node's `update()` reaches, MUST NOT call
+      `BTBridge.execute_with_setup` or tick a tree of its own.
+    rationale: >-
+      A nested run hides the inner tree's internal error behind the outer node's
+      verdict, and hides its subtree from a walk over the tree, so nothing can release
+      or inspect it whole.
+    verification: >-
+      An architecture test finds every `execute_with_setup` call reached from a node
+      and fails on one not in its list of known sites. The list only shrinks and ends
+      empty.
+    relationships:
+    - rel_type: extends
+      spec_id: CLP-10-005
+    adr:
+    - ADR-0207
+  - id: BT-25-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A step whose count is known only at run time MUST be one subtree under a loop.
+      The loop ticks the subtree once for each item of a work list on the blackboard.
+    rationale: >-
+      The tree keeps one shape whatever the count, so no node builds a tree while a
+      tree runs.
+    verification: >-
+      Tests of the loop composite assert it ticks its subtree once per work-list item
+      with that item on the blackboard, stops on the first failure, and succeeds on an
+      empty list.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-001
+    adr:
+    - ADR-0207
+  - id: BT-25-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A subtree under a work-list loop MUST read each per-item value from the
+      blackboard. It does not take the value from its factory or a node constructor.
+    rationale: >-
+      A value baked into a constructor fixes the subtree to one item, which forces a
+      new subtree for each item.
+    verification: >-
+      The ledger-commit subtree's tests run one built subtree for two different
+      entries and assert each commit records its own entry.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-002
+    adr:
+    - ADR-0207
+  - id: BT-25-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Before it returns, a tree run MUST release every blackboard client that its
+      nodes or its runner registered, on every outcome. The release clears no stored
+      key.
+    rationale: >-
+      `Blackboard.clients` is process-global and py_trees releases nothing itself, so
+      an unreleased client lives for the whole process. Clearing stored keys would
+      undo the bridge's restore (BT-17-007).
+    verification: >-
+      A test delivers an activity through the inbox and asserts the client registry
+      is the size it was before the delivery, for a run that succeeds, one that fails
+      and one that raises.
+    relationships:
+    - rel_type: depends_on
+      spec_id: BT-25-001
+    adr:
+    - ADR-0207
+  - id: BT-25-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A tree MUST NOT be run for an act other than the one it was built for.
+    rationale: >-
+      A node object that outlives its act carries its instance attributes into the
+      next one, which is hidden process-wide state.
+    verification: >-
+      Inspection of the tree factories' callers confirms each builds its tree inside
+      the act that runs it.
+    adr:
+    - ADR-0207
