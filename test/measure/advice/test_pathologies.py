@@ -23,6 +23,7 @@ table.
 
 import pytest
 
+from test.measure.advice.cases import NO_HARM_FREE
 from test.measure.advice.methods import METHODS
 from test.measure.advice.pathologies import (
     ALL_CASES,
@@ -30,6 +31,7 @@ from test.measure.advice.pathologies import (
     Pathology,
     truth,
 )
+from vultron.measure.advice import Band
 
 _EVERY = frozenset(c.name for c in ALL_CASES)
 _EMBARGO = frozenset(c.name for c in ALL_CASES if c.embargo)
@@ -113,6 +115,13 @@ FAILS: dict[tuple[str, str], frozenset[str]] = {
 @pytest.mark.parametrize("pathology", PATHOLOGIES, ids=lambda p: p.name)
 def test_each_pathology_has_a_case_that_tests_it(pathology: Pathology):
     assert any(pathology.witness(c, truth(c)) for c in ALL_CASES)
+
+
+def test_a_case_has_an_empty_harm_free_band():
+    """P6's second half: the harm-free band can be empty."""
+    facts = truth(NO_HARM_FREE)
+    assert NO_HARM_FREE.moves
+    assert all(facts.band(m) is not Band.HARM_FREE for m in NO_HARM_FREE.moves)
 
 
 @pytest.mark.parametrize("pathology", PATHOLOGIES, ids=lambda p: p.name)

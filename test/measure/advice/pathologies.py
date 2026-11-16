@@ -367,7 +367,9 @@ PATHOLOGIES: tuple[Pathology, ...] = (
     Pathology(
         "P6",
         p6_unhelpful_moves_get_no_mark,
-        lambda case, facts: case == NO_HARM_FREE,
+        lambda case, facts: any(
+            facts.band(m) is Band.UNHELPFUL for m in case.moves
+        ),
     ),
     Pathology(
         "P7", p7_an_end_gain_dominates_an_embargo_only_move, _p7_witness
