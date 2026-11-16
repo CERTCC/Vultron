@@ -406,7 +406,7 @@ The RM process is specific to each Participant, but the EM process is global to 
 One Participant's closure therefore leaves the shared embargo in force for everyone else ([VP-13](../../../reference/vultron-spec/requirements/vultron-protocol.md#protocol-vp-13)).
 
 The [Case Owner](../../../reference/glossary.md#cvd-roles-and-participants) is different, because the Case Owner's departure closes the case for every Participant.
-While the embargo is *Active* or being revised, the [CASE_MANAGER](../../../reference/glossary.md#cvd-roles-and-participants) declines the Case Owner's request to leave.
+While the embargo is *Active* or being revised, the [CASE_MANAGER](../../../reference/glossary.md#cvd-roles-and-participants) refuses the Case Owner's request to leave.
 The case then stays open with the embargo in force ([CM-23](../../../reference/vultron-spec/requirements/case-management.md#protocol-cm-23)).
 The Case Owner terminates the embargo first, for example once the vulnerability is public, and then leaves.
 [Close your participation](../../../howto/activitypub/activities/manage_case.md#close-your-participation) in the case-management how-to shows the messages involved.

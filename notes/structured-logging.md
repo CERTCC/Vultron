@@ -253,7 +253,7 @@ answer — the last arm of a Selector — it logs `REFUSED` at WARNING. A tree t
 picks an arm on an actor's role (the status adoption bypass, the Leave,
 suggest-actor and embargo trees) therefore asks `ActorHoldsRoleInCaseNode`, the
 `has_role` read (ADR-0153), which states no refusal at any placement. Placed as
-the CM-23-011 decline arm, a sender check claimed an HP-01-006 refusal for a
+the CM-23-011 embargo check, a sender check claimed an HP-01-006 refusal for a
 sender the guard admitted; as the closed-sender door's fallback, it claimed one
 for a Leave the handler reports `SKIPPED` (#5903). The level rule cannot catch
 this: both placements really are the tree's answer, and the wrong part is the

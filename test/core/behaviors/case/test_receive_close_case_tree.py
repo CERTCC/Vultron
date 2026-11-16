@@ -47,7 +47,6 @@ def _find(
 def _owner_tree() -> py_trees.behaviour.Behaviour:
     return create_close_case_received_tree(
         case_id=CASE_ID,
-        activity_id="https://example.org/activities/leave-1",
         sender_actor_id=OWNER_ID,
         receiving_actor_id="https://example.org/actors/case-actor",
         sender_rule=CloseCaseReceivedUseCase.sender_entitlement,
@@ -84,7 +83,6 @@ def test_a_leave_with_a_sender_and_no_sender_rule_is_a_wiring_error():
     with pytest.raises(VultronWiringError, match="HP-01-008"):
         create_close_case_received_tree(
             case_id=CASE_ID,
-            activity_id="https://example.org/activities/leave-1",
             sender_actor_id=OWNER_ID,
             receiving_actor_id="https://example.org/actors/case-actor",
         )

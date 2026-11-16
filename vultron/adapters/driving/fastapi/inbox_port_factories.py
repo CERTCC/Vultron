@@ -226,10 +226,11 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 
-# CLOSE_CASE emits the as:Reject that declines an owner close during a live
-# embargo (CM-23-011), and reads ActorConfig.post_close_reply, the one policy
-# point that decides whether a Leave after full closure is answered with
-# Reject(Leave(VulnerabilityCase)) or dropped (CM-23-017, ADR-0131).  See
+# CLOSE_CASE sends the refusal notice that answers an owner close refused
+# during a live embargo (CM-23-011), and reads ActorConfig.post_close_reply,
+# the one policy point that decides whether a Leave after full closure is
+# answered with Refuse(Leave(VulnerabilityCase)) or dropped (CM-23-017,
+# ADR-0131, ADR-0196).  See
 # _trigger_activity_with_actor_config_port_factory.
 _CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})
 

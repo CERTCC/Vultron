@@ -23,6 +23,9 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
+from vultron.core.behaviors.case.nodes.earlier_run import (
+    FirstRunOfMessageNode,
+)
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
@@ -32,6 +35,7 @@ from vultron.core.behaviors.idempotency import (
     ReportsIdempotentRepeat,
     SilentIdempotencyGuardMixin,
 )
+from vultron.errors import VultronWiringError
 
 
 class _Counting(py_trees.behaviour.Behaviour):
@@ -424,3 +428,37 @@ def test_a_refusal_ahead_of_a_diversion_taken_last_run_runs_the_effects() -> (
     assert not stage.skipped_as_diversion
     assert effect.ticks == 1
     assert stage.refusal_reason == "Before said FAILURE"
+
+
+def _stage_first_run(
+    first_run: py_trees.behaviour.Behaviour,
+) -> PreconditionGuardStage:
+    return PreconditionGuardStage(
+        name="Stage",
+        guards=_Counting("Guard", Status.SUCCESS),
+        refusal=_Counting("Effect", Status.SUCCESS),
+        first_run=first_run,
+    )
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.parametrize("intake_ran", [False, True])
+def test_the_stage_reports_where_its_first_run_condition_sits(
+    intake_ran: bool,
+) -> None:
+    """A stage reads whether intake ran from its first-run condition."""
+    stage = _stage_first_run(FirstRunOfMessageNode(intake_ran=intake_ran))
+
+    assert stage.intake_ran is intake_ran
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_a_stage_with_another_first_run_cannot_say_whether_intake_ran() -> (
+    None
+):
+    """No guess: a first-run condition that is not the message-record one
+    leaves the stage's position unknown, which is a wiring fault."""
+    stage = _stage_first_run(_first_run())
+
+    with pytest.raises(VultronWiringError, match="intake"):
+        _ = stage.intake_ran
