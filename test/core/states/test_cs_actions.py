@@ -88,6 +88,12 @@ def test_a_malformed_pattern_is_refused(pattern):
         _rule(pattern, Actions.CLOSE_CASE)
 
 
+@pytest.mark.parametrize("pattern", ["vfdpx", "vfdpq."])
+def test_a_rule_built_directly_refuses_a_malformed_pattern(pattern):
+    with pytest.raises(ValueError, match="action-rule pattern"):
+        CSActionRule(pattern, (Actions.CLOSE_CASE,))
+
+
 def test_a_rule_with_no_action_is_refused():
     with pytest.raises(ValueError, match="names no action"):
         _rule("......")

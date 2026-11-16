@@ -39,7 +39,7 @@ specific to this layer.
    `transitions.md` does not cover; descriptive, not normative.
 4. `vultron/core/behaviors/` — implementation detail; the `nodes/conditions.py`
    modules hold the precondition logic.
-5. `vultron/core/case_states/patterns/potential_actions.py` — the MAY baseline.
+5. `vultron/core/states/cs_actions.py` (`CS_ACTION_RULES`) — the MAY baseline.
    A MUST, SHOULD or SHOULD_NOT item downselects from the actions this table
    permits for a CS pattern; it never adds one the table forbids.
 

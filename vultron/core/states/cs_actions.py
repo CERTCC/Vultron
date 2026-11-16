@@ -34,7 +34,7 @@ Spec: CSB-17-001.  Decision: ADR-0060.
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from dataclasses import dataclass
 
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.states.cs import CS
@@ -45,8 +45,12 @@ from vultron.core.states.cs_invariants import (
 )
 
 
-class CSActionRule(NamedTuple):
+@dataclass(frozen=True)
+class CSActionRule:
     """One pattern over the compound case states, and its possible actions.
+
+    A malformed pattern, or a rule with no action, is refused at
+    construction.
 
     Fields:
         pattern: The rule's ``vfdpxa`` pattern.  Each position holds its
@@ -58,6 +62,21 @@ class CSActionRule(NamedTuple):
 
     pattern: str
     actions: tuple[Actions, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.pattern) != len(CS_EVENTS) or any(
+            letter not in (".", event.value, event.value.lower())
+            for event, letter in zip(CS_EVENTS, self.pattern, strict=False)
+        ):
+            raise ValueError(
+                "an action-rule pattern holds, for each event of"
+                f" {''.join(CS_EVENTS)} in turn, '.' or that event's letter"
+                f" in either case; got {self.pattern!r}"
+            )
+        if not self.actions:
+            raise ValueError(
+                f"the action rule {self.pattern!r} names no action"
+            )
 
     @property
     def occurred(self) -> frozenset[CSEvent]:
@@ -85,17 +104,7 @@ class CSActionRule(NamedTuple):
 
 
 def _rule(pattern: str, *actions: Actions) -> CSActionRule:
-    """A :class:`CSActionRule`, refusing a malformed pattern or no action."""
-    if len(pattern) != len(CS_EVENTS) or any(
-        letter not in (".", event.value, event.value.lower())
-        for event, letter in zip(CS_EVENTS, pattern, strict=False)
-    ):
-        raise ValueError(
-            f"an action-rule pattern holds one of '.', 'x' or 'X' for each"
-            f" event of {''.join(CS_EVENTS)}; got {pattern!r}"
-        )
-    if not actions:
-        raise ValueError(f"the action rule {pattern!r} names no action")
+    """A :class:`CSActionRule` from its pattern and its actions."""
     return CSActionRule(pattern, actions)
 
 

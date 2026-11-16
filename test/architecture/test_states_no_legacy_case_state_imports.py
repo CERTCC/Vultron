@@ -28,6 +28,7 @@ catches an indirect import through a module outside ``vultron/core/states/``.
 """
 
 import ast
+from pathlib import Path
 
 import pytest
 
@@ -40,7 +41,7 @@ _LEGACY = "vultron.core.case_states"
 _GUARDED = ("vultron.core.states", "vultron.measure")
 
 
-def _root(package: str):
+def _root(package: str) -> Path:
     return _corpus.REPO_ROOT.joinpath(*package.split("."))
 
 

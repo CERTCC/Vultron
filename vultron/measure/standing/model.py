@@ -350,7 +350,7 @@ class ActionAdvice(BaseModel):
 def action_advice(standing: ParticipantStanding) -> tuple[ActionAdvice, ...]:
     """The CVD actions *standing*'s case state makes possible.
 
-    None for a participant with no case state: the action rules read a
+    Empty for a participant with no case state: the action rules read a
     compound case state, which only a vendor's sequence has (CEH-05-001).
     """
     state = standing.case_state

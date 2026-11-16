@@ -23,6 +23,7 @@ import json
 from test.measure.history.builders import (
     OWNER,
     VENDOR,
+    VENDOR_2,
     Ledger,
     publish,
     seat_vendor,
@@ -78,9 +79,12 @@ def test_a_participant_with_no_case_state_gets_no_action_advice():
 
 
 def test_action_advice_follows_participant_order():
-    record = case_standing(_vendor_case().case_ledger())
+    ledger = _vendor_case()
+    seat_vendor(ledger, VENDOR_2, "Vf")
+    record = case_standing(ledger.case_ledger())
     order = [p.participant for p in record.participants]
     named = [a.participant for a in record.action_advice]
+    assert {VENDOR, VENDOR_2} <= set(named)
     assert named == sorted(named, key=order.index)
 
 
