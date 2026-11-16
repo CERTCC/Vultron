@@ -54,3 +54,6 @@ the obvious candidate, and #5537's `path=` retirement touches the same
 modules — where a moved or deleted name reaches modules outside every agent's
 brief. The counter-evidence would be a fan-out whose agents each repaired only
 their own module because the move had been landed first.
+
+**Promoted**: 2026-11-16 — corroborated with #5534; captured in notes/testing-pitfalls.md (repoint patchers first, alone, before fanning out).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

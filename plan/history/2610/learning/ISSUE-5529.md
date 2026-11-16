@@ -39,3 +39,6 @@ place, so the next agent stops looking. The candidate statements are: a read
 serves every row the store holds, under the key the store holds it by; every
 read of one row answers the same body; and a read mints no id and reads no
 clock.
+
+**Promoted**: 2026-11-16 — captured in specs/datalayer.yaml DL-09 (demo-only inspection routes, prototype scope); mounting them only in prototype mode is #6521.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

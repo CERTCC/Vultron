@@ -68,3 +68,6 @@ moved, do the thing the AC was *for* and state the difference per AC in the PR
 body — never implement the stale premise to make the sentence true. A planner
 can reduce the exposure by writing an AC as the outcome wanted rather than as
 a condition of today's code, and by quoting no text it does not own.
+
+**Promoted**: 2026-11-16 — corroborated with #4199; captured in notes/git-workflow-pitfalls.md.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -5,7 +5,7 @@ status_override: >-
 date: 2026-11-12
 created: 2026-11-12
 updated: 2026-11-16
-revision: 4
+revision: 5
 amended: "2026-11-16"
 deciders: Allen D. Householder
 consulted: Vultron maintainers
@@ -42,8 +42,8 @@ That framing made three problems: the node's trees would emit activities that a 
 Chosen option: "A standalone tool that reads, translates and analyses one case on request, then discards it", because it answers the first question with no actor, no network presence and no act to fake.
 
 1. **Advisor, not player.** The shadow tells an analyst where a case stands and which moves are open or better. This version does not act in the case, does not write to the outside system, and does not send anything to the case's participants.
-2. **Pull.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. Nothing runs between requests.
-3. **Ephemeral.** A translation is built for the request that needs it and discarded afterwards. The shadow keeps no long-lived copy of an outside-system case or its translation. Transient working files within a request are allowed. A later need for the case is met by translating it again.
+2. **Pull, and follow.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. For a live Vultron case, the shadow can follow the case's ledger as it grows and show the analysis again after each new entry.
+3. **Ephemeral.** The shadow holds a case and its translation in memory only. It writes neither to persistent storage, and it leaves none of either on the host after its process exits. Transient working files are allowed only if they are gone when the process exits. A later need for the case is met by reading it again.
 4. **Standalone.** The shadow uses the Vultron core as a library. It hosts no actor and has no inbox, outbox or activity delivery, so "delivers nothing" holds because no delivery path exists, not because a setting turns one off.
 5. **One standing, with moves in bands.** The shadow reads the translated case as it stands: each participant's states, the desiderata met or broken, and the moves open to each participant, each move named by its use case or action rule, never by its wire activity type, and labelled with who can make it. Each move gets an outcome shift for each vendor: the change in expected outcome from the chance value, solved over the same chance model as the desiderata baselines. The page does not pick one best move. It shows the harm-free moves first, then the trade-off moves, and collapses the unhelpful moves. In the harm-free and trade-off bands, it shades each move by its layer in the dominance order and marks the top moves. It marks each coordinator move that is leading among the coordinator's own moves. How a move gets its band is [ADR-0200](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md). Scoring a move's setting, such as an embargo's duration, is a later decision.
 6. **Measure before building on it.** Translating real-shaped cases, timing it, and sorting each mapping into translation or interpretation comes before the analysis is built on top.
@@ -119,9 +119,24 @@ A CVD case is a cooperative game, so a move that harms no vendor is in a higher 
 
 - Source: #6450
 
+## Amendment — 2026-11-16 (revision 5)
+
+Rules 2 and 3 were replaced.
+Rule 2 read: "**Pull.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. Nothing runs between requests."
+It now reads: "**Pull, and follow.** An analyst names one case. The shadow reads it, translates it, analyses it and shows the result. For a live Vultron case, the shadow can follow the case's ledger as it grows and show the analysis again after each new entry."
+Rule 3 read: "**Ephemeral.** A translation is built for the request that needs it and discarded afterwards. The shadow keeps no long-lived copy of an outside-system case or its translation. Transient working files within a request are allowed. A later need for the case is met by translating it again."
+It now reads: "**Ephemeral.** The shadow holds a case and its translation in memory only. It writes neither to persistent storage, and it leaves none of either on the host after its process exits. Transient working files are allowed only if they are gone when the process exits. A later need for the case is met by reading it again."
+
+The maintainer asked that the shadow follow a live Vultron case, so the dashboard moves with the case.
+The maintainer also said what the ephemeral rule guards against: a copy of embargoed data left on the host.
+Holding a case in memory while the process runs does not leave one, so the rule now names the host and the process, not the request.
+The rule applies to every case the shadow reads, an outside-system case included.
+
+- Source: #6370
+
 ## More Information
 
 Planned in #6336, with the maintainer, on 2026-11-12.
 The VINCE shadow's data-handling rules are [ADR-0189](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md).
 
-Generated spec requirements: `case-shadow.yaml` SHD-01.
+Generated spec requirements: `case-shadow.yaml` SHD-01, SHD-04.

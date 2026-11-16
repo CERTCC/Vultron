@@ -74,3 +74,6 @@ text, while the base ref's text differs, is a reversion of work that landed
 after the branch was cut, not an amendment. That is the same merge-base read
 `MS-09-008` already requires of `spec-retire` for the text it archives, so the
 primitive exists in the corpus.
+
+**Promoted**: 2026-11-16 — new requirement MS-09-013; the merge-base reversion check in spec-amendments.sh is #6522.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -64,3 +64,6 @@ That record is on open issue
 requirements that contradict other requirements, which already carries
 DEMOMA-15-002's rationale naming the same stop. `learn` settles which of the
 two resolutions to take; #5351 tracks the work either one implies.
+
+**Promoted**: 2026-11-16 — maintainer chose the wording fix: DEMOMA-14-007 and DEMOMA-13-011 now say VFd (DEMOMA-10/11/13-006 had already been reworded).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -1366,6 +1366,11 @@ groups:
     rationale: >-
       An assertion can be lost in transit or refused, and then no matching entry comes
       back. A timeout marks the point after which the participant stops waiting for it.
+    note: >-
+      The pending-assertion store is not the outstanding-ask register ASK-05
+      governs. It is a separate, ephemeral instance of the shared lifecycle
+      (ASK-04-007), so ASK-05-001's "at the next entry into the tree" does not bind
+      it, and where the mark is applied is this requirement's choice.
     verification: >-
       `test/core/models/test_pending_assertion.py::TestTimeout` covers the marking. All
       three lookups apply the mark, and so does the write that stamps the next entry;
@@ -1383,9 +1388,10 @@ groups:
       an operator retry or the catch-up gate can submit the assertion again.
     rationale: >-
       Without this, the store would suppress every later send of a lost assertion, and
-      the participant could never make the assertion again. The timeout is the
-      outstanding ask's expiry (ASK-04-007, ASK-05-001), not a second duplicate check,
-      so a repeat it lets through is safe at the CASE_MANAGER.
+      the participant could never make the assertion again. The timeout does for this
+      store what an ask's expiry does for the outstanding-ask register (ASK-04-007),
+      and it is not a second duplicate check, so a repeat it lets through is safe at
+      the CASE_MANAGER.
     verification: >-
       `test_a_lookup_stops_an_aged_out_entry_suppressing` and
       `test_a_later_write_also_stops_an_aged_out_entry_suppressing` in

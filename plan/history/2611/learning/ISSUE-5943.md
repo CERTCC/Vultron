@@ -37,3 +37,6 @@ that "make the test fast" and "re-size a mis-sized tier" are separate
 requirements with different triggers. The distinction that decides it is
 whether one test is an outlier or the tier itself is wrong, and no requirement
 currently names that test.
+
+**Promoted**: 2026-11-16 — TB-14-003 narrowed to a mis-sized tier; new TB-14-011 for one slow test.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

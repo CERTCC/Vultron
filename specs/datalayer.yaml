@@ -1802,3 +1802,63 @@ groups:
     - persistence
     adr:
     - ADR-0073
+- id: DL-09
+  title: Demo-Only DataLayer Inspection Routes
+  description: >-
+    The routes under `/actors/{actor_id}/datalayer/...` read an actor's store
+    directly. They exist so that demo scripts and the demo UI can check system state,
+    and they belong to the demo-only API: a production deployment does not expose
+    them. HTTP-09 and ARCH-20-006 say how a read renders what it serves; this group
+    says what a read reaches.
+  specs:
+  - id: DL-09-001
+    priority: MUST
+    kind: project
+    scope:
+    - prototype
+    statement: >-
+      A DataLayer inspection route MUST serve every row the store holds, under the key
+      the store holds it by.
+    rationale: >-
+      A demo check reads system state through these routes. A row that is stored but
+      cannot be read by its key makes the check report a state the actor is not in,
+      for example a key with one slash that the route split into a type and an id.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py::test_a_key_with_one_slash_is_readable_by_its_key`
+      reads a row whose key holds a slash, and
+      `::test_a_type_segment_that_does_not_name_the_rows_type_is_not_found` asserts
+      the type segment selects the row's type rather than being ignored.
+  - id: DL-09-002
+    priority: MUST
+    kind: project
+    scope:
+    - prototype
+    statement: >-
+      Every DataLayer inspection route that serves one row MUST answer the same body
+      for it.
+    rationale: >-
+      A list read and a by-key read of one row are two views of one stored fact. If
+      they disagree, a demo check passes or fails on which route it happened to use,
+      as when a list rebuilt each Offer as its base class and dropped the inline
+      object's role.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py::test_the_offers_list_serves_each_inline_object_whole`
+      asserts the list entry of an Offer equals its by-key read, and
+      `::test_an_offer_route_serves_the_inline_object_whole` asserts the single-Offer
+      route keeps every stored field.
+  - id: DL-09-003
+    priority: MUST_NOT
+    kind: project
+    scope:
+    - prototype
+    statement: >-
+      A DataLayer inspection route MUST NOT mint an id or read the clock.
+    rationale: >-
+      A read reports what is stored. An id or time made at read time is a value no
+      actor stated, so two reads of one row differ and a demo recording changes on
+      every run.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py::test_get_object_mints_no_id_and_reads_no_clock`
+      and `::test_other_read_routes_mint_no_id_and_read_no_clock` compare the id and
+      clock draws after each read route is called many times with the draws after
+      none, and assert they are equal.

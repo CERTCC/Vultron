@@ -29,3 +29,6 @@ in a line or two. Now in `.agents/skills/shared/asking-the-user.md` § 8.
 
 **What would confirm it.** Another interview where a dialog-only design question
 draws "what do you mean" or a request for the context.
+
+**Already closed**: 2026-11-16 — already in .agents/skills/shared/asking-the-user.md § 8 / notes-writing-guide.md and the ADR template.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

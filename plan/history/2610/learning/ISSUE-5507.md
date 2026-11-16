@@ -28,3 +28,6 @@ Issue #5507 needed caps in 17 workflows, including `deploy_site.yml` (Pages depl
 and `quarterly_tag.yml` (release tag). The work went ahead only because the
 user named the issue explicitly. Without that, an agent following the rule
 would either refuse the Task or edit against its own scope rule.
+
+**Already closed**: 2026-11-16 — AGENTS.md § Scope of Allowed Work now puts CI workflows in scope and limits the exclusion to production deployment and secrets.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

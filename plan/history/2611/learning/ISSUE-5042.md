@@ -60,3 +60,6 @@ What generalises, for #5043, #5044, #5785 and any later wave:
   it reports `REFUSED` with a reason naming the receiver. Any assertion that a
   scenario produces no inbox refusals is therefore the cheapest oracle for a
   declaration, and the only one that reads the real roster.
+
+**Promoted**: 2026-11-16 — confirmed against the code and CI incident; captured in notes/bt-integration.md (directed vs roster-broadcast evidence for a dropped path).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -821,3 +821,56 @@ groups:
       Verifies DRPT-04-015: the absolute timestamp is preserved for hover
       inspection even though it does not appear in the cell body.
     testable: true
+
+- id: DRPT-06
+  title: Reading a Case Ledger File
+  description: >-
+    The demo report tool and the demo UI's Log Replay mode (`ui/`) both read a case
+    ledger JSONL file. Both refuse a line that is not a JSON object. Log Replay also
+    checks each entry's envelope against the model. The report tool does not: it
+    degrades a malformed field in one row rather than lose the rest of the run.
+  specs:
+  - id: DRPT-06-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A ledger replay or report tool MUST name to the user each line that is not a
+      JSON object, and replay none of that line.
+    rationale: >-
+      A line that is not a JSON object holds no entry to read. Dropping it without
+      notice makes the output show a case history the file does not hold; naming it
+      tells the user where the file is damaged.
+    verification: >-
+      `test/demo_unit/test_report_strict_reader.py::test_any_unusable_row_refuses_the_file`
+      asserts the report tool refuses a file with a line that is not JSON, or is
+      JSON but not an object, and names that line. `ui/src/utils/ledgerShape.test.ts`
+      (`refuses a line that is not an object`) asserts the same of Log Replay.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-004
+  - id: DRPT-06-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Log Replay MUST hold a ledger entry's envelope to the case ledger model, and
+      a received status in `payloadSnapshot` only to the parse edge (MV-11-003).
+      The envelope check requires each field the model always writes and refuses
+      an undeclared key.
+    rationale: >-
+      The envelope is written by the CASE_MANAGER, so a missing field or an unknown
+      key means the line is not a ledger entry this model wrote. Log Replay refuses
+      such a line rather than replay it with defaults, which would show events that
+      never happened. A received status is
+      the sender's content carried as received, and the parse edge sets aside an
+      unknown key in it rather than refusing it; a stricter viewer would refuse
+      lines the protocol accepted.
+    verification: >-
+      `ui/src/utils/ledgerShape.test.ts` asserts that a missing envelope field and
+      an undeclared envelope key are each named, that an undeclared key on a payload
+      status is tolerated, and that a payload status needs only what the model
+      cannot go without.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-06-001
+    - rel_type: depends_on
+      spec_id: MV-11-003

@@ -2652,9 +2652,9 @@ groups:
       scenario-specific checks in addition to universal library checks:
       (1) `validate_report` event present in case-actor log,
       (2) `invite_actor_to_case` present at least twice (C2 invitation + Vendor
-      invitation), (3) `close_case` present, (4) CS transitions VFd and VFD
-      observed in `add_participant_status_to_participant` entries for the Vendor
-      actor and public-aware (P) transition observed in
+      invitation), (3) `close_case` present, (4) CS transition VFd observed in
+      `add_participant_status_to_participant` entries for the Vendor actor and
+      public-aware (P) transition observed in
       `add_participant_status_to_participant` entries for C1 (CASE_OWNER triggers
       CS.P), and (5) Vendor replica holds the complete log from genesis (full
       history backfill, as Vendor is a late joiner).
@@ -2910,11 +2910,15 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Vendor MUST advance through the full fix lifecycle: CS.VFd (fix ready)
-      and CS.VFD (fix deployed).
+      Vendor MUST advance to CS.VFd (fix ready) and stop there.
     rationale: >-
-      End-to-end completion is required to exercise the full CVD coordination
-      workflow in the RCCV-handoff variant.
+      The RCCV-handoff Vendor is invited with the VENDOR role alone, and CSB-15-002
+      refuses a fix-deployed (d → D) report from a participant without the DEPLOYER
+      role. Reaching VFd exercises the Vendor's whole fix-readiness path; deployment
+      is shown by the scenarios that invite a Vendor as VENDOR and DEPLOYER.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CSB-15-002
   - id: DEMOMA-14-008
     priority: MUST
     kind: project

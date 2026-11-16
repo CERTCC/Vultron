@@ -30,3 +30,6 @@ schema change is acceptable when the maintainer decides it. The design rule is i
 
 **What would confirm it.** Another plan where a side-record option is offered first
 and the maintainer redirects to extending the object.
+
+**Already closed**: 2026-11-16 — already in notes/activitystreams-semantics.md § Choosing AS2 Terms (PR #6479).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

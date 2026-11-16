@@ -30,3 +30,6 @@ and `notes/embargo-lifecycle.md`.
 **What would confirm it.** A second commit/effect mismatch in a different tree
 (not the embargo owner-decision path) that converges on EM but diverges on a
 terminal entry's status.
+
+**Archived unreproduced**: 2026-11-16 — single witness older than 30 days, no second commit/effect mismatch found (BW-07-007). The fix itself landed as #4364.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

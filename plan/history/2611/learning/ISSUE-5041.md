@@ -34,3 +34,6 @@ What generalises, for the next reason shared across message types:
   and the contradiction stayed invisible to CI while remaining true of #5042 and
   #5043. Completeness-doctrine Gate 2 wants the premise settled, not the evidence
   withdrawn.
+
+**Already closed**: 2026-11-16 — captured in HP-01-039 and ADR-0153 revision 3.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.
