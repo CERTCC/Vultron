@@ -51,6 +51,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | Property name | Value kind | Description |
 |---------------|------------|-------------|
 | `activeEmbargo` | iri | The embargo active on a case, as its case stub carries it: an EmbargoEvent or its id |
+| `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
 | `caseActivity` | set of iri | The ids of activities about a case |
 | `caseEngagement` | plain | Whether a participant reports itself engaged in a case |
@@ -83,6 +84,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `logObjectId` | iri | The id of the activity or object a case ledger entry records |
 | `maximumDuration` | plain | The longest embargo duration an actor accepts, as an ISO 8601 duration |
 | `minimumDuration` | plain | The shortest embargo duration an actor accepts, as an ISO 8601 duration |
+| `notes` | list of iri | The ids of the Notes attached to a case, in the order added |
 | `parentCases` | set of iri | The ids of a case's parent cases |
 | `participantStatuses` | list | A participant's statuses in a case, oldest first; the last is its current status |
 | `payloadSnapshot` | json | The activity a case ledger entry records, kept verbatim as its sender sent it |

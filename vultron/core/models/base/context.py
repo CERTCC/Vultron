@@ -33,7 +33,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic.config import JsonDict
-from pydantic.fields import FieldInfo
+from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 from vultron.core.models.base.record import ValidatedAssignmentMixin
 from vultron.primitives import NonEmptyString
@@ -243,7 +243,7 @@ def vultron_property(
 
 
 def declared_vultron_property(
-    info: FieldInfo,
+    info: FieldInfo | ComputedFieldInfo,
 ) -> VultronPropertyDeclaration | None:
     """The Vultron property *info*'s marker declares, or ``None`` if unmarked.
 

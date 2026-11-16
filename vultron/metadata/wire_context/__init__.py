@@ -10,13 +10,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Generation and drift-check of the normative ``docs/ns/context.jsonld``."""
+"""Generation and drift-check of the normative ``docs/ns/context.jsonld``,
+and the term check of every wire field (VM-10-007)."""
 
+from vultron.metadata.wire_context.cli import main
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
     WRITE_COMMAND,
     build_context_document,
-    main,
     render_context_json,
     vultron_context_terms,
 )

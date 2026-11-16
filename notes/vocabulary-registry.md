@@ -182,10 +182,10 @@ class whose `_vocab_ns` is `VULTRON` and every core class `WIRE_TYPE_MAP`
 registers whose `type` is not an AS2 term, keyed by the emitted `type` value, so a
 class sharing another's `type` needs no term of its own. It writes its property
 terms from the marked fields of the same classes and of every model nested in them
-(`wire_field_classes`), skipping `exclude=True` fields and a model that serializes
-as one value (a status dimension). It also writes the "Declared properties" table
-of `docs/ns/index.md` from the definitions. When adding, renaming or retiring a
-term:
+(`wire_field_classes`), computed fields included, skipping `exclude=True` fields
+and a model that serializes as one value (a status dimension). It also writes the
+"Declared properties" table of `docs/ns/index.md` from the definitions. When
+adding, renaming or retiring a term:
 
 - Regenerate and commit both artifacts. `uv run wire-context --check`
   (pre-commit) and `test_committed_context_is_not_stale` (CI) enforce it.
