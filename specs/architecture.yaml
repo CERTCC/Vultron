@@ -262,7 +262,10 @@ groups:
   - id: ARCH-05-001
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/architecture/test_connector_boundaries.py` reads every module under
+      `vultron/core/` and asserts none imports from `vultron/adapters/connectors/`,
+      deferred and by-name imports included, and that its check flags such an import.
     statement: Core MUST NOT import a connector plugin (tracker integration) directly.
     rationale: >-
       A connector integrates one external tracker. If core imports a connector, core
@@ -271,7 +274,11 @@ groups:
   - id: ARCH-05-003
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/adapters/connectors/test_loader.py` installs a fake distribution whose
+      `entry_points.txt` declares `vultron.connectors` entry points and asserts
+      `load_connectors()` finds them through `importlib.metadata`, and that the
+      example connectors declare none.
     statement: >-
       This codebase MUST discover connector plugins through Python entry points
       (`importlib.metadata`).
@@ -284,7 +291,11 @@ groups:
   - id: ARCH-05-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/architecture/test_connector_boundaries.py` asserts no module under
+      `vultron/adapters/connectors/` imports use cases, behaviors, core services, the
+      dispatchers, participant authority, the hash-chained case ledger, or a storage
+      or delivery port or adapter, and that its check flags such an import.
     statement: >-
       Connector plugins MUST translate only — no case handling logic, authorization, or
       case ledger management belongs in a connector.
@@ -340,7 +351,11 @@ groups:
   - id: ARCH-05-006
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/adapters/connectors/test_loader.py` asserts the loader raises
+      `ConnectorRefusedError` naming the entry point and its distribution for an
+      entry point with no non-empty `name` and for one that implements no core port,
+      and names every refused entry point when several fail.
     statement: >-
       The connector loader MUST refuse an entry point that implements no port the
       core declares for outside systems, with an error that names the entry point.
