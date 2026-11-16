@@ -65,6 +65,10 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.node_logger import (
+    fail_with_fault,
+    fail_with_reason,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.base import LedgerPositionedEvent
 from vultron.core.models.sender_sequence import SenderSequenceOrder
@@ -485,9 +489,14 @@ class SequenceAdmitsNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if self.classify.standing in JUDGED:
             return Status.SUCCESS
-        self.feedback_message = self.classify.refusal_reason()
+        if self.classify.standing is SequenceStanding.MISSING:
+            # No positive-integer number at all: a malformed activity, an
+            # anomaly that keeps its WARNING (SL-03-001).
+            return fail_with_fault(self, self.classify.refusal_reason())
         if self.classify.standing in NOTICED:
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-        else:
-            self.logger.info("%s: %s", self.name, self.feedback_message)
+            # A refused number: a fact at DEBUG; the received runner logs
+            # the refusal (SL-03-003).
+            return fail_with_reason(self, self.classify.refusal_reason())
+        self.feedback_message = self.classify.refusal_reason()
+        self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

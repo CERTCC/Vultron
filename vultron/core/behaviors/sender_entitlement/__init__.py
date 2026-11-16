@@ -88,25 +88,25 @@ missing attribute.
 Refusal reasons and log levels
 ------------------------------
 A check that does not admit the sender calls
-``SenderEntitlementConditionNode._refuse_by_placement(reason)``, which records
+``SenderEntitlementConditionNode._fail_with_reason(reason)``, which records
 *reason* as ``feedback_message`` for ``BTBridge.get_failure_reason``
-(BT-13-001) and logs it at WARNING only when ``failure_is_the_refusal(node)``
-says this node's FAILURE is the guard's whole answer.  Inside an any-of side a
-later arm may still admit the sender, so that line is DEBUG (SL-03-002) and drops
-the ``REFUSED`` wording (SL-03-003): nothing was refused (#5460).
+(BT-13-001) and logs the facts at DEBUG without the ``REFUSED`` group
+(``vultron.core.behaviors.node_logger.fail_with_reason``).  A check cannot
+know whether its FAILURE is the delivery's verdict — inside an any-of side a
+later arm may still admit the sender — so the received runner, which reads
+the verdict, logs the one ``REFUSED`` line (SL-03-002 to SL-03-004, #6477).
 
-Every check that logs a refusal reason takes this rule (#5786), so the level is
-read from the running tree at every call site rather than from one node's.  A
-check that composes its own citation around a shorter *why* does it in a
+A check that composes its own citation around a shorter *why* does it in a
 ``_refuse_citing`` method that delegates — never in a ``_refuse``, which would
 shadow a base method of that name with neither mypy nor pyright reporting it.
 ``SenderIsParticipantNode`` — the one check here that records a refusal without
-being a ``SenderEntitlementConditionNode`` subclass — takes the same rule from
-the free function ``refuse_by_placement(node, reason)``.
+being a ``SenderEntitlementConditionNode`` subclass — calls ``fail_with_reason``
+directly.
 
-Some lines stay off this rule, each for a reason stated where it is
+Some lines are not refusal reasons, each for a reason stated where it is
 logged: ``SenderClosureNotRecordedNode``, whose FAILURE the handler may report
-``SKIPPED`` rather than ``REFUSED`` (CM-23-018, ID-05-003), keeps INFO; a
+``SKIPPED`` rather than ``REFUSED`` (CM-23-018, ID-05-003), words no
+refusal and logs its fact at DEBUG like every check; a
 malformed activity (no ``actor_id``, an unreadable ledger entry) is an anomaly,
 not a standing the sender lacks, so it takes its level from SL-03-001 — WARNING
 at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
@@ -115,11 +115,11 @@ the ledger entry (#5862) — and records no refusal reason.
 A tree that picks an arm on an actor's role, rather than refusing a sender,
 does not place one of these nodes: it asks
 ``vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode``, which
-states no refusal (ADR-0153).  A kind check words its non-match as a refusal,
-so placed where its FAILURE is the tree's answer — the last arm of a
-Selector, such as the CM-23-011 embargo guard or the closed-sender door's
-fallback — it would log ``REFUSED (HP-01-006)`` at WARNING for a sender the
-guard admitted, or for a Leave the handler reports ``SKIPPED`` (#5903).
+states no refusal (ADR-0153).  A kind check words its non-match as a refusal citing
+HP-01-006, so placed where its FAILURE is the tree's answer — the last arm of
+a Selector, such as the CM-23-011 embargo guard or the closed-sender door's
+fallback — the handler would report that citation for a sender the guard
+admitted, or for a Leave it reports ``SKIPPED`` (#5903).
 
 Nodes
 -----
@@ -190,7 +190,7 @@ Helper predicate
 Submodules
 ----------
 - ``declarations`` — the kinds, addressee sides, rule and exemptions
-- ``base`` — the base class and its refusal-placement rule
+- ``base`` — the base class and its one failure helper
 - ``case_owner`` — ``is_case_owner`` and ``SenderIsCaseOwnerNode``
 - ``membership`` — the participant-record checks and the closed-sender check
 - ``case_manager`` — ``SenderIsCaseManagerNode``
@@ -219,8 +219,6 @@ from vultron.core.behaviors.sender_entitlement.author import (
 )
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
-    failure_is_the_refusal,
-    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_entitlement.case_manager import (
     SenderIsCaseManagerNode,
@@ -274,8 +272,6 @@ __all__ = [
     "no_sender_check",
     # Helper predicates
     "is_case_owner",
-    "failure_is_the_refusal",
-    "refuse_by_placement",
     # Base / marker class
     "SenderEntitlementConditionNode",
     # Condition nodes

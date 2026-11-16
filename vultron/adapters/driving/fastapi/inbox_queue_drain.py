@@ -48,6 +48,7 @@ from vultron.core.behaviors.inbox.models import (
     ReceivedOutcomePort,
 )
 from vultron.core.models.events import VultronEvent
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.object_dereference import ObjectDereferencePort
@@ -89,7 +90,10 @@ def log_if_rejected(
         outcome.activity_id,
         outcome.context_id,
         replayed,
-        outcome.failure_reason,
+        # The received runner logged the refusal with its group; this line
+        # keeps the facts without it (SL-03-004).
+        outcome.failure_reason
+        and without_refusal_group(outcome.failure_reason),
     )
 
 

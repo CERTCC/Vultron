@@ -9,7 +9,7 @@ description: >
   tiers, for stating whether each loose reading can miss a violation or
   invent one (and trading an inventing reading for a missing one), for the
   two meta-ratchets that police the gates themselves — one corpus, and every
-  `xfail` strict — and for baselines: owner markers and the
+  `xfail` strict — and for baselines: owner markers, the closing-PR guard and the
   ratchet-versus-pinned-exemption-set split.
 related_specs:
   - specs/architecture.yaml
@@ -268,6 +268,20 @@ Whether a cited owner is still open is checked by `ratchet-owners`
   `--report`, and the action's `details-file` input puts it in the issue body or
   update comment; the issue lookup is the shared `gh_issue_state` in
   `vultron/metadata/base.py`, not a second client.
+
+A pull request that closes an owner its ratchet still cites fails
+`ratchet-close-guard` (`vultron/metadata/ratchet_close_guard.py`), run by
+`.github/workflows/ratchet-owner-close-guard.yml` (ARCH-18-012). Rules it keeps:
+
+- **Fail the PR, not `main`.** Closing the owner is that PR's own act, so the
+  failure races no other PR; the scheduled report still catches a close by hand.
+- **Read the body offline.** The event's body reaches the script through `env`
+  and a file, and closing references come from `closing_references` in
+  `pr_body_lint`, so the two readings of a body agree. It reruns on `edited`.
+  It does not use `gh_pr_closing_issues`: no token, no API call a rate limit
+  can turn red, and a Development-sidebar link is left to the scheduled report.
+- **Only open debt counts.** A terminal baseline's leftover marker and a
+  `# permanent:` marker never hold an owner open.
 
 ## Ratchets and Pinned Exemption Sets Are Different Things
 

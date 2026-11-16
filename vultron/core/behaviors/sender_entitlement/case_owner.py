@@ -95,19 +95,18 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
 
     A non-match goes through
     :meth:`~vultron.core.behaviors.sender_entitlement.base
-    .SenderEntitlementConditionNode._refuse_by_placement`, the rule every
-    kind check takes, so its one line is WARNING where this check is the
-    guard's whole answer and DEBUG, without the ``REFUSED`` wording, where a
-    later arm of an any-of side may still admit the sender (SL-03-002,
-    SL-03-003).
+    .SenderEntitlementConditionNode._fail_with_reason`, the rule every
+    kind check takes: its one line is DEBUG without the ``REFUSED``
+    wording, and the received runner logs the refusal when the tree's
+    verdict is one (SL-03-002 to SL-03-004).
 
     It is the sender door only, placed by the composed guard.  A tree that
     picks an arm on whether an actor holds the role — the status adoption
     bypass (RSH-01-002), the Leave, suggest-actor and embargo trees — asks
     :class:`~vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode`
     instead, which states no refusal: placed where its FAILURE is the tree's
-    answer, this node would log ``REFUSED (HP-01-006)`` for a sender the
-    guard admitted (#5903).
+    answer, the handler would report its ``REFUSED (HP-01-006)`` reason for
+    a sender the guard admitted (#5903).
 
     Reads ``case_id`` only from the ``/case_id`` input port (BTND-01-006); a
     tree that names the case at build time seeds the port with
@@ -115,7 +114,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
 
     Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
 
-    Spec: RSH-01-002, HP-01-006, SL-03-002, SL-03-003.
+    Spec: RSH-01-002, HP-01-006, SL-03-002, SL-03-003, SL-03-004.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -167,7 +166,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{self._sender_actor_id}' is not the Case Owner of case"
             f" '{case_id}' — REFUSED (HP-01-006)"
         )

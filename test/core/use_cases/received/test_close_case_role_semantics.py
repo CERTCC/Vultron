@@ -63,6 +63,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig, PostCloseReply
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.received_run import runner as received_runner
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -82,6 +83,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.refusal_wording import carries_refusal_group
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -699,13 +701,17 @@ class TestNonOwnerLeaveReceivePath:
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
         assert not _case_is_fully_closed(dl)
 
-    @pytest.mark.spec("CM-23-010", "CM-23-011", "SL-03-002", "SL-03-003")
+    @pytest.mark.spec("CM-23-010", "CM-23-011", "SL-03-002", "SL-03-004")
     def test_every_refusal_line_of_the_non_owner_leave_cites_cm_23_010(
         self, caplog: pytest.LogCaptureFixture
     ):
-        """The CM-23-010 guard refuses the Leave, so every refusal line the run
-        writes cites it: none cites HP-01-006 for a sender guard that
-        admitted the sender (#5903), at any level."""
+        """The CM-23-010 guard refuses the Leave, so the run's one refusal
+        line — the received runner's — cites it (#6477).  The CM-23-011
+        embargo check then ticks and reads the sender's CASE_OWNER role to
+        decide whether an embargo blocks the close; that read admits and
+        refuses no one, so it logs no ``REFUSED`` line of its own, and none
+        cites HP-01-006 for a sender guard that admitted the sender (#5903),
+        at any level."""
         dl = _make_full_dl()
 
         with caplog.at_level(logging.DEBUG):
@@ -715,14 +721,18 @@ class TestNonOwnerLeaveReceivePath:
 
         assert result.disposition is HandlerDisposition.REFUSED
         refusals = [
-            record.getMessage()
+            record
             for record in caplog.records
-            if "REFUSED" in record.getMessage()
-            and record.levelno >= logging.WARNING
+            if carries_refusal_group(record.getMessage())
         ]
-        # The guard's line, and the handler's echo of the reason it reports.
-        assert refusals, "the CM-23-010 refusal logged nothing above DEBUG"
-        assert all("CM-23-010" in message for message in refusals), refusals
+        # Exactly one line, at any level: the runner's, with the reason the
+        # handler reports.
+        assert [record.name for record in refusals] == [
+            received_runner.logger.name
+        ], [record.getMessage() for record in refusals]
+        assert refusals[0].levelno == logging.WARNING
+        assert "CM-23-010" in refusals[0].getMessage()
+        assert refusals[0].getMessage().endswith(f": {result.reason}")
         # At any level: the demo matcher keys on the group, not on level.
         assert not [
             record.getMessage()

@@ -138,13 +138,13 @@ class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
         """
 
     def _refuse_citing(self, reason: str) -> Status:
-        """Append the subclass's citation to *reason*, then refuse by placement.
+        """Append the subclass's citation to *reason*, then fail with it.
 
         One ``_refuse_citing`` per citation across the family, never a
         ``_refuse``: see
-        :meth:`SenderEntitlementConditionNode._refuse_by_placement`.
+        :meth:`SenderEntitlementConditionNode._fail_with_reason`.
         """
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"{reason} — REFUSED ({self._spec}, HP-01-006)"
         )
 

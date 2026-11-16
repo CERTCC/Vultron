@@ -67,6 +67,7 @@ from vultron.core.models.events import (
     is_deferral_exempt,
     resolve_case_context_id,
 )
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.semantic_registry import extract_event
 
 # Blackboard key constants — single source of truth used by both nodes
@@ -152,12 +153,16 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         Logged at INFO, not WARNING: the driving adapter logs every rejected
         ``InboxOutcome`` with the actor and activity ids, at WARNING, or at
         INFO for an unhandled one (UCORG-05-013, IO-01-008), so a node-level
-        warning would report it twice.
+        warning would report it twice.  The line drops a reason's
+        ``REFUSED (IDs)`` group: the received runner wrote the refusal's one
+        line (SL-03-004).
         """
         self.feedback_message = reason
         self._set_output(KEY_OUTCOME_STATUS, status)
         self._set_output(KEY_FAILURE_REASON, reason)
-        self.logger.info("%s: %s — %s", self.name, status, reason)
+        self.logger.info(
+            "%s: %s — %s", self.name, status, without_refusal_group(reason)
+        )
         return Status.FAILURE
 
     def _reject(self, reason: str) -> Status:

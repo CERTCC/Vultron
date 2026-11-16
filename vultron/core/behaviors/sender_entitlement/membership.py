@@ -30,9 +30,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.sender_entitlement.base import (
     SenderEntitlementConditionNode,
-    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_entitlement.declarations import (
     SenderEntitlementKind,
@@ -58,9 +58,9 @@ class SenderIsParticipantNode(
 
     Not a :class:`SenderEntitlementConditionNode`: it reuses the participant
     lookup of :class:`FindParticipantByActorIdNode`, so it names its kind
-    itself and takes the family's refusal rule from the free function
-    :func:`~vultron.core.behaviors.sender_entitlement.base.refuse_by_placement`
-    rather than from the base method (SL-03-002, #5786).
+    itself and fails through the free function
+    :func:`~vultron.core.behaviors.node_logger.fail_with_reason` the base
+    method wraps (SL-03-002, #5786).
 
     Returns ``SUCCESS`` when the case lists a participant record for the
     sender, whether or not that participant is active (CM-10-004): an inert
@@ -108,7 +108,7 @@ class SenderIsParticipantNode(
 
         case_id = self._case_id
         if case_id is None:
-            return refuse_by_placement(
+            return fail_with_reason(
                 self,
                 f"No case in this store to check sender"
                 f" '{self.sender_actor_id}' against — REFUSED"
@@ -118,7 +118,7 @@ class SenderIsParticipantNode(
         self.case_id = case_id
         result = super().update()
         if result == Status.FAILURE:
-            return refuse_by_placement(
+            return fail_with_reason(
                 self,
                 f"Sender '{self.sender_actor_id}' is not a participant of"
                 f" case '{case_id}' — REFUSED"
@@ -129,7 +129,7 @@ class SenderIsParticipantNode(
         # index, so the two can never disagree about which record is closed.
         record = self.found_participant
         if record is not None and record.rm_closed:
-            return refuse_by_placement(
+            return fail_with_reason(
                 self,
                 f"Sender '{self.sender_actor_id}' has left case '{case_id}'"
                 " (RM CLOSED) and may act on nothing further — REFUSED"
@@ -194,7 +194,7 @@ class SenderIsActiveParticipantNode(
         if self._case_id is None:
             # An activity that names no case is a routine refusal, as
             # SenderIsParticipantNode reports it, not a Regime 1 anomaly.
-            return self._refuse_by_placement(
+            return self._fail_with_reason(
                 f"No case in this store to check sender"
                 f" '{self.sender_actor_id}' against — REFUSED (HP-01-006)"
             )
@@ -203,7 +203,7 @@ class SenderIsActiveParticipantNode(
             return failure  # Regime 1: no case, so no standing to check
         if may_act_on_case(case, self.datalayer, self.sender_actor_id):
             return Status.SUCCESS
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{self.sender_actor_id}' is not an active participant"
             f" of case '{self._case_id}', or has left it — REFUSED"
             " (HP-01-006, CM-10-004, CM-23-018)"
@@ -278,7 +278,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
         if failure is not None:
             return failure
         if not is_case_content_recipient(case, self.datalayer, sender_id):
-            return self._refuse_by_placement(
+            return self._fail_with_reason(
                 f"Sender '{sender_id}' is not an active participant in case"
                 f" '{case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
             )
@@ -315,17 +315,12 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     Keyed on the sender's recorded RM state, never on the activity id, which
     a repeat sent under a new id does not share.  Read-only.
 
-    Its line stays at INFO, and does not take the placement rule the kinds'
-    checks take (:func:`refuse_by_placement`, SL-03-002), for two reasons
-    (#5786):
-
-    - Its FAILURE is not a refusal.  The handler decides the verdict from
-      the act: a repeat of an act that would close the sender again is
-      ``SKIPPED`` (CM-23-049, ID-05-003), and only any other act is
-      ``REFUSED``.  SL-03-002 picks the level of a *refusal reason*; this
-      line reports a recorded state, which is INFO under SL-03-001.
-    - It carries no ``REFUSED`` wording, so no reader and no matcher takes
-      it as the tree's answer (SL-03-003 is met as it stands).
+    Its FAILURE is not a refusal: the handler decides the verdict from the
+    act, and a repeat of an act that would close the sender again is
+    ``SKIPPED`` (CM-23-049, ID-05-003).  So its reason carries no
+    ``REFUSED`` wording, and its line is DEBUG like every node's fact
+    (:func:`~vultron.core.behaviors.node_logger.fail_with_reason`): the
+    received runner logs the refusal when the verdict is one (SL-03-002).
 
     At the closed-sender door that lets a closing Case Owner through
     (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
@@ -335,7 +330,7 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     which states no refusal either: that door turns away only a repeated
     Leave, which the handler reports ``SKIPPED`` (#5903).
 
-    Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-001.
+    Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-002.
     """
 
     def __init__(
@@ -358,9 +353,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
         ):
             return Status.SUCCESS
         self.sender_closed = True
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"'{self.sender_actor_id}' is already closed on case"
-            f" '{self.case_id}' (CM-23-018)"
+            f" '{self.case_id}' (CM-23-018)",
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
