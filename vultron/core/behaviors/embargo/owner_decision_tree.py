@@ -33,6 +33,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.ledgered_repeat import (
     ActivityNotYetLedgeredNode,
 )
@@ -70,8 +73,8 @@ logger = logging.getLogger(__name__)
 
 
 def activate_embargo_on_case_tree(
-    case_id: str,
-    embargo_id: str,
+    case_id: str | None,
+    embargo_id: str | None,
     sender_actor_id: str,
     actor_config: ActorConfig | None = None,
     *,
@@ -118,9 +121,15 @@ def activate_embargo_on_case_tree(
     dropped and the ledger no longer reaches (CM-31-030), and re-issues each
     outstanding stub Invite against the now-active embargo (CM-11-016).
 
+    An ``Add`` missing its embargo id or case id gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_id: ID of the VulnerabilityCase.
-        embargo_id: ID of the proposed EmbargoEvent being activated.
+        case_id: ID of the VulnerabilityCase; ``None`` when the ``Add``
+            names none.
+        embargo_id: ID of the proposed EmbargoEvent being activated;
+            ``None`` when the ``Add`` names none.
         sender_actor_id: Sender of the ``Add``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite the activation re-issues.
@@ -130,6 +139,11 @@ def activate_embargo_on_case_tree(
     Returns:
         Root node of the ``ActivateEmbargoOnCaseBT`` Sequence.
     """
+    if embargo_id is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            "ActivateEmbargoOnCaseBT",
+            "Add(EmbargoEvent) is missing its embargo id or case id",
+        )
     # The owner's activation of a shorter revision drops bound signatories the
     # ledger no longer reaches; capture them before the write, tell them after
     # (CM-31-030).
@@ -184,8 +198,8 @@ def activate_embargo_on_case_tree(
 
 
 def reject_embargo_proposal_on_case_tree(
-    case_id: str,
-    embargo_id: str,
+    case_id: str | None,
+    embargo_id: str | None,
     sender_actor_id: str,
     actor_config: ActorConfig | None = None,
     *,
@@ -228,9 +242,15 @@ def reject_embargo_proposal_on_case_tree(
     commits neither entry (MSM-07-032).  A replica copies both entries in
     order and decides nothing (CM-23-016).
 
+    An ``Reject`` missing its embargo id or case id gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_id: ID of the VulnerabilityCase.
-        embargo_id: ID of the proposed EmbargoEvent being rejected.
+        case_id: ID of the VulnerabilityCase; ``None`` when the ``Reject``
+            names none.
+        embargo_id: ID of the proposed EmbargoEvent being rejected;
+            ``None`` when the ``Reject`` names none.
         sender_actor_id: Sender of the ``Reject``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite a termination re-issues.
@@ -240,6 +260,11 @@ def reject_embargo_proposal_on_case_tree(
     Returns:
         Root node of the ``RejectEmbargoProposalOnCaseBT`` Sequence.
     """
+    if embargo_id is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            "RejectEmbargoProposalOnCaseBT",
+            "Reject(EmbargoEvent) is missing its embargo id or case id",
+        )
     root = create_receive_activity_tree(
         name="RejectEmbargoProposalOnCaseBT",
         case_id=case_id,

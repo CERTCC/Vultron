@@ -56,46 +56,17 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        rejecting_actor_id = request.actor_id
-        invite_id = request.invite_id
-
-        case_id, embargo_id = request.case_id, request.embargo_id
-
-        if not case_id:
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve case_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) does not name a case"
-            )
-        if not embargo_id:
-            # Which terms are refused decides the consent effect (MSM-07-004);
-            # a Reject that names none is malformed, like an Accept that does.
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve embargo_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) does not name an embargo"
-            )
-
-        if not invite_id:
-            # The invitee is read from the recorded Invite (EP-09-010); a
-            # Reject that names none has no invitee to be.
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve invite_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) is missing its Invite id"
-            )
-
-        # One tree: its door guards refuse a closed case, an unaddressed copy
-        # (HP-01-005, ADR-0118) and a sender that is not the recorded Invite's
-        # invitee (EP-09-010, HP-01-006, ADR-0115) before anything is written.
+        # A Reject naming no case, no embargo (MSM-07-004) or no Invite
+        # (EP-09-010) gets the incomplete-activity tree, whose guard refuses
+        # it (CLP-10-018).  One tree: its door guards refuse a closed case,
+        # an unaddressed copy (HP-01-005, ADR-0118) and a sender that is not
+        # the recorded Invite's invitee (EP-09-010, HP-01-006, ADR-0115)
+        # before anything is written.
         tree = reject_invite_to_embargo_tree(
-            case_id=case_id,
-            rejecting_actor_id=rejecting_actor_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
+            case_id=request.case_id,
+            rejecting_actor_id=request.actor_id,
+            invite_id=request.invite_id,
+            embargo_id=request.embargo_id,
             sender_rule=self.sender_entitlement,
         )
         # A repeat of a Reject already recorded is refused by the tree's

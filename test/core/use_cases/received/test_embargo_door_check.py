@@ -22,7 +22,6 @@ copy (CLP-10-018); nothing else is written to its store or its outbox.
 
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -191,21 +190,24 @@ def test_an_unaddressed_copy_is_refused_before_any_write(
     ],
     ids=["accept", "reject"],
 )
-def test_an_answer_naming_no_invite_is_refused_before_any_write(use_case):
+def test_an_answer_naming_no_invite_is_refused_before_any_write(
+    use_case, make_payload
+):
     """The invitee is read from the recorded Invite, so none means no invitee.
 
-    The refusal comes before any tree: the activity cannot name the Invite
-    whose invitee the sender guard would check (EP-09-010).
+    The tree's incomplete-activity guard refuses it once the doors admit it
+    and intake records it: the activity cannot name the Invite whose invitee
+    the sender guard would check (EP-09-010, CLP-10-018).
     """
     dl, _actor, _case, embargo = make_embargo_case_with_actor(
         _CASE, _SENDER, case_manager_actor_id=_MANAGER
     )
-    request = MagicMock()
-    request.receiving_actor_id = _MANAGER
-    request.actor_id = _SENDER
-    request.case_id = _CASE
-    request.embargo_id = embargo.id_
-    request.invite_id = None
+    event = make_payload(
+        _ACTIVITIES[use_case](embargo), receiving_actor_id=_MANAGER, at=dl
+    )
+    request = event.model_copy(update={"object_": None})
+    assert request.invite_id is None
+    assert request.embargo_id == embargo.id_
     before = _snapshot(dl)
 
     result = run_in_act(use_case(dl, request))

@@ -29,6 +29,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
@@ -51,8 +54,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_add_note_to_case_received_tree(
-    note_obj: VultronNote,
-    case_id: str,
+    note_obj: VultronNote | None,
+    case_id: str | None,
     sender_id: str,
     activity_id: str,
     *,
@@ -119,9 +122,15 @@ def create_add_note_to_case_received_tree(
     path is the one the tree declares (HP-01-038), and the path stage
     refuses any other receiver before the guard runs (HP-01-039).
 
+    An ``Add`` missing its inline note or case id gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        note_obj: The note the ``Add`` carries inline.
-        case_id: ID of the VulnerabilityCase receiving the note.
+        note_obj: The note the ``Add`` carries inline; ``None`` when it
+            carries none.
+        case_id: ID of the VulnerabilityCase receiving the note; ``None``
+            when the ``Add`` names none.
         sender_id: The ``Add(Note)``'s sender.
         activity_id: The ``Add(Note)``'s id, to recognise a redelivery.
         sender_rule: The use case's declared sender rule (HP-01-008).
@@ -129,6 +138,12 @@ def create_add_note_to_case_received_tree(
     Returns:
         Root ``GuardedAttachAndCommitBT`` Sequence node.
     """
+    if note_obj is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            "GuardedAttachAndCommitBT",
+            "Add(Note)[target=VulnerabilityCase] is missing its inline note"
+            " or case id",
+        )
     return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
         # An active participant asks the CASE_MANAGER alone to attach the

@@ -22,6 +22,9 @@ recommending participant (CM-16-001..004).
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -57,8 +60,8 @@ from vultron.enums.roles import CVDRole
 def create_recommend_actor_to_case_received_tree(
     recommendation_id: str,
     recommender_id: str,
-    recommended_id: str,
-    case_id: str,
+    recommended_id: str | None,
+    case_id: str | None,
     offer_content: str | None = None,
     suggested_roles: list[str] | None = None,
     actor_config: ActorConfig | None = None,
@@ -130,12 +133,18 @@ def create_recommend_actor_to_case_received_tree(
     refuses a suggestion from anyone the case does not list, before the
     case ledger is written or anything is forwarded (HP-01-006, #3668).
 
+    An Offer missing its recommended actor or case gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
         recommendation_id: ID of the incoming ``Offer(Actor)[target=VulnerabilityCase]``
         activity.
         recommender_id: Actor ID of the recommending participant.
-        recommended_id: Actor ID of the suggested new participant.
-        case_id: ID of the VulnerabilityCase.
+        recommended_id: Actor ID of the suggested new participant;
+            ``None`` or empty when the Offer names none.
+        case_id: ID of the VulnerabilityCase; ``None`` or empty when the
+            Offer names none.
         offer_content: Optional reason text from the inbound Offer: its
             ``content``, or its ``summary`` when there is no content
             (CM-16-005).  On the fresh path it becomes the ``content`` of the
@@ -158,6 +167,12 @@ def create_recommend_actor_to_case_received_tree(
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
     """
+    if not recommended_id or not case_id:
+        return create_incomplete_activity_received_tree(
+            "RecommendActorToCaseBT",
+            "Offer(Actor)[target=VulnerabilityCase] is missing its"
+            " recommended actor or case",
+        )
     ac7b_already_participant = py_trees.composites.Sequence(
         name="AC7b_AlreadyParticipant",
         memory=False,

@@ -18,6 +18,9 @@
 import py_trees
 
 from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.addressee import (
     ENCLOSING_TREE_ADDRESSEE_CHECK,
 )
@@ -56,7 +59,7 @@ from vultron.errors import VultronWiringError
 
 
 def create_close_case_received_tree(
-    case_id: str,
+    case_id: str | None,
     activity_id: str,
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
@@ -177,8 +180,13 @@ def create_close_case_received_tree(
     ``CheckIsCaseManagerNode`` naturally gates the commit to the actor that
     holds ``CVDRole.CASE_MANAGER`` — no identity comparison needed in Python.
 
+    A Leave that names no case gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_id: ID of the VulnerabilityCase being closed.
+        case_id: ID of the VulnerabilityCase being closed; ``None`` when the
+            Leave names none.
         activity_id: ID of the inbound Leave activity; the CM-23-011 and
             CM-23-013 replies thread to it.
         sender_actor_id: Actor URI of the Leave sender (resolved from the
@@ -209,6 +217,10 @@ def create_close_case_received_tree(
     Returns:
         Root ``CloseCaseBT`` Sequence node.
     """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            "CloseCaseBT", "Leave(VulnerabilityCase) has no case id"
+        )
     if sender_actor_id is None:
         return create_receive_activity_tree(
             name="CloseCaseBT",

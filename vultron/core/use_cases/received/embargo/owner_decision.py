@@ -71,7 +71,6 @@ class _OwnerDecisionReceivedUseCase(_EmbargoEventReceivedUseCase):
 class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
     """The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (EA / EC)."""
 
-    _label = "Add(EmbargoEvent)"
     _tree_label = "ActivateEmbargoOnCaseBT"
 
     def __init__(
@@ -96,7 +95,7 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
         )
 
     def _build_tree(
-        self, case_id: str, embargo_id: str, sender_actor_id: str
+        self, case_id: str | None, embargo_id: str | None, sender_actor_id: str
     ) -> py_trees.behaviour.Behaviour:
         return activate_embargo_on_case_tree(
             case_id=case_id,
@@ -118,7 +117,6 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
     the participants (EMB-04-002, MSM-07-032).
     """
 
-    _label = "Reject(EmbargoEvent)"
     _tree_label = "RejectEmbargoProposalOnCaseBT"
 
     def __init__(
@@ -140,7 +138,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
         )
 
     def _build_tree(
-        self, case_id: str, embargo_id: str, sender_actor_id: str
+        self, case_id: str | None, embargo_id: str | None, sender_actor_id: str
     ) -> py_trees.behaviour.Behaviour:
         return reject_embargo_proposal_on_case_tree(
             case_id=case_id,

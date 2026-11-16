@@ -87,17 +87,6 @@ class OfferActorToCaseReceivedUseCase:
             else None
         )
 
-        if not recommended_id or not case_id:
-            logger.warning(
-                "OfferActorToCaseReceived: missing recommended_id or case_id"
-                " in event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(Actor)[target=VulnerabilityCase] is missing its"
-                " recommended actor or case"
-            )
-
         offer_content = getattr(request.activity, "content", None)
         if offer_content is not None and not isinstance(offer_content, str):
             logger.warning(
@@ -121,6 +110,8 @@ class OfferActorToCaseReceivedUseCase:
         ):
             suggested_roles = None
 
+        # An Offer missing its recommended actor or case gets the
+        # incomplete-activity tree, whose guard refuses it (CLP-10-018).
         tree = create_recommend_actor_to_case_received_tree(
             recommendation_id=activity_id,
             recommender_id=recommender_id,

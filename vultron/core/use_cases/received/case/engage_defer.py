@@ -53,10 +53,9 @@ class EngageCaseReceivedUseCase:
         request = self._request
 
         actor_id = request.actor_id
+        # A Join naming no case gets the incomplete-activity tree, whose
+        # guard refuses it (CLP-10-018).
         case_id = request.case_id
-        if case_id is None:
-            logger.warning("engage_case: missing case_id on request")
-            return HandlerResult.refused("Engage activity has no case id")
 
         # The Join names the case (ADR-0165): the tree's path stage refuses
         # one this store does not hold (AKM-03-006).
@@ -120,10 +119,9 @@ class DeferCaseReceivedUseCase:
         request = self._request
 
         actor_id = request.actor_id
+        # An Ignore naming no case gets the incomplete-activity tree, whose
+        # guard refuses it (CLP-10-018).
         case_id = request.case_id
-        if case_id is None:
-            logger.warning("defer_case: missing case_id on request")
-            return HandlerResult.refused("Defer activity has no case id")
 
         # The Ignore names the case, as the Join does (AKM-03-006).  A
         # receipt, not a transition, for the reason given on the engage line

@@ -77,19 +77,13 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        report_id = request.report_id
-        case_id = request.case_id
-        if report_id is None or case_id is None:
-            logger.warning("add_report_to_case: missing report_id or case_id")
-            return HandlerResult.refused(
-                "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
-                "missing its report id or case id"
-            )
-        # A case this store does not hold puts it on the no-case path, which
-        # the tree's path stage refuses (HP-01-039).
+        # An Add missing its report id or case id gets the incomplete-
+        # activity tree, whose guard refuses it (CLP-10-018).  A case this
+        # store does not hold puts it on the no-case path, which the tree's
+        # path stage refuses (HP-01-039).
         tree = create_add_report_to_case_received_tree(
-            report_id=report_id,
-            case_id=case_id,
+            report_id=request.report_id,
+            case_id=request.case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
@@ -165,12 +159,9 @@ class CloseCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # A Leave naming no case gets the incomplete-activity tree, whose
+        # guard refuses it (CLP-10-018).
         case_id = request.case_id
-        if case_id is None:
-            logger.warning("close_case: missing case_id")
-            return HandlerResult.refused(
-                "Leave(VulnerabilityCase) has no case id"
-            )
 
         # A receipt, not a closure: the Leave names the case (ADR-0165), and
         # the tree's path stage refuses one this store does not hold
@@ -207,7 +198,7 @@ class CloseCaseReceivedUseCase:
         )
 
 
-def _read_close(case_id: str) -> OutcomeReader:
+def _read_close(case_id: str | None) -> OutcomeReader:
     """The close tree's own reading, asked after the doors.
 
     - A sender already closed repeats a closing act: its effect is in place,

@@ -14,7 +14,7 @@
 
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from py_trees.common import Status
@@ -179,19 +179,26 @@ def test_unknown_case_is_refused(dl):
 
 
 @pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-10-018")
 @pytest.mark.parametrize("missing", ["report_id", "case_id"])
 def test_missing_id_is_refused(dl, missing):
-    request = cast(
-        AddReportToCaseReceivedEvent,
-        SimpleNamespace(
-            report_id=None if missing == "report_id" else "r",
-            case_id=None if missing == "case_id" else _CASE_ID,
-        ),
-    )
+    """The tree's incomplete-activity guard refuses it, nothing committed."""
+    dl.create(_managed_case(dl))
 
-    result = run_in_act(AddReportToCaseReceivedUseCase(dl, request))
+    with patch.object(
+        AddReportToCaseReceivedEvent,
+        missing,
+        new_callable=PropertyMock,
+        return_value=None,
+    ):
+        result = _add(dl, gen_report())
 
     assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason == (
+        "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
+        "missing its report id or case id"
+    )
+    assert _entries(dl) == []
 
 
 @pytest.mark.spec("CM-17-004")

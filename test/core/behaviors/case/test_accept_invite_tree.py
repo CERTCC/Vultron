@@ -447,6 +447,7 @@ def test_accept_tree_has_no_participant_creating_node() -> None:
     tree = create_accept_invite_actor_to_case_tree(
         case_id=_CM21_CASE_ID,
         invitee_id=_CM21_INVITEE_ID,
+        embedded_invitee_id=_CM21_INVITEE_ID,
         invite_id=f"{_CM21_CASE_ID}/invitations/1",
         sender_rule=_ACCEPT_INVITE_RULE,
     )
@@ -478,6 +479,7 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
     tree = create_accept_invite_actor_to_case_tree(
         case_id="https://example.org/cases/gate",
         invitee_id="https://example.org/actors/invitee",
+        embedded_invitee_id="https://example.org/actors/invitee",
         invite_id="https://example.org/cases/gate/invitations/1",
         sender_rule=_ACCEPT_INVITE_RULE,
     )
@@ -555,6 +557,7 @@ def test_case_announce_and_backfill_precede_the_first_committing_effect():
     tree = create_accept_invite_actor_to_case_tree(
         case_id="https://example.org/cases/order",
         invitee_id="https://example.org/actors/late-joiner",
+        embedded_invitee_id="https://example.org/actors/late-joiner",
         invite_id="https://example.org/cases/order/invitations/1",
         sender_rule=_ACCEPT_INVITE_RULE,
     )

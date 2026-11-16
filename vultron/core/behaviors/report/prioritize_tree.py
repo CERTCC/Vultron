@@ -82,6 +82,9 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.held_case import (
     CaseNamedByReference,
 )
@@ -178,7 +181,7 @@ def _engage_effects_unless_restated(
 
 
 def create_engage_case_tree(
-    case_id: str,
+    case_id: str | None,
     actor_id: str,
     *,
     sender_rule: SenderRule,
@@ -197,8 +200,13 @@ def create_engage_case_tree(
     effect block is skipped whole and no second Announce is queued
     (:func:`_engage_effects_unless_restated`, #5006).
 
+    A Join that names no case gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_id: ID of VulnerabilityCase being engaged
+        case_id: ID of VulnerabilityCase being engaged; ``None`` when the
+            Join names none
         actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
             (RSH-08-001)
         sender_rule: The use case's declared sender rule; the factory
@@ -207,6 +215,10 @@ def create_engage_case_tree(
     Returns:
         Root node of the engage_case behavior tree (Sequence)
     """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            "EngageCaseBT", "Engage activity has no case id"
+        )
     # The Join names the case and carries no copy of it (ADR-0165), so the
     # tree reads every detail from the case this store holds and stores
     # nothing from the message but what intake records (CLP-07-013).
@@ -252,7 +264,7 @@ def create_engage_case_tree(
 
 
 def create_defer_case_tree(
-    case_id: str,
+    case_id: str | None,
     actor_id: str,
     *,
     sender_rule: SenderRule,
@@ -264,8 +276,13 @@ def create_defer_case_tree(
     actor has decided to defer the case, so we record their RM state
     transition to DEFERRED in their CaseParticipant.participant_status.
 
+    An Ignore that names no case gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_id: ID of VulnerabilityCase being deferred
+        case_id: ID of VulnerabilityCase being deferred; ``None`` when the
+            Ignore names none
         actor_id: The sender, whose declared RM state (DEFERRED) is recorded
             (RSH-08-001)
         sender_rule: The use case's declared sender rule; the factory
@@ -274,6 +291,10 @@ def create_defer_case_tree(
     Returns:
         Root node of the defer_case behavior tree (Sequence)
     """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            "DeferCaseBT", "Defer activity has no case id"
+        )
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,

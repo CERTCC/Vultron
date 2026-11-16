@@ -111,22 +111,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The invitee is read from the recorded Invite (EP-09-010), so an
-        # Accept that names none has no invitee to be.
         embargo_id, invite_id = request.embargo_id, request.invite_id
-        if embargo_id is None or not invite_id:
-            missing = "embargo id" if embargo_id is None else "Invite id"
-            logger.error(
-                "accept_invite_to_embargo_on_case: missing %s on request",
-                missing,
-            )
-            return HandlerResult.refused(
-                f"Accept(Invite(EmbargoEvent)) is missing its {missing}"
-            )
-
-        # A case this store does not hold puts the Accept on the no-case
-        # path, which the tree's path stage refuses (HP-01-039); one naming
-        # no case is refused by the incomplete-activity guard (CLP-10-018).
+        # An Accept missing its embargo id or Invite id (the invitee is read
+        # from the recorded Invite, EP-09-010), or naming no case, is refused
+        # by the incomplete-activity guard (CLP-10-018).  A case this store
+        # does not hold puts the Accept on the no-case path, which the tree's
+        # path stage refuses (HP-01-039).
         case_id = request.case_id
 
         # One received tree (CLP-10-005).  accepting_actor_id is passed so

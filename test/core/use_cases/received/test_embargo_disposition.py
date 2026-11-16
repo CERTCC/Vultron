@@ -52,6 +52,7 @@ from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
+    em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -85,69 +86,152 @@ def _assert_refused(result, fragment: str) -> None:
     assert fragment in (result.reason or "")
 
 
+_C1 = "https://example.org/cases/c1"
+
+
+def _embargo(case_id: str = _C1) -> as_EmbargoEvent:
+    return make(
+        as_EmbargoEvent,
+        id_=f"{case_id}/embargo_events/e1",
+        context=case_id,
+        end_time=days_from_now(45),
+    )
+
+
+def _case(case_id: str = _C1) -> as_VulnerabilityCase:
+    return make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id)
+
+
+def _invite() -> object:
+    return em_propose_embargo_activity(
+        _embargo(),
+        context=_C1,
+        actor=_COORD,
+        to=[_VENDOR],
+        at=authored_at(),
+    )
+
+
+def _without(event, *fields: str):
+    """*event* with each named field dropped: a message missing that part.
+
+    The tree runs on a real event, so its doors admit the message and its
+    incomplete-activity guard refuses it (CLP-10-018).
+    """
+    return event.model_copy(update=dict.fromkeys(fields))
+
+
 class TestMalformedEmbargoMessagesAreRefused:
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.parametrize("missing", ["object_", "target"])
     @pytest.mark.parametrize(
-        "embargo_id, case_id",
-        [(None, "https://example.org/cases/c1"), ("e1", None)],
-    )
-    @pytest.mark.parametrize(
-        "use_case",
+        "factory, use_case",
         [
-            ActivateEmbargoOnCaseReceivedUseCase,
-            RejectEmbargoProposalOnCaseReceivedUseCase,
+            (seeded_activation, ActivateEmbargoOnCaseReceivedUseCase),
+            (
+                seeded_proposal_rejection,
+                RejectEmbargoProposalOnCaseReceivedUseCase,
+            ),
         ],
     )
-    def test_owner_decision_missing_ids(self, embargo_id, case_id, use_case):
-        request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = run_in_act(use_case(_make_dl(), request))
-        _assert_refused(result, "missing")
-
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.parametrize(
-        "embargo_id, case_id",
-        [(None, "https://example.org/cases/c1"), ("e1", None)],
-    )
-    def test_remove_missing_ids(self, embargo_id, case_id):
-        request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = run_in_act(
-            RemoveEmbargoEventFromCaseReceivedUseCase(_make_dl(), request)
+    def test_owner_decision_missing_ids(
+        self, make_payload, factory, use_case, missing
+    ):
+        activity = factory(
+            _embargo(), target=_case(), actor=_VENDOR, to=[_COORD]
         )
-        _assert_refused(result, "missing")
+        event = make_payload(activity, receiving_actor_id=_COORD)
+        result = run_in_act(use_case(_make_dl(), _without(event, missing)))
+        _assert_refused(result, "is missing its embargo id or case id")
 
     @pytest.mark.spec("HP-01-003")
-    def test_accept_missing_embargo_id(self):
-        request = _request(embargo_id=None)
-        result = run_in_act(
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.parametrize("missing", ["object_", "origin"])
+    def test_remove_missing_ids(self, make_payload, missing):
+        activity = remove_embargo_from_case_activity(
+            _embargo(),
+            origin=_C1,
+            context=_C1,
+            reason=TerminationReason.EARLY,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
         )
-        _assert_refused(result, "missing")
+        event = make_payload(activity, receiving_actor_id=_COORD)
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                _make_dl(), _without(event, missing)
+            )
+        )
+        _assert_refused(
+            result, "Remove(EmbargoEvent) is missing its embargo id or case id"
+        )
 
     @pytest.mark.spec("HP-01-003")
-    def test_reject_missing_embargo_id(self):
+    @pytest.mark.spec("CLP-10-018")
+    def test_accept_missing_embargo_id(self, make_payload):
+        accept = em_accept_embargo_activity(
+            _invite(),
+            context=_C1,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
+        )
+        event = make_payload(accept, receiving_actor_id=_COORD)
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                _make_dl(), _without(event, "inner_object")
+            )
+        )
+        _assert_refused(
+            result, "Accept(Invite(EmbargoEvent)) is missing its embargo id"
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CLP-10-018")
+    def test_reject_missing_embargo_id(self, make_payload):
         """A Reject that names no embargo is malformed, like an Accept that does.
 
         Which terms are refused decides the consent effect (MSM-07-004), so
-        the handler refuses rather than guessing.
+        the tree refuses rather than guessing.
         """
-        request = _request(
-            case_id="https://example.org/cases/c1",
-            embargo_id=None,
-            invite_id="i1",
-            actor_id=_VENDOR,
+        reject = em_reject_embargo_activity(
+            _invite(),
+            context=_C1,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
         )
+        event = make_payload(reject, receiving_actor_id=_COORD)
         result = run_in_act(
-            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                _make_dl(), _without(event, "inner_object")
+            )
         )
-        _assert_refused(result, "embargo")
+        _assert_refused(
+            result, "Reject(Invite(EmbargoEvent)) does not name an embargo"
+        )
 
     @pytest.mark.spec("HP-01-003")
-    def test_reject_missing_case_id(self):
-        request = _request(case_id=None, invite_id="i1", actor_id=_VENDOR)
-        result = run_in_act(
-            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+    @pytest.mark.spec("CLP-10-018")
+    def test_reject_missing_case_id(self, make_payload):
+        reject = em_reject_embargo_activity(
+            _invite(),
+            context=_C1,
+            actor=_VENDOR,
+            to=[_COORD],
+            at=authored_at(),
         )
-        _assert_refused(result, "case")
+        event = make_payload(reject, receiving_actor_id=_COORD)
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                _make_dl(), _without(event, "inner_context")
+            )
+        )
+        _assert_refused(
+            result, "Reject(Invite(EmbargoEvent)) does not name a case"
+        )
 
 
 class TestEmbargoMessagesForUnknownCaseAreRefused:

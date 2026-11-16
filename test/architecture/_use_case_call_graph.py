@@ -14,8 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Call-graph resolution through the use-case package for the use-case ratchets.
 
-Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020) and
-``test_single_bt_execution_received_side.py`` (CLP-10-005): the classes
+Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020),
+``test_single_bt_execution_received_side.py`` (CLP-10-005) and
+``test_received_use_case_execute.py`` (CLP-10-018): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
 a BT node (BT-22-005), so moving a helper there hides neither its writes nor
@@ -129,6 +130,26 @@ def _is_tree_run_call(node: ast.Call) -> bool:
     ) or (isinstance(func, ast.Name) and func.id in _TREE_RUN_CALLEES)
 
 
+def _is_returned_refusal(node: ast.AST) -> bool:
+    """True for ``return HandlerResult.refused(...)``.
+
+    The verdict a use case decides in Python rather than reads from the run
+    of its tree (ADR-0195).  A refusal a nested reader function returns is
+    not in the walk's own scope, so it is not seen here.
+    """
+    if not isinstance(node, ast.Return) or not isinstance(
+        node.value, ast.Call
+    ):
+        return False
+    func = node.value.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "refused"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "HandlerResult"
+    )
+
+
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:
     """Yield all descendants of *node* without crossing nested function scopes.
 
@@ -173,7 +194,8 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Transitive resolution through the use-case package (CLP-10-005, CLP-10-020)
+# Transitive resolution through the use-case package (CLP-10-005, CLP-10-020,
+# CLP-10-018)
 # ---------------------------------------------------------------------------
 
 #: A concrete class ``self`` is bound to: (module name, class name).
@@ -337,6 +359,32 @@ class _UseCaseCorpus:
             cls: self._count_tree_runs(step, (), transitive=transitive)
             for cls, step in self._executes(module)
         }
+
+    def refusals_per_execute(self, module: str) -> dict[str, list[str]]:
+        """The ``return HandlerResult.refused(...)`` each ``execute()`` reaches.
+
+        Keyed by class, as :meth:`tree_runs_per_execute` is; each refusal is
+        named ``module:line``.  ``execute()``'s own body counts, and so does
+        every indexed function or method it reaches, in that definition's own
+        scope (a nested reader's ``return`` is the reader's, not the walk's).
+        """
+        return {
+            cls: sorted(self._refusals_reached(step, set()))
+            for cls, step in self._executes(module)
+        }
+
+    def _refusals_reached(self, step: _Step, seen: set[object]) -> set[str]:
+        seen.add(step[3])
+        module, _, func, _ = step
+        found = {
+            f"{module}:{node.lineno}"
+            for node in _walk_own_scope(func)
+            if isinstance(node, ast.Return) and _is_returned_refusal(node)
+        }
+        for _, callee in self._calls(step):
+            if callee is not None and callee[3] not in seen:
+                found |= self._refusals_reached(callee, seen)
+        return found
 
     def _executes(self, module: str) -> Iterator[tuple[str, _Step]]:
         """``(class, step)`` for each class in *module* with an ``execute()``."""

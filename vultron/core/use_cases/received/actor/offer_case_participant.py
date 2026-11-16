@@ -99,21 +99,10 @@ class OfferCaseParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        activity_id = request.activity_id
-        case_id = request.target_id
-
-        if not case_id:
-            logger.warning(
-                "OfferCaseParticipantReceived: missing case_id in event '%s'"
-                " — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(CaseParticipant) names no case"
-            )
-
+        # An Offer that names no case gets the incomplete-activity tree,
+        # whose guard refuses it (CLP-10-018).
         tree = create_receive_offer_case_participant_tree(
-            case_id=case_id,
+            case_id=request.target_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
@@ -173,16 +162,8 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         activity_id = request.activity_id
         case_id = request.target_id or request.inner_target_id
 
-        if not case_id:
-            logger.warning(
-                "AcceptOfferCaseParticipantReceived: missing case_id in"
-                " event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Accept(Offer(CaseParticipant)) is missing its case id"
-            )
-
+        # An Accept missing its case id gets the incomplete-activity tree,
+        # whose guard refuses it (CLP-10-018).
         # The tree looks up the Offer the Accept names: the invitee, its
         # roles and the recommender are the recorded Offer's, not the
         # Accept's (CM-16-019, ISSUE-1745).
@@ -241,16 +222,8 @@ class RejectOfferCaseParticipantReceivedUseCase:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id
-        if not case_id:
-            logger.warning(
-                "RejectOfferCaseParticipantReceived: missing case_id in"
-                " event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Reject(Offer(CaseParticipant)) names no case"
-            )
-
+        # A Reject that names no case gets the incomplete-activity tree,
+        # whose guard refuses it (CLP-10-018).
         # The tree looks up the Offer the Reject names: the recommender and
         # the recommended actor are the recorded Offer's (CM-16-023).
         tree = create_reject_actor_recommendation_received_tree(

@@ -90,6 +90,9 @@ from typing import Any
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
     StoreEmbeddedParticipantsNode,
@@ -130,16 +133,21 @@ from vultron.core.services.case_replica_seeding import report_ids_of
 
 def create_create_case_received_tree(
     case_obj: Any,
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Build the bootstrap tree for a received ``Create(VulnerabilityCase)``.
 
+    A Create that carries no case object, or whose case object has no id,
+    gets the incomplete-activity tree instead: its guard refuses the
+    activity after the doors admit it and intake records it (CLP-10-018).
+
     Args:
-        case_obj: The ``VulnerabilityCase`` the sender created.
-        case_id: Its id.
+        case_obj: The ``VulnerabilityCase`` the sender created; ``None``
+            when the Create carries none.
+        case_id: Its id; ``None`` when the case object has none.
         sender_id: The actor that sent the Create.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).  The receiver
@@ -150,6 +158,16 @@ def create_create_case_received_tree(
         The tree root; the chosen route is on its
         :class:`~vultron.core.behaviors.case.nodes.replica_bootstrap.ClassifyBootstrapRouteNode`.
     """
+    if case_obj is None:
+        return create_incomplete_activity_received_tree(
+            "CreateCaseReceivedBT",
+            "Create(VulnerabilityCase) carries no case object",
+        )
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            "CreateCaseReceivedBT",
+            "Create(VulnerabilityCase) case object has no id",
+        )
     route = BootstrapRoute()
     report_ids = report_ids_of(case_obj)
     trusted = py_trees.composites.Sequence(

@@ -658,6 +658,7 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
         for node in create_accept_invite_actor_to_case_tree(
             case_id=CASE_ID,
             invitee_id=VENDOR,
+            embedded_invitee_id=VENDOR,
             invite_id=f"{CASE_ID}/invitations/1",
             sender_rule=_ACCEPT_INVITE_RULE,
         ).iterate()

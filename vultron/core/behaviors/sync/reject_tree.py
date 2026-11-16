@@ -3,6 +3,9 @@
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -20,7 +23,7 @@ from vultron.core.behaviors.sync.nodes import (
 
 
 def create_reject_log_entry_tree(
-    case_id: str,
+    case_id: str | None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -58,12 +61,22 @@ def create_reject_log_entry_tree(
     from its ``target``; that form states no entry (index -1), so it is answered
     as a replay from genesis (SYNC-16-029).
 
+    A ``Reject`` naming neither a log entry nor a case gets the
+    incomplete-activity tree instead: its guard refuses the activity after
+    the doors admit it and intake records it (CLP-10-018).
+
     Args:
         case_id: The case the peer's ``Reject`` is about: its rejected
             entry's case, or the case its ``target`` names when it names no
             entry (SYNC-16-027).  Its CASE_MANAGER gates the answer.
+            ``None`` when it names neither.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            "RejectLogEntryReceivedBT",
+            "Reject(CaseLedgerEntry) names neither a log entry nor a case",
+        )
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.
     # Resync replays entries the ledger already holds, so it keeps working
     # after the case closes (ADR-0085, CM-23-042).

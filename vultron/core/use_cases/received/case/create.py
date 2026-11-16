@@ -88,25 +88,9 @@ class CreateCaseReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-
-        if request.case is None:
-            logger.warning(
-                "create_case_received: no case domain object in event for "
-                "case '%s'",
-                case_id,
-            )
-            return HandlerResult.refused(
-                "Create(VulnerabilityCase) carries no case object"
-            )
-
-        if case_id is None:
-            logger.warning(
-                "create_case_received: case_id missing in event — refusing"
-            )
-            return HandlerResult.refused(
-                "Create(VulnerabilityCase) case object has no id"
-            )
-
+        # A Create that carries no case object, or whose case object has no
+        # id, gets the incomplete-activity tree, whose guard refuses it
+        # (CLP-10-018).
         tree = create_create_case_received_tree(
             request.case,
             case_id,
@@ -126,8 +110,12 @@ class CreateCaseReceivedUseCase:
         )
 
 
-def _bootstrap_route_reader(case_id: str) -> OutcomeReader:
-    """Read the bootstrap route the tree classified on a successful run."""
+def _bootstrap_route_reader(case_id: str | None) -> OutcomeReader:
+    """Read the bootstrap route the tree classified on a successful run.
+
+    An incomplete Create (*case_id* ``None``) never succeeds: its guard's
+    refusal is read ahead of this reader (CLP-10-018).
+    """
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         if not outcome.succeeded:

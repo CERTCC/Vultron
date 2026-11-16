@@ -22,6 +22,9 @@ The Case Owner's receipt of the CASE_MANAGER's ``Offer(CaseParticipant)``
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
 )
@@ -43,7 +46,7 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 
 def create_receive_offer_case_participant_tree(
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
     *,
     sender_rule: SenderRule,
@@ -59,8 +62,13 @@ def create_receive_offer_case_participant_tree(
     refuses one from any other actor before anything is recorded (HP-01-006,
     PCR-03-001).
 
+    An Offer that names no case gets the incomplete-activity tree instead:
+    its guard refuses the activity after the doors admit it and intake
+    records it (CLP-10-018).
+
     Args:
-        case_id: ID of the VulnerabilityCase.
+        case_id: ID of the VulnerabilityCase; ``None`` or empty when the
+            activity names none.
         sender_id: Actor ID of the Offer's sender.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -68,6 +76,11 @@ def create_receive_offer_case_participant_tree(
     Returns:
         Root ``ReceiveOfferCaseParticipantBT`` Sequence node.
     """
+    if not case_id:
+        return create_incomplete_activity_received_tree(
+            "ReceiveOfferCaseParticipantBT",
+            "Offer(CaseParticipant) names no case",
+        )
     return create_receive_activity_tree(
         name="ReceiveOfferCaseParticipantBT",
         case_id=case_id,
@@ -91,7 +104,7 @@ def create_receive_offer_case_participant_tree(
 
 def create_accept_actor_recommendation_received_tree(
     answer_id: str,
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
     *,
     sender_rule: SenderRule,
@@ -152,10 +165,15 @@ def create_accept_actor_recommendation_received_tree(
     names ``CASE_MANAGER`` or ``CASE_OWNER`` for the invitee: the roles are
     never stripped, so no Invite goes out (CM-20-006, CM-20-008).
 
+    An Accept missing its case id gets the incomplete-activity tree instead:
+    its guard refuses the activity after the doors admit it and intake
+    records it (CLP-10-018).
+
     Args:
         answer_id: ID of the received ``Accept``; namespaces the recorded
             Offer the guard publishes.
-        case_id: ID of the VulnerabilityCase.
+        case_id: ID of the VulnerabilityCase; ``None`` or empty when the
+            activity names none.
         sender_id: Actor ID of the Accept's sender, who must be the Case Owner.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -163,6 +181,11 @@ def create_accept_actor_recommendation_received_tree(
     Returns:
         Root ``AcceptActorRecommendationBT`` Sequence node.
     """
+    if not case_id:
+        return create_incomplete_activity_received_tree(
+            "AcceptActorRecommendationBT",
+            "Accept(Offer(CaseParticipant)) is missing its case id",
+        )
     return create_receive_activity_tree(
         name="AcceptActorRecommendationBT",
         case_id=case_id,
@@ -198,7 +221,7 @@ def create_accept_actor_recommendation_received_tree(
 
 def create_reject_actor_recommendation_received_tree(
     answer_id: str,
-    case_id: str,
+    case_id: str | None,
     sender_id: str,
     *,
     sender_rule: SenderRule,
@@ -237,10 +260,15 @@ def create_reject_actor_recommendation_received_tree(
     Only the Case Owner may reject (CM-16-019): the sender guard refuses any
     other sender before the case ledger is written or anything is sent.
 
+    A Reject that names no case gets the incomplete-activity tree instead:
+    its guard refuses the activity after the doors admit it and intake
+    records it (CLP-10-018).
+
     Args:
         answer_id: ID of the received ``Reject``; namespaces the recorded
             Offer the guard publishes.
-        case_id: ID of the VulnerabilityCase.
+        case_id: ID of the VulnerabilityCase; ``None`` or empty when the
+            activity names none.
         sender_id: Actor ID of the Reject's sender, who must be the Case Owner.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -248,6 +276,11 @@ def create_reject_actor_recommendation_received_tree(
     Returns:
         Root ``RejectActorRecommendationBT`` Sequence node.
     """
+    if not case_id:
+        return create_incomplete_activity_received_tree(
+            "RejectActorRecommendationBT",
+            "Reject(Offer(CaseParticipant)) names no case",
+        )
     return create_receive_activity_tree(
         name="RejectActorRecommendationBT",
         case_id=case_id,
