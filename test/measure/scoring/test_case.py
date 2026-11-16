@@ -159,9 +159,12 @@ def test_a_vendors_score_has_an_end_part_and_an_embargo_part():
     for vendor in score_case(_multi_party_ledger().history()).vendors:
         extended = vendor.extended
         assert isinstance(extended, ExtendedScore)
-        assert vendor.end == PartScore.of((vendor.score, extended.end))
-        assert vendor.embargo == PartScore.of((extended.embargo,))
-        assert vendor.total == PartScore.of((vendor.end, vendor.embargo))
+        end, embargo = vendor.end, vendor.embargo
+        assert end == PartScore.of((vendor.score, extended.end))
+        assert embargo == PartScore.of((extended.embargo,))
+        assert end is not None
+        assert embargo is not None
+        assert vendor.total == PartScore.of((end, embargo))
 
 
 @pytest.mark.spec("CEH-05-007")
