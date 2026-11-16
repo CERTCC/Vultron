@@ -30,7 +30,14 @@ tracks:
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
+  - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
+  - "#6481"   # embargo stores its status; register is a list (slice of #6246)
+  - "#6482"   # embargo end is Update; owner Offers it (slice of #6246)
+  - "#6483"   # end announced as Announce(<the Update>) (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
+  - "#6484"   # ledger commit is an Add that acknowledges (slice of #6247)
+  - "#6485"   # position statement is Read(<case>/ledger) (slice of #6247)
+  - "#6486"   # statuses added to named histories (slice of #6247)
   - "#6248"   # instrument, generator, tag
   - "#6249"   # CaseReference holds a Link
   - "#6250"   # Update forms; dead REMOVE_NOTE path
@@ -384,39 +391,70 @@ the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
 
 ## Embargo End Is an Update With a Termination Object
 
-Issue: #6246.
+Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
 
-**Decision.** An embargo ending is `Update(EmbargoEvent)` setting the embargo's
-status to terminated, with an embedded termination object:
+**Decision.**
 
-- a machine-read cause kind: `END_TIME_REACHED`, `THREAT_SIGNAL` (with its P/X/A
-  signals; CASE_MANAGER only), `FIX_READY`, `FIX_DEPLOYED`, or `OTHER`;
-- optionally the id of the act that caused it;
-- the human reason in `summary`, a longer account in `content`. AS2 has no
-  `description` property.
-
-`END_TIME_REACHED` is a cause like the others, so the separate `EARLY` /
-`END_TIME_REACHED` enum disappears. The CASE_MANAGER commits the change even for an
-end-time termination, because EM state must change on the record.
+- **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a
+  Vultron subtype of AS2 `Event` read like ADR-0196's `Refuse`; every added field
+  gets a JSON-LD term (ADR-0201).
+- **The embargo stores its own state.** `EmbargoEvent` gains `status` (ADR-0122's
+  statuses), `replaces` and, once terminated, its termination: the cause kind
+  (`END_TIME_REACHED`, `THREAT_SIGNAL` with its P/X/A signals, `FIX_READY`,
+  `FIX_DEPLOYED`, `OTHER`), the causing act's id when known, and the human reason in
+  `summary`. The case's register becomes its ordered list of embargoes; ADR-0122's
+  statuses, triggers and invariants range over the embargoes' own fields (ADR-0202).
+  The termination is a field of the embargo, with no id of its own: a later dispute
+  names the `Update` act.
+- **The end is `Update(EmbargoEvent)`** setting `status` terminated and the
+  termination. `END_TIME_REACHED` is a cause like the others, so the `EARLY` /
+  `END_TIME_REACHED` enum goes. The CASE_MANAGER makes and ledgers every such
+  `Update`. Its own endings (end time, threat signal) are a bare `Update`; the Case
+  Owner's early ending is `Offer(Update(EmbargoEvent))`, refused (a `THREAT_SIGNAL`
+  cause from the Owner) or accepted, with the CASE_MANAGER's own `Update` carrying
+  `attributedTo` = Owner and `inReplyTo` = the Offer (ADR-0199, ADR-0203).
+- **Every signatory is told by `Announce(<the Update>)`**, sent to every active
+  participant and every signatory the ledger fan-out skips. It keeps the teardown
+  notice's purpose (everyone the embargo may have bound learns it ended) and replaces
+  the separate direct copy to an unreached signatory (CM-31-009). A paused signatory
+  applies the end from it; replaying the entry carrying the same act changes nothing.
+  It is sent on every termination, end time included, so an unreached signatory now
+  hears of an expiry too, and the announced act carries no other case content
+  (CM-31-031). The shorter-revision notice (CM-31-030) announces the act that made
+  the revision active, by the same rule.
+- `Remove(EmbargoEvent)` and `REMOVE_EMBARGO_EVENT_FROM_CASE` are retired.
 
 **AS2 basis and prior art.** `Remove` would say the embargo left the case, but it
-stays in the embargo register with status `terminated`. FEP-8a8e ("A common approach
-to using the Event object type", draft) sends event cancellation as `Update(Event)`
-with `eventStatus` (`EventCancelled`, `EventPostponed`, …, after schema.org
-`eventStatus`; iCalendar `STATUS` as fallback) and has no "concluded" status or
-structured cause. VOC `summary`: "a natural language summarization of the object".
+stays on the case, terminated. FEP-8a8e ("A common approach to using the Event object
+type", draft) sends event cancellation as `Update(Event)` with `eventStatus`, after
+schema.org; it has no "concluded" status or structured cause. VOC Announce can carry
+an activity ("Sally announced that she had arrived at work"). VOC `summary`: "a
+natural language summarization of the object".
 
 **Today.** `Remove(EmbargoEvent)[origin=case]` with the reason enum in `content`
 (`vultron/wire/as2/vocab/activities/embargo.py`) and the cause in the Vultron
-`terminationCause` (`vultron/core/models/embargo_termination.py`,
-`TerminationCauseKind`). Teardown: `vultron/core/behaviors/embargo/nodes/teardown.py`.
+`terminationCause` (`vultron/core/models/embargo_termination.py`). The status,
+`replaces` and termination are on the register entry
+(`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
+`Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
+`vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
 
 **Term-check owner.** #6421 owns the termination `reason` enum in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6421
 for that field rather than filing a second Task.
 
-**Touches.** EMB-07, EMB-13-005, EMB-19, ADR-0122 (the register), the
-`terminationCause` JSON-LD term, `REMOVE_EMBARGO_EVENT_FROM_CASE`.
+**Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
+CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 and ADR-0122 (partially
+superseded by ADR-0203), every reader of a register entry
+(`vultron/core/models/embargo_register/`), the `terminationCause` JSON-LD term
+(`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs page that
+names `Remove(EmbargoEvent)` or `terminationCause`: among them
+`notes/embargo-lifecycle.md`, `notes/received-status-authorization.md`,
+`notes/case-joining.md`, `notes/case-event-history.md`,
+`notes/message-occasion-table.md`, `notes/sync-ledger-replication.md`,
+`docs/reference/messages/em.md` and its `_occasions/` embargo-termination
+fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
+`docs/reference/vultron-spec/` partials.
 
 ---
 
@@ -498,7 +536,7 @@ generator, `third_party/README.md`.
 
 ## Ledger and Status Histories Are Named Ordered Collections
 
-Issue: #6247.
+Issue: #6247. Record: ADR-0204.
 
 **Decision.**
 
@@ -509,10 +547,11 @@ Issue: #6247.
    target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)`. A replica receiving
    it appends to its copy.
 3. That `Add` is the positive acknowledgment: it carries `inReplyTo` = the committed
-   act and `result` = what the act caused (a new `CaseParticipant`, follow-on
-   entries). No separate ack message. A refusal stays the refusal notice.
-4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. N = −1 means
-   the sender holds nothing; the CASE_MANAGER replays everything after N. This
+   act and no `result` (below). No separate ack message. A refusal stays the
+   refusal notice.
+4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. The empty
+   ledger's position (log index −1 with the genesis hash, SYNC-18-001) says the sender
+   holds no entry; the CASE_MANAGER replays everything after N. This
    replaces both `Read(<bare entry id>)` and the objectless `Reject` replay request
    (SYNC-16-027). The NAK stays `Reject(CaseLedgerEntry)`, pointing `inReplyTo` at
    the `Add`.
@@ -541,18 +580,23 @@ only through the nested status's `context`. Delivery receipts are an open questi
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
-or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0137,
+or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204),
 `ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
 `ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
 notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
 it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
-rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" bears
-on the open question below), `notes/case-actor-cluster.md`,
-`notes/ownership-transfer.md`.
+rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" stands,
+since the `Add` lists no follow-on ids, below), `notes/case-actor-cluster.md`,
+`notes/ownership-transfer.md`, `notes/case-ledger-authority.md`,
+`notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
+every docs page naming these forms, among them
+`docs/reference/messages/ledger_replication.md` and
+`docs/reference/messages/faults_and_acknowledgements.md`.
 
-**Open for planning.** `result` on the ledger `Add` can list follow-on entries only if
-their ids are derived ahead of time (as stub and ownership-offer ids already are), or
-if the `Add` waits until they commit. Pick one.
+**Resolved in planning.** The ledger `Add` carries no `result`. An act a commit
+causes names its cause in its own `inReplyTo`, so causation is read from effect to
+cause, with no ids derived in advance and no waiting for follow-on commits (ADR-0204).
 
 ---
 
