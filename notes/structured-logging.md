@@ -75,6 +75,14 @@ which would duplicate the same values at hundreds of sites. Naming an actor or c
 the message is for the reader (SL-04-006) and does not satisfy SL-02 (SL-02-004).
 Output format is the formatter's job and never requires touching a call site.
 
+`vultron/logging_correlation.py` is that mechanism: a boundary enters
+`correlation_context(activity_id=..., actor_id=...)` once, and
+`install_correlation_logging(handlers)` at each entry point puts the filter and
+the plain-text formatter on the handlers it owns. Put the filter on handlers,
+not loggers: a logger's filters skip records propagated from its children.
+`test/architecture/test_no_correlation_ids_in_log_extra.py` fails on an `extra=`
+naming either field.
+
 ---
 
 ## Narrative Template (SL-04-006)
@@ -198,8 +206,9 @@ missing no-op guard, a missing monotonicity guard, and a hardcoded target at onc
 
 The demotion list is enforced by
 `test/architecture/test_infrastructure_logs_not_at_info.py`, which walks `vultron/` with
-`ast`. Its docstring lists what it cannot see (inline `getLogger(...).info`, pre-built
-messages); extend the test rather than assume coverage.
+`ast`. Both logging ratchets recognise a log call through
+`test/architecture/_log_calls.py`, whose docstring lists what it cannot see (a logger
+under another name, pre-built messages); extend it rather than assume coverage.
 
 ## Bulk Logging-Level Refactors Need a Consistency Grep Pass
 
