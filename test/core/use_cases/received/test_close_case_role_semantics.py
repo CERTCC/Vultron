@@ -1256,7 +1256,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.parametrize(
         ("policy", "replies"),
-        [(PostCloseReply.DROP, 0), (PostCloseReply.REJECT, 1)],
+        [(PostCloseReply.DROP, 0), (PostCloseReply.REFUSE, 1)],
     )
     @pytest.mark.spec("CM-23-040")
     @pytest.mark.spec("CM-23-017")
@@ -1291,6 +1291,23 @@ class TestPostCloseWriteBoundary:
             inner = getattr(refuse, "object_", None)
             assert getattr(inner, "type_", None) == "Leave"
             assert "CM-23-013" in (getattr(refuse, "summary", "") or "")
+
+    @pytest.mark.spec("CM-23-056")
+    @pytest.mark.spec("CM-23-057")
+    def test_the_old_reject_value_is_refused_on_load(self):
+        """``reject`` was renamed ``refuse`` with no alias (ADR-0196): a
+        config that still names it fails to load, from the model and from
+        the environment."""
+        from pydantic import ValidationError
+
+        from vultron.config.app import config_override
+
+        assert [p.value for p in PostCloseReply] == ["drop", "refuse"]
+        with pytest.raises(ValidationError, match="post_close_reply"):
+            ActorConfig.model_validate({"post_close_reply": "reject"})
+        with pytest.raises(ValidationError):
+            with config_override(VULTRON_ACTOR__POST_CLOSE_REPLY="reject"):
+                pass
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-017")
@@ -1365,7 +1382,7 @@ class TestPostCloseWriteBoundary:
         )
         for _ in range(2):
             result = _close_with_policy(
-                dl, VENDOR_ID, activity_id, PostCloseReply.REJECT
+                dl, VENDOR_ID, activity_id, PostCloseReply.REFUSE
             )
             settle_as_the_inbox(dl, event, result)
         queued = [i for i in dl.outbox_list() if i not in outbox_before]
@@ -1513,7 +1530,7 @@ class TestPostCloseWriteBoundary:
         assert set(dl.outbox_list()) == outbox_before
 
     @pytest.mark.spec("CM-23-013")
-    @pytest.mark.parametrize("policy", ["drop", "reject"])
+    @pytest.mark.parametrize("policy", ["drop", "refuse"])
     @pytest.mark.spec("CM-23-017")
     @pytest.mark.spec("CM-23-045")
     @pytest.mark.spec("CM-23-046")
@@ -1521,7 +1538,7 @@ class TestPostCloseWriteBoundary:
         """End to end: the configured policy reaches the late-Leave reply.
 
         Through the inbox dispatcher, a late Leave is answered only under
-        ``reject``; a late Add(Note) is dropped under both settings.
+        ``refuse``; a late Add(Note) is dropped under both settings.
         """
         from vultron.adapters.driving.fastapi.inbox_handler import (
             make_dispatcher,
@@ -1549,7 +1566,7 @@ class TestPostCloseWriteBoundary:
             )
             assert leave_result.disposition is HandlerDisposition.REFUSED
             queued = [i for i in dl.outbox_list() if i not in outbox_before]
-            assert len(queued) == (1 if policy == "reject" else 0), queued
+            assert len(queued) == (1 if policy == "refuse" else 0), queued
 
 
 # ---------------------------------------------------------------------------

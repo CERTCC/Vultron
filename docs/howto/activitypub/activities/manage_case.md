@@ -156,7 +156,7 @@ What your closure does to the case depends on whether you are the Case Owner.
   Once the case is fully closed, the CASE_MANAGER records nothing more for it (CM-23-013).
   A `Leave(VulnerabilityCase)` you send after that is refused: nothing is recorded and your RM state on the case ledger stays where it was.
   By default the CASE_MANAGER sends no reply to it.
-  A CASE_MANAGER configured with `post_close_reply: reject` answers it with a `Refuse` of your `Leave` instead.
+  A CASE_MANAGER configured with `post_close_reply: refuse` answers it with a `Refuse` of your `Leave` instead.
 - The CASE_MANAGER drops any other activity that you send for the case after it is fully closed, such as `Add(Note)`.
   Nothing is recorded, and the CASE_MANAGER never replies, whatever its configuration (ADR-0131).
   Do not wait for a reply to an activity sent after the case has closed.

@@ -7560,7 +7560,7 @@ groups:
       reply.
     verification: >-
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseWriteBoundary`
-      drives a late Leave under both settings (one Reject under `reject`, none under
+      drives a late Leave under both settings (one Refuse under `refuse`, none under
       `drop`) and confirms the default is `drop`.
     relationships:
     - rel_type: refines
@@ -7594,7 +7594,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      With `post_close_reply` set to `reject`, the reference CASE_MANAGER MUST answer a
+      With `post_close_reply` set to `refuse`, the reference CASE_MANAGER MUST answer a
       late Leave(VulnerabilityCase) with the refusal notice, a `Refuse` of the Leave
       as received (CLP-05-001).
     rationale: >-
@@ -7605,7 +7605,7 @@ groups:
       `test_late_leave_follows_the_reply_policy` and
       `test_a_late_reply_is_answered_at_most_once` in
       `test/core/use_cases/received/test_close_case_role_semantics.py` drive a late
-      Leave under `reject` and assert one `Refuse` of the Leave is sent.
+      Leave under `refuse` and assert one `Refuse` of the Leave is sent.
     relationships:
     - rel_type: extends
       spec_id: CM-23-017

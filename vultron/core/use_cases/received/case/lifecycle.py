@@ -153,7 +153,7 @@ class CloseCaseReceivedUseCase:
         self._sync_port = sync_port
         # trigger_activity lets the received-close tree send the refusal
         # notice when it refuses an owner close during a live embargo
-        # (CM-23-011), or a late Leave under PostCloseReply.REJECT
+        # (CM-23-011), or a late Leave under PostCloseReply.REFUSE
         # (CM-23-057).
         self._trigger_activity = trigger_activity
         # actor_config carries post_close_reply, the one policy point for the

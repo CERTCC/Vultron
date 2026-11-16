@@ -39,7 +39,7 @@ status entries and never works out a closure path itself; applying
 - **Any Leave after the case is fully closed**: the factory's post-close guard
   refuses it ahead of the close, so no ``close_case`` entry is committed or
   fanned out and no one advances (CM-23-013).  Under
-  ``PostCloseReply.REJECT`` the sender gets the refusal notice, a ``Refuse``
+  ``PostCloseReply.REFUSE`` the sender gets the refusal notice, a ``Refuse``
   of its Leave (CM-23-057, ADR-0196); under the default ``DROP`` it gets
   nothing (ADR-0131).
 - **A Leave from a sender with no standing**: the sender guard the factory

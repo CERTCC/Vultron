@@ -282,7 +282,7 @@ nothing is written before the last one admits the message (ADR-0154).
    closure fan-out. A tree opts out only with a `PostCloseExemption`.
    `post_close_reply` takes emit-only nodes that answer the refusal; only the
    close-case tree passes one (`Refuse(Leave)` under
-   `ActorConfig.post_close_reply = reject`). Every other late activity is
+   `ActorConfig.post_close_reply = refuse`). Every other late activity is
    dropped with no reply (ADR-0131, CM-23-045).
 
    The factory places the addressee check, `ActivityAddressedToReceiverNode`

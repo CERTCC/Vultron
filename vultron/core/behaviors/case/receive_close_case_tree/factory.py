@@ -92,7 +92,7 @@ def create_close_case_received_tree(
         ├── ActivityNotSeenBeforeNode                   # seen-before door
         ├── ReceivedPathNode                            # manager path only
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
-        │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
+        │       (under PostCloseReply.REFUSE: a PostCloseStage whose refusal
         │        arm sends the refusal notice at the CASE_MANAGER)
         ├── SenderRuleGuard                             # composed from sender_rule (HP-01-025)
         ├── IntakeReceivedActivityNode                  # record the Leave (CLP-10-017)
@@ -283,7 +283,7 @@ def create_close_case_received_tree(
     # notice, a Refuse of the late Leave (CM-23-057, ADR-0196).
     late_leave_reply: list[py_trees.behaviour.Behaviour] = (
         [refusal_notice(case_id)]
-        if post_close_reply is PostCloseReply.REJECT
+        if post_close_reply is PostCloseReply.REFUSE
         else []
     )
     return create_receive_activity_tree(
