@@ -11,6 +11,9 @@ consulted: >-
   specs/message-semantics-mapping.yaml MSM-05;
   notes/as2-vocabulary-alignment.md; issue #6247
 informed: []
+partially_supersedes:
+  - 0137-case-records-are-attached-by-one-message-never-created-first.md
+  - 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -60,7 +63,7 @@ An act that a commit causes names its cause in its own `inReplyTo`, so causation
 ### A position statement is a Read of the ledger
 
 A participant states its position with `Read(<case>/ledger)` carrying `ledgerPosition`.
-A position of −1 says the sender holds nothing; the CASE_MANAGER replays every entry after the stated position.
+The empty ledger's position, log index −1 with the case's genesis hash, says the sender holds no entry; the CASE_MANAGER replays every entry after the stated position.
 This replaces the `Read` of a bare entry id and the objectless `Reject`.
 A gap in the chain is still answered with `Reject(CaseLedgerEntry)`, which now names the `Add` in `inReplyTo`.
 
@@ -75,7 +78,7 @@ The newest item is the current status.
 - Good, because a replica reads the case, the collection and the position from each message.
 - Good, because the sender of an act learns that it committed, from the message that commits it.
 - Good, because no pattern needs a bare object id or an objectless activity.
-- Bad, because replication, position statements, replay and the status messages all change form, with their patterns, examples and message reference. Pre-1.0, the old forms are replaced outright.
+- Bad, because replication, position statements, replay and the status messages all change form, with their patterns, examples and message reference; pre-1.0, the old forms are replaced outright.
 
 ## Validation
 
@@ -104,4 +107,8 @@ The newest item is the current status.
 
 ADR-0107 and ADR-0124 name `Announce(CaseLedgerEntry)` as the replication message.
 Their decisions, that an entry is a postmark on the received envelope and that a case is a projection of its ledger, stand; only the message's form changes.
+ADR-0156 names `Announce(CaseLedgerEntry)` and `Read(CaseLedgerEntry)` in its position rules; its rule that case activities state the sender's position stands, now over these forms.
 A fetchable ledger, `GET <case>/ledger` in pages, is separate work (#5089).
+
+This record partially supersedes ADR-0137 in the `target` of a status `Add`, now the named history rather than the participant or the case; its rule that a record is attached by one message stands.
+It partially supersedes ADR-0155 in the form of a position statement, now a `Read` of the ledger rather than of the last entry applied; its rule that a participant states its position and the CASE_MANAGER answers a lag stands.

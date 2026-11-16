@@ -20,7 +20,7 @@ stakeholder_type: [project-contributor]
 ## Context and Problem Statement
 
 An embargo holds only its terms: start, end and case.
-Its status, the embargo a revision replaced, and the record of how it ended are stored beside it, on the case's embargo register entry `(embargo, status, replaces, termination)` (ADR-0122).
+Its status, the embargo a revision replaced, and the record of how it ended are stored beside it, on the case's embargo register entry: ADR-0122's `(embargo, status, replaces)`, with the termination recorded beside it.
 When an embargo ends, the embargo object itself therefore does not change, so a message that says "this embargo changed" has nothing on the embargo to point at.
 
 Where are the facts about one embargo stored?
@@ -29,7 +29,7 @@ Where are the facts about one embargo stored?
 
 - Every fact about an object belongs on that object, so a message about the object can state the change, and nothing is held in two places.
 - Every state is named and stored, and embargo management state stays a read of the stored records (ADR-0122).
-- A generic reader of an embargo sees its status in the form event platforms use (FEP-8a8e, `eventStatus`).
+- An event's status lives on the event itself, as event platforms carry it (FEP-8a8e, `eventStatus`).
 
 ## Considered Options
 
@@ -43,14 +43,15 @@ Chosen option: "The embargo stores its status, revision link and termination, an
 
 An embargo stores three fields beyond its terms:
 
-- `status`, one of the statuses ADR-0122 defines: proposed, active, rejected, superseded, cancelled, terminated;
+- `status`, one of the statuses ADR-0122 defines: `PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED`, `TERMINATED`;
 - `replaces`, the embargo an activated revision replaced;
 - the termination, once terminated: the cause kind, the act that caused it when known, and a human reason.
 
 The case's embargo register is its ordered list of embargoes, appended and not removed.
+A copy of the case carries that list, each embargo in a form ADR-0198 allows for an object slot.
 ADR-0122's statuses, triggers and invariants stand; they now range over the embargoes' own `status` fields.
 Embargo management state is derived from them, as before.
-Each change of an embargo's status is a ledgered act (ADR-0203), so its history is in the ledger.
+Every change of an embargo's status happens in a ledgered act, as one of ADR-0122's register steps, so its history is in the ledger; how an embargo's end is sent is ADR-0203.
 
 ### Consequences
 

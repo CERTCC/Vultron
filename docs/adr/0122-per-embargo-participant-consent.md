@@ -23,6 +23,7 @@ partially_superseded_by:
   - 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md
   - 0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
   - 0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md
+  - 0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0048-pec-no-embargo-is-absence-not-pre-consent.md

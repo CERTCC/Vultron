@@ -30,7 +30,14 @@ tracks:
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
+  - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
+  - "#6481"   # embargo stores its status; register is a list (slice of #6246)
+  - "#6482"   # embargo end is Update; owner Offers it (slice of #6246)
+  - "#6483"   # end announced as Announce(<the Update>) (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
+  - "#6484"   # ledger commit is an Add that acknowledges (slice of #6247)
+  - "#6485"   # position statement is Read(<case>/ledger) (slice of #6247)
+  - "#6486"   # statuses added to named histories (slice of #6247)
   - "#6254"   # Refuse(Reject)
   - "#6433"   # type list resolved at the wire edge
   - "#6434"   # the refusal notice is a Refuse
@@ -341,8 +348,10 @@ Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
   notice's purpose (everyone the embargo may have bound learns it ended) and replaces
   the separate direct copy to an unreached signatory (CM-31-009). A paused signatory
   applies the end from it; replaying the entry carrying the same act changes nothing.
-  The shorter-revision notice (CM-31-030) announces the act that made the revision
-  active, by the same rule.
+  It is sent on every termination, end time included, so an unreached signatory now
+  hears of an expiry too, and the announced act carries no other case content
+  (CM-31-031). The shorter-revision notice (CM-31-030) announces the act that made
+  the revision active, by the same rule.
 - `Remove(EmbargoEvent)` and `REMOVE_EMBARGO_EVENT_FROM_CASE` are retired.
 
 **AS2 basis and prior art.** `Remove` would say the embargo left the case, but it
@@ -365,9 +374,17 @@ ratchet, so the entry keeps an open owner. Planning this section adopts #6421
 for that field rather than filing a second Task.
 
 **Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
-CM-31-030, CM-31-042, EP-08-004, ADR-0122 (the register), every reader of a register
-entry (`vultron/core/models/embargo_register/`), the `terminationCause` JSON-LD term,
-`REMOVE_EMBARGO_EVENT_FROM_CASE`, `docs/reference/messages/em.md`.
+CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 and ADR-0122 (partially
+superseded by ADR-0203), every reader of a register entry
+(`vultron/core/models/embargo_register/`), the `terminationCause` JSON-LD term
+(`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs page that
+names `Remove(EmbargoEvent)` or `terminationCause`: among them
+`notes/embargo-lifecycle.md`, `notes/received-status-authorization.md`,
+`notes/case-joining.md`, `notes/case-event-history.md`,
+`notes/message-occasion-table.md`, `notes/sync-ledger-replication.md`,
+`docs/reference/messages/em.md` and its `_occasions/` embargo-termination
+fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
+`docs/reference/vultron-spec/` partials.
 
 ---
 
@@ -462,8 +479,9 @@ Issue: #6247. Record: ADR-0204.
 3. That `Add` is the positive acknowledgment: it carries `inReplyTo` = the committed
    act and no `result` (below). No separate ack message. A refusal stays the
    refusal notice.
-4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. N = −1 means
-   the sender holds nothing; the CASE_MANAGER replays everything after N. This
+4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. The empty
+   ledger's position (log index −1 with the genesis hash, SYNC-18-001) says the sender
+   holds no entry; the CASE_MANAGER replays everything after N. This
    replaces both `Read(<bare entry id>)` and the objectless `Reject` replay request
    (SYNC-16-027). The NAK stays `Reject(CaseLedgerEntry)`, pointing `inReplyTo` at
    the `Add`.
@@ -492,14 +510,19 @@ only through the nested status's `context`. Delivery receipts are an open questi
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
-or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0137,
+or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204),
 `ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
 `ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
 notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
 it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
-rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" bears
-on the open question below), `notes/case-actor-cluster.md`,
-`notes/ownership-transfer.md`.
+rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" stands,
+since the `Add` lists no follow-on ids, below), `notes/case-actor-cluster.md`,
+`notes/ownership-transfer.md`, `notes/case-ledger-authority.md`,
+`notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
+every docs page naming these forms, among them
+`docs/reference/messages/ledger_replication.md` and
+`docs/reference/messages/faults_and_acknowledgements.md`.
 
 **Resolved in planning.** The ledger `Add` carries no `result`. An act a commit
 causes names its cause in its own `inReplyTo`, so causation is read from effect to

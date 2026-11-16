@@ -10,6 +10,9 @@ consulted: >-
   specs/em-behavior.yaml EMB-13, EMB-19; specs/case-management.yaml CM-31;
   notes/as2-vocabulary-alignment.md; issue #6246
 informed: []
+partially_supersedes:
+  - 0116-removing-a-participant-withdraws-entitlement-not-membership.md
+  - 0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -49,8 +52,11 @@ Chosen option: "An `Update` of the embargo, announced as an `Announce` of that `
 An embargo ends with `Update(EmbargoEvent)` setting its `status` to terminated and its termination: the cause kind, the act that caused it when known, and a human reason in `summary` (ADR-0202).
 End time reached is a cause like the others, so the separate `END_TIME_REACHED`/`EARLY` field goes.
 The CASE_MANAGER makes and ledgers every such `Update`, including an end-time termination.
+The termination's causing act is part of the embargo's stored state, so a reader of the embargo alone sees why it ended.
+The `Update`'s `inReplyTo` is a link on the act: it may name that same act, or, for the Case Owner's early end, the Offer (ADR-0199, ADR-0204).
 
-When the CASE_MANAGER ends an embargo itself, at its end time or on a threat signal, it sends the `Update` with no request.
+When the CASE_MANAGER ends an embargo itself, at its end time or on a threat signal, it sends the `Update` with no Offer to answer.
+ADR-0122's two triggers for an end-time end, the CASE_MANAGER's lazy check and an outside request such as a Sentinel, stand, and both lead to this one `Update`.
 When the Case Owner ends an embargo early, it sends `Offer(Update(EmbargoEvent))`.
 The CASE_MANAGER refuses it, for instance when it names a threat signal, which only the CASE_MANAGER may name, or it accepts it and makes the `Update` itself, as ADR-0199 describes.
 
@@ -60,6 +66,8 @@ The CASE_MANAGER refuses it, for instance when it names a threat signal, which o
 
 After the `Update` commits, the CASE_MANAGER sends `Announce(<the Update>)` to every active participant and to every signatory the ledger fan-out does not reach.
 That one notice replaces the separate direct copy to an unreached signatory.
+It is sent on every termination, the end time included, so a signatory the fan-out skips now hears of an expiry, which ADR-0116 left without a notice.
+The announced act carries the embargo and its termination and no other case content, as a notice to an unreached signatory requires (CM-31-031).
 A signatory whose stream is paused applies the end from the notice, and a later replay of the ledger entry carrying the same act changes nothing.
 The notice of a shorter revision follows the same rule: it announces the act that made the revision active.
 
@@ -67,7 +75,7 @@ The notice of a shorter revision follows the same rule: it announces the act tha
 
 - Good, because every message about an embargo's end is true of its sender, and a generic reader reads it as an event's status change.
 - Good, because one notice reaches everyone the embargo may have bound, and it carries the act's id, cause, author and request.
-- Bad, because the termination messages, their patterns, the teardown, the examples and the message reference all change. Pre-1.0, the old forms are replaced outright.
+- Bad, because the termination messages, their patterns, the teardown, the examples and the message reference all change; pre-1.0, the old forms are replaced outright.
 
 ## Validation
 
@@ -96,3 +104,7 @@ The notice of a shorter revision follows the same rule: it announces the act tha
 
 The embargo's stored status and termination are ADR-0202.
 The Owner's request as an Offer of the act is ADR-0199.
+
+This record partially supersedes ADR-0116 in its embargo-change notices: the termination and shorter-revision messages, and the expiry that had no notice.
+It partially supersedes ADR-0122 in the termination message: `Remove(EmbargoEvent)`, the `END_TIME_REACHED`/`EARLY` value in `content`, the `terminationCause` property, and the rule that an end-time termination has no cause.
+The other decisions of both records stand.

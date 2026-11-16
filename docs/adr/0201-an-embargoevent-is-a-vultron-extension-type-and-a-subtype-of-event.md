@@ -48,7 +48,7 @@ Every field an embargo carries beyond `Event`'s gets a JSON-LD term.
 
 - Good, because a generic reader sees an `Event` with `startTime` and `endTime`, and a Vultron reader sees an embargo.
 - Good, because it reuses the type-list handling the refusal notice already needs.
-- Bad, because every embargo on the wire, in examples and in recordings changes its `type`. Pre-1.0, the old form is replaced outright.
+- Bad, because every embargo on the wire, in examples and in recordings changes its `type`; pre-1.0, the old form is replaced outright.
 
 ## Validation
 
