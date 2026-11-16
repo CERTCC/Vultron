@@ -161,6 +161,16 @@ def test_a_value_from_inside_a_cycle_is_solved_there():
     assert values.at(replay(_LOOP, ["go"])) == Fraction(1, 3)
 
 
+def test_solving_from_mid_walk_first_leaves_the_start_value_exact():
+    for model, events, query in (
+        (_LOOP, ["go"], ordering("x", "y")),
+        (_FORK, ["a"], ordering("a", "b")),
+    ):
+        values = ChanceValues(model, query)
+        values.at(replay(model, events))
+        assert values.at(WalkPrefix(model.initial)) == frequency(model, query)
+
+
 def test_a_value_reads_what_the_history_already_settled():
     # Both walks stand at "end"; only the order the history took differs.
     values = ChanceValues(_FORK, ordering("a", "b"))
@@ -192,7 +202,9 @@ def test_a_change_is_none_where_a_value_is_undefined():
     assert difference(None, Fraction(1)) is None
 
 
-def test_values_are_kept_between_lookups(monkeypatch):
+def test_values_are_kept_between_lookups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     searches: list[object] = []
     search: Callable[..., list[list[object]]] = walk_module._strongly_connected
 

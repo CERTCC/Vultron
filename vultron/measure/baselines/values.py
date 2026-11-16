@@ -57,7 +57,13 @@ from vultron.measure.baselines.desiderata import (
     case_state_values,
     joint_values,
 )
-from vultron.measure.baselines.joint import Event, JointModel, JointState
+from vultron.measure.baselines.joint import (
+    ONE_VENDOR_MODEL,
+    TWO_VENDOR_MODEL,
+    Event,
+    JointModel,
+    JointState,
+)
 from vultron.measure.baselines.walk import (
     WalkPrefix,
     difference,
@@ -195,7 +201,8 @@ def _case_model(vendor_count: int) -> JointModel:
 
     Only its steps from a given state are read, never a walk over it.
     """
-    return JointModel(vendor_count)
+    shared = {1: ONE_VENDOR_MODEL, 2: TWO_VENDOR_MODEL}
+    return shared.get(vendor_count) or JointModel(vendor_count)
 
 
 def expected_change(prefix: CasePrefix, event: Event) -> Values:

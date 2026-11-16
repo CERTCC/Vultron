@@ -407,8 +407,8 @@ class ChanceValues[S: Hashable, E: Hashable]:
     """
 
     def __init__(self, model: ChanceModel[S, E], query: OrderingQuery[E]):
-        self.model = model
-        self.query = query
+        self._model = model
+        self._query = query
         every = frozenset(range(len(query.orderings)))
 
         def scores(seen: frozenset[E], met: frozenset[int]) -> tuple[int, int]:
@@ -416,6 +416,16 @@ class ChanceValues[S: Hashable, E: Hashable]:
             return int(scoped and met == every), int(scoped)
 
         self._absorption = _Absorption(model, query, scores)
+
+    @property
+    def model(self) -> ChanceModel[S, E]:
+        """The model the values are solved over."""
+        return self._model
+
+    @property
+    def query(self) -> OrderingQuery[E]:
+        """The query the values are of."""
+        return self._query
 
     def at(self, prefix: WalkPrefix[S, E]) -> Fraction | None:
         """The query's value from *prefix*, or ``None`` when no walk from there meets ``given``.
@@ -443,7 +453,7 @@ class ChanceValues[S: Hashable, E: Hashable]:
                 step from the prefix's state (:func:`find_step`).
         """
         after = self.at(
-            prefix.then(find_step(self.model, prefix.state, event))
+            prefix.then(find_step(self._model, prefix.state, event))
         )
         before = self.at(prefix)
         return difference(after, before)

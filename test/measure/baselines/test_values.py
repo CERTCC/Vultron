@@ -35,6 +35,11 @@ from vultron.measure.baselines import (
     expected_change,
     vendor_desiderata,
 )
+from vultron.measure.baselines.desiderata import (
+    JOINT_TO_CS,
+    ModelName,
+    joint_values,
+)
 from vultron.measure.baselines.joint import JointState
 
 _K = EventKind
@@ -203,5 +208,32 @@ def test_a_three_vendor_case_takes_each_value_from_its_own_model():
     for key, value in values.items():
         assert value == baseline(key.desideratum), key
     notify = expected_change(prefix, Event(_K.V, 3))
-    assert notify[VendorDesideratum(_V_BEFORE_F_J, 3, 1)] is not None
     assert notify[VendorDesideratum(_V_BEFORE_P, 3)] == 1 - Fraction(1, 3)
+    assert notify[VendorDesideratum(_V_BEFORE_F_J, 3, 1)] > 0
+    # Vendor 3's step is no step in the projections that leave it out.
+    for untouched in (
+        VendorDesideratum(_V_BEFORE_F_J, 1, 2),
+        VendorDesideratum(_V_BEFORE_F_J, 2, 1),
+        VendorDesideratum(_V_BEFORE_P, 1),
+        VendorDesideratum(_V_BEFORE_P, 2),
+    ):
+        assert notify[untouched] == 0, untouched
+
+
+def test_the_six_event_model_has_no_joint_table():
+    with pytest.raises(ValueError, match="not a joint model"):
+        joint_values(ModelName.CASE_STATE, _V_BEFORE_P.query)
+
+
+def test_a_baseline_no_walk_can_scope_is_refused():
+    never = _V_BEFORE_P._replace(
+        model=ModelName.ONE_VENDOR,
+        query=_V_BEFORE_P.query._replace(given=frozenset({Event(_K.V, 2)})),
+    )
+    with pytest.raises(ValueError, match="no walk on the"):
+        baseline(never)
+
+
+def test_the_event_map_cannot_be_changed():
+    with pytest.raises(TypeError):
+        JOINT_TO_CS[Event(_K.V, 1)] = JOINT_TO_CS[Event(_K.P)]  # type: ignore[index]

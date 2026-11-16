@@ -28,10 +28,11 @@ model it takes chance from (ADR-0182, on the smallest model that holds it):
 by search over the model rather than by argument.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from enum import StrEnum
 from fractions import Fraction
 from functools import cache
+from types import MappingProxyType
 from typing import NamedTuple
 
 from vultron.core.states.cs import CS
@@ -49,6 +50,7 @@ from vultron.measure.baselines.walk import (
     Ordering,
     OrderingQuery,
     WalkPrefix,
+    frequency,
     implies,
 )
 
@@ -149,7 +151,9 @@ _ORIGINAL_ORDER: tuple[tuple[CSEvent, CSEvent], ...] = tuple(
 """The twelve original desiderata, most desirable first (``twelve_desiderata.md``)."""
 
 
-JOINT_TO_CS: dict[Event, CSEvent] = {v: k for k, v in _CS_TO_JOINT.items()}
+JOINT_TO_CS: Mapping[Event, CSEvent] = MappingProxyType(
+    {v: k for k, v in _CS_TO_JOINT.items()}
+)
 """Each of vendor 1's joint-model case-state events, and the case's, as its six-event one."""
 
 
@@ -300,30 +304,43 @@ def case_state_values(query: Query) -> ChanceValues[CS, CSEvent]:
     return ChanceValues(CASE_STATE_MODEL, case_state_query(query))
 
 
+@cache
 def _frequency(model: ModelName, query: Query) -> Fraction:
-    """*query*'s chance frequency in *model*, from the shared solved table.
+    """*query*'s chance frequency in *model*, keeping only the number.
+
+    :func:`implications` asks many scoped queries once each, from the start
+    only, so their solved tables are not kept.
+    """
+    if model is ModelName.CASE_STATE:
+        return frequency(CASE_STATE_MODEL, case_state_query(query))
+    if model is ModelName.ONE_VENDOR:
+        return frequency(ONE_VENDOR_MODEL, query)
+    return frequency(TWO_VENDOR_MODEL, query)
+
+
+def baseline(desideratum: Desideratum) -> Fraction:
+    """The exact chance frequency ``f_d`` of *desideratum* in its own model.
+
+    Read from the desideratum's shared solved table, the one that values
+    from any later point of the walk come from too.
 
     Raises:
         ValueError: no walk on the model meets every given event.
     """
-    if model is ModelName.CASE_STATE:
+    query = desideratum.query
+    if desideratum.model is ModelName.CASE_STATE:
         value = case_state_values(query).at(
             WalkPrefix(CASE_STATE_MODEL.initial)
         )
     else:
-        table = joint_values(model, query)
+        table = joint_values(desideratum.model, query)
         value = table.at(WalkPrefix(table.model.initial))
     if value is None:
         raise ValueError(
-            f"no walk on the {model} model meets every given event of"
-            f" {query!r}"
+            f"no walk on the {desideratum.model} model meets every given"
+            f" event of {query!r}"
         )
     return value
-
-
-def baseline(desideratum: Desideratum) -> Fraction:
-    """The exact chance frequency ``f_d`` of *desideratum* in its own model."""
-    return _frequency(desideratum.model, desideratum.query)
 
 
 def _in_one_vendor_model(desideratum: Desideratum) -> Query | None:
