@@ -35,12 +35,7 @@ from vultron.errors import (
     VultronValidationError,
 )
 from vultron.measure.baselines import completion_probabilities
-from vultron.measure.scoring.model import (
-    Completion,
-    SequenceScore,
-    VendorScore,
-)
-from vultron.measure.sequences import CaseStateSequence
+from vultron.measure.scoring.model import Completion, SequenceScore
 
 
 class NotAHistoryPrefixError(ValueError):
@@ -97,15 +92,4 @@ def score_prefix(prefix: Iterable[CSEvent | str]) -> SequenceScore:
             Completion(history=history, probability=probability)
             for history, probability in sorted(weights.items())
         ),
-    )
-
-
-def score_sequence(sequence: CaseStateSequence) -> VendorScore:
-    """Score one vendor's projected sequence through its completions.
-
-    The sequence's moved and implied events (CEH-05-009) are scored where
-    the projection placed them: the model's transient states force them.
-    """
-    return VendorScore(
-        participant=sequence.participant, score=score_prefix(sequence.kinds)
     )

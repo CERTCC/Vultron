@@ -11,6 +11,7 @@ tracks:
   - "#6067"
   - "#6068"
   - "#6069"
+  - "#6457"
 description: >
   Design for the read-only layer that turns a case ledger into the case's CVD event
   history: why events come from state comparison rather than a semantic-type table,
@@ -261,7 +262,7 @@ name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
 shorter. Every sequence the committed recordings yield is incomplete, so that scorer
 has nothing to score for a typical case. The measures stay out of this layer: an
-incomplete sequence is scored by `vultron/measure/scoring/` (`score_sequence`), which
+incomplete sequence is scored by `vultron/measure/scoring/` (`score_case`), which
 reads the sequence and never the other way round (ADR-0182).
 
 ### Measures built on these sequences take chance per vendor
@@ -274,6 +275,14 @@ no table would serve every case. Do not build a whole-case walk, and do not key 
 baseline on the number of participants. An incomplete sequence is scored through its
 completions under the same walk (expected, best and worst), and a case reports
 per-vendor scores with their unweighted median and spread (`score_case`).
+
+Score each extended desideratum in the scope it states: each vendor (report handling,
+`F_i ≺ Ex_own`), the embargo group, and the multi-party group, walked once per vendor
+and once per ordered pair (`vultron/measure/scoring/extended.py`). Reason: move bands
+compare outcome shifts scope by scope (ADR-0200 rule 2), and a walk that reads one
+vendor or one pair never combines the vendors (CEH-05-006). Read a scope's best and
+worst over several walks as a bound, not a reachable score: the walks share P, X and
+A, and no whole-case walk exists to state it.
 
 Take the spread as the range (highest minus lowest), never a variance. Reason: the
 vendors share P, X and A, so their scores are not a sample, and the spread reads as

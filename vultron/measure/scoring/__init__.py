@@ -24,11 +24,16 @@ never from a second walk, and validates through
   complete history, :func:`history_score`.
 * :mod:`~vultron.measure.scoring.model` — the scored prefix with its weighted
   completions and its expected, best and worst scores, and one vendor's.
-* :mod:`~vultron.measure.scoring.score` — :func:`score_prefix` and
-  :func:`score_sequence`, and the refusal of a sequence that is not a
-  prefix.
-* :mod:`~vultron.measure.scoring.case` — :func:`score_case`, a multi-party
-  case's per-vendor scores with their unweighted median and spread.
+* :mod:`~vultron.measure.scoring.score` — :func:`score_prefix`, and the
+  refusal of a sequence that is not a prefix.
+* :mod:`~vultron.measure.scoring.record` — the case event history read as
+  the joint models' events: when each first occurred, and the joint state
+  the case stands in.
+* :mod:`~vultron.measure.scoring.extended` — the extended desiderata of
+  ``process_model_desiderata.md``, scored in their scopes: each vendor, the
+  embargo group and the multi-party group (ADR-0200 rule 2).
+* :mod:`~vultron.measure.scoring.case` — :func:`score_case`, every scope of
+  a case, with the vendors' unweighted median and spread.
 """
 
 from vultron.measure.scoring.case import (
@@ -37,27 +42,55 @@ from vultron.measure.scoring.case import (
     score_case,
 )
 from vultron.measure.scoring.complete import history_score, met_desiderata
+from vultron.measure.scoring.extended import (
+    EMBARGO_DESIDERATA,
+    MULTI_PARTY_DESIDERATA,
+    VENDOR_DESIDERATA,
+    embargo_scope,
+    multi_party_scope,
+    vendor_scope,
+)
 from vultron.measure.scoring.model import (
     Completion,
+    ScopeScore,
     SequenceScore,
+    TermScore,
+    UnscoredScope,
     VendorScore,
+    WalkScore,
+)
+from vultron.measure.scoring.record import (
+    CaseRecord,
+    NotAJointStateError,
+    exit_end,
 )
 from vultron.measure.scoring.score import (
     NotAHistoryPrefixError,
     score_prefix,
-    score_sequence,
 )
 
 __all__ = [
+    "EMBARGO_DESIDERATA",
+    "MULTI_PARTY_DESIDERATA",
+    "VENDOR_DESIDERATA",
     "AcrossVendors",
+    "CaseRecord",
     "CaseScoreSummary",
     "Completion",
     "NotAHistoryPrefixError",
+    "NotAJointStateError",
+    "ScopeScore",
     "SequenceScore",
+    "TermScore",
+    "UnscoredScope",
     "VendorScore",
+    "WalkScore",
+    "embargo_scope",
+    "exit_end",
     "history_score",
     "met_desiderata",
+    "multi_party_scope",
     "score_case",
     "score_prefix",
-    "score_sequence",
+    "vendor_scope",
 ]

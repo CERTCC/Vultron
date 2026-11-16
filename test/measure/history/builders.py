@@ -305,3 +305,22 @@ def publish(ledger: Ledger, pxa: str) -> int:
     return ledger.add(
         "add_case_status_to_case", "Add", CM, case_status(f"cs-{pxa}", pxa)
     )
+
+
+def exit_embargo(
+    ledger: Ledger,
+    content: str = "EARLY",
+    cause: dict[str, Any] | None = None,
+    embargo_id: str = EMBARGO,
+) -> int:
+    """The CASE_MANAGER's ``Remove`` of *embargo_id*, ending it."""
+    fields: dict[str, Any] = {"content": content}
+    if cause is not None:
+        fields["terminationCause"] = cause
+    return ledger.add(
+        "remove_embargo_event_from_case",
+        "Remove",
+        CM,
+        embargo(embargo_id),
+        **fields,
+    )

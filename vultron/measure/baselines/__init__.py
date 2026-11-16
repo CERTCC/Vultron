@@ -29,6 +29,9 @@ the protocol, and writes nothing (CEH-01-001, CEH-01-002).
   invariants.
 * :mod:`~vultron.measure.baselines.desiderata` — every desideratum with its
   model, its baseline, and the implication pairs.
+* :mod:`~vultron.measure.baselines.outcomes` — the walk started where a
+  case stands (:class:`StartedAt`), and the outcomes it can still reach
+  (:func:`reachable_ends`), for scoring an incomplete case.
 * :mod:`~vultron.measure.baselines.render` — the Markdown tables the
   Measuring CVD pages print.
 """
@@ -63,6 +66,7 @@ from vultron.measure.baselines.joint import (
     JointState,
     VendorPath,
 )
+from vultron.measure.baselines.outcomes import StartedAt, reachable_ends
 from vultron.measure.baselines.walk import (
     ChanceModel,
     Ordering,
@@ -94,6 +98,7 @@ __all__ = [
     "ModelName",
     "Ordering",
     "OrderingQuery",
+    "StartedAt",
     "Step",
     "VendorPath",
     "WalkNeverEndsError",
@@ -106,5 +111,6 @@ __all__ = [
     "implications",
     "ordering",
     "prefix_probability",
+    "reachable_ends",
     "step_probability",
 ]

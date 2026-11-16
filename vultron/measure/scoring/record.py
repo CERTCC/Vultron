@@ -1,0 +1,311 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""A case event history read in the joint models' events (ADR-0182).
+
+The extended desiderata name events the six-event sequence does not hold:
+report validation and acceptance, the embargo's start and its exit by cause.
+:class:`CaseRecord` reads them from the case event history, for the case and
+for each vendor, as the events of
+:mod:`vultron.measure.baselines.joint`, and answers two questions:
+
+* **When did an event first occur?**  :meth:`CaseRecord.position` gives the
+  log index of its first occurrence.  Two events of one ledger entry share
+  it, and are simultaneous, as the events of one step of the walk are.  A
+  vendor's ``V``, ``F`` and ``D`` come from its projected sequence, so an
+  event a transient state forces (CEH-05-009) sits with the event that
+  forced it: an aware public makes the vendor aware at once.  Likewise
+  ``P`` sits no later than ``X``, because ``pX`` forces ``P`` (CSB-17-003).
+* **Where does the case stand?**  :meth:`CaseRecord.state` gives the joint
+  state the walk goes on from: each vendor's report-management state, fix
+  path and deployment, the case's public state, and its embargo state with
+  the cause of its exit.  A state the joint model has no place for, such as
+  a fix ready before the report is accepted, is refused with its reason
+  (:class:`NotAJointStateError`), never scored.
+
+The embargo exit splits by cause as ``process_model_desiderata.md``
+§ "Splitting embargo exit by cause" splits it: ``END_TIME_REACHED``,
+``FIX_READY`` and ``FIX_DEPLOYED`` are on its own terms, ``THREAT_SIGNAL`` is
+a threat signal, and any other early end is other.  The history records no
+embargo proposal, so a case with none in force is read as ``EM.NONE``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping
+
+from vultron.core.models.embargo_termination import TerminationCauseKind
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
+    violation_pxa_em_entailment,
+)
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    cs_dimensions,
+    replay_cs_history,
+)
+from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.rm import RM
+from vultron.measure.baselines import (
+    EmbargoEnd,
+    Event,
+    EventKind,
+    JointState,
+    VendorPath,
+)
+from vultron.measure.history import (
+    RM_EVENT_KINDS,
+    CaseEvent,
+    CaseEventHistory,
+    EventKind as RecordKind,
+)
+from vultron.measure.sequences import CaseStateSequence, Placement
+
+UNAWARE = VendorPath(RM.START, CS_vf.vf, CS_d.d)
+"""A vendor not yet aware: the joint models' vendor at their start."""
+
+_RM_OF_KIND: dict[RecordKind, RM] = {
+    kind: rm for rm, kind in RM_EVENT_KINDS.items()
+}
+
+_RM_EVENT: dict[RM, EventKind] = {
+    RM.RECEIVED: EventKind.V,
+    RM.INVALID: EventKind.INVALIDATED,
+    RM.VALID: EventKind.VALIDATED,
+    RM.DEFERRED: EventKind.DEFERRED,
+    RM.ACCEPTED: EventKind.ACCEPTED,
+    RM.CLOSED: EventKind.CLOSED,
+}
+"""The joint event each recorded RM state is; ``RECEIVED`` is ``V``'s."""
+
+_OWN_TERMS_CAUSES = frozenset(
+    {TerminationCauseKind.FIX_READY, TerminationCauseKind.FIX_DEPLOYED}
+)
+
+_EXIT_EVENT: dict[EmbargoEnd, EventKind] = {
+    EmbargoEnd.OWN_TERMS: EventKind.EXIT_OWN_TERMS,
+    EmbargoEnd.THREAT_SIGNAL: EventKind.EXIT_THREAT,
+    EmbargoEnd.OTHER: EventKind.EXIT_OTHER,
+}
+
+_PUBLIC: dict[CSEvent, EventKind] = {
+    CSEvent.P: EventKind.P,
+    CSEvent.X: EventKind.X,
+    CSEvent.A: EventKind.A,
+}
+
+_VENDOR_PATH: dict[CSEvent, EventKind] = {
+    CSEvent.V: EventKind.V,
+    CSEvent.F: EventKind.F,
+    CSEvent.D: EventKind.D,
+}
+
+
+class NotAJointStateError(ValueError):
+    """The case stands where the joint model has no state, so no walk goes on.
+
+    Attributes:
+        problems: Every rule the state breaks (EH-07-001).
+    """
+
+    def __init__(self, problems: Iterable[str]) -> None:
+        self.problems = tuple(problems)
+        super().__init__(
+            "the case stands in no joint-model state: "
+            + "; ".join(self.problems)
+        )
+
+
+def exit_end(event: CaseEvent) -> EmbargoEnd:
+    """The cause *event*, an embargo exit, ends the embargo by.
+
+    Raises:
+        ValueError: *event* is not an embargo exit.
+    """
+    if event.kind is not RecordKind.EMBARGO_EXIT:
+        raise ValueError(f"a {event.kind} event is not an embargo exit")
+    if event.exit_reason is TerminationReason.END_TIME_REACHED:
+        return EmbargoEnd.OWN_TERMS
+    cause = (event.exit_cause or {}).get("kind")
+    if cause in _OWN_TERMS_CAUSES:
+        return EmbargoEnd.OWN_TERMS
+    if cause == TerminationCauseKind.THREAT_SIGNAL:
+        return EmbargoEnd.THREAT_SIGNAL
+    return EmbargoEnd.OTHER
+
+
+def _first(found: dict[EventKind, int], kind: EventKind, index: int) -> None:
+    found.setdefault(kind, index)
+
+
+def _case_positions(history: CaseEventHistory) -> dict[EventKind, int]:
+    """The first log index of each case event, ``P`` placed by ``pX``."""
+    found: dict[EventKind, int] = {}
+    for event in history.events:
+        if event.participant is not None:
+            continue
+        index = event.log_index
+        if isinstance(event.kind, CSEvent):
+            _first(found, _PUBLIC[event.kind], index)
+        elif event.kind is RecordKind.EMBARGO_START:
+            _first(found, EventKind.EMBARGO_START, index)
+        elif event.kind is RecordKind.EMBARGO_EXIT:
+            _first(found, EventKind.EXIT, index)
+            _first(found, _EXIT_EVENT[exit_end(event)], index)
+    if EventKind.X in found:
+        found[EventKind.P] = min(
+            found.get(EventKind.P, found[EventKind.X]), found[EventKind.X]
+        )
+    return found
+
+
+def _recorded_rm(event: CaseEvent) -> RM | None:
+    """The RM state *event* enters, or ``None`` when it is no RM event."""
+    if isinstance(event.kind, RecordKind):
+        return _RM_OF_KIND.get(event.kind)
+    return None
+
+
+def _vendor_positions(
+    history: CaseEventHistory, sequence: CaseStateSequence
+) -> dict[EventKind, int]:
+    """The first log index of each of *sequence*'s vendor's own events.
+
+    A forced member (CEH-05-009) takes the position of the member before it.
+    """
+    found: dict[EventKind, int] = {}
+    position = 0
+    for member in sequence.events:
+        if member.placement is Placement.RECORDED:
+            position = member.log_index
+        if isinstance(member.kind, CSEvent) and member.kind in _VENDOR_PATH:
+            _first(found, _VENDOR_PATH[member.kind], position)
+    for event in history.for_participant(sequence.participant):
+        rm = _recorded_rm(event)
+        if rm is not None and rm is not RM.RECEIVED:
+            _first(found, _RM_EVENT[rm], event.log_index)
+    return found
+
+
+def _vendor_rm(history: CaseEventHistory, participant: str) -> RM:
+    """*participant*'s report-management state at the end of the history.
+
+    A vendor aware of the vul has received its report, so a vendor with no
+    later state recorded stands at ``RECEIVED``.
+    """
+    rm = RM.RECEIVED
+    for event in history.for_participant(participant):
+        recorded = _recorded_rm(event)
+        if recorded is not None and recorded is not RM.START:
+            rm = recorded
+    return rm
+
+
+def _public_state(positions: Mapping[EventKind, int]) -> CS_pxa:
+    name = "".join(
+        letter.upper() if kind in positions else letter
+        for letter, kind in (
+            ("p", EventKind.P),
+            ("x", EventKind.X),
+            ("a", EventKind.A),
+        )
+    )
+    return CS_pxa[name]
+
+
+def _embargo_state(
+    history: CaseEventHistory,
+) -> tuple[EM, EmbargoEnd | None]:
+    """The embargo state the last embargo event leaves, with its exit's cause."""
+    state: tuple[EM, EmbargoEnd | None] = (EM.NONE, None)
+    for event in history.events:
+        if event.kind is RecordKind.EMBARGO_START:
+            state = (EM.ACTIVE, None)
+        elif event.kind is RecordKind.EMBARGO_EXIT:
+            state = (EM.EXITED, exit_end(event))
+    return state
+
+
+class CaseRecord:
+    """One case's event history, read as the joint models' events.
+
+    Built from the history and the vendors' projected sequences
+    (:func:`vultron.measure.sequences.case_state_sequences`); each vendor is
+    read alone, and no case-wide sequence is built (CEH-05-006).
+    """
+
+    def __init__(
+        self,
+        history: CaseEventHistory,
+        sequences: Iterable[CaseStateSequence],
+    ) -> None:
+        self.case_id = history.case_id
+        self._case = _case_positions(history)
+        self._vendors: dict[str, dict[EventKind, int]] = {}
+        self._paths: dict[str, VendorPath] = {}
+        for sequence in sequences:
+            participant = sequence.participant
+            self._vendors[participant] = _vendor_positions(history, sequence)
+            vf, d, _ = cs_dimensions(replay_cs_history(sequence.kinds))
+            self._paths[participant] = VendorPath(
+                _vendor_rm(history, participant), vf, d
+            )
+        self._pxa = _public_state(self._case)
+        self._em, self._end = _embargo_state(history)
+
+    @property
+    def vendors(self) -> tuple[str, ...]:
+        """The vendors read, in the order of their sequences."""
+        return tuple(self._vendors)
+
+    def position(self, event: Event, vendors: tuple[str, ...]) -> int | None:
+        """The log index at which *event* first occurred, or ``None``.
+
+        *vendors* names the vendor each vendor number of *event* stands for:
+        vendor 1 is ``vendors[0]``.
+
+        Raises:
+            KeyError: *event* names a vendor not among *vendors*, or one this
+                record did not read.
+        """
+        if event.vendor is None:
+            return self._case.get(event.kind)
+        return self._vendors[vendors[event.vendor - 1]].get(event.kind)
+
+    def path(self, vendor: str) -> VendorPath:
+        """*vendor*'s report-management state, fix path and deployment now.
+
+        Raises:
+            KeyError: this record did not read *vendor*.
+        """
+        return self._paths[vendor]
+
+    def state(self, paths: tuple[VendorPath, ...]) -> JointState:
+        """The joint state of the case now, with *paths* for its vendors.
+
+        Raises:
+            NotAJointStateError: the joint model has no such state.
+        """
+        problems = [
+            v.message
+            for path in paths
+            for v in composite_state_violations(path.rm, path.vf, path.d)
+        ]
+        pxa_em = violation_pxa_em_entailment(self._pxa, self._em)
+        if pxa_em is not None:
+            problems.append(pxa_em)
+        if problems:
+            raise NotAJointStateError(problems)
+        return JointState(paths, self._pxa, self._em, self._end)

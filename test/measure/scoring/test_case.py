@@ -24,6 +24,7 @@ from test.measure.history.builders import (
     VENDOR,
     VENDOR_2,
     Ledger,
+    exit_embargo,
     publish,
     seat_vendor,
     status,
@@ -33,13 +34,13 @@ from vultron.measure.history import read_case_event_histories
 from vultron.measure.scoring import (
     AcrossVendors,
     CaseScoreSummary,
+    ScopeScore,
+    UnscoredScope,
     VendorScore,
     score_case,
     score_prefix,
-    score_sequence,
 )
 from vultron.measure.sequences import (
-    CaseStateSequences,
     UnprojectableParticipant,
     UnprojectableReason,
     case_state_sequences,
@@ -47,6 +48,8 @@ from vultron.measure.sequences import (
 
 _RECORDINGS = sorted(RECORDINGS_DIR.glob("*/case-actor.jsonl"))
 _SCORES = ("expected", "best", "worst")
+_THREAT = {"kind": "THREAT_SIGNAL", "signals": ["P"]}
+_UNSCORED = UnscoredScope(reason="a rule the joint model has")
 
 
 def _multi_party_ledger() -> Ledger:
@@ -60,11 +63,15 @@ def _multi_party_ledger() -> Ledger:
         VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf", d="d")
     )
     seat_vendor(ledger, VENDOR_2, "Vf")
+    ledger.add_status(VENDOR, status("v-Va", VENDOR, "VALID", vf="Vf", d="d"))
     ledger.add_status(
-        VENDOR, status("v-F", VENDOR, "RECEIVED", vf="VF", d="d")
+        VENDOR, status("v-Ac", VENDOR, "ACCEPTED", vf="Vf", d="d")
     )
     ledger.add_status(
-        VENDOR, status("v-D", VENDOR, "RECEIVED", vf="VF", d="D")
+        VENDOR, status("v-F", VENDOR, "ACCEPTED", vf="VF", d="d")
+    )
+    ledger.add_status(
+        VENDOR, status("v-D", VENDOR, "ACCEPTED", vf="VF", d="D")
     )
     ledger.add_status(
         DEPLOYER,
@@ -75,6 +82,7 @@ def _multi_party_ledger() -> Ledger:
         status("dep-d", DEPLOYER, "RECEIVED", d="D", roles=("DEPLOYER",)),
     )
     publish(ledger, "Pxa")
+    exit_embargo(ledger, cause=_THREAT)
     return ledger
 
 
@@ -83,13 +91,31 @@ def _two_party_ledger() -> Ledger:
     ledger = Ledger()
     ledger.standard_genesis()
     seat_vendor(ledger, VENDOR, "Vf")
-    ledger.add_status(VENDOR, status("v-F", VENDOR, "RECEIVED", vf="VF"))
+    ledger.add_status(VENDOR, status("v-Va", VENDOR, "VALID", vf="Vf"))
+    ledger.add_status(VENDOR, status("v-Ac", VENDOR, "ACCEPTED", vf="Vf"))
+    ledger.add_status(VENDOR, status("v-F", VENDOR, "ACCEPTED", vf="VF"))
     publish(ledger, "Pxa")
+    exit_embargo(ledger, cause=_THREAT)
     return ledger
 
 
-def _vendor(participant: str, prefix: str) -> VendorScore:
-    return VendorScore(participant=participant, score=score_prefix(prefix))
+def _vendor(
+    participant: str, prefix: str, extended: ScopeScore | UnscoredScope
+) -> VendorScore:
+    return VendorScore(
+        participant=participant,
+        score=score_prefix(prefix),
+        extended=extended,
+    )
+
+
+def _summary(*vendors: VendorScore, **fields) -> CaseScoreSummary:
+    return CaseScoreSummary(
+        case_id="urn:uuid:case-1",
+        vendors=vendors,
+        embargo=_UNSCORED,
+        **fields,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -100,12 +126,13 @@ def _vendor(participant: str, prefix: str) -> VendorScore:
 @pytest.mark.spec("CEH-05-001")
 @pytest.mark.spec("CEH-05-006")
 def test_each_vendor_is_scored_alone_by_the_sequence_scorer():
-    sequences = case_state_sequences(_multi_party_ledger().history())
-    summary = score_case(sequences)
+    history = _multi_party_ledger().history()
+    sequences = case_state_sequences(history)
+    summary = score_case(history)
     assert summary.case_id == sequences.case_id
-    assert summary.vendors == tuple(
-        score_sequence(s) for s in sequences.sequences
-    )
+    assert [v.score for v in summary.vendors] == [
+        score_prefix(s.kinds) for s in sequences.sequences
+    ]
     assert [v.participant for v in summary.vendors] == [VENDOR, VENDOR_2]
     assert ["".join(v.score.prefix) for v in summary.vendors] == [
         "VFDP",
@@ -115,8 +142,8 @@ def test_each_vendor_is_scored_alone_by_the_sequence_scorer():
 
 @pytest.mark.parametrize("which", _SCORES)
 def test_the_summary_reports_each_scores_median_and_spread(which):
-    summary = score_case(case_state_sequences(_multi_party_ledger().history()))
-    first, second = (getattr(v.score, which) for v in summary.vendors)
+    summary = score_case(_multi_party_ledger().history())
+    first, second = (getattr(v, which) for v in summary.vendors)
     across = getattr(summary, which)
     assert across is not None
     assert first != second
@@ -126,10 +153,20 @@ def test_the_summary_reports_each_scores_median_and_spread(which):
     assert across.spread == abs(first - second)
 
 
+@pytest.mark.parametrize("which", _SCORES)
+def test_a_vendors_score_adds_its_extended_desiderata(which):
+    for vendor in score_case(_multi_party_ledger().history()).vendors:
+        assert isinstance(vendor.extended, ScopeScore)
+        assert getattr(vendor, which) == getattr(
+            vendor.score, which
+        ) + getattr(vendor.extended, which)
+
+
 @pytest.mark.spec("CEH-05-007")
 def test_every_unprojectable_participant_is_listed_with_its_reason():
-    sequences = case_state_sequences(_multi_party_ledger().history())
-    summary = score_case(sequences)
+    history = _multi_party_ledger().history()
+    sequences = case_state_sequences(history)
+    summary = score_case(history)
     assert summary.unprojectable == tuple(sequences.unprojectable)
     (deployer,) = [
         u for u in summary.unprojectable if u.participant == DEPLOYER
@@ -140,10 +177,11 @@ def test_every_unprojectable_participant_is_listed_with_its_reason():
 
 
 def test_the_summary_serializes_its_medians_and_spreads():
-    summary = score_case(case_state_sequences(_multi_party_ledger().history()))
+    summary = score_case(_multi_party_ledger().history())
     dumped = summary.model_dump()
     for which in _SCORES:
         assert set(dumped[which]) == {"median", "lowest", "highest", "spread"}
+        assert set(dumped["embargo"]) >= {which}
     assert {u["participant"] for u in dumped["unprojectable"]} >= {DEPLOYER}
 
 
@@ -154,11 +192,12 @@ def test_the_summary_serializes_its_medians_and_spreads():
 
 @pytest.mark.parametrize("which", _SCORES)
 def test_a_two_party_case_is_its_one_vendors_score_with_zero_spread(which):
-    sequences = case_state_sequences(_two_party_ledger().history())
-    summary = score_case(sequences)
-    (only,) = sequences.sequences
-    assert summary.vendors == (score_sequence(only),)
-    value = getattr(summary.vendors[0].score, which)
+    history = _two_party_ledger().history()
+    summary = score_case(history)
+    (only,) = case_state_sequences(history).sequences
+    (vendor,) = summary.vendors
+    assert vendor.score == score_prefix(only.kinds)
+    value = getattr(vendor, which)
     across = getattr(summary, which)
     assert across == AcrossVendors(median=value, lowest=value, highest=value)
     assert across.spread == 0
@@ -204,16 +243,34 @@ def test_a_median_outside_the_range_is_refused():
 
 
 def test_a_case_with_no_vendor_lists_its_participants_and_has_no_median():
-    unscored = UnprojectableParticipant(
-        participant=DEPLOYER,
-        reason=UnprojectableReason.NO_VENDOR_AWARENESS,
-        detail="D at log index 3 with no vendor awareness",
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(
+        DEPLOYER,
+        status("dep-d", DEPLOYER, "RECEIVED", d="D", roles=("DEPLOYER",)),
     )
-    summary = score_case(
-        CaseStateSequences(case_id="urn:uuid:case-1", unprojectable=[unscored])
-    )
+    summary = score_case(ledger.history())
     assert summary.vendors == ()
-    assert summary.unprojectable == (unscored,)
+    assert DEPLOYER in {u.participant for u in summary.unprojectable}
+    assert (summary.expected, summary.best, summary.worst) == (
+        None,
+        None,
+        None,
+    )
+    assert summary.multi_party is None
+    assert isinstance(summary.embargo, ScopeScore)
+
+
+def test_a_vendor_with_no_extended_score_leaves_the_case_with_no_median():
+    """A median over the other vendors would read as one over all of them."""
+    scored = score_case(_two_party_ledger().history()).vendors[0]
+    unscored = _vendor(VENDOR_2, "V", _UNSCORED)
+    assert (unscored.expected, unscored.best, unscored.worst) == (
+        None,
+        None,
+        None,
+    )
+    summary = _summary(scored, unscored)
     assert (summary.expected, summary.best, summary.worst) == (
         None,
         None,
@@ -228,9 +285,9 @@ def test_a_case_with_no_vendor_lists_its_participants_and_has_no_median():
 
 def test_a_vendor_scored_twice_is_refused():
     with pytest.raises(ValidationError, match="scored twice"):
-        CaseScoreSummary(
-            case_id="urn:uuid:case-1",
-            vendors=(_vendor(VENDOR, "V"), _vendor(VENDOR, "VF")),
+        _summary(
+            _vendor(VENDOR, "V", _UNSCORED),
+            _vendor(VENDOR, "VF", _UNSCORED),
         )
 
 
@@ -239,9 +296,8 @@ def test_a_participant_both_scored_and_unprojectable_is_refused():
         ValidationError,
         match="both scored and reported unprojectable",
     ):
-        CaseScoreSummary(
-            case_id="urn:uuid:case-1",
-            vendors=(_vendor(VENDOR, "V"),),
+        _summary(
+            _vendor(VENDOR, "V", _UNSCORED),
             unprojectable=(
                 UnprojectableParticipant(
                     participant=VENDOR,
@@ -252,6 +308,7 @@ def test_a_participant_both_scored_and_unprojectable_is_refused():
         )
 
 
+@pytest.mark.spec("CEH-05-006")
 def test_the_summary_holds_no_case_wide_sequence():
     """Several vendors' sequences are never combined (CEH-05-006)."""
     fields = set(CaseScoreSummary.model_fields) | set(
@@ -261,6 +318,8 @@ def test_the_summary_holds_no_case_wide_sequence():
         "case_id",
         "vendors",
         "unprojectable",
+        "embargo",
+        "multi_party",
         "expected",
         "best",
         "worst",
@@ -276,13 +335,13 @@ def test_the_summary_holds_no_case_wide_sequence():
 def test_every_recording_summarizes_each_vendor_once(path):
     (history,) = read_case_event_histories([path]).histories.values()
     sequences = case_state_sequences(history)
-    summary = score_case(sequences)
+    summary = score_case(history)
     assert [v.participant for v in summary.vendors] == [
         s.participant for s in sequences.sequences
     ]
     assert summary.unprojectable == tuple(sequences.unprojectable)
     for which in _SCORES:
-        scores = sorted(getattr(v.score, which) for v in summary.vendors)
+        scores = sorted(getattr(v, which) for v in summary.vendors)
         across = getattr(summary, which)
         if not scores:
             assert across is None
