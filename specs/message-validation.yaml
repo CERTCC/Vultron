@@ -1122,8 +1122,6 @@ groups:
       A marker that arrives carrying more than MV-12-003 allows may hold the value it
       claims to withhold. Refusing it keeps the leak from being stored or relayed.
     verification: >-
-      `test/core/models/test_redacted.py::test_a_marker_carrying_the_withheld_value_is_refused`
-      requires the marker type to refuse a marker carrying `content`, `id` or `name`.
       `test/wire/as2/test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`
       requires a case stub with a clean marker to parse and one whose marker carries the
       withheld value to be refused; it is a strict `xfail` until #6372 opens a case

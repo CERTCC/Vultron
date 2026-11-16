@@ -13,7 +13,7 @@
 
 """The ``Redacted`` marker type carries only ``type`` and ``summary`` (MV-12).
 
-These rows hold the rule at the type (MV-12-003, MV-12-005).  Where a received
+These rows hold the rule at the type (MV-12-003).  Where a received
 marker may stand is the parse edge's question, held by
 ``test/wire/as2/test_redaction_marker.py``.
 """
@@ -77,7 +77,6 @@ def test_a_marker_refuses_an_empty_summary() -> None:
     }
 
 
-@pytest.mark.spec("MV-12-005")
 @pytest.mark.spec("MV-12-003")
 @pytest.mark.parametrize(
     "extra",
@@ -91,7 +90,12 @@ def test_a_marker_refuses_an_empty_summary() -> None:
 def test_a_marker_carrying_the_withheld_value_is_refused(
     extra: dict[str, Any],
 ) -> None:
-    """A marker with any field but ``type`` and ``summary`` is refused."""
+    """A marker with any field but ``type`` and ``summary`` is refused.
+
+    This holds the rule at the type only.  A receiver's refusal (MV-12-005)
+    is the parse edge's, which sets unknown keys aside before the type sees
+    them (MV-11-003), so it is held in ``test_redaction_marker.py``.
+    """
     with pytest.raises(ValidationError) as exc_info:
         Redacted.model_validate(
             {"type": "Redacted", "summary": REASON, **extra}

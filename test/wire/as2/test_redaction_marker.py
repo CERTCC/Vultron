@@ -54,6 +54,19 @@ def _error_locations(error: VultronParseValidationError) -> set[str]:
     return {str(detail["loc"][0]) for detail in cause.errors()}
 
 
+def _assert_refused_as_a_marker(
+    error: VultronParseValidationError, slot: str
+) -> None:
+    """Assert the slot refused the body as a ``Redacted`` value it does not
+    admit, so the refusal does not rest on some other fault of the body."""
+    assert _error_locations(error) == {slot}
+    cause = error.__cause__
+    assert isinstance(cause, ValidationError)
+    assert "model_type" in {detail["type"] for detail in cause.errors()}, (
+        "the slot must refuse the marker as a value of the wrong type"
+    )
+
+
 def _full_case(**fields: Any) -> dict[str, Any]:
     return {
         **INBOUND_CASE_OWNERSHIP,
@@ -102,14 +115,15 @@ def test_a_marker_in_a_case_stub_identifying_field_is_refused() -> None:
 def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
     """A marker is never an activity's own object or target.
 
-    No activity slot admits the marker type; the row below gives the marker
-    an ``id``, so the refusal cannot rest on a missing ``id`` (OID-01-013).
-    A marker of only ``id`` and ``type`` is held by the row after it.
+    The registered type reads the body as a marker, which no activity slot
+    admits; the slot refuses it as a value of the wrong type, not for its
+    missing ``id`` (OID-01-013).  A marker of only ``id`` and ``type`` is
+    held by a strict ``xfail`` row below.
     """
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(_envelope(**{slot: MARKER}))
 
-    assert _error_locations(exc_info.value) == {slot}
+    _assert_refused_as_a_marker(exc_info.value, slot)
 
 
 @pytest.mark.spec("MV-12-002")
@@ -117,21 +131,17 @@ def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
 def test_a_marker_with_an_id_in_an_activity_slot_is_refused(slot: str) -> None:
     """An ``id`` on the marker does not let it stand in an activity slot.
 
-    The registered type reads the body as a marker, which no activity slot
-    admits, so the refusal does not rest on the ``id`` being absent.  The
-    ``summary`` keeps the body from being read as a typed reference.
+    The parse edge sets the ``id`` aside as a key the marker does not hold
+    (MV-11-003), so the slot sees the same marker as the row above and
+    refuses it as a value of the wrong type.  The ``summary`` keeps the body
+    from being read as a typed reference.
     """
     marker = {**MARKER, "id": "https://example.org/redactions/1"}
 
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(_envelope(**{slot: marker}))
 
-    assert _error_locations(exc_info.value) == {slot}
-    cause = exc_info.value.__cause__
-    assert isinstance(cause, ValidationError)
-    assert "model_type" in {detail["type"] for detail in cause.errors()}, (
-        "the slot must refuse the marker as a value of the wrong type"
-    )
+    _assert_refused_as_a_marker(exc_info.value, slot)
 
 
 @pytest.mark.xfail(

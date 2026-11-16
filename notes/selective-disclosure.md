@@ -93,3 +93,5 @@ Accepting the marker in a preview waits on #6244 and is built by #6372.
   `extra="forbid"` refuses nothing. MV-12-005 at the parse edge therefore needs
   the edge itself to refuse those keys on a marker
   (`test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`).
+  Opening a preview field alone turns that row's `xfail` into a failure, not
+  a pass: the clean marker then parses, and so does the one with extra keys.
