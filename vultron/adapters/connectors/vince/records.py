@@ -44,7 +44,7 @@ from pydantic import (
     field_validator,
 )
 
-from vultron.core.models._helpers import as_utc
+from vultron.core.models._helpers import as_utc, timestamp_serializer
 from vultron.errors import VinceCaseRecordsError
 from vultron.primitives import NonEmptyString, is_blank_string
 
@@ -84,6 +84,7 @@ class VinceCase(Record):
     title: Text = None
     summary: Text = None
     due_date: Time = None
+    _serialize_times = timestamp_serializer("created", "modified", "due_date")
 
 
 class VinceReport(Record):
@@ -105,6 +106,7 @@ class VinceReport(Record):
     contact_email: Text = None
     contact_phone: Text = None
     contact_org: Text = None
+    _serialize_times = timestamp_serializer("date_submitted")
 
     @property
     def shares_contact(self) -> bool:
@@ -132,6 +134,7 @@ class VincePost(Record):
     author: VincePostAuthor | None = None
     pinned: bool = False
     content: Text = None
+    _serialize_times = timestamp_serializer("created")
 
 
 class VinceVul(Record):
@@ -141,6 +144,7 @@ class VinceVul(Record):
     cve: Text = None
     description: Text = None
     date_added: Time = None
+    _serialize_times = timestamp_serializer("date_added")
 
 
 class VinceVendor(Record):
@@ -148,6 +152,7 @@ class VinceVendor(Record):
 
     vendor: NonEmptyString
     date_added: Time = None
+    _serialize_times = timestamp_serializer("date_added")
 
 
 class VinceVendorVul(Record):
@@ -158,6 +163,7 @@ class VinceVendorVul(Record):
     vulnerability: Text = None
     status: Text = None
     statement_date: Time = None
+    _serialize_times = timestamp_serializer("statement_date")
 
 
 class VinceNote(Record):
@@ -168,6 +174,9 @@ class VinceNote(Record):
     datefirstpublished: Time = None
     dateupdated: Time = None
     revision: int | None = None
+    _serialize_times = timestamp_serializer(
+        "datefirstpublished", "dateupdated"
+    )
 
 
 #: The VINCE reads the translation takes, each keyed by its path below
