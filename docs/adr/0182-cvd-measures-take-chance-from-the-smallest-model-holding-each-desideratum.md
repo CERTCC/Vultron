@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-11-06
 created: 2026-11-06
-updated: 2026-11-11
-revision: 2
+updated: 2026-11-16
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Epic #5068; Ideas #5072, #5143, #5828, #5142; ADR-0174;
@@ -53,7 +53,7 @@ The question: **what chance model do CVD measures use, so that a baseline is com
 Chosen option: "One indifference walk, applied to the smallest model that holds each desideratum's events", because it is the only option whose baselines are exact, fixed and independent of the participant count, and it keeps the meaning of the original skill coefficient.
 
 1. **One chance model.**
-   Every CVD measure takes chance from the indifference walk: at each step, every event allowed next is equally likely, under the rules that link the models (for example, public awareness ends an active embargo, and a fix needs the vendor's report accepted).
+   Every CVD measure that compares a case with chance takes chance from the indifference walk: at each step, every event allowed next is equally likely, under the rules that link the models (for example, public awareness ends an active embargo, and a fix needs the vendor's report accepted).
 2. **The smallest model that holds the desideratum.**
    A desideratum's baseline comes from the smallest model that contains its events.
    A per-vendor desideratum uses one vendor with the case's shared events, and the embargo where it matters.
@@ -69,11 +69,12 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    The spread is read as how evenly the case served its vendors, not as a statistical sample, because the vendors share events.
    It measures evenness across vendors, not across users: weighting by users or risk stays an open question.
    A two-party case reduces to its one vendor's score.
-   A participant with no vendor path is out of scope until it has measures of its own.
+   A participant with no vendor path has no score of its own until it has desiderata of its own and those desiderata have chance values, but the counts of rule 5 for each participant still apply.
 5. **Path preferences are simple counts.**
    A preference about the shape of a history is a count or ratio read from the event history.
    A preference about a participant's own acts is a count or ratio for each participant, such as invitations answered before their deadline out of those received.
    A preference about an embargo is a count or ratio for the case, because the embargo belongs to the case, such as the number of embargo revisions.
+   These counts describe a case and do not compare it with chance, so rule 1 does not apply to them until they have chance values.
    No combined reward function is defined.
 
 ### Consequences
@@ -84,7 +85,7 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
 - Good, because an incomplete case gets a score and a range, instead of a refusal.
 - Bad, because skill is measured against "a one-vendor case handled by chance", not against a chance version of this particular case. The pages that report a score must say so.
 - Bad, because the unweighted median and spread can mislead when a few vendors carry most of the risk; the measure does not answer the weighting question.
-- Neutral, because a participant with no vendor path gets no score, as ADR-0174 already records.
+- Neutral, because a participant with no vendor path gets no score of its own, as ADR-0174 already records, but gets the counts of rule 5.
 
 ## Validation
 

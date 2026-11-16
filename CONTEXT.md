@@ -299,6 +299,68 @@ which direction)
 
 ---
 
+## Move Advice
+
+**Scope** (move advice sense):
+One vendor in the case, notified or not, holding the desiderata about that vendor.
+There is no case-wide scope.
+*Avoid*: dimension, axis
+
+**Chance value**:
+The expected desiderata outcome of a scope if the case is left to chance from where
+it stands: for each desideratum, the mean over every allowed next step in its
+smallest model, including events no participant chooses, such as the vul becoming
+public.
+*Avoid*: baseline, do-nothing value (chance can still pick any participant's move)
+
+**Outcome shift**:
+A move's expected outcome minus the chance value, for each scope, in an end part and
+an embargo part. The embargo parts decide a band only when every end part is zero,
+and dominance only when the end parts are equal.
+*Avoid*: lift, gain, score delta
+
+**Dominates**:
+Move X dominates move Y when X's end parts are at least as good as Y's in every scope
+and better in one, or, with equal end parts, when its embargo parts are. Two moves
+that trade off against each other do not dominate each other.
+*Avoid*: beats, outranks
+
+**Move band**:
+The band an open move falls in, set only by its own outcome shifts, end parts first:
+harm-free, trade-off or unhelpful. Any band can be empty.
+*Avoid*: rank, rating, grade
+
+**Harm-free move**:
+An open move whose deciding parts (end parts, or embargo parts when every end part is
+zero) are positive in at least one scope and negative in none.
+*Avoid*: safe move, good move, leading move
+
+**Trade-off move**:
+An open move whose deciding parts are positive in at least one scope and negative in
+at least one.
+*Avoid*: mixed move, compromise
+
+**Unhelpful move**:
+An open move whose deciding parts are positive in no scope.
+*Avoid*: bad move, harmful move
+
+**Layer**:
+A move's depth in the dominance order: layer 1 holds the moves no open move
+dominates, layer 2 those only layer-1 moves dominate, and so on. Inside a band it
+sets the move's shade, layer 1 darkest, never an order.
+*Avoid*: rank, tier
+
+**Top move**:
+A harm-free or trade-off move in layer 1: no open move dominates it.
+*Avoid*: best move, optimal move, recommended move
+
+**Leading among yours**:
+A mark on a coordinator's harm-free or trade-off move that none of the coordinator's
+other open moves dominates, shown inside its band.
+*Avoid*: your best move, your strongest move
+
+---
+
 ## SSVC
 
 **SSVC (Stakeholder-Specific Vulnerability Categorization)**:
