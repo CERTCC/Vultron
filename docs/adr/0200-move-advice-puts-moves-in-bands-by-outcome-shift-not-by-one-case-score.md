@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-13
-revision: 1
+updated: 2026-11-16
+revision: 2
 deciders: Allen D. Householder
-consulted: Claude Opus 5.5; #6450; #5966; ADR-0182; ADR-0190; docs/topics/measuring_cvd/ (process model desiderata, random walk, benchmarking MPCVD)
+consulted: Claude Opus 5.5; #6450 (spike results); #5966; ADR-0182; ADR-0190; docs/topics/measuring_cvd/ (process model desiderata, random walk, benchmarking MPCVD)
 informed: Vultron implementers
 stakeholder_type: [project-contributor]
 ---
@@ -59,6 +59,8 @@ Chosen option: "Bands from each move's own outcome shifts, with dominance inside
    The next steps include events that no participant chooses, such as public awareness, a public exploit, or observed attacks.
    Thus each desideratum's chance value does not depend on the number of participants in the case.
    A scope's chance value is the sum of the chance values of its desiderata, each weighted `1 − f_d`, the weight the case scores already use (`vultron/measure/scoring/complete.py`, `reasoning_over_histories.md`).
+   Each group of equivalent desiderata counts once in the sum: `E ≺ P` stands for `E ≺ X` and `E ≺ A`, and `Ex_own ≺ P` for `Ex_own ≺ X` and `Ex_own ≺ A`, because each group holds in exactly the same histories.
+   If each one counted, an embargo that ends on its own terms would add three times what `F_i ≺ Ex_own` takes away from a vendor with no fix, and the advice would show the end of the embargo as harm-free (#6450).
 3. **A move's outcome shift has two parts in each scope.**
    The outcome shift is the expected outcome after the move, minus the chance value.
    The end part covers the end desiderata: all the desiderata of the scope except the embargo desiderata.
@@ -78,7 +80,9 @@ Chosen option: "Bands from each move's own outcome shifts, with dominance inside
    - An **unhelpful move** has a positive part in no scope.
 
    Thus bands and dominance use the same order, and a move that dominates a harm-free move is also harm-free.
-   The sign test is strict: it counts any non-zero part, however small (#6450 measures how small the parts are that decide a band).
+   The sign test is strict: it counts any non-zero part, however small.
+   In #6450, a threshold of 0.01 or 0.05 changes the band of only two moves: publication now and an embargo end on its own terms.
+   At 0.05, publication now becomes harm-free in each case with a vendor not yet notified, which hides the harm to the vendor with no fix, so no threshold applies.
    A negative embargo part beside a non-zero end part does not change the band, but the page still shows it.
    Any band can be empty.
    The page shows the harm-free band first, then the trade-off band, and collapses the unhelpful band into a group that the analyst can open.
@@ -99,6 +103,7 @@ Chosen option: "Bands from each move's own outcome shifts, with dominance inside
    It does not mean a broken desideratum, and the page says so.
 
 If the cases show that the sum inside one vendor's scope hides a trade-off that matters, the fallback is one scope for each vendor and desideratum group.
+The cases of #6450 do not call for it: the one sum that hides a trade-off is publication now for a vendor whose fix is ready, and both sides of it (`D ≺ P` down, `P ≺ X` and `P ≺ A` up) are in the original group.
 
 ### Consequences
 
@@ -110,17 +115,20 @@ If the cases show that the sum inside one vendor's scope hides a trade-off that 
 - Good, because a move that raises an end desideratum and lowers none dominates every embargo-only move. A vendor's own fix or deployment is not an event in any other vendor's desiderata, so it lowers no end desideratum. Thus, given the choice between a fix and an embargo extension, the advice takes the fix.
 - Bad, because the desiderata inside one vendor's scope are added with the rarity weights of ADR-0182. These weights measure how hard a desideratum is to meet by chance, not how much it matters.
 - Bad, because with many vendors, most moves do not dominate each other, and layer 1 can be large.
-- Bad, because the chance model cannot see that an active embargo protects the end desiderata: each step is equally likely, so an embargo does not make public awareness less likely (#6492).
+- Bad, because the chance model cannot see that an active embargo protects the end desiderata: each step is equally likely, so an embargo does not make public awareness less likely (#6492). In #6450, a proposed revision of the embargo has a shift of zero for every vendor, so an extension is unhelpful.
 - Bad, because the chance model cannot see real pressure to publish, for example after one vendor's fix is ready.
-- Bad, because the sign test is strict: a very small shift, such as one from a step that a model adds without a real effect, can move a move into another band. #6450 measures how often this happens.
+- Bad, because the sign test is strict: a very small shift can decide a band. In #6450, publication now rests on parts near 0.04 and an embargo end on its own terms on a part near 0.009, where the other deciding parts are near 1.5.
 - Neutral, because the case cannot yet say which vendor depends on which, so move advice has no supply-chain order (#6501).
 - Neutral, because a participant with no vendor path, such as a reporter, is not a scope until its desiderata have chance values (Epic #6461).
-- Neutral, because a move that notifies a vendor is expected to raise that vendor's outcome above the chance value. The pathology case P1 of #6450 tests if it is ever unhelpful.
+- Good, because a move that notifies a vendor raises that vendor's end part and no other part, so it is never unhelpful (P1 of #6450).
 
 ## Validation
 
-The spike #6450 writes the pathology cases as tests first, then runs the bands and the five aggregates against them.
-A research page under `docs/topics/measuring_cvd/` gives the results, the depth of the layers in its cases, the limits of the chance model, and the method.
+The spike #6450 wrote the pathology cases as tests first, then ran the bands and the five aggregates against them ([Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md)).
+The bands fail one case of one pathology: an embargo extension is unhelpful where it should be harm-free, because the chance model cannot see the embargo's protection (#6492).
+Each aggregate fails at least four of the eight pathologies.
+The spike changed rule 2, which now counts each group of equivalent desiderata once, and confirmed the strict sign test of rule 5.
+The case scores of ADR-0182 rule 4 give each vendor a score with an end part and an embargo part, which is the scope of rule 1; the two records agree when both count a scope that is never entered as met and each group of equivalent desiderata once.
 A result that overturns a rule above changes this record.
 
 ## Pros and Cons of the Options

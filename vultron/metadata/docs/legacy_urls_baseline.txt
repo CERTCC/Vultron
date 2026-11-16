@@ -837,6 +837,7 @@ topics/measuring_cvd/desirable_histories.md
 topics/measuring_cvd/discriminating_skill_and_luck.md
 topics/measuring_cvd/foundations/index.md
 topics/measuring_cvd/index.md
+topics/measuring_cvd/move_bands.md
 topics/measuring_cvd/observing_skill.md
 topics/measuring_cvd/open_questions.md
 topics/measuring_cvd/possible_histories.md
