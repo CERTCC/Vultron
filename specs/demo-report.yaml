@@ -826,25 +826,25 @@ groups:
   title: Reading a Case Ledger File
   description: >-
     The demo report tool and the demo UI's Log Replay mode (`ui/`) both read a case
-    ledger JSONL file. This group states what either reader does with a line it
-    cannot use, so that the two readers do not apply different rules.
+    ledger JSONL file. Both refuse a line that is not a JSON object. Log Replay also
+    checks each entry's envelope against the model. The report tool does not: it
+    degrades a malformed field in one row rather than lose the rest of the run.
   specs:
   - id: DRPT-06-001
     priority: MUST
     kind: project
     statement: >-
-      A ledger replay or report tool MUST name to the user each line it cannot use,
-      and replay none of that line.
+      A ledger replay or report tool MUST name to the user each line that is not a
+      JSON object, and replay none of that line.
     rationale: >-
-      A line dropped without notice makes the replay show a case history the ledger
-      does not hold. A line replayed with default values for what it lacks shows
-      events that never happened. Refusing the line and naming it keeps the replay
-      true to the file and tells the user where the file is damaged.
+      A line that is not a JSON object holds no entry to read. Dropping it without
+      notice makes the output show a case history the file does not hold; naming it
+      tells the user where the file is damaged.
     verification: >-
       `test/demo_unit/test_report_strict_reader.py::test_any_unusable_row_refuses_the_file`
-      asserts the report tool refuses the file and names the failing line, and
-      `ui/src/utils/ledgerShape.test.ts` asserts Log Replay's shape check names
-      each problem of a failing line.
+      asserts the report tool refuses a file with a line that is not JSON, or is
+      JSON but not an object, and names that line. `ui/src/utils/ledgerShape.test.ts`
+      (`refuses a line that is not an object`) asserts the same of Log Replay.
     relationships:
     - rel_type: extends
       spec_id: DRPT-01-004
@@ -858,7 +858,9 @@ groups:
       an undeclared key.
     rationale: >-
       The envelope is written by the CASE_MANAGER, so a missing field or an unknown
-      key means the line is not a ledger entry this model wrote. A received status is
+      key means the line is not a ledger entry this model wrote. Log Replay refuses
+      such a line rather than replay it with defaults, which would show events that
+      never happened. A received status is
       the sender's content carried as received, and the parse edge sets aside an
       unknown key in it rather than refusing it; a stricter viewer would refuse
       lines the protocol accepted.
