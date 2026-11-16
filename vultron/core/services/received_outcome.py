@@ -185,7 +185,7 @@ def _save_stub(
         stub.activity_id,
         stub.sender_id,
         # The received runner logged the refusal with its group; the stub's
-        # line states the reason it keeps without it (SL-03-003).  A stub
+        # line states the reason it keeps without it (SL-03-004).  A stub
         # always carries its reason (validated at construction).
         without_refusal_group(stub.refusal_reason or ""),
     )

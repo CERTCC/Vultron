@@ -66,6 +66,7 @@ from py_trees.ports import PortInformation
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
@@ -299,11 +300,12 @@ class ActivityAddressedToReceiverNode(DataLayerConditionWithPorts):
         if reason is None:
             return Status.SUCCESS
         self.feedback_message = reason
-        self.logger.warning(
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        self.logger.debug(
             "%s: refused '%s' (actor '%s'): %s",
             self.label,
             getattr(self._activity, "activity_id", None),
             getattr(self._activity, "actor_id", None),
-            reason,
+            without_refusal_group(reason),
         )
         return Status.FAILURE

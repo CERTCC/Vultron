@@ -51,6 +51,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
@@ -126,7 +127,8 @@ class CommitParticipantStatusEntriesNode(
     def _refuse(self, reason: str) -> Status:
         """Fail with *reason*; the act's transaction takes the statuses back."""
         self.feedback_message = f"{self.name}: {reason}"
-        self.logger.warning("%s", self.feedback_message)
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        self.logger.debug("%s", without_refusal_group(self.feedback_message))
         return Status.FAILURE
 
     def update(self) -> Status:

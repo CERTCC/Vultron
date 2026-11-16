@@ -42,6 +42,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     pipeline as io,
     ports,
 )
+from vultron.adapters.driving.fastapi.inbox_queue_drain import log_if_rejected
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
@@ -895,3 +896,25 @@ def test_the_server_starts_before_the_startup_replay_ends(
     with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):
         assert finished == [], "startup did not wait for the replay"
     assert finished == [True], "shutdown waited for the replay"
+
+
+@pytest.mark.spec("SL-03-004")
+def test_the_rejected_line_keeps_the_reason_without_the_group(caplog):
+    """The received runner logged the refusal with its group; the drain's
+    WARNING keeps the reason's facts without it (#6477)."""
+    outcome = InboxOutcome(
+        status=InboxOutcomeStatus.REJECTED,
+        activity_id="https://example.org/activities/a",
+        failure_reason="not yours — REFUSED (HP-01-006)",
+    )
+    with caplog.at_level(logging.DEBUG):
+        log_if_rejected(
+            outcome, "https://example.org/actors/v", replayed=False
+        )
+    (record,) = [
+        r
+        for r in caplog.records
+        if r.getMessage().startswith("Inbox activity")
+    ]
+    assert record.levelno == logging.WARNING
+    assert record.getMessage().endswith("): not yours")

@@ -1609,7 +1609,7 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
 
 # ---------------------------------------------------------------------------
 # A sender check records its facts at DEBUG; the runner logs the refusal
-# (SL-03-002, SL-03-003, #6477)
+# (SL-03-002 to SL-03-004, #6477)
 # ---------------------------------------------------------------------------
 
 
@@ -1826,7 +1826,7 @@ def test_every_authored_shape_is_ticked_or_excused() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-003", "SL-03-004")
 def test_every_any_of_side_logs_only_debug_facts_for_a_sender_it_refuses(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

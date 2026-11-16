@@ -94,7 +94,7 @@ A check that does not admit the sender calls
 (``vultron.core.behaviors.node_logger.fail_with_reason``).  A check cannot
 know whether its FAILURE is the delivery's verdict — inside an any-of side a
 later arm may still admit the sender — so the received runner, which reads
-the verdict, logs the one ``REFUSED`` line (SL-03-002, SL-03-003, #6477).
+the verdict, logs the one ``REFUSED`` line (SL-03-002 to SL-03-004, #6477).
 
 A check that composes its own citation around a shorter *why* does it in a
 ``_refuse_citing`` method that delegates — never in a ``_refuse``, which would
@@ -105,7 +105,8 @@ directly.
 
 Some lines are not refusal reasons, each for a reason stated where it is
 logged: ``SenderClosureNotRecordedNode``, whose FAILURE the handler may report
-``SKIPPED`` rather than ``REFUSED`` (CM-23-018, ID-05-003), keeps INFO; a
+``SKIPPED`` rather than ``REFUSED`` (CM-23-018, ID-05-003), words no
+refusal and logs its fact at DEBUG like every check; a
 malformed activity (no ``actor_id``, an unreadable ledger entry) is an anomaly,
 not a standing the sender lacks, so it takes its level from SL-03-001 — WARNING
 at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read

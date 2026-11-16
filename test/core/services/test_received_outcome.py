@@ -23,6 +23,7 @@ drive the write itself.
 """
 
 import json
+import logging
 from collections.abc import Iterator
 
 import pytest
@@ -35,6 +36,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.models.received_body import received_body_digest
+from vultron.core.models.refusal_wording import carries_refusal_group
 from vultron.core.services.received_activity import held_received_record
 from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.services.received_outcome import (
@@ -254,3 +256,28 @@ def test_a_body_still_owed_to_a_replay_is_not_given_up(dl):
     assert held.received_body == _body()
     assert held.replay_owed is True
     assert not held.is_receipt_stub
+
+
+@pytest.mark.spec("SL-03-004", "CLP-10-018")
+def test_the_stub_line_keeps_the_reason_without_the_group(dl, caplog):
+    """The received runner logged the refusal; the stub's INFO line repeats
+    its reason's facts but not its ``REFUSED (IDs)`` group (#6477)."""
+    _archive(dl)
+    with caplog.at_level(logging.DEBUG):
+        stub = write_receipt_stub(
+            dl,
+            ACTIVITY_ID,
+            sender_id=SENDER,
+            reason="not a participant — REFUSED (HP-01-006)",
+            received_at=now_utc(),
+        )
+    assert stub.refusal_reason == "not a participant — REFUSED (HP-01-006)"
+    lines = [
+        r.getMessage()
+        for r in caplog.records
+        if "receipt stub" in r.getMessage()
+    ]
+    assert lines and lines[0].endswith("Reason: not a participant")
+    assert not [
+        r for r in caplog.records if carries_refusal_group(r.getMessage())
+    ]

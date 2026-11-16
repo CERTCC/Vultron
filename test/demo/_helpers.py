@@ -796,14 +796,21 @@ def _reporter_links(
 
 
 def _logged_refusals(
-    caplog: pytest.LogCaptureFixture, pattern: str
+    caplog: pytest.LogCaptureFixture,
+    pattern: str,
+    *,
+    logger_name: str | None = None,
 ) -> list[str]:
-    """Every captured log message matching the refusal regex *pattern*."""
+    """Every captured log message matching the refusal regex *pattern*.
+
+    With *logger_name*, only that logger's records are read.
+    """
     marker = re.compile(pattern)
     return [
         record.getMessage()
         for record in caplog.records
-        if marker.search(record.getMessage())
+        if (logger_name is None or record.name == logger_name)
+        and marker.search(record.getMessage())
     ]
 
 
@@ -884,19 +891,6 @@ def expect_trusted_introductions(
 RECEIVED_RUNNER_LOGGER = received_runner.logger.name
 
 
-def _runner_refusals(
-    caplog: pytest.LogCaptureFixture, pattern: str
-) -> list[str]:
-    """Every runner refusal line whose message matches the regex *pattern*."""
-    marker = re.compile(pattern)
-    return [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == RECEIVED_RUNNER_LOGGER
-        and marker.search(record.getMessage())
-    ]
-
-
 @contextlib.contextmanager
 def expect_no_sender_refusals(
     caplog: pytest.LogCaptureFixture,
@@ -925,7 +919,11 @@ def expect_no_sender_refusals(
         " HP-01-006 sender refusal could not be seen"
     )
     yield
-    refusals = _runner_refusals(caplog, r"REFUSED \([^)]*\bHP-01-006\b[^)]*\)")
+    refusals = _logged_refusals(
+        caplog,
+        r"REFUSED \([^)]*\bHP-01-006\b[^)]*\)",
+        logger_name=RECEIVED_RUNNER_LOGGER,
+    )
     assert not refusals, (
         "a received delivery was refused for its sender (HP-01-006):\n"
         + "\n".join(refusals)

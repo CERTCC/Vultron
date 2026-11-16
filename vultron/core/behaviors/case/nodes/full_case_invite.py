@@ -32,6 +32,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
@@ -154,11 +155,7 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         self.position = position
 
     def _refuse(self, reason: str) -> Status:
-        self.feedback_message = reason
-        self.logger.warning(
-            "%s: refusing full-case reply: %s", self.name, reason
-        )
-        return Status.FAILURE
+        return fail_with_reason(self, reason)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:

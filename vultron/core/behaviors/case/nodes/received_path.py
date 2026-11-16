@@ -59,6 +59,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
 from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
@@ -337,14 +338,15 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
             )
             return Status.SUCCESS
         self.feedback_message = self._refusal_reason(path, case_id)
-        self.logger.warning(
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        self.logger.debug(
             "%s: refused at '%s' on the %s path; %s handles %s only: %s",
             self.label or self.name,
             self.actor_id,
             path.value,
             self.label or self.name,
             sorted(declared.value for declared in self.declared),
-            self.feedback_message,
+            without_refusal_group(self.feedback_message),
         )
         return Status.FAILURE
 
@@ -400,11 +402,12 @@ class ReplicaRefusalNode(DataLayerConditionWithPorts):
                 self, self.case_id
             ),
         )
-        self.logger.warning(
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        self.logger.debug(
             "%s: refused at '%s': %s",
             self.name,
             self.actor_id,
-            self.feedback_message,
+            without_refusal_group(self.feedback_message),
         )
         return Status.FAILURE
 

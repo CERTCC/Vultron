@@ -58,7 +58,8 @@ def fail_with_reason(
     line is DEBUG and drops that group: a node does not know whether its
     FAILURE is the delivery's verdict — a later Selector arm may admit the
     sender, or the reading may report the run ``SKIPPED`` — so the received
-    runner, which does, logs the one ``REFUSED`` line (SL-03-002, SL-03-003).
+    runner, which does, logs the one ``REFUSED`` line (SL-03-002 to
+    SL-03-004).
 
     Writes through :func:`node_logger`, so the line lands where the node's
     own ``self.logger`` lines land (SL-01-005).

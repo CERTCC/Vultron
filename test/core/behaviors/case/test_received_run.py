@@ -943,7 +943,7 @@ def _run_logged(
         )
 
 
-@pytest.mark.spec("HP-01-003", "SL-03-002", "SL-03-003")
+@pytest.mark.spec("HP-01-003", "SL-03-002", "SL-03-004")
 def test_the_runner_logs_one_refusal_line_with_the_reason_it_reports(caplog):
     """A refused delivery logs exactly one record carrying a ``REFUSED``
     group: the runner's WARNING, naming the activity, the sender and the
@@ -961,7 +961,9 @@ def test_the_runner_logs_one_refusal_line_with_the_reason_it_reports(caplog):
     )
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+@pytest.mark.spec(
+    "HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003", "SL-03-004"
+)
 def test_a_sender_guard_refusal_is_logged_once_by_the_runner(caplog):
     """A composed any-of sender guard refuses a stranger: every check logs
     a DEBUG fact without the group, and the one record carrying it is the
@@ -996,7 +998,7 @@ def test_a_sender_guard_refusal_is_logged_once_by_the_runner(caplog):
     assert {r.levelno for r in checks} == {logging.DEBUG}
 
 
-@pytest.mark.spec("ID-05-003", "SL-03-002")
+@pytest.mark.spec("ID-05-003", "SL-03-002", "SL-03-004")
 def test_a_skipped_run_logs_no_refusal_line(caplog):
     """A guard that failed as a repeat is ``SKIPPED``: no record carries a
     ``REFUSED`` group, whatever the guard's message says."""
@@ -1013,14 +1015,10 @@ def test_a_skipped_run_logs_no_refusal_line(caplog):
     )
     verdict = _run_logged(caplog, root)
     assert verdict.disposition is HandlerDisposition.SKIPPED
-    assert [
-        r.getMessage()
-        for r in _refusal_records(caplog)
-        if r.name == runner_module.logger.name
-    ] == []
+    assert _refusal_records(caplog) == []
 
 
-@pytest.mark.spec("HP-01-003", "SL-03-002")
+@pytest.mark.spec("HP-01-003", "SL-03-002", "SL-03-004")
 def test_an_applied_run_logs_no_refusal_line(caplog):
     """A run that succeeded, though an overruled arm failed on the way with
     a reason worded as a refusal, logs no record carrying the group."""

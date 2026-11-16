@@ -179,8 +179,8 @@ class _BridgeExecution:
                         root_status,
                         iteration,
                         # The received runner, not the bridge, logs the
-                        # delivery's REFUSED line (SL-03-002, SL-03-003).
-                        without_refusal_group(detail or ""),
+                        # delivery's REFUSED line (SL-03-002, SL-03-004).
+                        detail and without_refusal_group(detail),
                     )
                     # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
                     # Guard kept: lazy args do not skip the unicode_tree call.

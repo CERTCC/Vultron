@@ -23,7 +23,7 @@ requirements it rests on: ``"Sender 'a' is not the Case Owner of case 'c'
 Only the received runner knows the delivery's verdict, so only it logs a
 line carrying the group: one WARNING per refused delivery (SL-03-002).  A
 node, the bridge or the outcome stage that logs the same reason states the
-facts without the group (:func:`without_refusal_group`, SL-03-003), so the
+facts without the group (:func:`without_refusal_group`, SL-03-004), so the
 token a reader greps and the demo tests match stays the verdict's.
 """
 
@@ -51,7 +51,7 @@ def without_refusal_group(reason: str) -> str:
     """*reason* with every ``— REFUSED (IDs)`` group removed.
 
     The facts the reason states stay; only the token that claims the
-    verdict goes (SL-03-003).
+    verdict goes (SL-03-004).
     """
     return _GROUP.sub("", reason)
 

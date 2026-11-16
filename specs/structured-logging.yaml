@@ -215,20 +215,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A behaviour-tree node MUST log the facts behind its own FAILURE at DEBUG.
+      A behaviour-tree node whose FAILURE records a reason the handler may report
+      as a refusal MUST log that reason at DEBUG.
     rationale: >-
       A node cannot know whether its FAILURE is the delivery's verdict: a later
       Selector arm may admit the sender, and the verdict reading may report the run
       SKIPPED. Its line is diagnostic detail under SL-03-001, and the refusal, when
-      there is one, is the runner's line (SL-03-002). Logging the facts at DEBUG
-      keeps them, including the CASE_MANAGER a sender check resolved, for whoever
-      debugs the run (#5460, #6477).
+      there is one, is the runner's line (SL-03-002). Logging the reason at DEBUG
+      keeps its facts, including the CASE_MANAGER a sender check resolved, for
+      whoever debugs the run (#5460, #6477). A fault is not a refusal reason: a
+      malformed activity, an unreadable ledger entry or a store error keeps the
+      level SL-03-001 gives it.
     verification: >-
       `test/core/behaviors/test_sender_guard.py` ticks every declared any-of side
       with a sender none of its arms admits, the lone CASE_MANAGER and CASE_OWNER
       sides, an overruled CASE_MANAGER arm and the closed-sender check in both its
       placements, and asserts every sender check's line is DEBUG and keeps the
-      facts its reason states.
+      facts its reason states. `test/core/behaviors/test_refusal_reason_lines.py`
+      ticks a refusing instance of each other guard family that fails through
+      `fail_with_reason` and asserts one DEBUG line with the facts and no
+      `REFUSED (IDs)` group, while its `feedback_message` keeps the group.
     relationships:
     - rel_type: refines
       spec_id: SL-03-001
@@ -251,7 +257,11 @@ groups:
       group — the runner's — across every logger from DEBUG up, and that a SKIPPED
       or APPLIED run whose nodes failed with a reason worded as a refusal leaves
       none. `test/core/behaviors/test_sender_guard.py` asserts no record of any
-      declared any-of side's run carries the group.
+      declared any-of side's run carries the group. The receipt-stub, inbox
+      dispatch, queue-drain and refusal-notice lines are pinned by their own
+      tests in `test/core/services/test_received_outcome.py`,
+      `test/core/behaviors/test_refusal_reason_lines.py` and
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py`.
     relationships:
     - rel_type: extends
       spec_id: SL-03-002

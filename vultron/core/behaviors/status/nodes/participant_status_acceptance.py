@@ -350,7 +350,8 @@ class CheckParticipantStatusAcceptableNode(
             f" '{self.participant_id}': "
             + "; ".join(f"{r.dimension}: {r.reason}" for r in refusals)
         )
-        self.logger.warning(
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        self.logger.debug(
             "%s: %s (RSH-09-001)", self.name, self.feedback_message
         )
         return self._refuse(

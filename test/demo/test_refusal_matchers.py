@@ -86,7 +86,7 @@ def test_sender_matcher_ignores_a_line_the_runner_did_not_write(caplog):
         "Invite 'i' was never recorded here — REFUSED (EP-09-010)",
         "Sender 'a' has no standing — REFUSED (HP-01-0061)",
         # The same three facts without their group, as a node logs them
-        # (SL-03-003, #5786).
+        # (SL-03-004, #5786).
         "Sender 'a' is not an active participant of case 'c', or has left it",
         "Sender 'a' is not a participant of case 'c'",
         "No case in this store to check sender 'a' against",

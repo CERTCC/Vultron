@@ -352,7 +352,7 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
             self.actor_id,
             self.case_id,
             # The refusal is the CASE_MANAGER's, logged by its runner; here
-            # it is a fact the notice carried (SL-03-003).
+            # it is a fact the notice carried (SL-03-004).
             without_refusal_group(self.reason or "no reason given"),
             len(self.cleared),
         )

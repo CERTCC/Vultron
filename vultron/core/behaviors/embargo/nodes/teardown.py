@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
@@ -239,9 +240,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
 
     def _refuse(self, exc: VultronError) -> Status:
         self.refused = True
-        self.feedback_message = str(exc)
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_reason(self, str(exc))
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

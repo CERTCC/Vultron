@@ -124,7 +124,7 @@ def _log_refusal(
     reports ``SKIPPED``, can never be mistaken for a refusal (SL-03-002).
     The reason is logged as the handler reports it, given the HP-01-003
     group when it carries none, so every refused delivery has exactly one
-    record a reader greps and the demo matchers key on (SL-03-003).
+    record a reader greps and the demo matchers key on (SL-03-004).
     """
     logger.warning(
         "%s refused activity '%s' from '%s' at '%s': %s",
