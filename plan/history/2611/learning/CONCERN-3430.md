@@ -51,3 +51,5 @@ Found twice while verifying the CaseProposal admission gate in #3428 (#1315 / #3
 **Decision:** every handle for one actor keeps opening that actor's one in-memory store. Store identity lives in the URL (DL-07-004), and `clone_for_actor` and `get_datalayer` open many handles for one actor, which must reach the same rows. Per-instance isolation (option 2) would split an actor's store across its clones. A warn-on-reuse check (option 3) would fire on every legitimate clone. Neither is adopted.
 
 Between tests, the trap is already closed by the autouse `_dispose_actor_stores_between_tests` fixture in `test/conftest.py`. The remaining gap is a standalone script, or a test with several scenarios, that wants a store that starts empty. #6525 adds a named helper that returns a uniquely named in-memory URL, extracted from the inline idiom in `vultron/demo/helpers/participant_suggestion.py`. The documentation task #5366 names that helper.
+
+Docs PR: https://github.com/CERTCC/Vultron/pull/6526.
