@@ -25,13 +25,15 @@ CRD-03-001 to CRD-03-005.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
 
 from test.adapters.connectors.vince._support import (
     ACTIVE,
+    AS_OF,
+    AT_DUE_DATE,
     CASES,
     COMM_URL,
     INACTIVE,
@@ -57,11 +59,22 @@ from vultron.core.models.case_reading import (
     CaseReading,
     UntranslatedReason as Reason,
 )
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.rm import RM
 
 CERT = "CERT/CC"
 COORDINATOR_ROLES = ("CASE_MANAGER", "CASE_OWNER", "COORDINATOR")
+
+
+#: Each fixture case read at its :data:`AS_OF` time, and 999901 read again
+#: at its ``due_date``, when VINCE-EM-03 ends its embargo.
+READINGS = (
+    *((stem, AS_OF[stem]) for stem in CASES),
+    (ACTIVE, AT_DUE_DATE),
+)
 
 
 def _reached(reading: CaseReading) -> dict[str, tuple[RM, tuple[str, ...]]]:
@@ -206,14 +219,64 @@ def test_each_entry_credits_the_participant_who_acted():
     assert genesis.payload_snapshot["actor"] == cert
 
 
+# -- VINCE-EM-03: the embargo ends at due_date, by the time of reading -----
+
+
+def _exits(reading: CaseReading) -> list[Any]:
+    history, _ = projected(reading)
+    return [e for e in history.events if e.kind == "embargo_exit"]
+
+
+@pytest.mark.spec("CRD-03-001")
+@pytest.mark.spec("CRD-02-006")
+@pytest.mark.parametrize(
+    "as_of", [AT_DUE_DATE, AT_DUE_DATE + timedelta(days=30)]
+)
+def test_the_embargo_ends_at_due_date_once_the_reading_reaches_it(as_of):
+    reading = translate(ACTIVE, as_of=as_of)
+    _, reached = projected(reading)
+    assert list(reached.embargo_register.values()) == [
+        EmbargoRegisterStatus.TERMINATED
+    ]
+    (exit_,) = _exits(reading)
+    assert exit_.exit_reason is TerminationReason.END_TIME_REACHED
+    assert exit_.committed_at == AT_DUE_DATE
+    assert exit_.claimed_at == AT_DUE_DATE
+    entry = reading.ledger[exit_.log_index]
+    assert entry.payload_snapshot["actor"] == actors_by_name(reading)[CERT]
+    assert _rules(reading, entry.id_) == ["VINCE-EM-03"]
+    # The rest of the case reads as it did before due_date.
+    assert _reached(reading) == _reached(translate(ACTIVE))
+
+
+@pytest.mark.spec("CRD-03-001")
+@pytest.mark.parametrize(
+    "as_of", [AS_OF[ACTIVE], AT_DUE_DATE - timedelta(microseconds=1)]
+)
+def test_the_embargo_stays_active_before_due_date(as_of):
+    reading = translate(ACTIVE, as_of=as_of)
+    _, reached = projected(reading)
+    assert list(reached.embargo_register.values()) == [
+        EmbargoRegisterStatus.ACTIVE
+    ]
+    assert _exits(reading) == []
+    assert "VINCE-EM-03" not in {i.rule_id for i in reading.inferences}
+
+
+def test_the_time_of_reading_compares_across_offsets():
+    later = AT_DUE_DATE.astimezone(timezone(timedelta(hours=-5)))
+    assert later.tzinfo is not UTC
+    assert len(_exits(translate(ACTIVE, as_of=later))) == 1
+
+
 # -- AC-2: every inference names its crosswalk row -------------------------
 
 
 @pytest.mark.spec("CRD-03-005")
 @pytest.mark.spec("CRD-02-002")
-@pytest.mark.parametrize("stem", CASES)
-def test_every_inference_names_a_crosswalk_row_and_its_caveat(stem):
-    reading = translate(stem)
+@pytest.mark.parametrize(("stem", "as_of"), READINGS)
+def test_every_inference_names_a_crosswalk_row_and_its_caveat(stem, as_of):
+    reading = translate(stem, as_of=as_of)
     rows, caveats = crosswalk_rows(), crosswalk_caveats()
     assert reading.inferences
     for inference in reading.inferences:
@@ -233,8 +296,8 @@ def test_the_inferred_rows_are_the_crosswalk_s_inferred_rows():
 def test_the_fixtures_exercise_every_inferred_row():
     used = {
         inference.rule_id
-        for stem in CASES
-        for inference in translate(stem).inferences
+        for stem, as_of in READINGS
+        for inference in translate(stem, as_of=as_of).inferences
     }
     assert used == set(INFERRED_ROWS)
 
@@ -357,10 +420,10 @@ def _payload_times(node: Any) -> list[datetime]:
 
 
 @pytest.mark.spec("CRD-02-006")
-@pytest.mark.parametrize("stem", CASES)
-def test_every_time_in_the_reading_is_a_vince_record_time(stem):
+@pytest.mark.parametrize(("stem", "as_of"), READINGS)
+def test_every_time_in_the_reading_is_a_vince_record_time(stem, as_of):
     times = _vince_times(reads(stem))
-    reading = translate(stem)
+    reading = translate(stem, as_of=as_of)
     for entry in reading.ledger:
         assert entry.published in times
         assert entry.received_at in times
@@ -371,20 +434,26 @@ def test_every_time_in_the_reading_is_a_vince_record_time(stem):
 
 
 @pytest.mark.spec("CRD-02-006")
-@pytest.mark.parametrize("stem", CASES)
-def test_translation_reads_no_clock_and_repeats_exactly(stem):
+@pytest.mark.parametrize(("stem", "as_of"), READINGS)
+def test_translation_reads_no_clock_and_repeats_exactly(stem, as_of):
     with recorded_clock_reads() as clock_reads:
-        first = translate(stem)
+        first = translate(stem, as_of=as_of)
     with no_clock():
-        second = translate(stem)
+        second = translate(stem, as_of=as_of)
     assert clock_reads == []
     assert first == second
 
 
 def test_the_entries_are_in_time_order():
-    for stem in CASES:
-        stamps = [entry.published for entry in translate(stem).ledger]
+    for stem, as_of in READINGS:
+        reading = translate(stem, as_of=as_of)
+        stamps = [entry.published for entry in reading.ledger]
         assert stamps == sorted(stamps)
+
+
+def test_a_naive_time_of_reading_is_refused():
+    with pytest.raises(ValueError, match="aware"):
+        translate(ACTIVE, as_of=AS_OF[ACTIVE].replace(tzinfo=None))
 
 
 # -- AC-6: the issue-tracking reference -------------------------------------

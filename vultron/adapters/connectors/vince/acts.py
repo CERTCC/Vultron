@@ -47,6 +47,7 @@ from vultron.core.models.case_reading import (
     Inference,
     UntranslatedFact,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 
 #: The RM states a participant passes through on its way to each state a
@@ -68,10 +69,12 @@ class Act:
     Attributes:
         rules: The inferred crosswalk rows behind the act, each listed as an
             inference of its entry (CRD-02-002).
+        content: The activity's ``content``, such as the termination
+            reason a ``Remove(EmbargoEvent)`` carries (EMB-13-004).
     """
 
     at: datetime
-    semantic_type: str
+    semantic_type: MessageSemantics
     activity_type: str
     actor: str
     object_: CoreObject | str
@@ -79,6 +82,7 @@ class Act:
     label: str
     rules: list[str] = field(default_factory=list)
     target: str | None = None
+    content: str | None = None
 
 
 @dataclass
@@ -136,6 +140,7 @@ def _entry(ids: CaseIds, index: int, act: Act) -> CaseLedgerEntry:
         actor=act.actor,
         object_=act.object_,
         target=act.target,
+        content=act.content,
         context=ids.case_id,
         published=act.at,
         updated=act.at,
@@ -147,10 +152,10 @@ def _entry(ids: CaseIds, index: int, act: Act) -> CaseLedgerEntry:
         case_id=ids.case_id,
         log_index=index,
         log_object_id=activity.id_,
-        semantic_type=act.semantic_type,
+        semantic_type=act.semantic_type.value,
         payload_snapshot=payload,
         entry_hash=_content_digest(
-            ids.case_id, index, act.semantic_type, act.at, payload
+            ids.case_id, index, act.semantic_type.value, act.at, payload
         ),
         published=act.at,
         received_at=act.at,

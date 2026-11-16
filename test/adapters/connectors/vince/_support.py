@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,17 @@ INACTIVE = "999902-inactive-published"
 UNKNOWN = "999903-unknown-values"
 CASES = (ACTIVE, INACTIVE, UNKNOWN)
 
+#: The time each fixture case is read at: after every record it holds and
+#: before its ``due_date``, so its embargo is still in force.
+AS_OF = {
+    ACTIVE: datetime(2026, 3, 1, tzinfo=UTC),
+    INACTIVE: datetime(2026, 6, 1, tzinfo=UTC),
+    UNKNOWN: datetime(2026, 3, 1, tzinfo=UTC),
+}
+#: The time of reading 999901 at its ``due_date``, when the embargo ends
+#: (VINCE-EM-03).
+AT_DUE_DATE = datetime(2026, 4, 6, tzinfo=UTC)
+
 
 @cache
 def _reads_text(stem: str) -> str:
@@ -57,8 +69,12 @@ def reads(stem: str) -> dict[str, Any]:
     return loaded
 
 
-def translate(stem: str) -> CaseReading:
-    return translate_case(reads(stem), comm_url=COMM_URL)
+def translate(stem: str, *, as_of: datetime | None = None) -> CaseReading:
+    """Fixture *stem*'s reading, read at *as_of* or else at its
+    :data:`AS_OF` time."""
+    return translate_case(
+        reads(stem), comm_url=COMM_URL, as_of=as_of or AS_OF[stem]
+    )
 
 
 def projected(reading: CaseReading) -> tuple[CaseEventHistory, ReachedState]:

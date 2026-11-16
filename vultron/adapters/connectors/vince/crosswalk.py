@@ -67,6 +67,10 @@ INFERRED_ROWS: MappingProxyType[str, str] = MappingProxyType(
             "VINCE does not track embargo consent. Vultron infers the"
             " vendor's agreement from its place on the case."
         ),
+        "VINCE-EM-03": (
+            "VINCE does not record an embargo's end. Vultron infers that it"
+            " ended at due_date, judged against the time of reading."
+        ),
     }
 )
 

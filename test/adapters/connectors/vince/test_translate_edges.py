@@ -25,12 +25,15 @@ Spec: CRD-01-005, CRD-02-003, CRD-03-003, EH-07-001, VSD-01-003.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
 
 from test.adapters.connectors.vince._support import (
     ACTIVE,
+    AS_OF,
+    AT_DUE_DATE,
     COMM_URL,
     INACTIVE,
     UNKNOWN,
@@ -48,8 +51,10 @@ from vultron.core.states.rm import RM
 from vultron.errors import VinceCaseRecordsError
 
 
-def _translate(raw: dict[str, Any]) -> CaseReading:
-    return translate_case(raw, comm_url=COMM_URL)
+def _translate(
+    raw: dict[str, Any], *, as_of: datetime = AS_OF[ACTIVE]
+) -> CaseReading:
+    return translate_case(raw, comm_url=COMM_URL, as_of=as_of)
 
 
 def _facts(reading: CaseReading) -> set[tuple[str, str, Reason]]:
@@ -434,3 +439,56 @@ def test_a_blank_vendor_name_does_not_parse():
     raw["vendors"][2]["vendor"] = "   "
     facts = {(s, reason) for s, _, reason in _facts(_translate(raw))}
     assert ("case/999901/vendors/[2]", Reason.UNKNOWN_VALUE) in facts
+
+
+# -- VINCE-EM-03 and the rows that meet it ----------------------------------
+
+
+def _agreed(reading: CaseReading) -> set[str]:
+    history, _ = projected(reading)
+    return {
+        str(e.participant)
+        for e in history.events
+        if e.kind == "consent_agreed"
+    }
+
+
+@pytest.mark.parametrize(
+    ("added", "agrees"),
+    [("2026-04-06T00:00:00Z", True), ("2026-04-07T00:00:00Z", False)],
+)
+def test_a_vendor_added_after_the_embargo_ended_agrees_to_nothing(
+    added, agrees
+):
+    raw = reads(ACTIVE)
+    raw["vendors"].append(dict(raw["vendors"][0], vendor="Late Vendor"))
+    raw["vendors"][-1]["date_added"] = added
+    reading = _translate(raw, as_of=AT_DUE_DATE + timedelta(days=30))
+    _clean(reading)
+    late = actors_by_name(reading)["Late Vendor"]
+    assert (late in _agreed(reading)) is agrees
+    # A vendor added at due_date agrees before the embargo ends.
+    kinds = [
+        e.kind
+        for e in projected(reading)[0].events
+        if e.kind in ("consent_agreed", "embargo_exit")
+    ]
+    assert kinds[-1] == "embargo_exit"
+
+
+@pytest.mark.parametrize(
+    ("as_of", "em"),
+    [(AT_DUE_DATE - timedelta(days=1), "ACTIVE"), (AT_DUE_DATE, "EXITED")],
+)
+def test_a_case_status_after_the_embargo_ended_states_it_exited(as_of, em):
+    raw = reads(ACTIVE)
+    raw["note"] = dict(reads(INACTIVE)["note"], dateupdated=None)
+    raw["note"]["datefirstpublished"] = "2026-04-06T00:00:00Z"
+    reading = _translate(raw, as_of=as_of)
+    _clean(reading)
+    (published,) = [
+        entry.payload_snapshot["object"]
+        for entry in reading.ledger
+        if entry.semantic_type == "add_case_status_to_case"
+    ]
+    assert published["emState"] == em

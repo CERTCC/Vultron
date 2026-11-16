@@ -35,7 +35,9 @@ from vultron.core.models.case_reference import (
     CaseReferenceLink,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.embargo_register import TerminationReason
 
 #: The link relation of the case's reference to its VINCE page
 #: (VINCE-CA-02, CRD-03-002).
@@ -88,7 +90,7 @@ def the_case(t: CaseTranslation) -> None:
     t.seats[cert.actor] = t.act(
         Act(
             at=at,
-            semantic_type="create_case",
+            semantic_type=MessageSemantics.CREATE_CASE,
             activity_type="Create",
             actor=cert.actor,
             object_=genesis,
@@ -118,7 +120,7 @@ def report(t: CaseTranslation) -> None:
     t.act(
         Act(
             at=at,
-            semantic_type="submit_report",
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_type="Offer",
             actor=reporter.actor,
             object_=VulnerabilityReport(
@@ -219,7 +221,7 @@ def opening(t: CaseTranslation) -> None:
     t.act(
         Act(
             at=at,
-            semantic_type="activate_embargo_on_case",
+            semantic_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
             activity_type="Add",
             actor=t.ids.coordinator,
             object_=t.embargo,
@@ -227,6 +229,29 @@ def opening(t: CaseTranslation) -> None:
             label="embargo",
             rules=["VINCE-EM-01"],
             target=t.case_id,
+        )
+    )
+
+
+def embargo_exit(t: CaseTranslation) -> None:
+    """VINCE-EM-03: the embargo ends at ``due_date`` once the time of
+    reading the caller supplied has reached it, committed at ``due_date``.
+    """
+    end = t.embargo_end
+    if t.embargo is None or end is None:
+        return
+    t.act(
+        Act(
+            at=end,
+            semantic_type=MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+            activity_type="Remove",
+            actor=t.ids.coordinator,
+            object_=t.embargo,
+            source_record=t.ids.record("case"),
+            label="embargo-exit",
+            rules=["VINCE-EM-03"],
+            target=t.case_id,
+            content=TerminationReason.END_TIME_REACHED.value,
         )
     )
 
@@ -297,7 +322,7 @@ def note(t: CaseTranslation) -> None:
     t.act(
         Act(
             at=at,
-            semantic_type="add_case_status_to_case",
+            semantic_type=MessageSemantics.ADD_CASE_STATUS_TO_CASE,
             activity_type="Add",
             actor=cert.actor,
             object_=t.case_status(
@@ -316,6 +341,7 @@ __all__ = [
     "case_status",
     "closure",
     "coordinator_seat",
+    "embargo_exit",
     "note",
     "opening",
     "report",

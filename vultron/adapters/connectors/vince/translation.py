@@ -44,9 +44,10 @@ from vultron.core.models.case_reading import (
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 
-ADD_STATUS = "add_participant_status_to_participant"
+ADD_STATUS = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
 
 
 @dataclass
@@ -54,6 +55,9 @@ class CaseTranslation:
     """The translation of one case, built row group by row group.
 
     Attributes:
+        as_of: The time of reading, which the caller supplies: the time the
+            embargo's end is judged against (VINCE-EM-03).  The translation
+            reads no clock (CRD-02-006).
         seats: The act that seated each participant, by actor.
         orgs: The participant each organization name on a post credits.
         embargo: The embargo VINCE-EM-01 inferred, once it has.
@@ -61,6 +65,7 @@ class CaseTranslation:
 
     ids: CaseIds
     reads: Mapping[str, JsonValue]
+    as_of: datetime
     acts: list[Act] = field(default_factory=list)
     untranslated: list[UntranslatedFact] = field(default_factory=list)
     participants: dict[str, Participant] = field(default_factory=dict)
@@ -79,6 +84,24 @@ class CaseTranslation:
     @property
     def coordinator(self) -> Participant:
         return self.participants[self.ids.coordinator]
+
+    @property
+    def embargo_end(self) -> datetime | None:
+        """VINCE-EM-03: when the embargo ended, which is ``due_date`` once
+        the time of reading has reached it; ``None`` while it is in force
+        or when there is none."""
+        due = self.case.due_date
+        if self.embargo is None or due is None or self.as_of < due:
+            return None
+        return due
+
+    def em_at(self, at: datetime) -> str:
+        """The embargo register's EM at *at*: none, the VINCE-EM-01
+        embargo in force, or exited once VINCE-EM-03 ended it."""
+        if self.embargo is None:
+            return "NONE"
+        end = self.embargo_end
+        return "EXITED" if end is not None and at >= end else "ACTIVE"
 
     # -- reading the records -------------------------------------------
 
@@ -158,13 +181,13 @@ class CaseTranslation:
     ) -> CaseStatus:
         """A case status stating public state *pxa* as of *at*.  Its EM is
         a copy of the embargo register, which holds VINCE-EM-01's embargo
-        from the case's opening on."""
+        from the case's opening on, until VINCE-EM-03 ends it."""
         return CaseStatus.model_validate(
             {
                 "id": self.ids.minted(label),
                 "context": self.case_id,
                 "attributedTo": actor,
-                "emState": "ACTIVE" if self.embargo is not None else "NONE",
+                "emState": self.em_at(at),
                 "pxaState": pxa,
                 "published": at,
                 "updated": at,
@@ -259,7 +282,7 @@ class CaseTranslation:
         act = self.act(
             Act(
                 at=at,
-                semantic_type="create_case_participant",
+                semantic_type=MessageSemantics.CREATE_CASE_PARTICIPANT,
                 activity_type="Create",
                 actor=actor,
                 object_=self.participant_record(participant, name, at),

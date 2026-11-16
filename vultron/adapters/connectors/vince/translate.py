@@ -22,7 +22,9 @@ crosswalk (``docs/reference/vince_crosswalk.md``) makes of them
 (CRD-03-001).  It fetches nothing, stores nothing and reads no clock: every
 time an entry carries is a time a VINCE record states (CRD-02-006), and
 every id is minted from the VINCE instance and the case (:mod:`.ids`), so
-the same records always give the same reading.
+the same records read at the same time always give the same reading.  The
+time of reading is the caller's: whether the embargo has ended at its
+``due_date`` (VINCE-EM-03) is judged against it.
 
 An entry names as its actor the participant who acted in VINCE
 (CRD-01-006) and cites the VINCE record it came from (CRD-01-004), as
@@ -36,6 +38,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
+from datetime import datetime
 
 from pydantic import JsonValue
 
@@ -56,7 +59,8 @@ logger = logging.getLogger(__name__)
 #: seated first because every later row names it, and the report precedes
 #: the case because the case carries the RM state the report gave CERT/CC,
 #: so a report submitted at the case's ``created`` time lands just before
-#: it.  The closure and the note come last because each reads CERT/CC's RM
+#: it.  The embargo's exit follows every act that may share its time, so a
+#: vendor added at ``due_date`` agrees before it ends.  The closure and the note come last because each reads CERT/CC's RM
 #: steps the others wrote.
 STEPS: tuple[Callable[[CaseTranslation], None], ...] = (
     case_rows.coordinator_seat,
@@ -68,13 +72,14 @@ STEPS: tuple[Callable[[CaseTranslation], None], ...] = (
     vendor_rows.vendor_statuses,
     content_rows.vuls,
     content_rows.posts,
+    case_rows.embargo_exit,
     case_rows.closure,
     case_rows.note,
 )
 
 
 def translate_case(
-    reads: Mapping[str, JsonValue], *, comm_url: str
+    reads: Mapping[str, JsonValue], *, comm_url: str, as_of: datetime
 ) -> CaseReading:
     """Translate one VINCE case's records into a case reading (CRD-03-001).
 
@@ -88,6 +93,12 @@ def translate_case(
             ``https://kb.cert.org/vince/comm`` (the API base without its
             trailing ``/api``).  It gives the case's VINCE URL and scopes
             every minted id.
+        as_of: The time of reading, an aware datetime the caller supplies,
+            such as the time it fetched *reads*.  The embargo's end is
+            judged against it: when *as_of* is at or after the case's
+            ``due_date``, the embargo ended at ``due_date`` (VINCE-EM-03);
+            before it, the embargo is still in force.  It dates no entry,
+            and the translation reads no clock (CRD-02-006).
 
     Returns:
         The reading: the ledger in time order, a citation per entry, the
@@ -95,11 +106,14 @@ def translate_case(
         reasons, and :data:`~.crosswalk.VINCE_UNOBSERVABLE`.
 
     Raises:
+        ValueError: *as_of* is a naive datetime.
         VinceCaseRecordsError: The ``case`` read is missing or lacks the
             ``vuid``, ``pk`` or ``created`` time every row needs.
     """
+    if as_of.utcoffset() is None:
+        raise ValueError("as_of must be an aware datetime")
     ids = CaseIds(comm_url=comm_url, case=parse_case(reads))
-    translation = CaseTranslation(ids=ids, reads=reads)
+    translation = CaseTranslation(ids=ids, reads=reads, as_of=as_of)
     for step in STEPS:
         step(translation)
     reading = render_reading(ids, translation.acts, translation.untranslated)

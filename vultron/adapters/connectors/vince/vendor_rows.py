@@ -34,6 +34,7 @@ from vultron.adapters.connectors.vince.translation import CaseTranslation
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_reading import UntranslatedReason as Reason
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
 
 _STATUSES = "vendors/vuls"
 
@@ -67,10 +68,12 @@ def vendors(t: CaseTranslation) -> None:
             ["VINCE-RM-04"],
             ("RECEIVED",),
         )
-        if t.embargo is not None:
-            _consent(
-                t, participant, t.embargo, max(t.case.created, at), source
-            )
+        consent_at = max(t.case.created, at)
+        end = t.embargo_end
+        # VINCE-EM-02 needs an embargo in force: a vendor added after
+        # VINCE-EM-03 ended it has none to agree to.
+        if t.embargo is not None and (end is None or consent_at <= end):
+            _consent(t, participant, t.embargo, consent_at, source)
 
 
 def _consent(
@@ -93,7 +96,7 @@ def _consent(
     t.act(
         Act(
             at=at,
-            semantic_type="accept_invite_to_embargo_on_case",
+            semantic_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
             activity_type="Accept",
             actor=vendor.actor,
             object_=invite,

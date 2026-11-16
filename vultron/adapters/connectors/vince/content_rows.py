@@ -26,6 +26,7 @@ from vultron.adapters.connectors.vince.acts import Act
 from vultron.adapters.connectors.vince.records import VincePost, VinceVul
 from vultron.adapters.connectors.vince.translation import CaseTranslation
 from vultron.core.models.case_reading import UntranslatedReason as Reason
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.note import VultronNote
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 
@@ -52,7 +53,7 @@ def vuls(t: CaseTranslation) -> None:
         t.act(
             Act(
                 at=vul.date_added,
-                semantic_type="add_vulnerability_item_to_case",
+                semantic_type=MessageSemantics.ADD_VULNERABILITY_ITEM_TO_CASE,
                 activity_type="Add",
                 actor=t.ids.coordinator,
                 object_=_item(t, vul, vul.date_added, source),
@@ -115,7 +116,7 @@ def posts(t: CaseTranslation) -> None:
             t.act(
                 Act(
                     at=post.created,
-                    semantic_type="add_note_to_case",
+                    semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
                     activity_type="Add",
                     actor=actor,
                     object_=VultronNote(
