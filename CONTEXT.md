@@ -330,6 +330,13 @@ and better in one, or, with equal end parts, when its embargo parts are. Two mov
 that trade off against each other do not dominate each other.
 *Avoid*: beats, outranks
 
+**Open move**:
+An allowed move that is a step a participant chooses in the case's joint model, so it
+has an outcome shift for each scope. A move that keeps every state, a move that moves
+no vendor's state, and an event no participant chooses, such as a public exploit, are
+allowed moves but not open moves.
+*Avoid*: candidate move, option
+
 **Move band**:
 The band an open move falls in, set only by its own outcome shifts, end parts first:
 harm-free, trade-off or unhelpful. Any band can be empty.

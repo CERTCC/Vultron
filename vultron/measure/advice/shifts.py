@@ -99,10 +99,14 @@ def _in_scope(key: VendorDesideratum) -> bool:
     return key.desideratum in scope_desiderata()
 
 
-def _by_scope(
+def scope_shift(
     readings: Mapping[VendorDesideratum, Fraction], vendor_count: int
 ) -> ScopeShift:
-    """*readings* summed into each vendor's end and embargo parts, each weighted."""
+    """*readings* summed into each vendor's end and embargo parts, each weighted.
+
+    A reading of a desideratum outside the vendor's scope, or one equivalent
+    to a desideratum before it, is left out (:func:`scope_desiderata`).
+    """
     end = [Fraction(0)] * vendor_count
     embargo = [Fraction(0)] * vendor_count
     for key, reading in readings.items():
@@ -122,7 +126,7 @@ def chance_values(prefix: CasePrefix) -> ScopeShift:
     Raises:
         ValueError: ``prefix.state`` holds no vendor.
     """
-    return _by_scope(expected_outcomes(prefix), len(prefix.state.vendors))
+    return scope_shift(expected_outcomes(prefix), len(prefix.state.vendors))
 
 
 def outcome_shift(
@@ -138,7 +142,7 @@ def outcome_shift(
         VultronInvalidStateTransitionError: *move* is not one allowed step
             (:func:`.outcome_change`).
     """
-    return _by_scope(outcome_change(prefix, move), len(prefix.state.vendors))
+    return scope_shift(outcome_change(prefix, move), len(prefix.state.vendors))
 
 
 def open_moves(prefix: CasePrefix) -> tuple[Step[JointState, Event], ...]:

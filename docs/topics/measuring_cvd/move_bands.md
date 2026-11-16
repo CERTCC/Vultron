@@ -256,5 +256,6 @@ The moves with a shift of zero share one layer, because they do not dominate eac
 ## How to run the spike
 
 The bands are in `vultron/measure/advice/`.
+`case_advice` reads a real case's standing record into the advice record that the case shadow shows (#6369).
 The cases, the pathologies, and the aggregates are in `test/measure/advice/`.
 Run `uv run pytest test/measure/advice` to run the spike.
