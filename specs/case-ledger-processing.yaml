@@ -4698,7 +4698,8 @@ groups:
       a missing time would claim one no sender made (CLP-15-007), so the status is
       refused at message validation (CLP-15-009), as CLP-15-008 refuses an
       activity with no time.
-      Participant statuses are not covered: nothing reads their time.
+      A participant status is not named here, since nothing reads its time; it is
+      refused as a whole object with no `published` (CLP-15-011).
     verification: >-
       `test_parse_refuses_inline_case_status_without_published`,
       `test_parse_refuses_case_status_without_published_in_case_statuses` and
@@ -4736,16 +4737,21 @@ groups:
       JSON and are not validated into objects (CLP-07-011), so this rule does not
       reach them.
     verification: >-
-      `test_a_whole_object_without_published_is_refused` in
-      `test/wire/as2/test_typed_references.py` asserts `parse_activity` refuses an
-      activity whose inline `Note` has no `published`. It is a strict xfail until
-      #6456 lands.
+      `test_a_whole_object_without_published_is_refused` and
+      `test_a_nested_whole_object_without_published_is_refused` in
+      `test/wire/as2/test_typed_references.py` assert `parse_activity` refuses an
+      activity whose inline `Note`, at the top or nested one level down, has no
+      `published`. Both are strict xfails until #6456 lands.
+      `test_an_actor_profile_or_collection_without_published_is_accepted` in the
+      same file asserts the two exemptions.
     relationships:
     - rel_type: extends
       spec_id: CLP-15-007
     see_also:
     - spec_id: MV-10-011
-      reason: defines the typed reference the rule excludes; a scope boundary, not a dependency
+      reason: >-
+        defines the typed reference the rule excludes; a scope boundary, not a
+        dependency
     adr:
     - ADR-0198
     stories:

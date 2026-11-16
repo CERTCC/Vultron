@@ -102,7 +102,9 @@ def test_a_typed_reference_with_an_undefined_preview_is_refused() -> None:
         "preview": "https://example.org/notes/1/preview",
     }
 
-    with pytest.raises(VultronParseError):
+    # The match keeps this from passing on another refusal: the reference has
+    # no ``published``, so CLP-15-011 alone would refuse it as a whole note.
+    with pytest.raises(VultronParseError, match="MV-10-012"):
         parse_activity(_body(reference, target=CASE_ID))
 
 
@@ -123,3 +125,60 @@ def test_a_whole_object_without_published_is_refused() -> None:
 
     with pytest.raises(VultronParseMissingPublishedError, match="CLP-15-011"):
         parse_activity(_body(note, "Create"))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CLP-15-011: a nested whole object without published is carried."
+    f" Tracked by {REQUIRED_PUBLISHED_TASK}.",
+)
+@pytest.mark.spec("CLP-15-011")
+def test_a_nested_whole_object_without_published_is_refused() -> None:
+    """The rule reaches a whole object at any depth, not only the top slot."""
+    note = {
+        "id": "https://example.org/notes/1",
+        "type": "Note",
+        "content": "the vendor confirmed the fix",
+        "attributedTo": ACTOR,
+    }
+    create = {
+        "id": "https://example.org/activities/2",
+        "type": "Create",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": note,
+    }
+
+    with pytest.raises(VultronParseMissingPublishedError, match="CLP-15-011"):
+        parse_activity(_body(create, "Announce"))
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    "exempt",
+    [
+        {
+            "id": "https://example.org/actors/bob",
+            "type": "Person",
+            "name": "Bob",
+            "inbox": "https://example.org/actors/bob/inbox",
+            "outbox": "https://example.org/actors/bob/outbox",
+        },
+        {
+            "id": "https://example.org/collections/1",
+            "type": "Collection",
+            "totalItems": 0,
+            "items": [],
+        },
+    ],
+    ids=["actor-profile", "collection"],
+)
+def test_an_actor_profile_or_collection_without_published_is_accepted(
+    exempt: dict[str, Any],
+) -> None:
+    """An actor profile and a collection are exempt from CLP-15-011."""
+    parsed = parse_activity(_body(exempt, "Create"))
+
+    assert isinstance(parsed, as_TransitiveActivity)
+    assert parsed.object_ is not None
+    assert getattr(parsed.object_, "published", None) is None

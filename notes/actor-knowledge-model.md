@@ -13,6 +13,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/testability.yaml
   - specs/case-bootstrap-trust.yaml
+  - specs/message-validation.yaml
 relevant_packages:
   - vultron/wire/as2/factories
   - vultron/core/behaviors

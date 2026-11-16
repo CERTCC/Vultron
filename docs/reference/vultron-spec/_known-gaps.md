@@ -314,15 +314,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#6456](https://github.com/CERTCC/Vultron/issues/6456)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CLP-15-011",
-))
-```
-
 ## Requirements a test shows `main` meets only in part
 
 Each requirement below has tests that pass and at least one test that is held by a strict expected failure (`xfail`) or a skip.
@@ -400,6 +391,15 @@ from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "CM-05-018",
     "CSAF-03-008",
+))
+```
+
+### Tracked by [#6456](https://github.com/CERTCC/Vultron/issues/6456)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CLP-15-011",
 ))
 ```
 
