@@ -19,6 +19,7 @@ reference reads back as one, never as a hollow object of its type.
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -35,7 +36,10 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.core.models.case_participant.participant import CaseParticipant
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events import MessageSemantics
 from vultron.core.models.note import VultronNote
+from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
@@ -204,4 +208,51 @@ def test_a_reference_to_a_held_note_is_replaced_by_it(
     # Read as a bare id's held note is: cast to the wire note, content kept.
     assert not isinstance(rehydrated.object_, as_TypedReference)
     assert getattr(rehydrated.object_, "content", None) == note.content
+    assert not [r for r in caplog.records if "MV-10-011" in r.getMessage()]
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_by_base_type_to_a_held_subtype_is_replaced_by_it(
+    held: tuple[SqliteDataLayer, str, CaseParticipant],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A held core ``EmbargoEvent`` answers an ``{id, type: Event}`` reference.
+
+    The core class does not subclass the wire ``as_Event``, yet the pattern
+    routes the reference as an embargo Invite, so rehydration must read the
+    held embargo the same way, not refuse it as another type (MV-10-011).
+    """
+    dl, case_id, _ = held
+    embargo = make(
+        EmbargoEvent,
+        context=case_id,
+        end_time=datetime(2026, 12, 1, tzinfo=UTC),
+    )
+    dl.create(embargo)
+    activity = parse_activity(
+        {
+            "type": "Invite",
+            "id": "https://example.org/activities/invite-1",
+            "published": _PUBLISHED,
+            "actor": CASE_MANAGER_ID,
+            "object": {"id": embargo.id_, "type": "Event"},
+            "target": case_id,
+            "context": case_id,
+        }
+    )
+    assert (
+        find_matching_semantics(activity)
+        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
+
+    with caplog.at_level(logging.WARNING):
+        rehydrated = rehydrate(activity, dl=dl)
+
+    assert isinstance(rehydrated, as_TransitiveActivity)
+    assert isinstance(rehydrated.object_, EmbargoEvent)
+    assert rehydrated.object_.id_ == embargo.id_
+    assert (
+        find_matching_semantics(rehydrated)
+        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
     assert not [r for r in caplog.records if "MV-10-011" in r.getMessage()]

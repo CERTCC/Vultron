@@ -31,9 +31,13 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
+from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.base import CoreObject
 from vultron.core.models.events import MessageSemantics
-from vultron.semantic_registry import find_matching_semantics
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.semantic_registry import extract_event, find_matching_semantics
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -425,6 +429,60 @@ def test_a_reference_in_a_slot_needing_the_whole_object_says_so() -> None:
         parse_activity(_body(proposal, "Create"))
 
     assert "'object.inReplyTo'" in str(raised.value)
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_in_a_slot_taking_only_a_uri_says_to_send_its_id() -> None:
+    """A slot that admits only a URI refuses a reference, and the refusal
+    says to send the reference's id, not the whole object."""
+    embargo = {
+        "id": "https://example.org/embargoes/2",
+        "type": "EmbargoEvent",
+        "startTime": PUBLISHED,
+        "endTime": "2027-03-01T00:00:00Z",
+        "published": PUBLISHED,
+        "context": {"id": "https://example.org/notes/1", "type": "Note"},
+    }
+
+    with pytest.raises(VultronParseError, match="MV-10-011") as raised:
+        parse_activity(_body(embargo, "Invite", target=CASE_ID))
+
+    message = str(raised.value)
+    assert "'object.context'" in message
+    assert "takes only a URI" in message
+    assert "needs the whole object" not in message
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
+    """A reference in ``target`` never reaches core as the wire reference,
+    in the event or in the activity snapshot core reads (MV-10-011)."""
+    status = make(
+        ParticipantStatus,
+        context=CASE_ID,
+        attributed_to=ACTOR,
+    )
+    participant_id = "https://example.org/participants/p1"
+    activity = parse_activity(
+        _body(
+            status.model_dump(mode="json", by_alias=True, exclude_none=True),
+            "Add",
+            target={"id": participant_id, "type": "CaseParticipant"},
+            context=CASE_ID,
+            ledgerPosition=TEST_SENDER_POSITION.model_dump(by_alias=True),
+        )
+    )
+
+    event = extract_event(activity)
+
+    assert (
+        event.semantic_type
+        == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    )
+    snapshot_target = getattr(event.activity, "target", None)
+    assert isinstance(snapshot_target, CoreObject)
+    assert not isinstance(snapshot_target, as_TypedReference)
+    assert snapshot_target.id_ == participant_id
 
 
 @pytest.mark.spec("EP-04-004")

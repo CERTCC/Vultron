@@ -278,7 +278,8 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
     ``Invite(EmbargoEvent)``'s object is.  A bare reference is *not* a
     proposal: the sender inlines what it introduces (ADR-0107), and a
     receiver that fetched terms nobody sent would be inventing them — so a
-    string, or a typed reference, is logged and read as absent (receive side, Postel's maxim).
+    string, or a typed reference, is logged and read as absent (receive
+    side, Postel's maxim).
     """
     raw = getattr(carrier, "proposed_embargo", None)
     if raw is None:

@@ -26,6 +26,7 @@ from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.rehydration.slots import materialise_object_slots
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_of_kind,
     referenced_class,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -132,13 +133,25 @@ def _is_of_named_type(held: object, reference: as_TypedReference) -> bool:
 
     The store returns core classes (ADR-0034) where the reference resolves a
     wire class (``VultronNote`` for ``as_Note``), so the held object's own
-    ``type`` is compared first; the class check admits a subtype, such as an
-    ``EmbargoEvent`` for an ``Event`` reference.
+    ``type`` is compared first.  Otherwise the class the held object's
+    ``type`` names, or its own class, must be a kind of the referenced class
+    (:func:`is_of_kind`), so a held ``EmbargoEvent`` answers an ``Event``
+    reference and a held ``Offer`` an ``Activity`` one, as a pattern routes
+    them (MV-10-011).
     """
-    if getattr(held, "type_", None) == reference.type_:
+    held_type = getattr(held, "type_", None)
+    if held_type == reference.type_:
         return True
     kind = referenced_class(reference)
-    return kind is not None and isinstance(held, kind)
+    if kind is None:
+        return False
+    if is_of_kind(type(held), kind):
+        return True
+    try:
+        named = resolve_wire_type(held_type)
+    except KeyError:
+        return False
+    return is_of_kind(named, kind)
 
 
 def _resolve_typed_reference(

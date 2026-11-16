@@ -169,29 +169,40 @@ def _refuse_missing_claimed_time(
     ) from exc
 
 
-def _reference_hint(exc: Exception, path: str = "") -> str:
+def _reference_hint(exc: Exception, path: str) -> str:
     """A lead naming each slot a typed reference cannot fill, or ``""``.
 
     A typed reference names an object and is never the object (MV-10-011), so
-    a slot that admits only a whole object refuses it.  Pydantic says only
-    that the value is not the slot's class; this says why.
+    a slot that admits only a whole object refuses it, and a slot that admits
+    only a URI wants the reference's ``id``.  Pydantic says only that the
+    value is not the slot's type; this says why.
     """
     if not isinstance(exc, ValidationError):
         return ""
-    slots = sorted(
-        {
-            _join_location(path, error["loc"]) or "the activity"
-            for error in exc.errors()
-            if isinstance(error.get("input"), as_TypedReference)
-        }
-    )
-    if not slots:
-        return ""
-    named = ", ".join(repr(slot) for slot in slots)
-    return (
-        f"a typed reference at {named} names an object, but the slot needs"
-        " the whole object (MV-10-011); "
-    )
+    whole: set[str] = set()
+    uri: set[str] = set()
+    for error in exc.errors():
+        if not isinstance(error.get("input"), as_TypedReference):
+            continue
+        slot = _join_location(path, error["loc"])
+        (uri if error["type"] == "string_type" else whole).add(slot)
+    leads = []
+    if whole:
+        leads.append(
+            f"a typed reference at {_slots(whole)} names an object, but the"
+            " slot needs the whole object (MV-10-011); "
+        )
+    if uri:
+        leads.append(
+            f"a typed reference at {_slots(uri)} names an object, but the"
+            " slot takes only a URI: send the reference's 'id' (MV-10-011); "
+        )
+    return "".join(leads)
+
+
+def _slots(slots: set[str]) -> str:
+    """*slots* as a sorted, quoted, comma-separated list."""
+    return ", ".join(repr(slot) for slot in sorted(slots))
 
 
 def _is_union_alternative(error: Any) -> bool:
@@ -374,9 +385,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         _refuse_missing_claimed_time(exc, "", _named(body))
         # Named, so a refusal of a field such as ``ledgerPosition`` says which
         # activity it refused (SYNC-18-015).
-        raise VultronParseValidationError(
-            f"{_named(body)}{_reference_hint(exc)}{exc}"
-        ) from exc
+        raise VultronParseValidationError(f"{_named(body)}{exc}") from exc
 
     # A schema-valid envelope can still be one this receiver cannot act on;
     # the Create(CaseProposal) checks are the CP-01-010 refusals.

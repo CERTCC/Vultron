@@ -48,12 +48,14 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
+from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.base.registry import (
     resolve_wire_type,
     resolved_wire_type_name,
@@ -186,6 +188,31 @@ class as_TypedReference(as_Object):
     updated: datetime | None = None
 
 
+#: Core classes that are a kind of an AS2 base type without subclassing its
+#: wire class (ADR-0034, ADR-0099): a core actor is an ``Actor``, and the
+#: core ``EmbargoEvent`` is an ``Event``.
+_CORE_KINDS: tuple[tuple[type[BaseModel], type[BaseModel]], ...] = (
+    (as_Actor, CoreActor),
+    (as_Event, CoreEmbargoEvent),
+)
+
+
+def is_of_kind(cls: type, kind: type) -> bool:
+    """Whether an object of class *cls* is an object of type *kind*.
+
+    The one rule a pattern routing a reference and rehydration resolving it
+    both ask (MV-10-011): a subclass of *kind*, or a core class that is a
+    kind of *kind* without subclassing it (``_CORE_KINDS``), so a core
+    ``EmbargoEvent`` is an ``Event`` and a core actor an ``Actor``.
+    """
+    if issubclass(cls, kind):
+        return True
+    return any(
+        issubclass(base, kind) and issubclass(cls, core)
+        for base, core in _CORE_KINDS
+    )
+
+
 def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
     """The class of the object *reference* names, or ``None`` if unknown.
 
@@ -205,6 +232,7 @@ __all__ = [
     "TYPES_WITH_DEFINED_PREVIEW",
     "as_TypedReference",
     "carries_preview",
+    "is_of_kind",
     "is_typed_reference_shape",
     "reads_as_typed_reference",
     "referenced_class",

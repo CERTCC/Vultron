@@ -8,8 +8,6 @@ dispatch entries. This is the primitive building block imported by both
 
 from pydantic import BaseModel, model_validator
 
-from vultron.core.models.actor import CoreActor
-from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
@@ -19,6 +17,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_of_kind,
     referenced_class,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -205,13 +204,13 @@ def _match_activity_field(
     if (
         pattern_field == AOtype.ACTOR
         and kind is not None
-        and issubclass(kind, (as_Actor, CoreActor))
+        and is_of_kind(kind, as_Actor)
     ):
         return True
     if (
         pattern_field == AOtype.EVENT
         and kind is not None
-        and issubclass(kind, (as_Event, CoreEmbargoEvent))
+        and is_of_kind(kind, as_Event)
     ):
         return True
     return bool(pattern_field == getattr(activity_field, "type_", None))
