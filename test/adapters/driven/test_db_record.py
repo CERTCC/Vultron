@@ -1197,6 +1197,34 @@ def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
 
 
 @pytest.mark.spec("AKM-03-004")
+def test_a_typed_reference_to_another_type_is_stored_as_its_id():
+    """Only a case reference stays inline; any other is stored as its id.
+
+    The case reference is the generic typed reference now, and the exemption
+    is the case's alone (ADR-0165), so the stored row shape of every other
+    reference is unchanged.
+    """
+    from vultron.wire.as2.parser import parse_activity
+    from vultron.wire.as2.typed_reference import as_TypedReference
+
+    note_id = "https://example.org/notes/n1"
+    activity = parse_activity(
+        {
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "type": "Create",
+            "id": "https://example.org/activities/create-ref",
+            "actor": _CASE_ACTOR_ID,
+            "published": "2026-01-02T03:04:05+00:00",
+            "object": {"id": note_id, "type": "Note"},
+        }
+    )
+    assert isinstance(getattr(activity, "object_", None), as_TypedReference)
+
+    record = object_to_record(cast(Any, activity))
+
+    assert record.data_.get("object_") == note_id
+
+
 def test_a_case_reference_round_trips_as_a_reference():
     """A Join's case reference is stored inline and read back as one.
 

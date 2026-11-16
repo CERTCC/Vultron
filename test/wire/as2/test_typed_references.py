@@ -335,6 +335,30 @@ def test_a_reference_no_pattern_matches_names_the_object_to_fetch() -> None:
     assert bare_object_id(parsed) == reference["id"]
 
 
+@pytest.mark.spec("AKM-03-006")
+@pytest.mark.parametrize("outer", ["Undo", "Reject", "Announce"])
+def test_an_unmatched_act_ending_in_a_case_reference_names_nothing_to_fetch(
+    outer: str,
+) -> None:
+    """A case is read from the receiver's store, never fetched (ADR-0165).
+
+    An act no pattern matches whose ``object`` chain ends in a case
+    reference stays unknown: it names no object for the inbox to fetch.
+    """
+    join = {
+        "type": "Join",
+        "id": "https://example.org/activities/join-1",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
+    }
+
+    parsed = parse_activity(_body(join, outer))
+
+    assert find_matching_semantics(parsed) is MessageSemantics.UNKNOWN
+    assert bare_object_id(parsed) is None
+
+
 @pytest.mark.spec("MV-10-012")
 @pytest.mark.parametrize(
     ("type_", "slot"),

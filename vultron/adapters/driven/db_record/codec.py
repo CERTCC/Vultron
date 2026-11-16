@@ -39,6 +39,7 @@ from vultron.core.models.base.core_object import (
 from vultron.core.models.protocols import PersistableModel
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_case_reference,
     reads_as_typed_reference,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -111,11 +112,10 @@ def _dehydrate_data(
     - a field named in *obj*'s ``inline_required_refs`` (or its semantic
       class's, see :func:`_inline_required_refs`), for models whose protocol
       contract is to carry the object rather than reference it;
-    - a typed reference (:class:`as_TypedReference`), a case reference
-      included, which names an object and has no record of its own:
-      collapsed to its id, it would be read back as a bare id, and routing
-      could no longer tell its type when the store does not hold the object
-      (MV-10-011, ADR-0165).
+    - a case reference (:func:`is_case_reference`), which names a case and
+      has no record of its own: collapsed to its id, it would be read back
+      as a bare id, and routing could no longer tell its type when the store
+      does not hold the case (ADR-0165).
 
     Both exist for the same reason: dehydration is only reversible when the
     nested object has a record of its own to be read back from.  It often does
@@ -155,9 +155,9 @@ def _dehydrate_data(
             # it would store a URI that nothing can resolve.
             result[key] = value
             continue
-        if isinstance(getattr(obj, key, None), as_TypedReference):
-            # A reference is already the smallest form, and the object it
-            # names need not be held here (MV-10-011, ADR-0165).
+        if is_case_reference(getattr(obj, key, None)):
+            # A reference is already the smallest form, and the case it names
+            # need not be held here (ADR-0165).
             result[key] = value
             continue
         if key in ref_fields and isinstance(value, dict):

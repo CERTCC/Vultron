@@ -17,6 +17,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_case_reference,
     is_of_kind,
     referenced_class,
 )
@@ -226,11 +227,15 @@ def bare_object_id(activity: as_Activity) -> str | None:
     the one the receiver lacks (VAM-01-009, AKM-05-007).  A typed reference
     ending the chain names its id the same way: no pattern matched it, so the
     object must be read before the activity can be.  ``None`` when the chain
-    ends in an inline whole object, or in no object at all.
+    ends in an inline whole object, in a case reference, or in no object at
+    all: a case is read from the receiver's own store and never fetched
+    (AKM-03-006, ADR-0165).
     """
     obj: object = getattr(activity, "object_", None)
     while isinstance(obj, as_Activity):
         obj = getattr(obj, "object_", None)
+    if is_case_reference(obj):
+        return None
     if isinstance(obj, as_TypedReference):
         # A reference no pattern matched names an object the receiver must
         # fetch before it can read it, as a bare id does (MV-10-011).
