@@ -48,6 +48,10 @@ Environment variables
     The VINCE API credential, :attr:`VinceConfig.api_token`.  A secret, read
     only from the environment: a config file that names it is refused
     (VSD-01-004, VSD-01-005).
+``VULTRON_SHADOW__CONNECTOR``
+    Override :attr:`ShadowConfig.connector`.
+``VULTRON_SHADOW__LEDGER_DIR``
+    Override :attr:`ShadowConfig.ledger_dir`.
 """
 
 from vultron.config.actor import ActorConfig
@@ -64,6 +68,7 @@ from vultron.config.app import (
     reload_config,
 )
 from vultron.config.ledger import LedgerConfig
+from vultron.config.shadow import ShadowConfig
 from vultron.config.vince import VinceConfig
 
 __all__ = [
@@ -73,6 +78,7 @@ __all__ = [
     "LedgerConfig",
     "RunMode",
     "ServerConfig",
+    "ShadowConfig",
     "VinceConfig",
     "YamlConfigSource",
     "clear_config_cache",

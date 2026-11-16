@@ -19,6 +19,7 @@ import json
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
+from pathlib import Path
 from typing import Any, Literal, get_args, get_origin
 
 import annotated_types
@@ -36,6 +37,7 @@ from vultron.metadata.docs.config_reference.errors import (
     ConfigReferenceError,
     field_ref,
 )
+from vultron.primitives import NonEmptyString
 
 #: Labels for scalar types, checked in order: ``bool`` before ``int`` because
 #: ``bool`` subclasses ``int``. An ``Enum`` is labeled before these by its values.
@@ -46,6 +48,7 @@ _SCALAR_LABELS: tuple[tuple[type, str], ...] = (
     (float, "number"),
     (timedelta, "duration"),
     (HttpUrl, "HTTP(S) URL"),
+    (Path, "path"),
     (str, "string"),
 )
 
@@ -135,6 +138,8 @@ def _member_label(annotation: Any) -> str:
     Raises:
         ConfigReferenceError: The renderer has no label for *annotation*.
     """
+    if annotation == NonEmptyString:
+        return "non-empty string"
     if get_origin(annotation) is Literal:
         return _literal_label(annotation)
     if get_origin(annotation) is list:

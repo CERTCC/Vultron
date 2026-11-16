@@ -22,24 +22,18 @@ Spec: CRD-01-001 through CRD-01-006, CRD-02-001 through CRD-02-004,
 CRD-02-006.
 """
 
-from datetime import UTC, datetime, timedelta
-from typing import Any, get_protocol_members
+from typing import get_protocol_members
 
 import pytest
 
 from test.measure.history.builders import (
-    CM,
     VENDOR,
-    VENDOR_2,
-    Ledger,
-    participant,
-    status,
 )
 from test.support.case_reader import (
     FAKE_CASE,
     FAKE_UNOBSERVABLE,
     FakeCaseReader,
-    OutsideRecord,
+    fake_case_records,
     projected_history,
 )
 from vultron.core.models.case_reading import CaseReading, UntranslatedReason
@@ -53,61 +47,6 @@ from vultron.measure.history import EventKind
 READ_METHODS = {"read_case"}
 DECLARATIONS = {"unobservable"}
 
-_T0 = datetime(2026, 1, 1, tzinfo=UTC)
-
-
-def _at(minutes: int) -> datetime:
-    return _T0 + timedelta(minutes=minutes)
-
-
-def _genesis_case() -> dict[str, Any]:
-    """The standard hand-built genesis case object the measures read."""
-    ledger = Ledger()
-    ledger.standard_genesis()
-    case: dict[str, Any] = ledger.entries[0]["payloadSnapshot"]["object"]
-    return case
-
-
-def _vendor_participant(actor: str = VENDOR) -> dict[str, Any]:
-    return participant(
-        actor,
-        [status(f"{actor}-r", actor, "RECEIVED", vf="vf", roles=("VENDOR",))],
-        roles=("VENDOR",),
-    )
-
-
-def _records() -> list[OutsideRecord]:
-    return [
-        OutsideRecord("rec-open", "case_opened", CM, _at(0), _genesis_case()),
-        OutsideRecord(
-            "rec-vendor", "vendor_listed", CM, _at(1), _vendor_participant()
-        ),
-        OutsideRecord(
-            "rec-status",
-            "vendor_status",
-            VENDOR,
-            _at(2),
-            status("vendor-v", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
-        ),
-        OutsideRecord(
-            "rec-undated",
-            "vendor_listed",
-            CM,
-            None,
-            _vendor_participant(VENDOR_2),
-        ),
-        OutsideRecord("rec-odd", "vendor_mood", VENDOR, _at(3)),
-        OutsideRecord("rec-pinned", "pinned_post", CM, _at(4)),
-        OutsideRecord(
-            "rec-early",
-            "vendor_status",
-            VENDOR,
-            _at(0),
-            status("vendor-x", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
-        ),
-        OutsideRecord("rec-untimed", "vendor_status", VENDOR, None),
-    ]
-
 
 def _entry_of(reading: CaseReading, record_id: str):
     by_record = {c.source_record: c.entry_id for c in reading.citations}
@@ -116,7 +55,9 @@ def _entry_of(reading: CaseReading, record_id: str):
 
 @pytest.fixture
 def reading() -> CaseReading:
-    return FakeCaseReader({FAKE_CASE: _records()}).read_case(FAKE_CASE)
+    return FakeCaseReader({FAKE_CASE: fake_case_records()}).read_case(
+        FAKE_CASE
+    )
 
 
 @pytest.mark.spec("CRD-01-001")
@@ -167,7 +108,7 @@ def test_a_reading_carries_all_five_parts(reading):
 
 @pytest.mark.spec("CRD-01-004")
 def test_every_entry_cites_a_source_record_present_in_the_input(reading):
-    source_ids = {record.record_id for record in _records()}
+    source_ids = {record.record_id for record in fake_case_records()}
     cited = {c.entry_id: c.source_record for c in reading.citations}
     assert set(cited) == {entry.id_ for entry in reading.ledger}
     assert set(cited.values()) <= source_ids
@@ -201,7 +142,7 @@ def test_each_untranslated_fact_carries_its_reason(reading):
 
 @pytest.mark.spec("CRD-02-004")
 def test_a_reading_copies_the_readers_unobservable_declaration(reading):
-    reader = FakeCaseReader({FAKE_CASE: _records()})
+    reader = FakeCaseReader({FAKE_CASE: fake_case_records()})
     assert reader.unobservable == FAKE_UNOBSERVABLE
     assert reading.unobservable == reader.unobservable
 
@@ -210,7 +151,7 @@ def test_a_reading_copies_the_readers_unobservable_declaration(reading):
 def test_an_entrys_times_are_its_source_records_time(reading):
     """A dated record keeps its time; an undated one takes the time its
     rule names, the case's opening, and is listed as an inference."""
-    times = {r.record_id: r.at for r in _records()}
+    times = {r.record_id: r.at for r in fake_case_records()}
     times["rec-undated"] = times["rec-open"]
     for citation in reading.citations:
         entry = next(e for e in reading.ledger if e.id_ == citation.entry_id)
