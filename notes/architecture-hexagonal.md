@@ -15,10 +15,13 @@ related_notes:
   - notes/inbox-orchestration.md
   - notes/inbox-pipeline.md
   - notes/predicates-rule-layer.md
+related_specs:
+  - specs/case-event-history.yaml
 relevant_packages:
   - vultron/core
   - vultron/wire/as2
   - vultron/adapters
+  - vultron/shadow
 ---
 
 # Hexagonal Architecture Overview
@@ -117,6 +120,13 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - A connector keeps all its ports in one plugin under `adapters/connectors/`.
   The driving/driven split above is about adapter categories, not connector
   directions: never split a two-port connector across modules (ARCH-05-004).
+- A case reader that reads through `vultron/measure/` lives in the case shadow's
+  package, `vultron/shadow/readers/`, never under `adapters/`: nothing under
+  `adapters/` may import the measure layer (CEH-01-001). This is the one
+  exception to "a case reader is a connector plugin" (ARCH-05-004), and it fits
+  only a reader with nothing to translate, such as the Vultron case reader over
+  a ledger file (#6441). A reader that translates an outside system stays a
+  connector plugin.
 - Never stub a port a connector lacks: a raising write method is still a
   write path a later change can fill in (ARCH-05-005).
 - A connector is plumbing, not a capability shape. Whoever calls it names its

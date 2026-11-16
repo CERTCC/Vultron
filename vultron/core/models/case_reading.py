@@ -37,6 +37,7 @@ so far, so the Vultron and VINCE case readers can reshape it cheaply.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from enum import StrEnum
 from itertools import pairwise
 from typing import Self
@@ -159,41 +160,9 @@ class CaseReading(_ReadingPart):
     @model_validator(mode="after")
     def _parts_agree(self) -> Self:
         """Refuse a reading whose parts name entries the ledger lacks."""
-        problems: list[str] = []
-        case_ids = sorted({entry.case_id for entry in self.ledger})
-        if len(case_ids) > 1:
-            problems.append(f"the ledger holds entries of {case_ids}")
-        entry_ids = [entry.id_ for entry in self.ledger]
-        repeated = sorted(
-            entry_id
-            for entry_id, count in Counter(entry_ids).items()
-            if count > 1
+        problems = case_reading_problems(
+            self.ledger, self.citations, self.inferences
         )
-        if repeated:
-            problems.append(f"the ledger repeats entries {repeated}")
-        indices = [entry.log_index for entry in self.ledger]
-        if any(later <= earlier for earlier, later in pairwise(indices)):
-            problems.append(f"the ledger is not in log-index order: {indices}")
-        known = set(entry_ids)
-        cited = [citation.entry_id for citation in self.citations]
-        uncited = sorted(known - set(cited))
-        if uncited:
-            problems.append(f"entries {uncited} have no citation")
-        twice = sorted(
-            entry_id for entry_id, count in Counter(cited).items() if count > 1
-        )
-        if twice:
-            problems.append(f"entries {twice} are cited more than once")
-        dangling = sorted(
-            {entry_id for entry_id in cited if entry_id not in known}
-            | {
-                inference.entry_id
-                for inference in self.inferences
-                if inference.entry_id not in known
-            }
-        )
-        if dangling:
-            problems.append(f"{dangling} name no entry in the ledger")
         if problems:
             raise ValueError(
                 "Inconsistent case reading: " + "; ".join(problems)
@@ -201,8 +170,91 @@ class CaseReading(_ReadingPart):
         return self
 
 
+def case_reading_problems(
+    ledger: Sequence[CaseLedgerEntry],
+    citations: Sequence[EntryCitation],
+    inferences: Sequence[Inference] = (),
+) -> list[str]:
+    """Every reason these parts cannot form one :class:`CaseReading`.
+
+    The checks :class:`CaseReading` refuses on, as a list, so a reader that
+    must report every problem in its input can run them before it builds the
+    reading (EH-07-001).  An empty list means the parts agree.
+    """
+    return ledger_problems(ledger) + citation_problems(
+        ledger, citations, inferences
+    )
+
+
+def ledger_problems(ledger: Sequence[CaseLedgerEntry]) -> list[str]:
+    """Every reason *ledger* is not one case's ledger in log-index order.
+
+    The ledger half of :func:`case_reading_problems`, for a reader that builds
+    its citations one per entry and so has no citation problem of its own.
+    An entry's id is its case id and log index, so a repeated log index is
+    reported once, as a repeated entry, never again as an order problem
+    (EH-07-002).
+    """
+    problems: list[str] = []
+    case_ids = sorted({entry.case_id for entry in ledger})
+    if len(case_ids) > 1:
+        problems.append(f"the ledger holds entries of {case_ids}")
+    entry_ids = [entry.id_ for entry in ledger]
+    repeated = sorted(
+        entry_id for entry_id, count in Counter(entry_ids).items() if count > 1
+    )
+    if repeated:
+        problems.append(f"the ledger repeats entries {repeated}")
+    backwards = [
+        f"{later.log_index} follows {earlier.log_index}"
+        for earlier, later in pairwise(ledger)
+        if later.log_index < earlier.log_index
+    ]
+    if backwards:
+        problems.append(
+            "the ledger is not in log-index order: " + ", ".join(backwards)
+        )
+    return problems
+
+
+def citation_problems(
+    ledger: Sequence[CaseLedgerEntry],
+    citations: Sequence[EntryCitation],
+    inferences: Sequence[Inference] = (),
+) -> list[str]:
+    """Every citation or inference that does not match *ledger* one to one.
+
+    The citation half of :func:`case_reading_problems`.
+    """
+    problems: list[str] = []
+    known = {entry.id_ for entry in ledger}
+    cited = [citation.entry_id for citation in citations]
+    uncited = sorted(known - set(cited))
+    if uncited:
+        problems.append(f"entries {uncited} have no citation")
+    twice = sorted(
+        entry_id for entry_id, count in Counter(cited).items() if count > 1
+    )
+    if twice:
+        problems.append(f"entries {twice} are cited more than once")
+    dangling = sorted(
+        {entry_id for entry_id in cited if entry_id not in known}
+        | {
+            inference.entry_id
+            for inference in inferences
+            if inference.entry_id not in known
+        }
+    )
+    if dangling:
+        problems.append(f"{dangling} name no entry in the ledger")
+    return problems
+
+
 __all__ = [
     "CaseReading",
+    "case_reading_problems",
+    "citation_problems",
+    "ledger_problems",
     "EntryCitation",
     "Inference",
     "UnobservableFact",
