@@ -430,9 +430,9 @@ def test_a_record_lists_each_vendor_once_and_only_participants():
     record = case_standing(_vendor_case().case_ledger())
     fields = {n: getattr(record, n) for n in type(record).model_fields}
     with pytest.raises(ValidationError, match="listed more than once"):
-        StandingRecord(**(fields | {"vendors": [VENDOR, VENDOR]}))
+        StandingRecord.model_validate(fields | {"vendors": [VENDOR, VENDOR]})
     with pytest.raises(ValidationError, match="is not a participant"):
-        StandingRecord(**(fields | {"vendors": [VENDOR_2]}))
+        StandingRecord.model_validate(fields | {"vendors": [VENDOR_2]})
 
 
 def test_a_record_with_a_gap_holds_no_scored_move(tmp_path):

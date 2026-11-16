@@ -422,14 +422,16 @@ def test_case_advice_refuses_bands_out_of_order_or_a_reading_with_a_gap(
 ):
     fields = _fields(two_vendors)
     with pytest.raises(ValidationError, match="in order"):
-        CaseAdvice(**(fields | {"bands": tuple(reversed(fields["bands"]))}))
+        CaseAdvice.model_validate(
+            fields | {"bands": tuple(reversed(fields["bands"]))}
+        )
     with pytest.raises(ValidationError, match="another set of vendors"):
-        CaseAdvice(**(fields | {"vendors": (VENDOR,)}))
+        CaseAdvice.model_validate(fields | {"vendors": (VENDOR,)})
     with pytest.raises(ValidationError, match="listed more than once"):
-        CaseAdvice(**(fields | {"vendors": (VENDOR, VENDOR)}))
+        CaseAdvice.model_validate(fields | {"vendors": (VENDOR, VENDOR)})
     gap = StandingGap(missing_log_indices=[1])
     with pytest.raises(ValidationError, match="holds no reading"):
-        CaseAdvice(**(fields | {"gap": gap}))
+        CaseAdvice.model_validate(fields | {"gap": gap})
 
 
 @pytest.mark.parametrize(
