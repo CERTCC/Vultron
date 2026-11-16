@@ -31,7 +31,11 @@ from pydantic import ValidationError
 from test.support.act_runner import run_tree
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
-from test.support.received import TEST_SENDER_POSITION, extract_stamped
+from test.support.received import (
+    TEST_SENDER_POSITION,
+    extract_stamped,
+    named_case,
+)
 from test.support.signing import signed_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -44,6 +48,7 @@ from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_termination import (
     _CAUSE_KINDS_BY_REASON,
     EmbargoTermination,
@@ -268,6 +273,12 @@ def test_the_event_refuses_a_cause_on_an_end_time_termination() -> None:
             actor_id=OWNER,
             termination_reason=TerminationReason.END_TIME_REACHED,
             termination_cause=OtherCause(),
+            object_=make(
+                CoreObject,
+                id_="https://example.org/embargoes/tc-end-time",
+                type_="EmbargoEvent",
+            ),
+            origin=named_case(CASE),
         )
 
 

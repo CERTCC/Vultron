@@ -286,23 +286,6 @@ class TestRejectLedgerEntryReceivedUseCase:
         ).id_
         assert dl.read(state_id) is None
 
-    @pytest.mark.spec("SYNC-03-001")
-    def test_ignores_reject_with_no_entry(self, dl):
-        """Reject with no object_ is safely ignored."""
-        from vultron.core.models.events.base import MessageSemantics
-        from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
-
-        event = RejectLogEntryReceivedEvent(
-            semantic_type=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
-            activity_id="https://example.org/activities/rej1",
-            actor_id=PARTICIPANT_URI,
-        )
-        uc = RejectLedgerEntryReceivedUseCase(dl, event)
-        result = run_in_act(uc)  # should not raise
-
-        # HP-01-003: a Reject naming no entry is malformed, not a no-op.
-        assert result.disposition == HandlerDisposition.REFUSED
-
     @pytest.mark.spec("SYNC-03-002")
     @pytest.mark.spec("CM-02-011")
     def test_replay_triggered_when_the_case_manager_is_resolvable(

@@ -15,7 +15,6 @@
 import json
 import logging
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -453,35 +452,6 @@ class TestOfferActorToCaseReceivedUseCase:
         assert "'unknown'" not in messages, (
             "the actor identity must never be fabricated (ARCH-15-001)"
         )
-
-    def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
-        """Skips gracefully when recommended_id is missing from the event."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=TEST_ACTOR_ID,
-        )
-        # Build an activity with no object (can't in wire layer, so mock the event)
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/bad-offer"
-        mock_event.actor_id = "https://example.org/actors/finder"
-        mock_event.object_id = None
-        mock_event.target_id = "https://example.org/cases/some-case"
-        mock_event.activity = None
-
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                OfferActorToCaseReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                    sync_port=SyncActivityAdapter(dl),
-                )
-            )
-
-        assert any("missing" in r.message.lower() for r in caplog.records)
-        assert result.disposition is HandlerDisposition.REFUSED
 
     @pytest.mark.spec("CLP-07-014")
     def test_offer_actor_records_the_recommender_beside_the_case(

@@ -138,20 +138,6 @@ class TestEngageDeferCaseBTFailureReason:
             )
         )
 
-    @pytest.mark.parametrize(
-        "use_case", [EngageCaseReceivedUseCase, DeferCaseReceivedUseCase]
-    )
-    def test_missing_case_id_is_refused(self, dl, use_case):
-        """HP-01-003: an Engage/Defer with no case id is malformed."""
-        from unittest.mock import MagicMock
-
-        event = MagicMock()
-        event.case_id = None
-
-        result = run_in_act(use_case(dl, event))
-
-        assert result.disposition == HandlerDisposition.REFUSED
-
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog
     ):

@@ -14,6 +14,7 @@ related_specs:
   - specs/inbox-endpoint.yaml
   - specs/datalayer.yaml
   - specs/protocol-asks.yaml
+  - specs/architecture.yaml (ARCH-10-001)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/architecture-adapters.md
@@ -39,8 +40,9 @@ dead-letters it (IE-06-004). So a raise that escapes to it is retried as if tran
 Catch the new exception below the retry loop, or refuse instead of raising (ISSUE-1377).
 
 The dispatcher turns no raise into a verdict (DR-03-002). It routes by semantics
-alone, so an activity that names no case reaches its handler, and the handler refuses
-it (HP-05-002). A raise from a handler goes to the adapter boundary.
+alone; an activity missing a slot its event requires, such as its case, is refused
+at extraction before dispatch and leaves nothing stored (ARCH-10-001). A raise from a
+handler goes to the adapter boundary.
 
 ---
 

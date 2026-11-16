@@ -226,6 +226,25 @@ _UC = "vultron.core.use_cases.received.synthetic.UC"
         pytest.param(
             "class UC:\n"
             "    def execute(self):\n"
+            "        return (\n"
+            "            self._r.case_id is None and HandlerResult.refused('x')\n"
+            "        ) or run_received_tree(t)\n",
+            True,
+            id="boolean-expression",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        self._no = HandlerResult.refused('no case')\n"
+            "        if self._r.case_id is None:\n"
+            "            return self._no\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="attribute-then-returned",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
             "        if self._r.case_id is None:\n"
             "            return HandlerResult.skipped('nothing to do')\n"
             "        return run_received_tree(t)\n",

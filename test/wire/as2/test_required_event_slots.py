@@ -40,7 +40,9 @@ from test.support.required_slots import (
     without_slot,
 )
 from vultron.core.models.events.base import VultronEvent
+from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.semantic_registry import (
+    SEMANTIC_REGISTRY,
     extract_event,
     find_matching_semantics,
     lookup_entry,
@@ -106,17 +108,36 @@ def test_the_inbox_extraction_never_dispatches_a_message_missing_the_slot(
         assert extract_event(activity).semantic_type is case.cut_matches
 
 
-def test_every_required_slot_reads_through_the_required_check() -> None:
-    """Each declared slot is a property whose absence raises naming it.
+#: Declared slots no row cuts, each with why no message can lack it alone.
+NO_ROW: dict[tuple[type[VultronEvent], str], str] = {
+    (CreateCaseReceivedEvent, "case_id"): (
+        "the id of the inline case, which every case object carries; a"
+        " Create with no case is the ``case`` row"
+    ),
+}
 
-    A name in ``required_slots`` that is a plain attribute, or a property
-    that does not read through ``_required``, would never refuse.
-    """
-    declared = {
-        (lookup_entry(case.semantics).event_class, case.slot) for case in CASES
+
+def _declared_slots() -> set[tuple[type[VultronEvent], str]]:
+    return {
+        (entry.event_class, slot)
+        for entry in SEMANTIC_REGISTRY
+        for slot in entry.event_class.required_slots
     }
-    for event_class, slot in declared:
+
+
+def test_every_declared_slot_is_a_property() -> None:
+    """A name in ``required_slots`` that is a plain attribute would read a
+    value, never through ``_required``, so it would never refuse."""
+    for event_class, slot in _declared_slots():
         assert isinstance(getattr(event_class, slot), property), (
             event_class,
             slot,
         )
+
+
+def test_every_declared_slot_has_a_row() -> None:
+    """A slot declared later with no row is never tested missing."""
+    rows = {
+        (lookup_entry(case.semantics).event_class, case.slot) for case in CASES
+    }
+    assert _declared_slots() - set(NO_ROW) == rows

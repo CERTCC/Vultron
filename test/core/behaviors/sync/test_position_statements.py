@@ -590,21 +590,6 @@ def test_position_whose_object_is_not_the_entry_at_its_index_is_refused(
     )
 
 
-@pytest.mark.spec("SYNC-17-002")
-def test_read_naming_no_case_is_refused(dl) -> None:
-    entries = seed_ledger(dl, 2)
-    event = _read(entries[0], SIGNATORY_ID).model_copy(
-        update={"context": None}
-    )
-    port = _sync_port()
-
-    result = _answer(dl, event, port)
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "names no case" in (result.reason or "")
-    port.send_announce_log_entry.assert_not_called()
-
-
 @pytest.mark.spec("SYNC-17-001")
 def test_a_read_event_without_a_parsed_position_is_refused_at_the_edge() -> (
     None

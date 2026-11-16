@@ -1251,10 +1251,11 @@ groups:
       `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_logs_warning`,
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`,
       and
-      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py::test_remove_embargo_naming_no_case_is_refused_by_its_handler`
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py::test_remove_embargo_naming_no_case_is_refused_at_extraction`
       each drive an expected condition (unrecognised activity, `cc`-only addressing,
-      an activity that names no case), assert the log record or refusal it produces,
-      and complete with no exception escaping the handler or `dispatch()`.
+      an activity that names no case, which extraction refuses before dispatch), assert
+      the log record or refusal it produces, and complete with no exception escaping the
+      handler, `dispatch()` or the inbox pipeline.
 - id: HP-06
   title: Logging
   specs:

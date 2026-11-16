@@ -36,6 +36,7 @@ from test.support.received import (
     TEST_SENDER_POSITION,
     extract_stamped,
     hold_deferred,
+    named_case,
     received_event,
     with_evidence,
 )
@@ -106,6 +107,7 @@ def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
     return with_evidence(
         AddNoteToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
+            target=named_case(CASE_ID),
             activity_id=activity.id_,
             actor_id=SENDER,
             object_=note,
@@ -280,6 +282,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
     event = with_evidence(
         AddNoteToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
+            target=named_case(CASE_ID),
             activity_id=activity.id_,
             actor_id=SENDER,
             object_=case,
@@ -345,6 +348,7 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     event = with_evidence(
         AddNoteToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
+            target=named_case(CASE_ID),
             activity_id=squatter.id_,
             actor_id=SENDER,
             object_=_rich_note(),
@@ -374,6 +378,7 @@ def test_an_event_with_no_body_is_a_wiring_fault(scenario):
     answered by the seen-before door before intake (ADR-0154)."""
     event = AddNoteToCaseReceivedEvent(
         ledger_position=TEST_SENDER_POSITION,
+        target=named_case(CASE_ID),
         activity_id="urn:vultron:no-body:1",
         actor_id=SENDER,
         object_=_rich_note(),

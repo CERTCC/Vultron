@@ -26,7 +26,11 @@ import pytest
 from py_trees.common import Status
 
 from test.support.objects import make
-from test.support.received import TEST_SENDER_POSITION, with_evidence
+from test.support.received import (
+    TEST_SENDER_POSITION,
+    named_case,
+    with_evidence,
+)
 from test.support.sender_guard import guard_tree, staged_sender_guard
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
@@ -860,6 +864,7 @@ def _event(receiving_actor_id: str | None) -> AddNoteToCaseReceivedEvent:
     return with_evidence(
         AddNoteToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
+            target=named_case(_CASE_ID),
             activity_id=activity.id_,
             actor_id=_SENDER,
             object_=note,

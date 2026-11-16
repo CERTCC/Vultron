@@ -110,8 +110,8 @@ groups:
       the dispatcher would break CS-23-001 (no broad `except` outside a BT node's
       `update()`) and HP-05-001 (handlers raise for unrecoverable errors), and would
       turn a programming error into a silent verdict. The dispatcher routes by semantics
-      alone, so an activity that names no case reaches its handler, which refuses it
-      (HP-05-002).
+      alone; an activity missing a slot its event requires, such as its case, never
+      reaches it, because extraction refuses it first (ARCH-10-001).
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_lets_a_handler_exception_propagate`
       asserts a `RuntimeError` raised inside a use case's `execute()` escapes

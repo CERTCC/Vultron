@@ -13,7 +13,6 @@
 """Tests for note-related use-case classes."""
 
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -533,42 +532,6 @@ class TestNoteUseCases:
         assert note_id in refreshed.notes
         assert dl.read(activity.id_) is None, "held only as received"
 
-    @pytest.mark.spec("HP-01-005")
-    def test_add_note_without_an_inline_note_is_refused(self, make_payload):
-        """An Add(Note) event with no note object is refused before any
-        tree runs: there is no note to store or attach (#4706)."""
-        case_actor_id = "https://example.org/cases/case_n1e/actor"
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        case_id = "https://example.org/cases/case_n1e"
-        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        event = make_payload(
-            add_note_to_case_activity(
-                make(
-                    as_Note,
-                    id_="https://example.org/notes/note3e",
-                    content="x",
-                ),
-                target=case,
-                actor="https://example.org/users/finder",
-                to=[dl.actor_id],
-                at=authored_at(),
-            ),
-            receiving_actor_id=case_actor_id,
-            at=dl,
-        ).model_copy(update={"object_": None})
-
-        result = run_in_act(
-            AddNoteToCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "inline note" in result.reason
-
     @pytest.mark.spec("HP-08-006")
     @pytest.mark.spec("CM-13-007")
     def test_redelivered_add_note_is_skipped(self, make_payload):
@@ -886,27 +849,6 @@ class TestNoteUseCases:
         stored = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert note.id_ in stored.notes
         assert dl.list_objects("CaseLedgerEntry") == []
-
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.parametrize(
-        "use_case",
-        [AddNoteToCaseReceivedUseCase],
-    )
-    def test_note_membership_change_without_ids_is_refused(self, use_case):
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        event = MagicMock()
-        # Neither handler has the id it needs: the Add no inline note, the
-        # Remove no note id.
-        event.note = None
-        event.note_id = None
-        event.case_id = "https://example.org/cases/c"
-
-        result = run_in_act(use_case(dl, event))
-
-        assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):

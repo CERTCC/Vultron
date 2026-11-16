@@ -173,7 +173,8 @@ def _bound_refusals(
     """Names *func*'s own scope binds to a refusal.
 
     By plain assignment, annotated assignment or an assignment expression
-    (``:=``).
+    (``:=``), to a plain name or to an attribute (``self._no``), each kept
+    as its source text.
     """
     bound: set[str] = set()
     for node in _walk_own_scope(func):
@@ -186,7 +187,11 @@ def _bound_refusals(
         else:
             continue
         if _is_refusal_call(value, handler_result):
-            bound.update(t.id for t in targets if isinstance(t, ast.Name))
+            bound.update(
+                ast.unparse(t)
+                for t in targets
+                if isinstance(t, (ast.Name, ast.Attribute))
+            )
     return bound
 
 
@@ -198,8 +203,9 @@ def _returned_refusals(
     The verdict a use case decides in Python rather than reads from the run
     of its tree (ADR-0195).  Seen: a returned refusal call
     (:func:`_is_refusal_call`); a conditional expression with one in either
-    branch; and a name the same scope bound to one (:func:`_bound_refusals`),
-    then returned.  A refusal a nested reader function returns is the
+    branch, or a boolean expression with one among its operands; and a name
+    or attribute the same scope bound to one (:func:`_bound_refusals`), then
+    returned.  A refusal a nested reader function returns is the
     reader's, outside this scope, so it is not seen.  Nor is one built by a
     helper outside the indexed packages: the walk stops at their boundary.
     """
@@ -212,8 +218,12 @@ def _returned_refusals(
             return refuses(value.body) or refuses(value.orelse)
         if isinstance(value, ast.NamedExpr):
             return refuses(value.value)
-        if isinstance(value, ast.Name):
-            return value.id in bound
+        if isinstance(value, ast.BoolOp):
+            return any(refuses(operand) for operand in value.values)
+        if isinstance(value, (ast.Name, ast.Attribute)) and (
+            ast.unparse(value) in bound
+        ):
+            return True
         return _is_refusal_call(value, handler_result)
 
     for node in _walk_own_scope(func):

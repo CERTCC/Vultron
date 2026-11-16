@@ -1031,18 +1031,6 @@ class TestAnnounceLedgerEntryDisposition:
         )
 
     @pytest.mark.spec("HP-01-003")
-    def test_missing_log_entry_is_refused(self, dl):
-        event = AnnounceLogEntryReceivedEvent(
-            activity_id="urn:uuid:no-entry",
-            actor_id=ACTOR_URI,
-            receiving_actor_id=RECEIVER_URI,
-        )
-
-        result = self._run(dl, event)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-
-    @pytest.mark.spec("HP-01-003")
     def test_chain_extending_entry_is_applied(self, dl, genesis_entry):
         result = self._run(dl, self._make_event(genesis_entry))
 

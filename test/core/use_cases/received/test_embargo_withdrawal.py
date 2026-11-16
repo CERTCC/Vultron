@@ -540,18 +540,6 @@ def test_an_unaddressed_copy_of_a_leave_is_refused_uncommitted(make_payload):
 
 
 @pytest.mark.spec("MSM-07-010")
-def test_a_leave_naming_no_case_is_refused_uncommitted(make_payload):
-    dl = _store()
-    event = make_payload(_leave(dl), receiving_actor_id=_MANAGER, at=dl)
-
-    result = _run(dl, event.model_copy(update={"context": None}))
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "missing its embargo id or case id" in (result.reason or "")
-    assert _ledger(dl) == []
-
-
-@pytest.mark.spec("MSM-07-010")
 def test_a_leave_from_a_record_with_no_row_is_refused_uncommitted(
     make_payload,
 ):

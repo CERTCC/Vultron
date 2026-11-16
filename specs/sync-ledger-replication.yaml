@@ -3213,9 +3213,9 @@ groups:
       `test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse` in
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts such a `Reject`
       stating no position, or one past the empty chain, is refused at parse, and
-      `test_a_reject_naming_neither_an_entry_nor_a_case_is_refused` in
-      `test/core/use_cases/received/test_case_copy_replacement.py` refuses one that
-      names neither an entry nor a case.
+      the `Reject(CaseLedgerEntry)-rejected_case_id` rows of
+      `test/wire/as2/test_required_event_slots.py` refuse one that names neither an
+      entry nor a case when its event is built (ARCH-10-001).
     stories:
     - story_2026_045
   - id: SYNC-16-029

@@ -409,24 +409,6 @@ class TestOfferCaseParticipantReceivedUseCase:
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
 
-    def test_skips_when_missing_case_id(self, caplog):
-        dl, _ = _seed_dl_for_case_owner()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/bad"
-        mock_event.target_id = None
-        mock_event.activity = None
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                OfferCaseParticipantReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                    sync_port=SyncActivityAdapter(dl),
-                )
-            )
-        assert any("missing" in r.message.lower() for r in caplog.records)
-        assert result.disposition is HandlerDisposition.REFUSED
-
 
 # ---------------------------------------------------------------------------
 # AcceptOfferCaseParticipantReceivedUseCase (CaseActor inbox)
@@ -705,25 +687,6 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
-
-    def test_skips_when_missing_case_id(self, caplog):
-        dl, _ = _seed_dl_for_case_actor()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/bad-accept"
-        mock_event.target_id = None
-        mock_event.inner_target_id = None
-        mock_event.activity = None
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                AcceptOfferCaseParticipantReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                    sync_port=SyncActivityAdapter(dl),
-                )
-            )
-        assert any("missing" in r.message.lower() for r in caplog.records)
-        assert result.disposition is HandlerDisposition.REFUSED
 
     @pytest.mark.spec("CM-16-019")
     @pytest.mark.spec("CLP-10-018")
@@ -1138,24 +1101,6 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
         assert "'unknown'" not in messages
-
-    def test_skips_when_missing_case_id(self, caplog):
-        dl, _ = _seed_dl_for_case_actor()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/bad-reject"
-        mock_event.target_id = None
-        mock_event.activity = None
-        with caplog.at_level(logging.WARNING):
-            result = run_in_act(
-                RejectOfferCaseParticipantReceivedUseCase(
-                    dl,
-                    mock_event,
-                    wire_render_port=As2WireRenderAdapter(),
-                    sync_port=SyncActivityAdapter(dl),
-                )
-            )
-        assert any("missing" in r.message.lower() for r in caplog.records)
-        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted on reject; recommender from core state.
