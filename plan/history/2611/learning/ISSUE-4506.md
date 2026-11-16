@@ -54,3 +54,6 @@ the flag in the generated matrix, and if a story names a need the protocol
 should serve and nothing tracks it, file a `type:Idea` issue through
 `create-issue`. #4506 left TRACE-02-002 untouched deliberately: it is advisory,
 and rewording it was outside that Task's acceptance criteria.
+
+**Promoted**: 2026-11-16 — TRACE-02-002 now routes an unserved story need to a type:Idea issue via create-issue.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

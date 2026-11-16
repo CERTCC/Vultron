@@ -2552,6 +2552,31 @@ groups:
           - rel_type: extends
             spec_id: DEMOCI-11-013
 
+      - id: DEMOCI-11-073
+        priority: MUST
+        kind: project
+        statement: >-
+          After a run has recorded a failure, a declared step whose actor lacks the
+          branch point's role MUST stop the story through `demo_gate`, not raise.
+        rationale: >-
+          The role is then missing because an earlier act failed: an Invite whose
+          trigger failed seats no participant. Raising would report a transport
+          failure as a declaration defect, so the reader would check the
+          branch-point table instead of the delivery. The gate keeps the first
+          failure as the reported cause (DEMOCI-01-003, EDF-06-005). On a run with
+          no failure, a missing role is a mis-declared step, and DEMOCI-11-047's
+          check raises.
+        verification: >-
+          `test/demo_unit/story/test_runner.py::TestRunStory::test_a_mark_that_an_earlier_failure_broke_stops_the_story`
+          asserts the gated form after a failure, and
+          `::test_a_mis_declared_step_raises_on_a_run_that_had_not_failed` asserts
+          the raise on a clean run.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-047
+
       - id: DEMOCI-11-048
         priority: MAY
         kind: project
@@ -2887,18 +2912,21 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          On a pull request that changes a file under `vultron/demo/`, CI MUST
-          record every registered scenario in-process at the base commit and at the
-          head.
+          CI MUST record every registered scenario in-process at the base commit and
+          at the head of a pull request that changes a recorder input. The recorder
+          inputs are the files under `vultron/demo/` and the multi-actor compose
+          file.
         rationale: >-
           Comparing head with base, not with the committed recordings, commits
           nothing, so no pull request regenerates a recording. Stories, fragments
-          and checks all live under `vultron/demo/`; a core-only pull request is
-          not a consolidation, and the daily recordings run covers its drift. The
-          scenario-tree exporters only read the stories and are drift-checked by
-          DEMOCI-11-005.
+          and checks live under `vultron/demo/`, and the recorder reads each cast
+          slot's URL and default roles from the compose file (DEMOCI-11-020), so a
+          change to either moves the recordings. A core-only pull request is not a
+          consolidation; the daily recordings run covers its drift.
         verification: >-
-          The workflow's path filter names `vultron/demo/`, and a test asserts
+          `test/ci/test_demo_verdict_workflow.py::test_it_runs_on_a_pull_request_that_changes_the_demo`
+          asserts the workflow's path filter names `vultron/demo/` and the compose
+          file the recorder loads (`topology.COMPOSE_PATH`), and a test asserts
           the set of scenarios the job records equals the registered scenarios.
         adr:
           - ADR-0098
@@ -2945,16 +2973,20 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each node of a check tree MUST carry its kind, its label, its outcome and
-          the cast members whose containers it read.
+          Each check tree node MUST carry its kind, label, outcome and the cast
+          members whose containers it read. A read is a `GET`.
         rationale: >-
           A wait that reads another actor's replica has changed its subject, which
           EDF-06-002 constrains. Every replica read goes through the recorder's
           client, so the run resolves the subject, which a static reading of the
-          source cannot.
+          source cannot. An act is not a read: counting one would name a cast member
+          in the `reads` of a step that only wrote to it. The ledger trace records the
+          acts (DEMOCI-11-055), so the two traces complement each other.
         verification: >-
           A mutation test switches a wait from one cast member's client to another's
           in a fixture story; the two check trees differ in that node's containers.
+          `test/demo_unit/test_recording_compare.py::TestFixtureStoryMutations::test_an_act_is_not_counted_as_a_read`
+          asserts a step that only posts names no container in its reads.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-056
@@ -3029,16 +3061,21 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The comparison of DEMOCI-11-058 MUST relabel every id in the verdict by
-          its first appearance, with one mapping across a scenario's ledger and
-          check labels.
+          The DEMOCI-11-058 comparison MUST relabel each id the run draws by its
+          first appearance, with one mapping across a scenario's ledger and check
+          labels.
         rationale: >-
           A refactor that draws one more id shifts every later id without changing
           what the scenario does. One mapping across both traces keeps an id in a
-          check label tied to the same entity as in the ledger.
+          check label tied to the same entity as in the ledger. A cast member's
+          actor URI is fixed by the cast (DEMOCI-11-020), so it cannot shift between
+          two runs, and relabelling it would remove the one name in a ledger diff
+          that says who acted.
         verification: >-
           A unit test asserts that a run with one extra id draw compares equal to
-          the run without it.
+          the run without it, and
+          `test/demo_unit/test_recording_traces.py::TestWhatTheVerdictHolds::test_the_casts_actor_uris_are_left_as_they_are`
+          asserts the cast's actor URIs are kept as written.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-058

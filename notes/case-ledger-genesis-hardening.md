@@ -3,8 +3,8 @@ title: Case Ledger Genesis Hardening — Secret Nonce and CASE_MANAGER Keys
 status: active
 kind: plan
 tracks:
-  - "#1162"
-  - "#1156"
+  - "#6524"
+  - "#5410"
 description: >
   Unbuilt hardening of the per-case genesis hash: the targeted-DoS gap a
   computable hash leaves, and the two candidate fixes (a secret nonce, or a
@@ -43,7 +43,7 @@ participants over an authenticated channel, which is key management.
 
 ## Option B: CASE_MANAGER keypair
 
-Once actors have keypairs (#1162), hash the CASE_MANAGER's public key in place of
+Actors have keypairs (#1162), so hash the CASE_MANAGER's public key in place of
 the owner id, or hash a key-signed commitment over the creation data. This:
 
 - lets anyone holding the public key verify the ledger's origin without trusting

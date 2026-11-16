@@ -3193,11 +3193,12 @@ groups:
           scratch merge repeats it, more slowly. A conflict merge the agent
           commits is not a scratch merge, so PAD-18-015 still gates one.
         verification: >-
-          Inspection: no skill step runs `merged-tree-tests` or another test
-          run on a scratch merge. `pr-execute` and `work-epic-tasks` held the
-          two such steps; `pr-triage`, `create-pr` and
-          `resolving-merge-conflicts` are read too, because the statement
-          binds every agent.
+          Inspection: no skill step runs tests on a checkout of a merge the
+          agent does not commit. `pr-execute` is the skill that held such a
+          step; `pr-triage`, `create-pr`, `work-epic-tasks` and
+          `resolving-merge-conflicts` are read too, because the statement binds
+          every agent. `test/metadata/test_gate_ceiling.py` guards the act over
+          each block that builds a checkout.
       - id: PAD-18-025
         adr:
         - ADR-0173
@@ -3214,8 +3215,12 @@ groups:
           `git worktree remove`, because `git worktree prune` would destroy
           live worktrees.
         verification: >-
-          Inspection: `sync-decision.sh` and `work-epic-tasks` step 4 find a
-          conflict with `git merge-tree`, and neither runs `git worktree add`.
+          Inspection: the command that answers "does this conflict?" in
+          `sync-decision.sh` and in `work-epic-tasks` step 4 is `git merge-tree`,
+          and no `git worktree add` holds that check. The checkout step 4 makes of
+          the pushed head runs no merge, so it is outside this requirement; that no
+          checkout runs tests on a merge is PAD-18-024's, guarded in
+          `test/metadata/test_gate_ceiling.py`.
         relationships:
         - rel_type: constrains
           spec_id: PAD-18-004

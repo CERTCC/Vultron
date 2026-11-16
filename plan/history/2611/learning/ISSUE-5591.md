@@ -37,3 +37,6 @@ will hit them again:
 
 Where the deciding instant should come from — and whether a window is the
 right test for a repeat at all — is Concern #5689's question, not this note's.
+
+**Promoted**: 2026-11-16 — notes on ASK-05-001 and SYNC-11-005, and SYNC-11-006's rationale, now say the pending-assertion store is a separate register instance outside ASK-05-001.
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

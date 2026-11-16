@@ -36,3 +36,6 @@ pitfall, not on a spec.
 **How to apply.** Until a requirement exists, keep the reader's behaviour
 matching `ledgerShape.ts` and its tests. Do not add a second reader with
 different rules. Cite this file if you need the behaviour pinned in `specs/`.
+
+**Promoted**: 2026-11-16 — new group DRPT-06 in specs/demo-report.yaml (a line a reader cannot use is named and not replayed).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

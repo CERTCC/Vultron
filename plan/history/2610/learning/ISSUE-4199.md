@@ -29,3 +29,6 @@ merge to `main` at the same pace as code, so the deferred-to design can
 change while the build is in flight. A planner can avoid the problem by
 stating the behaviour outright and dropping the deference, or by wiring the
 deferred-to issue as a blocker.
+
+**Promoted**: 2026-11-16 — corroborated with #5613; captured in notes/git-workflow-pitfalls.md (read each AC's premise, re-read a deferred-to issue before pushing).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

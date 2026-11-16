@@ -52,3 +52,6 @@ way, so the same silence is reachable four more times. If (2) is the answer,
 the clause also wants the condition that distinguishes it from a genuinely
 mis-declared step — "a run that has recorded no failure" is the one the
 implementation uses.
+
+**Promoted**: 2026-11-16 — captured in specs/demo-ci.yaml DEMOCI-11-073 (after a recorded failure, a missing role is gated, not raised).
+Docs PR: https://github.com/CERTCC/Vultron/pull/6528.

@@ -336,6 +336,18 @@ nothing is written before the last one admits the message (ADR-0154).
    answer to a request the CASE_MANAGER alone made, which reaches that
    CASE_MANAGER and nobody else.
 
+   What proves a dropped path depends on how the type picks its recipients.
+   A **directed** type names one resolved addressee (`to=[case_manager_id]`),
+   so its one emit site proves the narrowing: cite it. A **roster-broadcast**
+   type takes its addressees from a selection in
+   `core/participants/recipients/`, so the narrowing is a claim about roster
+   shape that only an end-to-end run can falsify. Name the scenario that would
+   deliver the type to the dropped path, and run it (`test/demo/` is
+   marker-gated, so it needs `-m ""`). An owner that is its own CASE_MANAGER is
+   a participant of its own case, so "the CASE_MANAGER sends it, so it does not
+   receive it" does not hold. A wrong narrowing shows as `REFUSED`, which
+   `expect_no_inbox_refusals` catches (#5042).
+
    A tree whose work is scoped to no case and identical on every path
    declares no paths at all, because no branch of it would use the answer a
    stage resolved (HP-01-038). Pin it in `UNDECLARED_PATH_EXEMPTIONS`

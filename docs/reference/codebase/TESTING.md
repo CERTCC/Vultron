@@ -8,7 +8,7 @@ stakeholder_type: [project-contributor]
 
 ### 1) Test Stack and Commands
 
-- **Primary test framework**: pytest >=9.1.1, with pytest-timeout and pytest-xdist
+- **Primary test framework**: pytest >=9.1.1,<9.2, with pytest-timeout and pytest-xdist
 - **Assertion/mocking tools**: pytest built-in assertions; `unittest.mock` (standard library) and `monkeypatch`; no dedicated mocking library
 - **Type checking in tests**: mypy (`.mypy.ini` packages `vultron, test`) and pyright (`pyrightconfig.json` includes `test`) both cover `test/` in CI
 
@@ -39,18 +39,18 @@ uv run pytest test/test_config.py --tb=short
 
 ### 2) Test Layout
 
-- **Test directory**: `test/` at repo root; mirrors `vultron/` package layout (`test/core/`, `test/wire/`, `test/adapters/`, `test/metadata/`, `test/bt/`, `test/fuzzer/`)
+- **Test directory**: `test/` at repo root; mirrors `vultron/` package layout (`test/core/`, `test/wire/`, `test/adapters/`, `test/metadata/`, `test/measure/`, `test/shadow/`, `test/bt/`, `test/fuzzer/`, `test/docker/`)
 - **Naming convention**: `test_<module>.py` files; test functions named `test_<behavior>()`.
   Files named `test_*_planned.py` hold strict-`xfail` tests for requirements whose implementation issue is still open.
 - **Architecture tests**: `test/architecture/` — boundary-enforcement and ratchet tests (import-graph checks, write-site ratchets, naming/hygiene ratchets).
   Beyond the core/wire/demo import-boundary tests it includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009), `test_no_dl_mutations_in_execute.py` (CLP-10-020), `test_receive_side_staged_order.py` and `test_receive_side_bt_commit_ordering.py` (ADR-0154), `test_trigger_registry_ratchets.py` and `test_trigger_port_single_method.py` (ADR-0110), `test_vocab_examples_dispatchable.py`, `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_spec_kind_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`.
 - **Demo tests**: `test/demo/` holds the integration-tier demo and scenario tests (marked `integration` by `test/demo/conftest.py`); `test/demo_unit/` holds unit-tier tests of demo code (scenario registry, CLI factory, actor roles, polling helpers).
 - **Demo recordings**: `test/demo_recordings/` smoke-tests the in-process recorder behind `export-demo-recordings` and `compare-demo-runs` (`vultron/demo/recordings/`), including that a recorded run carries a check tree whose reads name cast members.
-- **CI tests**: `test/ci/` checks workflow files (SHA pinning, path filters, failure notification, publication gates).
+- **CI tests**: `test/ci/` checks workflow files (SHA pinning, path filters, failure notification, publication gates) and the `.github/scripts/` they run, including the release promote and the frozen-draft archives (`test_release.py`, `test_frozen_drafts.py`, `test_serve_frozen_drafts.py`).
 - **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007).
   Read the inventory from the factory's `result` dict, not a count quoted here.
   Diagnostic guidance per invariant lives in `notes/demo-ci-diagnostics.md`, which `test/ci/invariants/test_diagnostic_map_sync.py` ratchets against the factory (ISSUE-3337).
-- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox)
+- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox, `signatures.py` for reading a callable's signature without evaluating `TYPE_CHECKING`-only annotations (PEP 649), `case_reader.py` for an in-memory fake `CaseReader`, `sender_guard.py` for composing a sender guard as the receive-tree factory does, and `pool_kind_stores.py` for one store per SQLite pool kind)
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before any `vultron` import, registers the `spec` marker, applies the integration timeout tier, warns on unknown spec IDs, and provides `reset_datalayer()`-based isolation and the `isolated_core_registries` fixture.
   `test/core/behaviors/conftest.py` clears the py_trees blackboard before every BT test.
 
@@ -92,7 +92,9 @@ uv run pytest test/test_config.py --tb=short
     The structural ratchets in the same directory (`test_universal_semantic_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-017) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
-  - Content signing (ADR-0164) is pinned by strict-`xfail` tests that turn green when signing and verification land: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
+  - Content signing (ADR-0164) has landed, and its tests run as ordinary tests with no `xfail` marker: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
+  - The spec-marker reader caches its parse of each test file on disk, shared across processes, in `$XDG_CACHE_HOME/vultron/` (`vultron/metadata/text_cache.py`, #5880); an entry is keyed by the text's SHA-256 and the reader's code version, so it is never stale.
+  - pytest is held below 9.2 (`pyproject.toml` `[dependency-groups].dev`), because pytest 9.2 silently disables every `xdist_group` mark under pytest-xdist 3.8.0 (#6181); `test/test_xdist_loadgroup.py` decides when the cap can lift.
   - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, and `test_every_workflow_job_has_a_timeout` in `test/metadata/test_gate_ceiling.py` now checks all of them, skipping only a job that calls a reusable workflow.
   - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 120 s, sized in #5188).
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
@@ -102,7 +104,7 @@ uv run pytest test/test_config.py --tb=short
   - Every `xfail` under `test/` must be `strict=True` (TB-17-001); `test_every_xfail_is_strict` in `test/architecture/test_ratchet_hygiene.py` fails otherwise, and a bare `@pytest.mark.xfail` counts as non-strict.
     A non-strict goal xfail keeps passing after the work lands, so the marker outlives its defect and the assertion it guards silently stops being checked.
   - `caplog` captures log records emitted during fixture setup, not just the test body; set `caplog.set_level()` inside the test, not in a fixture.
-  - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:116` asks whether dispatcher routing to the right handler should be tested there.
+  - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:120` asks whether dispatcher routing to the right handler should be tested there.
 
 ### 6) Evidence
 
@@ -113,6 +115,9 @@ uv run pytest test/test_config.py --tb=short
 - `test/core/behaviors/conftest.py`
 - `test/demo/conftest.py`
 - `test/support/`
+- `vultron/metadata/text_cache.py`
+- `test/test_xdist_loadgroup.py`
+- `test/ci/test_frozen_drafts.py`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_wire_core_import_allowlist.py`
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`

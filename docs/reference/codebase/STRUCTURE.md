@@ -17,17 +17,18 @@ stakeholder_type: [project-contributor]
 | `vultron/semantic_registry/` | Ordered ActivityStreams pattern registry and `use_case_map()` for received activities | `vultron/semantic_registry/__init__.py` |
 | `vultron/trigger_registry/` | Verb-keyed `TRIGGER_REGISTRY` table for trigger use cases, one sub-module per domain (ADR-0110); a data table for enumeration, not a router | `vultron/trigger_registry/__init__.py` |
 | `vultron/bt/` | Original behavior tree simulator (read-only reference for the protocol BTs; backs the `vultrabot*` CLIs); production BTs live in `vultron/core/behaviors/` | `notes/bt-composability.md`, `vultron/bt/base/bt_node.py` |
-| `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py`, `vultron/config/ledger.py` |
+| `vultron/config/` | Layer-neutral configuration models and loading logic, including the VINCE connector settings (`vince.py`), the type-declared secret settings a config file may not name (`secrets.py`), and the key-path-to-variable rule (`env_names.py`) | `vultron/config/app.py`, `vultron/config/actor.py`, `vultron/config/ledger.py`, `vultron/config/secrets.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/logging_correlation.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration and correlation ids on log records, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
 | `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli/`, `vultron/demo/recordings/__init__.py` |
 | `vultron/measure/` | Read-only measurement layer for CVD measures over a finished case's ledger; `ledger/` is the tolerant case-ledger JSONL reader, its field-spelling helpers, the display-name resolver, the object labels, the registry phrase render and the per-case complete-copy selection; `history/` derives a case's CVD event history and holds the `vultron-case-history` command that dumps it; `baselines/` computes the exact chance baselines of the CVD desiderata from the state tables (ADR-0182); `advice/` puts a case's open moves in bands by each vendor's outcome shift (ADR-0200); the demo report imports the reader, the resolver, the labels and the phrase render | `vultron/measure/__init__.py`, `notes/case-event-history.md` |
+| `vultron/adapters/connectors/` | Connector plugins, each implementing core ports listed in `CONNECTOR_PORTS` (`base.py`), and the entry-point loader | Being imported by `vultron/core/` (ARCH-05-001); importing from `vultron` anything but its own package, the ports it implements, the core models it translates into (not the hash-chained ledger), the shared errors and the primitives (ARCH-05-002) |
 | `vultron/shadow/` | The case shadow, a standalone read-only advisor over one case (ADR-0190); `readers/` holds the Vultron case reader over a case-ledger file and `select_case_reader`, which picks it when no outside-system reader is configured | `vultron/shadow/__init__.py`, `vultron/shadow/readers/__init__.py` |
 | `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), CSAF model regeneration, corpus check and draft watch (`csaf/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
-| `third_party/` | Pinned local copies of third-party files, each under its own licence and never hand-edited: the CSAF 2.1 schemas and their pin record (`csaf/`), read by `vultron/metadata/csaf/` and the tests, never at runtime | `third_party/README.md`, `third_party/csaf/pin.json` |
+| `third_party/` | Pinned local copies of third-party files, each under its own licence and never hand-edited, with a pin record of the shape `vultron/metadata/pin_record.py` defines: the CSAF 2.1 schemas (`csaf/`), read by `vultron/metadata/csaf/`, and the four JSON-LD context documents wire messages cite (`jsonld/`, VM-10-011), read by `vultron/metadata/wire_context/pin.py` for the VM-10-007 term check; neither is read at runtime | `third_party/README.md`, `third_party/csaf/pin.json`, `third_party/jsonld/pin.json` |
 | `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
@@ -37,7 +38,7 @@ stakeholder_type: [project-contributor]
 | `scripts/` | One-shot maintenance scripts (spec relabelling, story mapping, velocity report) | `scripts/velocity.py`, `scripts/relabel_spec_kinds.py` |
 | `prompts/` | Standalone agent prompt files | `prompts/ARCHITECTURE_REVIEW_prompt.md` |
 | `.agents/skills/` | Agent skills; `.claude/skills` is a symlink to it | `AGENTS.md` |
-| `.github/workflows/`, `.github/actions/` | CI/CD pipeline definitions and composite actions | `.github/workflows/python-app.yml`, `.github/actions/setup-python-uv/action.yml` |
+| `.github/workflows/`, `.github/actions/`, `.github/scripts/` | CI/CD pipeline definitions, composite actions, and the Python and shell scripts they run (the CI gate, publish gate, release promotion and frozen-draft archives) | `.github/workflows/python-app.yml`, `.github/actions/setup-python-uv/action.yml`, `.github/scripts/release.py` |
 | `.githooks/` | Repository git hooks (pre-commit, post-commit, post-checkout) | `.githooks/pre-commit` |
 | `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
 | `docker/` | Containerized multi-actor demo (Dockerfile, two compose files, seed configs, entrypoint) | `docker/docker-compose-multi-actor.yml` |
@@ -123,6 +124,7 @@ stakeholder_type: [project-contributor]
   - `nav-usability` → `vultron.metadata.docs.nav_usability:main` (the scripted stages of the navigation usability test, ADR-0136)
   - `ratchet-owners` → `vultron.metadata.ratchet_owners:main` (ratchet baselines whose `# owner: #N` issue is not open, ARCH-18-004)
   - `ratchet-close-guard` → `vultron.metadata.ratchet_close_guard:main` (fails a pull request whose body closes an issue a non-empty ratchet still names as its owner, ARCH-18-012)
+  - `csaf-models` → `vultron.metadata.csaf.regenerate:main` (generates `vultron/wire/csaf/models/` from `third_party/csaf/`; `--check` fails when they differ, CSAF-05-003); `csaf-corpus` → `vultron.metadata.csaf.corpus:main` (optional: counts how many of the CSAF TC's test documents in a local `oasis-tcs/csaf` clone the models accept); `csaf-draft-watch` → `vultron.metadata.csaf.draft_watch:main` (the `CSAF Draft Watch` workflow's comparison of the pinned and upstream drafts, CSAF-05-005)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.
   The `Makefile` `api_dev` target runs the same app with `--reload` on port 7999 and sets `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` to that server.
@@ -142,10 +144,11 @@ stakeholder_type: [project-contributor]
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
 | `vultron/enums/` | Shared CVD enums usable by `config/` and `core/` | Adapter or wire-specific types |
 | `vultron/measure/` | Read-only readers and measures over case-ledger files | Any write to a store, a ledger or a file other than a command's own output (CEH-01-002); being imported by `vultron/core/`, `vultron/wire/` or `vultron/adapters/` (CEH-01-001) |
+| `vultron/adapters/connectors/` | Connector plugins, each implementing core ports listed in `CONNECTOR_PORTS` (`base.py`), and the entry-point loader | Being imported by `vultron/core/` (ARCH-05-001); importing from `vultron` anything but its own package, the ports it implements, the core models it translates into (not the hash-chained ledger), the shared errors and the primitives (ARCH-05-002) |
 | `vultron/shadow/` | The case shadow: reads a case only through a `CaseReader` and the measure layer | Importing the outbox, an activity emitter or an HTTP delivery adapter (SHD-01-001); a module under `vultron/adapters/`, since it imports the measure layer (CEH-01-001) |
 | `vultron/demo/` | Demo scenarios driven through HTTP triggers | `vultron/bt/` imports (sole permitted exception: `vultron/demo/cli/vultrabot_commands.py`, DC-01-001) |
 
-Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`, `test/architecture/test_core_no_demo_imports.py`, `test/architecture/test_wire_core_import_allowlist.py`, `test/architecture/test_behaviors_no_use_case_imports.py`, `test/architecture/test_enums_import_graph.py`, `test/architecture/test_demo_no_bt_imports.py`, `test/architecture/test_trigger_registry_ratchets.py`, `test/architecture/test_measure_layer_boundaries.py`
+Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`, `test/architecture/test_core_no_demo_imports.py`, `test/architecture/test_wire_core_import_allowlist.py`, `test/architecture/test_behaviors_no_use_case_imports.py`, `test/architecture/test_enums_import_graph.py`, `test/architecture/test_demo_no_bt_imports.py`, `test/architecture/test_trigger_registry_ratchets.py`, `test/architecture/test_measure_layer_boundaries.py`, `test/architecture/test_connector_boundaries.py`
 
 ### 4) Naming and Organization Rules
 
@@ -182,6 +185,24 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/metadata/specs/rationale.py` | `spec-rationale`: the advisory history-narration and candidate-`adr:`-link worklists (MS-10-015) |
 | `vultron/demo/exchange/report_with_embargo_demo.py` + `vultron/demo/helpers/embargo_outcome.py` | Exchange demo where the Reporter proposes embargo terms with the report, and its creation-time embargo checks |
 
+### 5a) Notable New Modules (2026-11)
+
+| Module | Purpose |
+|--------|---------|
+| `vultron/core/behaviors/case/received_run/` | `run_received_tree()`, which runs a received tree once as the receiving actor and reads the `HandlerResult` from what its nodes declared (`reading.py`, `readers.py`, `doors.py`, `sequence.py`, `lookup.py`); replaced the use-case-side verdict package `_bt_verdict` (ADR-0195) |
+| `vultron/core/services/receiving_actor.py` | Whose replica a received message is applied to, one answer shared by the runner and the use cases (BT-17-005, BT-17-009) |
+| `vultron/core/behaviors/case/nodes/held_case.py`, `nodes/activity_context.py` | The `held_case=` declaration for acts that name their case by reference (`Join`, `Ignore`, `Leave`, the ownership-transfer proposal), refused on the no-case path (AKM-03-004, AKM-03-006); the guard that an activity's `context` and its object name the same case |
+| `vultron/core/models/case_reading.py` + `vultron/core/ports/case_reader.py` | `CaseReading` (ledger, citations, inferences, untranslated and unobservable facts, CRD-02-001) and the read-only `CaseReader` port that returns one (ADR-0197) |
+| `vultron/shadow/readers/` | The Vultron case reader over a case-ledger file (`vultron_ledger.py`) and `select_case_reader` (`selection.py`) |
+| `vultron/core/models/type_terms.py` | `type_terms()`: a core reader asks whether a body's `type` names a type, so an AS2 list `type` reads correctly (ADR-0196) |
+| `vultron/wire/as2/vocab/extension_activities.py` | Vultron extension activity types, each sent as the list `[own type, AS2 core type]` with a `vultron:` context term (VM-03-005) |
+| `vultron/core/behaviors/embargo/nodes/pending_refusal.py`, `proposer_port.py`; `vultron/core/behaviors/status/nodes/target_participant.py` | Nodes that took over work the use cases did: closing the receiver's pending embargo ask on the manager's refusal (formerly a use-case helper; EP-09-018), publishing whose terms an embargo proposal carries for the adjudication (ADR-0093), and the status trees' guard that the receiver holds the target participant |
+| `vultron/logging_correlation.py` | `correlation_context()`, `CorrelationFilter` and `CorrelationFormatter`, which put `activity_id` and `actor_id` on log records from context (SL-02-003); no entry point installs it yet (#3992) |
+| `vultron/config/secrets.py`, `env_names.py`, `model_walk.py`, `vince.py` | Type-declared secret settings refused from config files, the setting-to-variable name rule, the settings-model walk both use, and `VinceConfig` |
+| `vultron/measure/baselines/values.py` | Each vendor's expected desiderata values from any point of a joint walk, and a step's expected change (ADR-0182) |
+| `vultron/metadata/text_cache.py`, `vultron/metadata/pin_record.py`, `vultron/metadata/wire_context/pin.py` | The on-disk parse cache shared across processes (#5880); the pin-record shape shared by `third_party/csaf/` and `third_party/jsonld/`; the JSON-LD context pin reader and term lister |
+| `.github/scripts/frozen_draft.py`, `serve_frozen_drafts.py`, `github_releases.py` + `.github/actions/serve-frozen-drafts/` + `.github/workflows/publish_after_release.yml` | Build and verify a released Protocol Specification draft's frozen-pages archive, serve each released archive into the built site, read GitHub Release state for the promote, and publish the site once a release is published (ADR-0188, DOCBW-06-032, DOCBW-08) |
+
 ### 6) Evidence
 
 - `vultron/` directory listing
@@ -195,3 +216,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 - `ui/AGENTS.md`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_wire_core_import_allowlist.py`
+- `test/architecture/test_connector_boundaries.py`
+- `third_party/README.md`
+- `vultron/core/behaviors/case/received_run/__init__.py`
+- `vultron/shadow/__init__.py`

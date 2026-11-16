@@ -624,3 +624,29 @@ groups:
     tags:
     - demo
     - testing
+  - id: EDF-06-014
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A demo step MUST NOT run with a placeholder standing in for a value that an
+      earlier step failed to produce.
+    rationale: >-
+      EDF-06-005 governs whether a dependent step runs, not what it is given. A step
+      that runs with `None` or `""` in place of its value sends a request built on
+      nothing, and its own failure hides the first one. The rule is about what
+      reaches the next step, a bare argument or a field in a request body alike.
+      Nesting the step inside the block that produces the value, or guarding each
+      later read, keeps the placeholder out (ADR-0058).
+    verification: >-
+      `test/architecture/test_demo_step_no_unbound_ratchet.py::test_no_placeholder_sentinel_read_after_demo_block`
+      fails a demo module in which a name pre-set to `None` or `""` is assigned
+      inside a `demo_step`, `demo_check` or `demo_gate` block and read after it with
+      no guard, including a read inside a later call's request body.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-06-005
+    tags:
+    - demo
+    - testing
