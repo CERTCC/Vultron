@@ -68,6 +68,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+)
 from vultron.core.behaviors.case.received_run import (
     ReceivedOutcome,
     door_guards_admitted,
@@ -1113,7 +1116,11 @@ class TestAddCaseStatusToCaseReceivedUseCase:
     def test_use_case_missing_status_id_logs_warning(
         self, make_payload, caplog
     ):
-        """Missing status_id in event → WARNING; no BT executed."""
+        """Missing status_id → the incomplete-activity tree refuses it.
+
+        The check is the tree's guard, after the doors and intake, never a
+        pre-check in ``execute()`` (CLP-10-018).
+        """
         import logging
         from unittest.mock import PropertyMock, patch
 
@@ -1136,6 +1143,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
                 )
 
         assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason == (
+            "Add(CaseStatus) is missing its status id or case id"
+        )
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
@@ -2001,14 +2011,15 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
 
 
 class TestAddCaseStatusTreeNoCaseId:
-    """Without a case_id the factory still builds the tree (#4978).
+    """Without a case_id the factory builds the incomplete-activity tree.
 
-    The tree has no ungated emitter at all (RSH-04-005), so it names no
-    replica emit exemption with or without a case, and the factory has no
-    stale exemption to refuse (BT-17-008).
+    Its guard refuses the Add after the doors and intake (CLP-10-018).  It
+    has no emitter at all, so it names no replica emit exemption, and the
+    factory has no stale exemption to refuse (BT-17-008, #4978).
     """
 
     @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-018")
     def test_tree_builds_without_case_id(self):
         request = AddCaseStatusToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
@@ -2017,5 +2028,5 @@ class TestAddCaseStatusTreeNoCaseId:
         )
         tree = add_case_status_tree(request, sender_rule=_CASE_STATUS_RULE)
         node_types = {type(n) for n in tree.iterate()}
-        assert CheckCaseStatusAcceptableNode in node_types
+        assert ActivityIncompleteNode in node_types
         assert ThreatTerminationBranchNode not in node_types

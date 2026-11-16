@@ -72,6 +72,7 @@ The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../
 In the example, the CASE_MANAGER refuses a Vendor's status assertion because a precondition did not hold.
 
 The refusal notice is the one answer a precondition guard's refusal owes the asserting participant ([CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
+It is a `Refuse`, the Vultron subtype of `as:Reject`, and it is sent as `"type": ["Refuse", "Reject"]`, so a receiver that knows only ActivityStreams still reads a `Reject`.
 Its `object` is the refused activity, inline, and `inReplyTo` names that activity's id.
 It goes to the asserting participant alone, and its `summary` gives the refusing guard's reason.
 Its id is derived from the CASE_MANAGER and the refused activity, so a refused activity is answered once.
@@ -94,9 +95,9 @@ The participant closes the pending assertion it recorded for the refused activit
 A notice that names an `expectedSenderSequence` also moves the participant's count up to that number ([SYNC-21-007](../vultron-spec/requirements/ledger-replication.md#sync-21-007)).
 It writes no case state and does not send the assertion again.
 
-A `Reject` from the CASE_MANAGER of an `Invite` or an `Offer` the participant sent is both a decline and a refusal.
-The two have the same shape, and either way the request had no effect.
-The participant reads it with the use case that reads the decline, which closes the pending entry.
+A refusal and a decline have different types.
+The CASE_MANAGER's `Refuse` of an `Invite` or an `Offer` the participant sent is a refusal notice, and the participant reads it as one.
+A `Reject` of the same request is the decision of the actor that sent it, such as a participant's decline, and the participant reads it with the use case that reads the decline.
 
 ### `as:Reject` is overloaded
 
@@ -106,6 +107,7 @@ The participant reads it with the use case that reads the decline, which closes 
 `reject_case_ownership_transfer`). A receiver cannot infer "error" from the
 verb alone. The `reject_case_ledger_entry` semantic is also an `as:Reject` but
 it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003)).
+The refusal notice is the exception: its `Refuse` type marks it as a refusal before the receiver reads its object.
 
 ---
 

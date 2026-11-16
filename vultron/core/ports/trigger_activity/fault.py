@@ -67,8 +67,8 @@ class TriggerFaultPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice.
 
-        The ``Reject`` a precondition guard's refusal owes the asserting
-        participant (CLP-02-005, CLP-05-001, ADR-0141): ``refused_activity``
+        The ``Refuse`` a precondition guard's refusal owes the asserting
+        participant (CLP-02-005, CLP-05-001, ADR-0141, ADR-0196): ``refused_activity``
         is the refused activity in its AS2 JSON form, as recorded when
         received, carried inline; ``inReplyTo`` names its id; ``asserter``
         is the sole ``to`` recipient; ``reason`` is the refusing guard's

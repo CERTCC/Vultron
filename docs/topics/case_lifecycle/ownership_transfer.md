@@ -176,8 +176,8 @@ Ownership stays where it was: the ledger entry closes the offer, and no particip
 A case has at most one open offer at a time ([CM-21-014](../../reference/vultron-spec/requirements/case-management.md#cm-21-014)).
 An offer stays open until the ledger records that it was accepted, declined, or withdrawn, or until its deadline passes.
 While it is open, the CASE_MANAGER refuses a new proposal for the case, and neither records it nor makes an offer from it.
-It answers the refused proposal with a `Reject` of it, the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice).
-The owner reads that notice as the decline of its proposal ([CLP-05-009](../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-009)).
+It answers the refused proposal with a `Refuse` of it, the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice).
+The owner reads that notice as a refusal, not a decline, and closes the pending entry for its proposal ([CLP-05-007](../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-007)).
 
 Once the offer is closed, the owner may propose the case again to anyone, including a participant that declined, with nothing to clear first.
 A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Reject` after an `Accept`, is refused.

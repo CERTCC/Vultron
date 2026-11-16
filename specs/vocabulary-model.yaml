@@ -423,6 +423,82 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: VM-03-001
+  - id: VM-03-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Vultron extension type can refine an ActivityStreams core type. A sender MUST
+      write the `type` of such an extension as the list `[extension type, core type]`,
+      such as `["Refuse", "Reject"]`. Inside the sender, the object still has only the
+      extension type.
+    rationale: >-
+      The ActivityStreams Core extensibility guidance asks an extension type that
+      overlaps a core type to carry the core type too. A plain ActivityStreams receiver
+      that does not know the extension then still reads the message as the core type.
+      Code that handles the message needs only one type: a list in code would change
+      every type check for no gain (ADR-0196).
+    note: >-
+      Only the wire form carries the list. A sender's own stored copy keeps the one
+      extension type.
+    verification: >-
+      `TestOutboundTypeList` in `test/wire/as2/test_type_list.py` confirms that a
+      test-only extension class serializes its `type` as the list, keeps its own `type`
+      inside, and reads back as the same class from the list, through the parser and
+      through a stored copy.
+    adr:
+    - ADR-0196
+    stories:
+    - story_2026_012
+  - id: VM-03-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST read a `type` list, in any order, as the most specific type it
+      knows, and ignore each term it does not know.
+    rationale: >-
+      ActivityStreams allows `type` to be a list, and VM-03-005 sends one. The most
+      specific known type is the one the sender meant, and a term the receiver does not
+      know is an extension it cannot read, so `["Foo", "Reject"]` is a `Reject`
+      (ADR-0196).
+    note: >-
+      The rule applies to an inline object at any depth as it does to the activity. A
+      list that names no known type is an unknown type, as a string that names none is
+      (MV-01-001, MV-04-004).
+    verification: >-
+      `TestInboundTypeList` in `test/wire/as2/test_type_list.py` confirms resolution in
+      either order, that an unknown term is ignored, and that a list naming no known
+      type is unknown, at the top level and inline.
+    adr:
+    - ADR-0196
+    stories:
+    - story_2026_013
+    relationships:
+    - rel_type: extends
+      spec_id: VM-03-005
+    - rel_type: refines
+      spec_id: MV-01-001
+  - id: VM-03-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse, as an unknown type, a received `type` list that names two
+      known types when neither is a subtype of the other.
+    rationale: >-
+      When two known types are unrelated, the receiver cannot tell which one the sender
+      meant, so it must not choose one (ADR-0196).
+    note: >-
+      The refusal holds for an inline object at any depth too.
+    verification: >-
+      `test_two_unrelated_known_types_are_refused` and
+      `test_two_unrelated_known_types_are_refused_inline` in
+      `test/wire/as2/test_type_list.py` confirm the refusal at the top level and inline.
+    adr:
+    - ADR-0196
+    stories:
+    - story_2026_013
+    relationships:
+    - rel_type: extends
+      spec_id: VM-03-006
 - id: VM-04
   title: ID Generation
   specs:
@@ -1312,9 +1388,11 @@ groups:
       term (ADR-0194).
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_every_wire_field_of_a_vultron_object_has_a_term`
-      fails while a field a `CaseLedgerEntry` declares has no term in the context
-      document; it is a strict `xfail` until #6409 writes the terms, and #6422 replaces
-      it with a check over every wire field.
+      fails when a field a `CaseLedgerEntry` declares has no term in the context
+      document, and tests marked `VM-10-007` in
+      `test/wire/as2/vocab/test_context_jsonld.py` assert that the generator reaches
+      nested models and skips an excluded field. #6422 replaces the sampled fields
+      with a check over every wire field.
     adr:
     - ADR-0194
     relationships:
@@ -1332,8 +1410,11 @@ groups:
       (VM-10-010).
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_a_vultron_property_declaration_carries_a_definition_and_kind`
-      fails while the property marker is a bare flag; it is a strict `xfail` until
-      #6409 makes the marker carry a definition and a value kind.
+      asserts that a case's `ledgerPosition` marker carries a one-line definition and
+      a value kind, and tests marked `VM-10-008` in
+      `test/core/models/test_vultron_property_declaration.py` assert that the marker
+      refuses a bare flag, a missing definition or kind, and a blank or multi-line
+      definition.
     adr:
     - ADR-0194
     relationships:
@@ -1376,7 +1457,9 @@ groups:
     verification: >-
       `test/metadata/test_wire_term_declarations.py::test_the_context_types_each_term_by_its_value_kind`
       requires `payloadSnapshot` to be typed `@json` and `actorParticipantIndex` to be
-      an `@index` container; it is a strict `xfail` until #6409 writes typed terms.
+      an `@index` container of IRIs, and tests marked `VM-10-010` in
+      `test/wire/as2/vocab/test_context_jsonld.py` assert the term each value kind
+      is written as.
     adr:
     - ADR-0194
     relationships:

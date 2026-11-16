@@ -223,8 +223,9 @@ groups:
       `test_parse_activity_raises_unknown_type_for_unrecognized_type`,
       `test_parse_activity_reports_non_string_type_as_unknown` and
       `test_parse_activity_refuses_a_known_type_that_is_not_an_activity` in
-      `test/wire/as2/test_parser.py` confirm that an unknown, non-string or
-      non-activity `type` raises `VultronParseUnknownTypeError`.
+      `test/wire/as2/test_parser.py` confirm that an unknown or non-activity `type`, or
+      one that is neither a string nor a list naming a known type, raises
+      `VultronParseUnknownTypeError`.
       `test_parse_activity_keeps_an_inline_object_of_unknown_type` in the same file
       confirms that a `Create` whose inline object has an unknown `type` parses, with a
       plain `as_Object` as its object and `UNKNOWN` as its semantic type.

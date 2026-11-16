@@ -326,8 +326,16 @@ def test_faults_are_partitioned_by_failure_mode_not_state_machine():
 
     # received but not understood
     assert MessageSemantics.CREATE_PROCESSING_FAULT in registered
-    # received and understood but declined — as:Reject carries this
+    # received and understood but declined — as:Reject carries this: a
+    # Reject for the addressee's decline of a request, its subtype
+    # vultron:Refuse for the CASE_MANAGER's refusal notice (ADR-0196)
     assert MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE in registered
+    assert MessageSemantics.REFUSAL_NOTICE in registered
+    decline = lookup_entry(MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE)
+    refusal = lookup_entry(MessageSemantics.REFUSAL_NOTICE)
+    assert decline.pattern is not None and refusal.pattern is not None
+    assert decline.pattern.activity_ == TAtype.REJECT
+    assert refusal.pattern.activity_ == TAtype.REFUSE
     # needs narrative explanation
     assert MessageSemantics.ADD_NOTE_TO_CASE in registered
 

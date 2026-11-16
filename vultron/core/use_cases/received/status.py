@@ -23,7 +23,6 @@ from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
     CheckParticipantStatusAcceptableNode,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -44,9 +43,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
     any_of,
-)
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,16 +131,8 @@ class AddCaseStatusToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        status_id = request.status_id
-        case_id = request.case_id
-        if not status_id or not case_id:
-            logger.warning(
-                "add_case_status_to_case: missing status_id or case_id"
-            )
-            return HandlerResult.refused(
-                "Add(CaseStatus) is missing its status id or case id"
-            )
-
+        # An Add missing its status id or case id gets the incomplete-
+        # activity tree, whose guard refuses it (CLP-10-018).
         tree = add_case_status_tree(
             request=request,
             sender_rule=self.sender_entitlement,
@@ -220,25 +208,14 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        if not request.status_id or not request.participant_id:
-            logger.warning(
-                "add_participant_status_to_participant: missing status_id"
-                " or participant_id"
-            )
-            return HandlerResult.refused(
-                "Add(ParticipantStatus) is missing its status id or"
-                " participant id"
-            )
-
-        # The case is the target participant's own (HP-08-008); the tree
-        # refuses a status of any other case before the commit (HP-08-007).
-        # A target the receiver holds no record of leaves the activity's own
-        # case, so the tree's path stage judges the receiver there and its
-        # HP-08-014 door refuses the delivery.
-        resolve_receiver_before_reads(self._dl, request)
-        target = self._stored_target_participant()
-        target_case_id = _as_id(target.context) if target is not None else None
-        case_id = target_case_id or request.context_id
+        # The status says which case it applies to: the tree is built on the
+        # carried status's own ``context``.  Its target door admits the
+        # delivery only when the receiver's record of the target participant
+        # names that case, so the status joins only its target's own case
+        # and no store is read here (HP-08-008, HP-08-013, HP-08-014).  A
+        # status carried by reference names no case, which the path stage
+        # refuses.
+        case_id = _as_id(getattr(request.status, "context", None)) or None
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -247,11 +224,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             request=request,
             case_id=case_id,
             sender_rule=self.sender_entitlement,
-            # The record's own participant, for the on-behalf guard
-            # (RSH-08-014, PRM-06-003/004).
-            target_actor_id=(
-                _as_id(target.attributed_to) if target is not None else None
-            ),
             **call_out_kwargs,
         )
         # Only the CASE_MANAGER adjudicates the status: the tree declares the
@@ -265,22 +237,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            reader=_participant_status_reader(
-                request.status_id, request.activity_id
+            # An Add missing its status id runs the incomplete-activity
+            # tree, which has no status to read (CS-08-002).
+            reader=(
+                _participant_status_reader(
+                    request.status_id, request.activity_id
+                )
+                if request.status_id
+                else None
             ),
         )
-
-    def _stored_target_participant(self) -> CaseParticipant | None:
-        """The receiver's stored record of the target participant.
-
-        Its ``context`` is the case the Add acts on (HP-08-008), never the
-        status's ``context`` or the activity's: the sender chooses those,
-        while the status is appended to whichever case owns the participant.
-        Its ``attributed_to`` is whose status it is (RSH-08-007).  A
-        participant the receiver does not hold, or whose record names no
-        case, leaves no case to act on: the tree refuses it before the
-        commit (HP-08-014).
-        """
-        participant_id = self._request.participant_id
-        stored = self._dl.read(participant_id) if participant_id else None
-        return stored if isinstance(stored, CaseParticipant) else None

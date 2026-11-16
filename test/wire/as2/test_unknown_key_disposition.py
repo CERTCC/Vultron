@@ -1195,6 +1195,12 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
     assert offenders == [], offenders
 
 
+#: Modules that write a JSON-LD context document, not parse a message.  A
+#: typed term definition is spelled with ``"@id"`` and ``"@type"``
+#: (VM-10-010), and no receiver reads these spellings as declared keys.
+_CONTEXT_DOCUMENT_WRITERS = frozenset({"metadata/wire_context/sync.py"})
+
+
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.spec("MV-11-007")
 def test_no_exemption_names_a_jsonld_keyword() -> None:
@@ -1207,6 +1213,8 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
     above covers that case for every declared spelling.  The scan is deliberately
     package-wide: AS2 compacts both keywords away (MV-11-002), so no Vultron
     module has a reason to spell them, and one that does needs a reviewer.
+    The one module with a reason, the context-document generator, is listed
+    in ``_CONTEXT_DOCUMENT_WRITERS``.
     """
     import vultron
     from vultron.wire.as2 import unknown_keys
@@ -1222,9 +1230,17 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
         if keywords & keys
     } == {}
 
-    offenders = _string_constants_under(
+    spellings = _string_constants_under(
         Path(vultron.__file__).parent, keywords
     )
+    spellers = {spelling.split(":", 1)[0] for spelling in spellings}
+    # Each exemption still spells a keyword, so none outlives its reason.
+    assert spellers >= _CONTEXT_DOCUMENT_WRITERS, sorted(spellers)
+    offenders = [
+        spelling
+        for spelling in spellings
+        if spelling.split(":", 1)[0] not in _CONTEXT_DOCUMENT_WRITERS
+    ]
     assert offenders == [], (
         "MV-11-002: @id/@type are near misses of id/type by design and MUST "
         f"NOT be declared or exempted; found {offenders}"

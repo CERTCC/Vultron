@@ -826,7 +826,6 @@ def test_an_add_participant_status_with_no_case_keeps_its_one_declaration() -> (
         sender_rule=(
             AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
         ),
-        target_actor_id=None,
     )
     stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
     assert stage.declared == frozenset({CM})

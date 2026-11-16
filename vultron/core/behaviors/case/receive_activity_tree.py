@@ -103,6 +103,9 @@ from vultron.core.behaviors.case.nodes.addressee import (
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -181,6 +184,7 @@ def create_receive_activity_tree(
     case_may_be_absent: bool = False,
     *,
     addressee_exemption: AddresseeExemption | None = None,
+    held_case: CaseNamedByReference | None = None,
     paths: Collection[ReceivedPath] | None = None,
     closed_sender: ClosedSenderCheck | None = None,
     sender_rule: SenderRule | None = None,
@@ -254,6 +258,14 @@ def create_receive_activity_tree(
     answered the delivery and its intake recorded it, so a second intake
     would meet that record and read the first run as a re-run (ADR-0154).
     Every other stage is built as usual.
+
+    ``held_case`` names the act of a tree whose message names its case and
+    carries none of it — ``Join``, ``Ignore``, ``Leave`` and the owner's
+    ``Offer(Offer(VulnerabilityCase))`` (AKM-03-004, ADR-0165).  The path
+    stage refuses such an act at a receiver that holds no replica of the case
+    with a reason naming the activity and the case (AKM-03-006), so no use
+    case reads its store to ask first.  It needs ``paths`` without the
+    no-case path, and a case named at build time.
 
     The addressee check opts out only with ``addressee_exemption``, a
     registered
@@ -488,6 +500,9 @@ def create_receive_activity_tree(
             case yet (e.g. an invitee seeing the first Invite).
         addressee_exemption: Why this tree carries no addressee door guard;
             ``None`` (the default) places it (HP-01-005).
+        held_case: Which act that names its case and carries none of it
+            this tree handles (AKM-03-004); the path stage's no-case refusal
+            then names the activity and the case (AKM-03-006).
         paths: The paths this message type handles, declared once
             (ADR-0153); ``None`` places no path stage.
         closed_sender: The sender whose recorded closure stops the tree, for
@@ -611,6 +626,7 @@ def create_receive_activity_tree(
         paths,
         case_resolved_at_run_time=bool(case_resolution),
         sender_rule=sender_rule,
+        held_case=held_case,
     )
     if path_stage is not None:
         children.append(with_case_id(path_stage, stage_case_id))

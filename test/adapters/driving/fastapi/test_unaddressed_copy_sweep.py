@@ -122,8 +122,9 @@ def _copy_for_someone_else(activity: as_Activity) -> as_Activity:
 def _seed_named_case(dl: SqliteDataLayer, activity: as_Activity) -> None:
     """Give the bystander the case the copy names, as a replica would hold.
 
-    A handler that looks the case up before its tree runs would otherwise
-    refuse an unknown case, and the sweep would never reach the door.  The
+    Without it the copy could be refused for the unknown case (by a
+    handler's own read, or at the path stage) and the sweep would not show
+    the addressee door's answer.  The
     bystander is no participant of it, so a ``{case}/participants`` address
     would not name it either.
     """

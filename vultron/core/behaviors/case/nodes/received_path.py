@@ -57,6 +57,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
+from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
@@ -115,6 +116,8 @@ def undeclared_path_reason(
     declared: Collection[ReceivedPath],
     case_id: str | None,
     *,
+    held_case: CaseNamedByReference | None = None,
+    activity_id: str | None = None,
     case_names_no_manager: bool = False,
 ) -> str:
     """The reason an undeclared *path* is refused with (HP-01-039).
@@ -131,6 +134,11 @@ def undeclared_path_reason(
     missing; a declaration that omits the manager path therefore says what is
     missing — a branch, not the role (HP-01-005).
 
+    A message type that names its case and carries none of it
+    (*held_case*, AKM-03-004) is refused on the no-case path naming the
+    activity and the case instead, because the receiver has nothing to act
+    on (AKM-03-006).
+
     A replica whose case names no CASE_MANAGER is told so instead: no actor
     holds the role there, so "not the CASE_MANAGER" is true of every
     receiver, while the case missing its CASE_MANAGER is what the sender can
@@ -141,12 +149,24 @@ def undeclared_path_reason(
         declared: The paths the message type handles.
         case_id: The case the role was read in; ``None`` when the tree
             resolved none, which only the no-case path reaches.
+        held_case: The act, for a type that names its case by reference.
+        activity_id: The refused activity, named with *held_case*; with
+            none, the path's own reason is used.
         case_names_no_manager: On the participant-replica path, the case
             this store holds names no CASE_MANAGER at all.
 
     Returns:
         One sentence fragment, true of the receiver being refused.
     """
+    if (
+        held_case is not None
+        and path is ReceivedPath.NO_CASE
+        and case_id
+        and activity_id
+    ):
+        return (
+            f"{held_case.value} '{activity_id}' names unknown case '{case_id}'"
+        )
     if (
         case_names_no_manager
         and path is ReceivedPath.PARTICIPANT_REPLICA
@@ -194,6 +214,9 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         declared: The paths the message type handles.
         label: Names the tree in log lines; the factory passes the tree's own
             name.
+        held_case: The act, for a type that names its case by reference
+            (AKM-03-004); its no-case refusal names the activity and the
+            case (AKM-03-006).
     """
 
     def __init__(
@@ -201,10 +224,13 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
         declared: frozenset[ReceivedPath],
         label: str = "",
         name: str | None = None,
+        *,
+        held_case: CaseNamedByReference | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.declared = declared
         self.label = label
+        self.held_case = held_case
         self._case_id_bb: str | None = None
         self._activity: object | None = None
         self.resolved_path: ReceivedPath | None = None
@@ -278,6 +304,8 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
             path,
             self.declared,
             case_id,
+            held_case=self.held_case,
+            activity_id=getattr(self._activity, "activity_id", None),
             case_names_no_manager=(
                 path is ReceivedPath.PARTICIPANT_REPLICA
                 and bool(case_id)

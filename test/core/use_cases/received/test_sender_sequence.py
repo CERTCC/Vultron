@@ -327,7 +327,7 @@ def test_a_refused_sender_resumes_at_the_expected_number(
         case_id=net.case_id,
     )
     assert notice["expectedSenderSequence"] == 11
-    net.deliver(MANAGER, to=OWNER, type_="Reject")
+    net.deliver(MANAGER, to=OWNER, type_="Refuse")
 
     again = _note_body(net, "behind-again")
     net.receive(MANAGER, again)
@@ -831,7 +831,7 @@ def test_a_resent_refused_number_is_refused_again_with_no_second_notice(
         case_id=net.case_id,
     )
     # The notice leaves the outbox, as a delivered one does.
-    net.lose(MANAGER, to=OWNER, type_="Reject")
+    net.lose(MANAGER, to=OWNER, type_="Refuse")
     entries_before = len(ledger_entries(manager_dl, net.case_id))
 
     net.receive(MANAGER, refused)

@@ -37,6 +37,7 @@ In every case, send `Add(ParticipantStatus)` targeting your own participant reco
 Set the status's `context` to the case your participant record belongs to.
 The CASE_MANAGER acts on the case of the participant record you target.
 It refuses a status whose `context` names another case (HP-08-008).
+If you also set the activity's own `context`, set it to the same case: the CASE_MANAGER refuses an `Add` whose activity and status name different cases (HP-08-015).
 
 The protocol names `Add(ParticipantStatus)` as the one form.
 A received `Create(ParticipantStatus)` is not a protocol message (VAM-01-019), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).

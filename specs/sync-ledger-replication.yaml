@@ -4721,7 +4721,7 @@ groups:
       `test_a_late_or_reused_number_is_refused_with_a_notice`,
       `test_a_late_answer_never_overrides_the_later_one` and
       `test_an_unnumbered_activity_is_refused_with_a_notice` in
-      `test/core/use_cases/received/test_sender_sequence.py` assert a `Reject` of each
+      `test/core/use_cases/received/test_sender_sequence.py` assert a `Refuse` of each
       refused activity is queued to its sender with the next expected number.
     stories:
     - story_2026_059
