@@ -44,8 +44,11 @@ _TICK = timedelta(microseconds=1)
 class ParticipantPathCounts(BaseModel):
     """One participant's embargo Invites, by how each ended.
 
-    Only an embargo Invite is counted, never a stub Invite to the case: that
-    carries no RSVP deadline, so it can never time out at one (CM-23-014).  An
+    An Invite is counted when it puts an RSVP deadline on the participant's
+    consent row (CEH-04-017).  The first stub Invite to the case records
+    none on the row, so it is not counted (CM-23-014).  A stub Invite
+    re-issued after the embargo changed records its deadline on the row for
+    the embargo now in force, so it is counted (CM-11-016).  An
     Invite whose embargo was rejected, cancelled, replaced or ended before
     the participant answered is in no count: no Invite was left to answer.
 

@@ -94,15 +94,14 @@ def _invitations(
             continue
         if row not in open_rows:
             continue
+        # Only a consent event carries a row (CEH-04-009): past the
+        # invitation, it is an answer or a timeout, and either ends it.
         if event.kind in _ANSWERS:
             answered += 1
-        elif event.kind is _K.CONSENT_TIMED_OUT:
-            if _closed_out(event, close):
-                closed_out += 1
-            else:
-                timed_out += 1
+        elif _closed_out(event, close):
+            closed_out += 1
         else:
-            continue
+            timed_out += 1
         open_rows.discard(row)
     return ParticipantPathCounts(
         participant=participant,

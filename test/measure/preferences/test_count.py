@@ -192,6 +192,7 @@ def test_a_reporter_gets_its_counts():
         REPORTER,
     ]
     assert _of(counts, CM).answered_ratio is None
+    assert counts.for_participant("urn:uuid:nobody") is None
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +268,7 @@ def test_an_embargo_that_reached_its_end_time_ended_at_it():
     )
     duration = _counts(ledger).case.duration
     assert duration.end == datetime.fromisoformat(EMBARGO_END)
+    assert duration.end is not None
     assert duration.ratio == Fraction(
         (duration.end - _at(1)) // timedelta(seconds=1), 3 - 1
     )

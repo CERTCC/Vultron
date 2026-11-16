@@ -71,8 +71,9 @@ These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
 - **An invitation is a row newly `INVITED` with an RSVP deadline.** Emit it with
   the deadline, and emit nothing for a row invited with none (CEH-04-017). Reason:
   the answered-before-deadline count counts Invites, and a row can hold several
-  (EMB-17-003); a stub Invite's row has no deadline (CM-23-014), and an event for it
-  would date an inert invitee before it joins (CEH-04-010).
+  (EMB-17-003). The first stub Invite records no deadline on the row, so it yields
+  no event; a re-issued stub (CM-11-016) and an embargo Invite relayed to an inert
+  invitee record one, so each yields an event before the invitee joins.
 - **The case closes at the Case Owner's `Leave`**, read against the roles the walk
   holds at that entry (CEH-04-018). Reason: the close's sweep times Invites out
   before their deadline (CM-23-014), which a measure must tell from a pocket veto,

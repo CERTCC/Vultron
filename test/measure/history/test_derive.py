@@ -621,19 +621,39 @@ def test_a_row_invited_again_with_no_deadline_keeps_none_from_before():
 
 @pytest.mark.spec("CEH-04-017")
 def test_a_stub_invites_row_is_no_invitation_event():
-    """A stub Invite's ``INVITED`` row carries no RSVP deadline (CM-23-014)."""
+    """A first stub Invite's ``INVITED`` row carries no RSVP deadline
+    (CM-23-014)."""
     ledger = Ledger()
     ledger.standard_genesis()
     _invited(ledger)
     assert ledger.history().of_kind(EventKind.CONSENT_INVITED) == []
 
 
-@pytest.mark.spec("CEH-04-018")
-def test_the_case_owners_leave_closes_the_case_once():
-    """A participant's ``Leave`` closes only its own report; the Case Owner's
-    closes the case, and a repeat of it is no second close."""
+@pytest.mark.spec("CEH-04-017")
+def test_a_reissued_stub_invites_row_is_an_invitation_event():
+    """A stub Invite re-issued after the embargo changed records its deadline
+    on the inert invitee's row for the embargo now in force (CM-11-016)."""
     ledger = Ledger()
     ledger.standard_genesis()
+    _invited(ledger)
+    reissued = ledger.invite(INVITEE, EMBARGO_2, stamp(9))
+    (invitation,) = ledger.history().of_kind(EventKind.CONSENT_INVITED)
+    assert (
+        invitation.participant,
+        invitation.embargo_id,
+        invitation.log_index,
+        invitation.rsvp_deadline,
+    ) == (INVITEE, EMBARGO_2, reissued, datetime.fromisoformat(stamp(9)))
+
+
+@pytest.mark.spec("CEH-04-018")
+def test_the_case_owners_leave_closes_the_case_once():
+    """A participant's ``Leave`` closes only its own report, and one from an
+    actor the history never seated closes nothing; the Case Owner's closes
+    the case, and a repeat of it is no second close."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.leave("urn:uuid:never-seated")
     ledger.leave(REPORTER)
     closed = ledger.leave(OWNER)
     ledger.leave(OWNER)

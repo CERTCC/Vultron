@@ -69,7 +69,8 @@ class EventKind(StrEnum):
     JOINED = "joined"
     #: A participant was sent an embargo Invite to one embargo register
     #: entry: its consent row became ``INVITED`` with an RSVP deadline
-    #: (CEH-04-017).  A stub Invite's row carries no deadline and is none.
+    #: (CEH-04-017).  The first stub Invite's row records no deadline and
+    #: is none; a re-issued stub's row records one (CM-11-016).
     CONSENT_INVITED = "consent_invited"
     #: A participant agreed to one embargo register entry (CEH-04-008).
     CONSENT_AGREED = "consent_agreed"

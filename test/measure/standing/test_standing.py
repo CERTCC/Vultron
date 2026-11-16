@@ -425,6 +425,7 @@ def test_a_record_shows_the_path_preferences_of_every_participant():
         [recording_path("rcv-embargo")]
     ).histories.values()
     assert record.path_preferences == path_preferences(history)
+    assert record.path_preferences is not None
     counted = {p.participant for p in record.path_preferences.participants}
     assert {p.participant for p in record.participants} == counted
 

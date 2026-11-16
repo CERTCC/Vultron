@@ -591,8 +591,8 @@ class _Deriver:
             state is EmbargoConsentState.INVITED
             and self.consent.get(key) is not state
         ):
-            # A new invitation: its own deadline, or none for a stub Invite's
-            # row, never the deadline of an earlier invitation of this row.
+            # A new invitation: its own deadline, or none for a first stub
+            # Invite's row, never the deadline of an earlier invitation.
             self.rsvp_deadlines.pop(key, None)
         if deadline is not None:
             self.rsvp_deadlines[key] = deadline
@@ -608,7 +608,8 @@ class _Deriver:
         """Record *state* on a consent row, emitting it when it changes.
 
         An embargo Invite carries its row's RSVP deadline (CEH-04-017); a
-        row invited with none is a stub Invite's, and yields no event.  A
+        row invited with none is a first stub Invite's, and yields no event;
+        a re-issued stub's row carries one, and does (CM-11-016).  A
         timed-out invitation is the CASE_MANAGER's sweep when it next
         handled the case (CM-28-015), and carries the RSVP deadline recorded
         on the earlier ``INVITED`` row (CEH-03-013, CEH-03-015).
@@ -622,8 +623,8 @@ class _Deriver:
         timed_out = state is EmbargoConsentState.TIMED_OUT
         invited = state is EmbargoConsentState.INVITED
         if invited and key not in self.rsvp_deadlines:
-            # A stub Invite's row: the invitation to the case, which carries
-            # no RSVP deadline (CM-23-014), is no embargo Invite.
+            # A first stub Invite's row: the core records no RSVP deadline
+            # on it (CM-23-014), so it is no embargo Invite.
             return
         self.events.append(
             context.event(

@@ -895,14 +895,17 @@ groups:
       A measure of Invites answered before their deadline counts Invites, not rows at
       their last status: a row invited again after a timeout holds two Invites
       (CM-18-003, EMB-17-003), and only the invitation shows which answer ends which
-      Invite. A stub Invite's row carries no RSVP deadline and can never time out at
-      one (CM-23-014), so it is no embargo invitation.
+      Invite. The first stub Invite records no RSVP deadline on the invitee's row, so it
+      is no invitation event; a stub Invite re-issued after the embargo changed records
+      one on the row for the embargo now in force (CM-11-016), so it is one.
     verification: >-
       `test/measure/history/test_derive.py::test_an_embargo_invite_is_an_event_carrying_its_rsvp_deadline`
       asserts one event per invitation, a re-invitation included, each carrying its
       deadline;
       `test/measure/history/test_derive.py::test_a_stub_invites_row_is_no_invitation_event`
-      asserts a stub Invite's row yields none.
+      asserts a first stub Invite's row yields none;
+      `test/measure/history/test_derive.py::test_a_reissued_stub_invites_row_is_an_invitation_event`
+      asserts a re-issued stub Invite's row yields one.
     relationships:
     - rel_type: extends
       spec_id: CEH-04-008
