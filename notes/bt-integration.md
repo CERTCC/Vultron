@@ -609,7 +609,10 @@ a semantic-registry entry must set `include_activity=True`. An activity that
 lacks a value its tree needs to be built (a case id, a participant id) is
 refused inside the one tree: its factory returns
 `create_incomplete_activity_received_tree` (intake, then an
-`ActivityIncompleteNode` guard), never a separate refusal run (CLP-10-005).
+`ActivityIncompleteNode` guard), never a separate refusal run (CLP-10-005)
+and never a `HandlerResult.refused(...)` returned from `execute()` before the
+run: `test/architecture/test_received_use_case_execute.py` fails on one
+(CLP-10-007).
 
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload

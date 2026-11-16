@@ -130,21 +130,64 @@ def _is_tree_run_call(node: ast.Call) -> bool:
     ) or (isinstance(func, ast.Name) and func.id in _TREE_RUN_CALLEES)
 
 
-def _is_refusal_call(node: ast.AST, handler_result: frozenset[str]) -> bool:
-    """True for ``<HandlerResult>.refused(...)``, under any name it is bound to.
+#: The ``HandlerResult`` constructors whose verdict is always ``REFUSED``.
+_REFUSAL_CONSTRUCTORS = frozenset({"refused", "no_use_case_found"})
 
-    *handler_result* holds the names ``HandlerResult`` is spelled by in the
-    module: its own and any ``import ... as`` alias.
+
+def _names_handler_result(
+    node: ast.expr, handler_result: frozenset[str]
+) -> bool:
+    """True for ``HandlerResult`` itself: a bound name or ``<module>.HandlerResult``."""
+    if isinstance(node, ast.Name):
+        return node.id in handler_result
+    return isinstance(node, ast.Attribute) and node.attr == "HandlerResult"
+
+
+def _is_refusal_call(
+    node: ast.AST | None, handler_result: frozenset[str]
+) -> bool:
+    """True for a call that builds a ``REFUSED`` ``HandlerResult``.
+
+    Seen: ``<HandlerResult>.refused(...)`` and
+    ``<HandlerResult>.no_use_case_found(...)``, and the constructor called with
+    ``disposition=<...>.REFUSED``.  ``<HandlerResult>`` is any name the module
+    binds it to (*handler_result*: its own and any ``import ... as`` alias) or
+    a module-qualified ``<module>.HandlerResult``.
     """
     if not isinstance(node, ast.Call):
         return False
     func = node.func
-    return (
-        isinstance(func, ast.Attribute)
-        and func.attr == "refused"
-        and isinstance(func.value, ast.Name)
-        and func.value.id in handler_result
+    if isinstance(func, ast.Attribute) and func.attr in _REFUSAL_CONSTRUCTORS:
+        return _names_handler_result(func.value, handler_result)
+    return _names_handler_result(func, handler_result) and any(
+        keyword.arg == "disposition"
+        and isinstance(keyword.value, ast.Attribute)
+        and keyword.value.attr == "REFUSED"
+        for keyword in node.keywords
     )
+
+
+def _bound_refusals(
+    func: _FunctionDef, handler_result: frozenset[str]
+) -> set[str]:
+    """Names *func*'s own scope binds to a refusal.
+
+    By plain assignment, annotated assignment or an assignment expression
+    (``:=``).
+    """
+    bound: set[str] = set()
+    for node in _walk_own_scope(func):
+        targets: list[ast.expr]
+        value: ast.expr | None
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if _is_refusal_call(value, handler_result):
+            bound.update(t.id for t in targets if isinstance(t, ast.Name))
+    return bound
 
 
 def _returned_refusals(
@@ -153,25 +196,22 @@ def _returned_refusals(
     """Each ``return`` in *func*'s own scope that returns a refusal.
 
     The verdict a use case decides in Python rather than reads from the run
-    of its tree (ADR-0195).  Seen: ``return HandlerResult.refused(...)``; a
-    conditional expression with one in either branch; and a name the same
-    scope bound to one, then returned.  A refusal a nested reader function
-    returns is the reader's, outside this scope, so it is not seen.
+    of its tree (ADR-0195).  Seen: a returned refusal call
+    (:func:`_is_refusal_call`); a conditional expression with one in either
+    branch; and a name the same scope bound to one (:func:`_bound_refusals`),
+    then returned.  A refusal a nested reader function returns is the
+    reader's, outside this scope, so it is not seen.  Nor is one built by a
+    helper outside the indexed packages: the walk stops at their boundary.
     """
-    bound = {
-        target.id
-        for node in _walk_own_scope(func)
-        if isinstance(node, ast.Assign)
-        and _is_refusal_call(node.value, handler_result)
-        for target in node.targets
-        if isinstance(target, ast.Name)
-    }
+    bound = _bound_refusals(func, handler_result)
 
     def refuses(value: ast.expr | None) -> bool:
         if value is None:
             return False
         if isinstance(value, ast.IfExp):
             return refuses(value.body) or refuses(value.orelse)
+        if isinstance(value, ast.NamedExpr):
+            return refuses(value.value)
         if isinstance(value, ast.Name):
             return value.id in bound
         return _is_refusal_call(value, handler_result)

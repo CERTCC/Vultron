@@ -176,6 +176,65 @@ _UC = "vultron.core.use_cases.received.synthetic.UC"
         pytest.param(
             "class UC:\n"
             "    def execute(self):\n"
+            "        no: HandlerResult = HandlerResult.refused('no case')\n"
+            "        if self._r.case_id is None:\n"
+            "            return no\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="annotated-then-returned",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if (no := HandlerResult.refused('x')) and self._r.bad:\n"
+            "            return no\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="walrus-then-returned",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if self._r.case_id is None:\n"
+            "            return HandlerResult(\n"
+            "                disposition=HandlerDisposition.REFUSED,\n"
+            "                reason='no case',\n"
+            "            )\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="constructed-with-refused-disposition",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if self._r.case_id is None:\n"
+            "            return HandlerResult.no_use_case_found('x')\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="no-use-case-found",
+        ),
+        pytest.param(
+            "from vultron.core.models import use_case_result\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if self._r.case_id is None:\n"
+            "            return use_case_result.HandlerResult.refused('x')\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="module-qualified",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if self._r.case_id is None:\n"
+            "            return HandlerResult.skipped('nothing to do')\n"
+            "        return run_received_tree(t)\n",
+            False,
+            id="a-skip-is-not-a-refusal",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
             "        return run_received_tree(tree_for(self._r))\n",
             False,
             id="tree-decides",

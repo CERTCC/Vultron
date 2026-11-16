@@ -55,6 +55,9 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -102,7 +105,7 @@ def _case(case_id: str = _C1) -> as_VulnerabilityCase:
     return make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id)
 
 
-def _invite() -> object:
+def _invite() -> as_Invite:
     return em_propose_embargo_activity(
         _embargo(),
         context=_C1,
