@@ -55,6 +55,20 @@ found() {
   git merge-base "$base_ref" HEAD 2>/dev/null
 }
 
+# A full clone (a local run, such as the pre-push CI mirror) has nothing to
+# deepen, and its HEAD may be a commit the remote does not have yet, so it only
+# brings the base branch up to date.
+if [ "$(git rev-parse --is-shallow-repository)" != "true" ]; then
+  echo "fetch-merge-base: full clone; updating ${base} only" >&2
+  retry timeout -k 10 "${FETCH_TIMEOUT:-60}" \
+    git fetch --no-tags --no-recurse-submodules --quiet "$remote" "$refspec"
+  if ! found; then
+    echo "::error::fetch-merge-base: ${base} and HEAD share no history." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
 echo "fetch-merge-base: fetching ${base} one commit deep" >&2
 retry fetch --depth=1
 

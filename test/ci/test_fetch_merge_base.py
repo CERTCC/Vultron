@@ -296,3 +296,20 @@ def test_the_action_takes_a_merge_commits_first_parent_as_the_base(
     assert "first parent" in result.stdout
     assert _git(clone, "rev-parse", "origin/main") == main_tip
     assert _git(clone, "merge-base", "origin/main", "HEAD") == main_tip
+
+
+@pytest.mark.usefixtures("isolated_git")
+def test_a_full_clone_with_an_unpushed_head_only_updates_the_base(
+    tmp_path: Path,
+) -> None:
+    """A local run's HEAD may not be on the remote, so it is never fetched."""
+    bare, fork = _origin(tmp_path, fork_at=5, main_after=2)
+    clone = tmp_path / "local"
+    _git(tmp_path, "clone", "-q", "--branch", "feature", str(bare), str(clone))
+    _commit(clone, "not pushed")
+
+    result = _run(clone)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == fork
+    assert "full clone" in result.stderr
