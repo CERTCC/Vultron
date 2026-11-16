@@ -28,6 +28,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models.note import VultronNote
 from vultron.core.sync_helpers import is_ledgered_activity
 
@@ -132,13 +133,12 @@ class NoteIdNotTakenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"a note is already stored as '{self.note_id}'; an Add(Note)"
             " introduces a new note, and a change to one is an Update(Note)"
-            " — REFUSED (HP-08-006)"
+            " — REFUSED (HP-08-006)",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 class AttachNoteToCaseNode(CaseReferenceEditNode):

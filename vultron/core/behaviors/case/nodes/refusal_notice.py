@@ -76,6 +76,7 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
 )
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.services.received_activity import held_received_body
 from vultron.core.sync_helpers import resume_sender_sequence_at
 from vultron.errors import VultronWiringError
@@ -307,7 +308,9 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
             self._asserter,
             self._refused_id,
             self._case_id,
-            self._reason,
+            # The receiver's runner logged the refusal; this line is the
+            # notice going out, so it keeps the facts without the group.
+            self._reason and without_refusal_group(self._reason),
         )
 
 
@@ -375,7 +378,9 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
             self.refused_activity_id,
             self.actor_id,
             self.case_id,
-            self.reason or "no reason given",
+            # The refusal is the CASE_MANAGER's, logged by its runner; here
+            # it is a fact the notice carried (SL-03-004).
+            without_refusal_group(self.reason or "no reason given"),
             len(self.cleared),
         )
         return Status.SUCCESS

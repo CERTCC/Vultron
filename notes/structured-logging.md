@@ -7,11 +7,10 @@ description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
-  demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
-  DEBUG (SL-03-002) with the refusal wording kept to the refusal (SL-03-003),
-  why a role read that picks an arm is not a sender check,
-  which lines are not refusal reasons and stay off that rule, and where new
-  narrative lines go so INFO logs read as a CVD protocol story.
+  demotion list (SL-04-007), why only the received runner logs a refusal
+  (SL-03-002) while nodes log facts at DEBUG (SL-03-003) without the `REFUSED`
+  group (SL-03-004) while a fault keeps WARNING (`fail_with_fault`), why a role read that picks an arm is not a sender check,
+  and where new narrative lines go so INFO logs read as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
@@ -225,67 +224,57 @@ something did go wrong and something fixed it. A Selector sibling is not that ca
 there the failure repaired nothing, because nothing broke. It logs at DEBUG — the
 next section.
 
-## A Selector Arm a Sibling Can Overrule Logs at DEBUG, Not WARNING
+## Only the Received Runner Logs a Refusal; Nodes Log Facts at DEBUG
 
-An arm that fails so the next arm can succeed has decided nothing, so its line is
-DEBUG (SL-03-002): WARNING is for a recoverable anomaly (SL-03-001), and a reader
-who sees one takes it as the outcome. A sender guard's any-of side is the case — it
-composes its kinds into a Selector, so the CASE_MANAGER check failing is how a Case
-Owner's activity reaches the CASE_OWNER check that admits it. At WARNING that read
-as a refusal in every demo log of three passing runs (#5460).
+**The runner writes the one `REFUSED` line (SL-03-002).** `run_received_tree`
+(`vultron/core/behaviors/case/received_run/runner.py`) logs one WARNING per
+delivery it reports `REFUSED`: label, activity id, sender, receiver, then the
+reported reason, given `— REFUSED (HP-01-003)` when it carries no group of its own
+(`with_refusal_group`). Only the verdict reading knows whether a FAILURE refused
+anything: an any-of side's arm fails so the next arm can admit, and a closed
+sender's repeated Leave fails but is `SKIPPED`. Guessing the verdict from the
+tree's shape logged false refusals, so no node guesses (#6477). A refusal a
+handler returns from `execute()` before its tree runs gets no runner line; such a
+check belongs in the tree, as a door or guard, not ahead of it.
 
-Decide the level from the node's own placement at tick time, not from a flag the
-composer sets: `failure_is_the_refusal(node)` in
-`vultron/core/behaviors/sender_entitlement/base.py` walks the parents and answers
-`False` at the first Selector with a later sibling, or at any decorator. A flag can
-disagree with the tree that is running; the walk cannot. The invariant the walk reads is
-pinned by `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py`: no
-received tree may place a sender door where anything above it can overrule the
-door's FAILURE. Nothing else catches that direction — the demo matcher below sees
-only a WARNING that should not be there, never a refusal gone quiet.
+**A node fails through `fail_with_reason(node, reason)` (SL-03-003).** The helper
+in `vultron/core/behaviors/node_logger.py` sets `feedback_message` — what
+`BTBridge.get_failure_reason` and the handler report (BT-13-001) — and logs the
+facts at DEBUG. Sender checks reach it through
+`SenderEntitlementConditionNode._fail_with_reason`; a check that composes its own
+citation does it in a `_refuse_citing` that delegates, never a `_refuse`, which
+would shadow a base method of that name with neither mypy nor pyright reporting
+it (#5786). Context before the reason (the receiver, the path) goes in its
+`prefix`, so the line keeps it and the helper still writes it.
 
-**Every sender check that logs a refusal reason takes the rule, through one
-helper.** A check records its refusal with `refuse_by_placement(node, reason)` in
-`vultron/core/behaviors/sender_entitlement/base.py`, reached by the base method
-`SenderEntitlementConditionNode._refuse_by_placement` or, for a check that is not a
-subclass of it, called directly. One helper is also what lets a test find a refusal
-line by the rule that chose its level rather than by its node class or its wording.
-A check that composes its own citation around a shorter *why* puts that in a
-`_refuse_citing` method which delegates — never in a `_refuse`, which would override
-a base method of that name in silence: mypy does not check override parameter names,
-and pyright at `typeCheckingMode: basic` reports nothing either, so routing such a
-check through the rule would look done and do nothing (#5786).
+**A fault fails through `fail_with_fault`, never `fail_with_reason` (SL-03-001).**
+A record this receiver holds that cannot be read, a stored record missing a
+field it must carry, or a malformed number is not a refusal reason, so it keeps
+WARNING whatever verdict the handler reports. A refusal arm that catches
+`VultronError` broadly calls `fail_with_error(node, exc)`, which sends a
+`VultronInvalidStateTransitionError` (the register's refusals among them) to
+DEBUG and every other error to WARNING; it re-raises `INTERNAL_FAULTS` first, as
+a refusal is never a bug's answer (ADR-0095).
+`test/architecture/test_node_failure_line_ratchet.py` fails on a new
+hand-written `.warning(..., feedback_message)` under `core/behaviors/`; the older
+sites are a shrinking baseline that #6507 sorts.
+
+**Only the runner's line carries the group (SL-03-004).** A node, the bridge's
+run summary and tree dump, the receipt-stub line and the refusal-notice lines
+strip `— REFUSED (IDs)` with `without_refusal_group`
+(`vultron/core/models/refusal_wording.py`) and keep the facts, the resolved
+CASE_MANAGER among them. That keeps the token to one record per refused delivery,
+which `expect_no_sender_refusals` (`test/demo/_helpers.py`) matches by the
+runner's logger name. A malformed activity (no `actor_id`, an unreadable ledger
+entry) is an anomaly rather than a refusal reason, so it keeps WARNING, or ERROR
+where `SenderIsCaseManagerNode` cannot read the ledger entry (#5862), and carries
+no group.
 
 **A role read that picks an arm is not a sender check.** A sender check words its
-non-match as a refusal citing HP-01-006, so wherever its FAILURE is the tree's
-answer — the last arm of a Selector — it logs `REFUSED` at WARNING. A tree that
-picks an arm on an actor's role (the status adoption bypass, the Leave,
-suggest-actor and embargo trees) therefore asks `ActorHoldsRoleInCaseNode`, the
-`has_role` read (ADR-0153), which states no refusal at any placement. Placed as
-the CM-23-011 embargo check, a sender check claimed an HP-01-006 refusal for a
-sender the guard admitted; as the closed-sender door's fallback, it claimed one
-for a Leave the handler reports `SKIPPED` (#5903). The level rule cannot catch
-this: both placements really are the tree's answer, and the wrong part is the
-citation. `test/core/behaviors/test_sender_guard.py` fails on a
-`SenderIsCaseOwnerNode` placed outside a composed sender guard in any built tree.
-
-**A line that is not a refusal reason stays off the rule, and says so where it is
-logged.** The placement rule picks the level of a *refusal reason*.
-`SenderClosureNotRecordedNode` reports a recorded state whose
-verdict the handler decides — a repeat of a closing act is `SKIPPED`, not `REFUSED`
-(CM-23-018, ID-05-003) — so it keeps INFO in every placement, and it carries no
-`REFUSED` wording for a reader to misread. A malformed activity (no `actor_id`, an
-unreadable ledger entry) is an anomaly, so it takes its level from SL-03-001 and
-records no refusal reason at all — WARNING at every such site but one, where
-`SenderIsCaseManagerNode` logs ERROR for a ledger entry it cannot read (#5862).
-At the closed-sender door that lets a closing Case Owner through, the arm after the
-closure check is a role read that states no refusal either: that door turns away
-only a repeated Leave, which is `SKIPPED` (#5903).
-
-**Keep the refusal wording to the refusal (SL-03-003).** `— REFUSED (IDs)` is the
-token the demo tests' `expect_no_sender_refusals` matches, so the DEBUG line states
-the same facts with that group stripped, the resolved CASE_MANAGER among them. The
-WARNING line logs `feedback_message` itself
-(`logger.warning("%s: %s", self.name, msg)`), so the text a reader greps and the
-reason `BTBridge.get_failure_reason` reports are one string — a bespoke second
-template is how this WARNING escaped that matcher while the three runs passed.
+non-match as a refusal citing HP-01-006. A tree that picks an arm on an actor's
+role (the status adoption bypass, the Leave, suggest-actor and embargo trees)
+asks `ActorHoldsRoleInCaseNode`, the `has_role` read (ADR-0153), which states no
+refusal: placed as the CM-23-011 embargo check, a sender check made the handler
+report an HP-01-006 reason for a sender the guard admitted (#5903).
+`test/core/behaviors/test_sender_guard.py` fails on a `SenderIsCaseOwnerNode`
+placed outside a composed sender guard in any built tree.

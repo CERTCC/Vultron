@@ -17,7 +17,7 @@
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import fail_with_reason
 
 
 class ActivityContextMatchesObjectNode(py_trees.behaviour.Behaviour):
@@ -55,13 +55,12 @@ class ActivityContextMatchesObjectNode(py_trees.behaviour.Behaviour):
             or self.activity_context_id == self.object_context_id
         ):
             return Status.SUCCESS
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"the activity's context names case '{self.activity_context_id}'"
             f" but '{self.object_id}' names case '{self.object_context_id}'"
-            " — REFUSED (HP-08-015)"
+            " — REFUSED (HP-08-015)",
         )
-        node_logger(self).warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 __all__ = ["ActivityContextMatchesObjectNode"]

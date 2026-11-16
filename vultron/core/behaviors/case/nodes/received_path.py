@@ -59,6 +59,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.case.nodes.conditions import activity_case_id
 from vultron.core.behaviors.case.nodes.held_case import CaseNamedByReference
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_predicate import has_role
 from vultron.enums.roles import CVDRole
@@ -336,17 +337,17 @@ class ReceivedPathNode(DataLayerConditionWithPorts):
                 case_id,
             )
             return Status.SUCCESS
-        self.feedback_message = self._refusal_reason(path, case_id)
-        self.logger.warning(
-            "%s: refused at '%s' on the %s path; %s handles %s only: %s",
-            self.label or self.name,
-            self.actor_id,
-            path.value,
-            self.label or self.name,
-            sorted(declared.value for declared in self.declared),
-            self.feedback_message,
+        label = self.label or self.name
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        return fail_with_reason(
+            self,
+            self._refusal_reason(path, case_id),
+            prefix=(
+                f"{label}: refused at '{self.actor_id}' on the {path.value}"
+                f" path; {label} handles"
+                f" {sorted(declared.value for declared in self.declared)} only"
+            ),
         )
-        return Status.FAILURE
 
 
 def replica_names_no_case_manager(
@@ -392,21 +393,19 @@ class ReplicaRefusalNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
-        self.feedback_message = undeclared_path_reason(
-            ReceivedPath.PARTICIPANT_REPLICA,
-            {ReceivedPath.CASE_MANAGER},
-            self.case_id,
-            case_names_no_manager=replica_names_no_case_manager(
-                self, self.case_id
+        # A fact at DEBUG; the received runner logs the refusal (SL-03-003).
+        return fail_with_reason(
+            self,
+            undeclared_path_reason(
+                ReceivedPath.PARTICIPANT_REPLICA,
+                {ReceivedPath.CASE_MANAGER},
+                self.case_id,
+                case_names_no_manager=replica_names_no_case_manager(
+                    self, self.case_id
+                ),
             ),
+            prefix=f"{self.name}: refused at '{self.actor_id}'",
         )
-        self.logger.warning(
-            "%s: refused at '%s': %s",
-            self.name,
-            self.actor_id,
-            self.feedback_message,
-        )
-        return Status.FAILURE
 
 
 class CheckReceivedPathNode(py_trees.behaviour.Behaviour):

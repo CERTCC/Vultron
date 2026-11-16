@@ -39,6 +39,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     superseded_reason,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import fail_with_reason
 
 
 class StubInviteAnswerableNode(DataLayerConditionWithPorts):
@@ -57,9 +58,7 @@ class StubInviteAnswerableNode(DataLayerConditionWithPorts):
         self.case_id = case_id
 
     def _refuse(self, why: str) -> Status:
-        self.feedback_message = why
-        self.logger.warning("%s: %s", self.name, why)
-        return Status.FAILURE
+        return fail_with_reason(self, why)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
