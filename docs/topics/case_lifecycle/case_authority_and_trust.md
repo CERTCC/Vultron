@@ -191,6 +191,8 @@ Sometimes it is not.
 Take a node that holds no copy of the case the message names.
 It refuses the message and tells the sender that it holds no replica of that case, not that it lacks a role.
 Saying it lacks the role would be false, because a node with no replica holds no role in the case to lack.
+Some messages name their case without carrying it: a `Join`, `Ignore` or `Leave` of a case, and the Case Owner's proposal to transfer ownership.
+The refusal of one of these also names the message ([AKM-03-006](../../reference/specs/project.md#akm-03-006)).
 
 The second check is about the sender: *may this sender make this assertion?*
 The first check tells nothing about the second ([HP-01-006](../../reference/vultron-spec/requirements/message-processing.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).

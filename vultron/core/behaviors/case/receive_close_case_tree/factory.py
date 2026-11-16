@@ -21,6 +21,9 @@ from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
 from vultron.core.behaviors.case.nodes.addressee import (
     ENCLOSING_TREE_ADDRESSEE_CHECK,
 )
+from vultron.core.behaviors.case.nodes.held_case import (
+    CaseNamedByReference,
+)
 from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     CaseManagerLeavesOnlyAsCaseOwnerNode,
@@ -345,6 +348,10 @@ def create_close_case_received_tree(
     return create_receive_activity_tree(
         name="CloseCaseBT",
         case_id=None,
+        # The Leave names the case (ADR-0165): the path stage refuses one
+        # this store does not hold, naming the activity and the case
+        # (AKM-03-006).
+        held_case=CaseNamedByReference.LEAVE,
         precondition_guards=[],
         # The leaver asks the CASE_MANAGER alone, which decides the close or
         # the decline (CM-23-002, PCR-08-001); a participant replica takes

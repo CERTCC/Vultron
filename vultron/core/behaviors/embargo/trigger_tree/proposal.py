@@ -36,6 +36,9 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
     EmbargoTermsNotHeldNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    PublishEmbargoProposerNode,
+)
 from vultron.core.behaviors.embargo.trigger_tree._arms import (
     _asserting,
     _by_role,
@@ -86,9 +89,12 @@ def _propose_arms(
                 embargo=embargo,
                 result_out=result_out,
             ),
-            CollectEmbargoInviteRecipientsNode(
-                case_id=case_id, proposer_id=actor_id
+            # The manager proposes its own terms: it is the proposer the
+            # shared adjudication nodes read (CM-24-002).
+            PublishEmbargoProposerNode(
+                sender_id=actor_id, case_id=case_id, activity_id=embargo.id_
             ),
+            CollectEmbargoInviteRecipientsNode(case_id=case_id),
             ProposeEmbargoLifecycleNode(
                 case_id=case_id,
                 embargo_id=embargo.id_,
@@ -106,7 +112,6 @@ def _propose_arms(
             RelayEmbargoInviteToEachNode(
                 case_id=case_id,
                 embargo_id=embargo.id_,
-                proposer_id=actor_id,
                 # The manager's own proposal is the request each relayed
                 # Invite answers.  An Invite whose commit fails is rolled
                 # back with the proposal itself: the arm is one act

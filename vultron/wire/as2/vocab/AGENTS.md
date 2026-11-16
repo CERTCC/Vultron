@@ -11,10 +11,15 @@
    `@activitystreams_activity` decorators. Registration is automatic via
    `as_Base.__init_subclass__` when a class sets `type_` to `Literal[...]`.
 
-2. `find_in_vocabulary()` resolves a wire `type` value through `WIRE_TYPE_MAP`
-   alone, and stops there by default: a wire caller only ever gets a class the
-   wire registry holds (VM-06-008). It never consults `VOCABULARY`, because a
-   class name such as `as_Activity` is not an AS2 `type` value (VM-01-016).
+2. A received `type` (a string or an AS2 list) is resolved only through
+   `resolve_wire_type()` / `resolve_received_type()`, or compared by name
+   through `resolved_wire_type_name()`; never `isinstance(type_, str)` plus a
+   bare lookup (VM-03-006, ADR-0196). Each term is looked up by
+   `find_in_vocabulary()`, which resolves a wire `type` value through
+   `WIRE_TYPE_MAP` alone, and stops there by default: a wire caller only ever
+   gets a class the wire registry holds (VM-06-008). It never consults
+   `VOCABULARY`, because a class name such as `as_Activity` is not an AS2
+   `type` value (VM-01-016).
    Only a persistence read path that reconstructs whatever was stored passes
    `include_core=True` to fall back to `CORE_TYPE_MAP` (core domain types that
    MUST NOT appear in the wire `VOCABULARY` per ARCH-12-014), and it says why in

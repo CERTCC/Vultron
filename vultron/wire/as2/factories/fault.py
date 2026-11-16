@@ -3,8 +3,8 @@
 Provides :func:`create_processing_fault_activity` for building the
 ``Create(ProcessingFault)`` NACK message (ADR-0080, ASK-07-001), and
 :func:`refusal_notice_activity` for the CASE_MANAGER's refusal notice, the
-``Reject`` of an assertion a precondition guard refused (CLP-05-001,
-ADR-0141).
+``Refuse`` of an assertion a precondition guard refused (CLP-05-001,
+ADR-0141, ADR-0196).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -30,8 +30,8 @@ from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.fault import _RefusalNoticeActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
-    as_Reject,
 )
+from vultron.wire.as2.vocab.extension_activities import as_Refuse
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
@@ -78,13 +78,15 @@ def refusal_notice_activity(
     *,
     at: datetime,
     **kwargs,
-) -> as_Reject:
-    """Build the CASE_MANAGER's refusal notice: a ``Reject`` of *refused*.
+) -> as_Refuse:
+    """Build the CASE_MANAGER's refusal notice: a ``Refuse`` of *refused*.
 
-    The refused activity is carried inline, ``inReplyTo`` names its id and
-    ``summary`` carries the refusing guard's reason (CLP-05-001).  The
-    CASE_MANAGER is the notice's ``actor``; pass it, the asserting
-    participant as the sole ``to`` recipient, and the derived ``id_``.
+    A ``Refuse``, sent as ``"type": ["Refuse", "Reject"]``, so the asserter
+    cannot read it as a decline (ADR-0196).  The refused activity is carried
+    inline, ``inReplyTo`` names its id and ``summary`` carries the refusing
+    guard's reason (CLP-05-001).  The CASE_MANAGER is the notice's
+    ``actor``; pass it, the asserting participant as the sole ``to``
+    recipient, and the derived ``id_``.
 
     Args:
         refused: The refused activity's received body, as the receiver
@@ -98,7 +100,7 @@ def refusal_notice_activity(
             from the asserter (SYNC-21-015).
 
     Returns:
-        An ``as_Reject`` whose ``object_`` is the refused activity.
+        An ``as_Refuse`` whose ``object_`` is the refused activity.
 
     Raises:
         VultronActivityConstructionError: If *refused* is not an activity

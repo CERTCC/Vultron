@@ -509,7 +509,7 @@ arms built by `_by_role()` (`trigger_tree/_arms.py`, BT-17-001). Ratchet:
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
   a refused proposal, or an `Accept` refused with a `Reject` of the Invite
   (EMB-02-004), is closed by the manager's `Reject` (EP-09-019,
-  `close_refused_embargo_ask`); a duplicate proposal (EP-09-032) is neither
+  `ClosePendingEmbargoAskNode`); a duplicate proposal (EP-09-032) is neither
   committed nor refused, so its entry closes only on the timeout
   (SYNC-11-005); a participant takes a
   `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
@@ -589,7 +589,7 @@ on the receiver (PCR-03-001, PCR-08-001):
 | Message | At the CASE_MANAGER | At any other replica |
 |---|---|---|
 | `Invite(EmbargoEvent)` | an active participant (CM-10-004), or the CASE_MANAGER itself | the CASE_MANAGER (EP-09-003) |
-| `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same, but this rule is reached only when the tree declares the path. The Accept tree declares the CASE_MANAGER path alone, so the path stage refuses a replica before the sender guard runs; the Reject tree declares both paths, so a replica is admitted and the handler closes the participant's pending ask (HP-01-038, EP-09-017, EP-09-019) |
+| `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same, but this rule is reached only when the tree declares the path. The Accept tree declares the CASE_MANAGER path alone, so the path stage refuses a replica before the sender guard runs; the Reject tree declares both paths, so a replica is admitted and the tree's `ClosePendingEmbargoAskNode` closes the participant's pending ask (HP-01-038, EP-09-017, EP-09-019) |
 | `Remove(EmbargoEvent)` | the Case Owner, or the CASE_MANAGER itself | the CASE_MANAGER |
 | `Announce(EmbargoEvent)` | the CASE_MANAGER | the CASE_MANAGER |
 

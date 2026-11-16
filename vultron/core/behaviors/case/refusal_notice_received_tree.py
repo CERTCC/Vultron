@@ -16,8 +16,8 @@
 """Received refusal notice: the participant closes its refused assertion.
 
 The CASE_MANAGER answers an assertion a precondition guard refused with one
-``Reject`` of it (CLP-02-005, CLP-05-001, ADR-0141).  The participant that
-sent it reads the notice here::
+``Refuse`` of it (CLP-02-005, CLP-05-001, ADR-0141, ADR-0196).  The
+participant that sent it reads the notice here::
 
     RefusalNoticeReceivedBT (Sequence)
     ├─ ActivityAddressedToReceiverNode / ActivityNotSeenBeforeNode

@@ -66,8 +66,9 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.FAULTS_AND_ACKNOWLEDGEMENTS,
     ),
-    # The most general Reject pattern: every Reject that nests a specific
-    # activity is registered ahead of it (SE-03-002).
+    # The one Refuse pattern: a Refuse of any inline activity.  A resolved
+    # Refuse matches no Reject pattern, so no decline entry shadows it
+    # (ADR-0196, SE-03-002).
     SemanticEntry(
         semantics=MessageSemantics.REFUSAL_NOTICE,
         pattern=RefusalNoticePattern,
@@ -87,10 +88,12 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Refusal notice",
                 description=(
                     "Tells the participant that its assertion was received "
-                    "and understood but refused, so it had no effect. It "
-                    "carries the refused activity inline and names the "
-                    "refusing guard's reason. This notice serves the declined "
-                    "purpose of the formal RE, EE, CE and GE messages."
+                    "and understood but refused, so it had no effect. It is "
+                    "a Refuse, a subtype of Reject, so the participant does "
+                    "not read it as a decline. It carries the refused "
+                    "activity inline and names the refusing guard's reason. "
+                    "This notice serves the declined purpose of the formal "
+                    "RE, EE, CE and GE messages."
                 ),
                 example="refusal_notice",
                 evolved=True,

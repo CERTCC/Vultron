@@ -805,18 +805,19 @@ groups:
       travel inline with a `type` even when nothing else is known. Anything beyond the
       id and type would be invented (AKM-02-006). The reference only gets the activity
       routed: a receiver that needs the actor's profile fetches it from the actor before
-      it processes the activity (AKM-05-007). MV-10-009 names this reference as its one
-      exception.
+      it processes the activity (AKM-05-007). The actor reference is the typed
+      reference of an actor (MV-10-011, ADR-0198).
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_travels_as_an_actor_reference`
       checks the actor in each such activity is exactly an `id` and a `type`.
     relationships:
     - rel_type: refines
       spec_id: AKM-05-005
-    - rel_type: supersedes
-      spec_id: MV-10-009
+    - rel_type: refines
+      spec_id: MV-10-011
     adr:
     - ADR-0159
+    - ADR-0198
     stories:
     - story_2022_053
   - id: AKM-05-018

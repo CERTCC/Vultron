@@ -12,9 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Every Vultron wire field has a typed JSON-LD term (VM-10-007 to VM-10-012).
 
-Each test checks one rule of ADR-0194 against a field that breaks it today, so
-each is a strict ``xfail`` naming the Task that makes it hold.  #6422 replaces
-the sampled fields with a check over every wire field and its owned ratchets.
+Each test checks one rule of ADR-0194 against a sampled field.  A rule that a
+field still breaks is a strict ``xfail`` naming the Task that makes it hold.
+#6422 replaces the sampled fields with a check over every wire field and its
+owned ratchets.
 """
 
 import json
@@ -23,7 +24,10 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from vultron.core.models.base.context import VULTRON_PROPERTY_KEY
+from vultron.core.models.base.context import (
+    PropertyValueKind,
+    declared_vultron_property,
+)
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.vulnerability_item import (
@@ -58,12 +62,6 @@ def _wire_names(model: type[BaseModel]) -> set[str]:
     return {f.alias or name for name, f in model.model_fields.items()}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="VM-10-007: the context document maps only four properties. "
-    "Tracked by #6409 (terms) and #6422 (the check over every field).",
-)
 @pytest.mark.spec("VM-10-007")
 def test_every_wire_field_of_a_vultron_object_has_a_term() -> None:
     assert set(_LEDGER_ENTRY_TERMS) <= _wire_names(CaseLedgerEntry)
@@ -72,20 +70,16 @@ def test_every_wire_field_of_a_vultron_object_has_a_term() -> None:
     assert not missing, f"wire fields with no JSON-LD term: {missing}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="VM-10-008: the property marker is a bare flag. Tracked by #6409.",
-)
 @pytest.mark.spec("VM-10-008")
 def test_a_vultron_property_declaration_carries_a_definition_and_kind() -> (
     None
 ):
     field = VulnerabilityCase.model_fields["ledger_position"]
-    extra = field.json_schema_extra
-    assert isinstance(extra, dict) and VULTRON_PROPERTY_KEY in extra
-    declaration = extra[VULTRON_PROPERTY_KEY]
-    assert declaration is not True, "the marker carries no definition or kind"
+    declaration = declared_vultron_property(field)
+    assert declaration is not None, "ledgerPosition carries no marker"
+    assert declaration.definition
+    assert "\n" not in declaration.definition
+    assert declaration.kind is PropertyValueKind.PLAIN
 
 
 @pytest.mark.xfail(
@@ -99,12 +93,6 @@ def test_a_vultron_field_reuses_no_as2_name() -> None:
     assert "audience" not in _wire_names(VulnerabilityItemNote)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=KeyError,
-    reason="VM-10-010: the context document has no typed property terms. "
-    "Tracked by #6409.",
-)
 @pytest.mark.spec("VM-10-010")
 def test_the_context_types_each_term_by_its_value_kind() -> None:
     terms = _vultron_terms()
@@ -112,8 +100,10 @@ def test_the_context_types_each_term_by_its_value_kind() -> None:
         "@id": "vultron:payloadSnapshot",
         "@type": "@json",
     }
+    # An index map's values are participant ids, so they are typed as IRIs.
     assert terms["actorParticipantIndex"] == {
         "@id": "vultron:actorParticipantIndex",
+        "@type": "@id",
         "@container": "@index",
     }
 

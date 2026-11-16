@@ -25,6 +25,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/vultron-as2-mapping.yaml
   - specs/received-status-handling.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -252,7 +253,11 @@ nothing is written before the last one admits the message (ADR-0154).
 1. **Door guards** — in ADR-0154's order: the addressee check (HP-01-005),
    the seen-before door (`case/nodes/seen_before.py`), the path stage
    (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
-   door (CM-23-018) and the sender guard (HP-01-006). The received-tree runner
+   door (CM-23-018) and the sender guard (HP-01-006). A case the receiver does
+   not hold is refused by the path stage, on the no-case path, never by a
+   `read_case` in `execute()` (HP-01-039); a tree whose act names its case by
+   reference passes the factory's `held_case`, so that refusal names the
+   activity too (AKM-03-006). The received-tree runner
    reads a door's answer first, through `door_refusal`
    (`behaviors/case/received_run/`, ADR-0195); never run a door guard as a
    one-node tree ahead of the received tree, the chained shape CLP-10-005
@@ -537,8 +542,12 @@ nothing is written before the last one admits the message (ADR-0154).
    `SvcEmbargoTriggerBase` adds to its triggers' stage; never run one as a tree of its
    own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
-   write nothing. A refusal goes to the process log and, where the protocol
-   calls for an answer, back to the sender — never to the ledger (CLP-04-007).
+   write nothing. A guard whose failure refuses the activity returns
+   `self._refuse(reason)` (`DeclaredRefusalMixin`, `ReportsRefusal`), so the
+   received runner reports `REFUSED` with that reason and no handler reader
+   names it; a local fault stays a plain FAILURE. A refusal goes to the
+   process log and, where the protocol calls for an answer, back to the
+   sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004

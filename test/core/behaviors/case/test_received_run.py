@@ -18,6 +18,7 @@ Tree tests: they read outcomes through ``core/behaviors`` alone, never
 through ``use_cases`` (#5774).
 """
 
+import functools
 import logging
 
 import py_trees
@@ -54,9 +55,13 @@ from vultron.core.behaviors.case.received_run import (
     read_outcome,
     run_received_tree,
 )
+from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
 from vultron.core.behaviors.idempotency import (
+    DeclaredRefusalMixin,
     ReportsIdempotentRepeat,
     ReportsNoChange,
+    ReportsRefusal,
+    refusal_ending_run,
     repeat_ending_run,
     unchanged_by_run,
 )
@@ -121,6 +126,19 @@ class _RepeatGuard(_Fixed):
         return self.repeat and self.status == Status.FAILURE
 
 
+class _RefusingGuard(DeclaredRefusalMixin, _Fixed):
+    """A guard that declares its FAILURE a refusal, or fails as a fault."""
+
+    def __init__(self, name: str, reason: str, message: str = "") -> None:
+        super().__init__(name, Status.FAILURE, message)
+        self.reason = reason
+        self.refuses = True
+
+    def update(self) -> Status:
+        status = super().update()
+        return self._refuse(self.reason) if self.refuses else status
+
+
 class _NoChange(_Fixed):
     """A node that reports its SUCCESS changed nothing."""
 
@@ -175,7 +193,7 @@ def _read(
     if result is None:
         result = _SUCCEEDED if tree.status == Status.SUCCESS else _FAILED
     return read_outcome(
-        ReceivedOutcome.of(tree, result, _LABEL),
+        ReceivedOutcome.of(tree, result, _LABEL, receiving_actor_id=_RECEIVER),
         **kwargs,  # type: ignore[arg-type]
     )
 
@@ -344,6 +362,143 @@ def test_the_case_status_guard_reports_a_repeat():
         case_id="https://example.org/cases/c", status_id="s"
     )
     assert isinstance(node, ReportsIdempotentRepeat)
+
+
+# --- a node-declared refusal (HP-01-003, HP-01-005, #5775) -----------------
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_is_refused_with_the_nodes_reason():
+    """The node's reason is the whole reason: no tree label is added."""
+    tree = _ran(_RefusingGuard("Check", "entry hash broken (SYNC-03-006)"))
+    verdict = _read(tree)
+    assert verdict == HandlerResult.refused("entry hash broken (SYNC-03-006)")
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_ahead_of_its_failed_fallback_is_found():
+    """Every alternative of a failed Selector decided it, the guard first."""
+    guard = _RefusingGuard("Check", "refused (SYNC-03-006)")
+    answer = py_trees.composites.Selector(
+        name="CheckOrFault",
+        memory=False,
+        children=[guard, _Fixed("EmitFault", Status.FAILURE, "fault sent")],
+    )
+    tree = _ran(_Fixed("Ok", Status.SUCCESS), answer)
+    assert refusal_ending_run(tree) == "refused (SYNC-03-006)"
+    assert _read(tree).reason == "refused (SYNC-03-006)"
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_declared_refusal_that_did_not_decide_the_run_is_not_read():
+    """A refusal a decorator turned into SUCCESS is not the run's verdict."""
+    tree = _ran(
+        py_trees.decorators.FailureIsSuccess(
+            name="Swallowed", child=_RefusingGuard("Check", "not this")
+        ),
+        _Fixed("Last", Status.FAILURE, "real refusal"),
+    )
+    assert refusal_ending_run(tree) is None
+    assert _read(tree).reason == "TestBT: real refusal"
+
+
+@pytest.mark.spec("HP-01-014")
+def test_a_declared_repeat_is_read_before_a_declared_refusal():
+    """A guard whose failure is a repeat is SKIPPED, not refused."""
+
+    class _RepeatAndRefusal(DeclaredRefusalMixin, _RepeatGuard):
+        def update(self) -> Status:
+            super().update()
+            return self._refuse("not this")
+
+    tree = _ran(_RepeatAndRefusal("Guard", repeat=True, message="again"))
+    assert _read(tree) == HandlerResult.skipped("again")
+
+
+def test_the_doors_and_the_reader_are_read_before_a_declared_refusal():
+    tree = _ran(_RefusingGuard("Check", "declared"))
+    assert _read(tree, reader=_refuse_all) == HandlerResult.refused(
+        "reader: TestBT"
+    )
+    door_tree = _ran(
+        ActivityIncompleteNode("Add(X) is missing its id"),
+        _RefusingGuard("Check", "declared"),
+        selector=True,
+    )
+    assert _read(door_tree) == HandlerResult.refused(
+        "Add(X) is missing its id"
+    )
+
+
+def test_a_tree_that_judges_nothing_still_reads_a_declared_refusal():
+    tree = _ran(_RefusingGuard("Check", "declared"))
+    assert _read(tree, judges=False) == HandlerResult.refused("declared")
+
+
+def test_a_fault_of_a_declaring_node_raises_rather_than_refusing():
+    """A node that fails without ``_refuse`` declares no refusal (ADR-0095)."""
+    node = _RefusingGuard("Check", "unused", DATALAYER_UNAVAILABLE)
+    node.refuses = False
+    tree = _ran(node)
+    assert isinstance(node, ReportsRefusal)
+    assert node.declared_refusal is None
+    with pytest.raises(VultronBTInternalError):
+        _read(tree)
+
+
+def test_a_wiring_fault_raises_ahead_of_a_declared_refusal():
+    """A fallback composed without its port is our fault (ADR-0095)."""
+    answer = py_trees.composites.Selector(
+        name="CheckOrFault",
+        memory=False,
+        children=[
+            _RefusingGuard("Check", "refused"),
+            _Fixed("EmitFault", Status.FAILURE, DATALAYER_UNAVAILABLE),
+        ],
+    )
+    with pytest.raises(VultronBTInternalError):
+        _read(_ran(answer))
+
+
+def test_a_wiring_fault_in_an_earlier_alternative_raises_too():
+    """A fault ahead of the refusing fallback is still ours (ADR-0095)."""
+    answer = py_trees.composites.Selector(
+        name="FaultOrRefuse",
+        memory=False,
+        children=[
+            _Fixed("Check", Status.FAILURE, DATALAYER_UNAVAILABLE),
+            _RefusingGuard("SendReject", "refused"),
+        ],
+    )
+    with pytest.raises(VultronBTInternalError, match="Check"):
+        _read(_ran(answer))
+
+
+def test_a_wiring_fault_under_a_succeeding_decorator_is_not_read():
+    """A fault that did not decide the run leaves the declared refusal."""
+    tolerated = py_trees.decorators.FailureIsSuccess(
+        name="Tolerated",
+        child=_Fixed("Optional", Status.FAILURE, DATALAYER_UNAVAILABLE),
+    )
+    tree = _ran(tolerated, _RefusingGuard("Check", "refused (HP-01-005)"))
+    verdict = _read(tree)
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == "refused (HP-01-005)"
+
+
+def test_a_refusal_declared_without_a_reason_raises():
+    with pytest.raises(ValueError, match="needs a reason"):
+        _ran(_RefusingGuard("Check", ""))
+
+
+def test_a_declared_refusal_is_cleared_by_the_next_run():
+    node = _RefusingGuard("Check", "first")
+    tree = _ran(node)
+    assert node.declared_refusal == "first"
+    node.refuses = False
+    tree.tick_once()
+    assert node.status == Status.FAILURE
+    assert node.declared_refusal is None
 
 
 # --- a node-declared no-change (AC-4: ID-05-003, RSH-08-002) ----------------
@@ -591,7 +746,9 @@ def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
 
 
 def _closed(tree: py_trees.behaviour.Behaviour, label: str) -> ReceivedOutcome:
-    return ReceivedOutcome.of(tree, _FAILED, label)
+    return ReceivedOutcome.of(
+        tree, _FAILED, label, receiving_actor_id=_RECEIVER
+    )
 
 
 @pytest.mark.spec("CM-23-018", "ID-05-003")
@@ -646,7 +803,10 @@ def test_a_crash_at_the_closed_sender_door_raises(closes: bool):
     with pytest.raises(VultronBTInternalError, match="owner check exploded"):
         read_outcome(
             ReceivedOutcome.of(
-                _closed_door_tree(sender_closed=True), crashed, "Leave"
+                _closed_door_tree(sender_closed=True),
+                crashed,
+                "Leave",
+                receiving_actor_id=_RECEIVER,
             ),
             reader=closed_sender_reader(closes=closes),
         )
@@ -793,3 +953,83 @@ def test_the_runner_hands_its_reader_only_the_finished_run():
     assert outcome.tree is tree
     assert outcome.label == "ProbeBT"
     assert outcome.succeeded
+    assert outcome.receiving_actor_id == _RECEIVER
+
+
+@pytest.mark.spec("BT-17-009")
+@pytest.mark.parametrize(
+    "stamp", [_RECEIVER, None], ids=["stamped", "store-owner"]
+)
+def test_the_runner_builds_a_receiver_named_tree_for_the_actor_it_resolved(
+    stamp: str | None,
+):
+    """A builder is called once, with the actor the run executes as, so no
+    handler resolves the receiver itself."""
+    probe = _Records()
+    built_for: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built_for.append(receiving_actor_id)
+        return _probe_tree(probe)
+
+    verdict = run_received_tree(
+        build,
+        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+        request=_event(stamp),
+        label="ProbeBT",
+    )
+    assert verdict == HandlerResult.applied()
+    assert built_for == [_RECEIVER]
+    assert probe.ticks == 1
+    assert probe.seen["actor_id"] == _RECEIVER
+
+
+@pytest.mark.parametrize(
+    ("judges", "raises"), [(True, False), (False, True)], ids=["judges", "not"]
+)
+def test_the_runner_asks_a_lazy_judges_once_the_tree_is_built(
+    judges: bool, raises: bool
+):
+    """A builder that chooses its tree says whether it judges once built:
+    a failure of a tree that judges nothing raises, never refuses."""
+    built: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built.append(receiving_actor_id)
+        return _probe_tree(_Records(Status.FAILURE))
+
+    def judges_of_built() -> bool:
+        assert built, "asked before the tree was built"
+        return judges
+
+    run = functools.partial(
+        run_received_tree,
+        build,
+        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+        request=_event(_RECEIVER),
+        label="ProbeBT",
+        judges=judges_of_built,
+    )
+    if raises:
+        with pytest.raises(VultronBTInternalError):
+            run()
+    else:
+        assert run() == HandlerResult.refused("ProbeBT: the probe refused")
+
+
+@pytest.mark.spec("BT-17-009")
+def test_the_runner_raises_before_building_when_no_receiver_resolves():
+    built: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built.append(receiving_actor_id)
+        return _probe_tree(_Records())
+
+    with pytest.raises(VultronValidationError):
+        run_received_tree(
+            build,
+            dl=_NoOwnerStore(),  # type: ignore[arg-type]
+            request=_event(None),
+            label="ProbeBT",
+        )
+    assert built == []

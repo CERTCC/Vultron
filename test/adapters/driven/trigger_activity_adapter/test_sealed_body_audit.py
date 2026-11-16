@@ -50,6 +50,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.outbox_addressing import type_label
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _INLINE_OBJECT_ACTIVITY_TYPES,
 )
@@ -65,6 +66,7 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.type_terms import names_type
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
@@ -906,7 +908,7 @@ def test_the_activity_is_sealed_complete(world, method):
         assert body.get("to"), (
             f"{method} sealed an activity with no recipients"
         )
-    if body["type"] in _INLINE_OBJECT_ACTIVITY_TYPES:
+    if type_label(body["type"]) in _INLINE_OBJECT_ACTIVITY_TYPES:
         obj = body.get("object")
         assert isinstance(obj, dict) and obj.get("type"), (
             f"{method} emitted {body['type']} with a non-inline object"
@@ -959,7 +961,7 @@ def _carried_case_copies(value: Any, path: str = "body") -> list[str]:
     if isinstance(value, dict):
         obj = value.get("object")
         if (
-            value.get("type") in CASE_NAMING_ACTIVITY_TYPES
+            names_type(value.get("type"), CASE_NAMING_ACTIVITY_TYPES)
             and isinstance(obj, dict)
             and obj.get("type") == "VulnerabilityCase"
             and not is_case_reference_shape(obj)

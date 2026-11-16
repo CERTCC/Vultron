@@ -41,6 +41,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.models._helpers import parse_published
+from vultron.core.models.type_terms import first_named
 from vultron.measure.ledger import actor_uri, first_present
 
 #: The activity type whose whole subtree is a recommendation or an offer.
@@ -147,14 +148,35 @@ def _walk(
         return
     if not isinstance(node, dict):
         return
-    node_type = node.get("type")
+    node_type = _node_type(node)
     if node_type == _OFFER:
         return
     yield node, parents
-    here = (*parents, node_type if isinstance(node_type, str) else "")
+    here = (*parents, node_type)
     for key, child in node.items():
         if key not in _PLACE_KEYS and isinstance(child, (dict, list)):
             yield from _walk(child, here)
+
+
+#: The node types this reader tells apart.
+_READ_TYPES: frozenset[str] = frozenset(
+    {
+        _OFFER,
+        "CaseParticipant",
+        "ParticipantStatus",
+        "CaseStatus",
+        "EmbargoConsent",
+        "VulnerabilityCase",
+    }
+)
+
+
+def _node_type(node: Mapping[str, Any]) -> str:
+    """The one of :data:`_READ_TYPES` *node*'s ``type`` names, else ``""``.
+
+    A received ``type`` may be a list, kept as it arrived (ADR-0196).
+    """
+    return first_named(node.get("type"), _READ_TYPES) or ""
 
 
 def _participant_record(node: Mapping[str, Any]) -> ParticipantRecord | None:
@@ -188,10 +210,10 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
     consents: list[dict[str, Any]] = []
     register: list[dict[str, Any]] = []
     nameless = 0
-    if snapshot.get("type") == _OFFER:
+    if _node_type(snapshot) == _OFFER:
         return SnapshotRecords()
     for node, parents in _walk(snapshot.get("object"), ()):
-        node_type = node.get("type")
+        node_type = _node_type(node)
         in_participant = "CaseParticipant" in parents
         if node_type == "CaseParticipant":
             record = _participant_record(node)

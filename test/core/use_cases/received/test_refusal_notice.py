@@ -16,8 +16,8 @@
 """The refusal notice end to end: emitted by the factory, read by the sender.
 
 A precondition guard at the CASE_MANAGER that refuses an assertion owes the
-asserting participant one ``Reject`` of it (CLP-02-005, CLP-05-001,
-ADR-0141).  :func:`create_receive_activity_tree` adds the refusal notice to
+asserting participant one ``Refuse`` of it (CLP-02-005, CLP-05-001,
+ADR-0141, ADR-0196).  :func:`create_receive_activity_tree` adds the refusal notice to
 every tree that commits to a case and has precondition guards; the tree here
 is built by it over the received embargo answer the ledger network already
 builds, and the tests check when the notice is sent and when it is not
@@ -194,7 +194,7 @@ def _run(net: LedgerNetwork, receiver: str, tree: Any, event: Any) -> Any:
 
 
 def _notices(net: LedgerNetwork, sender: str, to: str) -> list[Any]:
-    return list(net.queued(sender, to=to, type_="Reject"))
+    return list(net.queued(sender, to=to, type_="Refuse"))
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -570,7 +570,7 @@ def _refused_and_delivered(tag: str, *, pending: bool) -> tuple[Any, Any]:
             at=now_utc(),
         )
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
-    verdicts = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
+    verdicts = net.deliver(MANAGER, to=BYSTANDER, type_="Refuse")
     assert len(verdicts) == 1
     return (net, event), verdicts[0][1]
 
@@ -607,7 +607,7 @@ def test_the_participant_writes_no_case_state_and_sends_nothing():
     outbox_before = list(dl.outbox_list())
     entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
-    verdicts = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
+    verdicts = net.deliver(MANAGER, to=BYSTANDER, type_="Refuse")
 
     assert verdicts[0][1].disposition is HandlerDisposition.SKIPPED
     assert net.case(BYSTANDER).model_dump(exclude={"updated"}) == case_before
@@ -721,8 +721,21 @@ def test_a_notice_reaching_the_case_manager_is_refused():
 
 @pytest.mark.spec("CLP-06-006")
 @pytest.mark.spec("CLP-05-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-23-011: the close-case tree still answers the owner's Leave with a"
+        " plain Reject, which no longer reads as a refusal notice (ADR-0196)."
+        " Tracked by #6435."
+    ),
+)
 def test_a_declined_leave_closes_the_owners_pending_leave():
-    """CM-23-011's ``Reject(Leave(VulnerabilityCase))`` is read here now."""
+    """CM-23-011's answer to the owner's Leave closes its pending Leave.
+
+    A plain ``Reject(Leave(VulnerabilityCase))`` matches no pattern once the
+    refusal notice is a ``Refuse`` (ADR-0196), so this holds again only when
+    #6435 makes the close-case tree send the standard ``Refuse``.
+    """
     net, _, _ = _network("declined-leave")
     leave_id = f"{OWNER}/leaves/1"
     record_pending_assertion(

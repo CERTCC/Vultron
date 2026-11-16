@@ -159,13 +159,21 @@ def test_an_actor_id_that_is_no_uri_is_refused_without_a_fetch():
     assert fetcher.asked == []
 
 
-def test_a_profile_typed_actor_is_refused_by_its_generic_type():
-    """The generic type drops ``assertionMethod`` at parse, so name it."""
+@pytest.mark.parametrize(
+    "actor_type", ["Actor", ["Foo", "Actor"]], ids=["string", "type-list"]
+)
+def test_a_profile_typed_actor_is_refused_by_its_generic_type(
+    actor_type: object,
+):
+    """The generic type drops ``assertionMethod`` at parse, so name it.
+
+    A type list that resolves to it is the same type (VM-03-006).
+    """
     key = signing.published_multikey(
         signing.seeded_signing_key(AUTHOR), AUTHOR
     )
     body = {
-        "type": "Actor",
+        "type": actor_type,
         "id": AUTHOR,
         "assertionMethod": [key.model_dump(mode="json", by_alias=True)],
     }

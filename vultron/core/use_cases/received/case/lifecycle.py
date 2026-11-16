@@ -30,13 +30,6 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.receiving_actor import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    unheld_case_refusal,
-)
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -92,11 +85,8 @@ class AddReportToCaseReceivedUseCase:
                 "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
                 "missing its report id or case id"
             )
-        resolve_receiver_before_reads(self._dl, request)
-        if self._dl.read_case(case_id) is None:
-            logger.warning("add_report_to_case: case '%s' not found", case_id)
-            return HandlerResult.refused(f"unknown case '{case_id}'")
-
+        # A case this store does not hold puts it on the no-case path, which
+        # the tree's path stage refuses (HP-01-039).
         tree = create_add_report_to_case_received_tree(
             report_id=report_id,
             case_id=case_id,
@@ -182,35 +172,31 @@ class CloseCaseReceivedUseCase:
                 "Leave(VulnerabilityCase) has no case id"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
-        # The Leave names the case (ADR-0165): every detail comes from the
-        # case this store holds, so one it does not hold is refused.
-        if (
-            refusal := unheld_case_refusal(self._dl, request, case_id, "Leave")
-        ) is not None:
-            return refusal
-
+        # A receipt, not a closure: the Leave names the case (ADR-0165), and
+        # the tree's path stage refuses one this store does not hold
+        # (AKM-03-006); the closure itself is logged by the tree.
         logger.info(
-            "Actor '%s' is closing case '%s'",
+            "Leave(VulnerabilityCase) received from actor '%s' for case '%s'",
             request.actor_id,
             case_id,
         )
 
-        tree = create_close_case_received_tree(
-            case_id=case_id,
-            activity_id=request.activity_id,
-            sender_actor_id=request.actor_id,
-            receiving_actor_id=receiving_actor_id,
-            post_close_reply=self._actor_config.post_close_reply,
-            sender_rule=self.sender_entitlement,
-        )
+        def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # The receiver closes its own CaseActor RM state on an owner
+            # Leave, so the tree names it (CM-23-033).
+            return create_close_case_received_tree(
+                case_id=case_id,
+                activity_id=request.activity_id,
+                sender_actor_id=request.actor_id,
+                receiving_actor_id=receiving_actor_id,
+                post_close_reply=self._actor_config.post_close_reply,
+                sender_rule=self.sender_entitlement,
+            )
+
         # The whole close-or-decline step is the CASE_MANAGER's: the path
         # stage refuses any other receiver (HP-01-005).
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="CloseCaseBT",

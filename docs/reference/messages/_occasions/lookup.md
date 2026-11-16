@@ -111,7 +111,7 @@
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
 | a Participant has received a message it cannot process | `Create(ProcessingFault)` | the CASE_MANAGER | an active participant | — | [Create processing fault](../faults_and_acknowledgements.md#create-processing-fault) |
-| the CASE_MANAGER has refused a participant's assertion because a precondition did not hold | `Reject(Activity)` | a participant | the CASE_MANAGER | — | [Refusal notice](../faults_and_acknowledgements.md#refusal-notice) |
+| the CASE_MANAGER has refused a participant's assertion because a precondition did not hold | `Refuse(Activity)` | a participant | the CASE_MANAGER | — | [Refusal notice](../faults_and_acknowledgements.md#refusal-notice) |
 
 ## Ledger replication
 

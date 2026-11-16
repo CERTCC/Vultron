@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
-    from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.case.received_run import (
@@ -49,16 +48,12 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -91,20 +86,6 @@ def _unavailable_embargo_reader(where: str) -> OutcomeReader:
         return None
 
     return read
-
-
-def _resolve_case_for_embargo_acceptance(
-    dl: CasePersistence, request: AcceptInviteToEmbargoOnCaseReceivedEvent
-) -> VulnerabilityCase | None:
-    if request.case_id:
-        return dl.read_case(request.case_id)
-
-    logger.error(
-        "accept_invite_to_embargo_on_case: missing case_id on request"
-        " (invite '%s')",
-        request.invite_id,
-    )
-    return None
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
@@ -143,15 +124,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 f"Accept(Invite(EmbargoEvent)) is missing its {missing}"
             )
 
-        resolve_receiver_before_reads(self._dl, request)
-        _case = _resolve_case_for_embargo_acceptance(self._dl, request)
-        if _case is None:
-            logger.error("accept_invite_to_embargo_on_case: case not found")
-            return HandlerResult.refused(
-                f"Accept(Invite(EmbargoEvent)) names an unknown case"
-                f" '{request.case_id}'"
-            )
-        case_id = _case.id_
+        # A case this store does not hold puts the Accept on the no-case
+        # path, which the tree's path stage refuses (HP-01-039); one naming
+        # no case is refused by the incomplete-activity guard (CLP-10-018).
+        case_id = request.case_id
 
         # One received tree (CLP-10-005).  accepting_actor_id is passed so
         # the tree records acceptance for the right actor when receiving !=

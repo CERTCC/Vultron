@@ -31,7 +31,7 @@ they run only there (HP-01-038)::
     UnavailableEmbargoRefusal (DiversionStage)
     ├─ EmbargoAvailabilityIs(UNAVAILABLE)
     └─ UnavailableEmbargoRefusalAct (ActTransaction)
-       ├─ EmitRefusalNoticeNode           # Reject(Accept), CLP-05-001
+       ├─ EmitRefusalNoticeNode           # Refuse(Accept), CLP-05-001
        └─ ReinviteWhereTermsHeld (Selector)
           ├─ Inverter(CaseHoldsAvailableTerms)   # no terms: notice alone
           └─ ReinviteRefusedAccepterNode  # EMB-17-003, committed (EMB-17-013)

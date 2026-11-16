@@ -58,6 +58,9 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    PublishEmbargoProposerNode,
+)
 from vultron.core.behaviors.embargo.refusal_tree import pxa_invite_refusal
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
@@ -93,7 +96,7 @@ def invite_to_embargo_on_case_tree(
     invite_id: str,
     *,
     embargo_id: str,
-    proposer_id: str,
+    attributed_to: str | None,
     sender_actor_id: str,
     sender_rule: SenderRule,
     embargo: EmbargoEvent | None = None,
@@ -175,11 +178,14 @@ def invite_to_embargo_on_case_tree(
         invitee_id: Actor ID of the invitee (the Invite's sole ``to``).
         invite_id: ID of the received Invite activity.
         embargo_id: ID of the proposed ``EmbargoEvent`` (the Invite's object).
-        proposer_id: Actor whose terms these are — the Invite's ``actor``, or
-            its ``attributedTo`` when the proposal was itself relayed.
+        attributed_to: The Invite's ``attributedTo`` in its canonical
+            spelling, or ``None``.  The adjudication's first node publishes
+            the proposer from it: the Invite's ``actor``, or the attributed
+            actor when the CASE_MANAGER relayed the proposal (CM-24-002,
+            :class:`~vultron.core.behaviors.embargo.nodes.proposer_port.PublishEmbargoProposerNode`).
         sender_actor_id: The Invite's ``actor``: an active participant at the
             CASE_MANAGER (CM-10-004), the CASE_MANAGER at a participant
-            replica (EP-09-003, PCR-08; ADR-0115).  Not ``proposer_id``, which
+            replica (EP-09-003, PCR-08; ADR-0115).  Not the proposer, which
             a relay's ``attributedTo`` may name.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
@@ -202,9 +208,15 @@ def invite_to_embargo_on_case_tree(
     if embargo is not None:
         intake.append(PersistEmbargoEventNode(embargo=embargo))
     adjudication: list[py_trees.behaviour.Behaviour] = [
-        CollectEmbargoInviteRecipientsNode(
-            case_id=case_id, proposer_id=proposer_id
+        # Whose terms these are, which every node below reads (CM-24-002):
+        # only a relay by the CASE_MANAGER may attribute them to another.
+        PublishEmbargoProposerNode(
+            sender_id=sender_actor_id,
+            case_id=case_id,
+            activity_id=invite_id,
+            attributed_to=attributed_to,
         ),
+        CollectEmbargoInviteRecipientsNode(case_id=case_id),
         # The guarded commit committed the proposal, whose entry is the
         # PROPOSE step, in this act's transaction;
         # the decision's new consent rows follow as the CASE_MANAGER's own
@@ -214,13 +226,11 @@ def invite_to_embargo_on_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
             result_out={},
-            proposer_id=proposer_id,
             embargo=embargo,
         ).applying_after(cause_id=invite_id),
         RelayEmbargoInviteToEachNode(
             case_id=case_id,
             embargo_id=embargo_id,
-            proposer_id=proposer_id,
             actor_config=actor_config,
             # Each relayed Invite's id derives from the proposal it
             # answers (ID-04-004).
@@ -230,7 +240,6 @@ def invite_to_embargo_on_case_tree(
         record_manager_embargo_consent_tree(
             case_id=case_id,
             embargo_id=embargo_id,
-            proposer_id=proposer_id,
             cause_id=invite_id,
         ),
     ]
@@ -379,11 +388,11 @@ def invite_to_embargo_on_case_tree(
     )
     logger.info(
         "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"
-        " embargo=%s proposer=%s",
+        " embargo=%s attributed_to=%s",
         case_id,
         invitee_id,
         invite_id,
         embargo_id,
-        proposer_id,
+        attributed_to,
     )
     return root

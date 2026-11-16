@@ -33,14 +33,19 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.idempotency import (
+    DeclaredRefusalMixin,
+    SilentIdempotencyGuardMixin,
+)
 from vultron.core.models.case_participant import CaseParticipant
 
 logger = logging.getLogger(__name__)
 
 
 class CheckInviteeNotAlreadyParticipantNode(
-    SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
+    SilentIdempotencyGuardMixin,
+    DeclaredRefusalMixin,
+    DataLayerConditionWithPorts,
 ):
     """Idempotency guard: FAILURE when the invitee is already joined or removed.
 
@@ -60,6 +65,10 @@ class CheckInviteeNotAlreadyParticipantNode(
     - **No record** → SUCCESS: ``InviteeHasParticipantRecordNode`` refuses
       it next, before any write, since an Accept never creates a participant
       (CM-11-021).
+    - **No case** → a refusal it declares, naming the case (HP-01-005,
+      :class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).  The
+      path stage refuses a case this store does not hold first, so only a
+      case gone mid-run reaches it (ADR-0087).
 
     Writes the case to ``invitee_case`` on SUCCESS for the consent nodes, and
     ``None`` on the duplicate path (BT-17-003).
@@ -87,7 +96,8 @@ class CheckInviteeNotAlreadyParticipantNode(
 
         case, failure = self._require_case(self.case_id)
         if failure is not None:
-            return failure  # Regime 1: case must exist (ADR-0087)
+            # Regime 1: case must exist (ADR-0087).
+            return self._refuse(f"unknown case '{self.case_id}'")
 
         participant_id = case.actor_participant_index.get(self.invitee_id)
         record = (
@@ -97,6 +107,11 @@ class CheckInviteeNotAlreadyParticipantNode(
             record.joined or record.removed
         ):
             self._set_output("invitee_case", None)  # BT-17-003
+            self.feedback_message = (
+                f"'{self.invitee_id}' already"
+                f" {'removed from' if record.removed else 'joined'}"
+                f" case '{self.case_id}'"
+            )
             return self._idempotent_failure(
                 self.logger,
                 "%s: actor '%s' is already %s in case '%s'"
