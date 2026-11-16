@@ -30,5 +30,5 @@ Layout:
   which one a run uses: the Vultron case reader over a case-ledger file, the
   default when no outside-system reader is configured.  An outside system's
   reader, such as the VINCE case reader, is a connector plugin under
-  ``vultron/adapters/connectors/`` (ADR-0191 rule 6), handed in from there.
+  ``vultron/adapters/connectors/`` (ARCH-05-004), handed in from there.
 """

@@ -123,7 +123,7 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - A case reader that reads through `vultron/measure/` lives in the case shadow's
   package, `vultron/shadow/readers/`, never under `adapters/`: nothing under
   `adapters/` may import the measure layer (CEH-01-001). This is the one
-  exception to ADR-0191 rule 6 (an adapter is a connector plugin), and it fits
+  exception to "a case reader is a connector plugin" (ARCH-05-004), and it fits
   only a reader with nothing to translate, such as the Vultron case reader over
   a ledger file (#6441). A reader that translates an outside system stays a
   connector plugin.
