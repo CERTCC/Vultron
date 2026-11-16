@@ -84,9 +84,12 @@ An invitation whose deadline is after the close is not counted, because the part
 The ratio also does not count an invitation that stays at `INVITED` because its embargo was rejected, canceled, replaced, or ended before the participant answered.
 That participant had no invitation left to answer.
 
-The ratio does not count a Stub Invite to the case.
+The ratio does not count the first Stub Invite to the case.
 Its acceptance both joins the case and agrees to an active embargo (CM-11-001), but a case Invite carries no RSVP deadline (CM-23-014).
-Thus a Stub Invite can never time out at a deadline, and counting it would only raise the ratio.
+Thus the first Stub Invite can never time out at a deadline, and counting it would only raise the ratio.
+A Stub Invite that the CASE_MANAGER sends again after the embargo changes is different (CM-11-016).
+The CASE_MANAGER records the RSVP deadline of that Stub Invite on the consent row for the embargo now in force, so that row can time out at its deadline.
+Thus the ratio counts that Stub Invite.
 
 A participant with no counted invitations has no ratio.
 
