@@ -42,6 +42,12 @@ def _reads(stem: str = _STEM) -> dict[str, object]:
 def _bundle(case_id: str, *, producer: str | None = None) -> str:
     reads = _reads()
     reads["case"]["vuid"] = case_id  # type: ignore[index]
+    for vul in reads["vuls"]:  # type: ignore[attr-defined]
+        vul["name"] = vul["name"].replace("999901", case_id)
+    for status in reads["vendors/vuls"]:  # type: ignore[attr-defined]
+        status["vulnerability"] = status["vulnerability"].replace(
+            "999901", case_id
+        )
     document: dict[str, object] = {"reads": reads}
     if producer is not None:
         document = {**marker_for(producer), **document}
@@ -109,10 +115,32 @@ def test_an_unmarked_uncleared_file_in_the_directory_is_refused() -> None:
     assert "case 123456 is not on the cleared-case list" in fault
 
 
-def test_an_unmarked_file_naming_no_case_id_is_refused() -> None:
-    text = json.dumps(_reads()["vuls"])
-    [fault] = _faults(f"{FIXTURE_DIR}/vuls.json", text, frozenset({"999901"}))
+def test_an_unmarked_list_naming_no_case_id_is_refused() -> None:
+    text = json.dumps(_reads()["posts"])
+    [fault] = _faults(f"{FIXTURE_DIR}/posts.json", text, frozenset({"999901"}))
     assert "names no case id" in fault
+    assert "inside a bundle whose `reads.case.vuid` names it" in fault
+
+
+def test_a_vul_list_names_its_case_by_the_vul_names() -> None:
+    text = json.dumps(_reads()["vuls"])
+    path = f"{FIXTURE_DIR}/vuls.json"
+    assert _faults(path, text, frozenset({"999901"})) == []
+    [fault] = _faults(path, text, frozenset({"123456"}))
+    assert "case 999901 is not on the cleared-case list" in fault
+
+
+@pytest.mark.spec("VSD-02-002")
+def test_a_cleared_bundle_carrying_another_case_is_refused() -> None:
+    reads = _reads()
+    reads["case"]["vuid"] = "111"  # type: ignore[index]
+    other = copy.deepcopy(reads["case"])
+    other["vuid"] = "222"  # type: ignore[index]
+    text = json.dumps({"reads": reads, "extra": [other]})
+    path = f"{FIXTURE_DIR}/recorded.json"
+    [fault] = _faults(path, text, frozenset({"111"}))
+    assert "case 222, 999901 is not on the cleared-case list" in fault
+    assert _faults(path, text, frozenset({"111", "222", "999901"})) == []
 
 
 def test_json_that_is_not_vince_shaped_passes_anywhere() -> None:
@@ -122,6 +150,39 @@ def test_json_that_is_not_vince_shaped_passes_anywhere() -> None:
 def test_a_file_that_does_not_parse_is_refused() -> None:
     [fault] = _faults("docs/broken.json", "{oops")
     assert "cannot be ruled out" in fault
+
+
+def test_a_vince_response_in_an_uppercase_or_har_file_is_found() -> None:
+    body = json.dumps(_reads()["case"])
+    har = json.dumps(
+        {"log": {"entries": [{"response": {"content": {"text": body}}}]}}
+    )
+    [fault] = _faults("docs/session.har", har)
+    assert (
+        "case object at $.log.entries[0].response.content.text<json>" in fault
+    )
+    assert _faults("docs/RECORDED.JSON", body) != []
+
+
+def test_a_line_file_keeps_unicode_line_separators_inside_strings() -> None:
+    line = json.dumps({"a": "one\u2028two"}, ensure_ascii=False)
+    assert _faults("logs/run.jsonl", f"{line}\n") == []
+
+
+def test_json_nested_too_deeply_is_refused_not_raised() -> None:
+    [fault] = _faults("docs/deep.json", "[" * 100_000 + "]" * 100_000)
+    assert "nested too deeply" in fault
+
+
+def test_a_file_that_is_not_utf8_is_refused(tmp_path: Path) -> None:
+    root = _tree(tmp_path, "cleared: []\n")
+    (root / "bad.json").write_bytes(b'{"a": "\xff"}')
+    faults = check(root, ["bad.json", *generated_fixtures()])
+    assert faults == [
+        "bad.json: cannot be read as JSON, so it cannot be ruled out as VINCE "
+        "data: not valid UTF-8: 'utf-8' codec can't decode byte 0xff in "
+        "position 7: invalid start byte"
+    ]
 
 
 def test_each_vince_line_of_a_line_file_is_refused() -> None:
@@ -311,6 +372,17 @@ def test_a_missing_list_is_refused(tmp_path: Path) -> None:
     generate(tmp_path)
     [fault] = check(tmp_path, list(generated_fixtures()))
     assert "cleared-case list is missing" in fault
+
+
+def test_a_faulty_list_hides_no_other_fault(tmp_path: Path) -> None:
+    root = _tree(tmp_path, "cleared: [{case_id: '1'}]\n")
+    (root / "recorded.json").write_text(
+        json.dumps(_reads()["case"]), encoding="utf-8"
+    )
+    faults = check(root, ["recorded.json", *generated_fixtures()])
+    assert len(faults) == 2
+    assert "cleared-case list refused" in faults[0]
+    assert faults[1].startswith("recorded.json: holds")
 
 
 # AC-3 ------------------------------------------------------------------

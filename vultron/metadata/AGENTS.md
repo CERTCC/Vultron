@@ -81,7 +81,9 @@ ledger types, leaving spec enumerations and nav to checks; `msm/occasions/` the 
 YAML and fragments, not page prose; `csaf/` the CSAF models, whole; `vince_data/` the
 synthetic VINCE fixtures, whole. Each is a `--check` hook (`adr-index-sync`,
 `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`, `demo-ledger-types-sync`,
-`csaf-models-sync`, `vince-data-check`) comparing bytes via `generated_files.py`;
+`csaf-models-sync`) comparing bytes via `generated_files.py`, except that
+`vince_data/`'s comparison is one part of `vince-data check`, which also refuses
+VINCE-shaped JSON committed anywhere else (`vince-data-check`);
 an ungated one is hand-edited. `docs/landing_pages/` (`docs-site-sync`) splits per page:
 a nav group's `index.md` declares `contents: generated | routing | rendered`, and a
 routing index is *checked* to link every member of its section, not written (#3617).

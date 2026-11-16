@@ -7,6 +7,11 @@
 # (VSD-02-002, VSD-02-003). A Coding Agent may ask a maintainer to clear a
 # case id, and never adds an entry (VSD-02-004).
 #
+# A recorded file passes only when every case id it names (a `vuid`, or a
+# vul's `VU#<id>.<n>` name) is listed. A per-case read that names none, such
+# as a bare posts/ or vendors/ list, is cleared only inside a per-case bundle,
+# {"reads": {"case": {...}, "posts": [...], ...}}, whose case names it.
+#
 # Example entry:
 #   - case_id: "123456"
 #     clearance: https://github.com/CERTCC/Vultron/issues/1#issuecomment-2

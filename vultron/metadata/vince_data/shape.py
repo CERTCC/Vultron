@@ -22,9 +22,15 @@ reporter did not agree to share them.
 
 The walk visits every object in a document, not only the top level: a
 recorded response pasted into a larger file, or wrapped in a per-case bundle,
-is still VINCE data. The ``csaf/`` read has no signature, because a CSAF
+is still VINCE data, and so is a string value that itself parses as a JSON
+object or array: a recording tool (a HAR file, a cassette) keeps each
+response body as such a string. The ``csaf/`` read has no signature, because a CSAF
 document from VINCE has the same keys as any other CSAF document, and the
 shadow does not read it (crosswalk § Not read).
+
+A signature is all or nothing: an object missing one of its signature's
+keys is not recognised. The signatures name only keys every response of
+their serializer carries.
 """
 
 from __future__ import annotations
@@ -63,8 +69,15 @@ SIGNATURES: Mapping[str, frozenset[str]] = {
 #: The file suffixes read one JSON document per non-blank line.
 LINE_SUFFIXES = (".jsonl", ".ndjson")
 
-#: Every suffix the check reads.
-JSON_SUFFIXES = (".json", *LINE_SUFFIXES)
+#: Every suffix the check reads, matched without regard to case. ``.har``
+#: is an HTTP archive, the usual shape of a recorded response; ``.json5``
+#: is read as JSON with comments, and refused when it uses more of JSON5.
+JSON_SUFFIXES = (".json", ".jsonc", ".json5", ".har", *LINE_SUFFIXES)
+
+
+def is_json_path(path: str) -> bool:
+    """Whether the check reads the file at *path*, by its suffix."""
+    return path.lower().endswith(JSON_SUFFIXES)
 
 
 @dataclass(frozen=True)
@@ -91,6 +104,18 @@ def _kind_of(obj: Mapping[str, object]) -> str | None:
     return None
 
 
+def _embedded(text: str) -> object | None:
+    """The JSON object or array a string value holds, or ``None``."""
+    stripped = text.strip()
+    if not stripped or stripped[0] not in "[{":
+        return None
+    try:
+        inner: object = json.loads(stripped)
+    except json.JSONDecodeError, RecursionError:
+        return None
+    return inner
+
+
 def _children(value: object, where: str) -> Iterator[tuple[object, str]]:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -98,18 +123,36 @@ def _children(value: object, where: str) -> Iterator[tuple[object, str]]:
     elif isinstance(value, list):
         for index, child in enumerate(value):
             yield child, f"{where}[{index}]"
+    elif isinstance(value, str):
+        inner = _embedded(value)
+        if inner is not None:
+            yield inner, f"{where}<json>"
 
 
-def find_vince_shape(document: object) -> ShapeMatch | None:
-    """The first VINCE-shaped object in *document*, depth first, or ``None``."""
+def walk_objects(document: object) -> Iterator[tuple[dict[str, object], str]]:
+    """Every JSON object in *document*, depth first, with its location.
+
+    String values that parse as a JSON object or array are walked too.
+    """
     stack: list[tuple[object, str]] = [(document, "$")]
     while stack:
         value, where = stack.pop()
         if isinstance(value, dict):
-            kind = _kind_of(value)
-            if kind is not None:
-                return ShapeMatch(kind, where)
+            yield value, where
         stack.extend(reversed(list(_children(value, where))))
+
+
+def shape_kind(obj: Mapping[str, object]) -> str | None:
+    """The VINCE serializer kind *obj* has the keys of, or ``None``."""
+    return _kind_of(obj)
+
+
+def find_vince_shape(document: object) -> ShapeMatch | None:
+    """The first VINCE-shaped object in *document*, depth first, or ``None``."""
+    for obj, where in walk_objects(document):
+        kind = _kind_of(obj)
+        if kind is not None:
+            return ShapeMatch(kind, where)
     return None
 
 
@@ -154,37 +197,48 @@ def _drop_trailing_comma(out: list[str]) -> None:
         del out[j - 1 :]
 
 
+def _loads(text: str) -> object:
+    try:
+        return json.loads(text)
+    except RecursionError as exc:
+        raise UnreadableJson("nested too deeply to read") from exc
+
+
 def read_documents(name: str, text: str) -> list[object]:
     """Parse *text*, the content of the file *name*, into its documents.
 
-    A ``.jsonl`` or ``.ndjson`` file holds one document per non-blank line;
-    any other file holds one, read as JSON with comments allowed.
+    A ``.jsonl`` or ``.ndjson`` file holds one document per non-blank line,
+    split on ``\\n`` alone, since JSON strings may hold other line
+    separators; any other file holds one, read as JSON with comments allowed.
 
     Raises:
         UnreadableJson: When the text does not parse.
     """
-    if name.endswith(LINE_SUFFIXES):
+    if name.lower().endswith(LINE_SUFFIXES):
         documents = []
-        for number, line in enumerate(text.splitlines(), start=1):
+        for number, line in enumerate(text.split("\n"), start=1):
             if not line.strip():
                 continue
             try:
-                documents.append(json.loads(line))
+                documents.append(_loads(line))
             except json.JSONDecodeError as exc:
                 raise UnreadableJson(f"line {number}: {exc}") from exc
         return documents
     try:
-        return [json.loads(text)]
+        return [_loads(text)]
     except json.JSONDecodeError:
         pass
     try:
-        return [json.loads(_strip_jsonc(text))]
+        return [_loads(_strip_jsonc(text))]
     except json.JSONDecodeError as exc:
         raise UnreadableJson(str(exc)) from exc
 
 
 __all__ = [
     "JSON_SUFFIXES",
+    "is_json_path",
+    "shape_kind",
+    "walk_objects",
     "SIGNATURES",
     "ShapeMatch",
     "UnreadableJson",

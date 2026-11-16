@@ -214,6 +214,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
     MirrorCheck(
         "vince-data",
         "vince-data-check.yml::vince-data::Check committed VINCE data",
+        env={"BASE_REF": "{base}"},
     ),
     MirrorCheck(
         "closing-pr-owners",
