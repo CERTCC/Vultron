@@ -123,10 +123,10 @@ def _run(
         record_manager_embargo_consent_tree(
             case_id=CASE_ID,
             embargo_id=EMBARGO_ID,
-            proposer_id=proposer_id,
             cause_id=PROPOSAL_ID,
             **kwargs,
-        )
+        ),
+        embargo_proposer_id=proposer_id,
     )
 
 

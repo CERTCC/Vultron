@@ -193,7 +193,7 @@ def _invite(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
         invitee_id=OTHER_PARTICIPANT_ACTOR,
         invite_id=_INVITE,
         embargo_id=embargo_id,
-        proposer_id=OTHER_PARTICIPANT_ACTOR,
+        attributed_to=None,
         sender_actor_id=OTHER_PARTICIPANT_ACTOR,
         sender_rule=InviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
     )

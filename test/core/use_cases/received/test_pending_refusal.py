@@ -33,6 +33,9 @@ from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.embargo.nodes.pending_refusal import (
+    close_refused_embargo_ask,
+)
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
@@ -45,9 +48,6 @@ from vultron.core.models.pending_assertion import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.use_cases.received._pending_refusal import (
-    close_refused_embargo_ask,
-)
 from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -204,7 +204,10 @@ def test_participants_reject_leaves_the_proposal_pending() -> None:
 
     close_refused_embargo_ask(
         dl,
-        _reject_event(dl, proposal, case.id_, _OTHER),
+        receiving_actor_id=_PROPOSER,
+        case_id=case.id_,
+        invite_id=proposal.id_,
+        rejecting_actor_id=_OTHER,
         at=now_utc(),
     )
 
@@ -238,7 +241,10 @@ def test_a_reject_closes_the_ask_only_from_the_resolved_manager(
 
     close_refused_embargo_ask(
         dl,
-        _reject_event(dl, proposal, case.id_, rejecting_actor_id),
+        receiving_actor_id=_PROPOSER,
+        case_id=case.id_,
+        invite_id=proposal.id_,
+        rejecting_actor_id=rejecting_actor_id,
         at=now_utc(),
     )
 

@@ -57,6 +57,11 @@ from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
 )
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    EMBARGO_PROPOSER_INPUT,
+    EMBARGO_PROPOSER_REMAPPING,
+    read_embargo_proposer,
+)
 from vultron.core.behaviors.embargo.nodes.relay_guards import (
     EmbargoInviteNotYetAnsweredNode,
     EmbargoProposalNotYetRecordedNode,
@@ -108,25 +113,32 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
     value (BT-17-003).
     """
 
-    def __init__(
-        self, case_id: str, proposer_id: str, name: str | None = None
-    ) -> None:
+    def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
-        self._proposer_id = proposer_id
+        self._proposer_id = ""
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **EMBARGO_PROPOSER_INPUT,
+    }
     OUTPUT_PORTS: dict[str, PortInformation] = {
         _RECIPIENTS_KEY: PortInformation(data_type=list, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {_RECIPIENTS_KEY: f"/{_RECIPIENTS_KEY}"}
+        return {
+            _RECIPIENTS_KEY: f"/{_RECIPIENTS_KEY}",
+            **EMBARGO_PROPOSER_REMAPPING,
+        }
 
     def update(self) -> Status:
         self._set_output(_RECIPIENTS_KEY, [])
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
+        # The proposer an earlier node of the run published (CM-24-002).
+        self._proposer_id = read_embargo_proposer(self)
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
@@ -199,7 +211,6 @@ class RelayEmbargoInviteToEachNode(
         self,
         case_id: str,
         embargo_id: str,
-        proposer_id: str,
         name: str | None = None,
         actor_config: ActorConfig | None = None,
         *,
@@ -208,7 +219,7 @@ class RelayEmbargoInviteToEachNode(
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
-        self._proposer_id = proposer_id
+        self._proposer_id = ""
         self._actor_config = actor_config
         self._answers = answers
         self._sync_port: SyncActivityPort | None = None
@@ -217,6 +228,7 @@ class RelayEmbargoInviteToEachNode(
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         _RECIPIENTS_KEY: PortInformation(data_type=list, required=True),
+        **EMBARGO_PROPOSER_INPUT,
         "sync_port": PortInformation(data_type=object, required=False),
     }
 
@@ -224,6 +236,7 @@ class RelayEmbargoInviteToEachNode(
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             _RECIPIENTS_KEY: f"/{_RECIPIENTS_KEY}",
+            **EMBARGO_PROPOSER_REMAPPING,
             "sync_port": "/sync_port",
         }
 
@@ -238,12 +251,14 @@ class RelayEmbargoInviteToEachNode(
             self._sync_port = None
 
     def _load_relay_inputs(self) -> None:
-        """Read what to relay; the recipients the collect node resolved.
+        """Read what to relay: the recipients the collect node resolved and
+        the proposer an earlier node published (CM-24-002).
 
         A subclass that learns its case, embargo and proposer only at tick
         time overrides this rather than the emit path (EP-04-011).
         """
         self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
+        self._proposer_id = read_embargo_proposer(self)
 
     def _activity_id_for(self, recipient_id: str) -> str | None:
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one.

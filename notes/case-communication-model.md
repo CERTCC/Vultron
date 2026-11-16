@@ -342,9 +342,9 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
   executing actor this container does not host (BT-05-005).
 - **The CASE_MANAGER never `cc:`s its own emission to itself**: co-hosted, that commits
   the same activity twice.
-- For the embargo relay, `resolve_proposer_id()` honours an inbound `attributedTo` only
-  when the Invite's `actor` is the CASE_MANAGER, so a participant cannot name a third
-  party as proposer.
+- For the embargo relay, the tree's `PublishEmbargoProposerNode` honours an inbound
+  `attributedTo` only when the Invite's `actor` is the CASE_MANAGER, so a participant
+  cannot name a third party as proposer (CM-24-002).
 
 ---
 

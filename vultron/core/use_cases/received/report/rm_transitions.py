@@ -36,9 +36,6 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +108,10 @@ class ValidateReportReceivedUseCase:
                 "or offer id"
             )
 
-        receiving_actor_id = resolve_receiver_before_reads(self._dl, request)
         logger.info(
-            "Actor '%s' validates VulnerabilityReport '%s' (receiving='%s')",
+            "Actor '%s' validates VulnerabilityReport '%s'",
             sender_actor_id,
             report_id,
-            receiving_actor_id,
         )
 
         case_id = _case_id_for_report(self._dl, report_id)
@@ -171,7 +166,6 @@ class InvalidateReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        resolve_receiver_before_reads(self._dl, request)
         # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
         # *executes* in the receiving actor's store, but the RM write is about
         # the *sender*, ``request.actor_id`` — the activity is an assertion
@@ -280,7 +274,6 @@ class CloseReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        resolve_receiver_before_reads(self._dl, request)
         tree = create_close_report_received_tree(
             request,
             case_id=_case_id_for_report(self._dl, request.report_id),

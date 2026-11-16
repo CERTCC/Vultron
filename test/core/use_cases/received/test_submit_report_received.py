@@ -1022,6 +1022,7 @@ class TestSubmitReportDisposition:
                 tree,
                 BTExecutionResult(status=Status.FAILURE),
                 "ReceiveReportCaseBT",
+                receiving_actor_id="https://example.org/actors/receiver",
             ),
             reader=_submit_report_reader(self.REPORT_ID, self.VENDOR_ID),
         )

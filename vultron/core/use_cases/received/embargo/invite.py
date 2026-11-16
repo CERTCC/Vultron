@@ -44,20 +44,14 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.enums.roles import CVDRole
 from vultron.errors import VultronProtocolViolationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
-from vultron.core.use_cases.received._receiver import (
-    resolve_receiver_before_reads,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -146,61 +140,6 @@ def resolve_invitee_id(
     return invitee_id
 
 
-def resolve_proposer_id(
-    request: InviteToEmbargoOnCaseReceivedEvent, dl: CasePersistence
-) -> str:
-    """Return the actor whose terms a received ``Invite(EmbargoEvent)`` carries.
-
-    The proposer is the Invite's ``actor`` — or its ``attributedTo`` when the
-    proposal was itself relayed, since a relayed Invite is sent as the
-    CASE_MANAGER with the proposer attributed (CM-24-001, CM-24-002).  The
-    CASE_MANAGER adjudicating the proposal records *this* actor's consent to
-    the terms (ADR-0093) and excludes it from the relay (EP-09-002).
-
-    Only a relay may attribute: ``attributedTo`` is honoured when the Invite's
-    ``actor`` is the case's CASE_MANAGER, as
-    :func:`~vultron.core.participants.role_predicate.has_role` answers it
-    (ARCH-24-008), and ignored otherwise — including for a second participant
-    the roster also records with the role — so a participant cannot have a
-    third party's consent recorded
-    — or that party left out of the Invites — by naming it on its own
-    proposal (no identity spoofing on the received side, PCR-08-010).
-    """
-    attributed_to = request.activity.attributed_to
-    if not attributed_to:
-        return request.actor_id
-    # The proposer's consent is recorded and it is left out of the relay, so
-    # its id is normalised where it is extracted, like the sender's
-    # (OID-01-006).
-    attributed_to = normalise_actor_id(attributed_to)
-    case = dl.read_case(request.context_id) if request.context_id else None
-    if case is None:
-        logger.warning(
-            "invite_to_embargo_on_case: invite '%s' from '%s' attributes its"
-            " proposal to '%s', but this store holds no case '%s' to resolve"
-            " the CASE_MANAGER from — treating the sender as the proposer",
-            request.activity_id,
-            request.actor_id,
-            attributed_to,
-            request.context_id,
-        )
-        return request.actor_id
-    # The one source of "is the sender the case's authority" (ARCH-24-008).
-    # The roster and the sender id are both canonical (OID-01-006,
-    # OID-01-007, #5919).
-    if has_role(request.actor_id, case.id_, CVDRole.CASE_MANAGER, dl):
-        return attributed_to
-    logger.warning(
-        "invite_to_embargo_on_case: invite '%s' from '%s' attributes its"
-        " proposal to '%s', but only the CASE_MANAGER relays — treating the"
-        " sender as the proposer",
-        request.activity_id,
-        request.actor_id,
-        attributed_to,
-    )
-    return request.actor_id
-
-
 class InviteToEmbargoOnCaseReceivedUseCase:
     # A participant proposes to the CASE_MANAGER, which relays the Invite to
     # every other participant (EP-09-001, EP-09-002); a participant takes the
@@ -269,12 +208,18 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         return EmbargoInviteSubjects(
             embargo_id=embargo_id,
             invitee_id=invitee_id,
-            proposer_id=resolve_proposer_id(request, self._dl),
+            # Whether it names the proposer is the tree's to decide, at the
+            # CASE_MANAGER (CM-24-002); the id is normalised where it is
+            # extracted, like the sender's (OID-01-006).
+            attributed_to=(
+                normalise_actor_id(request.activity.attributed_to)
+                if request.activity.attributed_to
+                else None
+            ),
         )
 
     def execute(self) -> HandlerResult:
         request = self._request
-        resolve_receiver_before_reads(self._dl, request)
         case_id = request.context_id or ""
         # ``activity_id`` is a required ``NonEmptyString`` on every event.
         invite_id = request.activity_id

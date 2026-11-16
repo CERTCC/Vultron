@@ -75,6 +75,9 @@ from vultron.core.behaviors.embargo.nodes.answer_record import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.embargo.nodes.pending_refusal import (
+    ClosePendingEmbargoAskNode,
+)
 from vultron.core.behaviors.embargo.refusal_tree import pxa_accept_refusal
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
@@ -296,7 +299,9 @@ def reject_invite_to_embargo_tree(
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode         # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
-        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
+        ├─ RefuseAnswerOnReplica (replica path)
+        │  ├─ ClosePendingEmbargoAskNode      # manager's refusal (EP-09-019)
+        │  └─ ReplicaRefusalNode
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
@@ -351,16 +356,22 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
-            # At a participant the Reject records nothing in the case: the
-            # handler closes the participant's pending ask from the doors'
-            # answer alone (EP-09-019), and the tree states the replica's
-            # verdict itself, a refusal as the not-CASE_MANAGER it is
-            # (HP-01-005, BT-17-001).  It runs first, because the embargo
-            # guards below are the CASE_MANAGER's questions: at the
+            # At a participant the Reject records nothing in the case: past
+            # the doors, a CASE_MANAGER's Reject closes the participant's
+            # pending ask (EP-09-019, EMB-02-004), and the tree then states
+            # the replica's verdict itself, a refusal as the not-CASE_MANAGER
+            # it is (HP-01-005, BT-17-001).  It runs first, because the
+            # embargo guards below are the CASE_MANAGER's questions: at the
             # proposer's replica the proposal is no open register entry, so
             # IsAnswerableEmbargoNode would refuse it for that instead.
             OnPaths.off_case_manager(
-                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
+                "RefuseAnswerOnReplica",
+                ClosePendingEmbargoAskNode(
+                    case_id=case_id,
+                    invite_id=invite_id,
+                    rejecting_actor_id=rejecting_actor_id,
+                ),
+                ReplicaRefusalNode(case_id),
             ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and

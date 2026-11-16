@@ -509,7 +509,7 @@ arms built by `_by_role()` (`trigger_tree/_arms.py`, BT-17-001). Ratchet:
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
   a refused proposal, or an `Accept` refused with a `Reject` of the Invite
   (EMB-02-004), is closed by the manager's `Reject` (EP-09-019,
-  `close_refused_embargo_ask`); a duplicate proposal (EP-09-032) is neither
+  `ClosePendingEmbargoAskNode`); a duplicate proposal (EP-09-032) is neither
   committed nor refused, so its entry closes only on the timeout
   (SYNC-11-005); a participant takes a
   `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.

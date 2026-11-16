@@ -11,11 +11,7 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge.act_instant import read_act_instant
-from vultron.core.behaviors.case.received_run import (
-    door_guards_admitted,
-    run_received_tree,
-)
+from vultron.core.behaviors.case.received_run import run_received_tree
 from vultron.core.behaviors.embargo.answer_trees import (
     reject_invite_to_embargo_tree,
 )
@@ -24,9 +20,6 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases.received._pending_refusal import (
-    close_refused_embargo_ask,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -63,10 +56,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # This delivery's instant, its arrival stamp, taken from the act
-        # before anything decides anything: the pending-ask lookup below
-        # judges against it, and nothing here reads the clock (ADR-0176).
-        at = read_act_instant()
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
@@ -111,8 +100,11 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         )
         # A repeat of a Reject already recorded is refused by the tree's
         # repeat guard before the commit, and the runner reports it SKIPPED
-        # from the guard's repeat declaration (CM-13-005, HP-01-014).
-        verdict = run_received_tree(
+        # from the guard's repeat declaration (CM-13-005, HP-01-014).  Only
+        # the CASE_MANAGER records an answer; at a replica the tree closes
+        # the pending ask a CASE_MANAGER's Reject refuses, then refuses the
+        # Reject itself (EP-09-019, BT-17-001, HP-01-005).
+        return run_received_tree(
             tree,
             dl=self._dl,
             request=request,
@@ -126,18 +118,3 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             # Update(EmbargoConsent) entry, built through it (ADR-0124).
             trigger_activity=self._trigger_activity,
         )
-
-        if door_guards_admitted(tree):
-            # The door guards admitted the Reject, so the sender has standing,
-            # and a CASE_MANAGER's Reject closes the participant's pending
-            # ask, whatever the tree then decided about the consent
-            # (EP-09-019, EMB-02-004).
-            logger.info(
-                "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
-            )
-            close_refused_embargo_ask(self._dl, request, at=at)
-
-        # Only the CASE_MANAGER records an answer; the tree refuses at a
-        # replica, which learns it from the ledger broadcast (BT-17-001,
-        # HP-01-005).
-        return verdict
