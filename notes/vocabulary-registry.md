@@ -104,8 +104,8 @@ by one line in its wire module (`WIRE_TYPE_MAP["VulnerabilityReport"] =
 VulnerabilityReport`); it carries no `_vocab_ns` (ARCH-25-003). A wire-only class
 is annotated `_vocab_ns = VocabNamespace.VULTRON` (§ 4). It is sent with one
 `type` value. Its fields reuse AS2 properties where AS2 has the meaning, so they
-need no term (the planned `Redacted` marker's `summary`, #6372). It may not share
-another class's `type` value: the collision ratchet fails it (VM-01-013). Add its
+need no term (the `Redacted` marker's `summary`). It may not share another
+class's `type` value: the collision ratchet fails it (VM-01-013). Add its
 canonical example under `vultron/wire/as2/vocab/examples/`.
 
 **Subtype of an AS2 type.** A new type is a subtype when each of its instances is

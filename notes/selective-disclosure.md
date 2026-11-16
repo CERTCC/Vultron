@@ -7,8 +7,9 @@ tracks:
   - "#6372"
 description: >
   Design direction for referencing objects without inlining them, and the
-  preview-only redaction marker (ADR-0193). Neither is built yet; the delivered
-  VulnerabilityCase stub is in notes/stub-objects.md.
+  preview-only redaction marker (ADR-0193). The marker type exists, but no
+  preview field accepts it yet; the delivered VulnerabilityCase stub is in
+  notes/stub-objects.md.
 related_specs:
   - specs/message-validation.yaml (AKM-03-001, MV-10-002, MV-12)
   - specs/actor-knowledge-model.yaml (AKM-05-006, AKM-05-007)
@@ -77,8 +78,20 @@ reserved vul record, draft advisory) are #6257.
   A preview marker withholds single fields of a limited view; neither replaces
   the other.
 
-The receiver refusal holds today for every declared field of a full object,
-which refuses a marker as a malformed value, and for an activity slot given a
-marker with no `id`. A marker that carries an `id` still parses as a generic
-object in an activity slot; refusing it, and accepting the marker in a
-preview, wait on #6244 and #5743 and are built by #6372.
+The marker type is `vultron/core/models/redacted.py`, registered in
+`WIRE_TYPE_MAP`, and the type refuses every field but `type` and `summary`.
+The receiver refusal holds today for every declared field of a full object, and
+for an activity slot given a marker with a `summary`, because none of their
+types admits the marker. A marker of only `id` and `type` has the typed
+reference shape, so the parser reads it as a reference unless
+`reads_as_typed_reference` excludes `Redacted`; #6372 builds that refusal.
+Accepting the marker in a preview waits on #6244 and is built by #6372.
+
+- **A received marker's extra keys never reach the type.** The parse edge sets
+  aside an unknown key before the class validates (MV-11-003), so a marker
+  carrying `content` or `id` arrives at `Redacted` without them and the type's
+  `extra="forbid"` refuses nothing. MV-12-005 at the parse edge therefore needs
+  the edge itself to refuse those keys on a marker
+  (`test_redaction_marker.py::test_a_marker_carrying_the_withheld_value_is_refused`).
+  Opening a preview field alone turns that row's `xfail` into a failure, not
+  a pass: the clean marker then parses, and so does the one with extra keys.
