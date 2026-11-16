@@ -80,7 +80,6 @@ class FaultReading:
     refuses any other receiver (HP-01-005, HP-01-039).
     """
 
-    label: str
     reader: OutcomeReader
     judges: bool = True
 
@@ -98,6 +97,8 @@ class FaultResponse:
     (HP-01-003).
     """
 
+    label: str
+    """Names the response's tree in a reason, e.g. ``"CaseDivergedFaultReceivedBT"``."""
     build_tree: FaultTreeBuilder
     read_verdict: FaultVerdictReader
     reads_refused_entry: bool = True
@@ -129,14 +130,10 @@ def _archive_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
             "ask-register correlation not implemented (#2883)"
         )
 
-    return FaultReading(
-        label="CreateProcessingFaultReceivedBT", reader=read, judges=False
-    )
+    return FaultReading(reader=read, judges=False)
 
 
-def _unnamed_entry_refusal(
-    *, label: str, answer: str, spec_id: str
-) -> FaultReading:
+def _unnamed_entry_refusal(*, answer: str, spec_id: str) -> FaultReading:
     """The refusal of a fault that names no ``Announce(CaseLedgerEntry)``
     this actor sent: there is no case to *answer* for.
 
@@ -152,7 +149,7 @@ def _unnamed_entry_refusal(
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
         return refusal if outcome.succeeded else None
 
-    return FaultReading(label=label, reader=read, judges=False)
+    return FaultReading(reader=read, judges=False)
 
 
 def _case_diverged_tree(
@@ -179,11 +176,8 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
     an active participant, and at any receiver that is not the case's
     CASE_MANAGER (HP-01-005).
     """
-    label = "CaseDivergedFaultReceivedBT"
     if refused_entry is None:
-        return _unnamed_entry_refusal(
-            label=label, answer="re-seed", spec_id="SYNC-16-003"
-        )
+        return _unnamed_entry_refusal(answer="re-seed", spec_id="SYNC-16-003")
     case_id = refused_entry.case_id
 
     def read(outcome: ReceivedOutcome) -> HandlerResult | None:
@@ -198,7 +192,9 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
         gate = find_named(tree, RESEED_GATE_NAME)
         reseed = None if gate is None else find_node(gate, ReseedPeerNode)
         if reseed is None:
-            raise VultronBTInternalError(f"{label}: tree has no re-seed node")
+            raise VultronBTInternalError(
+                f"{outcome.label}: tree has no re-seed node"
+            )
         if reseed.reseeded:
             return HandlerResult.applied()
         if reseed.withheld:
@@ -214,7 +210,7 @@ def _reseed_verdict(refused_entry: CaseLedgerEntry | None) -> FaultReading:
             " within the cooldown; no case copy sent (SYNC-16-004)"
         )
 
-    return FaultReading(label=label, reader=read)
+    return FaultReading(reader=read)
 
 
 def _hash_mismatch_tree(
@@ -249,10 +245,9 @@ def _hash_mismatch_verdict(
     an active participant, and at any receiver that is not the case's
     CASE_MANAGER (HP-01-005).
     """
-    label = "HashMismatchFaultReceivedBT"
     if refused_entry is None:
         return _unnamed_entry_refusal(
-            label=label, answer="report on", spec_id="SYNC-03-008"
+            answer="report on", spec_id="SYNC-03-008"
         )
     entry_id = refused_entry.id_
 
@@ -265,7 +260,7 @@ def _hash_mismatch_verdict(
         report = find_node(tree, ReportHashMismatchNode)
         if report is None or report.own_copy is None:
             raise VultronBTInternalError(
-                f"{label}: the run did not check this actor's own copy"
+                f"{outcome.label}: the run did not check this actor's own copy"
             )
         return HandlerResult.skipped(
             f"hash mismatch on ledger entry '{entry_id}' logged; own"
@@ -273,11 +268,12 @@ def _hash_mismatch_verdict(
             " recorded for it (SYNC-03-008)"
         )
 
-    return FaultReading(label=label, reader=read)
+    return FaultReading(reader=read)
 
 
 #: A failure class with no entry in a use case's ``responses``.
 ARCHIVE_ONLY = FaultResponse(
+    label="CreateProcessingFaultReceivedBT",
     build_tree=_archive_tree,
     read_verdict=_archive_verdict,
     reads_refused_entry=False,

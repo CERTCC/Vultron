@@ -56,7 +56,6 @@ from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _RmRejectCloseCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
@@ -165,7 +164,6 @@ _STUB = as_VulnerabilityCaseStub(case_id=_CASE.id_)
 _INVITE = make(
     _RmInviteToCaseActivity, actor=_ACTOR, object_=_ACTOR, target=_STUB
 )
-_LEAVE = make(_RmCloseCaseActivity, actor=_ACTOR, object_=_CASE)
 _PROPOSE = make(
     _EmProposeEmbargoActivity,
     actor=_ACTOR,
@@ -268,9 +266,6 @@ class TestBareStringObjectRejected(unittest.TestCase):
     def test_rm_reject_invite_rejects_string(self):
         self._assert_string_rejected(_RmRejectInviteToCaseActivity)
 
-    def test_rm_reject_close_rejects_string(self):
-        self._assert_string_rejected(_RmRejectCloseCaseActivity)
-
     def test_em_accept_embargo_rejects_string(self):
         self._assert_string_rejected(_EmAcceptEmbargoActivity)
 
@@ -356,12 +351,6 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
             _RmRejectInviteToCaseActivity, actor=_ACTOR.id_, object_=_INVITE
         )
         assert isinstance(obj.object_, _RmInviteToCaseActivity)
-
-    def test_rm_reject_close_accepts_typed(self):
-        obj = make(
-            _RmRejectCloseCaseActivity, actor=_ACTOR.id_, object_=_LEAVE
-        )
-        assert isinstance(obj.object_, _RmCloseCaseActivity)
 
     def test_em_accept_embargo_accepts_typed(self):
         obj = make(

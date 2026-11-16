@@ -235,7 +235,6 @@ def _stage_act(
         (
             lambda: create_close_case_received_tree(
                 case_id=CASE_ID,
-                activity_id=ACTIVITY_ID,
                 sender_actor_id=SENDER_ID,
                 receiving_actor_id=ACTOR_ID,
                 sender_rule=SenderRule.to_case_manager(

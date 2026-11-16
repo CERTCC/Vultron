@@ -12,13 +12,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Factories for the RM case messages: engage, defer, close, and declining a close.
+"""Factories for the RM case messages: engage, defer, and close.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from datetime import datetime
-from typing import cast
 
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories.case._named import _named_case
@@ -26,13 +25,11 @@ from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _RmRejectCloseCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Ignore,
     as_Join,
     as_Leave,
-    as_Reject,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -128,36 +125,4 @@ def rm_close_case_activity(
         _RmCloseCaseActivity,
         at,
         lambda: {"object_": _named_case(case), **kwargs},
-    )
-
-
-def reject_close_case_activity(
-    leave: as_Leave,
-    *,
-    at: datetime,
-    **kwargs,
-) -> as_Reject:
-    """Build a Reject(_RmCloseCaseActivity) — declines an owner close (CM-23-011).
-
-    Per ActivityStreams convention the Case Actor rejects the
-    ``Leave(VulnerabilityCase)`` activity itself.  The ``leave`` MUST be the
-    value returned by :func:`rm_close_case_activity`; a plain ``as_Leave``
-    will fail validation.
-
-    Args:
-        leave: The ``_RmCloseCaseActivity`` (the Leave) being declined.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``in_reply_to``).
-
-    Returns:
-        An ``as_Reject`` whose ``object_`` is the leave.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    return build_activity(
-        "reject_close_case_activity",
-        _RmRejectCloseCaseActivity,
-        at,
-        lambda: {"object_": cast(_RmCloseCaseActivity, leave), **kwargs},
     )

@@ -43,6 +43,10 @@ from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
     EmbargoTermsNotHeldNode,
 )
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    EMBARGO_PROPOSER_KEY,
+    PublishEmbargoProposerNode,
+)
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
@@ -284,6 +288,84 @@ class TestCaseManagerAdmitsProposalGuard:
         assert result.status == Status.FAILURE
 
 
+class TestPublishEmbargoProposerNode:
+    """The proposer the adjudication reads is published in the tree."""
+
+    @staticmethod
+    def _published(
+        scenario: BTTestScenario, sender: str, attributed_to: str | None
+    ) -> str:
+        node = PublishEmbargoProposerNode(
+            sender_id=sender,
+            case_id=CASE_ID,
+            activity_id=f"{CASE_ID}/embargo_proposals/p1",
+            attributed_to=attributed_to,
+        )
+        seen: list[object] = []
+
+        class _ReadsTheProposer(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                storage = py_trees.blackboard.Blackboard.storage
+                seen.append(storage.get(f"/{EMBARGO_PROPOSER_KEY}"))
+                return Status.SUCCESS
+
+        result = scenario.run(
+            py_trees.composites.Sequence(
+                name="PublishThenRead",
+                memory=False,
+                children=[node, _ReadsTheProposer(name="ReadsTheProposer")],
+            )
+        )
+        assert result.status == Status.SUCCESS
+        (published,) = seen
+        # Scoped to its run: the next run finds no proposer (CM-24-002).
+        assert (
+            f"/{EMBARGO_PROPOSER_KEY}"
+            not in py_trees.blackboard.Blackboard.storage
+        )
+        return cast(str, published)
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    def test_an_unattributed_proposal_is_the_senders(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        _seed_case(bt_scenario)
+        assert self._published(bt_scenario, PROPOSER, None) == PROPOSER
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    def test_the_case_managers_relay_names_the_attributed_proposer(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        _seed_case(bt_scenario, participants={OTHER_A: None})
+        assert self._published(bt_scenario, MANAGER, OTHER_A) == OTHER_A
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("PCR-08-010")
+    def test_a_participant_cannot_attribute_its_proposal_to_another(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        _seed_case(bt_scenario, participants={OTHER_A: None})
+        assert self._published(bt_scenario, PROPOSER, OTHER_A) == PROPOSER
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    def test_a_node_reading_an_unpublished_proposer_is_a_wiring_fault(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The collect node never guesses the proposer: no publisher, an
+        internal error, and no recipients."""
+        _seed_case(bt_scenario, participants={OTHER_A: None})
+        result = bt_scenario.run(
+            CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert _collected_recipients() == []
+
+
 class TestCollectEmbargoInviteRecipientsNode:
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")
@@ -295,10 +377,8 @@ class TestCollectEmbargoInviteRecipientsNode:
             participants={OTHER_A: None, OTHER_B: None},
             signatories=(OTHER_B,),
         )
-        node = CollectEmbargoInviteRecipientsNode(
-            case_id=CASE_ID, proposer_id=PROPOSER
-        )
-        result = bt_scenario.run(node)
+        node = CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
+        result = bt_scenario.run(node, embargo_proposer_id=PROPOSER)
         assert result.status == Status.SUCCESS
         assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
 
@@ -348,9 +428,8 @@ class TestCollectEmbargoInviteRecipientsNode:
         bt_scenario.dl.save(case)
 
         result = bt_scenario.run(
-            CollectEmbargoInviteRecipientsNode(
-                case_id=CASE_ID, proposer_id=PROPOSER
-            )
+            CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
+            embargo_proposer_id=PROPOSER,
         )
         assert result.status == Status.SUCCESS
         assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
@@ -360,10 +439,8 @@ class TestCollectEmbargoInviteRecipientsNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         _seed_case(bt_scenario, participants={OTHER_A: None})
-        node = CollectEmbargoInviteRecipientsNode(
-            case_id=CASE_ID, proposer_id=MANAGER
-        )
-        result = bt_scenario.run(node)
+        node = CollectEmbargoInviteRecipientsNode(case_id=CASE_ID)
+        result = bt_scenario.run(node, embargo_proposer_id=MANAGER)
         assert result.status == Status.SUCCESS
         assert sorted(_collected_recipients()) == sorted([PROPOSER, OTHER_A])
 
@@ -377,10 +454,9 @@ class TestCollectEmbargoInviteRecipientsNode:
         bare = BTBridge(datalayer=bt_scenario.dl)
         result = run_tree(
             bare,
-            tree=CollectEmbargoInviteRecipientsNode(
-                case_id=CASE_ID, proposer_id=PROPOSER
-            ),
+            tree=CollectEmbargoInviteRecipientsNode(case_id=CASE_ID),
             actor_id=MANAGER,
+            embargo_proposer_id=PROPOSER,
         )
         assert result.status == Status.FAILURE
         assert TRIGGER_FACTORY_UNAVAILABLE in result.feedback_message
@@ -398,11 +474,11 @@ class TestRelayEmbargoInviteToEachNode:
             RelayEmbargoInviteToEachNode(
                 case_id=CASE_ID,
                 embargo_id=EMBARGO_ID,
-                proposer_id=PROPOSER,
                 actor_config=actor_config,
                 answers=answers,
             ),
             embargo_invite_recipients=recipients,
+            embargo_proposer_id=PROPOSER,
         )
 
     def _deadline(self, scenario: BTTestScenario, actor_id: str):
@@ -718,9 +794,10 @@ class TestRelayEmbargoInviteToEachNode:
         factory.propose_embargo.side_effect = RuntimeError("factory down")
         result = bt_scenario.run(
             RelayEmbargoInviteToEachNode(
-                case_id=CASE_ID, embargo_id=EMBARGO_ID, proposer_id=PROPOSER
+                case_id=CASE_ID, embargo_id=EMBARGO_ID
             ),
             embargo_invite_recipients=[OTHER_A],
+            embargo_proposer_id=PROPOSER,
             trigger_activity_factory=factory,
         )
         assert result.status == Status.FAILURE
@@ -751,14 +828,31 @@ class TestRelayEmbargoInviteToEachNode:
         _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         missing = f"{CASE_ID}/embargoes/relay-missing"
         result = bt_scenario.run(
+            RelayEmbargoInviteToEachNode(case_id=CASE_ID, embargo_id=missing),
+            embargo_invite_recipients=[OTHER_A],
+            embargo_proposer_id=PROPOSER,
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert missing in result.feedback_message
+        assert bt_scenario.dl.outbox_list() == []
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    def test_an_unpublished_proposer_is_a_wiring_fault_and_relays_nothing(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The relay reads the proposer when it starts, never a guess."""
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
+        result = bt_scenario.run(
             RelayEmbargoInviteToEachNode(
-                case_id=CASE_ID, embargo_id=missing, proposer_id=PROPOSER
+                case_id=CASE_ID, embargo_id=EMBARGO_ID
             ),
             embargo_invite_recipients=[OTHER_A],
         )
         assert result.status == Status.FAILURE
         assert result.internal_error is True
-        assert missing in result.feedback_message
         assert bt_scenario.dl.outbox_list() == []
         assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
 

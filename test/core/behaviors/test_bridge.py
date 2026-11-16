@@ -668,6 +668,10 @@ _SCOPED_OUTPUT_PORT_KEYS = [
     # it; a stale one would address a genesis Announce or a replay to the
     # wrong actor (#5803).
     pytest.param("case_actor_id", id="case_actor_id"),
+    # PublishEmbargoProposerNode publishes it; a stale one would let a run
+    # that published no proposer record another proposal's proposer's
+    # consent instead of failing as a wiring fault (CM-24-002).
+    pytest.param("embargo_proposer_id", id="embargo_proposer_id"),
 ]
 
 

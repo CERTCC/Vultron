@@ -107,12 +107,14 @@ class EmbargoInviteSubjects:
     Attributes:
         embargo_id: The proposed ``EmbargoEvent``.
         invitee_id: The Invite's sole ``to`` recipient (EP-09-010).
-        proposer_id: Whose terms these are (CM-24-002).
+        attributed_to: The Invite's ``attributedTo`` in its canonical
+            spelling (OID-01-006), or ``None``.  The tree decides whether
+            it names the proposer (CM-24-002).
     """
 
     embargo_id: str
     invitee_id: str
-    proposer_id: str
+    attributed_to: str | None
 
 
 def embargo_invite_fault_tree(
@@ -174,7 +176,7 @@ def received_embargo_invite_tree(
         invitee_id=subjects.invitee_id,
         invite_id=invite_id,
         embargo_id=subjects.embargo_id,
-        proposer_id=subjects.proposer_id,
+        attributed_to=subjects.attributed_to,
         sender_actor_id=sender_actor_id,
         sender_rule=sender_rule,
         embargo=embargo,

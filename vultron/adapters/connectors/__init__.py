@@ -11,10 +11,12 @@ Modules:
 
 - ``base.py``    — ``ConnectorPlugin`` (a name), ``CONNECTOR_PORTS`` and
   ``ports_implemented_by``, which reports the core ports a plugin implements.
-- ``loader.py``  — Entry-point–based plugin discovery and registration.
+- ``loader.py``  — ``load_connectors``: finds the installed plugins through
+  the ``vultron.connectors`` entry-point group and refuses a bad one.
 
 Sub-packages:
 
 - ``example/`` — A reference implementation (a VINCE case reader) showing
-  how to implement a connector plugin.
+  how to implement a connector plugin.  It declares no entry point, so the
+  loader never finds it.
 """

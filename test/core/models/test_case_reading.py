@@ -31,6 +31,7 @@ from vultron.core.models.case_reading import (
     UnobservableFact,
     UntranslatedFact,
     UntranslatedReason,
+    case_reading_problems,
 )
 
 _AT = datetime(2026, 1, 1, tzinfo=UTC)
@@ -177,3 +178,12 @@ def test_a_blank_string_part_is_refused(model, fields):
 def test_an_unknown_key_is_refused():
     with pytest.raises(ValidationError):
         UnobservableFact(fact="f", why="w", note="extra")  # type: ignore[call-arg]
+
+
+def test_case_reading_problems_lists_each_problem_separately():
+    reading = _reading()
+    assert case_reading_problems(reading.ledger, reading.citations) == []
+    problems = case_reading_problems(tuple(reversed(reading.ledger)), ())
+    assert len(problems) == 2
+    assert problems[0].startswith("the ledger is not in log-index order")
+    assert problems[1].endswith("have no citation")
