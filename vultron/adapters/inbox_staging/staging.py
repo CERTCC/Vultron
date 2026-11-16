@@ -60,6 +60,9 @@ from vultron.errors import (
 )
 from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
@@ -103,10 +106,11 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
         return
     if nested.type_ == "CaseLedgerEntry":
         return
-    if isinstance(nested, as_VulnerabilityCaseReference):
-        # A case reference names a case and is no object to stage: the
-        # activity row keeps it inline, and the case is read from the
-        # receiver's store or not at all (ADR-0165).
+    if isinstance(nested, (as_VulnerabilityCaseReference, as_TypedReference)):
+        # A reference names an object and is no object to stage: the case is
+        # read from the receiver's store or not at all (ADR-0165), and any
+        # other object is the one the receiver holds, or fetches before a
+        # handler reads it (MV-10-011, AKM-05-007).
         return
 
     typed_nested = cast(PersistableModel, nested)

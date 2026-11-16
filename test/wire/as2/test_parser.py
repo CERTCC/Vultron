@@ -14,6 +14,7 @@ from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
@@ -679,22 +680,14 @@ def test_parse_activity_processes_the_vultron_context_without_fetching_it():
 
 
 @pytest.mark.spec("AKM-02-006")
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason=(
-        "AKM-02-006: a partial inline {id, type: CaseParticipant} parses, and "
-        "the parser invents a ParticipantStatus (fresh id, RM START, OBSERVER) "
-        "and joined=True that the sender never stated. Tracked by #5265."
-    ),
-)
-def test_a_partial_inline_case_participant_is_refused_not_filled_in():
+@pytest.mark.spec("MV-10-011")
+def test_a_partial_inline_case_participant_is_a_reference_not_filled_in():
     """A receiver records no participant state the sender did not send.
 
     A ``Remove`` whose ``object`` is only ``{id, type: CaseParticipant}``
-    states no status and no membership. Reading it as a joined participant
-    in RM ``START`` would record values nobody claimed (AKM-02-006), so the
-    parse edge refuses it.
+    states no status and no membership.  It is a typed reference (ADR-0198):
+    it names the participant and is never read as one, so no status is
+    invented and no ``joined`` flag is set (AKM-02-006, #5265).
     """
     body = {
         "@context": "https://www.w3.org/ns/activitystreams",
@@ -709,5 +702,8 @@ def test_a_partial_inline_case_participant_is_refused_not_filled_in():
         "target": "https://example.org/cases/case-1",
     }
 
-    with pytest.raises(VultronParseValidationError):
-        parse_activity(body)
+    parsed = parse_activity(body)
+
+    assert isinstance(parsed.object_, as_TypedReference)
+    assert not hasattr(parsed.object_, "participant_statuses")
+    assert not hasattr(parsed.object_, "joined")

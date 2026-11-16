@@ -99,6 +99,22 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **Objects travel inline or by reference.**
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
+An object slot holds one of three forms, told apart by their keys alone ([ADR-0198](../../adr/0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md)):
+
+- A **whole object** carries any key beyond `id`, `type` and `preview`, and the receiver validates it in full against its class.
+  A whole object missing a field its class requires is refused, never read as a reference.
+- A **typed reference** is an inline object with exactly an `id` and a `type`, and optionally a `preview`.
+  It names an object of that type and claims nothing else about it.
+- A **URI**, or a `Link` that carries one, names the object with no type.
+
+A receiver routes an activity by a typed reference's `type` as it routes by a whole object's, but never reads the reference as the object.
+A handler uses the object the receiver holds, or the receiver fetches the object first.
+No type defines a preview yet, so a typed reference that carries a `preview` is refused, and the refusal names its position.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-10-011", "MV-10-012"))
+```
+
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
 A production implementation can fetch an object named by a URI it holds no record of.
 The case-creation message that bootstraps a case is an exception: it carries the case and its participant records inline, and its receiver fetches none of them ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).

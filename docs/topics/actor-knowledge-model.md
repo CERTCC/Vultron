@@ -56,6 +56,14 @@ When an actor sends an activity, the recipient will try to understand it.
 To understand it, the recipient needs the objects the activity refers to.
 
 ActivityStreams 2.0 lets an activity carry an object inline or name it by URI, and a receiver copes with either form (SE-01-002).
+Vultron reads an object slot as one of three forms, told apart by their keys alone (MV-10-011):
+
+- A **whole object** carries the fields its class requires, and the receiver validates it in full.
+- A **typed reference** carries exactly an `id` and a `type`, and optionally a `preview`.
+  It tells the receiver what kind of object the activity names, so the receiver can classify the activity, but it claims nothing else about the object.
+- A **URI** names the object with no type.
+
+A typed reference is never the object itself: the receiver uses the object it holds, or fetches it before it acts.
 A URI helps the recipient only if it already holds the object or can fetch it.
 The recipient has no access to the sender's data store, so fetching means asking the actor that holds the object through an API call, which is object dereference (AKM-05-003).
 
@@ -84,6 +92,7 @@ The entry hash covers the snapshot and nothing outside it, which is why the CASE
 The reference implementation dereferences only a few references (AKM-05-007).
 A participant fetches a case object it lacks from the CASE_MANAGER when an activity cannot be classified without it.
 A replica fetches the embargo that an announced revision replaces.
+A participant that gets a typed reference to a case object it does not hold fetches it from the CASE_MANAGER the same way, and holds the activity until the fetch settles.
 The CASE_MANAGER fetches a proposer's profile that the proposal names by its URI.
 A fetched object meets the same unknown-key rule as a received activity: a misspelling of a field the receiver reads refuses the object, and any other unknown key is set aside and logged (MV-11-001).
 It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).

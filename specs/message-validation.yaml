@@ -557,7 +557,14 @@ groups:
       `test_a_typed_reference_is_not_read_as_the_object` in
       `test/wire/as2/test_typed_references.py` parses activities whose object is a
       typed reference of several types and asserts the parsed object is not a whole
-      object of that class. It is a strict xfail until #6455 lands.
+      object of that class, and `test_a_typed_reference_routes_by_its_type` in the
+      same file asserts it matches the semantics the whole object would.
+      `test/wire/as2/test_typed_reference_rehydration.py` asserts rehydration puts
+      the held object in a reference's place and reduces one the receiver lacks to
+      its bare id. `test/adapters/driving/fastapi/test_typed_reference_receipt.py`
+      delivers each case through the inbox run: the handler gets the held object,
+      or the fetched one after the activity waits, and a failed fetch goes on as a
+      bare id.
     relationships:
     - rel_type: extends
       spec_id: MV-10-009
@@ -583,8 +590,10 @@ groups:
     verification: >-
       `test_a_typed_reference_with_an_undefined_preview_is_refused` in
       `test/wire/as2/test_typed_references.py` asserts `parse_activity` refuses a
-      typed reference carrying a `preview` for a type with no defined preview. It is
-      a strict xfail until #6455 lands.
+      typed reference carrying a `preview` for a type with no defined preview, and
+      `test_a_preview_is_refused_for_every_type_naming_its_position` and
+      `test_a_nested_preview_is_refused_at_its_position` assert the refusal names
+      the reference's position, for an actor and a case reference too.
     relationships:
     - rel_type: extends
       spec_id: MV-10-011

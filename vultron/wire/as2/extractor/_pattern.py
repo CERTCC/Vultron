@@ -17,6 +17,10 @@ from vultron.wire.as2.enums import (
     as_TransitiveActivityType as TAtype,
 )
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    referenced_class,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
@@ -32,7 +36,8 @@ class ActivityPattern(BaseModel):
     type is unknown and it satisfies no scalar ``object_`` constraint
     (SE-01-006).  ``find_matching_semantics()`` then returns
     ``UNKNOWN_UNRESOLVABLE_OBJECT``, which the inbox answers by fetching the
-    object (AKM-05-007).  ``accepts_bare_object`` opts a pattern out of
+    object (AKM-05-007).  A typed reference, by contrast, carries its type,
+    and satisfies a type constraint as the whole object would (MV-10-011).  ``accepts_bare_object`` opts a pattern out of
     that rule; only a pattern a field other than the object's type tells
     apart from every other pattern of its verb may set it, as
     ``LedgerPositionReadPattern`` does with ``ledgerPosition``.
@@ -189,12 +194,23 @@ def _match_activity_field(
         return False
     if isinstance(activity_field, str):
         return not strict
-    if pattern_field == AOtype.ACTOR and isinstance(
-        activity_field, (as_Actor, CoreActor)
+    # A typed reference routes by the class its ``type`` names, as a whole
+    # object routes by its own (MV-10-011, ADR-0198).
+    kind: type | None = (
+        referenced_class(activity_field)
+        if isinstance(activity_field, as_TypedReference)
+        else type(activity_field)
+    )
+    if (
+        pattern_field == AOtype.ACTOR
+        and kind is not None
+        and issubclass(kind, (as_Actor, CoreActor))
     ):
         return True
-    if pattern_field == AOtype.EVENT and isinstance(
-        activity_field, (as_Event, CoreEmbargoEvent)
+    if (
+        pattern_field == AOtype.EVENT
+        and kind is not None
+        and issubclass(kind, (as_Event, CoreEmbargoEvent))
     ):
         return True
     return bool(pattern_field == getattr(activity_field, "type_", None))
@@ -207,10 +223,16 @@ def bare_object_id(activity: as_Activity) -> str | None:
     ``Undo(Accept(Invite(<id>)))`` ends in the Invite's bare object.  A
     nested pattern's ``object_`` refuses a bare id as the outer one does
     (SE-01-006), so the activity is unresolvable at any depth, and this id is
-    the one the receiver lacks (VAM-01-009, AKM-05-007).  ``None`` when the
-    chain ends in an inline object, or in no object at all.
+    the one the receiver lacks (VAM-01-009, AKM-05-007).  A typed reference
+    ending the chain names its id the same way: no pattern matched it, so the
+    object must be read before the activity can be.  ``None`` when the chain
+    ends in an inline whole object, or in no object at all.
     """
     obj: object = getattr(activity, "object_", None)
     while isinstance(obj, as_Activity):
         obj = getattr(obj, "object_", None)
+    if isinstance(obj, as_TypedReference):
+        # A reference no pattern matched names an object the receiver must
+        # fetch before it can read it, as a bare id does (MV-10-011).
+        return obj.id_
     return obj if isinstance(obj, str) and obj else None
