@@ -195,8 +195,19 @@ def _parse_time(value: str) -> Moment | None:
     return moment
 
 
+def _span_refusal(where: str) -> SanitizeError:
+    return SanitizeError(
+        f"{where}: the case's timestamps span too many years to shift "
+        "onto the anchor date"
+    )
+
+
 def _require_time(value: object, where: str) -> Moment:
-    moment = _parse_time(_string(value, where))
+    try:
+        moment = _parse_time(_string(value, where))
+    except OverflowError:
+        # A moment within hours of year 1 or 9999 has no UTC spelling.
+        raise _span_refusal(where) from None
     if moment is None:
         raise _refuse_type(where, "an ISO 8601 timestamp")
     return moment
@@ -245,8 +256,12 @@ def _refuse_type(where: str, wanted: str) -> SanitizeError:
     return SanitizeError(f"{where}: expected {wanted}")
 
 
-#: A key the sanitizer names in an error: shaped like a serializer field.
-#: Any other key could be content, such as an address used as a key.
+#: A key the sanitizer names in an error: shaped like a serializer field
+#: (``/`` for a nested read such as ``vendors/vuls``). Any other key could
+#: be content, such as an address used as a key. A lowercase word used as a
+#: key (a handle such as ``jsmith``) still fits and is named: VSD-02-007
+#: wants an unclassified field named, and by definition it is in no list of
+#: known fields.
 _FIELD_NAME = re.compile(r"[a-z][a-z0-9_/]{0,63}")
 
 
@@ -336,7 +351,7 @@ def _keep_count(state: _Replacements, value: object, where: str) -> object:
     count = _integer(value, where, "an integer")
     if not 0 <= count <= MAX_REVISION:
         raise SanitizeError(
-            f"{where}: a count outside 0 to {MAX_REVISION}, too large to be "
+            f"{where}: a count outside 0 to {MAX_REVISION}, which is not "
             "kept as a count"
         )
     return count
@@ -371,12 +386,7 @@ def _shift_time(state: _Replacements, value: object, where: str) -> object:
     try:
         shifted = moment + timedelta(days=state.day_offset)
     except OverflowError:
-        shifted = None
-    if shifted is None:
-        raise SanitizeError(
-            f"{where}: the case's timestamps span too many years to shift "
-            "onto the anchor date"
-        )
+        raise _span_refusal(where) from None
     return _format_time(shifted)
 
 

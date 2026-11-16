@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -114,7 +114,7 @@ def _source(stem: str = _SOURCES[0]) -> dict[str, object]:
 def _note(**fields: object) -> dict[str, object]:
     """The published note of the generator's case 999902, with *fields*,
     under case 999901's id."""
-    note = dict(_reads(_SOURCES[1])["note"])  # type: ignore[call-overload]
+    note = cast(dict[str, object], _reads(_SOURCES[1])["note"])
     return {**note, "vuid": "999901", **fields}
 
 
@@ -249,8 +249,16 @@ def test_timestamps_keep_their_order_and_spacing(stem: str) -> None:
 
 
 @pytest.mark.spec("VSD-02-006")
-@pytest.mark.parametrize("stem", _SOURCES)
-def test_free_text_is_lorem_and_names_are_fakes(stem: str) -> None:
+@pytest.mark.parametrize(
+    ("stem", "reached"),
+    [
+        (_SOURCES[0], {"contact_name", "contact_phone", "cve", "content"}),
+        (_SOURCES[1], {"cve", "content"}),
+    ],
+)
+def test_free_text_is_lorem_and_names_are_fakes(
+    stem: str, reached: set[str]
+) -> None:
     checked: set[str] = set()
     for where, value in _leaves(_sanitized(stem)):
         field = re.sub(r"\[\d+\]$", "", where.rsplit(".", 1)[-1])
@@ -270,7 +278,7 @@ def test_free_text_is_lorem_and_names_are_fakes(stem: str) -> None:
         elif field == "cve":
             assert re.fullmatch(r"CVE-2098-\d{4}", value), where
         checked.add(field)
-    assert {"contact_name", "contact_phone", "cve", "content"} & checked
+    assert reached <= checked
 
 
 @pytest.mark.spec("VSD-02-008")
@@ -364,6 +372,15 @@ def test_the_kept_values_are_the_ones_vince_defines() -> None:
             ),
             "span too many years",
         ),
+        (
+            lambda r: r["case"].update(created="0001-01-01T00:30:00+01:00"),
+            "span too many years",
+        ),
+        (
+            lambda r: r["case"].update(modified="9999-12-31T23:30:00-01:00"),
+            "span too many years",
+        ),
+        (lambda r: r.update(note=_note(revision=-1)), "a count outside"),
         (lambda r: r.update(case=None), "case read is missing"),
     ],
 )
