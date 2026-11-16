@@ -30,11 +30,14 @@ tracks:
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
   - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
+  - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
+  - "#6481"   # embargo stores its status; register is a list (slice of #6246)
+  - "#6482"   # embargo end is Update; owner Offers it (slice of #6246)
+  - "#6483"   # end announced as Announce(<the Update>) (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
-  - "#6254"   # Refuse(Reject)
-  - "#6433"   # type list resolved at the wire edge
-  - "#6434"   # the refusal notice is a Refuse
-  - "#6435"   # owner-close answer is a Refuse
+  - "#6484"   # ledger commit is an Add that acknowledges (slice of #6247)
+  - "#6485"   # position statement is Read(<case>/ledger) (slice of #6247)
+  - "#6486"   # statuses added to named histories (slice of #6247)
   - "#6248"   # instrument, generator, tag
   - "#6249"   # CaseReference holds a Link
   - "#6250"   # Update forms; dead REMOVE_NOTE path
@@ -223,7 +226,7 @@ Not Processed").
 
 ## Invites Use the Spec's Slots, and the Stub Is the Case's Preview
 
-Issue: #6244.
+Issue: #6244. Record: ADR-0205.
 
 **Decision.**
 
@@ -238,8 +241,15 @@ Issue: #6244.
    `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron
    `caseId` is dropped: the case is named by the reference's own `id`. The full-case
    Invite carries the full case.
-3. **A preview is never the case.** Only a full case is a case: no receiver seeds or
+3. **A preview is not the case.** Only a full case is a case: no receiver seeds or
    updates a replica from a reference that carries a preview.
+4. **A receiver tells the two case Invites apart by the object's form**, as received:
+   a typed reference carrying a preview, or the whole case. A pattern can require
+   either form. Lookup of held objects does not expand a previewed reference, and a
+   receiver does not fetch the case such a reference names, so an invitee answers
+   from the preview alone and a CASE_MANAGER holding the case still reads an Accept
+   of the stub Invite as the stub answer (ADR-0205). Keeping a stub type, or a
+   Vultron Invite subtype, was considered and rejected there.
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
@@ -265,7 +275,8 @@ stub is its own type and its own object" part), ADR-0165,
 
 **Parse-edge rule.** ADR-0198 settles it: an object with exactly `id` and `type`,
 with or without `preview`, is a typed reference; any other key makes it a whole
-case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it.
+case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it, and
+the no-fetch rule above narrows MV-10-011's "or fetches it" for a previewed case.
 
 ---
 
@@ -314,39 +325,70 @@ today's `Remove(CaseParticipant)[target=…]`.
 
 ## Embargo End Is an Update With a Termination Object
 
-Issue: #6246.
+Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
 
-**Decision.** An embargo ending is `Update(EmbargoEvent)` setting the embargo's
-status to terminated, with an embedded termination object:
+**Decision.**
 
-- a machine-read cause kind: `END_TIME_REACHED`, `THREAT_SIGNAL` (with its P/X/A
-  signals; CASE_MANAGER only), `FIX_READY`, `FIX_DEPLOYED`, or `OTHER`;
-- optionally the id of the act that caused it;
-- the human reason in `summary`, a longer account in `content`. AS2 has no
-  `description` property.
-
-`END_TIME_REACHED` is a cause like the others, so the separate `EARLY` /
-`END_TIME_REACHED` enum disappears. The CASE_MANAGER commits the change even for an
-end-time termination, because EM state must change on the record.
+- **The embargo is its own wire type.** `"type": ["EmbargoEvent", "Event"]`, a
+  Vultron subtype of AS2 `Event` read like ADR-0196's `Refuse`; every added field
+  gets a JSON-LD term (ADR-0201).
+- **The embargo stores its own state.** `EmbargoEvent` gains `status` (ADR-0122's
+  statuses), `replaces` and, once terminated, its termination: the cause kind
+  (`END_TIME_REACHED`, `THREAT_SIGNAL` with its P/X/A signals, `FIX_READY`,
+  `FIX_DEPLOYED`, `OTHER`), the causing act's id when known, and the human reason in
+  `summary`. The case's register becomes its ordered list of embargoes; ADR-0122's
+  statuses, triggers and invariants range over the embargoes' own fields (ADR-0202).
+  The termination is a field of the embargo, with no id of its own: a later dispute
+  names the `Update` act.
+- **The end is `Update(EmbargoEvent)`** setting `status` terminated and the
+  termination. `END_TIME_REACHED` is a cause like the others, so the `EARLY` /
+  `END_TIME_REACHED` enum goes. The CASE_MANAGER makes and ledgers every such
+  `Update`. Its own endings (end time, threat signal) are a bare `Update`; the Case
+  Owner's early ending is `Offer(Update(EmbargoEvent))`, refused (a `THREAT_SIGNAL`
+  cause from the Owner) or accepted, with the CASE_MANAGER's own `Update` carrying
+  `attributedTo` = Owner and `inReplyTo` = the Offer (ADR-0199, ADR-0203).
+- **Every signatory is told by `Announce(<the Update>)`**, sent to every active
+  participant and every signatory the ledger fan-out skips. It keeps the teardown
+  notice's purpose (everyone the embargo may have bound learns it ended) and replaces
+  the separate direct copy to an unreached signatory (CM-31-009). A paused signatory
+  applies the end from it; replaying the entry carrying the same act changes nothing.
+  It is sent on every termination, end time included, so an unreached signatory now
+  hears of an expiry too, and the announced act carries no other case content
+  (CM-31-031). The shorter-revision notice (CM-31-030) announces the act that made
+  the revision active, by the same rule.
+- `Remove(EmbargoEvent)` and `REMOVE_EMBARGO_EVENT_FROM_CASE` are retired.
 
 **AS2 basis and prior art.** `Remove` would say the embargo left the case, but it
-stays in the embargo register with status `terminated`. FEP-8a8e ("A common approach
-to using the Event object type", draft) sends event cancellation as `Update(Event)`
-with `eventStatus` (`EventCancelled`, `EventPostponed`, …, after schema.org
-`eventStatus`; iCalendar `STATUS` as fallback) and has no "concluded" status or
-structured cause. VOC `summary`: "a natural language summarization of the object".
+stays on the case, terminated. FEP-8a8e ("A common approach to using the Event object
+type", draft) sends event cancellation as `Update(Event)` with `eventStatus`, after
+schema.org; it has no "concluded" status or structured cause. VOC Announce can carry
+an activity ("Sally announced that she had arrived at work"). VOC `summary`: "a
+natural language summarization of the object".
 
 **Today.** `Remove(EmbargoEvent)[origin=case]` with the reason enum in `content`
 (`vultron/wire/as2/vocab/activities/embargo.py`) and the cause in the Vultron
-`terminationCause` (`vultron/core/models/embargo_termination.py`,
-`TerminationCauseKind`). Teardown: `vultron/core/behaviors/embargo/nodes/teardown.py`.
+`terminationCause` (`vultron/core/models/embargo_termination.py`). The status,
+`replaces` and termination are on the register entry
+(`vultron/core/models/embargo_register/entry.py`), not the embargo. The Owner's
+`Remove` is ledgered as received (EMB-13-003, EMB-13-013). Teardown:
+`vultron/core/behaviors/embargo/nodes/teardown.py`; EMB-19.
 
 **Term-check owner.** #6421 owns the termination `reason` enum in the #6253 term-check
 ratchet, so the entry keeps an open owner. Planning this section adopts #6421
 for that field rather than filing a second Task.
 
-**Touches.** EMB-07, EMB-13-005, EMB-19, ADR-0122 (the register), the
-`terminationCause` JSON-LD term, `REMOVE_EMBARGO_EVENT_FROM_CASE`.
+**Touches.** EMB-07, EMB-13 (003, 004, 005, 009 to 014), EMB-19, CM-31-009,
+CM-31-030, CM-31-031, CM-31-042, EP-08-004, ADR-0116 and ADR-0122 (partially
+superseded by ADR-0203), every reader of a register entry
+(`vultron/core/models/embargo_register/`), the `terminationCause` JSON-LD term
+(`docs/ns/`), `REMOVE_EMBARGO_EVENT_FROM_CASE`, and every note and docs page that
+names `Remove(EmbargoEvent)` or `terminationCause`: among them
+`notes/embargo-lifecycle.md`, `notes/received-status-authorization.md`,
+`notes/case-joining.md`, `notes/case-event-history.md`,
+`notes/message-occasion-table.md`, `notes/sync-ledger-replication.md`,
+`docs/reference/messages/em.md` and its `_occasions/` embargo-termination
+fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
+`docs/reference/vultron-spec/` partials.
 
 ---
 
@@ -428,7 +470,7 @@ generator, `third_party/README.md`.
 
 ## Ledger and Status Histories Are Named Ordered Collections
 
-Issue: #6247.
+Issue: #6247. Record: ADR-0204.
 
 **Decision.**
 
@@ -439,10 +481,11 @@ Issue: #6247.
    target=<case>/ledger)`, replacing `Announce(CaseLedgerEntry)`. A replica receiving
    it appends to its copy.
 3. That `Add` is the positive acknowledgment: it carries `inReplyTo` = the committed
-   act and `result` = what the act caused (a new `CaseParticipant`, follow-on
-   entries). No separate ack message. A refusal stays the refusal notice.
-4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. N = −1 means
-   the sender holds nothing; the CASE_MANAGER replays everything after N. This
+   act and no `result` (below). No separate ack message. A refusal stays the
+   refusal notice.
+4. Every position statement is `Read(<case>/ledger)[ledgerPosition=N]`. The empty
+   ledger's position (log index −1 with the genesis hash, SYNC-18-001) says the sender
+   holds no entry; the CASE_MANAGER replays everything after N. This
    replaces both `Read(<bare entry id>)` and the objectless `Reject` replay request
    (SYNC-16-027). The NAK stays `Reject(CaseLedgerEntry)`, pointing `inReplyTo` at
    the `Add`.
@@ -471,69 +514,23 @@ only through the nested status's `context`. Delivery receipts are an open questi
 (`docs/topics/future_work/_oq-delivery-receipts.md`).
 
 **Touches.** SYNC-16, SYNC-17 (its "not a request" wording changes: a position at −1
-or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0137,
+or behind triggers replay), SYNC-18, MSM-05, CLP-10, ADR-0107, ADR-0124, ADR-0156,
+ADR-0137 and ADR-0155 (partially superseded by ADR-0204),
 `ANNOUNCE_CASE_LEDGER_ENTRY`, `READ_CASE_LEDGER_ENTRY`, `REJECT_CASE_LEDGER_ENTRY`,
 `ADD_CASE_STATUS_TO_CASE`, `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`. The guidance
 notes that name `Announce(CaseLedgerEntry)` as the replication channel change with
 it: `notes/case-communication-model.md`, `notes/sync-ledger-replication.md` (whose
-rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" bears
-on the open question below), `notes/case-actor-cluster.md`,
-`notes/ownership-transfer.md`.
+rule "keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them" stands,
+since the `Add` lists no follow-on ids, below), `notes/case-actor-cluster.md`,
+`notes/ownership-transfer.md`, `notes/case-ledger-authority.md`,
+`notes/participant-embargo-consent.md`, `notes/received-status-authorization.md`, and
+every docs page naming these forms, among them
+`docs/reference/messages/ledger_replication.md` and
+`docs/reference/messages/faults_and_acknowledgements.md`.
 
-**Open for planning.** `result` on the ledger `Add` can list follow-on entries only if
-their ids are derived ahead of time (as stub and ownership-offer ids already are), or
-if the `Add` waits until they commit. Pick one.
-
----
-
-## Refusal Is Its Own Type
-
-Issue: #6254. Built by #6433 (type list at the wire edge), then #6434 (the `Refuse`
-type), then #6435 (the owner-close answer).
-
-**Decision.** A refusal notice is `"type": ["Refuse", "Reject"]`: `class
-Refuse(Reject)` in the wire vocabulary, and `vultron:Refuse rdfs:subClassOf
-as:Reject` in the Vultron context. The wire then follows CLP-02-016's *refused*
-versus *rejected* (ADR-0196).
-
-- **The list stays at the wire edge.** One shared resolver narrows a received `type`
-  list to the most specific class the vocabulary knows, in any order, ignoring terms
-  it does not know (`["Foo", "Reject"]` is a `Reject`); core holds one string
-  (`"Refuse"`). The serializer writes the list for a class that declares a core
-  supertype. Reason: a list in core changes every `type_` and type check for no gain.
-- **Two known, unrelated types in one list are refused** as an unknown type (422). A
-  bare `"Refuse"` is accepted. Reason: neither class is the more specific one.
-- **A resolved `Refuse` matches no `Reject` pattern**, so `RefusalNoticePattern`
-  drops its `Invite`/`Offer` exclusion and a refusal of a request reaches the
-  refusal-notice use case, not the decline. Reason: ADR-0196 replaces ADR-0141's
-  "a refusal of a request reads as a decline".
-- **Refuse versus Reject is by who decides.** The CASE_MANAGER's guard refusal is a
-  `Refuse`, including its answer to the owner's `Leave(VulnerabilityCase)` during an
-  active embargo (CM-23-011) and its optional reply to a late `Leave` after close
-  (CM-23-040, CM-23-057; ADR-0131's drop default stays).
-  A participant's own `Reject(Invite(EmbargoEvent))` at P/X/A stays a `Reject`: it
-  is the addressee's decline (EMB-01-002).
-
-**AS2 basis.** No AS2 verb fits "I won't admit your act": `Ignore` is ignoring and is
-our RM defer, `Block` targets an actor and is not delivered to it (ActivityPub), `Flag`
-reports content to a moderator, `TentativeReject` is not final and is our RM invalid,
-`Dislike` is sentiment. CORE extension guidance: an extension type that overlaps a
-core type MUST carry the core type too (the spec's example is `["Resign","Leave"]`).
-
-**Today.** `as_Refuse` (`vultron/wire/as2/vocab/extension_activities.py`) declares
-`_as2_core_supertype = as_Reject`; the refusal notice is a `Refuse(<refused activity
-inline>)` sent as `["Refuse", "Reject"]`, and `RefusalNoticePattern` matches
-`Refuse` of any inline activity. `wire-context` writes the `@graph` subclass
-statement from that one declaration. What remains is #6435: the close-case tree
-still answers the owner's `Leave(VulnerabilityCase)` with a plain
-`Reject(Leave(Case))`, which now matches no pattern, so
-`test_a_declined_leave_closes_the_owners_pending_leave` is a strict `xfail` until
-that answer becomes the standard `Refuse`. Reason: AC-3 of #6434 keeps no fallback
-for a plain `Reject` of a non-request.
-
-**Touches.** ADR-0131, ADR-0141, ADR-0196, MSM-05-001, CLP-02-005, CLP-05-001,
-CLP-02-016, CM-23-011, CM-23-040, CM-23-057, VM-03, `REFUSAL_NOTICE`, the
-`OWNER_CLOSE_DECLINE` refusal-notice exemption, and `docs/ns/context.jsonld`.
+**Resolved in planning.** The ledger `Add` carries no `result`. An act a commit
+causes names its cause in its own `inReplyTo`, so causation is read from effect to
+cause, with no ids derived in advance and no waiting for follow-on commits (ADR-0204).
 
 ---
 

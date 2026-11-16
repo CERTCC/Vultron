@@ -36,7 +36,6 @@ from vultron.semantic_registry import (
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.factories import (
     create_case_activity,
-    reject_close_case_activity,
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -174,41 +173,6 @@ class _CasesMixin:
             case=case_id, actor=actor, to=to, at=at
         )
         return _create_and_seal(self._dl, activity, "close_case")
-
-    def reject_close_case(
-        self,
-        case_id: str,
-        actor: str,
-        close_sender: str,
-        in_reply_to: str | None = None,
-        *,
-        at: datetime,
-    ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
-
-        Declines an owner's close while an embargo is active (CM-23-011).
-        The declined Leave is reconstructed, naming the case as the owner's
-        Leave does (ADR-0165), as sent by the ``close_sender`` (the Case
-        Owner), then wrapped in an ``as:Reject``
-        sent by ``actor`` (the Case Actor) back to the owner.  The inbound
-        Leave is not archived when this runs (intake has only recorded it,
-        or, for a late Leave the post-close boundary refused, has not run;
-        the outcome stage settles it after the tree), so the decline is
-        threaded to it via ``in_reply_to`` rather than read back from the
-        DataLayer.
-        """
-        # Rebuilt from what this actor knows, with no time: the owner stated
-        # the Leave's ``published``, and this actor does not hold it, so the
-        # rejecter's instant is not stamped on it (AKM-02-006).  Embedding the
-        # received Leave instead of a rebuild is #6259.
-        leave = rm_close_case_activity(
-            case=case_id, actor=close_sender, at=at
-        ).model_copy(update={"published": None, "updated": None})
-        kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
-        if in_reply_to is not None:
-            kwargs["in_reply_to"] = in_reply_to
-        activity = reject_close_case_activity(leave=leave, **kwargs, at=at)
-        return _create_and_seal(self._dl, activity, "reject_close_case")
 
     def add_object_to_case_semantics(
         self, object_id: str, case_id: str, *, at: datetime

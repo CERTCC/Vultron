@@ -9,6 +9,7 @@ consulted: >-
   Claude Opus 5.5; specs/vultron-as2-mapping.yaml VAM-01-010; CLP-07-013;
   RSH-08-004; issues #4598, #4635, #4676, #4550
 informed: []
+partially_superseded_by: 0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md
 stakeholder_type: [project-contributor]
 ---
 

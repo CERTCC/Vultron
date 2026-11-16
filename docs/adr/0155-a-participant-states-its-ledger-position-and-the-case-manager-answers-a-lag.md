@@ -11,6 +11,7 @@ consulted: >-
   SYNC-04-001, SYNC-15-003; specs/case-management.yaml CM-10-004,
   CM-10-007; issues #2961, #5089, #1156
 informed: []
+partially_superseded_by: 0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md
 stakeholder_type: [project-contributor]
 ---
 

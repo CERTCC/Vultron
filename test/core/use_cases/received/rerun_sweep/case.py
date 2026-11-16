@@ -61,7 +61,7 @@ from ..test_case_proposal import (
     _make_proposal,
     _seed_vendor_link,
 )
-from . import Scenario, applied
+from . import Scenario, applied, refused
 from ._net import deliver
 
 _BASE = "https://example.org/cases/rerun-sweep"
@@ -108,6 +108,19 @@ def defer_case() -> Scenario:
 def close_case() -> Scenario:
     """A participant that is not the owner leaves: closed and announced."""
     return _rm_move("close-case", rm_close_case_activity, RM.ACCEPTED)
+
+
+@refused(MessageSemantics.CLOSE_CASE)
+def close_case_embargoed() -> Scenario:
+    """The Case Owner leaves while the embargo is active: refused with a
+    ``Refuse`` of the Leave (CM-23-011)."""
+    net = LedgerNetwork(f"{_BASE}/close-case-embargoed")
+    return deliver(
+        net,
+        rm_close_case_activity(
+            net.case(OWNER), actor=OWNER, to=[MANAGER], at=authored_at()
+        ),
+    )
 
 
 @applied(MessageSemantics.ADD_REPORT_TO_CASE)

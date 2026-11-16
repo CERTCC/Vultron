@@ -11,7 +11,9 @@ consulted: >-
   specs/received-status-handling.yaml RSH-08;
   docs/reference/vultron-spec/_participant-lifecycle.md § 11.4
 informed: []
-partially_superseded_by: 0172-an-active-participant-is-not-closed.md
+partially_superseded_by:
+  - 0172-an-active-participant-is-not-closed.md
+  - 0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md
 stakeholder_type: [project-contributor]
 ---
 
