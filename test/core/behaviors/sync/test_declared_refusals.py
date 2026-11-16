@@ -71,4 +71,4 @@ def test_a_reject_node_with_no_actor_raises_rather_than_refusing() -> None:
     node.activity = object()
     with pytest.raises(VultronWiringError, match="actor_id"):
         node.update()
-    assert node.declared_refusal is None
+    assert node._refusal is None

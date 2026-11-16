@@ -40,8 +40,9 @@ request.  It asks, in this order:
 6. On a failed run, a guard on the failure chain that failed as a repeat
    (:class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`) →
    ``SKIPPED``.
-7. A node composed without a dependency (a ``WIRING_UNAVAILABLE_MESSAGES``
-   reason) → raise: our fault, not the sender's (ADR-0095).
+7. A node whose failure decided the run, composed without a dependency (a
+   ``WIRING_UNAVAILABLE_MESSAGES`` reason) → raise: our fault, not the
+   sender's (ADR-0095).
 8. A node whose failure decided the run and declared it a refusal
    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`) →
    ``REFUSED`` with the reason the node gave, which names its condition and
@@ -72,6 +73,7 @@ from vultron.core.behaviors.case.received_run.sequence import (
 )
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.idempotency import (
+    nodes_deciding_failure,
     refusal_ending_run,
     repeat_ending_run,
     unchanged_by_run,
@@ -185,12 +187,18 @@ def _refused_or_raise(
 
     A node composed without a dependency (it set a wiring message instead
     of raising) is our fault, not the sender's, so it raises first, ahead of
-    any refusal a node declared (ADR-0095).  So does any undeclared failure
-    of a tree that judges nothing.
+    any refusal a node declared, wherever it sits among the nodes whose
+    failure decided the run (ADR-0095).  So does any undeclared failure of
+    a tree that judges nothing.
     """
     reason = outcome.failure_reason
     if reason in WIRING_UNAVAILABLE_MESSAGES:
         raise VultronBTInternalError(f"{outcome.label}: {reason}")
+    for node in nodes_deciding_failure(outcome.tree):
+        if node.feedback_message in WIRING_UNAVAILABLE_MESSAGES:
+            raise VultronBTInternalError(
+                f"{outcome.label}: {node.name}: {node.feedback_message}"
+            )
     if (declared := refusal_ending_run(outcome.tree)) is not None:
         # The node said its failure refuses the activity, and why.
         return HandlerResult.refused(declared)

@@ -459,6 +459,32 @@ def test_a_wiring_fault_raises_ahead_of_a_declared_refusal():
         _read(_ran(answer))
 
 
+def test_a_wiring_fault_in_an_earlier_alternative_raises_too():
+    """A fault ahead of the refusing fallback is still ours (ADR-0095)."""
+    answer = py_trees.composites.Selector(
+        name="FaultOrRefuse",
+        memory=False,
+        children=[
+            _Fixed("Check", Status.FAILURE, DATALAYER_UNAVAILABLE),
+            _RefusingGuard("SendReject", "refused"),
+        ],
+    )
+    with pytest.raises(VultronBTInternalError, match="Check"):
+        _read(_ran(answer))
+
+
+def test_a_wiring_fault_under_a_succeeding_decorator_is_not_read():
+    """A fault that did not decide the run leaves the declared refusal."""
+    tolerated = py_trees.decorators.FailureIsSuccess(
+        name="Tolerated",
+        child=_Fixed("Optional", Status.FAILURE, DATALAYER_UNAVAILABLE),
+    )
+    tree = _ran(tolerated, _RefusingGuard("Check", "refused (HP-01-005)"))
+    verdict = _read(tree)
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == "refused (HP-01-005)"
+
+
 def test_a_refusal_declared_without_a_reason_raises():
     with pytest.raises(ValueError, match="needs a reason"):
         _ran(_RefusingGuard("Check", ""))

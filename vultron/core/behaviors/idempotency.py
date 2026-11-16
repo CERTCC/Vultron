@@ -33,6 +33,7 @@ CLP-10-022.
 """
 
 import logging
+from collections.abc import Iterator
 from typing import ClassVar, Protocol, runtime_checkable
 
 import py_trees
@@ -137,28 +138,39 @@ def unchanged_by_run(
     return None
 
 
-def refusal_ending_run(root: py_trees.behaviour.Behaviour) -> str | None:
-    """The reason the first node whose failure decided *root*'s declared.
+def nodes_deciding_failure(
+    root: py_trees.behaviour.Behaviour,
+) -> Iterator[py_trees.behaviour.Behaviour]:
+    """The nodes whose failure decided *root*'s, in tree order.
 
     A node decided the run when it failed and every composite above it
     failed with it: the one failed child of a ``Sequence``, and each child
-    of a failed ``Selector``, whose every alternative failed.  The search
-    takes those in tree order, so a guard is found ahead of the fallback
-    that answered it (a fault or a ``Reject`` that still fails the
-    ``Selector``).  A node that failed under a decorator or composite that
-    succeeded did not decide the run, so its declaration is not read.
-    ``None`` when *root* did not fail, or no deciding node declares a
-    refusal.  A local fault elsewhere on the run is the caller's to read
-    first: the received runner raises on one before it asks this
-    (ADR-0095).
+    of a failed ``Selector``, whose every alternative failed.  A node that
+    failed under a decorator or composite that succeeded did not decide the
+    run.  Yields nothing when *root* did not fail.
     """
     if root.status != Status.FAILURE:
-        return None
-    if isinstance(root, ReportsRefusal) and root.declared_refusal:
-        return root.declared_refusal
+        return
+    yield root
     for child in root.children:
-        if (found := refusal_ending_run(child)) is not None:
-            return found
+        yield from nodes_deciding_failure(child)
+
+
+def refusal_ending_run(root: py_trees.behaviour.Behaviour) -> str | None:
+    """The reason the first node whose failure decided *root*'s declared.
+
+    Takes :func:`nodes_deciding_failure` in tree order, so a guard is found
+    ahead of the fallback that answered it (a fault or a ``Reject`` that
+    still fails the ``Selector``), and a node that failed under a decorator
+    or composite that succeeded is not read.  ``None`` when *root* did not
+    fail, or no deciding node declares a refusal.  A wiring fault (a node
+    composed without its DataLayer or a port) among those nodes is the
+    caller's to read first: the received runner raises on one before it
+    asks this (ADR-0095).
+    """
+    for node in nodes_deciding_failure(root):
+        if isinstance(node, ReportsRefusal) and node.declared_refusal:
+            return node.declared_refusal
     return None
 
 
@@ -296,6 +308,7 @@ __all__ = [
     "ReportsNoChange",
     "ReportsRefusal",
     "SilentIdempotencyGuardMixin",
+    "nodes_deciding_failure",
     "refusal_ending_run",
     "repeat_ending_run",
     "unchanged_by_run",
