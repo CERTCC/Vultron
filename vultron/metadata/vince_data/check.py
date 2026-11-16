@@ -44,6 +44,7 @@ Usage::
     uv run vince-data check                     # the tracked tree
     uv run vince-data check --history origin/main   # and each branch commit
     uv run vince-data generate                  # rewrite the fixtures
+    uv run vince-data sanitize SOURCE --vuid 998001   # see .sanitizer
 """
 
 from __future__ import annotations
@@ -77,6 +78,11 @@ from vultron.metadata.vince_data.marker import (
     ProducerVerifier,
     read_marker,
 )
+from vultron.metadata.vince_data.sanitizer import (
+    SanitizeError,
+    sanitize_file,
+    verify_sanitized,
+)
 from vultron.metadata.vince_data.shape import (
     UnreadableJson,
     find_vince_shape,
@@ -86,12 +92,11 @@ from vultron.metadata.vince_data.shape import (
 )
 
 #: Each tool that may mark a file synthetic, and how it vouches for one.
-#: ``None`` reserves the name for a tool not built yet: the sanitizer
-#: (#6348) replaces its entry with a verifier, and until then a file marked
-#: as its output is refused.
+#: A ``None`` entry would reserve a name for a tool not built yet, whose
+#: marked files are refused.
 PRODUCER_VERIFIERS: Mapping[str, ProducerVerifier | None] = {
     GENERATOR: verify_generated,
-    SANITIZER: None,
+    SANITIZER: verify_sanitized,
 }
 
 Verifiers = Mapping[str, ProducerVerifier | None]
@@ -413,19 +418,46 @@ def _run_check(root: Path, history: str | None) -> int:
     return 0
 
 
+def _run_sanitize(root: Path, source: str, vuid: str) -> int:
+    try:
+        path = sanitize_file(Path(source), root, vuid)
+    except SanitizeError as exc:
+        print(f"vince-data: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """``vince-data generate`` or ``vince-data check [--history BASE]``."""
+    """``vince-data generate``, ``vince-data check [--history BASE]`` or
+    ``vince-data sanitize SOURCE --vuid ID``."""
     parser = argparse.ArgumentParser(
         prog="vince-data",
-        description="Write the synthetic VINCE fixtures, or check that no "
-        "VINCE API data is committed unless synthetic or cleared.",
+        description="Write the synthetic VINCE fixtures, sanitize a VINCE "
+        "case into one, or check that no VINCE API data is committed unless "
+        "synthetic or cleared.",
     )
-    parser.add_argument("command", choices=("generate", "check"))
-    parser.add_argument(
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("generate", help="rewrite the generator's fixtures")
+    checking = commands.add_parser("check", help="the committed-data check")
+    checking.add_argument(
         "--history",
         metavar="BASE",
         help="also check every file each commit in BASE..HEAD added or "
         "changed",
+    )
+    sanitizing = commands.add_parser(
+        "sanitize",
+        help="write a synthetic case of the shape of a VINCE case bundle",
+    )
+    sanitizing.add_argument(
+        "source",
+        help="the per-case bundle, at a path outside the checkout",
+    )
+    sanitizing.add_argument(
+        "--vuid",
+        required=True,
+        help="the synthetic case id to write it as (998000 to 998999)",
     )
     args = parser.parse_args(argv)
     root = repo_root()
@@ -433,6 +465,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         for path in generate(root):
             print(f"wrote {path}")
         return 0
+    if args.command == "sanitize":
+        return _run_sanitize(root, args.source, args.vuid)
     return _run_check(root, args.history)
 
 
