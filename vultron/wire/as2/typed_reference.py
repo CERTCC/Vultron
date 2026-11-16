@@ -14,9 +14,13 @@ This module is the one place that reads that shape:
 - :func:`is_typed_reference_shape` answers whether a received mapping is a
   typed reference, and :func:`carries_preview` whether it carries a preview;
 - :func:`refuse_undefined_preview` refuses a preview for a type that defines
-  none (MV-10-012);
+  none, or one that is not its type's preview (MV-10-012);
 - :class:`as_TypedReference` is what the parser reads one as, for every type
-  that has no reference form of its own (:func:`reads_as_typed_reference`).
+  that has no reference form of its own (:func:`reads_as_typed_reference`);
+- :func:`is_previewed_reference` answers whether a parsed object is a typed
+  reference carrying a preview, which a receiver reads as received: never
+  expanded into the object it names, never fetched, and never a replica's
+  source (MV-10-011, ADR-0205).
 
 Two types keep the reference forms they had before this rule generalized
 them: an actor reference is the actor's own class carrying only its ``id``
@@ -24,8 +28,9 @@ them: an actor reference is the actor's own class carrying only its ``id``
 :class:`~vultron.wire.as2.vocab.objects.vulnerability_case.as_VulnerabilityCaseReference`
 (ADR-0165).  A collection carrying only its ``id`` is the address of an
 actor's endpoint (AKM-02-006), and a case stub keeps its own shape and
-position rules (MV-10-001, MV-10-002) until the stub moves into a case
-reference's ``preview`` (ADR-0205).
+position rules (MV-10-001, MV-10-002).  A case reference that carries the
+case's preview is an :class:`as_TypedReference`: the case reference class
+names a case by exactly its ``id`` and ``type`` (ADR-0205).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -43,9 +48,10 @@ reference's ``preview`` (ADR-0205).
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from types import MappingProxyType
+from typing import Any, TypeGuard
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -74,11 +80,18 @@ TYPED_REFERENCE_KEYS: frozenset[str] = frozenset(
 #: The key a typed reference carries its preview under.
 PREVIEW_KEY = "preview"
 
-#: The types whose preview the protocol defines (MV-10-012, ADR-0198).  A
-#: typed reference of any other type that carries a ``preview`` is refused.
-#: None is defined yet: the case's preview is the work of ADR-0205 (#6244),
-#: and previews beyond it are #6257.
-TYPES_WITH_DEFINED_PREVIEW: frozenset[str] = frozenset()
+#: The preview the protocol defines for each type, by the type's wire name
+#: (MV-10-012, ADR-0198).  A case's preview is the case stub, carrying what
+#: an invitee decides on before it may see the case (CM-17-010, ADR-0205).
+#: A typed reference of any other type that carries a ``preview`` is
+#: refused, as is a case reference whose preview is not an inline stub.
+#: Previews beyond the case's are #6257.
+DEFINED_PREVIEWS: Mapping[str, type[BaseModel]] = MappingProxyType(
+    {"VulnerabilityCase": as_VulnerabilityCaseStub}
+)
+
+#: The types whose preview the protocol defines (MV-10-012, ADR-0198).
+TYPES_WITH_DEFINED_PREVIEW: frozenset[str] = frozenset(DEFINED_PREVIEWS)
 
 
 def is_typed_reference_shape(value: Mapping[str, Any]) -> bool:
@@ -101,13 +114,17 @@ def carries_preview(value: Mapping[str, Any]) -> bool:
 
 
 def refuse_undefined_preview(value: Mapping[str, Any], path: str = "") -> None:
-    """Refuse a typed reference whose type defines no preview (MV-10-012).
+    """Refuse a typed reference whose preview its type does not define
+    (MV-10-012).
 
     A preview is a limited view of an object for a recipient that may not
     hold it, and what it may carry is decided per type (ADR-0193, ADR-0198).
     A preview of a type that defines none would be read by no rule, so it is
-    refused rather than carried unchecked.  Returns when *value* is not a
-    typed reference carrying a preview, or its type defines one.
+    refused rather than carried unchecked.  So is a preview that is not its
+    type's preview carried inline (:data:`DEFINED_PREVIEWS`): the recipient
+    of a preview may not hold the object, nor be entitled to fetch it, so a
+    preview given by URI tells it nothing.  Returns when *value* is not a
+    typed reference carrying a preview, or the preview is its type's.
 
     Args:
         value: The received inline mapping.
@@ -121,14 +138,43 @@ def refuse_undefined_preview(value: Mapping[str, Any], path: str = "") -> None:
     if not (is_typed_reference_shape(value) and carries_preview(value)):
         return
     type_name = resolved_wire_type_name(value.get("type"), include_core=True)
-    if type_name in TYPES_WITH_DEFINED_PREVIEW:
-        return
     where = f" at {path!r}" if path else ""
+    preview_cls = DEFINED_PREVIEWS.get(type_name or "")
+    if preview_cls is None:
+        raise VultronParseValidationError(
+            f"Typed reference{where} carries a 'preview', but no preview is"
+            f" defined for type {value.get('type')!r} (MV-10-012). Send the"
+            " reference as exactly its 'id' and 'type', or the whole object."
+        )
+    if _is_inline_object_of(value[PREVIEW_KEY], preview_cls):
+        return
     raise VultronParseValidationError(
-        f"Typed reference{where} carries a 'preview', but no preview is"
-        f" defined for type {value.get('type')!r} (MV-10-012). Send the"
-        " reference as exactly its 'id' and 'type', or the whole object."
+        f"Typed reference{where} carries a 'preview' that is not a"
+        f" {type_name}'s preview: a {type_name} reference's preview is an"
+        f" inline {_wire_name(preview_cls)} (MV-10-012, ADR-0205)."
     )
+
+
+def _is_inline_object_of(value: object, cls: type[BaseModel]) -> bool:
+    """Whether *value* is an inline object of class *cls*.
+
+    The partition asks this of the received mapping, and the parser's
+    expansion, which validates nested objects first, of the object the
+    mapping became.
+    """
+    if isinstance(value, cls):
+        return True
+    if not isinstance(value, Mapping):
+        return False
+    try:
+        return resolve_wire_type(value.get("type")) is cls
+    except KeyError:
+        return False
+
+
+def _wire_name(cls: type[BaseModel]) -> str:
+    """The wire ``type`` of *cls*, a defined preview's pinned ``type_``."""
+    return str(cls.model_fields["type_"].default)
 
 
 def reads_as_typed_reference(
@@ -172,6 +218,11 @@ class as_TypedReference(as_Object):
 
     It claims no ``WIRE_TYPE_MAP`` key: its ``type`` is the referenced
     object's, any type at all, so it declares no ``Literal``.
+
+    It may carry its type's preview, which only a case defines: the case
+    stub (MV-10-012, ADR-0205).  A reference carrying a preview is read as
+    received, never replaced by the object it names
+    (:func:`is_previewed_reference`).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -186,6 +237,54 @@ class as_TypedReference(as_Object):
     # process's clock (AKM-02-006, ADR-0159).
     published: datetime | None = None
     updated: datetime | None = None
+    # The one defined preview (DEFINED_PREVIEWS, which a test holds to this
+    # annotation); the parser refuses any other before this class reads it
+    # (MV-10-012).
+    preview: as_VulnerabilityCaseStub | None = None  # type: ignore[assignment]
+
+    @model_validator(mode="after")
+    def _preview_names_this_case(self) -> as_TypedReference:
+        """Refuse a preview its type does not define, or one naming another
+        case (MV-10-012).
+
+        The parser refuses an undefined preview before this runs, but a
+        stored row is read without the parser, so the class holds the rule
+        itself.  A stub names its case in ``caseId`` (CM-11-013), so a
+        preview whose ``caseId`` is not the reference's ``id`` previews a
+        different case.
+        """
+        if self.preview is None:
+            return self
+        type_name = resolved_wire_type_name(self.type_, include_core=True)
+        defined = DEFINED_PREVIEWS.get(type_name or "")
+        if defined is None or type(self.preview) is not defined:
+            # Pydantic reports a ValueError raised here as a validation error.
+            raise ValueError(
+                f"a {self.type_} reference's preview is not that type's"
+                " defined preview (MV-10-012, ADR-0205)"
+            )
+        if self.preview.case_id != self.id_:
+            # Pydantic reports a ValueError raised here as a validation error.
+            raise ValueError(
+                f"the preview of case reference {self.id_!r} names case"
+                f" {self.preview.case_id!r}; a case's preview names the case"
+                " it previews (MV-10-012, ADR-0205)"
+            )
+        return self
+
+
+def is_previewed_reference(value: object) -> TypeGuard[as_TypedReference]:
+    """Whether *value* is a typed reference that carries a preview.
+
+    A receiver reads such a reference as received (MV-10-011, ADR-0205).
+    The preview is a limited view for a recipient not yet entitled to the
+    object, and an activity carrying it means something other than one
+    carrying the whole object.  So the reference is never replaced by the
+    object the receiver holds, never reduced to a bare id for the inbox to
+    fetch, and satisfies only a pattern that asks for that form
+    (SE-01-009), so no replica is seeded or updated from it.
+    """
+    return isinstance(value, as_TypedReference) and value.preview is not None
 
 
 #: Core classes that are a kind of an AS2 base type without subclassing its
@@ -227,12 +326,14 @@ def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
 
 
 __all__ = [
+    "DEFINED_PREVIEWS",
     "PREVIEW_KEY",
     "TYPED_REFERENCE_KEYS",
     "TYPES_WITH_DEFINED_PREVIEW",
     "as_TypedReference",
     "carries_preview",
     "is_of_kind",
+    "is_previewed_reference",
     "is_typed_reference_shape",
     "reads_as_typed_reference",
     "referenced_class",

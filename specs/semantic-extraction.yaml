@@ -150,6 +150,35 @@ groups:
       `test_bare_case_uri_in_target_or_context_satisfies_the_pattern` in
       `test/test_semantic_activity_patterns.py` matches activities whose `target` or
       `context` is a bare case URI and checks their semantic type.
+  - id: SE-01-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An `ActivityPattern`'s `object_` constraint MUST NOT be satisfied by a typed
+      reference that carries a preview, unless the pattern requires that form of its
+      object.
+    rationale: >-
+      A preview is not the object it previews (MV-10-013). A pattern that matched the
+      previewed case reference by its type would read a stub Invite as the full-case
+      Invite, or an `Announce` of a preview as a case copy that seeds a replica. Two
+      patterns that differ only in the form they require, a previewed reference or a
+      whole object, each match only their own form, so the stub Invite and the
+      full-case Invite are told apart without a fetch (ADR-0205).
+    verification: >-
+      `test/wire/as2/test_previewed_references.py`:
+      `test_patterns_differing_only_in_form_each_match_only_their_own` matches two
+      patterns that differ only in `object_form` against a previewed reference and a
+      whole case; `test_a_pattern_naming_no_form_does_not_read_a_preview_as_the_object`
+      checks that a pattern naming no form matches the whole case and not the
+      preview; `test_no_registered_pattern_reads_a_preview_as_the_case` checks that
+      no registered pattern matches an `Invite` or `Announce` of a preview; and
+      `test_an_object_form_no_object_can_have_is_refused` refuses a form on a pattern
+      whose object is a nested activity or a bare id.
+    relationships:
+    - rel_type: implements
+      spec_id: MV-10-013
+    adr:
+    - ADR-0205
 - id: SE-02
   title: Semantic Type Assignment
   specs:

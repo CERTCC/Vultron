@@ -33,7 +33,10 @@ from vultron.wire.as2.extractor._builders.statuses import (
     _build_case_status_object,
     _build_participant_status_object,
 )
-from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_previewed_reference,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -185,9 +188,13 @@ def _build_object_kwargs(
 
     if _obj_type == str(VOtype.VULNERABILITY_REPORT):
         kw.update(_build_report_object(obj))
-    elif isinstance(obj, as_VulnerabilityCaseReference):
+    elif isinstance(obj, as_VulnerabilityCaseReference) or (
+        is_previewed_reference(obj)
+    ):
         # A case named by typed reference reaches core as its id and type
         # only (ADR-0165); the receiver reads the case from its own store.
+        # A reference carrying a preview stays one too: a preview is not
+        # the object, so no case is built from it (MV-10-011, ADR-0205).
         kw["object_"] = _to_domain_obj(obj)
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))

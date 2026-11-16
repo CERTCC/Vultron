@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from vultron.adapters.driven.db_record.codec import (
     STORED_ROW_CONTEXT,
+    _build_previewed_references,
     _build_unmodelled_inline,
     _dehydrate_data,
     _rekey_wire_identity,
@@ -101,11 +102,11 @@ class Record(StorableRecord):
             )
         # A stored row: a validator that defaults an omitted field refuses
         # the omission instead (STORED_CONTEXT_KEY).
+        data = _build_previewed_references(self.data_)
         obj = cls.model_validate(
-            _build_unmodelled_inline(cls, self.data_),
-            context=STORED_ROW_CONTEXT,
+            _build_unmodelled_inline(cls, data), context=STORED_ROW_CONTEXT
         )
-        return _retype_inline_object_refs(obj, self.data_)
+        return _retype_inline_object_refs(obj, data)
 
 
 def object_to_record(obj: PersistableModel) -> Record:

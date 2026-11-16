@@ -28,7 +28,10 @@ the slots an act may put it in:
   the case (ADR-0114), so its one slot is the ``target`` of the ``Invite``
   whose ``object`` is the inline actor it invites to the case, at any depth:
   the ``Accept`` and ``Reject`` of that ``Invite`` carry it inline
-  (MV-10-002).
+  (MV-10-002).  It is also the case's preview (ADR-0205), so its other slot
+  is the ``preview`` of a typed case reference that is an ``Invite``'s
+  ``object``, at any depth.  A previewed case reference anywhere else
+  carries a misplaced stub.
 
 The parser refuses either form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
@@ -44,6 +47,7 @@ from pydantic import BaseModel
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.typed_reference import is_previewed_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -51,8 +55,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 
-#: Whether *parent*'s field *field_name* is a slot the form may sit in.
-_SlotPredicate = Callable[[BaseModel, str], bool]
+#: Whether *child*, held in *parent*'s field *field_name*, sits where it may.
+#: An admitted child is not walked further.
+_SlotPredicate = Callable[[BaseModel, str, object], bool]
 
 
 def _misplaced(
@@ -72,7 +77,7 @@ def _misplaced(
         return
     for field_name, info in type(value).model_fields.items():
         child = getattr(value, field_name, None)
-        if isinstance(child, form) and admits(value, field_name):
+        if admits(value, field_name, child):
             continue
         # The key the sender wrote, so the refusal names the slot it used.
         key = info.serialization_alias or field_name.rstrip("_")
@@ -80,10 +85,14 @@ def _misplaced(
         yield from _misplaced(child, child_path, form, admits)
 
 
-def _names_case_by_reference(parent: BaseModel, field_name: str) -> bool:
-    """The object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer`` (AKM-03-004)."""
+def _names_case_by_reference(
+    parent: BaseModel, field_name: str, child: object
+) -> bool:
+    """A case reference as the object of a ``Join``, ``Ignore``, ``Leave`` or
+    ``Offer`` (AKM-03-004)."""
     return (
-        field_name == "object_"
+        isinstance(child, as_VulnerabilityCaseReference)
+        and field_name == "object_"
         and isinstance(parent, as_Activity)
         and str(parent.type_) in CASE_NAMING_ACTIVITY_TYPES
     )
@@ -106,6 +115,28 @@ def _is_case_invitation_target(parent: BaseModel, field_name: str) -> bool:
         return False
     invitee = getattr(parent, "object_", None)
     return isinstance(invitee, as_Actor | CoreActor)
+
+
+def _is_invited_case_preview(parent: BaseModel, field_name: str) -> bool:
+    """The ``object`` of an ``Invite``, where a case reference carries the
+    case's preview (ADR-0205)."""
+    return (
+        field_name == "object_"
+        and isinstance(parent, as_Activity)
+        and str(parent.type_) == "Invite"
+    )
+
+
+def _admits_case_stub(
+    parent: BaseModel, field_name: str, child: object
+) -> bool:
+    """A stub in a case invitation's ``target``, or carried as the preview of
+    a case reference an ``Invite`` names in its ``object`` (MV-10-002)."""
+    if isinstance(child, as_VulnerabilityCaseStub):
+        return _is_case_invitation_target(parent, field_name)
+    return is_previewed_reference(child) and _is_invited_case_preview(
+        parent, field_name
+    )
 
 
 def refuse_misplaced_case_reference(activity: as_Activity) -> None:
@@ -143,7 +174,7 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
             activity,
             "",
             as_VulnerabilityCaseStub,
-            _is_case_invitation_target,
+            _admits_case_stub,
         )
     )
     if misplaced:
@@ -151,8 +182,9 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
             f"activity {activity.id_!r}: a VulnerabilityCaseStub at"
             f" {', '.join(misplaced)}; a case stub is permitted only as the"
             " target of an Invite whose object is the inline actor it invites"
-            " to the case, or of that Invite carried inline in its Accept or"
-            " Reject; anywhere else name the case by its URI (MV-10-002)"
+            " to the case, or as the preview of a case reference that is an"
+            " Invite's object, wherever that Invite is carried inline;"
+            " anywhere else name the case by its URI (MV-10-002)"
         )
 
 

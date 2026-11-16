@@ -6,8 +6,11 @@ dispatch entries. This is the primitive building block imported by both
 (ordering guard and registry entries).
 """
 
+from enum import StrEnum
+
 from pydantic import BaseModel, model_validator
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
@@ -18,11 +21,77 @@ from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
     is_of_kind,
+    is_previewed_reference,
     referenced_class,
 )
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+)
+
+
+class ObjectForm(StrEnum):
+    """The form an ``ActivityPattern`` may require of its ``object`` (SE-01-009).
+
+    ADR-0198 gives an object slot three forms; ADR-0205 tells two activities
+    with objects of the same type apart by form, as received:
+
+    - ``PREVIEWED_REFERENCE``: a typed reference that carries a preview
+      (:func:`~vultron.wire.as2.typed_reference.is_previewed_reference`).
+    - ``WHOLE_OBJECT``: an inline object that is not a typed reference, a
+      case, actor or collection reference, a ``Link`` or a bare URI.
+    """
+
+    PREVIEWED_REFERENCE = "previewedReference"
+    WHOLE_OBJECT = "wholeObject"
+
+
+#: The keys an actor or collection reference carries (AKM-05-017, AKM-02-006).
+_IDENTITY_FIELDS = frozenset({"id_", "type_", "context_"})
+
+
+def _names_only_its_identity(value: BaseModel) -> bool:
+    """Whether *value* was given no field with a value but its identity."""
+    return {
+        name
+        for name in value.model_fields_set
+        if getattr(value, name, None) is not None
+    } <= _IDENTITY_FIELDS
+
+
+def _is_whole_object(value: object) -> bool:
+    """Whether *value* is an inline whole object (ADR-0198).
+
+    Not a typed reference, a case reference or a ``Link``, nor an actor or
+    collection named by its identity alone: the actor reference
+    (AKM-05-017) and an endpoint's address (AKM-02-006) are references too.
+    """
+    if not isinstance(value, BaseModel) or isinstance(
+        value, (as_TypedReference, as_VulnerabilityCaseReference, as_Link)
+    ):
+        return False
+    if isinstance(value, (as_Actor, CoreActor, as_Collection)):
+        return not _names_only_its_identity(value)
+    return True
+
+
+def matches_object_form(form: ObjectForm | None, value: object) -> bool:
+    """Whether *value*, an activity's ``object``, has the form *form* asks.
+
+    With no form asked, any object but a previewed reference has it: a
+    preview is not the object (ADR-0205), so only a pattern that asks for a
+    previewed reference routes one, and no other pattern reads it as the
+    object (SE-01-009).
+    """
+    if form is ObjectForm.PREVIEWED_REFERENCE:
+        return is_previewed_reference(value)
+    if form is ObjectForm.WHOLE_OBJECT:
+        return _is_whole_object(value)
+    return not is_previewed_reference(value)
 
 
 class ActivityPattern(BaseModel):
@@ -42,6 +111,12 @@ class ActivityPattern(BaseModel):
     apart from every other pattern of its verb may set it, as
     ``LedgerPositionReadPattern`` does with ``ledgerPosition``.
 
+    ``object_form`` constrains the object's form, as received (SE-01-009,
+    ADR-0205): a typed reference that carries a preview, or a whole object.
+    Two patterns that differ only in it each match only their own form.
+    Unset, it admits every form but a previewed reference, which only a
+    pattern that asks for one matches: a preview is not the object.
+
     ``strict`` governs ``target_`` alone: when True, a bare string in
     ``target`` does NOT match a scalar ``target_`` constraint.  Set it on a
     pattern whose ``target_`` is the sole field that tells it apart from a
@@ -54,6 +129,7 @@ class ActivityPattern(BaseModel):
     activity_: TAtype | IAtype
     strict: bool = False
     accepts_bare_object: bool = False
+    object_form: ObjectForm | None = None
 
     to_: AOtype | VOtype | ActivityPattern | None = None
     object_: AOtype | VOtype | ActivityPattern | None = None
@@ -70,6 +146,29 @@ class ActivityPattern(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _object_form_needs_an_object_type(self) -> ActivityPattern:
+        """Refuse an ``object_form`` no object it could match has.
+
+        A form is a form of a non-activity object (SE-01-009): an inline
+        activity is neither a previewed reference nor read by form, and a
+        pattern that accepts a bare object accepts what no form describes.
+        """
+        if self.object_form is None:
+            return self
+        reason = None
+        if isinstance(self.object_, ActivityPattern):
+            reason = "a nested activity pattern sets its own"
+        elif self.accepts_bare_object:
+            reason = "it requires an inline object, not a bare one"
+        if reason is not None:
+            # Pydantic reports a ValueError raised here as a validation error.
+            raise ValueError(
+                f"object_form constrains a non-activity object (SE-01-009):"
+                f" {reason}"
+            )
+        return self
+
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
         if self.activity_ != activity.type_:
@@ -83,8 +182,11 @@ class ActivityPattern(BaseModel):
         """True if *value*, an activity's ``object``, satisfies ``object_``.
 
         A bare string satisfies a scalar ``object_`` only when the pattern
-        sets ``accepts_bare_object`` (SE-01-006).
+        sets ``accepts_bare_object`` (SE-01-006), and *value* must have the
+        form ``object_form`` asks (SE-01-009).
         """
+        if not matches_object_form(self.object_form, value):
+            return False
         return _match_activity_field(
             self.object_, value, strict=not self.accepts_bare_object
         )
@@ -226,11 +328,15 @@ def bare_object_id(activity: as_Activity) -> str | None:
     the one the receiver lacks (VAM-01-009, AKM-05-007).  A typed reference
     ending the chain names its id the same way: no pattern matched it, so the
     object must be read before the activity can be.  ``None`` when the chain
-    ends in an inline whole object, or in no object at all.
+    ends in an inline whole object, in a typed reference that carries a
+    preview, or in no object at all: a previewed reference is read as
+    received, and the receiver fetches nothing for it (MV-10-011, ADR-0205).
     """
     obj: object = getattr(activity, "object_", None)
     while isinstance(obj, as_Activity):
         obj = getattr(obj, "object_", None)
+    if is_previewed_reference(obj):
+        return None
     if isinstance(obj, as_TypedReference):
         # A reference no pattern matched names an object the receiver must
         # fetch before it can read it, as a bare id does (MV-10-011).

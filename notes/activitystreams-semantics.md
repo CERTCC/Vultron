@@ -13,6 +13,7 @@ related_specs:
   - specs/response-format.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
+  - specs/message-validation.yaml
 related_notes:
   - notes/as2-vocabulary-alignment.md
   - notes/activitystreams-state-update.md
@@ -162,6 +163,13 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
   `bare_object_id()`, finds that end for both the classifier and the event's
   `unresolved_object_id`, which the fetch names: read one level down instead,
   `Undo(Accept(Invite(<id>)))` names the held middle `Accept`.
+- **A previewed reference is neither bare nor the object.** A case reference
+  carrying the stub as its `preview` stays as received through rehydration and
+  the stored row, and `bare_object_id()` names nothing for it, so no fetch
+  (MV-10-013). It matches only a pattern with
+  `object_form=ObjectForm.PREVIEWED_REFERENCE`; a pattern with no form never
+  matches it, and `WHOLE_OBJECT` refuses every reference form, an actor or
+  collection given only its identity included (SE-01-009).
 
 ## Accepting an Embargo Accepts the Invite
 
