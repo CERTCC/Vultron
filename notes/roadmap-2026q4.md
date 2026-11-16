@@ -52,7 +52,7 @@ A direction, not a commitment:
 
 1. Vultron accepts the documents CVD tools already exchange (CSAF) and verifies who
    sent them.
-2. The **case shadow** reads a live VINCE case on request and shows Vultron's
+2. The **case shadow tool** reads a live VINCE case on request and shows Vultron's
    analysis of it, without writing back (`CONTEXT.md` § Outside Systems).
 3. The **VINCE gateway** lets VINCE take part in cases as a protocol peer.
 4. Beyond the year: an independent second implementation.
@@ -75,7 +75,7 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
 2. **That offer carries a seeded-key proof that is verified** (#1156). A missing
    or failing proof gets 422 with its own error name (#5763), not 401: a proof is
    content, not an HTTP credential.
-3. **The case shadow reads a real VINCE case and shows Vultron's analysis.** On
+3. **The case shadow tool reads a real VINCE case and shows Vultron's analysis.** On
    request it reads one case through a case reader, shows where the case stands
    and shows the next moves in bands (ADR-0200), then keeps nothing (ADR-0190). It
    is built from both sides of the `CaseReader` port at once, so the two meet at

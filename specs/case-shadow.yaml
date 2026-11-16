@@ -1,7 +1,7 @@
 id: SHD
-title: Case Shadow
+title: Case Shadow Tool
 description: >-
-  Rules for the case shadow: a standalone, read-only tool that reads one case
+  Rules for the case shadow tool: a standalone, read-only tool that reads one case
   from an outside system on request, translates it, and shows Vultron's
   analysis of it, and how that tool is packaged. The first outside system is
   VINCE; its data rules are in `vince-shadow-data.yaml`.
@@ -20,29 +20,30 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The case shadow MUST NOT contain a code path that delivers an activity to
+      The case shadow tool MUST NOT contain a code path that delivers an activity to
       an inbox.
     rationale: >-
-      This version of the case shadow advises the people working a case and does
+      This version of the case shadow tool advises the people working a case and does
       not act in it. With no delivery path, nothing can reach a participant,
       whatever its settings.
     verification: >-
-      An import test asserts that no module of the case shadow imports, directly
+      An import test asserts that no module of the case shadow tool imports, directly
       or transitively, the outbox, an activity emitter, or an HTTP delivery
       adapter. A run against the recorded transport of SHD-01-002 also fails on
-      any request to a host other than the configured outside system.
+      any request to a host other than the configured outside system or Vultron
+      node.
   - id: SHD-01-002
     priority: MUST_NOT
     kind: project
     adr:
     - ADR-0190
     statement: >-
-      The case shadow MUST NOT write to an outside system.
+      The case shadow tool MUST NOT write to an outside system.
     rationale: >-
-      A case shadow beside an outside system that holds the case of record must
+      A case shadow tool beside an outside system that holds the case of record must
       leave that record exactly as its users left it.
     verification: >-
-      A test asserts the case shadow reads cases only through a `CaseReader`
+      A test asserts the case shadow tool reads cases only through a `CaseReader`
       (CRD-01-001), and a run against a recorded transport fails on any request
       that is not a read.
   - id: SHD-01-003
@@ -51,25 +52,26 @@ groups:
     adr:
     - ADR-0190
     statement: >-
-      The case shadow MUST NOT keep an outside-system case, or its translation,
-      after the request that read it ends.
+      The case shadow tool MUST NOT leave a case it read, or its translation, on
+      the host after its process exits.
     rationale: >-
-      A translation is rebuilt whenever it is needed. A copy kept beyond its
-      request is a second store of embargoed data that nobody planned to
-      protect. Transient working files within a request are allowed.
+      A copy left on the host is a second store of embargoed data that nobody
+      planned to protect. Holding a case in memory while the process runs is
+      allowed, so the tool can follow a live case as its ledger grows, and so is
+      a transient working file that is gone when the process exits. A later need
+      for the case is met by reading it again. The tool's Compose service has no
+      persistent volume to write to (SHD-02-001).
     verification: >-
-      A test runs one request over a synthetic case whose content holds a marker
-      string, then asserts the marker is in no file under the tool's working and
-      temporary directories or `~/.streamlit`, and that a second request in the
-      same process cannot read the first request's translation from a Streamlit
-      cache or session state.
+      A test runs the tool over a synthetic case whose content holds a marker
+      string, lets the process exit, then asserts the marker is in no file under
+      the tool's working and temporary directories or `~/.streamlit`.
   - id: SHD-01-004
     priority: MUST
     kind: project
     adr:
     - ADR-0190
     statement: >-
-      The case shadow MUST show every outside-system fact its case reader could
+      The case shadow tool MUST show every outside-system fact its case reader could
       not translate, beside the analysis of the case.
     relationships:
     - rel_type: depends_on
@@ -89,7 +91,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The case shadow's Compose service MUST NOT mount a persistent volume.
+      The case shadow tool's Compose service MUST NOT mount a persistent volume.
     rationale: >-
       With nowhere persistent to write, a bug cannot leave a copy of a case
       behind when the container stops.
@@ -102,7 +104,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The case shadow's Compose service MUST publish its port on the loopback
+      The case shadow tool's Compose service MUST publish its port on the loopback
       interface only.
     rationale: >-
       The page shows embargoed case data. Publishing it on loopback keeps it off
@@ -117,7 +119,7 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      The case shadow MUST read the outside system's credential only from the
+      The case shadow tool MUST read the outside system's credential only from the
       environment it runs in.
     rationale: >-
       The credential is a secret, so it is kept outside the code, the repository
@@ -135,10 +137,103 @@ groups:
     adr:
     - ADR-0192
     statement: >-
-      Code outside the case shadow MUST NOT import Streamlit.
+      Code outside the case shadow tool MUST NOT import Streamlit.
     rationale: >-
-      Streamlit is sanctioned for the case shadow only. Keeping it there keeps
+      Streamlit is sanctioned for the case shadow tool only. Keeping it there keeps
       the protocol packages free of a user-interface dependency.
     verification: >-
-      An import test asserts that no module outside the case shadow's package
+      An import test asserts that no module outside the case shadow tool's package
       imports `streamlit`.
+- id: SHD-03
+  title: Live Vultron Case Reader
+  specs:
+  - id: SHD-03-001
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0190
+    statement: >-
+      The live Vultron case reader MUST NOT send a node any request other than a
+      GET of the case ledger read endpoints.
+    relationships:
+    - rel_type: refines
+      spec_id: SHD-01-001
+    rationale: >-
+      The reader reads a running node's case; any other request could change the
+      case or act in it, which the case shadow tool never does. The ledger read
+      endpoints are the node's demo-only, prototype-mode list and event-stream
+      endpoints; an access-controlled read surface for a production node is a
+      separate decision.
+    verification: >-
+      A run against a recorded transport fails on any request that is not a GET,
+      or whose path is not a node's case ledger list or event-stream endpoint.
+  - id: SHD-03-002
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0190
+    statement: >-
+      The live Vultron case reader MUST raise a domain error naming the node and
+      the case when it cannot read the case from the node.
+    rationale: >-
+      The read fails when the node cannot be reached, does not serve the case
+      ledger read endpoints, which exist only on a node in prototype mode, or
+      holds no such case. An error that
+      names the node and the case tells the analyst which of the three failed,
+      instead of a dashboard that shows an empty case.
+    verification: >-
+      A test gives the reader an unreachable node, a node that answers 404 for
+      the endpoint, and a node that holds no such case, and asserts each raises
+      the domain error with the node and case in its message.
+  - id: SHD-03-003
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0190
+    statement: >-
+      Each case reading the live Vultron case reader returns MUST hold every
+      ledger entry the node has sent for the case, in log-index order.
+    rationale: >-
+      An analysis built on part of a ledger looks complete when it is not. A
+      followed case is read again whole as each entry arrives, so every reading
+      the dashboard shows is a whole ledger, exactly as a file reading is.
+    verification: >-
+      A test streams three valid entries and asserts the readings hold one, two
+      and three entries, each in log-index order.
+  - id: SHD-03-004
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0190
+    statement: >-
+      The live Vultron case reader MUST refuse a case reading whole when any
+      entry the node sent for it is not a valid ledger entry.
+    relationships:
+    - rel_type: refines
+      spec_id: SHD-03-003
+    rationale: >-
+      Dropping the bad entry would give a partial ledger that looks whole. The
+      file reader refuses a bad row the same way.
+    verification: >-
+      A test streams one valid entry and then one invalid entry, and asserts the
+      reading after the invalid entry is refused with an error naming that
+      entry.
+  - id: SHD-03-005
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0190
+    statement: >-
+      The case shadow tool MUST keep showing a followed case's last accepted
+      reading, marked, after a later reading is refused or the stream ends.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SHD-03-004
+    rationale: >-
+      A refused entry or a stopped node does not make the case's earlier standing
+      wrong. Keeping it on the page, marked, tells the analyst what they are
+      looking at without blanking the dashboard.
+    verification: >-
+      A dashboard test follows a case whose stream sends a valid entry, then an
+      invalid one, then a close event, and asserts the page keeps the first
+      reading, shows the error, and then marks the reading as no longer live.

@@ -263,15 +263,18 @@ cases reach the core through a `CaseReader`, which translates one into a case re
 (ADR-0191, ADR-0197).
 *Avoid*: service domain, external tracker (as a coined name)
 
-**Case shadow**:
+**Case shadow tool**:
 A standalone, read-only tool that reads one case through a case reader on request and
 shows Vultron's analysis of it as a dashboard: where the case stands, which desiderata
 it meets or breaks, and which moves are open. It knows only case ledgers, never the
-source behind them. It advises: this version does not act in the case, write to the
-source, send to participants, or keep the case after the request (ADR-0190).
-*Avoid*: VINCE shadow (the case shadow is not tied to one source), shadow mode as a
-server setting (the case shadow hosts no actor), VINCE observer (Observer is a CVD
-role), VINCE mirror (a case shadow analyses; a mirror only copies)
+source behind them, and can follow a live Vultron case as its ledger grows. It advises:
+this version does not act in the case, write to the source, or send to participants,
+and it holds a case only in memory, leaving none of it on the host after its process
+exits (ADR-0190).
+*Avoid*: case shadow, bare (name the tool), VINCE shadow (the case shadow tool is not
+tied to one source), shadow mode as a server setting (the case shadow tool hosts no
+actor), VINCE observer (Observer is a CVD role), VINCE mirror (a case shadow tool
+analyses; a mirror only copies)
 
 **Case reader**:
 Anything that answers a request for one case with a case reading: a case ledger, plus

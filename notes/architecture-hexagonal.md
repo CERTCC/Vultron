@@ -120,7 +120,7 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - A connector keeps all its ports in one plugin under `adapters/connectors/`.
   The driving/driven split above is about adapter categories, not connector
   directions: never split a two-port connector across modules (ARCH-05-004).
-- A case reader that reads through `vultron/measure/` lives in the case shadow's
+- A case reader that reads through `vultron/measure/` lives in the case shadow tool's
   package, `vultron/shadow/readers/`, never under `adapters/`: nothing under
   `adapters/` may import the measure layer (CEH-01-001). This is the one
   exception to "a case reader is a connector plugin" (ARCH-05-004), and it fits
