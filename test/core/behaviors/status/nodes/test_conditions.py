@@ -20,6 +20,7 @@ imported from the consolidated sender_entitlement module.
 Per DEMOMA-07-003 step 1.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -27,6 +28,7 @@ from test.support.act_runner import run_tree
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
     SenderIsParticipantNode,
@@ -116,19 +118,42 @@ def populated_bridge(populated_dl):
 
 class TestSenderIsParticipantNode:
     def test_known_sender_succeeds(self, populated_bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("BTND-01-006")
+    def test_an_unseeded_node_reads_the_case_an_earlier_node_published(
+        self, populated_bridge
+    ):
+        """No seed, so the node reads the ``/case_id`` an earlier node of
+        the run published, as a tree that finds its case at run time
+        publishes it (BTND-01-006)."""
+        tree = py_trees.composites.Sequence(
+            name="PublishThenCheck",
+            memory=False,
+            children=[
+                py_trees.behaviours.SetBlackboardVariable(
+                    name="PublishCase",
+                    variable_name="/case_id",
+                    variable_value=CASE_ID,
+                    overwrite=True,
+                ),
+                SenderIsParticipantNode(sender_actor_id=ACTOR_ID),
+            ],
+        )
+        result = run_tree(
+            populated_bridge, tree=tree, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
     def test_unknown_sender_fails(self, populated_bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=OUTSIDER_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=OUTSIDER_ID), CASE_ID
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -136,19 +161,16 @@ class TestSenderIsParticipantNode:
         assert result.status == Status.FAILURE
 
     def test_no_case_id_fails(self, populated_bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=None,
-        )
+        node = SenderIsParticipantNode(sender_actor_id=ACTOR_ID)
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
     def test_missing_case_fails(self, bridge):
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id="https://example.org/cases/nonexistent",
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=ACTOR_ID),
+            "https://example.org/cases/nonexistent",
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
@@ -184,8 +206,8 @@ class TestParticipantKindsDiffer:
         self, populated_dl, state
     ):
         bridge = _save_vendor(populated_dl, **_INACTIVE[state])
-        node = SenderIsParticipantNode(
-            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        node = with_case_id(
+            SenderIsParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -196,8 +218,8 @@ class TestParticipantKindsDiffer:
         self, populated_dl, state
     ):
         bridge = _save_vendor(populated_dl, **_INACTIVE[state])
-        node = SenderIsActiveParticipantNode(
-            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        node = with_case_id(
+            SenderIsActiveParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
@@ -207,8 +229,8 @@ class TestParticipantKindsDiffer:
     def test_active_participant_kind_admits_an_active_record(
         self, populated_bridge
     ):
-        node = SenderIsActiveParticipantNode(
-            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        node = with_case_id(
+            SenderIsActiveParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -224,8 +246,8 @@ class TestParticipantKindsDiffer:
     def test_active_participant_kind_refuses_without_standing(
         self, populated_bridge, sender, case_id
     ):
-        node = SenderIsActiveParticipantNode(
-            sender_actor_id=sender, case_id=case_id
+        node = with_case_id(
+            SenderIsActiveParticipantNode(sender_actor_id=sender), case_id
         )
         result = run_tree(
             populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -243,7 +265,7 @@ class TestParticipantKindsDiffer:
             SenderIsActiveParticipantNode,
         ):
             caplog.clear()
-            node = node_cls(sender_actor_id=ACTOR_ID, case_id=None)
+            node = node_cls(sender_actor_id=ACTOR_ID)
             with caplog.at_level("WARNING"):
                 result = run_tree(
                     populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
@@ -313,9 +335,8 @@ class TestClosedSenderRefused:
         "store", ["closed_sender_dl", "inert_sender_dl", "removed_sender_dl"]
     )
     def test_sender_that_may_not_act_fails(self, store, request):
-        node = SenderIsActiveParticipantNode(
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
+        node = with_case_id(
+            SenderIsActiveParticipantNode(sender_actor_id=ACTOR_ID), CASE_ID
         )
         result = run_tree(
             BTBridge(datalayer=request.getfixturevalue(store)),

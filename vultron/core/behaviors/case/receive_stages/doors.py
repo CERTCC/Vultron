@@ -48,6 +48,7 @@ from vultron.core.behaviors.case.nodes.seen_before import (
     ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.case.receive_stages.guards import refusal_stage
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.sender_entitlement import SenderRule
@@ -174,8 +175,12 @@ def post_close_stage(
                 f" ({exemption}) (CM-23-013)"
             )
         return []
-    guard = CaseOpenToExternalWritesNode(
-        case_id=guard_case_id, name="CaseOpenToExternalWrites"
+    # The guard reads its case from ``/case_id``, seeded here with the case
+    # the tree names (BTND-01-006); a tree that names none leaves it to the
+    # activity.
+    guard = with_case_id(
+        CaseOpenToExternalWritesNode(name="CaseOpenToExternalWrites"),
+        guard_case_id,
     )
     if not reply:
         return [guard]

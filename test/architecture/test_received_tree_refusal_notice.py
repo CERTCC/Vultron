@@ -72,6 +72,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     received_stages,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     LedgerPositionAnswer,
 )
@@ -452,7 +453,9 @@ def _hand_built(
             name=f"{name}Refusal",
             memory=False,
             children=[
-                EmitRefusalNoticeNode(case_id="urn:case", name=f"Notice{i}")
+                with_case_id(
+                    EmitRefusalNoticeNode(name=f"Notice{i}"), "urn:case"
+                )
                 for i in range(notices)
             ],
         ),

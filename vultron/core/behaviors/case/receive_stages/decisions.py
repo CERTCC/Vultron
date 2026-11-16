@@ -49,7 +49,7 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
     LEDGER_POSITION_EXEMPTIONS,
     LedgerPositionExemption,
 )
-from vultron.core.behaviors.sync.nodes.sender_sequence import (
+from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
     SENDER_SEQUENCE_EXEMPTIONS,
     SenderSequenceExemption,
 )

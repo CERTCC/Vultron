@@ -43,6 +43,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
+from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
@@ -183,7 +184,9 @@ def _guard(tree: py_trees.behaviour.Behaviour) -> py_trees.behaviour.Behaviour:
     guards = [
         child
         for child in tree.children
-        if getattr(child, "guards_kind", None) is not None
+        # A membership guard arrives in the scope that seeds its case; the
+        # scope is kept so the guard runs seeded (BTND-01-006).
+        if getattr(unscoped(child), "guards_kind", None) is not None
     ]
     assert len(guards) == 1, [child.name for child in tree.children]
     return guards[0]

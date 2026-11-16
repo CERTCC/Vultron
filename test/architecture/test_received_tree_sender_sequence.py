@@ -74,11 +74,13 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
 )
-from vultron.core.behaviors.sync.nodes import sender_sequence
+from vultron.core.behaviors.sync.nodes import sender_sequence_exemptions
 from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SequenceOrderStage,
+)
+from vultron.core.behaviors.sync.nodes.sender_sequence_exemptions import (
     SENDER_SEQUENCE_EXEMPTIONS,
     SenderSequenceExemption,
-    SequenceOrderStage,
 )
 from vultron.core.behaviors.sync.sender_sequence_stage import (
     SENDER_SEQUENCE_GATE_NAME,
@@ -121,7 +123,7 @@ def _exemption_uses() -> frozenset[tuple[str, str, str]]:
                 continue
             assert isinstance(kw.value, ast.Name), (
                 f"{rel}:{scope}: pass a registered exemption constant from"
-                " sender_sequence.py, not an inline value"
+                " sender_sequence_exemptions.py, not an inline value"
             )
             uses.add((kw.value.id, rel, scope))
     return frozenset(uses)
@@ -149,7 +151,7 @@ def test_sender_sequence_exemption_uses_are_pinned() -> None:
 def test_the_exemption_set_is_closed_and_reasoned() -> None:
     constants = {
         name: value
-        for name, value in inspect.getmembers(sender_sequence)
+        for name, value in inspect.getmembers(sender_sequence_exemptions)
         if isinstance(value, SenderSequenceExemption)
     }
     assert {c.name for c in constants.values()} == set(

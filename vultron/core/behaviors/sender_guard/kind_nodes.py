@@ -200,7 +200,11 @@ def _kind_node(
 ) -> py_trees.behaviour.Behaviour:
     """The condition node that checks *kind* for the activity in *ctx*."""
     if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
-        return membership(sender_actor_id=ctx.sender_id, case_id=ctx.case_id)
+        # The node reads its case from ``/case_id``, seeded with the case the
+        # context names (BTND-01-006).
+        return with_case_id(
+            membership(sender_actor_id=ctx.sender_id), ctx.case_id
+        )
     if kind is SenderEntitlementKind.LEDGER_PEER:
         # Reads the sender and the case from the ledger activity on the
         # blackboard (SYNC-03-005).

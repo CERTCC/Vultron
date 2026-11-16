@@ -51,6 +51,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.case_id_scope import (
     seeded_case_id,
+    unscoped,
     with_case_id,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
@@ -605,7 +606,9 @@ class TestRefusalEffects:
         # best-effort on its own (CLP-02-005, CLP-10-022).
         wrapped = list(gates[0].gated_branch.children)
         assert [type(w) for w in wrapped] == [RefusalEffectsBestEffort] * 2
-        assert isinstance(wrapped[0].children[0], EmitRefusalNoticeNode)
+        assert isinstance(
+            unscoped(wrapped[0].children[0]), EmitRefusalNoticeNode
+        )
         assert wrapped[1].children[0] is note
 
     @pytest.mark.spec("BT-17-008")
@@ -755,7 +758,7 @@ class TestRefusalNotice:
             COMMIT,
         ]
         (notice,) = self._notices(tree)
-        assert notice._case_id == CASE_ID
+        assert seeded_case_id(notice) == CASE_ID
         assert tree.refusal_notice_exemption is None
 
     @pytest.mark.spec("CLP-02-005")
@@ -905,9 +908,9 @@ class TestPostCloseStage:
         )
 
         for tree in (committed, gated):
-            guard = tree.children[2]
+            guard = unscoped(tree.children[2])
             assert isinstance(guard, CaseOpenToExternalWritesNode)
-            assert guard._case_id == CASE_ID
+            assert seeded_case_id(guard) == CASE_ID
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-042")
@@ -958,7 +961,7 @@ class TestPostCloseStage:
         ]
         stage = tree.children[2]
         assert isinstance(stage, PreconditionGuardStage)
-        assert [type(g) for g in stage.guards.children] == [
+        assert [type(unscoped(g)) for g in stage.guards.children] == [
             CaseOpenToExternalWritesNode
         ]
         assert ungated_emitters([tree]) == []
@@ -1406,7 +1409,9 @@ class TestClosedSenderStage:
         door = names.index("SenderClosureNotRecordedNode")
         assert names.index(POST_CLOSE) < door
         assert tree.children[door] in tree.door_guards
-        assert isinstance(tree.children[door + 1], SenderIsParticipantNode)
+        assert isinstance(
+            unscoped(tree.children[door + 1]), SenderIsParticipantNode
+        )
 
     @pytest.mark.spec("CM-23-018")
     def test_a_tree_with_no_case_is_refused(self) -> None:

@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes.sender_sequence import (
     AdmitInOrderNode,
     ClassifySequenceNumberNode,
@@ -93,8 +94,9 @@ def create_sender_sequence_stage(
     activity a run left in holding from the message's record; a resend never
     reaches this stage (ADR-0154).
     """
+    # The stage's case-scoped nodes read ``/case_id``, seeded here with the
+    # case the tree names (BTND-01-006).
     classify = ClassifySequenceNumberNode(
-        case_id=case_id,
         sender_id=sender_id,
         name="ClassifySenderSequence",
     )
@@ -126,10 +128,12 @@ def create_sender_sequence_stage(
                 RefusalActTransaction(
                     name="SenderSequenceRefusal",
                     children=[
-                        EmitSequenceRefusalNoticeNode(
-                            case_id=case_id,
-                            classify=classify,
-                            name="EmitSenderSequenceRefusalNotice",
+                        with_case_id(
+                            EmitSequenceRefusalNoticeNode(
+                                classify=classify,
+                                name="EmitSenderSequenceRefusalNotice",
+                            ),
+                            case_id,
                         )
                     ],
                 ),
@@ -140,7 +144,7 @@ def create_sender_sequence_stage(
         name="SenderSequenceOrder",
         memory=False,
         children=[
-            classify,
+            with_case_id(classify, case_id),
             answer,
             SequenceAdmitsNode(classify, name="SenderSequenceAdmits"),
         ],
