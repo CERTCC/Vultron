@@ -1,16 +1,21 @@
 """The committed-data check (VSD-02-001 to VSD-02-005, #5961)."""
 
+import base64
 import copy
 import json
 from collections.abc import Mapping
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.generated_files import serialize_json, stale_paths
 from vultron.metadata.git_runner import GitError
-from vultron.metadata.vince_data import check as check_module
+from vultron.metadata.vince_data import (
+    check as check_module,
+    shape as shape_module,
+)
 from vultron.metadata.vince_data.check import (
     check,
     file_faults,
@@ -143,6 +148,16 @@ def test_a_cleared_bundle_carrying_another_case_is_refused() -> None:
     assert _faults(path, text, frozenset({"111", "222", "999901"})) == []
 
 
+def test_a_numeric_vuid_names_its_case() -> None:
+    reads = _reads()
+    reads["case"]["vuid"] = "111"  # type: ignore[index]
+    other = copy.deepcopy(reads["case"])
+    other["vuid"] = 222  # type: ignore[index]
+    text = json.dumps({"reads": reads, "extra": [other]})
+    [fault] = _faults(f"{FIXTURE_DIR}/recorded.json", text, frozenset({"111"}))
+    assert "case 222, 999901 is not on the cleared-case list" in fault
+
+
 def test_json_that_is_not_vince_shaped_passes_anywhere() -> None:
     assert _faults("docs/example.json", '{"type": "Note"}') == []
 
@@ -164,13 +179,43 @@ def test_a_vince_response_in_an_uppercase_or_har_file_is_found() -> None:
     assert _faults("docs/RECORDED.JSON", body) != []
 
 
+def test_a_base64_har_body_is_decoded_and_found() -> None:
+    body = base64.b64encode(json.dumps(_reads()["case"]).encode()).decode()
+    content = {"encoding": "base64", "text": body}
+    har = json.dumps(
+        {"log": {"entries": [{"response": {"content": content}}]}}
+    )
+    [fault] = _faults("docs/session.har", har)
+    assert "case object at $.log.entries[0].response.content.text<base64>" in (
+        fault
+    )
+
+
+def test_a_base64_har_body_that_is_not_json_text_passes() -> None:
+    image = base64.b64encode(b"\x89PNG\xff").decode()
+    for text in (image, "not base64!"):
+        content = {"encoding": "base64", "text": text}
+        assert _faults("docs/session.har", json.dumps(content)) == []
+
+
 def test_a_line_file_keeps_unicode_line_separators_inside_strings() -> None:
     line = json.dumps({"a": "one\u2028two"}, ensure_ascii=False)
     assert _faults("logs/run.jsonl", f"{line}\n") == []
 
 
-def test_json_nested_too_deeply_is_refused_not_raised() -> None:
-    [fault] = _faults("docs/deep.json", "[" * 100_000 + "]" * 100_000)
+def test_json_nested_too_deeply_is_refused_not_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Python 3.14 bounds the C parser's recursion by the real stack, so how
+    # deep a document must be to overflow differs by machine: raise it.
+    def too_deep(text: str) -> object:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    fake_json = SimpleNamespace(
+        loads=too_deep, JSONDecodeError=json.JSONDecodeError
+    )
+    monkeypatch.setattr(shape_module, "json", fake_json)
+    [fault] = _faults("docs/deep.json", "[[]]")
     assert "nested too deeply" in fault
 
 

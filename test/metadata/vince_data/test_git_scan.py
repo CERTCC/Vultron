@@ -75,6 +75,76 @@ def test_an_earlier_generation_on_the_branch_is_accepted(
     assert history_faults(root, "base") == []
 
 
+@pytest.mark.spec("VSD-02-005")
+def test_a_real_case_under_the_generator_marker_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    path = root / next(iter(generated_fixtures()))
+    path.write_text(path.read_text("utf-8").replace("999901", "123456"))
+    commit_all(root, "a real case at the generator's path")
+    generate(root)
+    commit_all(root, "regenerate")
+    [fault] = history_faults(root, "base")
+    assert "names 123456, not only the synthetic cases" in fault
+
+
+@pytest.mark.spec("VSD-02-001")
+def test_a_response_added_in_a_merge_commit_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    git(root, "checkout", "-q", "-b", "side")
+    (root / "side.json").write_text("{}", "utf-8")
+    commit_all(root, "side")
+    git(root, "checkout", "-q", "work")
+    (root / "work.json").write_text("{}", "utf-8")
+    commit_all(root, "work")
+    git(root, "merge", "-q", "--no-commit", "--no-ff", "side")
+    (root / "leak.json").write_text(_CASE, "utf-8")
+    commit_all(root, "merge side")
+    (root / "leak.json").unlink()
+    commit_all(root, "remove it")
+    [fault] = history_faults(root, "base")
+    assert "leak.json: holds a VINCE case object" in fault
+
+
+def test_history_reads_a_type_change_and_skips_other_files(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    (root / "link.json").symlink_to("keep.json")
+    (root / "recorded.txt").write_text(_CASE, "utf-8")
+    commit_all(root, "a link, and a recording the check does not read")
+    (root / "link.json").unlink()
+    (root / "link.json").write_text(_CASE, "utf-8")
+    commit_all(root, "the link becomes a file")
+    (root / "link.json").unlink()
+    commit_all(root, "remove it")
+    [fault] = history_faults(root, "base")
+    assert "link.json: holds a VINCE case object" in fault
+
+
+def test_history_refuses_a_blob_that_is_not_utf8(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    (root / "bad.json").write_bytes(b'{"a": "\xff"}')
+    commit_all(root, "latin-1")
+    [fault] = history_faults(root, "base")
+    assert "bad.json: cannot be read as JSON" in fault
+    assert "not valid UTF-8" in fault
+
+
+def test_history_leaves_the_cleared_list_fault_to_the_tree_check(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    (root / CLEARED_CASES_PATH).unlink()
+    commit_all(root, "drop the list")
+    assert history_faults(root, "base") == []
+    faults = check_module.check(root, tracked_json_files(root))
+    assert any("cleared-case list is missing" in f for f in faults)
+
+
 def test_a_generator_marker_at_a_path_it_does_not_own_is_refused(
     tmp_path: Path,
 ) -> None:

@@ -33,9 +33,11 @@ A file the check cannot read is refused, since it cannot be ruled out.
 
 ``--history BASE`` also reads every file each commit in ``BASE..HEAD`` added
 or changed, because git keeps a commit's content after a later commit
-deletes it. A generator-marked file at a path the generator writes is
-accepted there without the byte comparison, since an earlier commit may
-hold an earlier generator's output; the head's tree gets the full check.
+deletes it; a merge commit is read for what none of its parents held. A
+generator-marked file at a path the generator writes is accepted there
+without the byte comparison, since an earlier commit may hold an earlier
+generator's output, but only when it names no case id but the generator's
+synthetic ones; the head's tree gets the full check.
 
 Usage::
 
@@ -55,7 +57,12 @@ from pathlib import Path
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.generated_files import stale_paths, write_generated
-from vultron.metadata.git_runner import GitError, GitRunner, git_runner
+from vultron.metadata.git_runner import (
+    GitError,
+    GitRunner,
+    git_bytes_runner,
+    git_runner,
+)
 from vultron.metadata.vince_data.cleared import load_cleared_cases
 from vultron.metadata.vince_data.generator import (
     generated_fixtures,
@@ -104,6 +111,8 @@ def _ids_of(obj: Mapping[str, object]) -> Iterator[str]:
     vuid = obj.get("vuid")
     if isinstance(vuid, str):
         yield vuid
+    elif isinstance(vuid, int) and not isinstance(vuid, bool):
+        yield str(vuid)
     for key in _VUL_NAME_KEYS:
         value = obj.get(key)
         if isinstance(value, str):
@@ -280,10 +289,38 @@ def check(root: Path, paths: Iterable[str]) -> list[str]:
     return faults
 
 
+def _generated_case_ids() -> frozenset[str]:
+    return frozenset(
+        case_id
+        for text in generated_fixtures().values()
+        for document in read_documents("fixture.json", text)
+        for case_id in case_ids(document)
+    )
+
+
 def _owned_by_generator(path: str, text: str) -> str | None:
-    if path in generated_fixtures():
-        return None
-    return verify_generated(path, text)
+    """Vouch for an earlier generation at a path the generator writes.
+
+    The bytes need not match today's output, but every case id the file
+    names must be one the generator writes: a real case pasted under the
+    generator's marker and later regenerated would otherwise reach
+    history unchecked (VSD-02-005).
+    """
+    if path not in generated_fixtures():
+        return verify_generated(path, text)
+    named = frozenset(
+        case_id
+        for document in read_documents(path, text)
+        for case_id in case_ids(document)
+    )
+    foreign = sorted(named - _generated_case_ids())
+    if not named or foreign:
+        shown = ", ".join(foreign) or "no case id"
+        return (
+            f"names {shown}, not only the synthetic cases the generator "
+            "writes, so no generation of it wrote this"
+        )
+    return None
 
 
 #: The verifiers an earlier commit's files are judged by: see the module
@@ -294,6 +331,10 @@ HISTORY_VERIFIERS: Verifiers = {
 }
 
 
+#: The ``ls-tree`` mode of a symbolic link.
+_SYMLINK_MODE = "120000 "
+
+
 def _changed_in(run: GitRunner, commit: str) -> list[str]:
     out = run(
         [
@@ -302,28 +343,45 @@ def _changed_in(run: GitRunner, commit: str) -> list[str]:
             "-r",
             "-z",
             "--name-only",
-            "--diff-filter=AM",
+            "--cc",
+            "--diff-filter=d",
             "--root",
             commit,
         ]
     )
-    return [p for p in out.split("\0") if p and is_json_path(p)]
+    paths = [p for p in out.split("\0") if p and is_json_path(p)]
+    if not paths:
+        return []
+    # A symlink's blob is its target's name, not JSON; the target is read
+    # as its own file.
+    listed = run(["ls-tree", "-z", commit, "--", *paths]).split("\0")
+    return [
+        entry.split("\t", 1)[1]
+        for entry in listed
+        if entry and not entry.startswith(_SYMLINK_MODE)
+    ]
 
 
 def history_faults(root: Path, base: str) -> list[str]:
-    """Every fault of a file a non-merge commit in ``base..HEAD`` added or
-    changed, named with the commit."""
+    """Every fault of a file a commit in ``base..HEAD`` added or changed,
+    named with the commit.
+
+    A merge commit is read for what it holds that none of its parents did
+    (``diff-tree --cc``), such as a file added while resolving a conflict.
+    The cleared-case list's own fault is the tree check's to report.
+    """
     run = git_runner(root)
+    read_blob = git_bytes_runner(root)
     cleared, _ = _cleared_ids(root)
-    commits = run(["rev-list", "--no-merges", f"{base}..HEAD"]).split()
+    commits = run(["rev-list", f"{base}..HEAD"]).split()
     faults = []
     for commit in commits:
         for path in _changed_in(run, commit):
-            blob = run(["cat-file", "blob", f"{commit}:{path}"])
+            blob = read_blob(["cat-file", "blob", f"{commit}:{path}"])
             faults += [
                 f"{commit[:12]} {fault}"
                 for fault in _decoded_faults(
-                    path, blob.encode("utf-8"), cleared, HISTORY_VERIFIERS
+                    path, blob, cleared, HISTORY_VERIFIERS
                 )
             ]
     return faults

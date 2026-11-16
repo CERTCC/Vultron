@@ -24,7 +24,8 @@ The walk visits every object in a document, not only the top level: a
 recorded response pasted into a larger file, or wrapped in a per-case bundle,
 is still VINCE data, and so is a string value that itself parses as a JSON
 object or array: a recording tool (a HAR file, a cassette) keeps each
-response body as such a string. The ``csaf/`` read has no signature, because a CSAF
+response body as such a string, and a HAR ``content`` object may hold it
+base64-encoded beside ``"encoding": "base64"``, which is decoded first. The ``csaf/`` read has no signature, because a CSAF
 document from VINCE has the same keys as any other CSAF document, and the
 shadow does not read it (crosswalk § Not read).
 
@@ -35,6 +36,8 @@ their serializer carries.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
@@ -116,10 +119,29 @@ def _embedded(text: str) -> object | None:
     return inner
 
 
+def _base64_text(obj: Mapping[str, object]) -> str | None:
+    """The text a HAR ``content`` object holds base64-encoded, or ``None``.
+
+    A body that does not decode to UTF-8 text holds no JSON, so it is
+    ``None`` too.
+    """
+    text = obj.get("text")
+    if obj.get("encoding") != "base64" or not isinstance(text, str):
+        return None
+    try:
+        return base64.b64decode(text, validate=True).decode("utf-8")
+    except binascii.Error, UnicodeDecodeError:
+        return None
+
+
 def _children(value: object, where: str) -> Iterator[tuple[object, str]]:
     if isinstance(value, dict):
         for key, child in value.items():
             yield child, f"{where}.{key}"
+        decoded = _base64_text(value)
+        inner = None if decoded is None else _embedded(decoded)
+        if inner is not None:
+            yield inner, f"{where}.text<base64>"
     elif isinstance(value, list):
         for index, child in enumerate(value):
             yield child, f"{where}[{index}]"
