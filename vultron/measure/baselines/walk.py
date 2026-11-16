@@ -423,6 +423,35 @@ class _Absorption[S: Hashable, E: Hashable]:
             value[node] = tuple(solved)
 
 
+class ChanceReading(NamedTuple):
+    """What one query's solved table says from one point of the walk.
+
+    ``value`` is the conditional value: the chance every ordering holds,
+    among the walks from there that meet every ``given`` event, and ``None``
+    when none can.  ``entered`` is the chance the walk from there meets every
+    ``given`` event, the query's scope: ``1`` when ``given`` is empty, and
+    ``1`` or ``0`` once the history has settled it.  ``outcome`` is the
+    expected outcome, in which a walk that never enters the scope counts as
+    meeting the query (:func:`expected_outcome`).
+    """
+
+    value: Fraction | None
+    entered: Fraction
+    outcome: Fraction
+
+
+def expected_outcome(entered: Fraction, value: Fraction | None) -> Fraction:
+    """``(1 − entered) · 1 + entered · value``: a scope never entered counts as met.
+
+    A case is not marked down for not taking a path that would have put it
+    in scope: a validation-scoped desideratum of a report never validated
+    counts as met.  A ``None`` value means the scope is unreachable, so it
+    reads as ``1``.
+    """
+    held = Fraction(1) if value is None else value
+    return (1 - entered) + entered * held
+
+
 class ChanceValues[S: Hashable, E: Hashable]:
     """The exact value of one query under the indifference walk, from any point.
 
@@ -466,10 +495,21 @@ class ChanceValues[S: Hashable, E: Hashable]:
         Raises:
             WalkNeverEndsError: the walk from *prefix* can circulate forever.
         """
-        held, scoped = self._absorption.value(
+        return self.reading(prefix).value
+
+    def reading(self, prefix: WalkPrefix[S, E]) -> ChanceReading:
+        """The query's conditional value, scope chance and expected outcome.
+
+        Each is taken from *prefix* (:class:`ChanceReading`).
+
+        Raises:
+            WalkNeverEndsError: the walk from *prefix* can circulate forever.
+        """
+        held, entered = self._absorption.value(
             self._absorption.walk.node(prefix)
         )
-        return None if scoped == 0 else held / scoped
+        value = None if entered == 0 else held / entered
+        return ChanceReading(value, entered, expected_outcome(entered, value))
 
     def change(
         self, prefix: WalkPrefix[S, E], move: Move[S, E]

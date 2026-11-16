@@ -295,6 +295,15 @@ walk over a real case's vendors would not finish (#6449). The value depends on t
 history as well as the state, because an ordering already met stays met, so pass a
 `WalkPrefix`, not a bare `JointState`.
 
+Score a move's advice on `expected_outcomes` and `outcome_change`, never on
+`desiderata_values` alone or a hand-made mix of it with `scope_chances`: a desideratum
+whose scope the case never enters counts as met (1), so the expected outcome is
+P(not entered) × 1 + P(entered) × the conditional value. Reason: a case should not
+lose points for not taking a worse path that had more points available, such as a
+report never validated (user decision on #6457/#6490, recorded in #6488). The
+conditional values stay as they are, `None` when the scope is unreachable, so a
+value from the start is still the baseline.
+
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original
 desiderata, with exact baselines and no import of `vultron/core/case_states/`. A test

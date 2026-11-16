@@ -34,7 +34,10 @@ from vultron.measure.baselines import (
     baseline,
     desiderata_values,
     expected_change,
+    expected_outcomes,
+    outcome_change,
     replay,
+    scope_chances,
     take_step,
     vendor_desiderata,
 )
@@ -291,3 +294,48 @@ def test_accepting_an_embargo_is_valued_by_the_step_it_takes():
         key: difference(after[key], before[key]) for key in before
     }
     assert any(value for value in change.values())
+
+
+_VA_BEFORE_P = _desideratum(r"$\evVa_i \prec \evP$")
+_INVALID = [Event(_K.V, 1), Event(_K.INVALIDATED, 1)]
+
+
+def test_an_invalid_reports_scope_is_a_coin_toss_from_there() -> None:
+    # From RM Invalid the vendor's report leaves only by Va or C, each 1/2
+    # whenever the vendor moves; no case event blocks either.  So the
+    # validation scope is entered with chance 1/2.
+    prefix = replay(ONE_VENDOR_MODEL, _INVALID)
+    key = VendorDesideratum(_VA_BEFORE_P, 1)
+    value = desiderata_values(prefix)[key]
+    assert value is not None
+    assert scope_chances(prefix)[key] == Fraction(1, 2)
+    assert expected_outcomes(prefix)[key] == Fraction(1, 2) + value / 2
+    # An unscoped desideratum is entered for certain, its outcome its value.
+    unscoped = VendorDesideratum(_F_BEFORE_P, 1)
+    assert scope_chances(prefix)[unscoped] == 1
+    assert (
+        expected_outcomes(prefix)[unscoped]
+        == (desiderata_values(prefix)[unscoped])
+    )
+
+
+def test_a_scope_no_walk_can_enter_counts_as_met() -> None:
+    prefix = replay(ONE_VENDOR_MODEL, [*_INVALID, Event(_K.CLOSED, 1)])
+    for key, value in desiderata_values(prefix).items():
+        if value is None:
+            assert scope_chances(prefix)[key] == 0, key
+            assert expected_outcomes(prefix)[key] == 1, key
+    assert (
+        desiderata_values(prefix)[VendorDesideratum(_VA_BEFORE_P, 1)] is None
+    )
+
+
+def test_closing_an_invalid_report_moves_its_scoped_outcome_to_one() -> None:
+    prefix = replay(ONE_VENDOR_MODEL, _INVALID)
+    key = VendorDesideratum(_VA_BEFORE_P, 1)
+    before = expected_outcomes(prefix)[key]
+    change = outcome_change(prefix, Event(_K.CLOSED, 1))
+    assert change[key] == 1 - before
+    assert set(change) == set(expected_outcomes(prefix))
+    # The conditional change is undefined there: the scope is now unreachable.
+    assert expected_change(prefix, Event(_K.CLOSED, 1))[key] is None

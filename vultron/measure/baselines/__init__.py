@@ -32,7 +32,10 @@ the protocol, and writes nothing (CEH-01-001, CEH-01-002).
   model, its baseline, and the implication pairs.
 * :mod:`~vultron.measure.baselines.values` — each vendor's desiderata
   values from any point of a joint walk (:func:`desiderata_values`), and a
-  step's expected change (:func:`expected_change`).
+  step's expected change (:func:`expected_change`); the chance each scope is
+  entered (:func:`scope_chances`), and the expected outcome that counts a
+  scope never entered as met (:func:`expected_outcomes`,
+  :func:`outcome_change`).
 * :mod:`~vultron.measure.baselines.render` — the Markdown tables the
   Measuring CVD pages print.
 """
@@ -71,10 +74,14 @@ from vultron.measure.baselines.values import (
     VendorDesideratum,
     desiderata_values,
     expected_change,
+    expected_outcomes,
+    outcome_change,
+    scope_chances,
     vendor_desiderata,
 )
 from vultron.measure.baselines.walk import (
     ChanceModel,
+    ChanceReading,
     ChanceValues,
     Move,
     Ordering,
@@ -82,6 +89,7 @@ from vultron.measure.baselines.walk import (
     Step,
     WalkNeverEndsError,
     WalkPrefix,
+    expected_outcome,
     find_step,
     frequency,
     implies,
@@ -99,6 +107,7 @@ __all__ = [
     "TWO_VENDOR_MODEL",
     "CaseStateModel",
     "ChanceModel",
+    "ChanceReading",
     "ChanceValues",
     "Desideratum",
     "EmbargoEnd",
@@ -122,14 +131,18 @@ __all__ = [
     "completion_probabilities",
     "desiderata_values",
     "expected_change",
+    "expected_outcome",
+    "expected_outcomes",
     "find_step",
     "frequency",
     "history_probability",
     "implies",
     "implications",
     "ordering",
+    "outcome_change",
     "prefix_probability",
     "replay",
+    "scope_chances",
     "step_probability",
     "take_step",
     "vendor_desiderata",

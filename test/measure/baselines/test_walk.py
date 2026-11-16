@@ -22,6 +22,7 @@ import pytest
 import vultron.measure.baselines.walk as walk_module
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.baselines.walk import (
+    ChanceReading,
     ChanceValues,
     Ordering,
     OrderingQuery,
@@ -29,6 +30,7 @@ from vultron.measure.baselines.walk import (
     WalkNeverEndsError,
     WalkPrefix,
     difference,
+    expected_outcome,
     find_step,
     frequency,
     implies,
@@ -313,3 +315,31 @@ def test_a_step_given_whole_must_be_allowed():
         VultronInvalidStateTransitionError, match="not allowed"
     ):
         take_step(_FORK, "s", Step("a", "B"))
+
+
+def test_a_reading_gives_the_scope_chance_and_the_expected_outcome() -> None:
+    # Scoped to y.  From s: go to t or x (no y), each 1/2; from t: back to s
+    # or y, each 1/2.  So P(y | s) = 1/2 · P(y | t) and P(y | t) =
+    # 1/2 · P(y | s) + 1/2, giving 1/3 from s and 2/3 from t.  x never
+    # precedes y on a walk that meets y, so the conditional value is 0, and
+    # the expected outcome is 1 - entered: 2/3 from s, 1/3 from t.
+    values = ChanceValues(_LOOP, ordering("x", "y", given=["y"]))
+    start = values.reading(WalkPrefix("s"))
+    assert start == ChanceReading(Fraction(0), Fraction(1, 3), Fraction(2, 3))
+    mid = values.reading(replay(_LOOP, ["go"]))
+    assert mid == ChanceReading(Fraction(0), Fraction(2, 3), Fraction(1, 3))
+    assert values.at(WalkPrefix("s")) == start.value
+
+
+def test_a_scope_the_walk_can_no_longer_enter_counts_as_met() -> None:
+    values = ChanceValues(_LOOP, ordering("x", "y", given=["y"]))
+    ended = values.reading(replay(_LOOP, ["x"]))
+    assert ended == ChanceReading(None, Fraction(0), Fraction(1))
+    unscoped = ChanceValues(_LOOP, ordering("x", "y"))
+    assert unscoped.reading(WalkPrefix("s")).entered == 1
+
+
+def test_an_expected_outcome_weighs_the_value_by_the_scope_chance() -> None:
+    assert expected_outcome(Fraction(1, 4), Fraction(1, 2)) == Fraction(7, 8)
+    assert expected_outcome(Fraction(0), None) == 1
+    assert expected_outcome(Fraction(1), Fraction(0)) == 0

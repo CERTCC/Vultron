@@ -36,6 +36,12 @@ exploit, attacks, the embargo) moves every vendor's values.  A projected step
 that emits none of the projection's events is no step there, so it is left out
 of the projected history.
 
+A value is conditional on the desideratum's scope, such as a report reaching
+Valid, and is ``None`` once no walk can enter it.  :func:`scope_chances`
+gives the chance the scope is entered, and :func:`expected_outcomes` combines
+the two, counting a scope never entered as met; :func:`outcome_change` is a
+step's change in it.  Move advice reads the expected outcome.
+
 At the model's start, every value equals the desideratum's :func:`.baseline`.
 The solved tables are kept for the life of the process, so repeated lookups
 cost little.
@@ -65,6 +71,7 @@ from vultron.measure.baselines.joint import (
     JointState,
 )
 from vultron.measure.baselines.walk import (
+    ChanceReading,
     Move,
     WalkPrefix,
     difference,
@@ -76,6 +83,9 @@ type CasePrefix = WalkPrefix[JointState, Event]
 
 type Values = dict[VendorDesideratum, Fraction | None]
 """A value for each vendor's desideratum, ``None`` where it is undefined."""
+
+type Outcomes = dict[VendorDesideratum, Fraction]
+"""A chance or an expected outcome for each vendor's desideratum, always defined."""
 
 
 class VendorDesideratum(NamedTuple):
@@ -167,16 +177,21 @@ def _project_case_state(
     return WalkPrefix(state, tuple(step for step in history if step))
 
 
-def _value(key: VendorDesideratum, prefix: CasePrefix) -> Fraction | None:
+def _reading(key: VendorDesideratum, prefix: CasePrefix) -> ChanceReading:
     desideratum, vendor, other = key
     if desideratum.model is ModelName.CASE_STATE:
-        return case_state_values(desideratum.query).at(
+        return case_state_values(desideratum.query).reading(
             _project_case_state(prefix, vendor)
         )
     numbering = {vendor: 1} if other is None else {vendor: 1, other: 2}
-    return joint_values(desideratum.model, desideratum.query).at(
+    return joint_values(desideratum.model, desideratum.query).reading(
         _project_joint(prefix, numbering)
     )
+
+
+def _readings(prefix: CasePrefix) -> dict[VendorDesideratum, ChanceReading]:
+    keys = vendor_desiderata(len(prefix.state.vendors))
+    return {key: _reading(key, prefix) for key in keys}
 
 
 def desiderata_values(prefix: CasePrefix) -> Values:
@@ -197,8 +212,41 @@ def desiderata_values(prefix: CasePrefix) -> Values:
         ValueError: ``prefix.state`` holds no vendor.
         WalkNeverEndsError: a projected walk can circulate forever.
     """
-    keys = vendor_desiderata(len(prefix.state.vendors))
-    return {key: _value(key, prefix) for key in keys}
+    return {key: r.value for key, r in _readings(prefix).items()}
+
+
+def scope_chances(prefix: CasePrefix) -> Outcomes:
+    """Each vendor's chance, from *prefix*, that each desideratum's scope is entered.
+
+    The chance that every ``given`` event of the desideratum occurs for that
+    vendor if the case is left to chance from *prefix*: ``1`` for a
+    desideratum with no scope, and ``1`` or ``0`` once the history has
+    settled it.
+
+    Raises:
+        ValueError: ``prefix.state`` holds no vendor.
+        WalkNeverEndsError: a projected walk can circulate forever.
+    """
+    return {key: r.entered for key, r in _readings(prefix).items()}
+
+
+def expected_outcomes(prefix: CasePrefix) -> Outcomes:
+    """Each vendor's expected outcome of each desideratum from *prefix*.
+
+    The chance the scope is never entered, counted as met, plus the chance
+    it is entered times the conditional value (:func:`.expected_outcome`):
+    a case is not marked down for not taking a path that would have put a
+    desideratum in scope.  So a validation-scoped desideratum of a report
+    that can no longer be validated reads ``1``, where
+    :func:`desiderata_values` reads ``None``.  This is the reading a move's
+    advice is scored on; call it rather than combining
+    :func:`scope_chances` and :func:`desiderata_values` by hand.
+
+    Raises:
+        ValueError: ``prefix.state`` holds no vendor.
+        WalkNeverEndsError: a projected walk can circulate forever.
+    """
+    return {key: r.outcome for key, r in _readings(prefix).items()}
 
 
 @cache
@@ -213,6 +261,12 @@ def _case_model(vendor_count: int) -> JointModel:
     _require_vendors(vendor_count)
     shared = {1: ONE_VENDOR_MODEL, 2: TWO_VENDOR_MODEL}
     return shared.get(vendor_count) or JointModel(vendor_count)
+
+
+def _after(prefix: CasePrefix, move: Move[JointState, Event]) -> CasePrefix:
+    """*prefix* extended by the step *move* names in the case's joint model."""
+    model = _case_model(len(prefix.state.vendors))
+    return prefix.then(take_step(model, prefix.state, move))
 
 
 def expected_change(
@@ -234,10 +288,24 @@ def expected_change(
             from the prefix's state in the case's joint model, or is an
             event that names more than one (:func:`.take_step`).
     """
-    model = _case_model(len(prefix.state.vendors))
-    after = prefix.then(take_step(model, prefix.state, move))
-    return _difference(desiderata_values(after), desiderata_values(prefix))
-
-
-def _difference(after: Values, before: Values) -> Values:
+    after = desiderata_values(_after(prefix, move))
+    before = desiderata_values(prefix)
     return {key: difference(after[key], before[key]) for key in before}
+
+
+def outcome_change(
+    prefix: CasePrefix, move: Move[JointState, Event]
+) -> Outcomes:
+    """Each vendor's change in expected outcome from the step *move* names.
+
+    The :func:`expected_outcomes` after the step minus those before it,
+    never ``None``: a step that takes a scope out of reach moves that
+    desideratum toward ``1``.
+
+    Raises:
+        ValueError: ``prefix.state`` holds no vendor.
+        VultronInvalidStateTransitionError: as for :func:`expected_change`.
+    """
+    after = expected_outcomes(_after(prefix, move))
+    before = expected_outcomes(prefix)
+    return {key: after[key] - before[key] for key in before}
