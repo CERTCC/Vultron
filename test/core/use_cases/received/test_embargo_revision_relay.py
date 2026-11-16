@@ -1398,6 +1398,8 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     assert _proposer_of(event, dl) == MANAGER
     assert any(
         "only the case's CASE_MANAGER relays" in r.message
+        and "or holds no such case" in r.message
+        and case_id in r.message
         for r in caplog.records
     )
 

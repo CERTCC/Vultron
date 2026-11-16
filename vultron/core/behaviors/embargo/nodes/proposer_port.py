@@ -90,16 +90,19 @@ def attributed_proposer_id(
     # The one source of "is the sender the case's authority" (ARCH-24-008):
     # ``False`` when this store holds no such case, so the sender is then
     # the proposer.  The roster and the sender id are both canonical
-    # (OID-01-006, OID-01-007, #5919).
+    # (OID-01-006, OID-01-007, #5919).  The warning names both causes, since
+    # the answer does not tell them apart.
     if has_role(sender_id, case_id, CVDRole.CASE_MANAGER, datalayer):
         return attributed_to
     logger.warning(
         "embargo proposal '%s' from '%s' attributes its proposal to '%s', but"
-        " only the case's CASE_MANAGER relays — treating the sender as the"
-        " proposer",
+        " only the case's CASE_MANAGER relays and this store does not record"
+        " the sender as the CASE_MANAGER of case '%s' (or holds no such"
+        " case) — treating the sender as the proposer",
         activity_id,
         sender_id,
         attributed_to,
+        case_id,
     )
     return sender_id
 

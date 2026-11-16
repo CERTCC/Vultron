@@ -31,8 +31,9 @@ a receiver on any other is refused at the path stage, with the reason it
 composes (HP-01-005, HP-01-039).  A ``Reject`` of an Invite is also what the
 CASE_MANAGER sends the participant whose proposal or Accept it refuses
 (EMB-02-004, EP-09-017), so its tree declares the participant-replica path
-too: that delivery records nothing, but it must get past the door for the
-handler to close the participant's pending ask (EP-09-019).
+too: that delivery records nothing, but past the doors the tree's
+``ClosePendingEmbargoAskNode`` closes the participant's pending ask
+(EP-09-019).
 
 Split out of ``announce_teardown_tree`` to keep that module under the
 CS-18-001 size cap; it re-exports both factories.
@@ -343,8 +344,8 @@ def reject_invite_to_embargo_tree(
         # invitee's Reject, and the same message type carries the
         # CASE_MANAGER's own Reject of an Invite to the participant it
         # refuses (EMB-02-004, EP-09-017): that delivery records nothing, but
-        # it must get past the door for the handler to close the
-        # participant's pending ask (EP-09-019).  So the guards that are the
+        # past the doors ClosePendingEmbargoAskNode closes the participant's
+        # pending ask (EP-09-019).  So the guards that are the
         # CASE_MANAGER's are scoped to its path rather than run at both.
         paths={
             ReceivedPath.CASE_MANAGER,

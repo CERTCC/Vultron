@@ -225,3 +225,19 @@ class TestManagerConsentAtCommit:
         result = _run(bt_scenario, call_out=_declining_bundle())
         assert result.status == Status.SUCCESS
         assert _managers_row(bt_scenario) == EmbargoConsentState.AGREED
+
+    @pytest.mark.spec("CM-24-002")
+    def test_an_unpublished_proposer_is_a_wiring_fault_not_no_stake(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The stake guard sits under an Inverter, so a missing proposer must
+        surface as an internal error, never read as "no stake"."""
+        _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
+        result = bt_scenario.run(
+            record_manager_embargo_consent_tree(
+                case_id=CASE_ID, embargo_id=EMBARGO_ID, cause_id=PROPOSAL_ID
+            )
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert _managers_row(bt_scenario) == EmbargoConsentState.UNINVITED

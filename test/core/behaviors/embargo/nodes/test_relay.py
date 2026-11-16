@@ -838,6 +838,24 @@ class TestRelayEmbargoInviteToEachNode:
         assert bt_scenario.dl.outbox_list() == []
         assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
 
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-24-002")
+    def test_an_unpublished_proposer_is_a_wiring_fault_and_relays_nothing(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The relay reads the proposer when it starts, never a guess."""
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
+        result = bt_scenario.run(
+            RelayEmbargoInviteToEachNode(
+                case_id=CASE_ID, embargo_id=EMBARGO_ID
+            ),
+            embargo_invite_recipients=[OTHER_A],
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert bt_scenario.dl.outbox_list() == []
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
+
 
 class TestEmbargoProposalNotYetRecordedNode:
     INVITE_ID = f"{CASE_ID}/embargo_proposals/p1"

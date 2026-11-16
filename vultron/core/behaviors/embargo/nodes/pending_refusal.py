@@ -100,10 +100,14 @@ class ClosePendingEmbargoAskNode(DataLayerActionWithPorts):
 
     Runs on the participant-replica path of the received
     ``Reject(Invite(EmbargoEvent))`` tree, after the door guards admitted the
-    Reject and before the tree states the replica's refusal (EP-09-019,
-    EMB-02-004): the Reject records nothing in the case there, but a
-    CASE_MANAGER's Reject still closes the ask the participant is waiting
-    on.  It decides nothing, so it always succeeds.  It runs among the guards
+    Reject and intake recorded it, and before the tree states the replica's
+    refusal (EP-09-019, EMB-02-004): the Reject records nothing in the case
+    there, but a CASE_MANAGER's Reject still closes the ask the participant
+    is waiting on.  The stages between intake and this node (ledger
+    position, sender sequence, clock decisions) run only at the
+    CASE_MANAGER, so at a replica only an intake fault stops the run short
+    of it, and a delivery that was never recorded has not arrived.  It
+    decides nothing, so it always succeeds.  It runs among the guards
     yet writes: the pending-assertion store it clears is a per-actor
     duplicate suppressor, not case state (CLP-06-002), so the write is no
     effect of the act.
