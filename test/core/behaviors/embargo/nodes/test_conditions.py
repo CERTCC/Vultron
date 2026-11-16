@@ -280,7 +280,7 @@ class TestIsCloseBlockedByActiveEmbargoNode:
         return node.status
 
     def test_success_when_active_and_em_active(self):
-        """SUCCESS: active embargo + EM.ACTIVE — owner close is declined."""
+        """SUCCESS: active embargo + EM.ACTIVE — owner close is refused."""
         assert (
             self._tick(True, {"em_before": EM.ACTIVE})
             == py_trees.common.Status.SUCCESS

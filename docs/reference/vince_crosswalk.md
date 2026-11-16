@@ -112,6 +112,9 @@ The caveats are:
 - VINCE-RM-06: "The vendor marked every vul Not Affected."
 - VINCE-RM-07: "`Unknown` can mean the vendor said Unknown or did not share its status. The VINCE API does not tell the two apart."
 
+VINCE-RM-07 writes no entry of its own.
+Its inference names the Received entry that VINCE-RM-04 wrote for the same vendor.
+
 A vendor status value other than `Affected`, `Not Affected` or `Unknown` is untranslated, with the reason *unknown value*.
 A statement dated before its vendor's `date_added` is untranslated, with the reason *rule conflict*.
 

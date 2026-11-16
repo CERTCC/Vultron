@@ -28,6 +28,13 @@ first: an acyclic component is one average of already-solved values, and a
 cycle is a small linear system solved with :class:`fractions.Fraction`.  The
 result is the exact chance frequency, not an estimate.
 
+:class:`ChanceValues` keeps that solution for any point a walk can reach, not
+only the start: given a :class:`WalkPrefix` (the state a walk is in and the
+events of each step that brought it there), it gives the query's exact value
+from there, and a step's expected change is the value after the step minus the
+value before it.  The table fills on demand and keeps every value it solves,
+so repeated lookups cost a dictionary read.
+
 An ordering ``a ≺ b`` holds when ``a`` occurs at a step strictly before the
 step at which ``b`` first occurs, or ``a`` occurs and ``b`` never does.  Two
 events emitted by the same step (public awareness and the embargo exit it
@@ -39,6 +46,8 @@ deferral) changes nothing.
 from collections.abc import Callable, Hashable, Iterable
 from fractions import Fraction
 from typing import NamedTuple, Protocol
+
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 class Step[S: Hashable, E: Hashable](NamedTuple):
@@ -74,6 +83,89 @@ class ChanceModel[S: Hashable, E: Hashable](Protocol):
         work out memoizes them, as :class:`.JointModel` does.
         """
         ...
+
+
+def find_step[S: Hashable, E: Hashable](
+    model: ChanceModel[S, E], state: S, event: E
+) -> Step[S, E]:
+    """The one step *event* allowed from *state*.
+
+    Raises:
+        VultronInvalidStateTransitionError: the model allows no step *event*
+            from *state*, or more than one (as when accepting one of several
+            pending embargo proposals can start the embargo as ``ACTIVE`` or
+            as ``REVISE``).
+    """
+    matches = [s for s in model.steps(state) if s.event == event]
+    if len(matches) != 1:
+        reason = "is not allowed" if not matches else "is ambiguous"
+        raise VultronInvalidStateTransitionError(
+            f"{event} {reason} from {state}"
+        )
+    return matches[0]
+
+
+type Move[S: Hashable, E: Hashable] = E | Step[S, E]
+"""A step named by its event, or given whole where the event alone is ambiguous."""
+
+
+def take_step[S: Hashable, E: Hashable](
+    model: ChanceModel[S, E], state: S, move: Move[S, E]
+) -> Step[S, E]:
+    """The step *move* names from *state*.
+
+    A :class:`Step` is taken as given once the model allows it from *state*;
+    an event is looked up with :func:`find_step`.  Pass the step itself where
+    one event allows several, such as an embargo starting as ``ACTIVE`` or as
+    ``REVISE``.
+
+    Raises:
+        VultronInvalidStateTransitionError: the model allows no such step
+            from *state*, or *move* is an event that names more than one.
+    """
+    if isinstance(move, Step):
+        if move not in model.steps(state):
+            raise VultronInvalidStateTransitionError(
+                f"{move.event} to {move.state} is not allowed from {state}"
+            )
+        return move
+    return find_step(model, state, move)
+
+
+class WalkPrefix[S: Hashable, E: Hashable](NamedTuple):
+    """A walk partway: the state it is in, and what each step taken so far emitted.
+
+    ``history`` holds, in order, the events of each step from the model's
+    start to ``state``.  A desideratum's value depends on it as well as on the
+    state, because an ordering already met or broken stays so: two walks in
+    the same state can have different values.  Events one step emitted are
+    one entry, because they are simultaneous.
+    """
+
+    state: S
+    history: tuple[frozenset[E], ...] = ()
+
+    def then(self, step: Step[S, E]) -> WalkPrefix[S, E]:
+        """This prefix extended by *step*."""
+        return WalkPrefix(step.state, (*self.history, step.events))
+
+
+def replay[S: Hashable, E: Hashable](
+    model: ChanceModel[S, E], moves: Iterable[Move[S, E]]
+) -> WalkPrefix[S, E]:
+    """The prefix reached from the model's start by the steps *moves* name, in order.
+
+    Each move is an event, or the :class:`Step` itself where the event alone
+    is ambiguous (:func:`take_step`).
+
+    Raises:
+        VultronInvalidStateTransitionError: some move is not one allowed
+            step from the state reached before it (:func:`take_step`).
+    """
+    prefix: WalkPrefix[S, E] = WalkPrefix(model.initial)
+    for move in moves:
+        prefix = prefix.then(take_step(model, prefix.state, move))
+    return prefix
 
 
 class Ordering[E: Hashable](NamedTuple):
@@ -227,6 +319,14 @@ class _AugmentedWalk[S: Hashable, E: Hashable]:
             model.initial, frozenset(), frozenset()
         )
 
+    def node(self, prefix: WalkPrefix[S, E]) -> _Node[S, E]:
+        """The augmented node a walk is at after *prefix*."""
+        seen: frozenset[E] = frozenset()
+        met: frozenset[int] = frozenset()
+        for emitted in prefix.history:
+            seen, met = _advance(self._query, seen, met, emitted)
+        return _Node(prefix.state, seen, met)
+
     def successors(self, node: _Node[S, E]) -> list[_Node[S, E]]:
         known = self._successors.get(node)
         if known is not None:
@@ -239,54 +339,208 @@ class _AugmentedWalk[S: Hashable, E: Hashable]:
         return found
 
 
-def _absorption[S: Hashable, E: Hashable](
-    model: ChanceModel[S, E],
-    query: OrderingQuery[E],
-    terminal_values: Callable[[frozenset[E], frozenset[int]], tuple[int, ...]],
-) -> tuple[Fraction, ...]:
-    """Expected terminal values of the walk from the start, each exact.
+class _Absorption[S: Hashable, E: Hashable]:
+    """Expected terminal values of the walk from any node, each exact, solved on demand.
 
     *terminal_values* scores an ended walk from its remembered events and met
-    orderings; the result is the probability-weighted sum over every way the
-    walk can end.
+    orderings; a node's value is the probability-weighted sum over every way
+    the walk can end from it.
     """
-    walk = _AugmentedWalk(model, query)
-    successors = walk.successors
-    width = len(terminal_values(frozenset(), frozenset()))
-    value: dict[_Node[S, E], tuple[Fraction, ...]] = {}
-    for component in _strongly_connected(walk.start, successors):
-        members = set(component)
-        cyclic = len(component) > 1 or component[0] in successors(component[0])
-        if not cyclic:
-            node = component[0]
-            nexts = successors(node)
-            if not nexts:
-                value[node] = tuple(
-                    Fraction(v) for v in terminal_values(node.seen, node.met)
-                )
+
+    def __init__(
+        self,
+        model: ChanceModel[S, E],
+        query: OrderingQuery[E],
+        terminal_values: Callable[
+            [frozenset[E], frozenset[int]], tuple[int, ...]
+        ],
+    ):
+        self.walk = _AugmentedWalk(model, query)
+        self._terminal_values = terminal_values
+        self._width = len(terminal_values(frozenset(), frozenset()))
+        self._value: dict[_Node[S, E], tuple[Fraction, ...]] = {}
+
+    def value(self, node: _Node[S, E]) -> tuple[Fraction, ...]:
+        """The expected terminal values of the walk from *node*."""
+        known = self._value.get(node)
+        if known is None:
+            self._solve_from(node)
+            known = self._value[node]
+        return known
+
+    def _solve_from(self, start: _Node[S, E]) -> None:
+        """Solve every node reachable from *start* that is not solved yet.
+
+        A solved node is a sink to the component search: every node it
+        reaches is solved too, so no unsolved node shares its component.
+        """
+        value = self._value
+        successors = self.walk.successors
+
+        def unsolved_successors(node: _Node[S, E]) -> list[_Node[S, E]]:
+            return [] if node in value else successors(node)
+
+        for component in _strongly_connected(start, unsolved_successors):
+            first = component[0]
+            if first in value:
                 continue
-            share = Fraction(1, len(nexts))
-            value[node] = tuple(
-                share * sum((value[n][k] for n in nexts), Fraction(0))
-                for k in range(width)
+            if len(component) > 1 or first in successors(first):
+                self._solve_cycle(component)
+            else:
+                self._solve_acyclic(first)
+
+    def _solve_acyclic(self, node: _Node[S, E]) -> None:
+        """One average of already-solved values, or an ended walk's own score."""
+        nexts = self.walk.successors(node)
+        if not nexts:
+            self._value[node] = tuple(
+                Fraction(v) for v in self._terminal_values(node.seen, node.met)
             )
-            continue
+            return
+        share = Fraction(1, len(nexts))
+        self._value[node] = tuple(
+            share * sum((self._value[n][k] for n in nexts), Fraction(0))
+            for k in range(self._width)
+        )
+
+    def _solve_cycle(self, component: list[_Node[S, E]]) -> None:
+        """A small linear system over the component, the rest already solved."""
+        value, width = self._value, self._width
         order = {node: i for i, node in enumerate(component)}
         matrix = [[Fraction(0)] * len(component) for _ in component]
         rhs = [[Fraction(0)] * width for _ in component]
         for node, row in order.items():
-            nexts = successors(node)
+            nexts = self.walk.successors(node)
             matrix[row][row] += 1
             share = Fraction(1, len(nexts))
             for n in nexts:
-                if n in members:
+                if n in order:
                     matrix[row][order[n]] -= share
                 else:
                     for k in range(width):
                         rhs[row][k] += share * value[n][k]
         for node, solved in zip(component, _solve(matrix, rhs), strict=True):
             value[node] = tuple(solved)
-    return value[walk.start]
+
+
+class ChanceReading(NamedTuple):
+    """What one query's solved table says from one point of the walk.
+
+    ``value`` is the conditional value: the chance every ordering holds,
+    among the walks from there that meet every ``given`` event, and ``None``
+    when none can.  ``entered`` is the chance the walk from there meets every
+    ``given`` event, the query's scope: ``1`` when ``given`` is empty, and
+    ``1`` or ``0`` once the history has settled it.  ``outcome`` is the
+    expected outcome, in which a walk that never enters the scope counts as
+    meeting the query (:func:`expected_outcome`).
+    """
+
+    value: Fraction | None
+    entered: Fraction
+    outcome: Fraction
+
+
+def expected_outcome(entered: Fraction, value: Fraction | None) -> Fraction:
+    """``(1 − entered) · 1 + entered · value``: a scope never entered counts as met.
+
+    A case is not marked down for not taking a path that would have put it
+    in scope: a validation-scoped desideratum of a report never validated
+    counts as met.  A ``None`` value means the scope is unreachable, so it
+    reads as ``1``.
+    """
+    held = Fraction(1) if value is None else value
+    return (1 - entered) + entered * held
+
+
+class ChanceValues[S: Hashable, E: Hashable]:
+    """The exact value of one query under the indifference walk, from any point.
+
+    The value from a :class:`WalkPrefix` is the chance, from there, that
+    every ordering of the query holds, among the walks from there that meet
+    every ``given`` event: the query's :func:`frequency` with the walk started
+    where the prefix stands.  From the model's start it equals
+    :func:`frequency`.
+
+    Values are solved on first lookup and kept, so one instance serves many
+    lookups over one model and query cheaply.
+    """
+
+    def __init__(self, model: ChanceModel[S, E], query: OrderingQuery[E]):
+        self._model = model
+        self._query = query
+        every = frozenset(range(len(query.orderings)))
+
+        def scores(seen: frozenset[E], met: frozenset[int]) -> tuple[int, int]:
+            scoped = query.given <= seen
+            return int(scoped and met == every), int(scoped)
+
+        self._absorption = _Absorption(model, query, scores)
+
+    @property
+    def model(self) -> ChanceModel[S, E]:
+        """The model the values are solved over."""
+        return self._model
+
+    @property
+    def query(self) -> OrderingQuery[E]:
+        """The query the values are of."""
+        return self._query
+
+    def at(self, prefix: WalkPrefix[S, E]) -> Fraction | None:
+        """The query's value from *prefix*, or ``None`` when no walk from there meets ``given``.
+
+        At a state with no allowed step, this is the walk's own outcome:
+        ``1`` or ``0``, or ``None`` when ``given`` was not met.
+
+        Raises:
+            WalkNeverEndsError: the walk from *prefix* can circulate forever.
+        """
+        return self.reading(prefix).value
+
+    def reading(self, prefix: WalkPrefix[S, E]) -> ChanceReading:
+        """The query's conditional value, scope chance and expected outcome.
+
+        Each is taken from *prefix* (:class:`ChanceReading`).
+
+        Raises:
+            WalkNeverEndsError: the walk from *prefix* can circulate forever.
+        """
+        held, entered = self._absorption.value(
+            self._absorption.walk.node(prefix)
+        )
+        value = None if entered == 0 else held / entered
+        return ChanceReading(value, entered, expected_outcome(entered, value))
+
+    def change(
+        self, prefix: WalkPrefix[S, E], move: Move[S, E]
+    ) -> Fraction | None:
+        """The expected change of the step *move* names from *prefix*.
+
+        The value after the step minus the value before it; positive when the
+        step makes the query likelier to hold than leaving the case to chance.
+        ``None`` when either value is undefined.  *move* is an event, or the
+        :class:`Step` itself where the event alone is ambiguous.
+
+        Raises:
+            VultronInvalidStateTransitionError: *move* is not one allowed
+                step from the prefix's state (:func:`take_step`).
+            WalkNeverEndsError: the walk from either prefix can circulate
+                forever.
+        """
+        after = self.at(
+            prefix.then(take_step(self._model, prefix.state, move))
+        )
+        before = self.at(prefix)
+        return difference(after, before)
+
+
+def difference(
+    after: Fraction | None, before: Fraction | None
+) -> Fraction | None:
+    """``after - before``, or ``None`` when either value is undefined."""
+    if after is None or before is None:
+        return None
+    return after - before
 
 
 def frequency[S: Hashable, E: Hashable](
@@ -302,18 +556,12 @@ def frequency[S: Hashable, E: Hashable](
         ValueError: no walk on *model* meets ``given``, so the frequency is
             undefined.
     """
-    every = frozenset(range(len(query.orderings)))
-
-    def scores(seen: frozenset[E], met: frozenset[int]) -> tuple[int, int]:
-        scoped = query.given <= seen
-        return int(scoped and met == every), int(scoped)
-
-    held, scoped = _absorption(model, query, scores)
-    if scoped == 0:
+    value = ChanceValues(model, query).at(WalkPrefix(model.initial))
+    if value is None:
         raise ValueError(
             f"no walk on the model meets every given event of {query!r}"
         )
-    return held / scoped
+    return value
 
 
 def ordering[E: Hashable](

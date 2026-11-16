@@ -31,10 +31,6 @@ tracks:
   - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
-  - "#6254"   # Refuse(Reject)
-  - "#6433"   # type list resolved at the wire edge
-  - "#6434"   # the refusal notice is a Refuse
-  - "#6435"   # owner-close answer is a Refuse
   - "#6248"   # instrument, generator, tag
   - "#6249"   # CaseReference holds a Link
   - "#6250"   # Update forms; dead REMOVE_NOTE path
@@ -223,7 +219,7 @@ Not Processed").
 
 ## Invites Use the Spec's Slots, and the Stub Is the Case's Preview
 
-Issue: #6244.
+Issue: #6244. Record: ADR-0205.
 
 **Decision.**
 
@@ -238,8 +234,15 @@ Issue: #6244.
    `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron
    `caseId` is dropped: the case is named by the reference's own `id`. The full-case
    Invite carries the full case.
-3. **A preview is never the case.** Only a full case is a case: no receiver seeds or
+3. **A preview is not the case.** Only a full case is a case: no receiver seeds or
    updates a replica from a reference that carries a preview.
+4. **A receiver tells the two case Invites apart by the object's form**, as received:
+   a typed reference carrying a preview, or the whole case. A pattern can require
+   either form. Lookup of held objects does not expand a previewed reference, and a
+   receiver does not fetch the case such a reference names, so an invitee answers
+   from the preview alone and a CASE_MANAGER holding the case still reads an Accept
+   of the stub Invite as the stub answer (ADR-0205). Keeping a stub type, or a
+   Vultron Invite subtype, was considered and rejected there.
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
@@ -263,8 +266,10 @@ stub is its own type and its own object" part), ADR-0165,
 `vultron/wire/as2/case_reference_placement.py`, the examples under
 `vultron/wire/as2/vocab/examples/`, `docs/reference/messages/`.
 
-**Open for planning.** The parse-edge rule that tells a reference-with-preview from a
-full case.
+**Parse-edge rule.** ADR-0198 settles it: an object with exactly `id` and `type`,
+with or without `preview`, is a typed reference; any other key makes it a whole
+case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it, and
+the no-fetch rule above narrows MV-10-011's "or fetches it" for a previewed case.
 
 ---
 
@@ -357,7 +362,7 @@ ARCH-18-012.
 **Decision.**
 
 1. **Declared, never inferred.** Every Vultron wire field carries the property
-   marker (`VULTRON_PROPERTY_EXTRA`, extended) with a one-line definition and a
+   marker (`vultron_property(definition, kind)`) with a one-line definition and a
    value kind. A field without it must be a term that a cited context defines: AS2,
    data-integrity v2, Multikey v1, or Controlled Identifiers v1. A test fails on a
    field that is neither. Nested models count; `exclude=True` fields do not.
@@ -384,13 +389,15 @@ ARCH-18-012.
 the AS2 context maps unknown terms to blank nodes (`"@vocab": "_:"`). Signing is not
 the risk: `eddsa-jcs-2022` signs the JSON text and expands nothing.
 
-**Today.** `docs/ns/context.jsonld` maps the type names and four marked properties.
-The generator (`vultron/metadata/wire_context/sync.py`) walks only registered
-classes, so nested models are invisible, and it takes AS2 terms from field names on
-this codebase's own AS2 base classes, so the unmarked `proposedEmbargo`,
-`suggestedRoles` and `roles` pass as AS2. About eighty wire names have no term. The
-actor profile cites Multikey v1, which does not define `assertionMethod` at top
-level, so the published key is undefined to a JSON-LD reader.
+**Today.** Every field this review leaves a Vultron term carries the marker, and
+`docs/ns/context.jsonld` maps each one, typed by its value kind; the generator
+(`vultron/metadata/wire_context/sync.py`) walks the nested models too. The fields in
+the table below are still unmarked, and no check refuses a field without a term
+until #6422. Most have no term; the item `title` is the exception: a note's `title`
+is a Vultron term, so until #6413 renames the item's field to `name`, the item's
+`title` resolves to the note's meaning. The actor profile cites Multikey v1, which
+does not define `assertionMethod` at top level, so the published key is undefined
+to a JSON-LD reader.
 
 **Field review.** Each row names the Task that fixes it; every row but
 `caseActivity` is a ratchet entry in #6422.
@@ -411,10 +418,11 @@ level, so the published key is undefined to a JSON-LD reader.
 | stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
-Every other field is a Vultron term. `state`, `status` and `kind` are each used once
-on the wire, and `caseStatus` is one meaning in two shapes (an object or a link), so
-none of them is a clash. `caseActivity` is dead, but once #6409 marks it a Vultron
-term no rule refuses it, so #6415 deletes it without a ratchet entry.
+Every other field is a Vultron term. `title` is a clash only until #6413 renames the
+item's. `state`, `status` and `kind` are each used once on the wire, and
+`caseStatus` is one meaning in two shapes (an object or a link), so none of them is
+a clash. `caseActivity` is dead, but it is marked a Vultron term,
+so no rule refuses it, and #6415 deletes it without a ratchet entry.
 
 **Touches.** VM-10, ARCH-18, CM-05-018, CSAF-03-008, EP-01-002, EP-01-003,
 EP-01-005, CLP-14-012, ADR-0194, `notes/vocabulary-registry.md` § 4a, the context
@@ -479,54 +487,6 @@ on the open question below), `notes/case-actor-cluster.md`,
 **Open for planning.** `result` on the ledger `Add` can list follow-on entries only if
 their ids are derived ahead of time (as stub and ownership-offer ids already are), or
 if the `Add` waits until they commit. Pick one.
-
----
-
-## Refusal Is Its Own Type
-
-Issue: #6254. Built by #6433 (type list at the wire edge), then #6434 (the `Refuse`
-type), then #6435 (the owner-close answer).
-
-**Decision.** A refusal notice is `"type": ["Refuse", "Reject"]`: `class
-Refuse(Reject)` in the wire vocabulary, and `vultron:Refuse rdfs:subClassOf
-as:Reject` in the Vultron context. The wire then follows CLP-02-016's *refused*
-versus *rejected* (ADR-0196).
-
-- **The list stays at the wire edge.** One shared resolver narrows a received `type`
-  list to the most specific class the vocabulary knows, in any order, ignoring terms
-  it does not know (`["Foo", "Reject"]` is a `Reject`); core holds one string
-  (`"Refuse"`). The serializer writes the list for a class that declares a core
-  supertype. Reason: a list in core changes every `type_` and type check for no gain.
-- **Two known, unrelated types in one list are refused** as an unknown type (422). A
-  bare `"Refuse"` is accepted. Reason: neither class is the more specific one.
-- **A resolved `Refuse` matches no `Reject` pattern**, so `RefusalNoticePattern`
-  drops its `Invite`/`Offer` exclusion and a refusal of a request reaches the
-  refusal-notice use case, not the decline. Reason: ADR-0196 replaces ADR-0141's
-  "a refusal of a request reads as a decline".
-- **Refuse versus Reject is by who decides.** The CASE_MANAGER's guard refusal is a
-  `Refuse`, including its answer to the owner's `Leave(VulnerabilityCase)` during an
-  active embargo (CM-23-011) and its optional reply to a late `Leave` after close
-  (CM-23-040, CM-23-057; ADR-0131's drop default stays).
-  A participant's own `Reject(Invite(EmbargoEvent))` at P/X/A stays a `Reject`: it
-  is the addressee's decline (EMB-01-002).
-
-**AS2 basis.** No AS2 verb fits "I won't admit your act": `Ignore` is ignoring and is
-our RM defer, `Block` targets an actor and is not delivered to it (ActivityPub), `Flag`
-reports content to a moderator, `TentativeReject` is not final and is our RM invalid,
-`Dislike` is sentiment. CORE extension guidance: an extension type that overlaps a
-core type MUST carry the core type too (the spec's example is `["Resign","Leave"]`).
-
-**Today.** `Reject` carries 12 semantics; the refusal notice is `Reject(<refused
-activity inline>)` with `inReplyTo` and `summary` (ADR-0141). A refusal of an
-`Invite` or `Offer` has the decline's shape and is read by the decline use case;
-`Reject(Leave(Case))` falls into `REFUSAL_NOTICE` only because no decline pattern
-matches it.
-
-**Touches.** ADR-0131, ADR-0141, ADR-0196, MSM-05-001, CLP-02-005, CLP-05-001,
-CLP-02-016, CM-23-011, CM-23-040, CM-23-057, VM-03, `REFUSAL_NOTICE`, the
-`OWNER_CLOSE_DECLINE` refusal-notice exemption, `docs/ns/context.jsonld`, and the
-parse layer (`type` as a list; today `parse_activity` refuses any non-string `type`,
-and about 60 sites read a raw body's `type` as a string).
 
 ---
 

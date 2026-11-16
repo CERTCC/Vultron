@@ -29,6 +29,7 @@ from typing import TypeAlias
 
 from pydantic import Field, field_serializer, field_validator
 
+from vultron.core.models.base import PropertyValueKind, vultron_property
 from vultron.enums.object_types import VultronObjectType as VO_type
 from vultron.enums.roles import CVDRole, parse_role
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -66,6 +67,10 @@ class as_CaseParticipantRole(as_VultronObject):
     role: CVDRole = Field(
         ...,
         description="The CVDRole being offered to the target Actor.",
+        json_schema_extra=vultron_property(
+            "The CVD role offered to an actor in a case",
+            PropertyValueKind.PLAIN,
+        ),
     )
 
     @field_serializer("role")

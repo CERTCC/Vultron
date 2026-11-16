@@ -16,7 +16,7 @@
 """Every embargo received tree answers its precondition refusals (#4755).
 
 When a precondition guard at the CASE_MANAGER refuses an embargo message, the
-CASE_MANAGER sends the sender the refusal notice: one ``Reject`` of the
+CASE_MANAGER sends the sender the refusal notice: one ``Refuse`` of the
 refused activity, inline, threaded by ``inReplyTo``, addressed to the sender
 alone and carrying the guard's reason in ``summary`` (CLP-02-005,
 CLP-05-001).  A repeat reported ``SKIPPED`` and a delivery a diversion
@@ -331,7 +331,7 @@ def test_an_owner_activation_with_pxa_set_gets_the_notice():
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "EMB-02-002" in (verdict.reason or "")
     assert _entries(net) == before
-    (notice,) = net.queued(MANAGER, to=OWNER, type_="Reject")
+    (notice,) = net.queued(MANAGER, to=OWNER, type_="Refuse")
     assert (
         notice.id_
         == assert_refusal_notice(
@@ -455,8 +455,8 @@ def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EP-09-001")
-def test_an_invite_once_the_embargo_ended_gets_a_reject_of_it():
-    """The notice of an Invite is a Reject(Invite), closing the ask."""
+def test_an_invite_once_the_embargo_ended_gets_a_refuse_of_it():
+    """The notice of an Invite is a Refuse(Invite), closing the ask (ADR-0196)."""
     net = _net("invite-exited")
     ended, _ = _owner_remove(net, cause=OtherCause(), tag="ends")
     assert ended.disposition is HandlerDisposition.APPLIED, ended.reason
@@ -480,9 +480,9 @@ def test_an_invite_once_the_embargo_ended_gets_a_reject_of_it():
     store = get_pending_assertion_store(BYSTANDER)
     assert store.is_suppressed(net.case_id, _INVITE, body["id"], at=now_utc())
 
-    delivered = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
+    delivered = net.deliver(MANAGER, to=BYSTANDER, type_="Refuse")
 
-    assert [type_ for type_, _ in delivered] == ["Reject"]
+    assert [type_ for type_, _ in delivered] == ["Refuse"]
     assert not store.is_suppressed(
         net.case_id, _INVITE, body["id"], at=now_utc()
     )
@@ -506,9 +506,9 @@ def test_the_notice_of_a_refused_accept_closes_the_accepters_ask():
         HandlerDisposition.REFUSED
     )
 
-    ((type_, verdict),) = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
+    ((type_, verdict),) = net.deliver(MANAGER, to=BYSTANDER, type_="Refuse")
 
-    assert type_ == "Reject"
+    assert type_ == "Refuse"
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     store = get_pending_assertion_store(BYSTANDER)
     assert not store.is_suppressed(
@@ -590,7 +590,7 @@ def test_an_internal_failure_in_a_remove_guard_gets_no_notice(
     with pytest.raises(VultronBTInternalError, match=fault.__name__):
         _owner_remove(net, cause=OtherCause())
 
-    assert net.queued(MANAGER, to=OWNER, type_="Reject") == []
+    assert net.queued(MANAGER, to=OWNER, type_="Refuse") == []
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -609,7 +609,7 @@ def test_an_internal_failure_in_an_owner_decision_guard_gets_no_notice(
     with pytest.raises(VultronBTInternalError, match=fault.__name__):
         _owner_decision(net, embargo_id, accept=accept)
 
-    assert net.queued(MANAGER, to=OWNER, type_="Reject") == []
+    assert net.queued(MANAGER, to=OWNER, type_="Refuse") == []
 
 
 @pytest.mark.spec("CLP-05-001")

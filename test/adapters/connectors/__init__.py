@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -12,20 +10,3 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-"""The held-case refusal a handler still applies before its tree runs.
-
-A received handler builds its tree and runs it through
-:func:`~vultron.core.behaviors.case.received_run.run_received_tree`, which
-reads the verdict from what the tree's nodes recorded (ADR-0195).  What is
-left here reads the DataLayer before the run, so it cannot live in the
-runner: :func:`unheld_case_refusal` refuses an act naming a case the
-receiver does not hold (ADR-0165).  #6412 moves it into the tree and
-deletes this package.
-"""
-
-from vultron.core.use_cases.received._bt_verdict.case_manager import (
-    unheld_case_refusal,
-)
-
-__all__ = ["unheld_case_refusal"]

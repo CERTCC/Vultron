@@ -31,8 +31,9 @@ a receiver on any other is refused at the path stage, with the reason it
 composes (HP-01-005, HP-01-039).  A ``Reject`` of an Invite is also what the
 CASE_MANAGER sends the participant whose proposal or Accept it refuses
 (EMB-02-004, EP-09-017), so its tree declares the participant-replica path
-too: that delivery records nothing, but it must get past the door for the
-handler to close the participant's pending ask (EP-09-019).
+too: that delivery records nothing, but past the doors the tree's
+``ClosePendingEmbargoAskNode`` closes the participant's pending ask
+(EP-09-019).
 
 Split out of ``announce_teardown_tree`` to keep that module under the
 CS-18-001 size cap; it re-exports both factories.
@@ -43,6 +44,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
@@ -72,6 +76,9 @@ from vultron.core.behaviors.embargo.nodes.answer_record import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.embargo.nodes.pending_refusal import (
+    ClosePendingEmbargoAskNode,
+)
 from vultron.core.behaviors.embargo.refusal_tree import pxa_accept_refusal
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
@@ -88,7 +95,7 @@ logger = logging.getLogger(__name__)
 
 
 def accept_invite_to_embargo_tree(
-    case_id: str,
+    case_id: str | None,
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
@@ -156,8 +163,14 @@ def accept_invite_to_embargo_tree(
     is answered with the refusal notice (CLP-02-005); a diverted delivery is
     answered by its diversion, and a repeat gets nothing.
 
+    An Accept that names no case has no case to answer it in: the tree is
+    the incomplete-activity one, whose guard refuses it after intake records
+    it (CLP-10-018).  A case the CASE_MANAGER does not hold puts it on the
+    no-case path, which the path stage refuses (HP-01-039).
+
     Args:
-        case_id: ID of the VulnerabilityCase.
+        case_id: ID of the VulnerabilityCase; ``None`` when the Accept names
+            none.
         embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
@@ -174,6 +187,11 @@ def accept_invite_to_embargo_tree(
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
+    if not case_id:
+        return create_incomplete_activity_received_tree(
+            "AcceptInviteToEmbargoBT",
+            "Accept(Invite(EmbargoEvent)) names no case",
+        )
     expiry_out = {} if expiry_out is None else expiry_out
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
@@ -282,7 +300,9 @@ def reject_invite_to_embargo_tree(
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode         # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
-        ├─ RefuseAnswerOnReplica (replica path)  # ReplicaRefusalNode
+        ├─ RefuseAnswerOnReplica (replica path)
+        │  ├─ ClosePendingEmbargoAskNode      # manager's refusal (EP-09-019)
+        │  └─ ReplicaRefusalNode
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
@@ -324,8 +344,8 @@ def reject_invite_to_embargo_tree(
         # invitee's Reject, and the same message type carries the
         # CASE_MANAGER's own Reject of an Invite to the participant it
         # refuses (EMB-02-004, EP-09-017): that delivery records nothing, but
-        # it must get past the door for the handler to close the
-        # participant's pending ask (EP-09-019).  So the guards that are the
+        # past the doors ClosePendingEmbargoAskNode closes the participant's
+        # pending ask (EP-09-019).  So the guards that are the
         # CASE_MANAGER's are scoped to its path rather than run at both.
         paths={
             ReceivedPath.CASE_MANAGER,
@@ -337,16 +357,22 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
-            # At a participant the Reject records nothing in the case: the
-            # handler closes the participant's pending ask from the doors'
-            # answer alone (EP-09-019), and the tree states the replica's
-            # verdict itself, a refusal as the not-CASE_MANAGER it is
-            # (HP-01-005, BT-17-001).  It runs first, because the embargo
-            # guards below are the CASE_MANAGER's questions: at the
+            # At a participant the Reject records nothing in the case: past
+            # the doors, a CASE_MANAGER's Reject closes the participant's
+            # pending ask (EP-09-019, EMB-02-004), and the tree then states
+            # the replica's verdict itself, a refusal as the not-CASE_MANAGER
+            # it is (HP-01-005, BT-17-001).  It runs first, because the
+            # embargo guards below are the CASE_MANAGER's questions: at the
             # proposer's replica the proposal is no open register entry, so
             # IsAnswerableEmbargoNode would refuse it for that instead.
             OnPaths.off_case_manager(
-                "RefuseAnswerOnReplica", ReplicaRefusalNode(case_id)
+                "RefuseAnswerOnReplica",
+                ClosePendingEmbargoAskNode(
+                    case_id=case_id,
+                    invite_id=invite_id,
+                    rejecting_actor_id=rejecting_actor_id,
+                ),
+                ReplicaRefusalNode(case_id),
             ),
             IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and

@@ -34,7 +34,12 @@ from vultron.core.models._helpers import (
     new_object_id,
     normalise_inbound_actor_id,
 )
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.core.models.case_participant._consent import (
     EmbargoConsentRowsMixin,
 )
@@ -117,14 +122,38 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
     # is normalised at its parse; any other construction with a trailing
     # slash is refused (ARCH-10-001, #5919).
     attributed_to: NormalisedActorId | None = None  # pyright: ignore[reportIncompatibleVariableOverride]
-    case_roles: list[CVDRole] = Field(default_factory=list)
-    participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
+    case_roles: list[CVDRole] = Field(
+        default_factory=list,
+        json_schema_extra=vultron_property(
+            "The CVD roles a participant holds in a case",
+            PropertyValueKind.SET,
+        ),
+    )
+    participant_statuses: list[ParticipantStatus] = Field(
+        default_factory=list,
+        json_schema_extra=vultron_property(
+            (
+                "A participant's statuses in a case, oldest first; the last "
+                "is its current status"
+            ),
+            PropertyValueKind.LIST,
+        ),
+    )
     # Consent is per (participant, embargo) (ADR-0122, CM-10-001, CM-18-001):
     # one row for every entry in the case's embargo register, and the only
     # record of consent.  Each invitation's RSVP deadline is on its row.
     # Bound-by-the-active-embargo and lapsed are lookups over these rows
     # (``is_signatory``, ``has_lapsed``), never stored.
-    embargo_consents: list[EmbargoConsent] = Field(default_factory=list)
+    embargo_consents: list[EmbargoConsent] = Field(
+        default_factory=list,
+        json_schema_extra=vultron_property(
+            (
+                "A participant's consent rows, one for each embargo in its "
+                "case's embargo register"
+            ),
+            PropertyValueKind.SET,
+        ),
+    )
     # The participant has joined the case: it was seated by the case
     # initialization sequence (CM-14-001) or it accepted its stub Invite
     # (CM-10-004, ADR-0114).  One input to the case-level active check
@@ -133,7 +162,17 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
     # Defaults to True because a record seated by case initialization has
     # joined; the record the stub Invite creates (CM-11-006) sets False
     # explicitly, and the Accept of that Invite flips it to True.
-    joined: bool = True
+    joined: bool = Field(
+        default=True,
+        json_schema_extra=vultron_property(
+            (
+                "Whether a participant has joined its case: it was seated "
+                "when the case was created, or it accepted its case "
+                "invitation"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
     # The removal fact (CM-31-001, ADR-0116): the id of the ``Remove`` activity
     # that took this participant out of active participation, or ``None`` when
     # it is not removed.  Removal keeps the record on the roster; this fact is
@@ -145,7 +184,17 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
     # that records it, and names that entry for the reinstatement backfill
     # (CM-10-006).  ``NonEmptyString | None`` follows "if present, then
     # non-empty" (CS-08-002).
-    removal_activity: NonEmptyString | None = None
+    removal_activity: NonEmptyString | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            (
+                "The id of the Remove activity that took a participant out of"
+                " active participation in its case; absent while it is not "
+                "removed"
+            ),
+            PropertyValueKind.IRI,
+        ),
+    )
     participant_case_name: NonEmptyString | None = None
 
     @field_validator("embargo_consents", mode="after")

@@ -42,6 +42,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -82,7 +83,9 @@ def ledger_entry_at(
     )
 
 
-class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
+class CheckStatedPositionInLedgerNode(
+    DeclaredRefusalMixin, DataLayerConditionWithPorts
+):
     """Pass only a stated position that names an entry of this ledger.
 
     The CASE_MANAGER answers a ``Read(CaseLedgerEntry)`` only when the
@@ -93,7 +96,9 @@ class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
     logged at WARNING with the sender and the position, and the node fails
     before any replication state is recorded or any entry sent
     (SYNC-17-005).  A replica whose case has diverged reports it by
-    SYNC-16-001.
+    SYNC-16-001.  The failure is a refusal it declares
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`), so the
+    handler reports ``REFUSED`` with the position's problem.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -153,7 +158,9 @@ class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
             position.entry_hash,
             problem,
         )
-        return Status.FAILURE
+        return self._refuse(
+            f"{self.feedback_message}; nothing recorded or sent (SYNC-17-005)"
+        )
 
 
 def stated_replica_position(

@@ -484,13 +484,12 @@ ReadLogEntryPattern = LedgerPositionReadPattern(
 )
 RefusalNoticePattern = InlineActivityObjectPattern(
     description=(
-        "The CASE_MANAGER's refusal notice: a Reject whose object is the "
-        "refused activity, inline (CLP-05-001, ADR-0141).  Any verb but "
-        "Invite and Offer: a Reject of either has the shape of a decline "
-        "and is read by the use case that reads the decline."
+        "The CASE_MANAGER's refusal notice: a Refuse whose object is the "
+        "refused activity, inline (CLP-05-001, ADR-0196).  Any verb: a "
+        "Refuse is never a decline, so a Refuse of an Invite or an Offer is "
+        "a refusal notice too, and a Reject matches no part of it."
     ),
-    activity_=TAtype.REJECT,
-    excluded_object_verbs=frozenset({TAtype.INVITE, TAtype.OFFER}),
+    activity_=TAtype.REFUSE,
 )
 
 # ---------------------------------------------------------------------------

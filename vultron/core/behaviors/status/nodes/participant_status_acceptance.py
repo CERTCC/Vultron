@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.status.nodes.rm_rule import (
     BB_RM_ANOMALY,
     rm_anomaly,
@@ -249,7 +250,9 @@ def participant_status_refusals(
     return refusals
 
 
-class CheckParticipantStatusAcceptableNode(DataLayerConditionWithPorts):
+class CheckParticipantStatusAcceptableNode(
+    DeclaredRefusalMixin, DataLayerConditionWithPorts
+):
     """Accept or refuse a received ParticipantStatus as a whole (RSH-09-001).
 
     Read-only precondition guard (CLP-10-006): reads the participant and the
@@ -264,7 +267,9 @@ class CheckParticipantStatusAcceptableNode(DataLayerConditionWithPorts):
 
         FAILURE when any rule refuses it; ``feedback_message`` names every
         refused dimension and why, and becomes the refusal notice's reason
-        (RSH-09-002, CLP-05-001).
+        (RSH-09-002, CLP-05-001).  The failure is a refusal it declares
+        (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`), so
+        the handler reports ``REFUSED`` (RSH-09-008).
     """
 
     def __init__(
@@ -348,4 +353,6 @@ class CheckParticipantStatusAcceptableNode(DataLayerConditionWithPorts):
         self.logger.warning(
             "%s: %s (RSH-09-001)", self.name, self.feedback_message
         )
-        return Status.FAILURE
+        return self._refuse(
+            f"ParticipantStatus refused (RSH-09-008): {self.feedback_message}"
+        )

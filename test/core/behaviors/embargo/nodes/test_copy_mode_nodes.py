@@ -84,7 +84,8 @@ def test_a_refused_decision_fails_and_leaves_no_decision(
             embargo_id=embargo.id_,
             result_out=result_out,
             embargo=embargo,
-        ).deciding()
+        ).deciding(),
+        embargo_proposer_id=CASE_MANAGER_ACTOR,
     )
 
     bt_scenario.assert_failure(result)

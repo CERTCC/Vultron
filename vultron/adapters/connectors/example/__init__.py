@@ -1,12 +1,14 @@
 """
 Example connector plugins.
 
-These reference implementations illustrate how to build a ``ConnectorPlugin``
-for a third-party system. They are NOT production-ready — they exist only to
-document the intended plugin pattern.
+These reference implementations illustrate how to build a connector plugin
+for an outside system. They are examples, NOT production connectors: none
+declares an entry point in the ``vultron.connectors`` group, so the loader
+(``loader.py``) never finds them, and nothing else imports them.  They exist
+only to document the intended plugin pattern.
 
 Modules:
 
-- ``jira.py``  — Translates between Jira issue events and Vultron domain events.
-- ``vince.py`` — Translates between VINCE platform events and Vultron domain events.
+- ``vince.py`` — A VINCE case reader: implements the core ``CaseReader``
+  port and nothing else.
 """

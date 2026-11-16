@@ -1070,6 +1070,10 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "SYNC-03-001" in result.reason
+        assert result.reason == (
+            f"ledger entry '{bad_entry.id_}' does not extend the local chain"
+            " tail; Reject sent (SYNC-03-001)"
+        )
         assert held_depth(dl, CASE_URI) == 0
 
     @pytest.mark.spec("SYNC-03-012")
@@ -1086,6 +1090,11 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "SYNC-03-006" in result.reason
+        # The check declares the whole reason (#5775).
+        assert result.reason == (
+            f"ledger entry '{tampered.id_}' does not reproduce its"
+            " entry_hash; not applied or stored (SYNC-03-006)"
+        )
         assert dl.read(tampered.id_) is None
 
     @pytest.mark.spec("HP-01-003")

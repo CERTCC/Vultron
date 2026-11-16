@@ -77,7 +77,10 @@ from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.services.genesis_reject_limit import last_genesis_reject_at
 from vultron.core.services.held_ledger_announces import held_ledger_announces
@@ -2573,6 +2576,40 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None and "SYNC-15-016" in result.reason
+    # The Reject node declares the whole reason (#5775).
+    assert result.reason == (
+        f"case '{second.case_id}' is not seeded here; a Reject for replay"
+        " from genesis was already sent within the interval, so none is"
+        " sent again (SYNC-15-016)"
+    )
+    assert len(_queued_rejects(datalayer)) == 1
+
+
+@pytest.mark.spec("SYNC-15-001")
+def test_an_unheld_early_entry_names_the_genesis_reject_it_sent(
+    datalayer, monkeypatch
+):
+    """An entry the holding area dropped, with no recent Reject, asks for
+    the case and is refused for it."""
+    (first,) = _early_entries(1)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+    monkeypatch.setattr(_receive, "hold_received_announce", lambda *a: False)
+
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = run_in_act(
+        AnnounceLedgerEntryReceivedUseCase(
+            datalayer,
+            _make_event(first, actor_id=CASE_ACTOR_ACTOR_ID),
+            sync_port=SyncActivityAdapter(datalayer),
+            trigger_activity=TriggerActivityAdapter(datalayer),
+        ),
+        at=helpers_clock.now_utc(),
+    )
+
+    assert result == HandlerResult.refused(
+        f"case '{first.case_id}' is not seeded here; Reject sent for replay"
+        " from genesis (SYNC-15-001)"
+    )
     assert len(_queued_rejects(datalayer)) == 1
 
 

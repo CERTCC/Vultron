@@ -94,8 +94,8 @@ def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
         (
             "actor.post_close_reply",
             "The one policy point for replies after the case closes: whether"
-            " the CASE_MANAGER answers a late `Leave(VulnerabilityCase)` with"
-            " an `as:Reject` or drops it. Every other late activity is dropped"
+            " the CASE_MANAGER answers a late `Leave(VulnerabilityCase)` with a"
+            " `Refuse` or drops it. Every other late activity is dropped"
             " under either setting (CM-23-017, CM-23-045, ADR-0131).",
         ),
     ],
@@ -203,7 +203,7 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
                 "PT96H",
                 timedelta(hours=96),
             ),
-            "actor.post_close_reply": ("reject", "reject"),
+            "actor.post_close_reply": ("refuse", "refuse"),
             "actor.call_out_time_budget": ("PT10S", timedelta(seconds=10)),
             "ledger.position_statement_interval_seconds": ("60", 60),
             "vince.base_url": ("https://vince.example/api", None),

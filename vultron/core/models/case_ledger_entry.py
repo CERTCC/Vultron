@@ -43,7 +43,16 @@ from typing import Any, Literal, cast
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import timestamp_serializer
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
+from vultron.core.models.ledger_position import (
+    ENTRY_HASH_PROPERTY,
+    LOG_INDEX_PROPERTY,
+)
 from vultron.core.models.wire_keys import wire_key
 
 
@@ -97,40 +106,74 @@ class CaseLedgerEntry(CoreObject):
         default=-1,
         description="Monotonically increasing index scoped to case_id",
         ge=-1,
+        json_schema_extra=LOG_INDEX_PROPERTY,
     )
     term: int | None = Field(
         default=None,
         description="Raft cluster term; None for single-node deployments",
+        json_schema_extra=vultron_property(
+            (
+                "The cluster term in which the CASE_MANAGER committed a case "
+                "ledger entry; absent on a single-node deployment"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     log_object_id: NonEmptyString = Field(
         ...,
         description="Full URI of the asserted activity or primary object",
         validation_alias="logObjectId",
         serialization_alias="logObjectId",
+        json_schema_extra=vultron_property(
+            "The id of the activity or object a case ledger entry records",
+            PropertyValueKind.IRI,
+        ),
     )
     semantic_type: NonEmptyString = Field(
         ...,
         description="The registry's label for the entry's payload",
         validation_alias="semanticType",
         serialization_alias="semanticType",
+        json_schema_extra=vultron_property(
+            (
+                "The Vultron message-semantics label of the act a case ledger"
+                " entry records"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
         description="The asserted activity payload verbatim (CLP-07-011)",
         validation_alias="payloadSnapshot",
         serialization_alias="payloadSnapshot",
+        json_schema_extra=vultron_property(
+            (
+                "The activity a case ledger entry records, kept verbatim as "
+                "its sender sent it"
+            ),
+            PropertyValueKind.JSON,
+        ),
     )
     prev_log_hash: str = Field(
         default="",
         description="SHA-256 hex hash of predecessor entry; per-case genesis hash for the first entry",
         validation_alias="prevLogHash",
         serialization_alias="prevLogHash",
+        json_schema_extra=vultron_property(
+            (
+                "The SHA-256 hash, in hex, of the case ledger entry before "
+                "this one, or the case's genesis hash for the first entry"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     entry_hash: str = Field(
         default="",
         description="SHA-256 hex hash of this entry's canonical content",
         validation_alias="entryHash",
         serialization_alias="entryHash",
+        json_schema_extra=ENTRY_HASH_PROPERTY,
     )
     # Re-narrowed from CoreObject's ``datetime | None``: the envelope's
     # ``published`` is the CASE_MANAGER's commit stamp and MUST be non-null
@@ -149,6 +192,13 @@ class CaseLedgerEntry(CoreObject):
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",
+        json_schema_extra=vultron_property(
+            (
+                "When the CASE_MANAGER received the activity a case ledger "
+                "entry records, as a UTC date-time"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     _serialize_received_at = timestamp_serializer("received_at")
 

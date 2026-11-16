@@ -7,7 +7,9 @@ revision: 1
 deciders: Allen D. Householder
 consulted: CERT/CC Vultron protocol team
 informed: CERT/CC Vultron protocol team
-partially_superseded_by: 0176-an-act-reads-the-clock-once-at-its-edge.md
+partially_superseded_by:
+  - 0176-an-act-reads-the-clock-once-at-its-edge.md
+  - 0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md
 stakeholder_type: [project-contributor]
 ---
 

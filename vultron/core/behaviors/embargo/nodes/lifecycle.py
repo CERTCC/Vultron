@@ -26,11 +26,17 @@ from vultron.core.behaviors.embargo.decided_entries import (
     decide_on_stage,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
+from vultron.core.behaviors.embargo.nodes.proposer_port import (
+    EMBARGO_PROPOSER_INPUT,
+    EMBARGO_PROPOSER_REMAPPING,
+    read_embargo_proposer,
+)
 from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
     SendTerminateEmbargoActivityNode,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.embargo_apply import (
@@ -216,13 +222,25 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
 class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
     """Apply STRICT propose/counter-propose transition.
 
-    ``proposer_id`` names the actor whose terms these are when the executing
-    actor is not the proposer: the CASE_MANAGER adjudicating a received
-    proposal runs this node in its own store (EP-09-001) but the consent
+    The proposer is read from the ``embargo_proposer_id`` port an earlier
+    node of the run published (:class:`~vultron.core.behaviors.embargo.nodes.proposer_port.PublishEmbargoProposerNode`).
+    It names the actor whose terms these are, which is not the executing
+    actor when the CASE_MANAGER adjudicates a received proposal: it runs
+    this node in its own store (EP-09-001), but the consent
     ``propose_embargo`` records — proposing terms is accepting them
     (ADR-0093) — belongs to the participant that proposed, never to the
-    manager.  Absent, the executing actor is the proposer (the trigger side).
+    manager (CM-24-002).  On the trigger side the executing actor publishes
+    itself.
     """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        **EMBARGO_PROPOSER_INPUT,
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return dict(EMBARGO_PROPOSER_REMAPPING)
 
     def __init__(
         self,
@@ -231,13 +249,11 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         result_out: dict[str, object],
         name: str | None = None,
         *,
-        proposer_id: str | None = None,
         embargo: EmbargoEvent | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
         self._case_id_value = case_id
         self._embargo_id = embargo_id
-        self._proposer_id = proposer_id
         self._embargo = embargo
 
     def _register_step(self) -> RegisterStep:
@@ -266,11 +282,7 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         return lifecycle.propose_embargo(
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
-            actor_id=(
-                self._proposer_id
-                if self._proposer_id is not None
-                else actor_id
-            ),
+            actor_id=read_embargo_proposer(self),
             transition_mode=TransitionMode.STRICT,
         )
 

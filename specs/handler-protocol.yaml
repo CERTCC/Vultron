@@ -1618,6 +1618,28 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: HP-08-008
+  - id: HP-08-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The receiver MUST refuse, before the commit, an `Add(ParticipantStatus)` whose
+      activity `context` and status `context` name different cases, with a reason
+      that names both cases.
+    rationale: >-
+      The status says which case it applies to (HP-08-013). An activity that names
+      another case says two things about where the act belongs, and applying either
+      one would ignore the other. Naming both cases lets the sender see the
+      disagreement.
+    verification: >-
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_whose_activity_names_another_case_is_refused`
+      delivers an `Add` whose status and target name case A while its activity
+      `context` names case B, and asserts it is refused with both cases in the
+      reason, no entry and no appended status.
+      `test/core/behaviors/case/nodes/test_activity_context.py` drives the guard with
+      matching, differing and absent contexts.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-008
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

@@ -379,10 +379,10 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
     ): frozenset({CM, PR}),
     # A Reject(Invite(EmbargoEvent)) is also what the CASE_MANAGER sends the
     # participant whose proposal or Accept it refuses (EMB-02-004,
-    # EP-09-017).  That delivery records nothing, but it must pass the door
-    # for the handler to close the participant's pending ask (EP-09-019), so
-    # the guards that are the CASE_MANAGER's are declared on its path alone
-    # rather than run at both.
+    # EP-09-017).  That delivery records nothing, but past the doors the
+    # tree's ClosePendingEmbargoAskNode closes the participant's pending ask
+    # (EP-09-019), so the guards that are the CASE_MANAGER's are declared on
+    # its path alone rather than run at both.
     (
         f"{_E}/answer_trees.py",
         "reject_invite_to_embargo_tree",
@@ -826,7 +826,6 @@ def test_an_add_participant_status_with_no_case_keeps_its_one_declaration() -> (
         sender_rule=(
             AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
         ),
-        target_actor_id=None,
     )
     stage = next(n for n in tree.iterate() if isinstance(n, ReceivedPathNode))
     assert stage.declared == frozenset({CM})

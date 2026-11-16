@@ -211,8 +211,9 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
   receiver on a path the declaration omits is refused at the path stage, so a type
   that acts only at the CASE_MANAGER declares that path alone; no handler maps a
   skipped gate to a verdict after the run (HP-01-039, ADR-0153, #6394).
-- The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
-  never as a CASE_MANAGER address looked up from the store (BT-17-006).
+- The runner (`run_received_tree`) runs the tree as the **receiving** actor
+  (`resolve_receiving_actor_id()`), never as a CASE_MANAGER address looked up from the
+  store (BT-17-006, BT-17-009).
 - Emit no `RmEngageCaseActivity` for the invitee. Accepting the stub is joining (RM
   stays `RECEIVED`), accepting the full-case Invite is RV; only the participant's own
   `Join(VulnerabilityCase)` records `RM.ACCEPTED` (CM-11-004).
@@ -342,9 +343,9 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
   executing actor this container does not host (BT-05-005).
 - **The CASE_MANAGER never `cc:`s its own emission to itself**: co-hosted, that commits
   the same activity twice.
-- For the embargo relay, `resolve_proposer_id()` honours an inbound `attributedTo` only
-  when the Invite's `actor` is the CASE_MANAGER, so a participant cannot name a third
-  party as proposer.
+- For the embargo relay, the tree's `PublishEmbargoProposerNode` honours an inbound
+  `attributedTo` only when the Invite's `actor` is the CASE_MANAGER, so a participant
+  cannot name a third party as proposer (CM-24-002).
 
 ---
 

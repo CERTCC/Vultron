@@ -15,12 +15,15 @@
 
 """A received use case resolves its receiver before its first store read.
 
-Each handler here still reads the DataLayer before its tree runs.  With no
-receiver to resolve, it must raise as a wiring fault before it touches the
-store, so a read's answer (an unknown case, say) never turns our fault into
-a refusal of the sender (BT-17-009, ARCH-15-001).  The store below reports no
-owner and fails on any other access, so a read ahead of the resolution fails
-the test with its own message instead of raising the expected error.
+Each handler here reads the DataLayer, in the builder it hands the runner
+(until #6476 moves the read into the tree) or through the tree's own doors
+(an unknown case is the path stage's refusal, HP-01-039).  The runner
+resolves the receiver first, so with none to resolve the handler raises as a
+wiring fault before it touches the store.  A read's answer thus never turns
+our fault into a refusal of the sender (BT-17-009, ARCH-15-001).  The store
+below reports no owner and fails on any other access, so a read ahead of the
+resolution fails the test with its own message instead of raising the
+expected error.
 """
 
 from types import SimpleNamespace
@@ -29,14 +32,13 @@ from typing import Any
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
+from vultron.core.models.note import VultronNote
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.embargo.accept import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-)
-from vultron.core.use_cases.received.embargo.invite import (
-    InviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
@@ -79,7 +81,10 @@ def _request(**fields: object) -> SimpleNamespace:
 _CASES = [
     pytest.param(
         AddNoteToCaseReceivedUseCase,
-        _request(note=object(), case_id=_CASE),
+        _request(
+            note=make(VultronNote, id_=f"{_CASE}/notes/n1", content="x"),
+            case_id=_CASE,
+        ),
         id="add-note",
     ),
     pytest.param(
@@ -89,7 +94,9 @@ _CASES = [
     ),
     pytest.param(
         AddParticipantStatusToParticipantReceivedUseCase,
-        _request(status_id="s1", participant_id="p1", context_id=_CASE),
+        _request(
+            status_id="s1", participant_id="p1", context_id=_CASE, status=None
+        ),
         id="add-participant-status",
     ),
     pytest.param(
@@ -113,13 +120,12 @@ _CASES = [
         id="add-report-to-case",
     ),
     pytest.param(
-        InviteToEmbargoOnCaseReceivedUseCase,
-        _request(context_id=_CASE),
-        id="invite-to-embargo",
-    ),
-    pytest.param(
         AcceptInviteToEmbargoOnCaseReceivedUseCase,
-        _request(embargo_id=f"{_CASE}/embargo_events/e1", invite_id="i1"),
+        _request(
+            embargo_id=f"{_CASE}/embargo_events/e1",
+            invite_id="i1",
+            case_id=_CASE,
+        ),
         id="accept-embargo-invite",
     ),
 ]

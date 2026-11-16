@@ -36,6 +36,7 @@ from typing import Any
 
 from vultron.adapters.driving.fastapi.outbox_addressing import (
     _item_actor_id,
+    type_label,
 )
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
@@ -100,9 +101,12 @@ def _load_sealed_body(
 
 
 def _activity_type(body: dict[str, Any]) -> str:
-    """Return the body's ``type``, or ``"Activity"`` when it names none."""
-    raw = body.get("type")
-    return raw if isinstance(raw, str) and raw else "Activity"
+    """Return the body's ``type``, or ``"Activity"`` when it names none.
+
+    An extension type's list (``["Refuse", "Reject"]``) names the one type
+    it resolves to (:func:`type_label`, ADR-0196).
+    """
+    return type_label(body.get("type")) or "Activity"
 
 
 def _validate_to_field(

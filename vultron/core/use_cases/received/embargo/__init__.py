@@ -6,7 +6,7 @@ One module per verb family (CS-18-001):
   ``EmbargoEvent``;
 - :mod:`.announce` — ``Announce(EmbargoEvent)``;
 - :mod:`.invite` — ``Invite(EmbargoEvent)`` and the resolution of its
-  invitee and proposer;
+  invitee;
 - :mod:`.accept` — ``Accept(Invite(EmbargoEvent))``, answered by the
   named embargo's availability, on time or late (MSM-07-012, EMB-17);
 - :mod:`.reject` — ``Reject(Invite(EmbargoEvent))``;
@@ -28,7 +28,6 @@ from vultron.core.use_cases.received.embargo.announce import (
 from vultron.core.use_cases.received.embargo.invite import (
     InviteToEmbargoOnCaseReceivedUseCase,
     resolve_invitee_id,
-    resolve_proposer_id,
 )
 from vultron.core.use_cases.received.embargo.owner_decision import (
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -54,5 +53,4 @@ __all__ = [
     "RemoveEmbargoEventFromCaseReceivedUseCase",
     "WithdrawFromEmbargoOnCaseReceivedUseCase",
     "resolve_invitee_id",
-    "resolve_proposer_id",
 ]

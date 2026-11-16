@@ -2207,7 +2207,7 @@ class TestWaitForAllParticipantsRmClosed:
         reporter_client, vendor_client, reporter, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        # CM-23-011: the Case Actor declines an owner close while an embargo
+        # CM-23-011: the Case Actor refuses an owner close while an embargo
         # is live.  The setup leaves an active embargo (validate-report needs
         # one), so the owner publishes first, which drives embargo teardown.
         ActorSession(client=vendor_client, actor=vendor).with_case(

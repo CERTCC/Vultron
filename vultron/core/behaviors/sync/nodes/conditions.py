@@ -30,6 +30,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.idempotency import DeclaredRefusalMixin
 from vultron.core.behaviors.log_entry import require_log_entry
 from vultron.core.services.case_copy import (
     entry_conflicts_with_case_position,
@@ -116,7 +117,9 @@ class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
+class CheckEntryAgreesWithCasePositionNode(
+    DeclaredRefusalMixin, DataLayerConditionWithPorts
+):
     """Refuse an entry at the case's ledger position that names another hash.
 
     ``FAILURE``, logged at ERROR, for an entry at the index the case's
@@ -124,7 +127,8 @@ class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
     copy that set the position disagree, so the entry is neither stored as a
     no-op, applied nor stored (SYNC-16-025,
     :func:`~vultron.core.services.case_copy.entry_conflicts_with_case_position`).
-    ``SUCCESS`` for any other entry.
+    ``SUCCESS`` for any other entry.  The failure is a refusal it declares
+    (:class:`~vultron.core.behaviors.idempotency.ReportsRefusal`).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -160,7 +164,12 @@ class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
             getattr(self.activity, "activity_id", None),
             getattr(self.activity, "actor_id", None),
         )
-        return Status.FAILURE
+        return self._refuse(
+            f"ledger entry '{entry.id_}' (log_index={entry.log_index}) is"
+            f" not the entry case '{entry.case_id}' names at its ledger"
+            " position; the chains conflict, so it is not stored"
+            " (SYNC-16-025)"
+        )
 
 
 class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):

@@ -14,9 +14,6 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received._bt_verdict import (
-    unheld_case_refusal,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -61,12 +58,8 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return HandlerResult.refused("Engage activity has no case id")
 
-        # The Join names the case (ADR-0165): every detail comes from the case
-        # this store holds, so one it does not hold is refused.
-        if (
-            refusal := unheld_case_refusal(self._dl, request, case_id, "Join")
-        ) is not None:
-            return refusal
+        # The Join names the case (ADR-0165): the tree's path stage refuses
+        # one this store does not hold (AKM-03-006).
 
         # A receipt, not a transition: the tree decides whether the declared
         # move happened, and a restatement is reported SKIPPED.  An
@@ -132,15 +125,9 @@ class DeferCaseReceivedUseCase:
             logger.warning("defer_case: missing case_id on request")
             return HandlerResult.refused("Defer activity has no case id")
 
-        if (
-            refusal := unheld_case_refusal(
-                self._dl, request, case_id, "Ignore"
-            )
-        ) is not None:
-            return refusal
-
-        # A receipt, not a transition, for the reason given on the engage
-        # line above (SL-04-007).
+        # The Ignore names the case, as the Join does (AKM-03-006).  A
+        # receipt, not a transition, for the reason given on the engage line
+        # above (SL-04-007).
         logger.info(
             "Actor '%s' declares RM.DEFERRED on case '%s' (Ignore received)",
             actor_id,

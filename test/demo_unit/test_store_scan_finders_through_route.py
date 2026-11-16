@@ -23,21 +23,29 @@ ingress used to write), and serve every read through the real route function,
 so a read that would count such a row fails here instead of in a Docker demo.
 """
 
+import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import archive_received
+from test.support.received import archive_received, body_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers.datalayer import (
     get_datalayer_contents,
     get_objects,
 )
+from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
+    _received_offers,
+)
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.demo.helpers.polling import (
     assert_received_from,
     find_case_invite_for_actor,
@@ -358,6 +366,34 @@ def test_read_received_activities_lists_one_type_from_the_records(ingress_row):
         invite.id_
     ]
     assert read_received_activities(client, "Accept") == []
+
+
+def _archive_with_type_list(dl: SqliteDataLayer, activity: Any) -> None:
+    """Archive *activity* as a peer that sends its ``type`` as a list."""
+    body = json.loads(body_of(activity))
+    body["type"] = ["Foo", body["type"]]
+    dl.create(
+        ReceivedActivityRecord(
+            activity_id=activity.id_,
+            received_body=json.dumps(body),
+            received_at=ACT_AT,
+        )
+    )
+
+
+@pytest.mark.spec("VM-03-006")
+def test_a_received_type_list_is_read_as_the_type_it_resolves_to():
+    """The archive keeps a peer's ``type`` list as received (VM-08-002); the
+    demo's filter and the route's received Offers read it through the shared
+    resolver, so ``["Foo", "Offer"]`` is an Offer (ADR-0196)."""
+    offer = _report_offer()
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+    _archive_with_type_list(dl, offer)
+
+    assert [
+        a["id"] for a in read_received_activities(_route_client(dl), "Offer")
+    ] == [offer.id_]
+    assert list(_received_offers(dl)) == [offer.id_]
 
 
 def test_read_received_activities_ignores_rows_under_the_senders_id():

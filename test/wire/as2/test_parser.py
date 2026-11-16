@@ -248,7 +248,7 @@ def test_parse_activity_raises_validation_error_for_invalid_data(monkeypatch):
         def model_validate(cls, data, **kwargs):  # type: ignore[override]
             raise ValueError("bad data")
 
-    monkeypatch.setattr(p, "find_in_vocabulary", lambda _: _FailingModel)
+    monkeypatch.setattr(p, "resolve_wire_type", lambda _: _FailingModel)
     with pytest.raises(VultronParseValidationError):
         parse_activity({"type": "Create", "published": PUBLISHED})
 
@@ -439,17 +439,18 @@ def test_parsing_activity_line_is_debug_not_info(caplog):
     assert all(r.levelno == logging.DEBUG for r in parsing)
 
 
-#: ``type`` values that are present and name *something*, but not a string we
-#: can look up.  ``[]`` and ``{}`` are the load-bearing pair: they are
-#: unhashable, so a dict membership test on them raises ``TypeError`` rather
-#: than ``KeyError``.
+#: ``type`` values that are present and name *something*, but nothing we can
+#: look up.  ``[]`` and ``{}`` are the load-bearing pair: they are unhashable,
+#: so a dict membership test on them raises ``TypeError`` rather than
+#: ``KeyError``.  A list that names a known type resolves (VM-03-006,
+#: ``test_type_list.py``); one that names none is unknown.
 NON_STRING_TYPES: tuple[object, ...] = (
     0,
     123,
     True,
     [],
     {},
-    ["Create"],
+    ["NotAType"],
     {"type": "Create"},
 )
 

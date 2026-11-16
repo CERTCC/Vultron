@@ -6,7 +6,7 @@ dispatch entries. This is the primitive building block imported by both
 (ordering guard and registry entries).
 """
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -104,13 +104,12 @@ ACTIVITY_VERBS: frozenset[str] = frozenset(
 
 
 class InlineActivityObjectPattern(ActivityPattern):
-    """A pattern whose object is an inline activity of any verb but a few.
+    """A pattern whose object is an inline activity of any verb.
 
     ``ActivityPattern`` nests one verb per pattern; this matches an activity
-    whose ``object_`` is an inline activity of *any* verb outside
-    ``excluded_object_verbs``.  ``object_`` is fixed to ``Activity`` so the
-    pattern renders as ``Verb(Activity)``.  A bare URI, a non-activity
-    object, or an activity of an excluded verb does not match.  ``target_``,
+    whose ``object_`` is an inline activity of *any* verb.  ``object_`` is
+    fixed to ``Activity`` so the pattern renders as ``Verb(Activity)``.  A
+    bare URI or a non-activity object does not match.  ``target_``,
     ``context_`` and ``to_`` match as on the base class.
 
     It is the most general pattern for its verb, so its registry entry comes
@@ -118,20 +117,15 @@ class InlineActivityObjectPattern(ActivityPattern):
     """
 
     object_: AOtype | VOtype | ActivityPattern | None = AOtype.ACTIVITY
-    excluded_object_verbs: frozenset[TAtype | IAtype] = Field(
-        default_factory=frozenset
-    )
 
     def match(self, activity: as_Activity) -> bool:
-        """True if *activity* carries an inline activity of an included verb."""
+        """True if *activity* carries an inline activity."""
         if self.activity_ != activity.type_:
             return False
         obj = getattr(activity, "object_", None)
         if not isinstance(obj, as_Activity):
             return False
-        verb = str(obj.type_)
-        excluded = {str(v) for v in self.excluded_object_verbs}
-        if verb not in ACTIVITY_VERBS or verb in excluded:
+        if str(obj.type_) not in ACTIVITY_VERBS:
             return False
         return self._match_qualifiers(activity)
 

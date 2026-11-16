@@ -36,7 +36,6 @@ a new outbound activity cannot be added without being audited here.
 import inspect
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -50,6 +49,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.outbox_addressing import type_label
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _INLINE_OBJECT_ACTIVITY_TYPES,
 )
@@ -65,6 +65,7 @@ from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.type_terms import names_type
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
@@ -412,9 +413,6 @@ RECIPES: dict[str, Recipe] = {
     ),
     "close_case": lambda w: w.adapter.close_case(
         case_id=w.case_id, actor=_ACTOR, to=[_PEER], at=authored_at()
-    ),
-    "reject_close_case": lambda w: w.adapter.reject_close_case(
-        case_id=w.case_id, actor=_ACTOR, close_sender=_PEER, at=authored_at()
     ),
     # The genesis entry is the creation's own Create, read back (ADR-0157).
     "record_case_created": lambda w: w.adapter_as(
@@ -906,7 +904,7 @@ def test_the_activity_is_sealed_complete(world, method):
         assert body.get("to"), (
             f"{method} sealed an activity with no recipients"
         )
-    if body["type"] in _INLINE_OBJECT_ACTIVITY_TYPES:
+    if type_label(body["type"]) in _INLINE_OBJECT_ACTIVITY_TYPES:
         obj = body.get("object")
         assert isinstance(obj, dict) and obj.get("type"), (
             f"{method} emitted {body['type']} with a non-inline object"
@@ -959,7 +957,7 @@ def _carried_case_copies(value: Any, path: str = "body") -> list[str]:
     if isinstance(value, dict):
         obj = value.get("object")
         if (
-            value.get("type") in CASE_NAMING_ACTIVITY_TYPES
+            names_type(value.get("type"), CASE_NAMING_ACTIVITY_TYPES)
             and isinstance(obj, dict)
             and obj.get("type") == "VulnerabilityCase"
             and not is_case_reference_shape(obj)
@@ -1152,23 +1150,3 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     assert "published" not in first
     assert "updated" not in first
     assert first == second
-
-
-@pytest.mark.spec("AKM-02-006")
-def test_a_rebuilt_close_leave_carries_no_time(world):
-    """The rejecter's rebuild of the owner's close ``Leave`` carries no time.
-
-    The owner stated the Leave's ``published``, which this actor does not
-    hold (AKM-02-006), so the Reject's own instant is not stamped on the
-    embedded Leave.
-    """
-    at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
-    _, blob = world.adapter.reject_close_case(
-        case_id=world.case_id, actor=_ACTOR, close_sender=_PEER, at=at
-    )
-    body = json.loads(blob)
-    leave = body["object"]
-
-    assert datetime.fromisoformat(body["published"]) == at
-    assert "published" not in leave
-    assert "updated" not in leave

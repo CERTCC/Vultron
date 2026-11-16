@@ -62,10 +62,11 @@ Read the object and the context before treating a `Reject` as an error.
     A receiver MUST NOT infer error semantics from `as:Reject` by itself (MSM-05-003).
     Treating every `Reject` as a fault turns each legitimate refusal into a false alarm.
 
-A `Reject` from the CASE_MANAGER whose object is an activity you sent, carried inline, is a refusal notice.
+A `Refuse` from the CASE_MANAGER whose object is an activity you sent, carried inline, is a refusal notice.
+Its `type` is the list `["Refuse", "Reject"]`: `Refuse` is the Vultron subtype of `as:Reject`.
 It tells you a precondition did not hold, so your assertion had no effect, and its `summary` gives the reason.
 Close the pending assertion you recorded for that activity, and do not send it again because of the notice ([CLP-05-007](../../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-007), [CLP-05-008](../../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-008)).
-A refusal notice of an `Invite` or an `Offer` you sent reads as the decline of that request.
+A refusal notice of an `Invite` or an `Offer` you sent is a refusal, not a decline of that request.
 
 A `Reject(CaseLedgerEntry)` is a third thing again: it is the ledger negative acknowledgment, and it asks the CASE_MANAGER to replay a missing prefix rather than reporting a fault.
 See [Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md).
