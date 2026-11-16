@@ -114,7 +114,7 @@ def test_one_end_part_matches_a_hand_sum():
     """Publication from Vfdpxa: the vendor's end part, by hand.
 
     Each term is the change in one end desideratum's expected outcome times
-    its weight ``1 − f_d`` (ADR-0200 rule 2).  ``F ≺ P`` falls from 1/3 to
+    its weight ``1 − f_d`` (ADR-0200).  ``F ≺ P`` falls from 1/3 to
     0 (``test/measure/standing/test_advice.py``); the weights are one minus
     each desideratum's chance frequency on the Measuring CVD pages.  Every
     other end desideratum of the scope keeps its expected outcome.
@@ -141,7 +141,7 @@ def test_every_open_move_has_a_shift_for_each_vendor(two_vendors):
 
 
 def test_the_case_has_a_move_in_each_band(two_vendors):
-    """Each band is set by the move's own shift (ADR-0200 rule 5)."""
+    """Each band is set by the move's own shift (ADR-0200)."""
     fix = _move(two_vendors, VENDOR, "cs.fix_is_deployed")
     publication = _move(two_vendors, VENDOR, "cs.public_becomes_aware")
     validation = _move(two_vendors, VENDOR_2, "rm.validate")
@@ -160,7 +160,7 @@ def test_the_case_has_a_move_in_each_band(two_vendors):
 def test_layers_follow_dominance(two_vendors):
     """The fix dominates the owner's proposal; the fix and the second
     vendor's closure trade off; the fix dominates publication, a trade-off
-    move that is then not top (ADR-0200 rules 4 and 6)."""
+    move that is then not top (ADR-0200)."""
     fix = _move(two_vendors, VENDOR, "cs.fix_is_deployed")
     close = _move(two_vendors, VENDOR_2, "rm.close")
     proposal = _move(two_vendors, OWNER, "em.propose")
@@ -209,7 +209,7 @@ def test_the_coordinators_undominated_move_is_leading_among_yours(
     two_vendors,
 ):
     """The owner's proposal is not top, since the fix dominates it, but no
-    other move of the coordinator's does (ADR-0200 rule 7)."""
+    other move of the coordinator's does (ADR-0200)."""
     proposal = _move(two_vendors, OWNER, "em.propose")
     assert proposal.leading_among_yours and not proposal.top
     leading = [m for m in two_vendors.moves if m.leading_among_yours]
@@ -479,7 +479,7 @@ def test_a_vendor_not_yet_notified_is_a_scope_and_its_notice_helps():
 def test_a_case_manager_is_a_coordinator_and_its_moves_pool_with_the_owners():
     """The vendor is also the case's CASE_MANAGER.  Its deployed fix
     dominates the owner's proposal, so the proposal is not leading among
-    yours, and the fix is (ADR-0200 rule 7)."""
+    yours, and the fix is (ADR-0200)."""
     ledger = Ledger()
     ledger.genesis(
         [

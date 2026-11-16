@@ -22,7 +22,7 @@ else (:func:`case_prefix`).
   Each stands at its own report-management state and at the fix path and
   deployment its sequence reaches; every vendor's sequence reaches the same
   public state.  A vendor not yet notified, at RM Start, is a vendor too,
-  numbered after them, with no fix and no deployment (ADR-0200 rule 1).
+  numbered after them, with no fix and no deployment (SHD-03-001).
 * **The embargo** stands at the case's EM state, and an exited one at the
   cause its exit records: its end time, or fixes ready or deployed, is its
   own terms, a threat signal is a threat signal, and any other cause is
@@ -239,7 +239,7 @@ def case_prefix(
         em: The case's EM state.
         unaware: The vendors not yet notified, numbered after the others:
             each stands at RM Start with no fix and no deployment
-            (ADR-0200 rule 1: a scope is any vendor, notified or not).
+            (SHD-03-001: a scope is any vendor, notified or not).
         pxa: The case's public state, which the joint state takes when no
             vendor has a sequence to place it.
     """

@@ -394,7 +394,7 @@ def _seat_unnotified(ledger: Ledger, actor: str) -> None:
 
 
 def test_a_vendor_not_yet_notified_is_a_vendor_of_the_joint_model():
-    """ADR-0200 rule 1: a scope is any vendor, notified or not."""
+    """SHD-03-001: a scope is any vendor, notified or not."""
     ledger = _vendor_case()
     _seat_unnotified(ledger, VENDOR_2)
     record = case_standing(ledger.case_ledger())

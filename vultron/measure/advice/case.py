@@ -81,13 +81,13 @@ COORDINATOR_ROLES: frozenset[CVDRole] = frozenset(
 """The roles whose moves are "yours" to the analyst: the coordinator's."""
 
 HELP_TEXT = "Choose the darkest move in the highest band that has one."
-"""The page's advice on reading the bands (ADR-0200 rule 6)."""
+"""The page's advice on reading the bands (ADR-0200)."""
 
 HARM_NOTE = (
     "A negative shift means worse than the chance value, not a broken"
     " desideratum."
 )
-"""What a negative part means (ADR-0200 rule 8)."""
+"""What a negative part means (ADR-0200)."""
 
 DOMINATED_BY_HARM_FREE = (
     "A harm-free move does at least as well on every vendor's end desiderata."
@@ -260,7 +260,7 @@ class BandAdvice(BaseModel):
             unhelpful band.
         collapsed: Whether the page shows it as a closed group the analyst
             can open: only the unhelpful band.
-        moves: Its moves, in no order of merit (ADR-0200 rule 6).  Empty when
+        moves: Its moves, in no order of merit (ADR-0200).  Empty when
             no open move falls in it.
     """
 
