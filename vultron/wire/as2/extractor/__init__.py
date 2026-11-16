@@ -85,11 +85,12 @@ from vultron.wire.as2.extractor._instances import (
     ValidateReportPattern,
     WithdrawFromEmbargoOnCasePattern,
 )
-from vultron.wire.as2.extractor._pattern import ActivityPattern
+from vultron.wire.as2.extractor._pattern import ActivityPattern, ObjectForm
 
 __all__ = [
     # Pattern class
     "ActivityPattern",
+    "ObjectForm",
     # Extractor
     "extract_intent",
     # Pattern instances

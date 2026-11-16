@@ -64,6 +64,7 @@ Vultron reads an object slot as one of three forms, told apart by their keys alo
 - A **URI** names the object with no type.
 
 A typed reference is never the object itself: the receiver uses the object it holds, or fetches it before it acts.
+A typed reference that carries a preview is the exception: the receiver reads it as received, and neither puts the object it holds in its place nor fetches the object (MV-10-013).
 A URI helps the recipient only if it already holds the object or can fetch it.
 The recipient has no access to the sender's data store, so fetching means asking the actor that holds the object through an API call, which is object dereference (AKM-05-003).
 
