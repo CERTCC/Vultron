@@ -15,6 +15,9 @@ from vultron.wire.as2.errors import (
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
@@ -704,6 +707,7 @@ def test_a_partial_inline_case_participant_is_a_reference_not_filled_in():
 
     parsed = parse_activity(body)
 
+    assert isinstance(parsed, as_TransitiveActivity)
     assert isinstance(parsed.object_, as_TypedReference)
     assert not hasattr(parsed.object_, "participant_statuses")
     assert not hasattr(parsed.object_, "joined")
