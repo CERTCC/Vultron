@@ -106,6 +106,7 @@ tree = create_accept_invite_actor_to_case_tree(
     case_id="urn:uuid:case-1",
     invitee_id="urn:uuid:actor-1",
     invite_id="urn:uuid:invite-1",
+    embedded_invitee_id="urn:uuid:actor-1",
     sender_rule=AcceptInviteActorToCaseReceivedUseCase.sender_entitlement,
 )
 print("```")
