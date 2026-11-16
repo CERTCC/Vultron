@@ -196,7 +196,7 @@ def case_prefix(
                 Event(EventKind(cs_event.value), None if case_wide else number)
             )
     for key, events in _case_steps(history, numbers):
-        keyed.setdefault(key, set()).update(events)
+        keyed[key] = keyed.get(key, set()) | events
     end = None
     if em is EM.EXITED:
         exits = history.of_kind(HistoryKind.EMBARGO_EXIT)
@@ -204,9 +204,8 @@ def case_prefix(
         end = _embargo_end(exit_)
         if exit_ is not None:
             position = history.events.index(exit_)
-            keyed.setdefault((exit_.log_index, position, 0), set()).update(
-                _exit_events(end)
-            )
+            key = (exit_.log_index, position, 0)
+            keyed[key] = keyed.get(key, set()) | _exit_events(end)
     paths = []
     for sequence in vendors:
         vf, d, pxa = cs_dimensions(replay_cs_history(sequence.kinds))
