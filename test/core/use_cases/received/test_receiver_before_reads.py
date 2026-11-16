@@ -19,10 +19,11 @@ Each handler here reads the DataLayer, in the builder it hands the runner
 (until #6476 moves the read into the tree) or through the tree's own doors
 (an unknown case is the path stage's refusal, HP-01-039).  The runner
 resolves the receiver first, so with none to resolve the handler raises as a
-wiring fault before it touches the store, so a read's answer never turns our fault into a refusal
-of the sender (BT-17-009, ARCH-15-001).  The store below reports no
-owner and fails on any other access, so a read ahead of the resolution fails
-the test with its own message instead of raising the expected error.
+wiring fault before it touches the store.  A read's answer thus never turns
+our fault into a refusal of the sender (BT-17-009, ARCH-15-001).  The store
+below reports no owner and fails on any other access, so a read ahead of the
+resolution fails the test with its own message instead of raising the
+expected error.
 """
 
 from types import SimpleNamespace
