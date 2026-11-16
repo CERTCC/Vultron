@@ -118,6 +118,7 @@ _REFUSED = {
 
 
 @pytest.mark.spec("HP-08-015")
+@pytest.mark.spec("HP-08-016")
 @pytest.mark.parametrize(
     "body, named", list(_REFUSED.values()), ids=list(_REFUSED)
 )

@@ -1623,25 +1623,20 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A receiver MUST refuse a received activity of any type when two `context`
-      values among the activity and the objects down its `object` chain name
-      different cases. The refusal reason MUST name each `context` and the case it
-      names. The chain is the activity's object and, when that object is an
+      A receiver MUST refuse any received activity in which two `context` values,
+      on the activity or an object down its `object` chain, name different cases.
+      The chain is the activity's object and, when that object is an
       activity, the inner activity's own object, at any depth. An object named by a
       URI, a `Link` or a typed reference (MV-10-011) carries no `context` and is
       not compared. The chain ends at a `Refuse`, whose object is the refused act
       quoted as it arrived (CLP-05-001).
     rationale: >-
-      Each `context` says which case the act belongs to. When two parts of one
-      message name different cases, the sender has said two things about where the
-      act belongs, and acting on either one would ignore the other. Every value
-      compared is in the message, so the check needs no receiver state and runs at
-      the parse edge, as for any message whose parts contradict each other
-      (ADR-0032). Naming each case lets the sender see the disagreement. A refusal
-      notice names the case its tree acted on, and the act it quotes may be one
-      refused because its object names another case (HP-08-007). The quote is
-      evidence of what arrived, not a part of the notice, so the participant can
-      still read the notice and close its pending assertion (CLP-06-006).
+      Two parts naming different cases say two things about where the act belongs,
+      and acting on either would ignore the other. Every value compared is in the
+      message, so the check needs no receiver state and runs at the parse edge
+      (ADR-0032). A refusal notice's quoted act may carry an object of another case
+      (HP-08-007). The quote is evidence of what arrived, not a part of the notice,
+      so the participant can still read it (CLP-06-006).
     note: >-
       Verdicts this rule changes. An `Add(ParticipantStatus)` whose activity and
       status name different cases was refused by its received tree before the
@@ -1670,6 +1665,24 @@ groups:
       spec_id: MV-10-011
     - rel_type: uses_definition
       spec_id: CLP-05-001
+  - id: HP-08-016
+    priority: MUST
+    kind: project
+    statement: >-
+      A refusal under HP-08-015 MUST name in its reason each `context` position
+      that names a case, and the case it names.
+    rationale: >-
+      The sender has to see which parts disagree to correct the message. A reason
+      that named only one case, or no position, would leave it guessing which part
+      to change. Every part is named at once, as for any refusal at a validation
+      boundary (EH-07-001).
+    verification: >-
+      `test/wire/as2/test_context_agreement.py::test_parts_naming_different_cases_are_refused_naming_each`
+      asserts that each refused activity's reason names every `context` position
+      and the case it names.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-015
 - id: HP-09
   title: Offer Recipient Addressing
   specs:
