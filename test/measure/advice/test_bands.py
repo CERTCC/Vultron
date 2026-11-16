@@ -14,12 +14,15 @@
 """Bands, dominance, layers and marks over synthetic shifts (ADR-0200)."""
 
 from fractions import Fraction
+from itertools import product
 
 import pytest
 
 from vultron.measure.advice import (
+    BAND_ORDER,
     Band,
     Harm,
+    MoveAdvice,
     Part,
     ScopeParts,
     ScopeShift,
@@ -166,3 +169,60 @@ def test_the_harm_free_band_can_be_empty():
         Band.UNHELPFUL,
     }
     assert advice["a"].top
+
+
+_VALUES = (-1.0, 0.0, 1.0)
+_SMALL_SHIFTS = [
+    _shift((e1, m1), (e2, m2)) for e1, m1, e2, m2 in product(_VALUES, repeat=4)
+]
+"""Every two-vendor shift with parts in -1, 0, 1."""
+
+
+def test_a_move_that_dominates_a_harm_free_move_is_harm_free():
+    """P4, over every small shift rather than the cases alone."""
+    for x in _SMALL_SHIFTS:
+        for y in _SMALL_SHIFTS:
+            if dominates(x, y) and band(y) is Band.HARM_FREE:
+                assert band(x) is Band.HARM_FREE, (x, y)
+
+
+def test_dominance_is_a_strict_partial_order_over_small_shifts():
+    for x in _SMALL_SHIFTS:
+        assert not dominates(x, x)
+        for y in _SMALL_SHIFTS:
+            if dominates(x, y):
+                assert not dominates(y, x)
+
+
+def test_equal_ends_with_traded_embargo_parts_do_not_dominate():
+    x, y = _shift((1, 1), (0, -1)), _shift((1, -1), (0, 1))
+    assert not dominates(x, y)
+    assert not dominates(y, x)
+    assert layers({"x": x, "y": y}) == {"x": 1, "y": 1}
+
+
+def test_the_advice_gives_no_combined_score():
+    """SHD-03-002: a move's advice holds its shift by vendor and no case score."""
+    assert set(MoveAdvice._fields) == {
+        "move",
+        "shift",
+        "band",
+        "layer",
+        "top",
+        "leading_among_yours",
+        "harms",
+    }
+
+
+def test_a_higher_vendor_sum_does_not_put_a_move_first():
+    """SHD-03-002: the harm-free move comes first though its sum is lower."""
+    shifts = {
+        "big sum": _shift((3, 0), (-1, 0)),
+        "small sum": _shift((1, 0), (0, 0)),
+    }
+    advice = advise(shifts, yours=lambda m: True)
+    assert advice["small sum"].band is Band.HARM_FREE
+    assert advice["big sum"].band is Band.TRADE_OFF
+    assert BAND_ORDER.index(advice["small sum"].band) < BAND_ORDER.index(
+        advice["big sum"].band
+    )

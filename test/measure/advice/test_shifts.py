@@ -33,6 +33,7 @@ from vultron.measure.baselines import (
     Event,
     EventKind,
     Group,
+    baseline,
 )
 
 _K = EventKind
@@ -85,6 +86,23 @@ def test_a_shift_is_the_chance_value_after_the_move_less_the_one_before():
     assert outcome_shift(case.prefix, move) == tuple(
         ScopeParts(a.end - b.end, a.embargo - b.embargo)
         for a, b in zip(after, before, strict=True)
+    )
+
+
+def test_a_part_weighs_each_desideratum_by_one_less_its_baseline():
+    """Publication now, for the vendor whose fix is ready: it breaks
+    ``D ≺ P`` a third of the time, and settles ``P ≺ X`` and ``P ≺ A``,
+    each against its chance value."""
+    case = _case("ready-unready embargo")
+    ready = outcome_shift(case.prefix, case.move(_K.P))[0]
+
+    def weight(notation: str) -> Fraction:
+        return 1 - baseline(_named(notation))
+
+    assert ready.end == (
+        -weight(r"$\evD \prec \evP$") / 3
+        + weight(r"$\evP \prec \evX$") / 2
+        + weight(r"$\evP \prec \evA$") / 3
     )
 
 

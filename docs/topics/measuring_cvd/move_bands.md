@@ -120,6 +120,10 @@ In it, no move is harm-free.
 | P7 | A move that raises an end part and lowers none is above every move that changes only the embargo parts. | Its score is higher. |
 | P8 | A trade-off move that a harm-free move dominates is not top. | The same. |
 
+P2 reads "no move" as no coordinator move.
+A vendor's own fix always raises an end part, so with all moves the first condition of P2 never holds while a vendor has no fix.
+The coordinator chooses between an extension and publication, so P2 asks about the coordinator's moves.
+
 ---
 
 ## Results
@@ -212,6 +216,7 @@ When each of $\evExOwn \prec \evP$, $\evExOwn \prec \evX$, and $\evExOwn \prec \
 The gain then hides the loss on $\evF_i \prec \evExOwn$ for a vendor with no fix, and the move is harm-free in every case with an embargo.
 When each group counts once, the move is a trade-off move with a vendor whose fix is ready, and unhelpful with none.
 ADR-0200 now counts each group once.
+The case scores of ADR-0182 rule 4 use the same scope: each vendor's score, with an end part and an embargo part.
 
 ---
 

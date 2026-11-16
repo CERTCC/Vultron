@@ -54,13 +54,24 @@ def _embargoes(shift: ScopeShift) -> tuple[Fraction, ...]:
     return tuple(p.embargo for p in shift)
 
 
-def deciding_parts(shift: ScopeShift) -> tuple[Part, tuple[Fraction, ...]]:
+def _above(
+    parts: Sequence[Fraction], threshold: Fraction
+) -> tuple[Fraction, ...]:
+    return tuple(p if abs(p) > threshold else Fraction(0) for p in parts)
+
+
+def deciding_parts(
+    shift: ScopeShift, threshold: Fraction = Fraction(0)
+) -> tuple[Part, tuple[Fraction, ...]]:
     """The parts that decide a move's band: the end parts, or the embargo
-    parts when every end part is zero."""
-    ends = _ends(shift)
+    parts when every end part is zero.
+
+    A part of size at most *threshold* counts as zero (:func:`band`).
+    """
+    ends = _above(_ends(shift), threshold)
     if any(ends):
         return Part.END, ends
-    return Part.EMBARGO, _embargoes(shift)
+    return Part.EMBARGO, _above(_embargoes(shift), threshold)
 
 
 def band(shift: ScopeShift, threshold: Fraction = Fraction(0)) -> Band:
@@ -76,12 +87,7 @@ def band(shift: ScopeShift, threshold: Fraction = Fraction(0)) -> Band:
     """
     if threshold < 0:
         raise ValueError(f"a threshold cannot be negative, not {threshold}")
-    ends = [e if abs(e) > threshold else Fraction(0) for e in _ends(shift)]
-    parts = ends
-    if not any(ends):
-        parts = [
-            m if abs(m) > threshold else Fraction(0) for m in _embargoes(shift)
-        ]
+    _, parts = deciding_parts(shift, threshold)
     if not any(p > 0 for p in parts):
         return Band.UNHELPFUL
     if any(p < 0 for p in parts):

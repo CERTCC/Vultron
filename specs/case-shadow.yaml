@@ -158,8 +158,9 @@ groups:
     rationale: >-
       A vendor's scope is the unit of move advice. Each vendor's values come from
       its own projection, so the advice reads several vendors as the
-      event-history layer exposes them. A vendor not yet notified is a scope too: the spike of #6450 shows
-      that a score over the notified vendors alone marks a notice as a loss.
+      event-history layer exposes them. A vendor not yet notified is a scope
+      too: the spike of #6450 shows that a score over the notified vendors alone
+      marks a notice as a loss.
     see_also:
     - spec_id: CEH-05-006
       reason: >-
@@ -184,5 +185,7 @@ groups:
       bands pass: a scalar names no vendor's harm, and four of the five rank an
       embargo move above notifying a vendor.
     verification: >-
-      `test/measure/advice/test_pathologies.py::test_each_method_fails_only_its_recorded_cases`
-      records the cases each method fails, and the bands of ADR-0200 fail one.
+      `test/measure/advice/test_bands.py::test_the_advice_gives_no_combined_score`
+      asserts a move's advice holds no case score, and
+      `test/measure/advice/test_bands.py::test_a_higher_vendor_sum_does_not_put_a_move_first`
+      asserts a harm-free move comes before a trade-off move with a higher sum.

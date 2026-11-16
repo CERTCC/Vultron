@@ -22,7 +22,12 @@ empty list when the method passes the case.
 The facts a check states about the case itself, such as which move
 dominates which, come from :class:`Truth`: the outcome shifts against the
 chance value (:func:`vultron.measure.advice.outcome_shift`) and the
-definitions of ADR-0200, never from the method under test.
+definitions of ADR-0200, read through :func:`~vultron.measure.advice.band`
+and :func:`~vultron.measure.advice.dominates`.  Those are the bands'
+own functions, so for the bands P4 and P8 check the marks and layers
+against the definitions, not the definitions themselves;
+``test_bands.py`` tests the definitions on their own, P4 over every small
+shift.
 
 For a method with no bands, P2 asks only that it does not put publication
 strictly first among the coordinator's moves, and P4 that it neither marks
@@ -173,7 +178,8 @@ def p2_publication_is_not_preferred_to_an_extension(
     if not no_raise and not facts.raises_an_end(publish):
         return []
     if advice.band(publish) is None:
-        if all(advice.above(publish, m) for m in yours if m != publish):
+        others = [m for m in yours if m != publish]
+        if others and all(advice.above(publish, m) for m in others):
             return ["publication now is shown strictly first"]
         return []
     failures = []
@@ -362,7 +368,10 @@ PATHOLOGIES: tuple[Pathology, ...] = (
     Pathology(
         "P5",
         p5_an_early_end_harms_each_vendor_it_touches,
-        _any_move(_K.EXIT_OTHER),
+        lambda case, facts: any(
+            m.event.kind is _K.EXIT_OTHER and facts.touched(m)
+            for m in case.moves
+        ),
     ),
     Pathology(
         "P6",

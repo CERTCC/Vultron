@@ -128,6 +128,7 @@ The spike #6450 wrote the pathology cases as tests first, then ran the bands and
 The bands fail one case of one pathology: an embargo extension is unhelpful where it should be harm-free, because the chance model cannot see the embargo's protection (#6492).
 Each aggregate fails at least four of the eight pathologies.
 The spike changed rule 2, which now counts each group of equivalent desiderata once, and confirmed the strict sign test of rule 5.
+The case scores of ADR-0182 rule 4 give each vendor a score with an end part and an embargo part, which is the scope of rule 1; the two records agree when both count a scope that is never entered as met and each group of equivalent desiderata once.
 A result that overturns a rule above changes this record.
 
 ## Pros and Cons of the Options
