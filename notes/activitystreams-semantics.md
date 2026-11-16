@@ -95,10 +95,10 @@ The changes these rules imply for today's code are tracked in
   `Accept` or `Reject`; `Question` is for choices and open inquiries (VOC Offer,
   Question).
 - **A request for another actor to act is `Offer(<the act>)` too, not the act
-  itself.** The actor that holds the record answers `Accept` (its decision) or a
-  refusal notice, then makes the act with `inReplyTo` = the Offer; the Accept and the
-  act commit together (ADR-0199). Sending the bare act would state that the asker
-  did it.
+  itself.** The actor that holds the record answers with a refusal notice and
+  changes nothing, or answers `Accept` and makes the act with `inReplyTo` = the
+  Offer; the Accept and the act are written in one atomic act (ADR-0146, ADR-0199).
+  Sending the bare act would state that the asker did it.
 
 ## Responses Reference the Request Twice
 

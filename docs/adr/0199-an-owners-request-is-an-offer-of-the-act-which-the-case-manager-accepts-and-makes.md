@@ -2,11 +2,11 @@
 status: proposed
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-13
+updated: 2026-11-16
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0109, ADR-0116, ADR-0148, ADR-0196;
+  Claude Opus 5.5; ADR-0109, ADR-0116, ADR-0146, ADR-0148, ADR-0196;
   specs/case-management.yaml CM-16, CM-21, CM-24, CM-31;
   notes/activitystreams-semantics.md, notes/as2-vocabulary-alignment.md;
   issues #6245, #6293
@@ -28,10 +28,10 @@ Each states that the Owner removed or added a participant record, which the Owne
 It also names the CASE_MANAGER's bookkeeping record instead of the actor the Owner decided about.
 
 The ownership transfer already has the Owner propose the act, as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER make it (ADR-0148).
-That proposal gets no answer of its own, though: the Owner learns the outcome only from the ledger.
+An admitted proposal gets no answer of its own, though: the Owner learns that it was carried out only from the ledger.
 A peer reading ActivityStreams 2.0 expects every Offer to be answered with an Accept or a Reject.
 
-When the CASE_MANAGER acts on someone's behalf it credits the asker in `attributedTo`, but it does not name the request it carried out.
+When the CASE_MANAGER acts on someone's behalf it credits the asker in `attributedTo`, but it names the request it carried out only on some paths.
 
 How does the Case Owner ask the CASE_MANAGER for an act on the case, and how does the CASE_MANAGER answer and carry it out?
 
@@ -40,7 +40,8 @@ How does the Case Owner ask the CASE_MANAGER for an act on the case, and how doe
 - An activity states what its sender did; a request for someone else to act is an Offer of that act (VOC Offer: "Sally is offering to add a File to Folder A").
 - Distinct actors communicate only through the protocol. Where they run, on one server or two, changes nothing on the wire or in the ledger (ADR-0109).
 - An answer names what it answers (VOC `inReplyTo`).
-- An Offer is answered with an Accept or a Reject, as ActivityPub answers a Follow. The Accept is a decision, not a receipt: delivery is acknowledged by the HTTP response.
+- An Offer is answered with an Accept or a Reject, as ActivityPub answers a Follow. The Accept answers the Offer, not its delivery: delivery is acknowledged by the HTTP response.
+- The Owner decides; the CASE_MANAGER applies case changes and decides none.
 - One fact has one activity, so a peer does not count two removals where one happened.
 - What the CASE_MANAGER tells the Owner does not contradict what its ledger records.
 
@@ -65,16 +66,18 @@ A reinstatement reuses that record, which keeps the participant's history and co
 
 The CASE_MANAGER refuses a request that breaks its rules with a refusal notice (ADR-0196), changing nothing.
 Otherwise it sends the Owner an `Accept` of the Offer and makes the act itself: `actor` is the CASE_MANAGER, `attributedTo` the Owner, and `inReplyTo` the Owner's Offer.
-The Accept says the CASE_MANAGER decided to carry the request out; the act says it was carried out.
-The Accept and the act commit together, so the Owner does not hold an Accept for an act that did not happen.
+The Owner's decision is the Offer.
+The Accept says the request passed the CASE_MANAGER's rules and is carried out; the act says it was carried out.
+The Accept and the act are written in one atomic act (ADR-0146), so the Owner does not hold an Accept for an act that did not happen.
+Only the act is ledgered.
 
 The act the CASE_MANAGER makes is the ledger entry, and the same activity, with the same id, goes directly to the actor it names.
 There is no second, unledgered notice.
-A replica still applies the change only from the ledger entry.
+A replica still applies the change only from the ledger entry, so the direct copy and the entry's fan-out apply it once.
 
 ### Ownership transfer gets the same answer
 
-The ownership-transfer proposal keeps its form (ADR-0148), and the CASE_MANAGER now also answers it with an `Accept` when it makes the transfer Offer, committed together.
+The ownership-transfer proposal keeps its form (ADR-0148), and the CASE_MANAGER now also answers it with an `Accept` when it makes the transfer Offer, written in the same atomic act.
 That Offer names the proposal in `inReplyTo`.
 
 ### A delegated act names its request
@@ -82,6 +85,7 @@ That Offer names the proposal in `inReplyTo`.
 When the CASE_MANAGER makes an act another actor asked for, it sets `attributedTo` to the asker and `inReplyTo` to the request it received.
 Both are set exactly when the asker is a different actor from the `actor`.
 An actor that holds both roles acts directly, with neither.
+An Owner that is also the CASE_MANAGER sends no Offer and no Accept: it makes the removal or reinstatement itself, under the same rules.
 Every delegated act has a request to name, because a distinct asker always reaches the CASE_MANAGER by message.
 
 ### Consequences
@@ -96,7 +100,8 @@ Every delegated act has a request to name, because a distinct asker always reach
 ## Validation
 
 - A test sends the Owner's `Offer(Remove(<Actor>, origin=<case>))` and asserts that the Owner receives an Accept, and that the ledger holds one entry, the CASE_MANAGER's `Remove`, with `attributedTo` the Owner and `inReplyTo` the Offer.
-- A test asserts that the removed actor receives that same `Remove`, by id, and no other removal message.
+- A test asserts that the removed actor receives that same `Remove`, by id, directly and in the entry's fan-out, and no other removal activity.
+- A test asserts that a replica that receives the direct copy and then the entry applies the removal once.
 - A test asserts that a refused request leaves no ledger entry and sends no Accept.
 - A test asserts that the ownership-transfer proposal is answered with an Accept committed with the transfer Offer.
 - A test asserts that every delegated act carries `inReplyTo` naming the received request.
@@ -123,7 +128,8 @@ Every delegated act has a request to name, because a distinct asker always reach
 ## More Information
 
 This record partially supersedes ADR-0116 in its choice of the removal and reinstatement messages.
-ADR-0116's decision that removal is a stored fact that withdraws entitlement, not membership, stands.
+These ADR-0116 statements no longer hold: the Owner's received `Remove` or `Add` is the ledger entry, and with it the consequence that the Owner's decision is the entry; the CASE_MANAGER sends the removed party a separate, unledgered notice; the message names the participant record with the case as its `target`, so the message pattern is unchanged; and an Owner that is also the CASE_MANAGER posts the request to its own inbox.
+ADR-0116's decision that removal is a stored fact that withdraws entitlement, not membership, stands: the `origin` the removal names is the case the actor's entitlement is withdrawn from, and the participant record stays in it.
 It partially supersedes ADR-0148 in the answer to the Owner's proposal; the proposal's form and the CASE_MANAGER making the transfer Offer stand.
 
 The vocabulary rules behind it, including that `origin` names where something comes from or leaves, are in `notes/activitystreams-semantics.md` § "Choosing AS2 Terms".
