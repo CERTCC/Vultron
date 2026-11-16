@@ -4,7 +4,8 @@ Illustrates a connector plugin that implements one core port,
 :class:`~vultron.core.ports.case_reader.CaseReader`, and nothing else: it
 reads a VINCE (Vulnerability Information and Coordination Environment) case
 and has no method that writes to VINCE (ADR-0191, ARCH-05-005).  The VINCE
-case reader itself is built in #5963.
+case reader itself is built in #5963.  This example declares no entry point,
+so the connector loader never finds it.
 
 Read mappings (not yet implemented), by VINCE crosswalk row; the rows, their
 caveats and their times are in ``docs/reference/vince_crosswalk.md``

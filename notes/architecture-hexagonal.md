@@ -132,6 +132,18 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - A connector is plumbing, not a capability shape. Whoever calls it names its
   user: the shadow calls a `CaseReader`; a Sentinel or Retriever may too
   (BT-18-013, `CONTEXT.md` § Outside Systems).
+- A connector plugs in by being installed: its package declares an entry point
+  in the `vultron.connectors` group naming a class with a no-argument
+  constructor, and `load_connectors()` in `adapters/connectors/loader.py` finds
+  it (ARCH-05-003). Never import a connector by name, so a site adds one with
+  no Vultron change.
+- The loader refuses the whole load when any entry point fails, naming each:
+  one that cannot be loaded or built, has no non-empty `name`, implements no
+  core port, or shares its name (ARCH-05-006). A partly loaded set hides a
+  packaging mistake until a case needs the missing connector.
+- The connectors under `adapters/connectors/example/` are examples only: they
+  declare no entry point, so the loader never finds them. A real connector
+  lives in its own package or module and declares its entry point.
 
 ---
 
@@ -192,7 +204,10 @@ enforced by `test/architecture/test_core_no_wire_imports.py` and
 **Connectors (`adapters/connectors/`)**
 
 - [ ] Plugins translate at boundaries only.
-- [ ] No case/business logic in connector modules.
+- [ ] No case/business logic in connector modules: from `vultron`, a connector
+  imports only its package, its core ports, core models other than the case
+  ledger, errors and primitives (ARCH-05-002, an allow-list in
+  `test/architecture/test_connector_boundaries.py`).
 - [ ] No method, not even a raising stub, for a core port the connector lacks
   (ARCH-05-005).
 
