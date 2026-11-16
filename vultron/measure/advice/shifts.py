@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Each vendor's scope, and a move's outcome shift in it (ADR-0200 rules 1 to 3).
+"""Each vendor's scope, and a move's outcome shift in it (ADR-0200).
 
 A scope is one vendor of the case, notified or not.  It holds the
 desiderata about that vendor: the twelve original ones, the report-handling
@@ -54,7 +54,7 @@ from vultron.measure.baselines.walk import Move
 SCOPE_GROUPS: frozenset[Group] = frozenset(
     {Group.ORIGINAL, Group.REPORT_HANDLING, Group.EMBARGO}
 )
-"""The desiderata groups a vendor's scope holds (ADR-0200 rule 1)."""
+"""The desiderata groups a vendor's scope holds (ADR-0200)."""
 
 CHANCE_EVENTS: frozenset[EventKind] = frozenset({EventKind.X, EventKind.A})
 """Events that no participant chooses, so no open move is one of them.

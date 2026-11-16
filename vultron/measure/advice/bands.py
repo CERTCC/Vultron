@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Bands, dominance, layers and marks over the open moves (ADR-0200 rules 4 to 8).
+"""Bands, dominance, layers and marks over the open moves (ADR-0200).
 
 Every function here reads only the outcome shifts
 (:mod:`vultron.measure.advice.shifts`), so it works on any move type: a
@@ -75,7 +75,7 @@ def deciding_parts(
 
 
 def band(shift: ScopeShift, threshold: Fraction = Fraction(0)) -> Band:
-    """The band of a move with outcome shift *shift* (ADR-0200 rule 5).
+    """The band of a move with outcome shift *shift* (ADR-0200).
 
     The sign test is strict: any non-zero deciding part counts.  A
     *threshold* above zero counts a part as zero when its size is at most
@@ -102,7 +102,7 @@ def _pareto(x: Sequence[Fraction], y: Sequence[Fraction]) -> bool:
 
 
 def dominates(x: ScopeShift, y: ScopeShift) -> bool:
-    """Whether a move with shift *x* dominates one with shift *y* (ADR-0200 rule 4).
+    """Whether a move with shift *x* dominates one with shift *y* (ADR-0200).
 
     The end parts decide; when every end part is equal, the embargo parts
     do.  Two moves that trade off against each other do not dominate each
@@ -121,7 +121,7 @@ def dominates(x: ScopeShift, y: ScopeShift) -> bool:
 
 
 def layers[M](shifts: Mapping[M, ScopeShift]) -> dict[M, int]:
-    """Each move's depth in the dominance order (ADR-0200 rule 6).
+    """Each move's depth in the dominance order (ADR-0200).
 
     Layer 1 holds the moves no move of *shifts* dominates; layer 2 those
     that only layer-1 moves dominate; and so on.
@@ -151,7 +151,7 @@ class Harm(NamedTuple):
 
 
 def harms(shift: ScopeShift) -> tuple[Harm, ...]:
-    """Every negative end and embargo part of *shift*, by vendor (ADR-0200 rule 8).
+    """Every negative end and embargo part of *shift*, by vendor (ADR-0200).
 
     A negative part means worse than the chance value, not a broken
     desideratum.
@@ -183,7 +183,7 @@ class MoveAdvice[M](NamedTuple):
 def advise[M](
     shifts: Mapping[M, ScopeShift], yours: Callable[[M], bool]
 ) -> dict[M, MoveAdvice[M]]:
-    """Each open move's band, layer, marks and harms (ADR-0200 rules 5 to 8).
+    """Each open move's band, layer, marks and harms (ADR-0200).
 
     *shifts* holds every open move of the case and its outcome shift;
     *yours* tells which of them the coordinator makes.
