@@ -278,6 +278,8 @@ A pull request that closes an owner its ratchet still cites fails
 - **Read the body offline.** The event's body reaches the script through `env`
   and a file, and closing references come from `closing_references` in
   `pr_body_lint`, so the two readings of a body agree. It reruns on `edited`.
+  It does not use `gh_pr_closing_issues`: no token, no API call a rate limit
+  can turn red, and a Development-sidebar link is left to the scheduled report.
 - **Only open debt counts.** A terminal baseline's leftover marker and a
   `# permanent:` marker never hold an owner open.
 

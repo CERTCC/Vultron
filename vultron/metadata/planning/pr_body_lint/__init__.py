@@ -59,6 +59,7 @@ command line).
 """
 
 from vultron.metadata.planning.pr_body_lint.checks import (
+    ClosingReference,
     Finding,
     closing_references,
     lint_body,
@@ -89,6 +90,7 @@ from vultron.metadata.planning.pr_body_lint.rules import (
 __all__ = [
     "BODY_LIMIT",
     "BodyFacts",
+    "ClosingReference",
     "DOCS_PLACEHOLDER",
     "Finding",
     "MAINTAINER_DOC_FILES",

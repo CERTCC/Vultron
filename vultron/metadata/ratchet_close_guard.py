@@ -19,15 +19,20 @@ closes that owner on merge, and the scheduled closed-owner report
 without failing the build (ARCH-18-009). This check runs on the pull request
 instead (ARCH-18-012): it reads the body's closing references
 (:func:`~vultron.metadata.planning.pr_body_lint.closing_references`) and the
-markers at the checked-out head (:mod:`vultron.metadata.ratchet_markers`), and
-fails when a closed issue still owns a baseline that is not at its terminal
-value. A ``# permanent:`` marker never counts, and a ratchet the same pull
+markers at the checked-out merge commit
+(:mod:`vultron.metadata.ratchet_markers`), so the scan sees the tree after the
+pull request's changes, and fails when a closed issue still owns a baseline
+that is not at its terminal value. A ``# permanent:`` marker never counts, and a ratchet the same pull
 request empties no longer cites its owner.
 
 It makes no network call: the workflow
 (``.github/workflows/ratchet-owner-close-guard.yml``) writes the event's body to
-a file. Only a closing reference in the body is read; an issue closed some other
-way is still caught by the scheduled report.
+a file. Only a closing reference in the body is read, as ARCH-18-012 states, so
+it needs no token and no API call that a rate limit could turn red. GitHub's
+``closingIssuesReferences`` (read by ``gh_pr_closing_issues`` for the
+``verification_debt`` check) also lists an issue linked in the Development
+sidebar; such a close, like one by hand, is still caught by the scheduled
+report.
 
 Usage::
 
@@ -42,7 +47,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -54,12 +58,6 @@ from vultron.metadata.planning.gh import DEFAULT_REPO
 from vultron.metadata.planning.pr_body_lint import closing_references
 from vultron.metadata.ratchet_markers import Baseline
 from vultron.metadata.ratchet_owners import baselines_under_test
-
-#: The issue a closing reference names: ``#N``, ``owner/repo#N`` or an issue
-#: URL, the last word of the reference.
-_BARE = re.compile(r"#(\d+)")
-_QUALIFIED = re.compile(r"([\w.-]+/[\w.-]+)#(\d+)")
-_URL = re.compile(r"https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+)")
 
 
 @dataclass(frozen=True)
@@ -80,26 +78,18 @@ class ClosedOwner:
         )
 
 
-def _issue_in_repo(reference: str, repo: str) -> int | None:
-    """The issue *reference* closes in *repo*, or ``None`` for another repo."""
-    target = reference.rsplit(maxsplit=1)[-1]
-    if bare := _BARE.fullmatch(target):
-        return int(bare.group(1))
-    for pattern in (_QUALIFIED, _URL):
-        if found := pattern.fullmatch(target):
-            same = found.group(1).lower() == repo.lower()
-            return int(found.group(2)) if same else None
-    return None  # pragma: no cover - closing_references matches only these
-
-
 def closed_issues(body: str, repo: str) -> set[int]:
     """The issues in *repo* that a pull request with *body* closes on merge.
 
     The keywords are ``close``, ``fix`` and ``resolve`` in any tense and case
     (GitHub's list); a reference to another repository closes nothing here.
     """
-    found = (_issue_in_repo(ref, repo) for ref in closing_references(body))
-    return {n for n in found if n is not None and n > 0}
+    return {
+        ref.number
+        for ref in closing_references(body)
+        if ref.number > 0
+        and (ref.repo is None or ref.repo.lower() == repo.lower())
+    }
 
 
 def closed_owners(

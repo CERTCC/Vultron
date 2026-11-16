@@ -13,8 +13,8 @@
 """A pull request cannot close an issue a ratchet still names as owner (ARCH-18-012).
 
 The guard is a pull-request job that reads the body's closing references and
-the ``# owner:`` markers at the head through ``vultron.metadata.ratchet_markers``
-(#6408). It runs on every body edit as well as on a push, since a closing
+the ``# owner:`` markers at the merge commit through
+``vultron.metadata.ratchet_markers`` (#6408). It runs on every body edit as well as on a push, since a closing
 reference can be added without a commit. The tests below run
 ``ratchet-close-guard`` (:mod:`vultron.metadata.ratchet_close_guard`) over a
 scratch ``test/`` tree.
@@ -157,6 +157,9 @@ def test_every_closing_keyword_form_closes(keyword: str) -> None:
         ("```text\nCloses #101\n```", set()),
         ("- Closes #101\n- Fixes #102", {101, 102}),
         ("Closes #0", set()),
+        ("Closes HTTPS://GitHub.com/CERTCC/Vultron/issues/101", {101}),
+        ("Closes #101abc", set()),
+        ("Closes CERTCC/Vultron#101abc", set()),
     ],
 )
 def test_only_references_github_closes_here_count(
