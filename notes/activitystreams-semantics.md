@@ -87,7 +87,7 @@ The changes these rules imply for today's code are tracked in
   the act's id, so a receiver that also replays the ledger entry sees an id it has
   applied and changes nothing (ADR-0203).
 - **An object stores the facts about itself.** When a message must say an object
-  changed, the changed field lives on that object, never on a side record the message
+  changed, the changed field lives on that object, not on a side record the message
   cannot name (ADR-0202).
 - **`result` names what an act caused, set by the actor that caused it** (Primer:
   "changes of state or indirect outcomes"). It is not the created object, which is a

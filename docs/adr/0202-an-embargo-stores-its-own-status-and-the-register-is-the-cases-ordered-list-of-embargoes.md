@@ -47,7 +47,7 @@ An embargo stores three fields beyond its terms:
 - `replaces`, the embargo an activated revision replaced;
 - the termination, once terminated: the cause kind, the act that caused it when known, and a human reason.
 
-The case's embargo register is its ordered list of embargoes, appended and never removed.
+The case's embargo register is its ordered list of embargoes, appended and not removed.
 ADR-0122's statuses, triggers and invariants stand; they now range over the embargoes' own `status` fields.
 Embargo management state is derived from them, as before.
 Each change of an embargo's status is a ledgered act (ADR-0203), so its history is in the ledger.

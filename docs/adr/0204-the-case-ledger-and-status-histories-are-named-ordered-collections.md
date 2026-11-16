@@ -32,7 +32,7 @@ How do the ledger and the status histories go on the wire, so that a replica rea
 - `Add` says something was added to a collection, and the collection is its `target` (VOC Add); `Announce` only calls attention to an object.
 - An answer names what it answers (VOC `inReplyTo`).
 - Every case activity carries `context` = the case (`notes/activitystreams-semantics.md`).
-- Status records are never updated; a new status is added to a history, one message form per act (ADR-0137).
+- Status records are not updated; a new status is added to a history, one message form per act (ADR-0137).
 - One form per message, with no exceptions in the pattern rules.
 
 ## Considered Options
