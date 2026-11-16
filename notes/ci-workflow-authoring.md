@@ -211,7 +211,9 @@ set `fetch-depth: 0` on a pull-request checkout: it fetches every branch's
 history and every tag, and when that fetch hangs the job cap cancels it before
 any test runs, which turns the `CI gate` red (#6535).
 `test/ci/test_fetch_merge_base.py` fails a pull-request workflow with a literal
-`fetch-depth: 0`. The release, publish and tag workflows keep full history
+`fetch-depth: 0`. A `--deepen` fetch names the base tip by its id as well as by
+refspec: git 2.56 drops an up-to-date ref from its wants and never deepens it.
+The release, publish and tag workflows keep full history
 because they read it, and so does the shared `build-site` action, whose build
 must match the publish build (DOCBW-06-004).
 

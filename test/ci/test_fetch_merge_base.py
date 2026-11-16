@@ -210,9 +210,12 @@ def test_it_finds_the_merge_base_without_unshallowing(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == fork
-    # The fork commit, not main's tip, found by deepening alone.
+    # The fork commit, not main's tip, found by deepening alone. Under git
+    # 2.56 an up-to-date base ref is not deepened unless named by its id, and
+    # the script fell through to the unshallow branch (#6535).
     assert _git(clone, "rev-parse", "origin/main") != fork
     assert "fetching the full history" not in result.stderr
+    assert _git(clone, "rev-parse", "--is-shallow-repository") == "true"
 
 
 @pytest.mark.usefixtures("isolated_git")

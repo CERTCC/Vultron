@@ -45,10 +45,18 @@ head_sha="$(git rev-parse HEAD)"
 base_ref="refs/remotes/${remote}/${base}"
 refspec="+refs/heads/${base}:${base_ref}"
 
+# The base tip already fetched is named by its id as well as by the refspec:
+# git 2.56 drops an up-to-date ref from a `--deepen` fetch's wants, so the
+# base side would stay one commit deep and only HEAD's side would grow.
 fetch() {
+  local wants=("$head_sha")
+  local base_sha
+  if base_sha="$(git rev-parse --verify --quiet "$base_ref")"; then
+    wants+=("$base_sha")
+  fi
   timeout -k 10 "${FETCH_TIMEOUT:-60}" \
     git fetch --no-tags --no-recurse-submodules --quiet "$@" \
-    "$remote" "$refspec" "$head_sha"
+    "$remote" "$refspec" "${wants[@]}"
 }
 
 found() {
