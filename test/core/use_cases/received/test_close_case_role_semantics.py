@@ -706,8 +706,9 @@ class TestNonOwnerLeaveReceivePath:
         self, caplog: pytest.LogCaptureFixture
     ):
         """The CM-23-010 guard refuses the Leave, so the run's one refusal
-        line — the received runner's — cites it (#6477).  The decline arm then ticks and reads the sender's
-        CASE_OWNER role to decide whether an embargo blocks the close
+        line — the received runner's — cites it (#6477).  The decline arm
+        then ticks and reads the sender's CASE_OWNER role to decide whether an
+        embargo blocks the close
         (CM-23-011); that read admits and refuses no one, so it logs no
         ``REFUSED`` line of its own, and none cites HP-01-006 for a sender
         guard that admitted the sender (#5903)."""
