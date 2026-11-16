@@ -11,14 +11,17 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The authoritative case-state model never reaches the legacy one.
+"""The authoritative case-state model, and the measures over it, never
+reach the legacy one.
 
 ``vultron/core/states/`` is the case-state model the protocol runs on;
 ``vultron/core/case_states/`` is a reference model and the test oracle for
 its invariants, never a protocol path (ADR-0060, ``notes/case-state-model.md``
 § "Where the CS Rules Live").  So no module under ``vultron/core/states/``
 imports the legacy package, at module level or deferred, and importing
-``vultron.core.states`` leaves the legacy package unloaded (#6328).
+``vultron.core.states`` leaves the legacy package unloaded (#6328).  The
+measure layer, ``vultron/measure/``, reads case states through the same
+authoritative model and is held to the same rule (#6515).
 
 The source scan names the offending file; the fresh-interpreter probe also
 catches an indirect import through a module outside ``vultron/core/states/``.
@@ -33,7 +36,26 @@ from test.support.fresh_imports import loaded_under
 
 _LEGACY = "vultron.core.case_states"
 
-_STATES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "states"
+#: Each guarded package, by its import name.
+_GUARDED = ("vultron.core.states", "vultron.measure")
+
+
+def _root(package: str):
+    return _corpus.REPO_ROOT.joinpath(*package.split("."))
+
+
+def _modules(package: str) -> list[str]:
+    """Every importable module under *package*; a ``__main__`` runs a
+    command on import, so it is left out."""
+    names = []
+    for path in _corpus.paths_under(_root(package)):
+        if path.stem == "__main__":
+            continue
+        owner = _corpus.package_of(path)
+        names.append(
+            owner if path.stem == "__init__" else f"{owner}.{path.stem}"
+        )
+    return sorted(names)
 
 
 def _imports_legacy(tree: ast.AST, package: str) -> bool:
@@ -103,9 +125,11 @@ def test_the_detector_ignores_near_misses(source, package):
     assert not _imports_legacy(_corpus.parse_inline(source), package)
 
 
-def test_no_states_module_imports_the_legacy_case_state_package():
-    trees = list(_corpus.all_trees(_STATES_ROOT))
-    assert trees, f"found no modules under {_STATES_ROOT}"
+@pytest.mark.parametrize("package", _GUARDED)
+def test_no_guarded_module_imports_the_legacy_case_state_package(package):
+    root = _root(package)
+    trees = list(_corpus.all_trees(root))
+    assert trees, f"found no modules under {root}"
     offending = sorted(
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         for path, tree in trees
@@ -114,6 +138,12 @@ def test_no_states_module_imports_the_legacy_case_state_package():
     assert offending == []
 
 
-def test_importing_states_loads_no_legacy_case_state_module():
-    """Indirect imports count too, so ask a fresh interpreter."""
-    assert loaded_under(["vultron.core.states"], [_LEGACY]) == []
+@pytest.mark.parametrize("package", _GUARDED)
+def test_importing_a_guarded_package_loads_no_legacy_case_state_module(
+    package,
+):
+    """Indirect imports count too, so ask a fresh interpreter, which
+    imports every module under the package."""
+    modules = _modules(package)
+    assert modules, f"found no modules under {package}"
+    assert loaded_under(modules, [_LEGACY]) == []

@@ -28,6 +28,7 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants.events import (
     CS_EVENTS,
     CSEvent,
+    cs_happened_events,
 )
 from vultron.core.states.cs_invariants.transitions import (
     cs_transition_event,
@@ -119,7 +120,7 @@ def _why_event_blocked(state: CS, event: CSEvent) -> str:
     names the constraint the caller must satisfy first rather than every
     constraint outstanding.
     """
-    if state.name[CS_EVENTS.index(event)].isupper():
+    if event in cs_happened_events(state):
         return "it has already occurred"
 
     required = required_next_cs_events(state)
