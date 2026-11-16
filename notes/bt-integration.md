@@ -542,8 +542,12 @@ nothing is written before the last one admits the message (ADR-0154).
    `SvcEmbargoTriggerBase` adds to its triggers' stage; never run one as a tree of its
    own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
-   write nothing. A refusal goes to the process log and, where the protocol
-   calls for an answer, back to the sender — never to the ledger (CLP-04-007).
+   write nothing. A guard whose failure refuses the activity returns
+   `self._refuse(reason)` (`DeclaredRefusalMixin`, `ReportsRefusal`), so the
+   received runner reports `REFUSED` with that reason and no handler reader
+   names it; a local fault stays a plain FAILURE. A refusal goes to the
+   process log and, where the protocol calls for an answer, back to the
+   sender — never to the ledger (CLP-04-007).
    The factory adds that answer, the refusal notice, to every tree that commits
    to a case and has precondition guards, unless the tree names a registered
    `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004

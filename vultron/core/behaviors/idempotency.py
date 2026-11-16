@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Reusable BT contracts for guards that detect an idempotent repeat.
+"""Reusable BT contracts a node uses to declare what its status means.
 
 - :class:`SilentIdempotencyGuardMixin` enforces the CLP-13 silence contract.
 - :class:`ReportsIdempotentRepeat` is how a guard says its ``FAILURE`` was a
@@ -23,12 +23,17 @@
 - :class:`ReportsNoChange` is how a node says the run it let succeed changed
   nothing, so the handler reports ``SKIPPED``, not ``APPLIED`` (ID-05-003,
   RSH-08-002).  :func:`unchanged_by_run` finds the node that said so.
+- :class:`ReportsRefusal` is how a node says its ``FAILURE`` refused the
+  received activity, and why, so the handler reports ``REFUSED`` with that
+  reason (HP-01-003).  :func:`refusal_ending_run` finds the node that said
+  so; :class:`DeclaredRefusalMixin` implements it.
 
 Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003,
 CLP-10-022.
 """
 
 import logging
+from collections.abc import Iterator
 from typing import ClassVar, Protocol, runtime_checkable
 
 import py_trees
@@ -77,6 +82,24 @@ class ReportsNoChange(Protocol):
         ...
 
 
+@runtime_checkable
+class ReportsRefusal(Protocol):
+    """A node whose ``FAILURE`` may be a refusal of the received activity.
+
+    ``declared_refusal`` is the reason the handler reports ``REFUSED`` with,
+    and ``None`` unless the node's last run failed because the activity is
+    refused (HP-01-003).  A node that fails for a local fault (a missing
+    DataLayer or port) declares no refusal, so the runner reads that
+    failure as ours (ADR-0095).  The reason is the sender's to read, so it
+    names the condition and the requirement it cites (HP-01-005).
+    """
+
+    @property
+    def declared_refusal(self) -> str | None:
+        """Why the last run refused the activity, or ``None``."""
+        ...
+
+
 def repeat_ending_run(
     root: py_trees.behaviour.Behaviour,
 ) -> py_trees.behaviour.Behaviour | None:
@@ -113,6 +136,77 @@ def unchanged_by_run(
         if isinstance(node, ReportsNoChange) and node.succeeded_without_change:
             return node
     return None
+
+
+def nodes_deciding_failure(
+    root: py_trees.behaviour.Behaviour,
+) -> Iterator[py_trees.behaviour.Behaviour]:
+    """The nodes whose failure decided *root*'s, in tree order.
+
+    A node decided the run when it failed and every composite above it
+    failed with it: the one failed child of a ``Sequence``, and each child
+    of a failed ``Selector``, whose every alternative failed.  A node that
+    failed under a decorator or composite that succeeded did not decide the
+    run.  Yields nothing when *root* did not fail.
+    """
+    if root.status != Status.FAILURE:
+        return
+    yield root
+    for child in root.children:
+        yield from nodes_deciding_failure(child)
+
+
+def refusal_ending_run(root: py_trees.behaviour.Behaviour) -> str | None:
+    """The reason the first node whose failure decided *root*'s declared.
+
+    Takes :func:`nodes_deciding_failure` in tree order, so a guard is found
+    ahead of the fallback that answered it (a fault or a ``Reject`` that
+    still fails the ``Selector``), and a node that failed under a decorator
+    or composite that succeeded is not read.  ``None`` when *root* did not
+    fail, or no deciding node declares a refusal.  A wiring fault (a node
+    composed without its DataLayer or a port) among those nodes is the
+    caller's to read first: the received runner raises on one before it
+    asks this (ADR-0095).
+    """
+    for node in nodes_deciding_failure(root):
+        if isinstance(node, ReportsRefusal) and node.declared_refusal:
+            return node.declared_refusal
+    return None
+
+
+class DeclaredRefusalMixin:
+    """:class:`ReportsRefusal` for a node that fails through :meth:`_refuse`.
+
+    The node returns ``self._refuse(reason)`` where its condition refuses
+    the activity, and keeps returning plain ``Status.FAILURE`` for a local
+    fault.  The declaration is cleared at the start of every run.
+    """
+
+    _refusal: str | None = None
+    status: Status
+
+    def initialise(self) -> None:
+        self._refusal = None
+        super().initialise()  # type: ignore[misc]
+
+    @property
+    def declared_refusal(self) -> str | None:
+        """The reason given to :meth:`_refuse` on a run that failed."""
+        return self._refusal if self.status == Status.FAILURE else None
+
+    def _refuse(self, reason: str) -> Status:
+        """Declare the run's failure a refusal for *reason*; ``FAILURE``.
+
+        Raises:
+            ValueError: *reason* is empty; a refusal names why (HP-01-005,
+                CS-08-002).
+        """
+        if not reason:
+            raise ValueError(
+                f"{type(self).__name__}: a declared refusal needs a reason"
+            )
+        self._refusal = reason
+        return Status.FAILURE
 
 
 class FlaggedRepeatGuardMixin:
@@ -208,10 +302,14 @@ class SilentIdempotencyGuardMixin:
 
 
 __all__ = [
+    "DeclaredRefusalMixin",
     "FlaggedRepeatGuardMixin",
     "ReportsIdempotentRepeat",
     "ReportsNoChange",
+    "ReportsRefusal",
     "SilentIdempotencyGuardMixin",
+    "nodes_deciding_failure",
+    "refusal_ending_run",
     "repeat_ending_run",
     "unchanged_by_run",
 ]
