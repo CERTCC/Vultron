@@ -769,7 +769,12 @@ class TestAddCaseStatusTree:
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
         verdict = read_outcome(
-            ReceivedOutcome.of(tree, result, "AddCaseStatusBT")
+            ReceivedOutcome.of(
+                tree,
+                result,
+                "AddCaseStatusBT",
+                receiving_actor_id="https://example.org/actors/receiver",
+            )
         )
         assert verdict.disposition is HandlerDisposition.SKIPPED
         assert verdict.reason == (

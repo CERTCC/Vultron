@@ -57,7 +57,6 @@ from vultron.wire.as2.factories.case.proposal import (
     reject_case_proposal_activity,
 )
 from vultron.wire.as2.factories.case.rm import (
-    reject_close_case_activity,
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -86,7 +85,6 @@ __all__ = [
     "reject_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",
     "reject_case_proposal_activity",
-    "reject_close_case_activity",
     "rm_accept_full_case_invite_activity",
     "rm_accept_invite_to_case_activity",
     "rm_close_case_activity",

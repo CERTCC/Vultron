@@ -34,6 +34,7 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     EmitRefusalNoticeNode,
+    RefusalNoticeExemption,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     RefusalEffectsBestEffort,
@@ -133,6 +134,25 @@ _CoveredEmitter.__name__ = "EmitEmbargoInviteFaultNode"
 
 def _covered_emit() -> py_trees.behaviour.Behaviour:
     return _CoveredEmitter("CoveredEmit")
+
+
+def _registered_refusal_notice_exemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> RefusalNoticeExemption:
+    """A refusal-notice exemption registered for this test alone.
+
+    The registry is empty (every guarded commit tree takes the notice), so a
+    test of the exemption path registers its own.
+    """
+    from vultron.core.behaviors.case.nodes import refusal_notice
+
+    exemption = RefusalNoticeExemption(name="test-exemption", reason="a test")
+    monkeypatch.setattr(
+        refusal_notice,
+        "REFUSAL_NOTICE_EXEMPTIONS",
+        {exemption.name: exemption},
+    )
+    return exemption
 
 
 def _names(tree: py_trees.behaviour.Behaviour) -> list[str]:
@@ -755,17 +775,15 @@ class TestRefusalNotice:
 
     @pytest.mark.spec("CLP-02-005")
     def test_a_registered_exemption_drops_the_notice_and_is_recorded(
-        self,
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from vultron.core.behaviors.case.nodes.refusal_notice import (
-            OWNER_CLOSE_DECLINE,
-        )
+        exemption = _registered_refusal_notice_exemption(monkeypatch)
 
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[_effect("Guard")],
-            refusal_notice_exemption=OWNER_CLOSE_DECLINE,
+            refusal_notice_exemption=exemption,
         )
 
         assert self._notices(tree) == []
@@ -777,7 +795,7 @@ class TestRefusalNotice:
             "Guard",
             COMMIT,
         ]
-        assert tree.refusal_notice_exemption is OWNER_CLOSE_DECLINE
+        assert tree.refusal_notice_exemption is exemption
 
     @pytest.mark.spec("CLP-02-005")
     def test_an_unregistered_exemption_is_refused(self) -> None:
@@ -801,18 +819,19 @@ class TestRefusalNotice:
         ids=["no-commit", "no-guards"],
     )
     def test_an_exemption_that_exempts_nothing_is_refused(
-        self, case_id: str | None, guards: list
+        self,
+        case_id: str | None,
+        guards: list,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from vultron.core.behaviors.case.nodes.refusal_notice import (
-            OWNER_CLOSE_DECLINE,
-        )
+        exemption = _registered_refusal_notice_exemption(monkeypatch)
 
         with pytest.raises(VultronWiringError, match="exempts nothing"):
             create_receive_activity_tree(
                 name="SampleBT",
                 case_id=case_id,
                 precondition_guards=guards,
-                refusal_notice_exemption=OWNER_CLOSE_DECLINE,
+                refusal_notice_exemption=exemption,
             )
 
     @pytest.mark.spec("CLP-02-005")

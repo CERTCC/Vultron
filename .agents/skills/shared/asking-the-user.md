@@ -121,6 +121,16 @@ found, ending in one specific question.
 - **Plain text** — for open-ended questions, or when the user is likely to push
   back, reframe, or write a paragraph. They can reply in the normal prompt,
   where text wraps.
+- **A design question with real for and against goes in plain text.** The question
+  dialog hides the text you wrote before it in the same turn, and it cuts off long
+  question text and option previews. So a dialog that says "following the discussion
+  above" reaches the user with no discussion, and one that holds the discussion is
+  truncated. Write the problem, the options and their trade-offs in the reply, end the
+  turn with one question, and keep the dialog for choices that fit in a line or two.
+- **Lead with extending the object itself.** When a message needs a fact the object it
+  is about does not hold, the first option to offer is adding that field to the
+  object. A projection, a side record, or a new wrapper object is the alternative that
+  must justify itself, not the default.
 
 ## 9. End-of-interview summary
 

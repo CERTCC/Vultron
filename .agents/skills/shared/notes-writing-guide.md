@@ -70,6 +70,12 @@ State **the rule, the reason, and at most one citation** (an issue, ADR, or spec
 ID) (NF-08-004). If a defect taught the lesson, the lesson is the rule; one sentence
 of "why" is usually enough.
 
+State the rule in the present tense: "a receiver does not fetch it", not "a receiver
+never fetches it". "Never" commits the project's future design; "does not" says what
+holds now and leaves a later decision free to change it. Keep "never" for a permanent
+prohibition the maintainer has decided. The same applies to ADR prose and issue
+bodies.
+
 Cut these on sight, whether you are writing new text or editing nearby:
 
 - **Provenance chains**: several `(#N)` / `ISSUE-N` citations for one rule,

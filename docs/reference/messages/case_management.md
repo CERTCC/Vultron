@@ -25,7 +25,7 @@ The CASE_MANAGER acts for the Case Owner.
 The same actor often holds both roles, but it need not.
 
 If the CASE_MANAGER refuses one of these messages because a precondition does not hold, it answers the sender with the [refusal notice](faults_and_acknowledgements.md#refusal-notice).
-That notice is a `Reject` of the refused message, with the reason in `summary` ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005), [CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
+That notice is a `Refuse` of the refused message, with the reason in `summary` ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005), [CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
 The CASE_MANAGER records nothing of the refused message in the ledger.
 It sends no answer when the sender may not send the message at all, or when the message repeats one whose effect is already in place.
 
@@ -35,8 +35,8 @@ A receiver refuses such a message when it carries no position or one that does n
 `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)` and `Announce(VulnerabilityCase)` carry none, because the case they carry states its own position.
 A reply to a stub `Invite` carries none either, because its sender does not hold the case yet.
 
-A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.
-The [close-case](#close-case) decline is the one message on this page with an answer of its own, so it gets no refusal notice.
+A refused `Offer` or `Invite` is answered with a `Refuse` of it, which the sender reads as a refusal, not as the decline of its request ([ADR-0196](../../adr/0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md)).
+A refused [close-case](#close-case) is answered with the same refusal notice.
 The 300-level introduction is [The CASE_MANAGER and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
 
 ## Occasions
@@ -260,8 +260,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
   The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
   A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
-- **Decline:** while the case holds an active embargo, the CASE_MANAGER declines the Case Owner's close with a `Reject` of the `Leave` and records nothing ([CM-23-011](../vultron-spec/requirements/case-management.md#cm-23-011)).
-  That decline is the answer to the refusal, so the CASE_MANAGER sends no refusal notice as well.
+- **Refusal:** while the case holds an active embargo, the CASE_MANAGER refuses the Case Owner's close and records nothing ([CM-23-011](../vultron-spec/requirements/case-management.md#cm-23-011)).
+  It answers with the refusal notice, a `Refuse` of the `Leave` that names the embargo in `summary` ([CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
 - **Example artifact:** [close_case.json](../examples/close_case.json).
 
 {% include-markdown "./_occasions/sections/add-case-participant-to-case.md" %}
