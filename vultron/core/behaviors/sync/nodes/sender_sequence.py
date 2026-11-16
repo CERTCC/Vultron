@@ -43,16 +43,16 @@ activity unchanged and in order:
 ends every hold for a case before the CASE_MANAGER role passes (SYNC-21-025).
 
 A tree whose activity takes no number names a registered
-:class:`SenderSequenceExemption` instead.
+:class:`~vultron.core.behaviors.sync.nodes.sender_sequence_exemptions.SenderSequenceExemption`
+instead.
 """
 
 from __future__ import annotations
 
-from typing import Final, cast
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
-from pydantic import BaseModel, ConfigDict
 
 from vultron.config.app import get_config
 from vultron.core.behaviors.case.nodes.addressee import named_in_to
@@ -90,18 +90,15 @@ from vultron.core.services.sender_sequence_order import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
-from vultron.primitives import NonEmptyString, same_actor_id
+from vultron.primitives import same_actor_id
 
 __all__ = [
     "AdmitInOrderNode",
     "ClassifySequenceNumberNode",
     "EmitSequenceRefusalNoticeNode",
     "HoldPastGapNode",
-    "LEDGER_REQUEST_TAKES_NO_NUMBER",
-    "SENDER_SEQUENCE_EXEMPTIONS",
     "SequenceAdmitsNode",
     "SequenceOrderStage",
-    "SenderSequenceExemption",
     "SequenceStandingIsNode",
 ]
 
@@ -114,37 +111,6 @@ class SequenceOrderStage(py_trees.composites.Sequence):
     a permitted stage ahead of the act's commit, as they read the ledger
     position answer (CLP-10-010).
     """
-
-
-class SenderSequenceExemption(BaseModel):
-    """One recorded decision that a received tree judges no sender sequence.
-
-    Attributes:
-        name: Short stable name of the decision.
-        reason: Why the tree's activity takes no number.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    name: NonEmptyString
-    reason: NonEmptyString
-
-
-LEDGER_REQUEST_TAKES_NO_NUMBER: Final = SenderSequenceExemption(
-    name="ledger-request-takes-no-number",
-    reason=(
-        "The activity is a Read(CaseLedgerEntry), a request about the ledger"
-        " and not a case event (CLP-02-013), so its sender numbers it not"
-        " (SYNC-21-001): a request for a missed entry must not wait behind"
-        " the gap it reports."
-    ),
-)
-
-#: Every decision that lets a received tree go without the stage.
-SENDER_SEQUENCE_EXEMPTIONS: Final[dict[str, SenderSequenceExemption]] = {
-    exemption.name: exemption
-    for exemption in (LEDGER_REQUEST_TAKES_NO_NUMBER,)
-}
 
 
 def _recipient_ids(to: object) -> list[str]:
