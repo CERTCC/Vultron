@@ -553,6 +553,11 @@ groups:
       whole object: any other key makes the object a whole object, which is refused
       when it fails its class (MV-04-003), so a broken object is never read as a
       reference (ADR-0198).
+    note: >-
+      A case reference is a typed reference of type `VulnerabilityCase`, and the
+      receiver never fetches its case. Rehydration leaves the reference as it
+      arrived, and the handler reads the case from the receiver's own store or
+      refuses an act naming a case the receiver lacks (AKM-03-006, ADR-0165).
     verification: >-
       `test_a_typed_reference_is_not_read_as_the_object` in
       `test/wire/as2/test_typed_references.py` parses activities whose object is a

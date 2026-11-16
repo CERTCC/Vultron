@@ -551,6 +551,40 @@ class TestWireTypeValues:
         }
         assert set(_UNREGISTERED_WIRE_TYPES) - needing == set()
 
+    @pytest.mark.spec("VM-01-007")
+    @pytest.mark.spec("VM-01-017")
+    def test_a_class_missing_its_type_default_is_caught_as_unreachable(self):
+        """Self-test: the gate's no-default skip cannot hide a real wire type.
+
+        The registration gate passes by a class whose ``type_`` has no
+        default, as the typed reference is (VM-01-017).  A wire class that
+        forgot its default is skipped the same way, so the reachability test
+        above must still see it: it presents its class-name ``type`` and
+        ``WIRE_TYPE_MAP`` does not answer that value with it.
+        """
+        from typing import Literal
+        from unittest.mock import patch
+
+        from pydantic import Field
+
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+        from vultron.wire.as2.vocab.base.registry import (
+            declares_registrable_type,
+            wire_type_value,
+        )
+
+        with patch.dict(WIRE_TYPE_MAP), patch.dict(VOCABULARY):
+
+            class as_DefaultlessWidget(as_Object):
+                type_: Literal["DefaultlessWidget"] = Field(  # type: ignore[assignment]
+                    ..., validation_alias="type", serialization_alias="type"
+                )
+
+            assert not declares_registrable_type(as_DefaultlessWidget)
+            value = wire_type_value(as_DefaultlessWidget)
+            assert value == "DefaultlessWidget"
+            assert WIRE_TYPE_MAP.get(value) is not as_DefaultlessWidget
+
     @pytest.mark.spec("VM-03-002")
     @pytest.mark.spec("VM-06-008")
     @pytest.mark.parametrize(

@@ -170,7 +170,11 @@ class as_TypedReference(as_Object):
     object's would (SE-01-002).  It is never the object a handler reads:
     rehydration puts the object the receiver holds in its place, or reduces
     it to its bare id when the receiver holds none, so the inbox fetches the
-    object first (AKM-05-007, AKM-05-010).
+    object first (AKM-05-007, AKM-05-010).  A case reference
+    (:func:`is_case_reference`) is the exception: rehydration leaves it as
+    it arrived and no fetch is named for it, because the handler reads the
+    case from the receiver's own store and refuses one it lacks (AKM-03-006,
+    ADR-0165).
 
     It claims no ``WIRE_TYPE_MAP`` key: its ``type`` is the referenced
     object's, any type at all, so it declares no ``Literal`` (VM-01-017).
