@@ -212,6 +212,11 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         tool="jq",
     ),
     MirrorCheck(
+        "vince-data",
+        "vince-data-check.yml::vince-data::Check committed VINCE data",
+        env={"BASE_REF": "{base}"},
+    ),
+    MirrorCheck(
         "closing-pr-owners",
         "verification-debt-owners.yml::closing-pr::"
         "Check the owner issues this PR closes",
@@ -279,7 +284,8 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             ),
             (
                 "wire-context",
-                "JSON-LD context in sync with the wire vocabulary (VM-10-001)",
+                "JSON-LD context in sync, every wire field has a term "
+                "(VM-10-001, VM-10-007)",
             ),
             (
                 "drafts-register",

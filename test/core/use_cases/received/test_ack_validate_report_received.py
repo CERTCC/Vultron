@@ -844,27 +844,3 @@ class TestValidateReportReceivedGuardedCommit:
             f"Expected guarded commit called for case {CASE_ID!r}, "
             f"got {commit_tree_calls[0]!r}"
         )
-
-
-class TestValidateReportMalformed:
-    @pytest.mark.spec("HP-01-003")
-    def test_missing_offer_id_is_refused(self):
-        """A malformed validate is refused, not raised (#2255)."""
-        # The event model rejects a missing offer at construction, so bypass
-        # validation to reach the handler's own guard.
-        event = ValidateReportReceivedEvent.model_construct(
-            semantic_type=MessageSemantics.VALIDATE_REPORT,
-            activity_id="https://example.org/activities/accept-malformed",
-            actor_id="https://example.org/actors/vendor",
-            object_=None,
-            receiving_actor_id="https://example.org/actors/vendor",
-        )
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:", actor_id="https://example.org/actors/vendor"
-        )
-        result = run_in_act(
-            ValidateReportReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
-            )
-        )
-        assert result.disposition == HandlerDisposition.REFUSED

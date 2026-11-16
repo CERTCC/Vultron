@@ -734,39 +734,6 @@ class TestInviteActorUseCases:
             "No trust anchor MUST be written when invitee != receiving actor"
         )
 
-    @pytest.mark.parametrize("missing", ["target", "object"])
-    def test_invite_missing_case_or_invitee_is_refused(
-        self, make_payload, missing
-    ):
-        """An Invite that names no case or no invitee is refused up front."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        invite = rm_invite_to_case_activity(
-            make(as_Actor, id_="https://example.org/users/coordinator"),
-            to=["https://example.org/users/coordinator"],
-            target="https://example.org/cases/case1",
-            actor="https://example.org/users/owner",
-            id_="https://example.org/cases/case1/invitations/missing",
-            at=authored_at(),
-        )
-        field = "target" if missing == "target" else "object_"
-        event = make_payload(invite, at=dl).model_copy(update={field: None})
-
-        result = run_in_act(
-            InviteActorToCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-
-        assert result.disposition is HandlerDisposition.REFUSED
-
     @pytest.mark.spec("CLP-10-005")
     @pytest.mark.spec("CLP-10-013")
     def test_invite_runs_one_tree_under_the_resolved_receiver(
@@ -2423,23 +2390,6 @@ class TestInviteDispositions:
 
         assert first.disposition == HandlerDisposition.APPLIED
         assert second.disposition == HandlerDisposition.SKIPPED
-
-    @pytest.mark.spec("HP-01-003")
-    def test_reject_invite_without_case_is_refused(self):
-        dl = self._dl()
-        event = MagicMock(case_id=None, receiving_actor_id=None)
-
-        result = run_in_act(
-            RejectInviteActorToCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-                trigger_activity=TriggerActivityAdapter(dl),
-            )
-        )
-
-        assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("HP-01-005")

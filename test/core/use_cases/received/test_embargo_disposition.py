@@ -45,7 +45,6 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
-    RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronValidationError
@@ -83,71 +82,6 @@ def _request(**attrs) -> MagicMock:
 def _assert_refused(result, fragment: str) -> None:
     assert result.disposition is HandlerDisposition.REFUSED
     assert fragment in (result.reason or "")
-
-
-class TestMalformedEmbargoMessagesAreRefused:
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.parametrize(
-        "embargo_id, case_id",
-        [(None, "https://example.org/cases/c1"), ("e1", None)],
-    )
-    @pytest.mark.parametrize(
-        "use_case",
-        [
-            ActivateEmbargoOnCaseReceivedUseCase,
-            RejectEmbargoProposalOnCaseReceivedUseCase,
-        ],
-    )
-    def test_owner_decision_missing_ids(self, embargo_id, case_id, use_case):
-        request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = run_in_act(use_case(_make_dl(), request))
-        _assert_refused(result, "missing")
-
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.parametrize(
-        "embargo_id, case_id",
-        [(None, "https://example.org/cases/c1"), ("e1", None)],
-    )
-    def test_remove_missing_ids(self, embargo_id, case_id):
-        request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = run_in_act(
-            RemoveEmbargoEventFromCaseReceivedUseCase(_make_dl(), request)
-        )
-        _assert_refused(result, "missing")
-
-    @pytest.mark.spec("HP-01-003")
-    def test_accept_missing_embargo_id(self):
-        request = _request(embargo_id=None)
-        result = run_in_act(
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
-        )
-        _assert_refused(result, "missing")
-
-    @pytest.mark.spec("HP-01-003")
-    def test_reject_missing_embargo_id(self):
-        """A Reject that names no embargo is malformed, like an Accept that does.
-
-        Which terms are refused decides the consent effect (MSM-07-004), so
-        the handler refuses rather than guessing.
-        """
-        request = _request(
-            case_id="https://example.org/cases/c1",
-            embargo_id=None,
-            invite_id="i1",
-            actor_id=_VENDOR,
-        )
-        result = run_in_act(
-            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
-        )
-        _assert_refused(result, "embargo")
-
-    @pytest.mark.spec("HP-01-003")
-    def test_reject_missing_case_id(self):
-        request = _request(case_id=None, invite_id="i1", actor_id=_VENDOR)
-        result = run_in_act(
-            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
-        )
-        _assert_refused(result, "case")
 
 
 class TestEmbargoMessagesForUnknownCaseAreRefused:

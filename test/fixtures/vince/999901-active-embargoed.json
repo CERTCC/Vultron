@@ -1,0 +1,167 @@
+{
+  "synthetic": {
+    "producer": "generator"
+  },
+  "reads": {
+    "case": {
+      "vuid": "999901",
+      "created": "2026-01-05T14:00:00Z",
+      "status": "Active",
+      "summary": "Synthetic case 999901: a made-up flaw in a made-up product, for tests only.",
+      "title": "Synthetic Widget flaw 999901",
+      "due_date": "2026-04-06T00:00:00Z",
+      "modified": "2026-02-10T09:30:00Z",
+      "pk": 9901
+    },
+    "posts": [
+      {
+        "created": "2026-01-06T10:00:00Z",
+        "author": {
+          "org": "CERT/CC",
+          "active": true,
+          "name": "Synthetic Coordinator",
+          "email": "synthetic.coordinator@example.com"
+        },
+        "pinned": false,
+        "content": "Vendors added to the case."
+      },
+      {
+        "created": "2026-01-21T08:00:00Z",
+        "author": {
+          "org": "Synthetic Vendor Alpha",
+          "active": true,
+          "name": "Alpha Responder",
+          "email": "alpha.responder@example.com"
+        },
+        "pinned": false,
+        "content": "A fix is in progress."
+      },
+      {
+        "created": "2026-01-23T08:00:00Z",
+        "author": {
+          "org": "Synthetic Unlisted Org",
+          "active": true,
+          "name": "Unlisted Person",
+          "email": "unlisted.person@example.com"
+        },
+        "pinned": false,
+        "content": "A post from no participant."
+      }
+    ],
+    "report": {
+      "vendor_name": "Synthetic Vendor Alpha",
+      "product_name": "Synthetic Widget",
+      "product_version": "1.0",
+      "vul_description": "A made-up overflow in the widget's parser.",
+      "vul_exploit": "Send the widget an oversized synthetic header.",
+      "vul_impact": "The widget stops.",
+      "vul_discovery": "Reading synthetic source code.",
+      "vul_public": false,
+      "public_references": "",
+      "vul_exploited": false,
+      "exploit_references": "",
+      "vul_disclose": true,
+      "disclosure_plans": "Publish once the vendors are ready.",
+      "date_submitted": "2026-01-02T10:00:00Z",
+      "share_release": true,
+      "contact_name": "Synthetic Reporter",
+      "contact_phone": "+1-555-0100",
+      "contact_email": "reporter@example.org",
+      "contact_org": "Example Research Lab"
+    },
+    "vuls": [
+      {
+        "name": "VU#999901.1",
+        "cve": "CVE-2099-0001",
+        "description": "Synthetic flaw 1 of case 999901.",
+        "date_added": "2026-01-06T09:00:00Z"
+      },
+      {
+        "name": "VU#999901.2",
+        "cve": null,
+        "description": "Synthetic flaw 2 of case 999901.",
+        "date_added": "2026-01-06T09:00:00Z"
+      }
+    ],
+    "vendors": [
+      {
+        "vendor": "Synthetic Vendor Alpha",
+        "status": "Affected",
+        "statement": "Synthetic Vendor Alpha reviewed the synthetic report.",
+        "references": "https://example.com/vendor-notes",
+        "date_added": "2026-01-06T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": "2026-01-20T12:00:00Z"
+      },
+      {
+        "vendor": "Synthetic Vendor Beta",
+        "status": "Not Affected",
+        "statement": "Synthetic Vendor Beta reviewed the synthetic report.",
+        "references": "https://example.com/vendor-notes",
+        "date_added": "2026-01-06T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": "2026-01-25T12:00:00Z"
+      },
+      {
+        "vendor": "Synthetic Vendor Gamma",
+        "status": "Unknown",
+        "statement": null,
+        "references": null,
+        "date_added": "2026-01-06T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": null
+      }
+    ],
+    "vendors/vuls": [
+      {
+        "vulnerability": "VU#999901.1",
+        "vendor": "Synthetic Vendor Alpha",
+        "status": "Affected",
+        "statement": "Synthetic Vendor Alpha marked VU#999901.1 Affected.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-01-20T12:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999901.2",
+        "vendor": "Synthetic Vendor Alpha",
+        "status": "Unknown",
+        "statement": "",
+        "references": "",
+        "statement_date": "2026-01-06T09:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999901.1",
+        "vendor": "Synthetic Vendor Beta",
+        "status": "Not Affected",
+        "statement": "Synthetic Vendor Beta marked VU#999901.1 Not Affected.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-01-22T12:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999901.2",
+        "vendor": "Synthetic Vendor Beta",
+        "status": "Not Affected",
+        "statement": "Synthetic Vendor Beta marked VU#999901.2 Not Affected.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-01-25T12:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999901.1",
+        "vendor": "Synthetic Vendor Gamma",
+        "status": "Unknown",
+        "statement": "",
+        "references": "",
+        "statement_date": "2026-01-06T09:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999901.2",
+        "vendor": "Synthetic Vendor Gamma",
+        "status": "Unknown",
+        "statement": "",
+        "references": "",
+        "statement_date": "2026-01-06T09:00:00Z"
+      }
+    ],
+    "note": null
+  }
+}

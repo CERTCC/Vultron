@@ -8,9 +8,10 @@
 # passed or were skipped. The logic is in .github/scripts/ci_gate.py; its
 # verdict rules are those of .agents/skills/shared/wait-for-ci.sh.
 #
-# guard-tests.yml is the other unfiltered pull-request workflow, for the same
-# reason read the other way round: a skip there would leave the guard tests
-# unrun on the pull request shapes they exist to police (PAD-18-023).
+# guard-tests.yml and vince-data-check.yml are the other unfiltered
+# pull-request workflows, for the same reason read the other way round: a skip
+# there would leave the guard tests, or the committed-data check, unrun on the
+# pull request shapes they exist to police (PAD-18-023, VSD-02-001).
 #
 # The gate judges once per pull-request event. A re-run or a dispatched run
 # on the head commit after it finished is not judged: re-run the `CI gate`

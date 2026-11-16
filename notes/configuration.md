@@ -13,6 +13,7 @@ related_specs:
   - specs/case-shadow.yaml
   - specs/configuration.yaml
   - specs/embargo-policy.yaml
+  - specs/multi-actor-demo.yaml
   - specs/vince-shadow-data.yaml
 relevant_packages:
   - fastapi
@@ -149,3 +150,10 @@ stack and imports neither core nor config.
   when the host is in `_KNOWN_FICTIONAL_HOSTS` (for example `vultron.example`);
   any other unregistered host logs WARNING, since it is almost always a config
   leak. Add a fictional host to the allowlist rather than silencing the warning.
+- **An in-process node's own settings go on its app, never in the environment.**
+  The process environment is shared by every app in the process, so a node that
+  needs settings different from its peers' gets them from its own app config
+  (ADR-0206). Give each in-process node the config its Docker container has: a
+  node that reads its own config for a fact about another actor then fails in
+  the suite as it does in Docker, as the CaseActor's read of its own
+  `default_case_roles` for a proposer did only in Docker (#1876, ADR-0133).

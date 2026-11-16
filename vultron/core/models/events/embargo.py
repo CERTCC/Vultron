@@ -2,7 +2,7 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from pydantic import field_validator, model_validator
 
@@ -37,17 +37,19 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
     is each sender's own consent, and which ``inReplyTo`` names.
     """
 
+    required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
+
     @property
-    def embargo_id(self) -> str | None:
-        return self.object_id
+    def embargo_id(self) -> str:
+        return self._required("embargo_id", self.object_id)
 
     @property
     def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
-    def case_id(self) -> str | None:
-        return self.target_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.target_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:
@@ -87,18 +89,19 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE] = (
         MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
 
     @property
-    def embargo_id(self) -> str | None:
-        return self.object_id
+    def embargo_id(self) -> str:
+        return self._required("embargo_id", self.object_id)
 
     @property
     def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
-    def case_id(self) -> str | None:
-        return self.context_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.context_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:
@@ -120,6 +123,7 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
     )
     termination_reason: TerminationReason
     termination_cause: TerminationCause | None = None
+    required_slots: ClassVar[tuple[str, ...]] = ("embargo_id", "case_id")
 
     @model_validator(mode="after")
     def _cause_fits_reason(self) -> RemoveEmbargoEventFromCaseReceivedEvent:
@@ -130,16 +134,16 @@ class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
         return self
 
     @property
-    def embargo_id(self) -> str | None:
-        return self.object_id
+    def embargo_id(self) -> str:
+        return self._required("embargo_id", self.object_id)
 
     @property
     def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.object_)
 
     @property
-    def case_id(self) -> str | None:
-        return self.origin_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.origin_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:
@@ -257,18 +261,19 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
     ] = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+    required_slots: ClassVar[tuple[str, ...]] = ("invite_id", "embargo_id")
 
     @property
-    def invite_id(self) -> str | None:
-        return self.object_id
+    def invite_id(self) -> str:
+        return self._required("invite_id", self.object_id)
 
     @property
     def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
-    def embargo_id(self) -> str | None:
-        return self.inner_object_id
+    def embargo_id(self) -> str:
+        return self._required("embargo_id", self.inner_object_id)
 
     @property
     def embargo(self) -> EmbargoEvent | None:
@@ -289,26 +294,31 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     semantic_type: Literal[
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
     ] = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "invite_id",
+        "embargo_id",
+        "case_id",
+    )
 
     @property
-    def invite_id(self) -> str | None:
-        return self.object_id
+    def invite_id(self) -> str:
+        return self._required("invite_id", self.object_id)
 
     @property
     def invite(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
-    def embargo_id(self) -> str | None:
-        return self.inner_object_id
+    def embargo_id(self) -> str:
+        return self._required("embargo_id", self.inner_object_id)
 
     @property
     def embargo(self) -> EmbargoEvent | None:
         return cast("EmbargoEvent | None", self.inner_object)
 
     @property
-    def case_id(self) -> str | None:
-        return self.inner_context_id
+    def case_id(self) -> str:
+        return self._required("case_id", self.inner_context_id)
 
     @property
     def case(self) -> VulnerabilityCase | None:

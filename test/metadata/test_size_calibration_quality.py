@@ -586,7 +586,7 @@ class TestRunGit:
 
         def ran(args, **kwargs):
             seen.update(kwargs, args=args)
-            return subprocess.CompletedProcess(args, 0, "out\n", "")
+            return subprocess.CompletedProcess(args, 0, b"out\n", b"")
 
         monkeypatch.setattr(git_runner.subprocess, "run", ran)
         assert blame.run_git(["status"]) == "out\n"
@@ -595,7 +595,7 @@ class TestRunGit:
 
     def test_a_failure_is_a_git_error(self, monkeypatch):
         def failed(args, **kwargs):
-            return subprocess.CompletedProcess(args, 128, "", "fatal: bad\n")
+            return subprocess.CompletedProcess(args, 128, b"", b"fatal: bad\n")
 
         monkeypatch.setattr(git_runner.subprocess, "run", failed)
         with pytest.raises(GitError, match=r"^git blame x: fatal: bad$"):

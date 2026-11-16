@@ -41,6 +41,7 @@ from test.support.received import (
     TEST_SENDER_POSITION,
     archive_received,
     intake_received,
+    named_case,
     with_evidence,
 )
 from vultron.core.behaviors.case.nodes.addressee import (
@@ -116,6 +117,7 @@ def _event() -> AddNoteToCaseReceivedEvent:
     return with_evidence(
         AddNoteToCaseReceivedEvent(
             ledger_position=TEST_SENDER_POSITION,
+            target=named_case(CASE_ID),
             activity_id=activity.id_,
             actor_id=SENDER,
             object_=note,

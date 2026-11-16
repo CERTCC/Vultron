@@ -1,8 +1,8 @@
 """Per-semantic inbound domain event types for vulnerability report activities."""
 
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
@@ -68,35 +68,23 @@ class ValidateReportReceivedEvent(VultronEvent):
         MessageSemantics.VALIDATE_REPORT
     )
 
+    required_slots: ClassVar[tuple[str, ...]] = ("offer_id", "report_id")
+
     @property
-    def offer_id(self) -> str | None:
-        return self.object_id
+    def offer_id(self) -> str:
+        return self._required("offer_id", self.object_id)
 
     @property
     def offer(self) -> VultronActivity | None:
         return cast("VultronActivity | None", self.object_)
 
     @property
-    def report_id(self) -> str | None:
-        return self.inner_object_id
+    def report_id(self) -> str:
+        return self._required("report_id", self.inner_object_id)
 
     @property
     def report(self) -> VulnerabilityReport | None:
         return cast("VulnerabilityReport | None", self.inner_object)
-
-    @model_validator(mode="after")
-    def _require_offer_and_report_ids(self) -> ValidateReportReceivedEvent:
-        if self.offer_id is None:
-            raise ValueError(
-                "ValidateReportReceivedEvent requires offer_id "
-                "(object_ must reference a non-None VultronActivity)"
-            )
-        if self.report_id is None:
-            raise ValueError(
-                "ValidateReportReceivedEvent requires report_id "
-                "(inner_object must reference a non-None VulnerabilityReport)"
-            )
-        return self
 
 
 class InvalidateReportReceivedEvent(VultronEvent):

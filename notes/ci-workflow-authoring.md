@@ -38,6 +38,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/parallel-development.yaml
   - specs/testability.yaml
+  - specs/vince-shadow-data.yaml
 ---
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
@@ -74,7 +75,8 @@ running must land on a job the gate really judges, or nothing enforces it
 (PAD-18-031). That is why `guard-tests.yml` carries no `paths` filter: its
 tests read Markdown, `specs/`, `AGENTS.md` and `notes/`, and a filter would
 have to be the union of those inputs and would fall behind the next guard
-added (PAD-18-023, #5949).
+added (PAD-18-023, #5949). `vince-data-check.yml` carries none for the same
+reason: a recorded VINCE response can land in any JSON file (VSD-02-001).
 
 ## The `CI gate` Judges Every Other Check, Once
 

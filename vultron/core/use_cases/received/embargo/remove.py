@@ -8,7 +8,6 @@ The case owner's activation of an embargo is
 (:mod:`.owner_decision`, ADR-0180).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -34,8 +33,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
@@ -71,14 +68,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
-        if embargo_id is None or case_id is None:
-            logger.warning(
-                "remove_embargo_from_case: missing embargo_id or case_id"
-            )
-            return HandlerResult.refused(
-                "Remove(EmbargoEvent) is missing its embargo id or case id"
-            )
-
         # One tree: its door guards refuse a closed case, an unaddressed
         # copy (HP-01-005, ADR-0118) and a sender without standing first.
         # The tree embeds the guarded commit as its final step (ADR-0021,

@@ -42,25 +42,22 @@ The same declarations write the "Declared properties" table of
 ``docs/ns/index.md`` (:func:`render_property_table`), so the namespace page
 describes each property by the definition that declares it.
 
-CLI (``uv run wire-context``):
-    --check   exit 1 if ``docs/ns/context.jsonld`` or the page's table is stale
-    --write   rewrite both in place
+The ``uv run wire-context`` command lives in
+:mod:`~vultron.metadata.wire_context.cli`.
 """
 
 from __future__ import annotations
 
-import argparse
 import importlib
 import json
 import pkgutil
-import sys
 import typing
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TypeAliasType
 
 from pydantic import BaseModel
-from pydantic.fields import FieldInfo
+from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
 from vultron.core.models.base import (
@@ -205,10 +202,31 @@ def vultron_context_terms() -> dict[str, str]:
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 
-def _wire_name(name: str, info: FieldInfo) -> str:
+#: A field a model serializes: a declared field or a ``@computed_field``.
+type WireField = FieldInfo | ComputedFieldInfo
+
+
+def serialized_fields(
+    cls: type[BaseModel],
+) -> Iterator[tuple[str, WireField]]:
+    """Each field *cls* serializes, by Python name.
+
+    Its declared fields, less those ``exclude=True``, and its computed
+    fields, which a dump writes too: a case publishes its derived
+    ``activeParticipants`` (CM-31-003).
+    """
+    for name, info in cls.model_fields.items():
+        if not info.exclude:
+            yield name, info
+    yield from cls.model_computed_fields.items()
+
+
+def wire_name(name: str, info: WireField) -> str:
     """The name a field travels under: its serialization alias, else its
     alias, else its Python name."""
-    return info.serialization_alias or info.alias or name
+    if isinstance(info, FieldInfo) and info.serialization_alias:
+        return info.serialization_alias
+    return info.alias or name
 
 
 def vultron_property_terms() -> dict[str, str | dict[str, str]]:
@@ -230,6 +248,25 @@ def vultron_property_terms() -> dict[str, str | dict[str, str]]:
     }
 
 
+def field_declaration(
+    cls: type[BaseModel], name: str, info: WireField
+) -> VultronPropertyDeclaration | None:
+    """The Vultron property the field *name* of *cls* declares, if any.
+
+    A malformed marker raises with the class and field it sits on, so the
+    generator and the term check both name where to fix it.
+    """
+    where = f"{cls.__module__}.{cls.__qualname__}.{name}"
+    try:
+        return declared_vultron_property(info)
+    except TypeError as error:
+        raise TypeError(f"the marker on {where}: {error}") from error
+    except ValueError as error:
+        # A ``pydantic.ValidationError`` is a ``ValueError`` that cannot be
+        # rebuilt from a message, so re-raise the base type.
+        raise ValueError(f"the marker on {where}: {error}") from error
+
+
 def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
     """Map each Vultron property's wire name to its one declaration.
 
@@ -240,30 +277,21 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
     """
     declared: dict[str, tuple[VultronPropertyDeclaration, str]] = {}
     for cls in wire_field_classes():
-        for name, info in cls.model_fields.items():
-            if info.exclude:
-                continue
+        for name, info in serialized_fields(cls):
             where = f"{cls.__module__}.{cls.__qualname__}.{name}"
-            try:
-                declaration = declared_vultron_property(info)
-            except TypeError as error:
-                raise TypeError(f"the marker on {where}: {error}") from error
-            except ValueError as error:
-                # A ``pydantic.ValidationError`` is a ``ValueError`` that
-                # cannot be rebuilt from a message, so re-raise the base type.
-                raise ValueError(f"the marker on {where}: {error}") from error
+            declaration = field_declaration(cls, name, info)
             if declaration is None:
                 continue
-            wire_name = _wire_name(name, info)
-            first = declared.setdefault(wire_name, (declaration, where))
+            term = wire_name(name, info)
+            first = declared.setdefault(term, (declaration, where))
             if first[0] != declaration:
                 raise ValueError(
-                    f"two declarations of the Vultron property {wire_name!r} "
+                    f"two declarations of the Vultron property {term!r} "
                     f"disagree (VM-10-012): {first[1]} declares "
                     f"{first[0].as_json()}, {where} declares "
                     f"{declaration.as_json()}. Share one declaration."
                 )
-    return {name: declaration for name, (declaration, _) in declared.items()}
+    return {term: declaration for term, (declaration, _) in declared.items()}
 
 
 #: The term that maps the ``vultron:`` prefix to the namespace (VM-10-002).
@@ -353,9 +381,14 @@ def wire_field_classes() -> list[type[BaseModel]]:
         if cls in seen or not _serializes_its_fields(cls):
             continue
         seen.add(cls)
-        for info in cls.model_fields.values():
-            if not info.exclude:
-                pending.extend(_nested_models(info.annotation))
+        for _, info in serialized_fields(cls):
+            pending.extend(
+                _nested_models(
+                    info.annotation
+                    if isinstance(info, FieldInfo)
+                    else info.return_type
+                )
+            )
     return sorted(seen, key=lambda c: f"{c.__module__}.{c.__qualname__}")
 
 
@@ -505,44 +538,3 @@ def write_context(root: Path | None = None) -> bool:
     for path in stale:
         write_generated(base / path, desired[path])
     return bool(stale)
-
-
-def main(argv: list[str] | None = None) -> None:
-    """CLI entry point: ``uv run wire-context [--check|--write]``."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument(
-        "--check",
-        action="store_true",
-        help=f"Exit 1 if {CONTEXT_JSONLD_PATH} or {NS_INDEX_PATH} is stale.",
-    )
-    mode.add_argument(
-        "--write",
-        action="store_true",
-        help=f"Rewrite {CONTEXT_JSONLD_PATH} and {NS_INDEX_PATH}'s property "
-        "table from the wire vocabulary.",
-    )
-    args = parser.parse_args(argv)
-
-    artifacts = f"{CONTEXT_JSONLD_PATH} and {NS_INDEX_PATH}"
-    if args.write:
-        if write_context():
-            print(f"Wrote {artifacts}")
-        else:
-            print(f"{artifacts} already in sync.")
-        return
-
-    if is_stale():
-        print(
-            f"[ERROR] {artifacts} are stale — run '{WRITE_COMMAND}' "
-            "(VM-10-001, VM-10-002, VM-10-010). A Vultron-namespace wire type "
-            "or property was added, removed, re-annotated or redefined "
-            "without regenerating the context.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    print(f"{artifacts} are in sync.")
-
-
-if __name__ == "__main__":
-    main()

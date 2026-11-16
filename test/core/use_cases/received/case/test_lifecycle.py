@@ -178,22 +178,6 @@ def test_unknown_case_is_refused(dl):
     assert result.reason is not None and _CASE_ID in result.reason
 
 
-@pytest.mark.spec("HP-01-003")
-@pytest.mark.parametrize("missing", ["report_id", "case_id"])
-def test_missing_id_is_refused(dl, missing):
-    request = cast(
-        AddReportToCaseReceivedEvent,
-        SimpleNamespace(
-            report_id=None if missing == "report_id" else "r",
-            case_id=None if missing == "case_id" else _CASE_ID,
-        ),
-    )
-
-    result = run_in_act(AddReportToCaseReceivedUseCase(dl, request))
-
-    assert result.disposition == HandlerDisposition.REFUSED
-
-
 @pytest.mark.spec("CM-17-004")
 @pytest.mark.spec("RSH-08-004")
 def test_late_joiner_receives_the_added_report_through_backfill(dl):

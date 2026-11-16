@@ -19,7 +19,7 @@ Covers the three CaseProposal message flows:
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator
 
@@ -105,11 +105,17 @@ class AcceptCaseProposalReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_PROPOSAL] = (
         MessageSemantics.ACCEPT_CASE_PROPOSAL
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("report_id",)
 
     @property
     def proposal_id(self) -> str | None:
         """URI of the accepted CaseProposal object."""
         return self.object_id
+
+    @property
+    def report_id(self) -> str:
+        """The VulnerabilityReport the accepted proposal embeds inline."""
+        return self._required("report_id", self.inner_object_id)
 
 
 class RejectCaseProposalReceivedEvent(VultronEvent):
@@ -123,8 +129,14 @@ class RejectCaseProposalReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.REJECT_CASE_PROPOSAL] = (
         MessageSemantics.REJECT_CASE_PROPOSAL
     )
+    required_slots: ClassVar[tuple[str, ...]] = ("report_id",)
 
     @property
     def proposal_id(self) -> str | None:
         """URI of the rejected CaseProposal object."""
         return self.object_id
+
+    @property
+    def report_id(self) -> str:
+        """The VulnerabilityReport the rejected proposal embeds inline."""
+        return self._required("report_id", self.inner_object_id)

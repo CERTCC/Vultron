@@ -288,9 +288,10 @@ repos:
         pass_filenames: false
 
       - id: wire-context-sync
-        name: JSON-LD @context in sync with wire vocabulary
-        # Console script, not `python -m ...`: the package re-exports from
-        # `sync`, so `-m` would run the module twice and print a RuntimeWarning.
+        name: JSON-LD @context in sync, and every wire field has a term
+        # Console script, not `python -m ...`: the package re-exports `main`
+        # from `cli`, so `-m` would run the module twice and print a
+        # RuntimeWarning.
         entry: uv run wire-context --check
         language: system
         # Two kinds of input make the artifacts stale (VM-10-001/002/010): the
@@ -302,7 +303,10 @@ repos:
         # docs/ (DOCBW-03-013), and test_committed_context_is_not_stale on one
         # that changes vultron/; the test is also the backstop for a deletion,
         # which pre-commit's staged-file list cannot match.
-        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/core/models/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/(context\.jsonld|index\.md))$
+        # The term check (VM-10-007) also reads the owners' ratchets, the
+        # pinned external contexts, the cited-context constants and the
+        # ratchet-marker parser that reads the ratchets.
+        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/core/models/.*\.py|vultron/metadata/wire_context/.*\.py|vultron/metadata/(base|file_loading|ratchet_markers)\.py|vultron/wire/as2/signing\.py|test/metadata/wire_term_ratchets\.py|third_party/jsonld/.*|docs/ns/(context\.jsonld|index\.md))$
         pass_filenames: false
 
       - id: csaf-models-sync
@@ -317,6 +321,24 @@ repos:
         entry: uv run csaf-models --check
         language: system
         files: ^(third_party/csaf/.*|vultron/wire/csaf/.*|vultron/metadata/csaf/(regenerate|pin)\.py|vultron/metadata/generated_files\.py|pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+
+      - id: vince-data-check
+        name: No VINCE API data committed unless synthetic or cleared
+        # VSD-02-001 to VSD-02-005, ADR-0189. Reads every
+        # tracked JSON file, not only the staged ones: the target set must
+        # never be empty, and a fixture or the cleared-case list can change
+        # the verdict on a file the commit did not touch. Watched: every
+        # suffix the check reads, matched without regard to case
+        # (JSON_SUFFIXES in vultron/metadata/vince_data/shape.py), the fixture
+        # directory with its cleared-case list, the check and the helpers it
+        # reads, and pyproject.toml, which declares the console script.
+        # test/ci/test_vince_data_check_workflow.py ties this pattern to
+        # JSON_SUFFIXES. In CI, vince-data-check.yml runs it on every pull
+        # request, with --history over the pull request's own commits.
+        entry: uv run vince-data check
+        language: system
+        files: (?i)(\.(json|jsonc|json5|har|jsonl|ndjson)$|^test/fixtures/vince/|^vultron/metadata/(vince_data/.*|base|file_loading|generated_files|git_runner)\.py$|^pyproject\.toml$)
         pass_filenames: false
 
       - id: ruff

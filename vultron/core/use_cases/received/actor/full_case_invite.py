@@ -8,7 +8,6 @@ reply whose position is behind the Invite's floor, or names an entry its
 ledger does not hold (CM-11-012).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
@@ -40,8 +39,6 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-logger = logging.getLogger(__name__)
-
 
 class InviteActorToFullCaseReceivedUseCase:
     """The invitee receives the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
@@ -72,20 +69,9 @@ class InviteActorToFullCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.case_id
-        invitee_id = request.invitee_id
-        if not case_id or not invitee_id:
-            logger.warning(
-                "InviteActorToFullCase: invite '%s' is missing its case"
-                " or invitee — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Invite is missing its case id or invitee id"
-            )
         tree = create_invite_actor_to_full_case_received_tree(
-            case_id=case_id,
-            invitee_id=invitee_id,
+            case_id=request.case_id,
+            invitee_id=request.invitee_id,
             inviter_id=request.actor_id,
             floor=request.ledger_position,
             sender_rule=self.sender_entitlement,
@@ -137,7 +123,6 @@ class _FullCaseInviteReplyReceivedUseCase:
 
     def _tree(self) -> py_trees.composites.Sequence:
         request = self._request
-        assert request.case_id and request.invite_id
         return create_full_case_invite_reply_received_tree(
             name=self.tree_name,
             case_id=request.case_id,
@@ -150,16 +135,6 @@ class _FullCaseInviteReplyReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.case_id
-        if not case_id or not request.invite_id:
-            logger.warning(
-                "%s: reply '%s' is missing its case or Invite — refusing",
-                self.tree_name,
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "reply is missing its case id or Invite id"
-            )
         tree = self._tree()
         # A sender the case already records as closed may act on nothing
         # further: the tree's closed-sender door stops it before the rule
@@ -178,7 +153,7 @@ class _FullCaseInviteReplyReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
             reader=closed_sender_reader(closes=self.rm_state is RM.CLOSED),
-            case_id=case_id,
+            case_id=request.case_id,
         )
 
 

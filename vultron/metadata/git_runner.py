@@ -33,6 +33,37 @@ class GitError(Exception):
     """``git`` could not be run, or exited non-zero."""
 
 
+GitBytesRunner = Callable[[Sequence[str]], bytes]
+"""Runs a ``git`` argument list and returns its standard output as bytes."""
+
+
+def git_bytes_runner(
+    root: Path, error: Callable[[str], Exception] = GitError
+) -> GitBytesRunner:
+    """A runner for the repository at *root* that keeps the output's bytes.
+
+    For a caller that must judge file content as git stores it, such as
+    whether a blob is valid UTF-8, which :func:`git_runner`'s decoding
+    would hide. *root*, *error* and the failures raised are as for
+    :func:`git_runner`.
+    """
+
+    def run(args: Sequence[str]) -> bytes:
+        try:
+            proc = subprocess.run(  # nosec B603 B607 - fixed git argv
+                ["git", *args], cwd=root, capture_output=True, check=False
+            )
+        except OSError as exc:
+            raise error(f"cannot run git: {exc}") from exc
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+            detail = stderr or f"exit {proc.returncode}"
+            raise error(f"git {' '.join(args)}: {detail}")
+        return proc.stdout
+
+    return run
+
+
 def git_runner(
     root: Path, error: Callable[[str], Exception] = GitError
 ) -> GitRunner:
@@ -51,22 +82,9 @@ def git_runner(
     the command and git's stderr (or the exit code when stderr is empty).
     """
 
+    run_bytes = git_bytes_runner(root, error)
+
     def run(args: Sequence[str]) -> str:
-        try:
-            proc = subprocess.run(  # nosec B603 B607 - fixed git argv
-                ["git", *args],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-        except OSError as exc:
-            raise error(f"cannot run git: {exc}") from exc
-        if proc.returncode != 0:
-            detail = proc.stderr.strip() or f"exit {proc.returncode}"
-            raise error(f"git {' '.join(args)}: {detail}")
-        return proc.stdout
+        return run_bytes(args).decode("utf-8", errors="replace")
 
     return run

@@ -545,32 +545,6 @@ class TestAcceptCaseProposalReceivedUseCase:
             )
         )
 
-    def test_execute_skips_when_no_inner_object_id(self, make_payload):
-        """Missing report_id (inner_object_id) logs a warning and returns early."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_VENDOR_URI,
-        )
-
-        # Build an Accept whose object_ lacks a nested object (pathological case)
-        activity = make(
-            as_Accept,
-            actor=_CASE_ACTOR_URI,
-            object_="https://example.org/proposals/bare-id-only",
-            to=[_VENDOR_URI],
-        )
-        event = make_payload(activity)
-        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
-
-        # Should not raise even without a valid inner_object_id
-        run_in_act(
-            AcceptCaseProposalReceivedUseCase(
-                dl,
-                event,
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-
     def test_execute_uses_store_owner_when_no_receiving_actor_id(
         self, make_payload
     ):
@@ -1083,21 +1057,6 @@ class TestCaseProposalDisposition:
         )
 
     @pytest.mark.spec("HP-01-003")
-    def test_accept_without_report_is_refused(self, make_payload):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
-        event = _vendor_event(
-            make_payload, as_Accept, "https://example.org/proposals/bare"
-        )
-        result = run_in_act(
-            AcceptCaseProposalReceivedUseCase(
-                dl,
-                event,
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-        assert result.disposition == HandlerDisposition.REFUSED
-
-    @pytest.mark.spec("HP-01-003")
     def test_reject_is_applied(self, make_payload):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
         proposal = _make_proposal()
@@ -1129,21 +1088,6 @@ class TestCaseProposalDisposition:
             result.reason is not None
             and "VultronReportCaseLink" in result.reason
         )
-
-    @pytest.mark.spec("HP-01-003")
-    def test_reject_without_report_is_refused(self, make_payload):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
-        event = _vendor_event(
-            make_payload, as_Reject, "https://example.org/proposals/bare"
-        )
-        result = run_in_act(
-            RejectCaseProposalReceivedUseCase(
-                dl,
-                event,
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
-        assert result.disposition == HandlerDisposition.REFUSED
 
 
 @pytest.mark.spec("ARCH-20-008")

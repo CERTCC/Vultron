@@ -495,16 +495,25 @@ the risk: `eddsa-jcs-2022` signs the JSON text and expands nothing.
 
 **Today.** Every field this review leaves a Vultron term carries the marker, and
 `docs/ns/context.jsonld` maps each one, typed by its value kind; the generator
-(`vultron/metadata/wire_context/sync.py`) walks the nested models too. The fields in
-the table below are still unmarked, and no check refuses a field without a term
-until #6422. Most have no term; the item `title` is the exception: a note's `title`
-is a Vultron term, so until #6413 renames the item's field to `name`, the item's
-`title` resolves to the note's meaning. The actor profile cites Multikey v1, which
-does not define `assertionMethod` at top level, so the published key is undefined
-to a JSON-LD reader.
+(`vultron/metadata/wire_context/sync.py`) walks the nested models too. The term
+check (`vultron/metadata/wire_context/terms.py`, run by `uv run wire-context
+--check` and the unit suite) refuses a field with no term, a Vultron property named
+like a pinned external term, and two disagreeing declarations of one name. An
+external term counts only when a context in `CITED_CONTEXTS` defines it: AS2,
+data-integrity v2 and Multikey v1. CID v1 is pinned but not cited, so the
+profile's `assertionMethod` has no term until #6418 cites it. Each field the check
+refuses today is an entry in its owner's ratchet in
+`test/metadata/wire_term_ratchets.py`. An unmarked field named like a marked one
+resolves to the marked one's meaning until its owner renames it: the item `title`
+takes the note's (#6413), and the policy's and the item's `notes` take the case's
+list of Note ids (#6410, #6416). The check walks computed fields too, so the case's
+derived `activeParticipants` is marked.
 
-**Field review.** Each row names the Task that fixes it; every row but
-`caseActivity` is a ratchet entry in #6422.
+**Field review.** Each row names the Task that fixes it. A row is a ratchet entry
+only when a rule refuses the field. `inbox`, the note's `audience` and
+`roles`/`suggestedRoles` break no rule (the first two are AS2 terms, the last a
+judgment no check can make), and `caseActivity` is marked, so their owners' own
+acceptance criteria track them.
 
 | Field (class) | Finding | Becomes | Owner |
 |---|---|---|---|

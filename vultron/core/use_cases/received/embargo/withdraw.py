@@ -54,7 +54,6 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.PARTICIPANT
     )
-    _label = "Leave(EmbargoEvent)"
     _tree_label = "WithdrawFromEmbargoOnCaseBT"
 
     def __init__(

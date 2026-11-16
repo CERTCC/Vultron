@@ -138,15 +138,6 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         # parser admits that form only with a position naming no entry, so
         # it asks for a replay from genesis (SYNC-16-027).
         case_id = request.rejected_case_id
-        if case_id is None:
-            logger.warning(
-                "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
-                "naming neither a log entry nor a case — refusing",
-                request.actor_id,
-            )
-            return HandlerResult.refused(
-                "Reject(CaseLedgerEntry) names neither a log entry nor a case"
-            )
 
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
@@ -205,16 +196,6 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.replay_case_id
-        if case_id is None:
-            logger.warning(
-                "sync: received READ_CASE_LEDGER_ENTRY '%s' from '%s' naming"
-                " no case in its context — refusing",
-                request.activity_id,
-                request.actor_id,
-            )
-            return HandlerResult.refused(
-                "Read(CaseLedgerEntry) names no case in its context"
-            )
 
         position = request.ledger_position
         logger.info(

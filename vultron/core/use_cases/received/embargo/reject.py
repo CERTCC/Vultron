@@ -4,7 +4,6 @@ The case owner's rejection of a proposal for the case is
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`, ADR-0122).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -28,8 +27,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
@@ -60,33 +57,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         invite_id = request.invite_id
 
         case_id, embargo_id = request.case_id, request.embargo_id
-
-        if not case_id:
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve case_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) does not name a case"
-            )
-        if not embargo_id:
-            # Which terms are refused decides the consent effect (MSM-07-004);
-            # a Reject that names none is malformed, like an Accept that does.
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve embargo_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) does not name an embargo"
-            )
-
-        if not invite_id:
-            # The invitee is read from the recorded Invite (EP-09-010); a
-            # Reject that names none has no invitee to be.
-            logger.warning(
-                "reject_invite_to_embargo_on_case: cannot resolve invite_id"
-            )
-            return HandlerResult.refused(
-                "Reject(Invite(EmbargoEvent)) is missing its Invite id"
-            )
 
         # One tree: its door guards refuse a closed case, an unaddressed copy
         # (HP-01-005, ADR-0118) and a sender that is not the recorded Invite's

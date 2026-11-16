@@ -40,6 +40,7 @@ from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.objects import make
+from test.support.received import named_case, named_note
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.ledger_position_stage import (
@@ -84,6 +85,8 @@ def _note(sender: str, position: LedgerPosition) -> AddNoteToCaseReceivedEvent:
         activity_id="https://example.org/activities/add-note",
         actor_id=sender,
         ledger_position=position,
+        object_=named_note("https://example.org/notes/add-note"),
+        target=named_case(CASE_ID),
     )
 
 
@@ -338,6 +341,7 @@ def test_an_activity_outside_the_scope_states_nothing_to_answer(dl) -> None:
         activity_id="https://example.org/activities/reject",
         actor_id=SIGNATORY_ID,
         ledger_position=LedgerPosition(log_index=1, entry_hash="0" * 64),
+        target=named_case(CASE_ID),
     )
 
     result = _answer(dl, reject, sync_port, trigger)

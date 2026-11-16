@@ -167,13 +167,13 @@ def test_deferred_handler_yields_deferred(dl, body):
 
 
 @pytest.mark.spec("HP-05-002")
-def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
+def test_remove_embargo_naming_no_case_is_refused_at_extraction(dl):
     """A ``Remove(EmbargoEvent)`` with no ``origin`` names no case to act on.
 
-    Its pattern requires no case field, so it still routes to the Remove
-    handler, which reads the case from ``origin`` alone and refuses it. The
-    verdict is the handler's own, reached through the production dispatcher;
-    the dispatcher refuses nothing.
+    Its pattern requires no case field, so it still matches the Remove
+    semantics, but the event requires the case it reads from ``origin``:
+    the extraction step refuses it before dispatch, naming the slot, and no
+    handler runs (ARCH-10-001, ADR-0032).
     """
     from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
     from vultron.core.states.embargo_register import TerminationReason
@@ -205,9 +205,9 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
-    assert outcome.failure_reason == (
-        "Remove(EmbargoEvent) is missing its embargo id or case id"
-    )
+    assert outcome.failure_reason is not None
+    assert outcome.failure_reason.startswith("extract_event raised exception")
+    assert "is missing its required case_id" in outcome.failure_reason
 
 
 @pytest.mark.spec("UCORG-05-012")

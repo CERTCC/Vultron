@@ -52,7 +52,6 @@ class _EmbargoEventReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderRule]
-    _label: ClassVar[str]
     _tree_label: ClassVar[str]
 
     def __init__(
@@ -80,13 +79,8 @@ class _EmbargoEventReceivedUseCase:
         return None
 
     def execute(self) -> HandlerResult:
-        request, label = self._request, self._label
+        request = self._request
         embargo_id, case_id = request.embargo_id, request.case_id
-        if embargo_id is None or case_id is None:
-            logger.warning("%s: missing embargo_id or case_id", label)
-            return HandlerResult.refused(
-                f"{label} is missing its embargo id or case id"
-            )
         # The tree's door guards refuse a closed case, an unaddressed copy
         # (HP-01-005, ADR-0118) and a sender without standing first.  Only
         # the CASE_MANAGER applies: each tree declares the manager path

@@ -1,6 +1,5 @@
 """Use cases for case note activities."""
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.case.received_run import run_received_tree
@@ -26,8 +25,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class AddNoteToCaseReceivedUseCase:
@@ -74,11 +71,6 @@ class AddNoteToCaseReceivedUseCase:
         request = self._request
         note = request.note
         case_id = request.case_id
-        if note is None or case_id is None:
-            logger.warning("add_note_to_case: missing inline note or case_id")
-            return HandlerResult.refused(
-                "Add(Note)[target=VulnerabilityCase] is missing its inline note or case id"
-            )
 
         # A case this store does not hold puts it on the no-case path, which
         # the tree's path stage refuses (HP-01-039).
