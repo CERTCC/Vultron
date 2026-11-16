@@ -263,8 +263,9 @@ stub is its own type and its own object" part), ADR-0165,
 `vultron/wire/as2/case_reference_placement.py`, the examples under
 `vultron/wire/as2/vocab/examples/`, `docs/reference/messages/`.
 
-**Open for planning.** The parse-edge rule that tells a reference-with-preview from a
-full case.
+**Parse-edge rule.** ADR-0198 settles it: an object with exactly `id` and `type`,
+with or without `preview`, is a typed reference; any other key makes it a whole
+case (MV-10-011). Defining the case's preview lifts MV-10-012's refusal for it.
 
 ---
 
