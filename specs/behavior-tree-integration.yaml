@@ -3345,13 +3345,14 @@ groups:
       A BT node, and any function or method a node's `update()` reaches, MUST NOT call
       `BTBridge.execute_with_setup` or tick a tree of its own.
     rationale: >-
-      A nested run hides the inner tree's internal error behind the outer node's
-      verdict, and hides its subtree from a walk over the tree, so nothing can release
-      or inspect it whole.
+      A nested run can hide the inner tree's internal error behind the outer node's
+      verdict unless each site carries it across by hand, and it hides its subtree
+      from a walk over the tree, so nothing can release or inspect it whole.
     verification: >-
-      An architecture test finds every `execute_with_setup` call reached from a node
-      and fails on one not in its list of known sites. The list only shrinks and ends
-      empty.
+      An architecture test finds every `execute_with_setup` call, `BehaviourTree`
+      construction, and `tick()` or `tick_once()` call on a behaviour other than the
+      node's own children, reached from a node, and fails on one not in its list of
+      known sites. The list only shrinks and ends empty.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-005
@@ -3362,7 +3363,8 @@ groups:
     kind: project
     statement: >-
       A step whose count is known only at run time MUST be one subtree under a loop.
-      The loop ticks the subtree once for each item of a work list on the blackboard.
+      The loop ticks the subtree once for each item of a work list on the blackboard,
+      and stops at the first item whose subtree fails.
     rationale: >-
       The tree keeps one shape whatever the count, so no node builds a tree while a
       tree runs.
@@ -3386,9 +3388,10 @@ groups:
       new subtree for each item.
     verification: >-
       The ledger-commit subtree's tests run one built subtree for two different
-      entries and assert each commit records its own entry.
+      entries and assert each commit records its own entry. Review of each subtree
+      given to the loop confirms its nodes read per-item values from the blackboard.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: BT-25-002
     adr:
     - ADR-0207

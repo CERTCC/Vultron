@@ -246,7 +246,8 @@ Two shapes look like a second tree and are not:
 ### One Fixed-Shape Tree per Act (ADR-0207)
 
 A tree's shape is fixed by the act; which case, which object and how many
-entries are data, read from the blackboard (BT-25). Reason: a tree built from its
+entries are data, read from the blackboard (BT-25-003 for a work-list subtree; how
+far the rule reaches into other trees is open, #6555). Reason: a tree built from its
 data must be rebuilt for each item, so nodes end up building and running trees
 mid-run, which hides internal errors and leaves subtrees no walk can reach.
 

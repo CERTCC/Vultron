@@ -23,9 +23,9 @@ Those subtrees are built from the data they act on (`create_commit_log_entry_tre
 ADR-0135 made a received delivery one tree as seen from the use case, and ADR-0089 made the participant-status writer a real tree child.
 Neither reached inside a node, and the nested bridge run took the place of the nested `update()` call ADR-0089 removed.
 
-A nested run hides the inner tree's internal error behind the outer node's verdict, and it hides the subtree from anything that walks the tree.
+A nested run can hide the inner tree's internal error behind the outer node's verdict unless each site carries it across by hand, and it hides the subtree from anything that walks the tree.
 That second point is why nothing releases a py_trees blackboard client (#5584).
-Every node registers a client in the process-global registry when it is built, and the only place to release a tree's clients is the end of its run.
+Every node that attaches a blackboard client registers it in the process-global registry when the node is built, and the only place to release a tree's clients is the end of its run.
 A walk at the end of the run misses every subtree a node holds outside its children.
 Releasing at the end of a nested run unregisters a subtree the parent may tick again.
 
@@ -85,7 +85,7 @@ Restoring stored keys stays the bridge's job (BT-17-007).
 - Bad: nodes that branch on a nested run's result move that branching into composites, and the commit's inputs move from constructor arguments to blackboard keys, which touches many files.
 - Bad: a loop's per-item inputs are blackboard keys, so each needs its handoff-key name (BTND-03-004) and its restore on every outcome.
 
-### Confirmation
+## Validation
 
 An architecture test lists the sites that still start a nested tree run and fails when a new one appears; the list only shrinks, and ends empty.
 A test delivers an activity and asserts the client registry is the size it was before the delivery.
