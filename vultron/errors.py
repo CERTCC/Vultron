@@ -778,6 +778,29 @@ class LedgerReadError(VultronError):
     """
 
 
+class CaseLedgerFileError(VultronError):
+    """Raised when a case reader cannot read a case from a case-ledger file.
+
+    Raised by the case shadow's Vultron case reader
+    (:mod:`vultron.shadow.readers.vultron_ledger`) for a file that is missing,
+    unreadable, empty, or holds a row that is not a valid ledger entry.
+    Unlike the measure layer, which degrades a malformed row (CEH-02-008),
+    the reader refuses the whole file, so it never returns a partial ledger.
+
+    Attributes:
+        path: The ledger file the reader was asked for, as it was named.
+        problems: Every reason the file was refused, each naming its row
+            where it has one (EH-07-001).
+    """
+
+    def __init__(self, path: str, problems: Sequence[str]) -> None:
+        self.path = path
+        self.problems = list(problems)
+        super().__init__(
+            f"Cannot read a case from {path}: " + "; ".join(self.problems)
+        )
+
+
 class CaseHistoryInputError(VultronError):
     """Raised when the case event history command is handed input it cannot dump.
 

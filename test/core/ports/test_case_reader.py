@@ -23,7 +23,6 @@ CRD-02-006.
 """
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any, get_protocol_members
 
 import pytest
@@ -41,17 +40,13 @@ from test.support.case_reader import (
     FAKE_UNOBSERVABLE,
     FakeCaseReader,
     OutsideRecord,
+    projected_history,
 )
 from vultron.core.models.case_reading import CaseReading, UntranslatedReason
 from vultron.core.ports.case_reader import CaseReader
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.errors import VultronNotFoundError
-from vultron.measure.history import EventKind, case_event_history
-from vultron.measure.ledger import (
-    LedgerFile,
-    LedgerRow,
-    case_ledgers_from_files,
-)
+from vultron.measure.history import EventKind
 
 #: The port's members, written out: one read method and the declaration
 #: every reading copies.  Any member added to the port fails the test below.
@@ -124,21 +119,6 @@ def reading() -> CaseReading:
     return FakeCaseReader({FAKE_CASE: _records()}).read_case(FAKE_CASE)
 
 
-def _projected(reading: CaseReading):
-    """The event history the measures project from *reading*'s ledger."""
-    path = Path("case-reading.jsonl")
-    rows = [
-        LedgerRow(
-            path=path,
-            line=i + 1,
-            data=entry.model_dump(by_alias=True, mode="json"),
-        )
-        for i, entry in enumerate(reading.ledger)
-    ]
-    read = case_ledgers_from_files([LedgerFile(path=path, rows=rows)])
-    return case_event_history(read.cases[FAKE_CASE])
-
-
 @pytest.mark.spec("CRD-01-001")
 def test_case_reader_is_declared_under_core_ports():
     assert CaseReader.__module__ == "vultron.core.ports.case_reader"
@@ -156,7 +136,7 @@ def test_case_reader_declares_no_write_method():
 @pytest.mark.spec("CRD-01-001")
 @pytest.mark.spec("CRD-01-003")
 def test_the_fake_readers_ledger_is_one_the_projection_accepts(reading):
-    history = _projected(reading)
+    history = projected_history(reading)
     assert history.unreadable_entries == []
     assert history.missing_log_indices == []
     vendor_kinds = [e.kind for e in history.for_participant(VENDOR)]
