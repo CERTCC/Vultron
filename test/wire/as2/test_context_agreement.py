@@ -31,6 +31,7 @@ from vultron.wire.as2.context_agreement import object_chain
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import refusal_notice_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.links import as_Link
 
 _CASE_A = "https://example.org/cases/a"
 _CASE_B = "https://example.org/cases/b"
@@ -105,6 +106,16 @@ _REFUSED = {
         _activity("Accept", _inner(_note(_CASE_B), _CASE_A)),
         [("object.context", _CASE_A), ("object.object.context", _CASE_B)],
     ),
+    # Every part that names a case is reported, the two that agree included
+    # (HP-08-016).
+    "three-parts-two-agree": (
+        _activity("Accept", _inner(_note(_CASE_B), _CASE_A), _CASE_A),
+        [
+            ("context", _CASE_A),
+            ("object.context", _CASE_A),
+            ("object.object.context", _CASE_B),
+        ],
+    ),
     "link-context": (
         _activity("Add", _note(_CASE_B), _link(_CASE_A), target=_CASE_A),
         [("context", _CASE_A), ("object.context", _CASE_B)],
@@ -130,12 +141,17 @@ def test_parts_naming_different_cases_are_refused_naming_each(
 
     reason = str(exc.value)
     assert reason.startswith(f"activity {_ACTIVITY_ID!r}: ")
-    for position, cases in named:
-        listed = ", ".join(
+    # The whole list, so a position that is a suffix of another ("context"
+    # in "object.context") cannot pass on the other's line.
+    parts = "; ".join(
+        f"{position} names "
+        + ", ".join(
             f"case {case!r}"
             for case in ((cases,) if isinstance(cases, str) else cases)
         )
-        assert f"{position} names {listed}" in reason
+        for position, cases in named
+    )
+    assert f"its parts name different cases ({parts});" in reason
     assert reason.endswith("(HP-08-015)")
 
 
@@ -183,6 +199,25 @@ def test_object_chain_follows_nested_activities_and_stops_at_objects() -> None:
         "object",
         "object.object",
     ]
+
+
+@pytest.mark.parametrize(
+    "object_, kind",
+    [
+        ("https://example.org/notes/1", str),
+        (_link("https://example.org/notes/1"), as_Link),
+    ],
+    ids=["uri", "link"],
+)
+def test_object_chain_yields_a_reference_object_as_it_is(
+    object_: object, kind: type
+) -> None:
+    activity = parse_activity(_activity("Add", object_, _CASE_A))
+
+    chain = list(object_chain(activity))
+
+    assert [path for path, _ in chain] == ["", "object"]
+    assert isinstance(chain[1][1], kind)
 
 
 @pytest.mark.spec("HP-08-015")

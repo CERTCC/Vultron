@@ -1638,14 +1638,23 @@ groups:
       (HP-08-007). The quote is evidence of what arrived, not a part of the notice,
       so the participant can still read it (CLP-06-006).
     note: >-
+      A `context` holding several values names each of them, and two parts
+      disagree when the sets of cases they name differ: one `context` listing two
+      cases, with no other part naming a case, is not refused by this rule.
       Verdicts this rule changes. An `Add(ParticipantStatus)` whose activity and
       status name different cases was refused by its received tree before the
-      commit, and is now refused at parse. Every other activity whose parts name
+      commit, and is now refused at parse. An activity whose carried object names
+      a case other than its target was refused by its tree's guards (HP-08-007,
+      HP-08-013) with a refusal notice; when its activity `context` also names the
+      target, it is now refused at parse. Every other activity whose parts name
       different cases was handled as the case its activity `context` names, and is
       now refused at parse. A refusal at parse answers the delivery with HTTP 422
-      and the reason, and the receiver keeps nothing of it. An activity with only
-      one `context` in it, or whose parts all name the same case, keeps its
-      verdict.
+      and the reason, sends no refusal notice, and the receiver keeps nothing of
+      it, so a sender's pending assertion for it waits for its timeout (CLP-06).
+      The same refusal answers a local client's outbox POST, and a body held
+      before this rule that it refuses no longer parses when re-read. An activity
+      with only one `context` in it, or whose parts all name the same case, keeps
+      its verdict.
     verification: >-
       `test/wire/as2/test_context_agreement.py` parses activities whose parts name
       different cases (a plain object, a nested activity, a two-level chain, a

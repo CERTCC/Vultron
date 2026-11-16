@@ -104,7 +104,7 @@ def cases_named_by_context(part: object) -> frozenset[str]:
     no ``context``, so it names no case.
     """
     context = getattr(part, "context", None)
-    if context is None or isinstance(part, str | as_Link):
+    if context is None:
         return frozenset()
     values = context if isinstance(context, list) else [context]
     return frozenset(
