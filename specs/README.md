@@ -94,7 +94,7 @@ Load additional files only when the task touches the relevant area. See the
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |
-| Case shadow tool (read-only advisor, packaging, live Vultron case reader) | `case-shadow.yaml` |
+| Case shadow tool (read-only advisor, packaging, move advice, live Vultron case reader) | `case-shadow.yaml` |
 | Outside-system case reader port | `case-reader.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
@@ -138,7 +138,8 @@ related requirements across files.
 - **`case-shadow.yaml`** - The case shadow tool: a standalone, read-only advisor
   that reads one case on request and shows Vultron's analysis; no delivery or
   write path, nothing left on the host after it exits, loopback-only packaging,
-  and the live Vultron case reader (SHD-01, SHD-02, SHD-03; ADR-0190, ADR-0192)
+  move advice, and the live Vultron case reader (SHD-01 to SHD-04; ADR-0190,
+  ADR-0192, ADR-0200)
 - **`case-reader.yaml`** - The read-only `CaseReader` port through which an
   outside system's case reaches the core as a translated case ledger, each
   entry citing its source record (CRD-01; ADR-0191)

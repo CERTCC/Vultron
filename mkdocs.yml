@@ -185,6 +185,7 @@ nav:
       - 'topics/measuring_cvd/index.md'
       - What a Case Records: 'topics/measuring_cvd/what_a_case_records.md'
       - Desiderata from the Process Models: 'topics/measuring_cvd/process_model_desiderata.md'
+      - Move Bands Against Pathology Cases: 'topics/measuring_cvd/move_bands.md'
       - Timing Metrics Within a Case: 'topics/measuring_cvd/timing_metrics.md'
       - Open Questions: 'topics/measuring_cvd/open_questions.md'
       - Foundations:

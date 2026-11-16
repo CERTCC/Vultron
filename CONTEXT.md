@@ -306,7 +306,8 @@ which direction)
 ## Move Advice
 
 **Scope** (move advice sense):
-One vendor in the case, notified or not, holding the desiderata about that vendor.
+One vendor in the case, notified or not, holding the desiderata about that vendor,
+each group of equivalent desiderata once.
 There is no case-wide scope.
 *Avoid*: dimension, axis
 

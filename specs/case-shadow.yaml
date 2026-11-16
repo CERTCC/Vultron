@@ -147,9 +147,56 @@ groups:
       An import test asserts that no module outside the case shadow tool's package
       imports `streamlit`.
 - id: SHD-03
-  title: Live Vultron Case Reader
+  title: Move Advice
   specs:
   - id: SHD-03-001
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0200
+    statement: >-
+      The case shadow tool's move advice MUST give each open move one outcome shift
+      for each vendor of the case, notified or not, each read from that vendor's
+      own projection of the case onto each desideratum's smallest model, so that
+      the advice never joins several vendors' sequences into one (CEH-05-006).
+    rationale: >-
+      A vendor's scope is the unit of move advice. Each vendor's values come from
+      its own projection, so the advice reads several vendors as the
+      event-history layer exposes them. A vendor not yet notified is a scope
+      too: the spike of #6450 shows that a score over the notified vendors alone
+      marks a notice as a loss.
+    see_also:
+    - spec_id: CEH-05-006
+      reason: >-
+        The same boundary at the event-history layer; the advice keeps it, but
+        it is not a case of that rule.
+    verification: >-
+      `test/measure/advice/test_shifts.py::test_notifying_a_vendor_raises_only_that_vendors_end_part`
+      asserts a notice moves only the notified vendor's scope, and
+      `test/measure/advice/test_shifts.py::test_a_vendors_own_fix_changes_no_other_vendors_scope`
+      asserts a vendor's own fix leaves every other vendor's scope unchanged.
+  - id: SHD-03-002
+    priority: MUST_NOT
+    kind: project
+    adr:
+    - ADR-0200
+    statement: >-
+      The case shadow tool's move advice MUST NOT put the open moves in order by one
+      score that combines the vendors' scores.
+    rationale: >-
+      In the spike of #6450, each of five scalar aggregates (median, mean,
+      maximin, mean then spread, Nash product) fails pathology cases that the
+      bands pass: a scalar names no vendor's harm, and four of the five rank an
+      embargo move above notifying a vendor.
+    verification: >-
+      `test/measure/advice/test_bands.py::test_the_advice_gives_no_combined_score`
+      asserts a move's advice holds no case score, and
+      `test/measure/advice/test_bands.py::test_a_higher_vendor_sum_does_not_put_a_move_first`
+      asserts a harm-free move comes before a trade-off move with a higher sum.
+- id: SHD-04
+  title: Live Vultron Case Reader
+  specs:
+  - id: SHD-04-001
     priority: MUST_NOT
     kind: project
     adr:
@@ -169,7 +216,7 @@ groups:
     verification: >-
       A run against a recorded transport fails on any request that is not a GET,
       or whose path is not a node's case ledger list or event-stream endpoint.
-  - id: SHD-03-002
+  - id: SHD-04-002
     priority: MUST
     kind: project
     adr:
@@ -186,7 +233,7 @@ groups:
       A test gives the reader an unreachable node, a node that answers 404 for
       the endpoint, and a node that holds no such case, and asserts each raises
       the domain error with the node and case in its message.
-  - id: SHD-03-003
+  - id: SHD-04-003
     priority: MUST
     kind: project
     adr:
@@ -201,7 +248,7 @@ groups:
     verification: >-
       A test streams three valid entries and asserts the readings hold one, two
       and three entries, each in log-index order.
-  - id: SHD-03-004
+  - id: SHD-04-004
     priority: MUST
     kind: project
     adr:
@@ -211,7 +258,7 @@ groups:
       entry the node sent for it is not a valid ledger entry.
     relationships:
     - rel_type: refines
-      spec_id: SHD-03-003
+      spec_id: SHD-04-003
     rationale: >-
       Dropping the bad entry would give a partial ledger that looks whole. The
       file reader refuses a bad row the same way.
@@ -219,7 +266,7 @@ groups:
       A test streams one valid entry and then one invalid entry, and asserts the
       reading after the invalid entry is refused with an error naming that
       entry.
-  - id: SHD-03-005
+  - id: SHD-04-005
     priority: MUST
     kind: project
     adr:
@@ -229,7 +276,7 @@ groups:
       reading, marked, after a later reading is refused or the stream ends.
     relationships:
     - rel_type: depends_on
-      spec_id: SHD-03-004
+      spec_id: SHD-04-004
     rationale: >-
       A refused entry or a stopped node does not make the case's earlier standing
       wrong. Keeping it on the page, marked, tells the analyst what they are

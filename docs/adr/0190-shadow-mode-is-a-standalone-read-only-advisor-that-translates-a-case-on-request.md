@@ -139,4 +139,4 @@ The rule applies to every case the shadow reads, an outside-system case included
 Planned in #6336, with the maintainer, on 2026-11-12.
 The VINCE shadow's data-handling rules are [ADR-0189](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md).
 
-Generated spec requirements: `case-shadow.yaml` SHD-01, SHD-03.
+Generated spec requirements: `case-shadow.yaml` SHD-01, SHD-04.
