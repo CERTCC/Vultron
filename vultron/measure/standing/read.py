@@ -77,7 +77,7 @@ def _unscored(
 
 
 def _participant(
-    reached: ReachedParticipant, scores: CaseScoreSummary
+    reached: ReachedParticipant, case: CaseStanding, scores: CaseScoreSummary
 ) -> ParticipantStanding:
     vendor = scores.for_participant(reached.participant)
     return ParticipantStanding(
@@ -85,6 +85,7 @@ def _participant(
         roles=reached.roles,
         joined=reached.joined,
         rm=reached.rm,
+        case=case,
         score=None if vendor is None else vendor.score,
         unscored=None
         if vendor is not None
@@ -116,9 +117,12 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     if gap is not None:
         return _gapped(history, gap)
     scores = score_case(case_state_sequences(history))
+    case = CaseStanding(em=em, pxa=reached.pxa)
     return StandingRecord(
         case_id=history.case_id,
         end_confirmed=history.end_confirmed,
-        case=CaseStanding(em=em, pxa=reached.pxa),
-        participants=[_participant(p, scores) for p in reached.participants],
+        case=case,
+        participants=[
+            _participant(p, case, scores) for p in reached.participants
+        ],
     )

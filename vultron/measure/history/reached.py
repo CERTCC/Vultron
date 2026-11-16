@@ -62,7 +62,9 @@ class ReachedParticipant(BaseModel):
         rm: Its report-management state.  An inert participant's state is
             the one its records name, though it is no case event yet
             (CEH-04-010).
-        roles: Every case role its records name, upper-cased and sorted.
+        roles: Its case roles, upper-cased and sorted: those the latest
+            participant record stating them names, or, when none does, every
+            role its records name.
         joined: ``False`` while the participant is an inert invitee that has
             not accepted its invitation.
     """

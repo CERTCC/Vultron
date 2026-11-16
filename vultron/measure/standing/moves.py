@@ -27,7 +27,9 @@ Every rule is read from :mod:`vultron.core.states`, never restated here:
   way.  A public-state move is allowed beside an embargo in force: it ends
   the embargo, it is not refused by it.
 * **EM** moves follow the one EM table
-  (:data:`~vultron.core.states.em.EM_TRANSITIONS`, EMB-18-006), except a
+  (:data:`~vultron.core.states.em.EM_TRANSITIONS`, EMB-18-006), each listed
+  for every participant whose roles may make it
+  (:func:`~vultron.core.states.em.may_make_em_move`), except a
   move to an embargo in force while the public state rules one out
   (:func:`~vultron.core.states.composite_state_invariants\
 .violation_pxa_em_entailment`, CSB-18-002 to CSB-18-004).
@@ -36,7 +38,9 @@ Each move is typed by its machine and refuses, at construction, a step its
 machine's table does not hold.  A move is named by its machine and its
 trigger in that machine (``rm.validate``, ``cs.fix_is_ready``,
 ``em.propose``), never by the wire activity that would carry it.  An RM or CS
-move names the participant whose state it moves.  A :class:`CSMove` names
+move names the participant whose state it moves, and an EM move the
+participant who can make it, as the EM trigger roles table says
+(:data:`~vultron.core.states.em.EM_TRIGGER_ROLES`).  A :class:`CSMove` names
 the case-state event it appends, so a measure can score the history the move
 would extend (:meth:`CSMove.extend`).
 """
@@ -73,8 +77,10 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import (
     EM,
     EM_TRANSITIONS,
+    EM_TRIGGER_ROLES,
     EM_Trigger,
     is_em_transition,
+    may_make_em_move,
 )
 from vultron.core.states.rm import (
     RM,
@@ -82,6 +88,7 @@ from vultron.core.states.rm import (
     is_valid_rm_transition,
     rm_transition_trigger,
 )
+from vultron.enums.roles import CVDRole
 from vultron.measure.history import BY_NAME
 from vultron.primitives import NonEmptyString
 
@@ -202,9 +209,10 @@ class CSMove(BaseModel):
 
 
 class EMMove(BaseModel):
-    """One embargo-management move the case can make from here.
+    """One embargo-management move a participant can make for the case.
 
     Fields:
+        participant: The participant who can make the move.
         trigger: The EM trigger of the register step.
         source: The case's EM state now.
         destination: The state the step reaches.  Where the table gives one
@@ -214,9 +222,17 @@ class EMMove(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    participant: NonEmptyString
     trigger: EM_Trigger
     source: EM
     destination: EM
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def role(self) -> CVDRole | None:
+        """The case role that may make the move; ``None`` when any
+        participant may (:data:`~vultron.core.states.em.EM_TRIGGER_ROLES`)."""
+        return EM_TRIGGER_ROLES[self.trigger]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -270,15 +286,25 @@ def cs_moves(participant: str, state: CS, rm: RM) -> tuple[CSMove, ...]:
     return tuple(sorted(found, key=lambda move: order.index(move.event)))
 
 
-def em_moves(em: EM, pxa: CS_pxa) -> tuple[EMMove, ...]:
-    """The EM moves allowed from *em* beside the public state *pxa*.
+def em_moves(
+    participant: str, roles: Iterable[CVDRole], em: EM, pxa: CS_pxa
+) -> tuple[EMMove, ...]:
+    """The EM moves *participant*, holding *roles*, may make from *em*
+    beside the public state *pxa*.
 
     In table order, then by destination as :class:`EM` orders them.
     """
+    held = set(roles)
     order = list(EM)
     return tuple(
-        EMMove(trigger=trigger, source=source, destination=dest)
+        EMMove(
+            participant=participant,
+            trigger=trigger,
+            source=source,
+            destination=dest,
+        )
         for trigger, steps in EM_TRANSITIONS.items()
+        if may_make_em_move(trigger, held)
         for source, dest in sorted(steps, key=lambda s: order.index(s[1]))
         if source is em and violation_pxa_em_entailment(pxa, dest) is None
     )

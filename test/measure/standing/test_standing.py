@@ -84,6 +84,9 @@ _SCENARIOS = sorted(
 )
 
 
+_CASE = CaseStanding(em=EM.NONE, pxa=CS_pxa.pxa)
+
+
 def _actor(name: str) -> str:
     return f"http://{name}:7999/api/v2/actors/{name}"
 
@@ -263,14 +266,17 @@ def test_a_case_cut_mid_revision_stands_in_revise(tmp_path):
     """rcv-embargo proposes a second embargo at 23 and activates it at 33."""
     record = case_standing(_cut("rcv-embargo", 30, tmp_path))
     assert record.case == CaseStanding(em=EM.REVISE, pxa=record.case.pxa)
-    assert {m.trigger for m in record.case.em_moves} == set(EM_Trigger)
+    owner = record.for_participant(_actor("actor2"))
+    assert {m.trigger for m in owner.em_moves} == set(EM_Trigger)
+    vendor = record.for_participant(_actor("actor1"))
+    assert {m.trigger for m in vendor.em_moves} == {EM_Trigger.PROPOSE}
     after = case_standing(_cut("rcv-embargo", 34, tmp_path))
     assert after.case.em is EM.ACTIVE
 
 
 def test_a_finished_case_allows_no_move():
     record = case_standing(_ledger(recording_path("rv")))
-    assert record.case.em_moves == ()
+    assert all(p.em_moves == () for p in record.participants)
     assert all(p.rm_moves == () for p in record.participants)
 
 
@@ -354,7 +360,7 @@ def test_a_record_holds_a_reading_or_its_gap():
 
 def test_a_participant_is_scored_or_says_why_not():
     with pytest.raises(ValidationError, match="either a score"):
-        ParticipantStanding(participant=VENDOR, rm=RM.START)
+        ParticipantStanding(participant=VENDOR, rm=RM.START, case=_CASE)
 
 
 def test_a_record_serializes_as_json():
@@ -456,13 +462,50 @@ def test_the_reason_given_must_be_the_participants_own():
         detail="none",
     )
     with pytest.raises(ValidationError, match="not"):
-        ParticipantStanding(participant=VENDOR, rm=RM.START, unscored=reason)
+        ParticipantStanding(
+            participant=VENDOR, rm=RM.START, case=_CASE, unscored=reason
+        )
 
 
 def test_every_move_names_the_participant_whose_state_it_moves(tmp_path):
-    """AC-3 (#6368): each RM and CS move is labelled with its participant."""
+    """AC-3 (#6368): every move is labelled with its participant."""
     record = case_standing(_cut("rcv-embargo", 32, tmp_path))
     for standing in record.participants:
-        for move in (*standing.rm_moves, *standing.cs_moves):
+        moves = (*standing.rm_moves, *standing.cs_moves, *standing.em_moves)
+        assert moves
+        for move in moves:
             assert move.participant == standing.participant
     assert any(p.cs_moves for p in record.participants)
+
+
+def test_after_a_handoff_only_the_new_owner_may_end_the_embargo(tmp_path):
+    """rccv-handoff hands ownership from actor2 to actor3 at entries 23-25."""
+    record = case_standing(_cut("rccv-handoff", 26, tmp_path))
+    assert record.case.em is EM.ACTIVE
+    old = record.for_participant(_actor("actor2"))
+    new = record.for_participant(_actor("actor3"))
+    assert "CASE_OWNER" not in old.roles
+    assert "CASE_OWNER" in new.roles
+    assert EM_Trigger.TERMINATE in {m.trigger for m in new.em_moves}
+    assert {m.trigger for m in old.em_moves} == {EM_Trigger.PROPOSE}
+
+
+def test_every_participant_stands_in_the_cases_own_state():
+    with pytest.raises(ValidationError, match="another case state"):
+        StandingRecord(
+            case_id="c",
+            end_confirmed=False,
+            case=_CASE,
+            participants=[
+                ParticipantStanding(
+                    participant=VENDOR,
+                    rm=RM.START,
+                    case=CaseStanding(em=EM.ACTIVE, pxa=CS_pxa.pxa),
+                    unscored=UnprojectableParticipant(
+                        participant=VENDOR,
+                        reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+                        detail="none",
+                    ),
+                )
+            ],
+        )

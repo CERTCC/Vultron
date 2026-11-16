@@ -343,3 +343,27 @@ def test_a_termination_of_an_unrecorded_embargo_records_it_ended():
         content="EARLY",
     )
     assert _reached(ledger).embargo_register == {EMBARGO_2: _S.TERMINATED}
+
+
+def test_a_role_given_up_is_no_longer_reached():
+    """An ownership transfer restates the old owner's case roles without
+    CASE_OWNER; its statuses still name the role it held."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add(
+        "update_case_participant",
+        "Update",
+        CM,
+        participant(OWNER, [], roles=("COORDINATOR",)),
+    )
+    owner = _reached(ledger).for_participant(OWNER)
+    assert owner.roles == ("COORDINATOR",)
+
+
+def test_with_no_stated_case_roles_every_role_named_is_reached():
+    ledger = Ledger()
+    ledger.genesis([])
+    ledger.add_status(
+        VENDOR, status("v-r", VENDOR, "RECEIVED", vf="Vf", roles=("VENDOR",))
+    )
+    assert _reached(ledger).for_participant(VENDOR).roles == ("VENDOR",)

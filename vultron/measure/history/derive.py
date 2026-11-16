@@ -186,6 +186,10 @@ class _Participant:
     vf: tuple[bool, ...] = (False, False)
     d: tuple[bool, ...] = (False,)
     roles: set[str] = field(default_factory=set)
+    #: The case roles the latest record stating them names; ``None`` until
+    #: one does.  Unlike *roles* it drops a role the participant gave up,
+    #: as the Case Owner role is on an ownership transfer.
+    case_roles: set[str] | None = None
     joined: bool = True
     #: Events recorded while inert, emitted when the participant joins.
     held: list[CaseEventKind] = field(default_factory=list)
@@ -600,6 +604,8 @@ class _Deriver:
         known = record.actor in self.participants
         tracker = self._tracker(record.actor)
         tracker.roles |= record.roles
+        if record.roles_stated:
+            tracker.case_roles = set(record.roles)
         if not known and record.joined is False:
             tracker.joined = False
         elif not tracker.joined and record.joined is True:
@@ -777,7 +783,13 @@ def _reached(deriver: _Deriver) -> ReachedState:
             ReachedParticipant(
                 participant=tracker.actor,
                 rm=tracker.rm,
-                roles=tuple(sorted(tracker.roles)),
+                roles=tuple(
+                    sorted(
+                        tracker.roles
+                        if tracker.case_roles is None
+                        else tracker.case_roles
+                    )
+                ),
                 joined=tracker.joined,
             )
             for tracker in deriver.participants.values()

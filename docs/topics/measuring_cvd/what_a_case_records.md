@@ -350,6 +350,8 @@ For embargo times, the measure connects the embargo register and the consent row
     It marks each desideratum as met, broken or open for each vendor.
     A desideratum is met when every history that the vendor's sequence can still become meets it, and broken when none of them does.
     The record lists the moves that the state machines allow from each state, and names each move by its machine and its trigger.
+    Each move names the participant who can make it.
+    In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
     A ledger with a gap in its history gives a record that names the gap and holds no score.
 
 ## Further reading

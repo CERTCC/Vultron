@@ -25,9 +25,12 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import (
     EM,
     EM_TRANSITIONS,
+    EM_TRIGGER_ROLES,
     EM_Trigger,
+    may_make_em_move,
 )
 from vultron.core.states.rm import RM, RM_Trigger, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.scoring import score_prefix
 from vultron.measure.standing import (
@@ -47,6 +50,7 @@ from vultron.wire.as2.enums import (
 
 _T = EM_Trigger
 _P = "https://example.org/actors/vendor"
+_OWNER = (CVDRole.CASE_OWNER,)
 
 
 @pytest.mark.parametrize("rm", list(RM))
@@ -105,8 +109,11 @@ def test_a_complete_history_allows_no_cs_move():
 
 @pytest.mark.spec("EMB-18-006")
 @pytest.mark.parametrize("em", list(EM))
-def test_with_the_public_unaware_the_em_moves_are_the_em_table(em):
-    assert {(m.trigger, m.destination) for m in em_moves(em, CS_pxa.pxa)} == {
+def test_the_case_owners_em_moves_are_the_em_table(em):
+    assert {
+        (m.trigger, m.destination)
+        for m in em_moves(_P, _OWNER, em, CS_pxa.pxa)
+    } == {
         (trigger, dest)
         for trigger, steps in EM_TRANSITIONS.items()
         for source, dest in steps
@@ -117,10 +124,12 @@ def test_with_the_public_unaware_the_em_moves_are_the_em_table(em):
 @pytest.mark.spec("CSB-18-002")
 def test_no_embargo_goes_into_force_beside_public_awareness():
     assert [
-        (m.trigger, m.destination) for m in em_moves(EM.ACTIVE, CS_pxa.Pxa)
+        (m.trigger, m.destination)
+        for m in em_moves(_P, _OWNER, EM.ACTIVE, CS_pxa.Pxa)
     ] == [(_T.TERMINATE, EM.EXITED)]
     assert [
-        (m.trigger, m.destination) for m in em_moves(EM.PROPOSED, CS_pxa.pXa)
+        (m.trigger, m.destination)
+        for m in em_moves(_P, _OWNER, EM.PROPOSED, CS_pxa.pXa)
     ] == [
         (_T.PROPOSE, EM.PROPOSED),
         (_T.REJECT, EM.NONE),
@@ -129,14 +138,19 @@ def test_no_embargo_goes_into_force_beside_public_awareness():
 
 
 def test_an_exited_embargo_allows_no_em_move():
-    assert em_moves(EM.EXITED, CS_pxa.pxa) == ()
+    assert em_moves(_P, _OWNER, EM.EXITED, CS_pxa.pxa) == ()
 
 
 def test_a_move_its_table_does_not_hold_is_refused():
     with pytest.raises(ValidationError, match="not an RM transition"):
         RMMove(participant=_P, source=RM.START, destination=RM.CLOSED)
     with pytest.raises(ValidationError, match="not in the EM transition"):
-        EMMove(trigger=_T.ACCEPT, source=EM.NONE, destination=EM.ACTIVE)
+        EMMove(
+            participant=_P,
+            trigger=_T.ACCEPT,
+            source=EM.NONE,
+            destination=EM.ACTIVE,
+        )
     with pytest.raises(ValidationError, match="not a CS transition"):
         CSMove(
             participant=_P,
@@ -204,7 +218,7 @@ def _every_move() -> list[RMMove | CSMove | EMMove]:
             moves += cs_moves(_P, state, rm)
     for em in EM:
         for pxa in CS_pxa:
-            moves += em_moves(em, pxa)
+            moves += em_moves(_P, _OWNER, em, pxa)
     return moves
 
 
@@ -240,3 +254,28 @@ def test_an_rm_move_names_its_trigger():
     (move,) = rm_moves(_P, RM.START, None, None)
     assert (move.trigger, move.name) == (RM_Trigger.RECEIVE, "rm.receive")
     assert move.participant == _P
+
+
+@pytest.mark.parametrize("trigger", list(EM_Trigger))
+def test_every_em_trigger_says_who_may_make_it(trigger):
+    assert trigger in EM_TRIGGER_ROLES
+
+
+def test_any_participant_may_propose_and_only_the_case_owner_decides():
+    """The fixed rule (#6368): propose is anyone's; the rest the owner's."""
+    vendor = em_moves(_P, (CVDRole.VENDOR,), EM.REVISE, CS_pxa.pxa)
+    assert {m.trigger for m in vendor} == {_T.PROPOSE}
+    assert all(m.role is None for m in vendor)
+    owner = em_moves(_P, _OWNER, EM.REVISE, CS_pxa.pxa)
+    assert {m.trigger for m in owner} == set(EM_Trigger)
+    assert {m.role for m in owner if m.trigger is not _T.PROPOSE} == {
+        CVDRole.CASE_OWNER
+    }
+    assert em_moves(_P, (), EM.ACTIVE, CS_pxa.Pxa) == ()
+    assert all(m.participant == _P for m in owner)
+
+
+def test_may_make_em_move_reads_the_role_table():
+    assert may_make_em_move(_T.PROPOSE, ())
+    assert not may_make_em_move(_T.TERMINATE, (CVDRole.CASE_MANAGER,))
+    assert may_make_em_move(_T.TERMINATE, (CVDRole.CASE_OWNER,))

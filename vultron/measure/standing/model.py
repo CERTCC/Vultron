@@ -48,6 +48,7 @@ from vultron.core.states.cs_invariants import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.measure.baselines import ORIGINAL, case_state_query
 from vultron.measure.history import (
     CaseEventHistory,
@@ -131,6 +132,21 @@ def desiderata_standing(
     return tuple(standings)
 
 
+class CaseStanding(BaseModel):
+    """Where the case itself stands at the ledger's last entry.
+
+    Fields:
+        em: The case's EM state, derived from its embargo register
+            (ADR-0122).  Every participant stands in this one state.
+        pxa: The case's public state, as the CASE_MANAGER adopted it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    em: EM
+    pxa: PxaName
+
+
 class ParticipantStanding(BaseModel):
     """Where one participant stands at the ledger's last entry.
 
@@ -139,6 +155,8 @@ class ParticipantStanding(BaseModel):
         roles: Its case roles, upper-cased and sorted.
         joined: ``False`` while it is an inert invitee.
         rm: Its report-management state.
+        case: The case's EM and public state, which every participant stands
+            in.
         score: The score of its case-state sequence, for a vendor with one
             (:func:`~vultron.measure.scoring.score_sequence`).  The prefix
             scored is the history an allowed :class:`CSMove` extends.
@@ -153,6 +171,7 @@ class ParticipantStanding(BaseModel):
     roles: tuple[NonEmptyString, ...] = ()
     joined: bool = True
     rm: RM
+    case: CaseStanding
     score: SequenceScore | None = None
     unscored: UnprojectableParticipant | None = None
 
@@ -212,32 +231,27 @@ class ParticipantStanding(BaseModel):
             return ()
         return cs_moves(self.participant, state, self.rm)
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def em_moves(self) -> tuple[EMMove, ...]:
+        """The EM moves its roles allow it to make from the case's EM
+        state (:data:`~vultron.core.states.em.EM_TRIGGER_ROLES`)."""
+        return em_moves(
+            self.participant, self.cvd_roles, self.case.em, self.case.pxa
+        )
+
+    @property
+    def cvd_roles(self) -> tuple[CVDRole, ...]:
+        """Its :attr:`roles` that name a :class:`CVDRole`."""
+        return tuple(
+            CVDRole[role] for role in self.roles if role in CVDRole.__members__
+        )
+
     @property
     def case_state_prefix(self) -> tuple[CSEvent, ...]:
         """The case-state history scored, which a :class:`CSMove` extends;
         empty without a sequence."""
         return () if self.score is None else self.score.prefix
-
-
-class CaseStanding(BaseModel):
-    """Where the case itself stands at the ledger's last entry.
-
-    Fields:
-        em: The case's EM state, derived from its embargo register
-            (ADR-0122).  Every participant stands in this one state.
-        pxa: The case's public state, as the CASE_MANAGER adopted it.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    em: EM
-    pxa: PxaName
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def em_moves(self) -> tuple[EMMove, ...]:
-        """The EM moves allowed from :attr:`em` beside :attr:`pxa`."""
-        return em_moves(self.em, self.pxa)
 
 
 class StandingGap(BaseModel):
@@ -318,6 +332,11 @@ class StandingRecord(BaseModel):
         names = [p.participant for p in self.participants]
         if len(set(names)) != len(names):
             problems.append("a participant is listed more than once")
+        problems.extend(
+            f"{p.participant} stands in another case state than the case's"
+            for p in self.participants
+            if p.case != self.case
+        )
         if problems:
             raise ValueError("; ".join(problems))
         return self
