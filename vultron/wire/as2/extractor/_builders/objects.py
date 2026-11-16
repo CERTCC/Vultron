@@ -16,6 +16,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.primitives import normalise_actor_id
@@ -111,6 +112,7 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
             context=context_id,
             name=getattr(ref, "name", None),
             case_roles=list(roles),
+            participant_statuses=_carried_statuses(ref),
             published=_get_timestamp(ref, "published"),
             updated=_get_timestamp(ref, "updated"),
         )
@@ -308,25 +310,45 @@ def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
 
 
 def _build_participant_object(obj: object) -> dict[str, Any]:
+    """The received participant *obj*, as received (AKM-02-006, #5265).
+
+    Under ARCH-25-003 (ADR-0099) the parsed or held participant already *is*
+    the core class, so it is kept whole: its statuses, membership, consent
+    rows and removal fact.  Rebuilding it from a few fields dropped them, and
+    the core model then minted a fresh ``START`` status and a ``joined``
+    flag no sender asserted.
+    """
     object_id = _get_id(obj)
     attributed_to = _actor_id(getattr(obj, "attributed_to", None))
     participant_context = _get_id(getattr(obj, "context", None))
-    if object_id and attributed_to and participant_context:
-        return {
-            "object_": CaseParticipant(
-                id_=object_id,
-                name=getattr(obj, "name", None),
-                attributed_to=attributed_to,
-                context=participant_context,
-                case_roles=list(getattr(obj, "case_roles", []) or []),
-                participant_case_name=getattr(
-                    obj, "participant_case_name", None
-                ),
-                published=_get_timestamp(obj, "published"),
-                updated=_get_timestamp(obj, "updated"),
-            )
-        }
-    return {}
+    if not (object_id and attributed_to and participant_context):
+        return {}
+    if isinstance(obj, CaseParticipant):
+        return {"object_": obj.model_copy(deep=True)}
+    return {
+        "object_": CaseParticipant(
+            id_=object_id,
+            name=getattr(obj, "name", None),
+            attributed_to=attributed_to,
+            context=participant_context,
+            case_roles=list(getattr(obj, "case_roles", []) or []),
+            participant_case_name=getattr(obj, "participant_case_name", None),
+            # Passed even when empty, so the model seeds no status the
+            # sender did not send (AKM-02-006).
+            participant_statuses=_carried_statuses(obj),
+            published=_get_timestamp(obj, "published"),
+            updated=_get_timestamp(obj, "updated"),
+        )
+    }
+
+
+def _carried_statuses(obj: object) -> list[ParticipantStatus]:
+    """The ``ParticipantStatus`` entries *obj* carries, and no others."""
+    return [
+        status
+        for status in getattr(obj, "participant_statuses", None) or []
+        if isinstance(status, ParticipantStatus)
+    ]
 
 
 def _build_note_object(obj: object) -> dict[str, Any]:
