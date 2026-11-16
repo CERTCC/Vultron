@@ -22,33 +22,46 @@ type that defines none (MV-10-012), and a received whole object other than an
 actor profile or a collection carries ``published`` (CLP-15-011).
 
 Each test feeds raw JSON through ``parse_activity``, the real inbound edge.  The
-tests are strict xfails until the implementation Tasks land; each reason names
-its Task, so the known-gaps page links it.
+tests still waiting on an implementation Task are strict xfails; each reason
+names its Task, so the known-gaps page links it.
 """
 
+import logging
 from typing import Any
 
 import pytest
 
+from test.support.objects import make
+from test.support.received import TEST_SENDER_POSITION
+from vultron.core.models.actor import CoreActor
+from vultron.core.models.base import CoreObject
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.semantic_registry import extract_event, find_matching_semantics
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
 )
+from vultron.wire.as2.extractor._builders import proposed_embargo_from
+from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+)
 
 ACTOR = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
 PUBLISHED = "2026-01-02T03:04:05+00:00"
 
-TYPED_REFERENCE_TASK = "#6455"
 REQUIRED_PUBLISHED_TASK = "#6456"
 
-#: Types whose ``{id, type}`` form is accepted today as a hollow whole object
-#: (#5265), so the parsed object is an instance of the type's class.
+#: Types whose ``{id, type}`` form was once accepted as a hollow whole object
+#: (#5265); each is now read as a typed reference.
 REFERENCED_TYPES = ["Note", "Event", "CaseParticipant", "VulnerabilityReport"]
 
 
@@ -67,11 +80,6 @@ def _body(
     return body
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"MV-10-011: a typed reference is read as a hollow whole object."
-    f" Tracked by {TYPED_REFERENCE_TASK}.",
-)
 @pytest.mark.spec("MV-10-011")
 @pytest.mark.parametrize("type_", REFERENCED_TYPES)
 def test_a_typed_reference_is_not_read_as_the_object(type_: str) -> None:
@@ -86,11 +94,6 @@ def test_a_typed_reference_is_not_read_as_the_object(type_: str) -> None:
     assert not isinstance(parsed.object_, whole_class)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"MV-10-012: a preview on a typed reference is not refused."
-    f" Tracked by {TYPED_REFERENCE_TASK}.",
-)
 @pytest.mark.spec("MV-10-012")
 def test_a_typed_reference_with_an_undefined_preview_is_refused() -> None:
     """No preview is defined for a note, so a note reference carrying one fails."""
@@ -182,3 +185,329 @@ def test_an_actor_profile_or_collection_without_published_is_accepted(
     assert isinstance(parsed, as_TransitiveActivity)
     assert parsed.object_ is not None
     assert getattr(parsed.object_, "published", None) is None
+
+
+def _object_of(activity: object) -> object:
+    """The ``object`` an activity carries, as the parser read it."""
+    return getattr(activity, "object_", None)
+
+
+def _as_typed_reference(value: object) -> as_TypedReference:
+    assert isinstance(value, as_TypedReference)
+    return value
+
+
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.parametrize("type_", REFERENCED_TYPES)
+def test_a_typed_reference_claims_only_its_id_and_type(type_: str) -> None:
+    """No field default of the named class runs for a reference: it carries
+    exactly the ``id`` and ``type`` it arrived with (#5265)."""
+    reference = {"id": f"https://example.org/objects/{type_}", "type": type_}
+
+    parsed = parse_activity(_body(reference, target=CASE_ID))
+
+    parsed_reference = _as_typed_reference(_object_of(parsed))
+    dumped = parsed_reference.model_dump(by_alias=True, exclude_none=True)
+    dumped.pop("@context", None)
+    assert dumped == reference
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_typed_reference_is_read_as_one_at_any_depth() -> None:
+    """A reference nested in an inline activity is read the same way."""
+    reference = {
+        "id": "https://example.org/participants/p1",
+        "type": "CaseParticipant",
+    }
+    invite = {
+        "id": "https://example.org/activities/2",
+        "type": "Remove",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": reference,
+        "target": CASE_ID,
+    }
+
+    parsed = parse_activity(_body(invite, "Undo"))
+
+    inner = _object_of(parsed)
+    assert isinstance(inner, as_TransitiveActivity)
+    assert _as_typed_reference(_object_of(inner)).id_ == reference["id"]
+
+
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.spec("MV-04-003")
+def test_an_object_with_one_more_key_is_a_whole_object_not_a_reference() -> (
+    None
+):
+    """The shape decides: a key beyond ``id`` and ``type`` makes the object a
+    whole object, which its class judges (ADR-0198)."""
+    note = {
+        "id": "https://example.org/notes/1",
+        "type": "Note",
+        "content": "the vendor confirmed the fix",
+    }
+
+    parsed = parse_activity(_body(note, "Create"))
+
+    assert isinstance(_object_of(parsed), find_in_vocabulary("Note"))
+    assert not isinstance(_object_of(parsed), as_TypedReference)
+
+
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.spec("SE-01-002")
+@pytest.mark.parametrize(
+    ("activity_type", "type_", "extra", "semantics"),
+    [
+        (
+            "Remove",
+            "CaseParticipant",
+            {"target": CASE_ID},
+            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+        ),
+        (
+            "Add",
+            "CaseParticipant",
+            {"target": CASE_ID},
+            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+        ),
+        (
+            "Announce",
+            "EmbargoEvent",
+            {"context": CASE_ID},
+            MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
+        ),
+        (
+            "Add",
+            "Note",
+            {"target": CASE_ID},
+            MessageSemantics.ADD_NOTE_TO_CASE,
+        ),
+        (
+            "Offer",
+            "VulnerabilityReport",
+            {},
+            MessageSemantics.SUBMIT_REPORT,
+        ),
+    ],
+    ids=[
+        "Remove(CaseParticipant)",
+        "Add(CaseParticipant)",
+        "Announce(EmbargoEvent)",
+        "Add(Note)",
+        "Offer(VulnerabilityReport)",
+    ],
+)
+def test_a_typed_reference_routes_by_its_type(
+    activity_type: str,
+    type_: str,
+    extra: dict[str, Any],
+    semantics: MessageSemantics,
+) -> None:
+    """An activity naming its object by typed reference matches the semantics
+    of one carrying the whole object of that type."""
+    reference = {"id": f"https://example.org/objects/{type_}", "type": type_}
+
+    parsed = parse_activity(_body(reference, activity_type, **extra))
+
+    assert find_matching_semantics(parsed) is semantics
+
+
+@pytest.mark.spec("MV-10-011")
+@pytest.mark.spec("VAM-01-009")
+def test_a_reference_no_pattern_matches_names_the_object_to_fetch() -> None:
+    """A reference to an activity cannot satisfy a nested pattern by type
+    alone, so the activity is unresolvable and names the reference's id."""
+    reference = {
+        "id": "https://example.org/activities/invite-1",
+        "type": "Invite",
+    }
+
+    parsed = parse_activity(_body(reference, "Accept"))
+
+    assert (
+        find_matching_semantics(parsed)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+    assert bare_object_id(parsed) == reference["id"]
+
+
+@pytest.mark.spec("MV-10-012")
+@pytest.mark.parametrize(
+    ("type_", "slot"),
+    [
+        ("CaseParticipant", "object"),
+        ("EmbargoEvent", "object"),
+        ("VulnerabilityCase", "object"),
+        ("Person", "object"),
+        ("Note", "target"),
+    ],
+)
+def test_a_preview_is_refused_for_every_type_naming_its_position(
+    type_: str, slot: str
+) -> None:
+    """No type defines a preview yet, so every typed reference carrying one
+    is refused, and the refusal names where it sat."""
+    reference = {
+        "id": f"https://example.org/objects/{type_}",
+        "type": type_,
+        "preview": "https://example.org/previews/1",
+    }
+    other = (
+        {"object": "https://example.org/notes/1"} if slot == "target" else {}
+    )
+    body = _body(reference, "Add", target=CASE_ID, **other)
+    if slot == "target":
+        body["target"] = reference
+
+    with pytest.raises(VultronParseError, match="MV-10-012") as raised:
+        parse_activity(body)
+
+    assert repr(slot) in str(raised.value)
+
+
+@pytest.mark.spec("MV-10-012")
+def test_a_nested_preview_is_refused_at_its_position() -> None:
+    reference = {
+        "id": "https://example.org/participants/p1",
+        "type": "CaseParticipant",
+        "preview": {"type": "Note", "content": "a participant"},
+    }
+    inner = {
+        "id": "https://example.org/activities/2",
+        "type": "Remove",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": reference,
+        "target": CASE_ID,
+    }
+
+    with pytest.raises(VultronParseError, match="MV-10-012") as raised:
+        parse_activity(_body(inner, "Undo"))
+
+    assert "'object.object'" in str(raised.value)
+
+
+@pytest.mark.spec("AKM-05-017")
+@pytest.mark.spec("MV-10-011")
+def test_an_actor_reference_is_still_read_as_the_actor() -> None:
+    """The actor reference keeps its form: the actor's class, naming only
+    the actor's id (AKM-05-017 to AKM-05-019, ADR-0159)."""
+    reference = {"id": "https://example.org/actors/bob", "type": "Person"}
+
+    parsed = parse_activity(_body(reference, "Offer", target=CASE_ID))
+
+    actor = _object_of(parsed)
+    assert isinstance(actor, CoreActor)
+    assert actor.id_ == reference["id"]
+    assert not isinstance(actor, as_TypedReference)
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_case_reference_is_still_the_case_reference() -> None:
+    """The typed case reference keeps its own class (ADR-0165)."""
+    reference = {"id": CASE_ID, "type": "VulnerabilityCase"}
+
+    parsed = parse_activity(_body(reference, "Join"))
+
+    assert isinstance(_object_of(parsed), as_VulnerabilityCaseReference)
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_in_a_slot_needing_the_whole_object_says_so() -> None:
+    """A slot that admits only a whole object refuses a reference, and the
+    refusal names the slot and why."""
+    proposal = {
+        "id": "https://example.org/proposals/1",
+        "type": "CaseProposal",
+        "published": PUBLISHED,
+        "attributedTo": ACTOR,
+        "inReplyTo": {"id": "https://example.org/offers/1", "type": "Offer"},
+    }
+
+    with pytest.raises(VultronParseError, match="MV-10-011") as raised:
+        parse_activity(_body(proposal, "Create"))
+
+    assert "'object.inReplyTo'" in str(raised.value)
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_reference_in_a_slot_taking_only_a_uri_says_to_send_its_id() -> None:
+    """A slot that admits only a URI refuses a reference, and the refusal
+    says to send the reference's id, not the whole object."""
+    embargo = {
+        "id": "https://example.org/embargoes/2",
+        "type": "EmbargoEvent",
+        "startTime": PUBLISHED,
+        "endTime": "2027-03-01T00:00:00Z",
+        "published": PUBLISHED,
+        "context": {"id": "https://example.org/notes/1", "type": "Note"},
+    }
+
+    with pytest.raises(VultronParseError, match="MV-10-011") as raised:
+        parse_activity(_body(embargo, "Invite", target=CASE_ID))
+
+    message = str(raised.value)
+    assert "'object.context'" in message
+    assert "takes only a URI" in message
+    assert "needs the whole object" not in message
+
+
+@pytest.mark.spec("MV-10-011")
+def test_a_typed_reference_target_reaches_core_as_a_reference() -> None:
+    """A reference in ``target`` never reaches core as the wire reference,
+    in the event or in the activity snapshot core reads (MV-10-011)."""
+    status = make(
+        ParticipantStatus,
+        context=CASE_ID,
+        attributed_to=ACTOR,
+    )
+    participant_id = "https://example.org/participants/p1"
+    activity = parse_activity(
+        _body(
+            status.model_dump(mode="json", by_alias=True, exclude_none=True),
+            "Add",
+            target={"id": participant_id, "type": "CaseParticipant"},
+            context=CASE_ID,
+            ledgerPosition=TEST_SENDER_POSITION.model_dump(by_alias=True),
+        )
+    )
+
+    event = extract_event(activity)
+
+    assert (
+        event.semantic_type
+        == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    )
+    snapshot_target = getattr(event.activity, "target", None)
+    assert isinstance(snapshot_target, CoreObject)
+    assert not isinstance(snapshot_target, as_TypedReference)
+    assert snapshot_target.id_ == participant_id
+
+
+@pytest.mark.spec("EP-04-004")
+@pytest.mark.spec("MV-10-011")
+def test_a_proposed_embargo_by_reference_is_no_proposal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reference claims no terms, so it is read as a bare id would be:
+    logged, and no proposal."""
+    carrier = parse_activity(
+        _body(
+            {
+                "id": "https://example.org/reports/1",
+                "type": "VulnerabilityReport",
+            },
+            "Offer",
+            proposedEmbargo={
+                "id": "https://example.org/embargoes/1",
+                "type": "EmbargoEvent",
+            },
+        )
+    )
+
+    with caplog.at_level(logging.WARNING):
+        found = proposed_embargo_from(carrier, activity_id="a-1")
+
+    assert found is None
+    assert any("by reference" in r.getMessage() for r in caplog.records)

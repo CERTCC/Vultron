@@ -15,6 +15,7 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/message-validation.yaml
 relevant_packages:
+  - vultron/wire/as2
   - vultron/wire/as2/factories
   - vultron/core/behaviors
   - vultron/core/use_cases
@@ -51,9 +52,13 @@ no pattern that tests the object by its type (SE-01-006), so an activity whose
 `object` the recipient lacks is fetched for before it reaches a handler; only
 `Read(CaseLedgerEntry)`, told apart by its `ledgerPosition`, matches one. A bare
 `target` or `context` still matches (SE-01-007) and its handler decides. A typed
-reference (`id` and `type` only) of any type routes by its type, then its object is
-fetched before a handler that needs it runs (MV-10-011, ADR-0198, #6455). Keep
-inlining: every fetch is a round trip. The fetch runs inline, holding the activity;
+reference (`id` and `type` only) of any type routes by its type. In the `object`
+chain, rehydration puts the held object of that type in its place; a reference the
+receiver lacks becomes its bare id and is fetched like one, and one held as another
+type becomes its bare id and is refused. In `target`, `context` and the other slots
+it is not rehydrated: it reaches core as an id and type, like a bare `target`
+(MV-10-011, ADR-0198, `vultron/wire/as2/typed_reference.py`).
+Keep inlining: every fetch is a round trip. The fetch runs inline, holding the activity;
 a queue that resolves references ahead of handling is a possible later step, not
 planned.
 

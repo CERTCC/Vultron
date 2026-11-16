@@ -1602,8 +1602,8 @@ groups:
     statement: >-
       Core MUST get a nested object named only by reference from the DataLayer port
       (DL-05-001), never by dump-and-revalidate or a fabricated placeholder. A reference
-      is a bare IRI or a stub. Core gets the object as `rehydrate()` resolved it at
-      ingress (VM-06-007), or by reading it back.
+      is a bare IRI, a typed reference (MV-10-011) or a stub. Core gets the object as
+      `rehydrate()` resolved it at ingress (VM-06-007), or by reading it back.
     rationale: >-
       The DataLayer port returns core objects that already passed validation, so a
       second derivation in core is not necessary. A derivation by dump-and-revalidate is
@@ -1624,6 +1624,8 @@ groups:
     see_also:
     - spec_id: VM-06-007
       reason: 'context for the reader'
+    - spec_id: MV-10-011
+      reason: 'defines the typed reference, one form a reference takes'
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-

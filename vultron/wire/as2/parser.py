@@ -28,6 +28,7 @@ from vultron.wire.as2.errors import (
     VultronParseUnknownTypeError,
     VultronParseValidationError,
 )
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.unknown_keys import (
     OPAQUE_PAYLOAD_KEYS,
     partition_unknown_keys,
@@ -110,7 +111,8 @@ def _expand_inline_value(value: object, path: str = "") -> object:
         _refuse_missing_claimed_time(exc, path)
         where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
-            f"Inline {inline_cls.__name__} object{where} is malformed: {exc}"
+            f"Inline {inline_cls.__name__} object{where} is malformed:"
+            f" {_reference_hint(exc, path)}{exc}"
         ) from exc
 
 
@@ -165,6 +167,42 @@ def _refuse_missing_claimed_time(
     raise VultronParseMissingPublishedError(
         f"{prefix}Missing 'published'{location}: {rule}{also}"
     ) from exc
+
+
+def _reference_hint(exc: Exception, path: str) -> str:
+    """A lead naming each slot a typed reference cannot fill, or ``""``.
+
+    A typed reference names an object and is never the object (MV-10-011), so
+    a slot that admits only a whole object refuses it, and a slot that admits
+    only a URI wants the reference's ``id``.  Pydantic says only that the
+    value is not the slot's type; this says why.
+    """
+    if not isinstance(exc, ValidationError):
+        return ""
+    whole: set[str] = set()
+    uri: set[str] = set()
+    for error in exc.errors():
+        if not isinstance(error.get("input"), as_TypedReference):
+            continue
+        slot = _join_location(path, error["loc"])
+        (uri if error["type"] == "string_type" else whole).add(slot)
+    leads = []
+    if whole:
+        leads.append(
+            f"a typed reference at {_slots(whole)} names an object, but the"
+            " slot needs the whole object (MV-10-011); "
+        )
+    if uri:
+        leads.append(
+            f"a typed reference at {_slots(uri)} names an object, but the"
+            " slot takes only a URI: send the reference's 'id' (MV-10-011); "
+        )
+    return "".join(leads)
+
+
+def _slots(slots: set[str]) -> str:
+    """*slots* as a sorted, quoted, comma-separated list."""
+    return ", ".join(repr(slot) for slot in sorted(slots))
 
 
 def _is_union_alternative(error: Any) -> bool:

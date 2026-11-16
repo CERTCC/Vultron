@@ -37,6 +37,10 @@ from vultron.core.models.base.core_object import (
     unmodelled_object_fields,
 )
 from vultron.core.models.protocols import PersistableModel
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    reads_as_typed_reference,
+)
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
@@ -213,6 +217,12 @@ def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
         return None
     if isinstance(getattr(obj, field_name, None), specific_cls):
         return None
+    if reads_as_typed_reference(reference, specific_cls):
+        # A stored typed reference reads back as one, never as a hollow
+        # object of its type with that class's defaults (MV-10-011).
+        if isinstance(getattr(obj, field_name, None), as_TypedReference):
+            return None
+        return as_TypedReference.model_validate(reference)
     try:
         return specific_cls.model_validate(raw, context=STORED_ROW_CONTEXT)
     except ValidationError:

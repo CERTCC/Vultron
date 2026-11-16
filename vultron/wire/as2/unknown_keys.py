@@ -63,6 +63,11 @@ from vultron.wire.as2.errors import (
     VultronParseUnknownTypeError,
     VultronParseValidationError,
 )
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    reads_as_typed_reference,
+    refuse_undefined_preview,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import (
     AmbiguousWireTypeError,
@@ -289,11 +294,19 @@ def resolve_inline_class(
     foreign key against the case's fields and sets it aside; the expansion,
     on the partitioned dict, then sees the reference that remains.  A key the
     case declares keeps the dict a case in both calls.
+
+    Every other type reads its ``{id, type}`` shape the same way, as an
+    :class:`as_TypedReference` (MV-10-011, ADR-0198), unless its class has a
+    reference form of its own
+    (:func:`~vultron.wire.as2.typed_reference.reads_as_typed_reference`).
+    A typed reference carrying a ``preview`` its type does not define is
+    refused here, at its position (MV-10-012).
     """
+    refuse_undefined_preview(value, path)
     if is_case_reference_shape(value):
         return as_VulnerabilityCaseReference
     try:
-        return resolve_wire_type(value.get("type"))
+        cls = resolve_wire_type(value.get("type"))
     except AmbiguousWireTypeError as exc:
         where = f" at {path!r}" if path else ""
         raise VultronParseUnknownTypeError(
@@ -301,6 +314,9 @@ def resolve_inline_class(
         ) from exc
     except KeyError:
         return None
+    if reads_as_typed_reference(value, cls):
+        return as_TypedReference
+    return cls
 
 
 def location_of(path: str, root: str = ENVELOPE) -> str:
