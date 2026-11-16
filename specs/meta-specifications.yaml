@@ -620,6 +620,28 @@ groups:
     rationale: Dangling cross-references break traceability.
     tags:
     - documentation
+  - id: MS-09-013
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Prepared spec text SHOULD be applied item by item to the current corpus, not by
+      replaying its diff from the base it was written on. Prepared text
+      is spec text written earlier on another branch, in a reverted commit or in an
+      issue comment.
+    rationale: >-
+      Replaying an old diff reverts every requirement that landed on the base branch
+      after the diff was cut. Every gate asks whether the corpus is well formed, not
+      whether it is current: the older text passes `spec-lint`, and
+      `spec-amendments.sh` lists a reverted item exactly as it lists an amended one,
+      so the PR body describes the reversion as an amendment. An item whose new text
+      equals its merge-base text (MS-09-008) while the base text differs is a
+      reversion.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MS-09-008
+    tags:
+    - documentation
+    - tooling
 - id: MS-10
   title: Quality Criteria
   specs:
