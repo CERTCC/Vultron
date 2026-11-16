@@ -29,7 +29,12 @@ ledger through the layers below it and adds no rule of its own.
   allowed move with each vendor's change in expected outcome (#6449).
 """
 
-from vultron.measure.standing.joint import case_prefix, joint_step
+from vultron.measure.standing.joint import (
+    NoJointStep,
+    case_prefix,
+    joint_step,
+    vendor_numbers,
+)
 from vultron.measure.standing.model import (
     CaseStanding,
     DesideratumChange,
@@ -58,6 +63,7 @@ __all__ = [
     "DesideratumStanding",
     "DesideratumStatus",
     "EMMove",
+    "NoJointStep",
     "ParticipantStanding",
     "RMMove",
     "ScoredMove",
@@ -70,4 +76,5 @@ __all__ = [
     "em_moves",
     "joint_step",
     "rm_moves",
+    "vendor_numbers",
 ]

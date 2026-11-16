@@ -71,11 +71,17 @@ def test_an_rm_move_that_would_leave_a_ready_fix_unaccepted_is_not_allowed():
     )
 
 
+def _event(state: CS, dest: CS) -> CSEvent:
+    event = cs_transition_event(state, dest)
+    assert event is not None
+    return event
+
+
 @pytest.mark.parametrize("state", list(CS))
 def test_with_an_accepted_report_the_cs_moves_are_the_cs_machines(state):
     assert [m.destination for m in cs_moves(_P, state, RM.ACCEPTED)] == sorted(
         next_cs_states(state),
-        key=lambda dest: list(CSEvent).index(cs_transition_event(state, dest)),
+        key=lambda dest: list(CSEvent).index(_event(state, dest)),
     )
 
 
@@ -131,10 +137,18 @@ def test_no_embargo_goes_into_force_beside_public_awareness():
         (m.trigger, m.destination)
         for m in em_moves(_P, _OWNER, EM.PROPOSED, CS_pxa.pXa)
     ] == [
-        (_T.PROPOSE, EM.PROPOSED),
         (_T.REJECT, EM.NONE),
         (_T.REJECT, EM.PROPOSED),
     ]
+
+
+@pytest.mark.spec("CSB-18-002")
+@pytest.mark.parametrize("em", [EM.NONE, EM.PROPOSED])
+@pytest.mark.parametrize("pxa", [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA])
+def test_no_embargo_is_proposed_once_it_could_never_start(em, pxa):
+    assert not any(
+        m.trigger is _T.PROPOSE for m in em_moves(_P, _OWNER, em, pxa)
+    )
 
 
 def test_an_exited_embargo_allows_no_em_move():

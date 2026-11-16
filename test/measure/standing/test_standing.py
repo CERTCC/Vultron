@@ -167,9 +167,11 @@ def test_a_recording_stands_in_the_states_its_last_snapshots_state(scenario):
 def test_a_refused_invitee_stands_closed_though_it_never_joined():
     record = case_standing(_ledger(recording_path("rcv-reject")))
     invitee = record.for_participant(_actor("actor1"))
+    assert invitee is not None
     assert (invitee.rm, invitee.joined) == (RM.CLOSED, False)
     assert invitee.rm_moves == ()
     assert invitee.score is None
+    assert invitee.unscored is not None
     assert invitee.unscored.reason is UnprojectableReason.NO_CASE_STATE_EVENTS
 
 
@@ -189,6 +191,7 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
     assert bool(scored) == (scenario != "rcv-reject")
     for standing in scored:
         expected = summary.for_participant(standing.participant)
+        assert expected is not None
         assert standing.score == expected.score
         met = sum(
             (
@@ -206,6 +209,7 @@ def test_every_vendor_is_scored_as_vultron_measure_scores_it(scenario):
             ),
             Fraction(0),
         )
+        assert standing.score is not None
         assert met <= standing.score.worst
         assert standing.score.best <= reachable
 
@@ -245,6 +249,7 @@ def test_a_vendors_moves_are_the_state_machines_from_its_states(tmp_path):
     record = case_standing(_cut("rcv-embargo", 32, tmp_path))
     assert not record.end_confirmed
     vendor = record.for_participant(_actor("actor1"))
+    assert vendor is not None
     assert vendor.rm is RM.ACCEPTED
     assert vendor.case_state is CS.Vfdpxa
     assert [m.destination for m in vendor.rm_moves] == [
@@ -265,12 +270,16 @@ def test_a_vendors_moves_are_the_state_machines_from_its_states(tmp_path):
 def test_a_case_cut_mid_revision_stands_in_revise(tmp_path):
     """rcv-embargo proposes a second embargo at 23 and activates it at 33."""
     record = case_standing(_cut("rcv-embargo", 30, tmp_path))
+    assert record.case is not None
     assert record.case == CaseStanding(em=EM.REVISE, pxa=record.case.pxa)
     owner = record.for_participant(_actor("actor2"))
+    assert owner is not None
     assert {m.trigger for m in owner.em_moves} == set(EM_Trigger)
     vendor = record.for_participant(_actor("actor1"))
+    assert vendor is not None
     assert {m.trigger for m in vendor.em_moves} == {EM_Trigger.PROPOSE}
     after = case_standing(_cut("rcv-embargo", 34, tmp_path))
+    assert after.case is not None
     assert after.case.em is EM.ACTIVE
 
 
@@ -288,8 +297,10 @@ def test_a_hand_built_case_stands_as_its_entries_state():
         "invite_to_embargo_on_case", "Invite", VENDOR, embargo(EMBARGO_2)
     )
     record = case_standing(ledger.case_ledger())
+    assert record.case is not None
     assert record.case.em is EM.REVISE
     vendor = record.for_participant(VENDOR)
+    assert vendor is not None
     assert (vendor.rm, vendor.case_state) == (RM.RECEIVED, CS.Vfdpxa)
     assert [m.event for m in vendor.cs_moves] == [
         CSEvent.P,
@@ -340,6 +351,7 @@ def test_a_broken_register_names_the_gap(tmp_path):
     )
     record = case_standing(ledger.case_ledger())
     assert record.gap is not None
+    assert record.gap.register_problem is not None
     assert "invariants" in record.gap.register_problem
     assert record.case is None
 
@@ -439,6 +451,8 @@ def test_an_unscored_participant_keeps_the_projections_reason():
     )
     record = case_standing(ledger.case_ledger())
     deployer = record.for_participant(DEPLOYER)
+    assert deployer is not None
+    assert deployer.unscored is not None
     assert deployer.unscored.reason is UnprojectableReason.NO_VENDOR_AWARENESS
     assert deployer.cs_moves == ()
     assert deployer.case_state is None
@@ -450,6 +464,8 @@ def test_a_participant_with_no_event_is_unscored_for_that_reason():
     ledger.seat(participant(INVITEE, [], roles=("VENDOR",), joined=False))
     record = case_standing(ledger.case_ledger())
     invitee = record.for_participant(INVITEE)
+    assert invitee is not None
+    assert invitee.unscored is not None
     assert invitee.unscored.reason is UnprojectableReason.NO_CASE_STATE_EVENTS
     assert "no event" in invitee.unscored.detail
     assert [m.destination for m in invitee.rm_moves] == [RM.RECEIVED]
@@ -481,10 +497,13 @@ def test_every_move_names_the_participant_whose_state_it_moves(tmp_path):
 def test_after_a_handoff_only_the_new_owner_may_end_the_embargo(tmp_path):
     """rccv-handoff hands ownership from actor2 to actor3 at entries 23-25."""
     record = case_standing(_cut("rccv-handoff", 26, tmp_path))
+    assert record.case is not None
     assert record.case.em is EM.ACTIVE
     old = record.for_participant(_actor("actor2"))
     new = record.for_participant(_actor("actor3"))
+    assert old is not None
     assert "CASE_OWNER" not in old.roles
+    assert new is not None
     assert "CASE_OWNER" in new.roles
     assert EM_Trigger.TERMINATE in {m.trigger for m in new.em_moves}
     assert {m.trigger for m in old.em_moves} == {EM_Trigger.PROPOSE}

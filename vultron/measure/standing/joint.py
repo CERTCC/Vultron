@@ -18,12 +18,13 @@ onto a :class:`~vultron.measure.baselines.WalkPrefix` here, and nowhere
 else (:func:`case_prefix`).
 
 * **The vendors** are the participants with a case-state sequence, numbered
-  from 1 in the sequences' vendor-awareness order.  Each stands at its own
+  from 1 in the sequences' vendor-awareness order (:func:`vendor_numbers`).  Each stands at its own
   report-management state and at the fix path and deployment its sequence
   reaches; every vendor's sequence reaches the same public state.
 * **The embargo** stands at the case's EM state, and an exited one at the
-  cause its exit records: its end time is its own terms, a threat signal is a
-  threat signal, and any other cause is ``OTHER``.
+  cause its exit records: its end time, or fixes ready or deployed, is its
+  own terms, a threat signal is a threat signal, and any other cause is
+  ``OTHER``.
 * **The history** is one step per event, in the order the case reached them:
   each vendor's ``V``, ``F`` and ``D`` and the case's ``P``, ``X`` and ``A``
   where the vendor's sequence places them (CEH-05-009), each vendor's other
@@ -32,15 +33,21 @@ else (:func:`case_prefix`).
 
 A move is scored by the joint step it names (:func:`joint_step`): the step
 whose event the move's event or report-management move is, or, for an EM
-move, the step to the move's EM state.  A move by a participant that is not a
-vendor, and an EM move that keeps the EM state, name no joint step.
+move, the step to the move's EM state.  An embargo end is an own-terms exit
+once every vendor has its fix ready, and an ``OTHER`` exit before that.  A
+move by a participant that is not a vendor, an EM move that keeps the EM
+state, and a move the joint model does not allow from here name no joint
+step, and :class:`NoJointStep` says which.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 
+from vultron.core.models.embargo_termination import TerminationCauseKind
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.cs_invariants import (
+    CS_EVENT_TO_PXA_TRIGGER,
     CSEvent,
     cs_dimensions,
     replay_cs_history,
@@ -69,6 +76,33 @@ from vultron.measure.sequences import CaseStateSequence, Placement
 from vultron.measure.standing.moves import CSMove, EMMove, RMMove
 
 type CasePrefix = WalkPrefix[JointState, Event]
+
+#: The case-state events that move the case's public state, which the joint
+#: model holds once for the case rather than per vendor.
+_CASE_WIDE: frozenset[CSEvent] = frozenset(CS_EVENT_TO_PXA_TRIGGER)
+
+#: What a recorded termination cause means for the joint model's exit:
+#: fixes ready or deployed end the embargo on its own terms, a threat signal
+#: ends it for that signal (``process_model_desiderata.md`` § "Splitting
+#: embargo exit by cause").  Any other cause is ``OTHER``.
+_END_OF_CAUSE: dict[TerminationCauseKind, EmbargoEnd] = {
+    TerminationCauseKind.FIX_READY: EmbargoEnd.OWN_TERMS,
+    TerminationCauseKind.FIX_DEPLOYED: EmbargoEnd.OWN_TERMS,
+    TerminationCauseKind.THREAT_SIGNAL: EmbargoEnd.THREAT_SIGNAL,
+}
+
+
+class NoJointStep(ValueError):
+    """A move the case's joint model holds no step for; the message says
+    why."""
+
+
+def vendor_numbers(sequences: Iterable[CaseStateSequence]) -> dict[str, int]:
+    """Each vendor's number in the joint model, by participant: its place,
+    from 1, in vendor-awareness order.  The one numbering every reader of
+    the joint model uses."""
+    return {s.participant: n for n, s in enumerate(sequences, start=1)}
+
 
 #: The history kind of each report-management move, by the state it enters.
 _RM_OF_KIND: dict[HistoryKind, RM] = {
@@ -104,16 +138,19 @@ def _keyed_sequence(
 def _embargo_end(exit_: CaseEvent | None) -> EmbargoEnd:
     """Why the case's embargo exited, from its exit event.
 
-    An exit the history does not record, as when a carried register holds
-    an ended entry, has no recorded cause: ``OTHER``.
+    An embargo that reached its end time ends on its own terms.  An early
+    end takes the meaning of its recorded cause (:data:`_END_OF_CAUSE`).  An
+    exit the history does not record, as when a carried register holds an
+    ended entry, has no recorded cause: ``OTHER``.
     """
     if exit_ is None:
         return EmbargoEnd.OTHER
     if exit_.exit_reason is TerminationReason.END_TIME_REACHED:
         return EmbargoEnd.OWN_TERMS
-    cause = (exit_.exit_cause or {}).get("kind")
-    if cause == EmbargoEnd.THREAT_SIGNAL.value:
-        return EmbargoEnd.THREAT_SIGNAL
+    kind = (exit_.exit_cause or {}).get("kind")
+    for cause, end in _END_OF_CAUSE.items():
+        if kind == cause.value:
+            return end
     return EmbargoEnd.OTHER
 
 
@@ -185,11 +222,11 @@ def case_prefix(
     vendors = list(sequences)
     if not vendors:
         return None
-    numbers = {s.participant: n for n, s in enumerate(vendors, start=1)}
+    numbers = vendor_numbers(vendors)
     keyed: dict[_Key, set[Event]] = {}
     for number, sequence in enumerate(vendors, start=1):
         for key, cs_event in _keyed_sequence(sequence, history):
-            case_wide = cs_event in (CSEvent.P, CSEvent.X, CSEvent.A)
+            case_wide = cs_event in _CASE_WIDE
             if case_wide and number != 1:
                 continue  # every vendor's sequence places them alike
             keyed.setdefault(key, set()).add(
@@ -222,21 +259,32 @@ def joint_step(
     prefix: CasePrefix,
     numbers: dict[str, int],
     move: RMMove | CSMove | EMMove,
-) -> Step[JointState, Event] | None:
-    """The joint step *move* names from *prefix*'s state, or ``None``.
+) -> Step[JointState, Event]:
+    """The joint step *move* names from *prefix*'s state.
 
-    ``None`` when the move is a non-vendor's report-management or case-state
-    move, an EM move that keeps the EM state, or a step the joint model does
-    not allow from there.
+    An embargo end is the joint model's own-terms exit when every vendor has
+    its fix ready (``process_model_desiderata.md`` § "Splitting embargo exit
+    by cause": fixes ready end an embargo on its own terms), and its other
+    exit before that.
+
+    Raises:
+        NoJointStep: when the joint model holds no step for *move*: an EM
+            move that keeps the EM state, a non-vendor's report-management
+            or case-state move, or a step the joint model does not allow
+            from here (as in an ephemeral state, where only the event it
+            requires may come next).
     """
     state = prefix.state
     steps = case_model(len(state.vendors)).steps(state)
     if isinstance(move, EMMove):
         if move.destination is move.source:
-            return None
-        wanted_end = (
-            EmbargoEnd.OTHER if move.destination is EM.EXITED else None
-        )
+            raise NoJointStep(f"{move.name} keeps the case's EM state")
+        wanted_end = None
+        if move.destination is EM.EXITED:
+            fixes_ready = all(v.vf is CS_vf.VF for v in state.vendors)
+            wanted_end = (
+                EmbargoEnd.OWN_TERMS if fixes_ready else EmbargoEnd.OTHER
+            )
         matches = [
             s
             for s in steps
@@ -248,13 +296,26 @@ def joint_step(
     else:
         vendor = numbers.get(move.participant)
         if vendor is None:
-            return None
+            raise NoJointStep(
+                f"{move.name} by {move.participant} moves no vendor's state"
+                " in the case's joint model"
+            )
         if isinstance(move, RMMove):
             wanted = Event(RM_EVENTS[move.destination], vendor)
         else:
-            case_wide = move.event in (CSEvent.P, CSEvent.X, CSEvent.A)
+            case_wide = move.event in _CASE_WIDE
             wanted = Event(
                 EventKind(move.event.value), None if case_wide else vendor
             )
         matches = [s for s in steps if s.event == wanted]
-    return matches[0] if len(matches) == 1 else None
+    if not matches:
+        raise NoJointStep(
+            f"the case's joint model allows no {move.name} by"
+            f" {move.participant} from here"
+        )
+    if len(matches) > 1:
+        raise LookupError(
+            f"{move.name} by {move.participant} names {len(matches)} joint"
+            " steps; a move names at most one"
+        )
+    return matches[0]

@@ -37,6 +37,7 @@ from vultron.core.states.rm import RM
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.history import (
     RM_EVENT_KINDS,
+    CaseEventKind,
     ReachedParticipant,
     ReachedState,
     derive_case,
@@ -64,7 +65,9 @@ def test_a_joined_participant_reaches_the_state_of_its_last_rm_event():
         VENDOR, status("v-v", VENDOR, "VALID", vf="Vf", roles=("VENDOR",))
     )
     history, reached = derive_case(ledger.case_ledger())
-    by_kind = {kind: rm for rm, kind in RM_EVENT_KINDS.items()}
+    by_kind: dict[CaseEventKind, RM] = {
+        kind: rm for rm, kind in RM_EVENT_KINDS.items()
+    }
     for reached_one in reached.participants:
         rm_events = [
             e
@@ -92,7 +95,8 @@ def test_each_participant_keeps_the_last_state_it_reached():
     assert vendor == ReachedParticipant(
         participant=VENDOR, rm=RM.VALID, roles=("VENDOR",), joined=True
     )
-    assert reached.for_participant(CM).rm is RM.ACCEPTED
+    manager = reached.for_participant(CM)
+    assert manager is not None and manager.rm is RM.ACCEPTED
     assert reached.for_participant("urn:unknown") is None
 
 
@@ -102,7 +106,8 @@ def test_a_state_behind_the_one_reached_is_not_reached():
     ledger.standard_genesis()
     ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
     ledger.add_status(OWNER, status("owner-r2", OWNER, "RECEIVED"))
-    assert _reached(ledger).for_participant(OWNER).rm is RM.VALID
+    owner = _reached(ledger).for_participant(OWNER)
+    assert owner is not None and owner.rm is RM.VALID
 
 
 @pytest.mark.spec("CEH-04-010")
@@ -121,6 +126,7 @@ def test_an_inert_invitee_reaches_its_state_without_a_case_event():
     history, reached = derive_case(ledger.case_ledger())
     assert history.for_participant(INVITEE) == []
     invitee = reached.for_participant(INVITEE)
+    assert invitee is not None
     assert (invitee.rm, invitee.joined) == (RM.CLOSED, False)
 
 
@@ -357,6 +363,7 @@ def test_a_role_given_up_is_no_longer_reached():
         participant(OWNER, [], roles=("COORDINATOR",)),
     )
     owner = _reached(ledger).for_participant(OWNER)
+    assert owner is not None
     assert owner.roles == ("COORDINATOR",)
 
 
@@ -366,4 +373,5 @@ def test_with_no_stated_case_roles_every_role_named_is_reached():
     ledger.add_status(
         VENDOR, status("v-r", VENDOR, "RECEIVED", vf="Vf", roles=("VENDOR",))
     )
-    assert _reached(ledger).for_participant(VENDOR).roles == ("VENDOR",)
+    vendor = _reached(ledger).for_participant(VENDOR)
+    assert vendor is not None and vendor.roles == ("VENDOR",)

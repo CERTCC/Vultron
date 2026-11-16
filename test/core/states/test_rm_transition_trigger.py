@@ -21,13 +21,19 @@ from vultron.core.states.rm import (
     is_valid_rm_transition,
     rm_transition_trigger,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 @pytest.mark.parametrize("source", list(RM))
 @pytest.mark.parametrize("dest", list(RM))
 def test_a_trigger_exactly_for_each_edge(source, dest):
-    trigger = rm_transition_trigger(source, dest)
-    assert (trigger is not None) == is_valid_rm_transition(source, dest)
+    if is_valid_rm_transition(source, dest):
+        assert rm_transition_trigger(source, dest) in RM_Trigger
+    else:
+        with pytest.raises(
+            VultronInvalidStateTransitionError, match="not an RM transition"
+        ):
+            rm_transition_trigger(source, dest)
 
 
 def test_each_edge_names_its_own_trigger():

@@ -30,9 +30,11 @@ Every rule is read from :mod:`vultron.core.states`, never restated here:
   (:data:`~vultron.core.states.em.EM_TRANSITIONS`, EMB-18-006), each listed
   for every participant whose roles may make it
   (:func:`~vultron.core.states.em.may_make_em_move`), except a
-  move to an embargo in force while the public state rules one out
+  move to an embargo in force while the public state rules one out, and a
+  proposal of an embargo that could then never start
   (:func:`~vultron.core.states.composite_state_invariants\
-.violation_pxa_em_entailment`, CSB-18-002 to CSB-18-004).
+.violation_pxa_em_move`, CSB-18-002 to CSB-18-004), the rule the joint
+  model's EM steps read too.
 
 Each move is typed by its machine and refuses, at construction, a step its
 machine's table does not hold.  A move is named by its machine and its
@@ -54,7 +56,7 @@ from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
-    violation_pxa_em_entailment,
+    violation_pxa_em_move,
 )
 from vultron.core.states.cs import (
     CS,
@@ -123,9 +125,7 @@ class RMMove(BaseModel):
     @property
     def trigger(self) -> RM_Trigger:
         """The RM trigger of the move."""
-        trigger = rm_transition_trigger(self.source, self.destination)
-        assert trigger is not None, "the validator admits only RM edges"
-        return trigger
+        return rm_transition_trigger(self.source, self.destination)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -306,5 +306,5 @@ def em_moves(
         for trigger, steps in EM_TRANSITIONS.items()
         if may_make_em_move(trigger, held)
         for source, dest in sorted(steps, key=lambda s: order.index(s[1]))
-        if source is em and violation_pxa_em_entailment(pxa, dest) is None
+        if source is em and violation_pxa_em_move(pxa, trigger, dest) is None
     )

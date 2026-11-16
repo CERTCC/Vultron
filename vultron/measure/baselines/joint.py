@@ -73,6 +73,7 @@ from typing import NamedTuple
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
     violation_pxa_em_entailment,
+    violation_pxa_em_move,
 )
 from vultron.core.states.cs import (
     CS,
@@ -408,7 +409,7 @@ class JointModel:
 
     def _em_steps(self, state: JointState) -> list[Step[JointState, Event]]:
         found = []
-        for moves in EM_TRANSITIONS.values():
+        for trigger, moves in EM_TRANSITIONS.items():
             for source, dest in moves:
                 if source is not state.em or dest is source:
                     continue
@@ -422,13 +423,7 @@ class JointModel:
                             )
                         )
                     continue
-                if violation_pxa_em_entailment(state.pxa, dest) is not None:
-                    continue
-                if (
-                    dest is EM.PROPOSED
-                    and violation_pxa_em_entailment(state.pxa, EM.ACTIVE)
-                    is not None
-                ):
+                if violation_pxa_em_move(state.pxa, trigger, dest) is not None:
                     continue
                 found.append(
                     Step(

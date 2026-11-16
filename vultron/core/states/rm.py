@@ -21,6 +21,7 @@ from enum import StrEnum, auto
 from transitions import Machine
 
 from vultron.core.states.common import TransitionBase, mermaid_machine
+from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
@@ -175,13 +176,19 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     )
 
 
-def rm_transition_trigger(source: RM, dest: RM) -> RM_Trigger | None:
-    """The trigger of the RM transition (source → dest), or ``None`` when
-    the RM transition function has no such edge."""
+def rm_transition_trigger(source: RM, dest: RM) -> RM_Trigger:
+    """The trigger of the RM transition (source → dest).
+
+    Raises:
+        VultronInvalidStateTransitionError: when the RM transition function
+            has no such edge.
+    """
     for t in _transitions:
         if t["source"] == source and t["dest"] == dest:
             return RM_Trigger(t["trigger"])
-    return None
+    raise VultronInvalidStateTransitionError(
+        f"{source.name} -> {dest.name} is not an RM transition"
+    )
 
 
 def is_rm_write_permitted(current: RM, target: RM) -> bool:

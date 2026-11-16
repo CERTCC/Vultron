@@ -44,8 +44,10 @@ from vultron.measure.sequences import (
 )
 from vultron.measure.standing.joint import (
     CasePrefix,
+    NoJointStep,
     case_prefix,
     joint_step,
+    vendor_numbers,
 )
 from vultron.measure.standing.model import (
     CaseStanding,
@@ -137,13 +139,10 @@ def _scored(
         return ScoredMove(
             move=move, unscored="the case has no vendor to score a move for"
         )
-    step = joint_step(prefix, numbers, move)
-    if step is None:
-        return ScoredMove(
-            move=move,
-            unscored=f"{move.name} by {move.participant} moves no vendor's"
-            " state in the case's joint model",
-        )
+    try:
+        step = joint_step(prefix, numbers, move)
+    except NoJointStep as exc:
+        return ScoredMove(move=move, unscored=str(exc))
     vendors = {n: participant for participant, n in numbers.items()}
     return ScoredMove(move=move, changes=_changes(prefix, step, vendors))
 
@@ -172,7 +171,7 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     try:
         em = reached.em()
     except VultronInvalidStateTransitionError as exc:
-        register_gap = StandingGap.of(history, str(exc))
+        register_gap = StandingGap.of(history, str(exc) or type(exc).__name__)
         assert register_gap is not None, "a register problem is a hole"
         return _gapped(history, register_gap)
     gap = StandingGap.of(history)
@@ -186,9 +185,7 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
     ]
     rm_of = {p.participant: p.rm for p in reached.participants}
     prefix = case_prefix(history, sequences.sequences, rm_of, em)
-    numbers = {
-        s.participant: n for n, s in enumerate(sequences.sequences, start=1)
-    }
+    numbers = vendor_numbers(sequences.sequences)
     return StandingRecord(
         case_id=history.case_id,
         end_confirmed=history.end_confirmed,

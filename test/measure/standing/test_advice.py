@@ -43,7 +43,9 @@ from vultron.measure.baselines import (
     EmbargoEnd,
     Event,
     EventKind,
+    JointState,
     VendorPath,
+    WalkPrefix,
     vendor_desiderata,
 )
 from vultron.measure.history import derive_case
@@ -52,10 +54,13 @@ from vultron.measure.sequences import case_state_sequences
 from vultron.measure.standing import (
     CSMove,
     EMMove,
+    NoJointStep,
+    RMMove,
     ScoredMove,
     StandingRecord,
     case_prefix,
     case_standing,
+    joint_step,
 )
 
 _F_BEFORE_P = r"$\evF \prec \evP$"
@@ -88,6 +93,7 @@ def test_one_moves_change_matches_a_hand_count():
     """
     record = case_standing(_vendor_case().case_ledger())
     publication = _scored(record, VENDOR, "cs.public_becomes_aware")
+    assert publication.changes is not None
     (change,) = [c for c in publication.changes if c.notation == _F_BEFORE_P]
     assert (change.vendor, change.other_vendor) == (VENDOR, None)
     assert change.change == Fraction(-1, 3)
@@ -120,6 +126,7 @@ def test_a_case_with_no_vendor_has_no_prefix_and_no_numbers():
     assert record.moves
     for move in record.moves:
         assert move.changes is None
+        assert move.unscored is not None
         assert move.advice or "no vendor" in move.unscored
 
 
@@ -127,6 +134,7 @@ def test_a_non_vendors_move_names_why_it_has_no_number():
     record = case_standing(_vendor_case().case_ledger())
     move = _scored(record, OWNER, "rm.validate")
     assert move.changes is None
+    assert move.unscored is not None
     assert "moves no vendor's state" in move.unscored
 
 
@@ -148,6 +156,7 @@ def test_a_move_that_keeps_every_state_is_advice_with_no_number():
         "invite_to_embargo_on_case", "Invite", REPORTER, embargo(EMBARGO_2)
     )
     record = case_standing(ledger.case_ledger())
+    assert record.case is not None
     assert record.case.em is EM.PROPOSED
     advice = [m for m in record.moves if m.advice]
     assert advice
@@ -165,7 +174,7 @@ def test_a_move_that_keeps_every_state_is_advice_with_no_number():
     assert accept and all(m.changes for m in accept)
 
 
-def test_an_owners_early_end_is_scored_as_an_other_exit():
+def test_an_owners_end_before_any_fix_is_ready_is_an_other_exit():
     record = case_standing(_vendor_case().case_ledger())
     end = _scored(record, OWNER, "em.terminate")
     assert end.changes is not None
@@ -181,6 +190,7 @@ def test_each_vendor_gets_its_own_changes_and_the_cross_vendor_ones():
     seat_vendor(ledger, VENDOR_2, "Vf")
     record = case_standing(ledger.case_ledger())
     move = _scored(record, VENDOR, "cs.public_becomes_aware")
+    assert move.changes is not None
     assert len(move.changes) == len(vendor_desiderata(2))
     assert {c.vendor for c in move.changes} == {VENDOR, VENDOR_2}
     crossed = {(c.vendor, c.other_vendor) for c in move.changes}
@@ -211,6 +221,121 @@ def test_an_exited_embargo_stands_at_the_cause_its_exit_records():
     )
 
 
+def _exited_prefix(cause: str | None = None) -> JointState:
+    """The joint state of a vendor case whose embargo ends early, for the
+    recorded *cause* (none when ``None``)."""
+    ledger = _vendor_case()
+    removal = ("remove_embargo_event_from_case", "Remove", CM, embargo())
+    if cause is None:
+        ledger.add(*removal, content="EARLY")
+    else:
+        ledger.add(*removal, content="EARLY", terminationCause={"kind": cause})
+    history, reached = derive_case(ledger.case_ledger())
+    prefix = case_prefix(
+        history,
+        case_state_sequences(history).sequences,
+        {p.participant: p.rm for p in reached.participants},
+        reached.em(),
+    )
+    assert prefix is not None
+    return prefix.state
+
+
+@pytest.mark.parametrize(
+    ("cause", "end"),
+    [
+        ("FIX_READY", EmbargoEnd.OWN_TERMS),
+        ("FIX_DEPLOYED", EmbargoEnd.OWN_TERMS),
+        ("THREAT_SIGNAL", EmbargoEnd.THREAT_SIGNAL),
+        ("OTHER", EmbargoEnd.OTHER),
+    ],
+)
+def test_an_early_exit_stands_at_what_its_recorded_cause_means(cause, end):
+    """Fixes ready or deployed end an embargo on its own terms."""
+    state = _exited_prefix(cause)
+    assert (state.em, state.embargo_end) == (EM.EXITED, end)
+
+
+def test_an_early_exit_with_no_recorded_cause_is_an_other_exit():
+    state = _exited_prefix()
+    assert state.embargo_end is EmbargoEnd.OTHER
+
+
+def _terminate() -> EMMove:
+    return EMMove(
+        participant=OWNER,
+        trigger=EM_Trigger.TERMINATE,
+        source=EM.ACTIVE,
+        destination=EM.EXITED,
+    )
+
+
+@pytest.mark.parametrize(
+    ("vf", "end"),
+    [(CS_vf.VF, EmbargoEnd.OWN_TERMS), (CS_vf.Vf, EmbargoEnd.OTHER)],
+)
+def test_an_owners_early_end_is_own_terms_once_every_fix_is_ready(vf, end):
+    vendor = VendorPath(RM.ACCEPTED, vf, CS_d.d)
+    prefix = WalkPrefix(JointState((vendor,), CS_pxa.pxa, EM.ACTIVE, None))
+    step = joint_step(prefix, {VENDOR: 1}, _terminate())
+    assert step.state.embargo_end is end
+
+
+def test_a_move_the_joint_model_holds_no_step_for_says_why():
+    vendor = VendorPath(RM.RECEIVED, CS_vf.Vf, CS_d.d)
+    # pXa is ephemeral: publication must come next, so no RM move may.
+    prefix = WalkPrefix(JointState((vendor,), CS_pxa.pXa, EM.NONE, None))
+    validate = RMMove(
+        participant=VENDOR, source=RM.RECEIVED, destination=RM.VALID
+    )
+    with pytest.raises(NoJointStep, match=r"allows no rm\.validate by"):
+        joint_step(prefix, {VENDOR: 1}, validate)
+    with pytest.raises(NoJointStep, match="moves no vendor's state"):
+        joint_step(prefix, {}, validate)
+    keep = EMMove(
+        participant=OWNER,
+        trigger=EM_Trigger.PROPOSE,
+        source=EM.PROPOSED,
+        destination=EM.PROPOSED,
+    )
+    with pytest.raises(NoJointStep, match="keeps the case's EM state"):
+        joint_step(prefix, {VENDOR: 1}, keep)
+
+
+def test_a_vendors_move_refused_from_an_ephemeral_state_says_so():
+    ledger = _vendor_case()
+    publish(ledger, "pXa")
+    record = case_standing(ledger.case_ledger())
+    move = _scored(record, VENDOR, "rm.validate")
+    assert move.changes is None and move.unscored is not None
+    assert "allows no rm.validate" in move.unscored
+    publication = _scored(record, VENDOR, "cs.public_becomes_aware")
+    assert publication.changes
+
+
+def test_a_public_case_offers_no_embargo_proposal():
+    """Once public, no embargo is proposed that could never start."""
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                OWNER,
+                [status("owner-r", OWNER, "RECEIVED")],
+                roles=("CASE_OWNER",),
+            )
+        ],
+        with_embargo=False,
+    )
+    seat_vendor(ledger, VENDOR, "Vf")
+    unpublished = case_standing(ledger.case_ledger())
+    assert [m for m in unpublished.moves if m.move.name == "em.propose"]
+    publish(ledger, "Pxa")
+    record = case_standing(ledger.case_ledger())
+    assert record.case is not None
+    assert record.case.em is EM.NONE
+    assert not [m for m in record.moves if m.move.name == "em.propose"]
+
+
 @pytest.mark.parametrize(
     "scenario",
     sorted(p.parent.name for p in RECORDINGS_DIR.glob("*/case-actor.jsonl")),
@@ -222,7 +347,7 @@ def test_every_vendor_and_em_move_of_a_recording_cut_short_is_scored(
     state carries a number for every vendor desideratum."""
     path = RECORDINGS_DIR / scenario / "case-actor.jsonl"
     lines = path.read_text(encoding="utf-8").splitlines()
-    for entries in range(1, len(lines) + 1, 4):
+    for entries in range(1, len(lines) + 1):
         cut = tmp_path / f"{entries}.jsonl"
         cut.write_text("\n".join(lines[:entries]) + "\n", encoding="utf-8")
         (ledger,) = read_case_ledgers([cut]).cases.values()
