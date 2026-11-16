@@ -10,6 +10,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, model_validator
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
@@ -26,6 +27,7 @@ from vultron.wire.as2.typed_reference import (
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
@@ -41,18 +43,40 @@ class ObjectForm(StrEnum):
     - ``PREVIEWED_REFERENCE``: a typed reference that carries a preview
       (:func:`~vultron.wire.as2.typed_reference.is_previewed_reference`).
     - ``WHOLE_OBJECT``: an inline object that is not a typed reference, a
-      case reference, a ``Link`` or a bare URI.
+      case, actor or collection reference, a ``Link`` or a bare URI.
     """
 
     PREVIEWED_REFERENCE = "previewedReference"
     WHOLE_OBJECT = "wholeObject"
 
 
+#: The keys an actor or collection reference carries (AKM-05-017, AKM-02-006).
+_IDENTITY_FIELDS = frozenset({"id_", "type_", "context_"})
+
+
+def _names_only_its_identity(value: BaseModel) -> bool:
+    """Whether *value* was given no field with a value but its identity."""
+    return {
+        name
+        for name in value.model_fields_set
+        if getattr(value, name, None) is not None
+    } <= _IDENTITY_FIELDS
+
+
 def _is_whole_object(value: object) -> bool:
-    """Whether *value* is an inline whole object (ADR-0198)."""
-    return isinstance(value, BaseModel) and not isinstance(
+    """Whether *value* is an inline whole object (ADR-0198).
+
+    Not a typed reference, a case reference or a ``Link``, nor an actor or
+    collection named by its identity alone: the actor reference
+    (AKM-05-017) and an endpoint's address (AKM-02-006) are references too.
+    """
+    if not isinstance(value, BaseModel) or isinstance(
         value, (as_TypedReference, as_VulnerabilityCaseReference, as_Link)
-    )
+    ):
+        return False
+    if isinstance(value, (as_Actor, CoreActor, as_Collection)):
+        return not _names_only_its_identity(value)
+    return True
 
 
 def matches_object_form(form: ObjectForm | None, value: object) -> bool:

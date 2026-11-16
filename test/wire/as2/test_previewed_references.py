@@ -20,9 +20,10 @@ that asks for that form, so no other pattern reads it as the case
 the real inbound edge.
 """
 
-from typing import Any
+from typing import Any, get_args
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.case_manager import (
     CASE_MANAGER_ID,
@@ -47,6 +48,7 @@ from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.typed_reference import (
+    DEFINED_PREVIEWS,
     as_TypedReference,
     is_previewed_reference,
 )
@@ -386,3 +388,74 @@ def test_an_accept_naming_a_held_stub_invite_by_id_keeps_its_preview(
     assert is_previewed_reference(_object_chain_end(rehydrated))
     assert isinstance(rehydrated, as_Activity)
     assert bare_object_id(rehydrated) is None
+
+
+@pytest.mark.spec("MV-10-012")
+def test_a_case_preview_naming_another_case_is_refused() -> None:
+    reference = _previewed("https://example.org/cases/c1")
+    reference["preview"] = _stub("https://example.org/cases/other")
+
+    with pytest.raises(VultronParseError, match="MV-10-012"):
+        parse_activity(_invite(reference))
+
+
+@pytest.mark.spec("MV-10-012")
+def test_the_preview_field_holds_exactly_the_defined_previews() -> None:
+    """Adding a type to ``DEFINED_PREVIEWS`` without widening the field would
+    refuse its preview with a generic error instead of MV-10-012."""
+    annotation = as_TypedReference.model_fields["preview"].annotation
+    held = set(get_args(annotation)) - {type(None)}
+
+    assert held == set(DEFINED_PREVIEWS.values())
+
+
+@pytest.mark.spec("SE-01-009")
+@pytest.mark.parametrize(
+    ("obj", "whole"),
+    [
+        pytest.param(
+            {"id": "https://example.org/actors/carol", "type": "Person"},
+            False,
+            id="actor-reference",
+        ),
+        pytest.param(
+            {
+                "id": "https://example.org/actors/carol/inbox",
+                "type": "Collection",
+            },
+            False,
+            id="collection-address",
+        ),
+        pytest.param(
+            {
+                "id": "https://example.org/actors/carol",
+                "type": "Person",
+                "name": "Carol",
+            },
+            True,
+            id="actor-profile",
+        ),
+    ],
+)
+def test_a_whole_object_pattern_reads_an_identity_alone_as_a_reference(
+    obj: dict[str, Any], whole: bool
+) -> None:
+    pattern = ActivityPattern(
+        activity_=TAtype.INVITE, object_form=ObjectForm.WHOLE_OBJECT
+    )
+
+    assert pattern.match(parse_activity(_invite(obj))) is whole
+
+
+@pytest.mark.spec("MV-10-013")
+def test_a_malformed_stored_preview_fails_its_read() -> None:
+    """A stored preview that is no stub is refused on read, never read back
+    as a reference without one or as the case."""
+    activity = parse_activity(
+        _invite(_previewed("https://example.org/cases/c1"))
+    )
+    record = object_to_record(activity)
+    record.data_["object_"]["preview"] = "https://example.org/cases/c1/stub"
+
+    with pytest.raises(ValidationError):
+        record_to_object(record)

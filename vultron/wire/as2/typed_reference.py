@@ -49,9 +49,9 @@ names a case by exactly its ``id`` and ``type`` (ADR-0205).
 from collections.abc import Mapping
 from datetime import datetime
 from types import MappingProxyType
-from typing import Any
+from typing import Any, TypeIs
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -237,12 +237,29 @@ class as_TypedReference(as_Object):
     # process's clock (AKM-02-006, ADR-0159).
     published: datetime | None = None
     updated: datetime | None = None
-    # The one defined preview (DEFINED_PREVIEWS); the parser refuses any
-    # other before this class reads it (MV-10-012).
+    # The one defined preview (DEFINED_PREVIEWS, which a test holds to this
+    # annotation); the parser refuses any other before this class reads it
+    # (MV-10-012).
     preview: as_VulnerabilityCaseStub | None = None  # type: ignore[assignment]
 
+    @model_validator(mode="after")
+    def _preview_names_this_case(self) -> as_TypedReference:
+        """Refuse a case preview that names another case (MV-10-012).
 
-def is_previewed_reference(value: object) -> bool:
+        A stub names its case in ``caseId`` (CM-11-013), so a preview whose
+        ``caseId`` is not the reference's ``id`` previews a different case.
+        """
+        if self.preview is not None and self.preview.case_id != self.id_:
+            # Pydantic reports a ValueError raised here as a validation error.
+            raise ValueError(
+                f"the preview of case reference {self.id_!r} names case"
+                f" {self.preview.case_id!r}; a case's preview names the case"
+                " it previews (MV-10-012, ADR-0205)"
+            )
+        return self
+
+
+def is_previewed_reference(value: object) -> TypeIs[as_TypedReference]:
     """Whether *value* is a typed reference that carries a preview.
 
     A receiver reads such a reference as received (MV-10-011, ADR-0205).

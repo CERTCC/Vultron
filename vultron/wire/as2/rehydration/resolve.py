@@ -284,7 +284,7 @@ def rehydrate(
     if is_previewed_reference(obj):
         # Read as received (MV-10-011, ADR-0205): a preview is not the
         # object, so the held object never takes its place.
-        return cast(as_Object, obj)
+        return obj
     if isinstance(obj, str):
         obj = _resolve_string_id(obj, dl)
     elif isinstance(obj, as_TypedReference):
