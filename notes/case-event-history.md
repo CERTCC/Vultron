@@ -277,16 +277,17 @@ baseline on the number of participants. An incomplete sequence is scored through
 completions under the same walk (expected, best and worst), and a case reports
 per-vendor scores with their unweighted median and spread (`score_case`).
 
-Score each extended desideratum in the scope it states: each vendor (report handling,
-`F_i ≺ Ex_own`), the embargo group, and the multi-party group, walked once per vendor
-and once per ordered pair (`vultron/measure/scoring/extended.py`). Reason: move bands
-compare outcome shifts scope by scope (ADR-0200), and a walk that reads one vendor or
-one pair never combines the vendors (CEH-05-006). Read a best and worst summed over
-several walks (a multi-party group, or a vendor's original and extended parts) as a
-bound, not a reachable score: the walks share events, and no whole-case walk exists
-to state it.
+Score each one-vendor extended desideratum in every vendor's scope, on that vendor's
+one-vendor walk, in two parts: the end part (the original twelve and report handling)
+and the embargo part (the embargo desiderata, `F_i ≺ Ex_own` included)
+(`vultron/measure/scoring/extended.py`). Reason: a scope is one vendor and move
+advice compares the end part first (ADR-0200 rules 1 and 3), and a walk that reads
+one vendor never combines the vendors (CEH-05-006). Leave the multi-party
+desiderata out: `F_i ≺ P` is the twelve's `F ≺ P`, and `V_i ≺ F_j` is contested
+(#6502). Read a best and worst summed over two walks (the end part, or the total) as
+a bound, not a reachable score: the walks share events.
 
-Count each group of equivalent desiderata once in a scope (`scope_desiderata`, from
+Count each group of equivalent desiderata once in a part (`scope_desiderata`, from
 `implications()`). Reason: `E ≺ P`, `E ≺ X` and `E ≺ A` hold together, and so do the
 three `Ex_own` ones, so counting each adds the same skill three times
 (`process_model_desiderata.md` § "The desiderata are not independent").
@@ -295,13 +296,6 @@ Score a term whose scope the case never enters as met: it adds its full `1 − f
 and an open term adds `1 − f_d` times its `ChanceReading.outcome`. Reason: not taking
 a path that needs a desideratum is not failing it (the move-advice rule below), and
 one combining function, `expected_outcome`, serves both case scoring and move advice.
-
-Walk the embargo group with the case's first-aware vendor in the one-vendor model's
-vendor slot, or a vendor not yet aware when the case has none (ADR-0182). Reason: the
-group's desiderata name no vendor, but the model needs one, and a two-party case then
-uses its one vendor exactly. Revisit it when the borrowed vendor's progress visibly
-shifts the embargo chance, or when that vendor's state cannot be placed and leaves the
-group unscored.
 
 Take the spread as the range (highest minus lowest), never a variance. Reason: the
 vendors share P, X and A, so their scores are not a sample, and the spread reads as

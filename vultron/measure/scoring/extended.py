@@ -11,25 +11,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The extended desiderata, scored in their scopes (ADR-0182, ADR-0200).
+"""The extended desiderata, scored in each vendor's scope (ADR-0182, ADR-0200).
 
-Each extended desideratum of ``process_model_desiderata.md``
-(:data:`vultron.measure.baselines.EXTENDED`) is scored in the scope it
-states.  A scope is one vendor, or one case-wide desiderata group:
+A scope is one vendor (ADR-0200 rule 1): there is no case-wide scope.  Each
+extended desideratum of ``process_model_desiderata.md``
+(:data:`vultron.measure.baselines.EXTENDED`) that the one-vendor model holds
+is scored for every vendor, on that vendor's one-vendor walk, in one of two
+parts (ADR-0200 rule 3):
 
-* **Each vendor** (:func:`vendor_scope`): a one-vendor desideratum that
-  names the vendor's own events and is not multi-party, so the
-  report-handling desiderata and ``F_i ≺ Ex_own``.  A vendor is a
-  participant with a projected sequence (CEH-05-001); a vendor not yet
-  aware of the vul has no events to read and no scope here.
-* **The embargo group** (:func:`embargo_scope`): the embargo desiderata that
-  name only the case's events, ``E`` and ``Ex_own`` before ``P``, ``X`` and
-  ``A``.
-* **The multi-party group** (:func:`multi_party_scope`): ``F_i ≺ P`` for
-  each vendor, against the one-vendor model, and ``V_i ≺ F_j`` for each
-  ordered pair of vendors, against the two-vendor model.
+* **The end part**: the report-handling desiderata.  The original twelve
+  join it in :class:`~vultron.measure.scoring.model.VendorScore`.
+* **The embargo part**: the embargo desiderata, ``E`` and ``Ex_own`` before
+  ``P``, ``X`` and ``A``, and ``F_i ≺ Ex_own``.
 
-A scope counts each group of equivalent desiderata once
+The multi-party desiderata are left out.  ``F_i ≺ P`` is the original
+twelve's ``F ≺ P`` for each vendor, which the vendor's score already counts,
+and move advice does not use ``V_i ≺ F_j`` (ADR-0200 rule 1, #6502).
+
+A part counts each group of equivalent desiderata once
 (:func:`scope_desiderata`): an embargo starts, and ends on its own terms,
 only before all of ``P``, ``X`` and ``A``, so ``E ≺ P``, ``E ≺ X`` and
 ``E ≺ A`` are one desideratum, and so are the three ``Ex_own`` ones
@@ -49,23 +48,18 @@ lose the desiderata scoped to Valid reports, because not taking a path that
 needs a desideratum is not failing it.  The best and worst count it the same
 way, at each end the walk can still reach.
 
-Every walk reads one vendor, or one pair, never all of them: the vendors'
-events are never combined into one sequence (CEH-05-006).  The embargo
-group's walk needs a vendor in the one-vendor model too; it takes the case's
-first vendor to become aware, as a two-party case has its one vendor, or a
-vendor not yet aware when the case has none.
+Every walk reads one vendor and the case's events, never another vendor's:
+the vendors' events are never combined into one sequence (CEH-05-006).
 """
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from fractions import Fraction
 from functools import cache
-from itertools import permutations
 from typing import NamedTuple
 
 from vultron.measure.baselines import (
     EXTENDED,
     ONE_VENDOR_MODEL,
-    TWO_VENDOR_MODEL,
     Desideratum,
     Event,
     Group,
@@ -80,31 +74,22 @@ from vultron.measure.baselines import (
 from vultron.measure.baselines.desiderata import joint_values
 from vultron.measure.baselines.values import CasePrefix
 from vultron.measure.scoring.model import (
-    ScopeScore,
+    ExtendedScore,
     TermScore,
     UnscoredScope,
     WalkScore,
 )
-from vultron.measure.scoring.record import (
-    UNAWARE,
-    CaseRecord,
-    NotAJointStateError,
-)
-
-
-def _names_a_vendor(desideratum: Desideratum) -> bool:
-    return any(e.vendor is not None for e in desideratum.query.watched)
+from vultron.measure.scoring.record import CaseRecord, NotAJointStateError
 
 
 class ScopeDesiderata(NamedTuple):
-    """The extended desiderata of each kind of scope, in catalog order."""
+    """The extended desiderata of a vendor's scope, by part, in catalog
+    order."""
 
-    vendor: tuple[Desideratum, ...]
-    """Scored in each vendor's own scope."""
+    end: tuple[Desideratum, ...]
+    """The report-handling desiderata, scored in the end part."""
     embargo: tuple[Desideratum, ...]
-    """The case-wide embargo group."""
-    multi_party: tuple[Desideratum, ...]
-    """The case-wide multi-party group."""
+    """The embargo desiderata, ``F_i ≺ Ex_own`` included."""
 
 
 def _count_once(
@@ -125,46 +110,30 @@ def _count_once(
 
 @cache
 def scope_desiderata() -> ScopeDesiderata:
-    """The extended desiderata each kind of scope scores, each group of
-    equivalent ones once.
+    """The extended desiderata a vendor's scope scores, by part, each group
+    of equivalent ones once.
 
     Computed on first use: finding the equivalent pairs walks the model.
     """
+    held = [
+        d
+        for d in EXTENDED
+        if d.model is ModelName.ONE_VENDOR and d.group is not Group.MULTI_PARTY
+    ]
     return ScopeDesiderata(
-        vendor=_count_once(
-            d
-            for d in EXTENDED
-            if d.model is ModelName.ONE_VENDOR
-            and d.group is not Group.MULTI_PARTY
-            and _names_a_vendor(d)
-        ),
-        embargo=_count_once(
-            d
-            for d in EXTENDED
-            if d.group is Group.EMBARGO and not _names_a_vendor(d)
-        ),
-        multi_party=_count_once(
-            d for d in EXTENDED if d.group is Group.MULTI_PARTY
-        ),
+        end=_count_once(d for d in held if d.group is not Group.EMBARGO),
+        embargo=_count_once(d for d in held if d.group is Group.EMBARGO),
     )
 
 
-_MODELS: dict[ModelName, JointModel] = {
-    ModelName.ONE_VENDOR: ONE_VENDOR_MODEL,
-    ModelName.TWO_VENDOR: TWO_VENDOR_MODEL,
-}
-
-
 def _history(
-    record: CaseRecord,
-    events: Iterable[Event],
-    vendors: tuple[str, ...],
+    record: CaseRecord, events: Iterable[Event], vendor: str
 ) -> tuple[frozenset[Event], ...]:
     """*events* the record holds, as the walk's history: one entry per
     position, in order, so events of one ledger entry are simultaneous."""
     by_position: dict[int, set[Event]] = {}
     for event in events:
-        position = record.position(event, vendors)
+        position = record.position(event, (vendor,))
         if position is not None:
             by_position.setdefault(position, set()).add(event)
     return tuple(frozenset(by_position[p]) for p in sorted(by_position))
@@ -178,46 +147,38 @@ def _ends(
 
 
 def _walk(
-    record: CaseRecord,
-    paths: tuple[str, ...] | None,
-    desiderata: Sequence[Desideratum],
-    vendors: tuple[str, ...],
+    record: CaseRecord, vendor: str, desiderata: Sequence[Desideratum]
 ) -> WalkScore:
-    """Score *desiderata* for *vendors* on one walk from where the case stands.
+    """Score *desiderata* for *vendor* on its one-vendor walk from where the
+    case stands.
 
-    The walk's vendor slots hold *paths*' vendors, or, when *paths* is
-    ``None``, one vendor not yet aware.  Every desideratum takes the same
-    model, the one each of them names.  The case's record is the walk's
-    history, so an ordering it already settles stays settled.
+    The case's record is the walk's history, so an ordering it already
+    settles stays settled.
 
     Raises:
         NotAJointStateError: the case stands in no state of the model.
     """
-    (name,) = {d.model for d in desiderata}
-    model = _MODELS[name]
-    state = record.state(
-        (UNAWARE,)
-        if paths is None
-        else tuple(record.path(vendor) for vendor in paths)
-    )
+    state = record.state((record.path(vendor),))
     joined = OrderingQuery(
         tuple(o for d in desiderata for o in d.query.orderings),
         frozenset().union(*(d.query.given for d in desiderata)),
     )
     prefix: CasePrefix = WalkPrefix(
-        state, _history(record, joined.watched, vendors)
+        state, _history(record, joined.watched, vendor)
     )
     scored: list[TermScore] = []
     spans: list[tuple[Fraction, frozenset[Event], range]] = []
     start = 0
     for desideratum in desiderata:
         weight = 1 - baseline(desideratum)
-        reading = joint_values(name, desideratum.query).reading(prefix)
+        reading = joint_values(
+            ModelName.ONE_VENDOR, desideratum.query
+        ).reading(prefix)
         scored.append(
             TermScore(
                 notation=desideratum.notation,
                 group=desideratum.group,
-                vendors=vendors,
+                vendors=(vendor,),
                 weight=weight,
                 met=reading.outcome,
             )
@@ -236,70 +197,28 @@ def _walk(
             ),
             Fraction(0),
         )
-        for seen, met in _ends(model, joined, prefix)
+        for seen, met in _ends(ONE_VENDOR_MODEL, joined, prefix)
     ]
     return WalkScore(
         terms=tuple(scored), best=max(outcomes), worst=min(outcomes)
     )
 
 
-def _scope(
-    walks: Callable[[], Iterable[WalkScore]],
-) -> ScopeScore | UnscoredScope:
-    """The scope *walks* score, or why the case cannot be walked from."""
-    try:
-        return ScopeScore(walks=tuple(walks()))
-    except NotAJointStateError as exc:
-        return UnscoredScope(reason=str(exc))
-
-
 def vendor_scope(
     record: CaseRecord, vendor: str
-) -> ScopeScore | UnscoredScope:
-    """*vendor*'s extended desiderata, on the one-vendor walk from its state.
+) -> ExtendedScore | UnscoredScope:
+    """*vendor*'s extended desiderata, each part on the one-vendor walk from
+    its state, or why the case cannot be walked from.
 
     Raises:
         KeyError: *record* did not read *vendor*.
     """
     record.path(vendor)
-    return _scope(
-        lambda: [
-            _walk(record, (vendor,), scope_desiderata().vendor, (vendor,))
-        ]
-    )
-
-
-def embargo_scope(record: CaseRecord) -> ScopeScore | UnscoredScope:
-    """The case's embargo group, on one one-vendor walk.
-
-    The vendor slot holds the case's first vendor to become aware, or a
-    vendor not yet aware when the case has none.
-    """
-    first = record.vendors[:1] or None
-    return _scope(
-        lambda: [_walk(record, first, scope_desiderata().embargo, ())]
-    )
-
-
-def _multi_party_walks(record: CaseRecord) -> Iterable[WalkScore]:
-    for desideratum in scope_desiderata().multi_party:
-        if desideratum.model is ModelName.TWO_VENDOR:
-            for pair in permutations(record.vendors, 2):
-                yield _walk(record, pair, (desideratum,), pair)
-            continue
-        for vendor in record.vendors:
-            yield _walk(record, (vendor,), (desideratum,), (vendor,))
-
-
-def multi_party_scope(
-    record: CaseRecord,
-) -> ScopeScore | UnscoredScope | None:
-    """The case's multi-party group, one walk per vendor and per pair.
-
-    ``None`` when the case has no vendor, so no multi-party desideratum
-    applies.  A two-vendor desideratum is walked for each ordered pair of
-    vendors, vendor 1 the one whose report must reach Valid.
-    """
-    if not record.vendors:
-        return None
-    return _scope(lambda: _multi_party_walks(record))
+    desiderata = scope_desiderata()
+    try:
+        return ExtendedScore(
+            end=_walk(record, vendor, desiderata.end),
+            embargo=_walk(record, vendor, desiderata.embargo),
+        )
+    except NotAJointStateError as exc:
+        return UnscoredScope(reason=str(exc))

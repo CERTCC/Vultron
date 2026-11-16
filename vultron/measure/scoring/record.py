@@ -33,7 +33,7 @@ for each vendor, as the events of
   attacks end an embargo in force at once, as a threat signal, even before
   the ledger records the exit.  A state the joint model has no place for,
   such as a fix ready before the report is accepted, or an embargo that
-  starts after publication, is refused with its reason
+  starts after publication, whatever follows it, is refused with its reason
   (:class:`NotAJointStateError`), never scored.
 
 The embargo exit splits by cause as ``process_model_desiderata.md``
@@ -46,13 +46,14 @@ embargo proposal, so a case with none in force is read as ``EM.NONE``.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import NamedTuple
 
 from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
     violation_pxa_em_entailment,
 )
-from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.cs_invariants import (
     CSEvent,
     cs_dimensions,
@@ -76,9 +77,6 @@ from vultron.measure.history import (
     EventKind as RecordKind,
 )
 from vultron.measure.sequences import CaseStateSequence, Placement
-
-UNAWARE = VendorPath(RM.START, CS_vf.vf, CS_d.d)
-"""A vendor not yet aware: the joint models' vendor at their start."""
 
 _RM_OF_KIND: dict[RecordKind, RM] = {
     kind: rm for rm, kind in RM_EVENT_KINDS.items()
@@ -137,25 +135,73 @@ def _first(found: dict[EventKind, int], kind: EventKind, index: int) -> None:
     found.setdefault(kind, index)
 
 
-def _case_positions(history: CaseEventHistory) -> dict[EventKind, int]:
-    """The first log index of each case event, ``P`` placed by ``pX``."""
+class _CaseReading(NamedTuple):
+    """The case's own events, read in one pass over the history."""
+
+    positions: dict[EventKind, int]
+    """The first log index of each case event."""
+    em: EM
+    """The embargo state at the end of the history."""
+    end: EmbargoEnd | None
+    """The cause of the embargo's exit, once it has exited."""
+    problems: tuple[str, ...]
+    """Every embargo start the public state left no room for."""
+
+
+def _read_case(history: CaseEventHistory) -> _CaseReading:
+    """The case's event positions and embargo state, read together.
+
+    A public-state event that leaves no room for an embargo in force ends
+    it as a threat signal at once (CSB-18-002 to CSB-18-004), as the joint
+    model couples them, so the exit is placed at that event whether or not
+    the ledger records it yet; a later exit of an embargo already ended
+    changes nothing.  An embargo that starts where the public state leaves
+    it no room is a problem, kept for :meth:`CaseRecord.state`, and never
+    in force, whatever follows it.  ``P`` is
+    placed no later than ``X``.
+    """
     found: dict[EventKind, int] = {}
+    em, end = EM.NONE, None
+    public: set[EventKind] = set()
+    problems: list[str] = []
+
+    def exit_at(cause: EmbargoEnd, index: int) -> None:
+        nonlocal em, end
+        em, end = EM.EXITED, cause
+        _first(found, EventKind.EXIT, index)
+        _first(found, _EXIT_EVENT[cause], index)
+
     for event in history.events:
         if event.participant is not None:
             continue
         index = event.log_index
         if isinstance(event.kind, CSEvent):
             _first(found, EventKind(event.kind.value), index)
+            public.add(EventKind(event.kind.value))
+            if (
+                em is EM.ACTIVE
+                and violation_pxa_em_entailment(_public_state(public), em)
+                is not None
+            ):
+                exit_at(EmbargoEnd.THREAT_SIGNAL, index)
         elif event.kind is RecordKind.EMBARGO_START:
+            refused = violation_pxa_em_entailment(
+                _public_state(public), EM.ACTIVE
+            )
+            if refused is not None:
+                problems.append(
+                    f"the embargo starting at log index {index}: {refused}"
+                )
+                continue
+            em, end = EM.ACTIVE, None
             _first(found, EventKind.EMBARGO_START, index)
-        elif event.kind is RecordKind.EMBARGO_EXIT:
-            _first(found, EventKind.EXIT, index)
-            _first(found, _EXIT_EVENT[exit_end(event)], index)
+        elif event.kind is RecordKind.EMBARGO_EXIT and em is EM.ACTIVE:
+            exit_at(exit_end(event), index)
     if EventKind.X in found:
         found[EventKind.P] = min(
             found.get(EventKind.P, found[EventKind.X]), found[EventKind.X]
         )
-    return found
+    return _CaseReading(found, em, end, tuple(problems))
 
 
 def _recorded_rm(event: CaseEvent) -> RM | None:
@@ -216,34 +262,6 @@ def _public_state(public: Iterable[EventKind]) -> CS_pxa:
     return CS_pxa[name]
 
 
-def _embargo_state(
-    history: CaseEventHistory,
-) -> tuple[EM, EmbargoEnd | None]:
-    """The embargo state at the end of *history*, with its exit's cause.
-
-    A public-state event that leaves no room for an embargo in force ends
-    it as a threat signal at once (CSB-18-002 to CSB-18-004), as the joint
-    model couples them, whether or not the ledger records the exit yet; a
-    later exit of an embargo already ended changes nothing.
-    """
-    em, end = EM.NONE, None
-    public: set[EventKind] = set()
-    for event in history.events:
-        if event.kind is RecordKind.EMBARGO_START:
-            em, end = EM.ACTIVE, None
-        elif event.kind is RecordKind.EMBARGO_EXIT and em is EM.ACTIVE:
-            em, end = EM.EXITED, exit_end(event)
-        elif isinstance(event.kind, CSEvent) and event.participant is None:
-            public.add(EventKind(event.kind.value))
-            if (
-                em is EM.ACTIVE
-                and violation_pxa_em_entailment(_public_state(public), em)
-                is not None
-            ):
-                em, end = EM.EXITED, EmbargoEnd.THREAT_SIGNAL
-    return em, end
-
-
 class CaseRecord:
     """One case's event history, read as the joint models' events.
 
@@ -258,7 +276,8 @@ class CaseRecord:
         sequences: Iterable[CaseStateSequence],
     ) -> None:
         self.case_id = history.case_id
-        self._case = _case_positions(history)
+        case = _read_case(history)
+        self._case = case.positions
         self._vendors: dict[str, dict[EventKind, int]] = {}
         self._paths: dict[str, VendorPath] = {}
         for sequence in sequences:
@@ -269,7 +288,8 @@ class CaseRecord:
                 _vendor_rm(history, participant), vf, d
             )
         self._pxa = _public_state(self._case)
-        self._em, self._end = _embargo_state(history)
+        self._em, self._end = case.em, case.end
+        self._problems = case.problems
 
     @property
     def vendors(self) -> tuple[str, ...]:
@@ -308,14 +328,12 @@ class CaseRecord:
         Raises:
             NotAJointStateError: the joint model has no such state.
         """
-        problems = [
+        problems = list(self._problems)
+        problems += [
             v.message
             for path in paths
             for v in composite_state_violations(path.rm, path.vf, path.d)
         ]
-        pxa_em = violation_pxa_em_entailment(self._pxa, self._em)
-        if pxa_em is not None:
-            problems.append(pxa_em)
         if problems:
             raise NotAJointStateError(problems)
         return JointState(paths, self._pxa, self._em, self._end)

@@ -19,20 +19,22 @@ prefix stands and its desiderata score.  The expected, best and worst scores
 are read from them, never stored beside them, so they cannot disagree.
 
 The extended desiderata of ``process_model_desiderata.md`` are scored in
-their scopes (ADR-0200): each vendor, and each case-wide group.  A
-:class:`TermScore` is one desideratum for its vendors, with the chance it is
-met from where the case stands; a :class:`WalkScore` is the terms one walk
-scores, with the best and worst they can still reach together; a
-:class:`ScopeScore` adds up the walks of one scope.  A scope the joint model
-cannot walk from is an :class:`UnscoredScope`, with its reason.
+each vendor's scope (ADR-0200 rule 1).  A :class:`TermScore` is one
+desideratum for its vendor, with the chance it is met from where the case
+stands; a :class:`WalkScore` is the terms one walk scores, with the best and
+worst they can still reach together; an :class:`ExtendedScore` is a
+vendor's two walks, its end part and its embargo part (ADR-0200 rule 3).
+A vendor the joint model cannot walk from is an :class:`UnscoredScope`,
+with its reason.
 
 A :class:`VendorScore` is one vendor's :class:`SequenceScore` and its
-extended desiderata, the unit a case-level summary reads (#6069).
+extended desiderata, the unit a case-level summary reads (#6069): its end
+part and its embargo part, each a :class:`PartScore`, and their total.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from fractions import Fraction
 
 from pydantic import (
@@ -296,46 +298,21 @@ class WalkScore(BaseModel):
         return _sum(t.expected for t in self.terms)
 
 
-class ScopeScore(BaseModel):
-    """One scope's extended desiderata, scored (ADR-0200).
+class ExtendedScore(BaseModel):
+    """A vendor's extended desiderata, in its two parts (ADR-0200 rule 3).
 
-    A scope's terms can take more than one walk: the multi-party group walks
-    each vendor and each pair of vendors on its own (ADR-0182).  Its
-    expected score is exact, the sum of the walks'.  Its best and worst add
-    up each walk's, so with more than one walk they bound what the case can
-    reach rather than state it: the walks share the case's events, and no
-    walk over the whole case is built.
+    Each part is one walk of the one-vendor model from where the vendor
+    stands, so each part's best and worst are exact.
 
     Fields:
-        walks: The walks, each with its terms.
+        end: The report-handling desiderata.
+        embargo: The embargo desiderata, ``F_i ≺ Ex_own`` included.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    walks: tuple[WalkScore, ...] = Field(min_length=1)
-
-    @property
-    def terms(self) -> tuple[TermScore, ...]:
-        """Every term of every walk, in walk order."""
-        return tuple(t for walk in self.walks for t in walk.terms)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def expected(self) -> Fraction:
-        """The score expected if the case went on by chance from here."""
-        return _sum(w.expected for w in self.walks)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def best(self) -> Fraction:
-        """The walks' best scores, added up."""
-        return _sum(w.best for w in self.walks)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def worst(self) -> Fraction:
-        """The walks' worst scores, added up."""
-        return _sum(w.worst for w in self.walks)
+    end: WalkScore
+    embargo: WalkScore
 
 
 class UnscoredScope(BaseModel):
@@ -351,17 +328,57 @@ class UnscoredScope(BaseModel):
     reason: NonEmptyString
 
 
-class VendorScore(BaseModel):
-    """One vendor, scored on every desideratum in its scope (ADR-0182).
+class PartScore(BaseModel):
+    """An expected, best and worst score, added up from scored parts.
 
-    Its score adds up the twelve original desiderata, scored on its
-    case-state sequence, and the extended desiderata of its own scope:
-    report handling and its fix before the embargo ends on its own terms.
-    The two take chance from different models, each the smallest that
-    holds its desiderata (ADR-0182), so the best and worst add up each
-    one's.  They are a bound on what the vendor can still reach, not a
-    score it can reach: the two walks share the vendor's events and the
-    case's.
+    Fields:
+        expected: The score expected if the case went on by chance.
+        best: The highest score reachable, or, added from parts scored on
+            different walks, a bound on it.
+        worst: The lowest such score, or a bound on it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    expected: Fraction
+    best: Fraction
+    worst: Fraction
+
+    @model_validator(mode="after")
+    def _ends_bound_the_expectation(self) -> PartScore:
+        if not self.worst <= self.expected <= self.best:
+            raise ValueError(
+                f"the expected score {self.expected} is not between the"
+                f" worst {self.worst} and the best {self.best}"
+            )
+        return self
+
+    @classmethod
+    def of(
+        cls, parts: Iterable[SequenceScore | WalkScore | PartScore]
+    ) -> PartScore:
+        """*parts*' expected, best and worst scores, each added up."""
+        listed = list(parts)
+        return cls(
+            expected=_sum(p.expected for p in listed),
+            best=_sum(p.best for p in listed),
+            worst=_sum(p.worst for p in listed),
+        )
+
+
+class VendorScore(BaseModel):
+    """One vendor, scored on every desideratum in its scope (ADR-0200).
+
+    Its score has two parts (ADR-0200 rule 3).  The end part adds up the
+    twelve original desiderata, scored on its case-state sequence, and the
+    report-handling desiderata; the embargo part is the embargo
+    desiderata, ``F_i ≺ Ex_own`` included.  The original twelve and the
+    extended desiderata take chance from different models, each the
+    smallest that holds its desiderata (ADR-0182), so the end part's best
+    and worst add up each one's: a bound on what the vendor can still
+    reach, not a score it can reach, because the walks share the vendor's
+    events and the case's.  The total adds up both parts, and is a bound
+    the same way.
 
     Fields:
         participant: The vendor the sequence belongs to.
@@ -374,32 +391,31 @@ class VendorScore(BaseModel):
 
     participant: NonEmptyString
     score: SequenceScore
-    extended: ScopeScore | UnscoredScope
+    extended: ExtendedScore | UnscoredScope
 
-    def _total(
-        self, read: Callable[[SequenceScore | ScopeScore], Fraction]
-    ) -> Fraction | None:
-        """*read* of both parts, added; ``None`` with the extended part
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def end(self) -> PartScore | None:
+        """The end part: the original twelve and report handling;
+        ``None`` with the extended desiderata unscored."""
+        if isinstance(self.extended, UnscoredScope):
+            return None
+        return PartScore.of((self.score, self.extended.end))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def embargo(self) -> PartScore | None:
+        """The embargo part; ``None`` with the extended desiderata
         unscored."""
         if isinstance(self.extended, UnscoredScope):
             return None
-        return read(self.score) + read(self.extended)
+        return PartScore.of((self.extended.embargo,))
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def expected(self) -> Fraction | None:
-        """The vendor's expected score."""
-        return self._total(lambda part: part.expected)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def best(self) -> Fraction | None:
-        """The vendor's best score: a bound, the two parts' best added."""
-        return self._total(lambda part: part.best)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def worst(self) -> Fraction | None:
-        """The vendor's worst score: a bound, the two parts' worst
-        added."""
-        return self._total(lambda part: part.worst)
+    def total(self) -> PartScore | None:
+        """Both parts added up; ``None`` with the extended desiderata
+        unscored."""
+        if self.end is None or self.embargo is None:
+            return None
+        return PartScore.of((self.end, self.embargo))

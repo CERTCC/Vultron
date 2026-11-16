@@ -30,8 +30,8 @@ never from a second walk, and validates through
   the joint models' events: when each first occurred, and the joint state
   the case stands in.
 * :mod:`~vultron.measure.scoring.extended` — the extended desiderata of
-  ``process_model_desiderata.md``, scored in their scopes: each vendor, the
-  embargo group and the multi-party group (ADR-0200).
+  ``process_model_desiderata.md``, scored in each vendor's scope, in an end
+  part and an embargo part (ADR-0200).
 * :mod:`~vultron.measure.scoring.case` — :func:`score_case`, every scope of
   a case, with the vendors' unweighted median and spread.
 """
@@ -44,14 +44,13 @@ from vultron.measure.scoring.case import (
 from vultron.measure.scoring.complete import history_score, met_desiderata
 from vultron.measure.scoring.extended import (
     ScopeDesiderata,
-    embargo_scope,
-    multi_party_scope,
     scope_desiderata,
     vendor_scope,
 )
 from vultron.measure.scoring.model import (
     Completion,
-    ScopeScore,
+    ExtendedScore,
+    PartScore,
     SequenceScore,
     TermScore,
     UnscoredScope,
@@ -73,20 +72,19 @@ __all__ = [
     "CaseRecord",
     "CaseScoreSummary",
     "Completion",
+    "ExtendedScore",
     "NotAHistoryPrefixError",
     "NotAJointStateError",
+    "PartScore",
     "ScopeDesiderata",
-    "ScopeScore",
     "SequenceScore",
     "TermScore",
     "UnscoredScope",
     "VendorScore",
     "WalkScore",
-    "embargo_scope",
     "exit_end",
     "history_score",
     "met_desiderata",
-    "multi_party_scope",
     "score_case",
     "score_prefix",
     "scope_desiderata",

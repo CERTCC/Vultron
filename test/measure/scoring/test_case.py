@@ -34,7 +34,8 @@ from vultron.measure.history import read_case_event_histories
 from vultron.measure.scoring import (
     AcrossVendors,
     CaseScoreSummary,
-    ScopeScore,
+    ExtendedScore,
+    PartScore,
     UnscoredScope,
     VendorScore,
     score_case,
@@ -100,7 +101,7 @@ def _two_party_ledger() -> Ledger:
 
 
 def _vendor(
-    participant: str, prefix: str, extended: ScopeScore | UnscoredScope
+    participant: str, prefix: str, extended: ExtendedScore | UnscoredScope
 ) -> VendorScore:
     return VendorScore(
         participant=participant,
@@ -113,7 +114,6 @@ def _summary(*vendors: VendorScore, **fields) -> CaseScoreSummary:
     return CaseScoreSummary(
         case_id="urn:uuid:case-1",
         vendors=vendors,
-        embargo=_UNSCORED,
         **fields,
     )
 
@@ -143,7 +143,7 @@ def test_each_vendor_is_scored_alone_by_the_sequence_scorer():
 @pytest.mark.parametrize("which", _SCORES)
 def test_the_summary_reports_each_scores_median_and_spread(which):
     summary = score_case(_multi_party_ledger().history())
-    first, second = (getattr(v, which) for v in summary.vendors)
+    first, second = (getattr(v.total, which) for v in summary.vendors)
     across = getattr(summary, which)
     assert across is not None
     assert first != second
@@ -153,13 +153,15 @@ def test_the_summary_reports_each_scores_median_and_spread(which):
     assert across.spread == abs(first - second)
 
 
-@pytest.mark.parametrize("which", _SCORES)
-def test_a_vendors_score_adds_its_extended_desiderata(which):
+def test_a_vendors_score_has_an_end_part_and_an_embargo_part():
+    """The end part adds the original twelve to report handling; the
+    total adds the end part to the embargo part (ADR-0200 rule 3)."""
     for vendor in score_case(_multi_party_ledger().history()).vendors:
-        assert isinstance(vendor.extended, ScopeScore)
-        assert getattr(vendor, which) == getattr(
-            vendor.score, which
-        ) + getattr(vendor.extended, which)
+        extended = vendor.extended
+        assert isinstance(extended, ExtendedScore)
+        assert vendor.end == PartScore.of((vendor.score, extended.end))
+        assert vendor.embargo == PartScore.of((extended.embargo,))
+        assert vendor.total == PartScore.of((vendor.end, vendor.embargo))
 
 
 @pytest.mark.spec("CEH-05-007")
@@ -181,7 +183,9 @@ def test_the_summary_serializes_its_medians_and_spreads():
     dumped = summary.model_dump()
     for which in _SCORES:
         assert set(dumped[which]) == {"median", "lowest", "highest", "spread"}
-        assert set(dumped["embargo"]) >= {which}
+        for vendor in dumped["vendors"]:
+            for part in ("end", "embargo", "total"):
+                assert set(vendor[part]) == set(_SCORES)
     assert {u["participant"] for u in dumped["unprojectable"]} >= {DEPLOYER}
 
 
@@ -197,7 +201,8 @@ def test_a_two_party_case_is_its_one_vendors_score_with_zero_spread(which):
     (only,) = case_state_sequences(history).sequences
     (vendor,) = summary.vendors
     assert vendor.score == score_prefix(only.kinds)
-    value = getattr(vendor, which)
+    assert vendor.total is not None
+    value = getattr(vendor.total, which)
     across = getattr(summary, which)
     assert across == AcrossVendors(median=value, lowest=value, highest=value)
     assert across.spread == 0
@@ -257,15 +262,13 @@ def test_a_case_with_no_vendor_lists_its_participants_and_has_no_median():
         None,
         None,
     )
-    assert summary.multi_party is None
-    assert isinstance(summary.embargo, ScopeScore)
 
 
 def test_a_vendor_with_no_extended_score_leaves_the_case_with_no_median():
     """A median over the other vendors would read as one over all of them."""
     scored = score_case(_two_party_ledger().history()).vendors[0]
     unscored = _vendor(VENDOR_2, "V", _UNSCORED)
-    assert (unscored.expected, unscored.best, unscored.worst) == (
+    assert (unscored.end, unscored.embargo, unscored.total) == (
         None,
         None,
         None,
@@ -318,8 +321,6 @@ def test_the_summary_holds_no_case_wide_sequence():
         "case_id",
         "vendors",
         "unprojectable",
-        "embargo",
-        "multi_party",
         "expected",
         "best",
         "worst",
@@ -341,7 +342,7 @@ def test_every_recording_summarizes_each_vendor_once(path):
     ]
     assert summary.unprojectable == tuple(sequences.unprojectable)
     for which in _SCORES:
-        scores = sorted(getattr(v, which) for v in summary.vendors)
+        scores = sorted(getattr(v.total, which) for v in summary.vendors)
         across = getattr(summary, which)
         if not scores:
             assert across is None

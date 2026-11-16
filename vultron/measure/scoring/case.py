@@ -15,13 +15,12 @@
 
 A case is never scored as one sequence: each vendor's sequence is scored
 on its own, and several vendors' sequences are never combined (CEH-05-006).
-:func:`score_case` scores every scope of ADR-0200: each vendor, on
-the twelve original desiderata and its own extended ones, and each
-case-wide group of extended desiderata, the embargo group and the
-multi-party group (:mod:`~vultron.measure.scoring.extended`).  The case
-reports every vendor's score, and for each of the expected, best and worst
-scores their unweighted median and spread across the vendors
-(:class:`AcrossVendors`).
+:func:`score_case` scores every scope of ADR-0200, and a scope is one
+vendor: there is no case-wide scope.  Each vendor's score has an end part,
+the twelve original desiderata and report handling, and an embargo part
+(:mod:`~vultron.measure.scoring.extended`).  The case reports every
+vendor's score, and for each of the expected, best and worst totals their
+unweighted median and spread across the vendors (:class:`AcrossVendors`).
 
 The spread is the highest score minus the lowest.  It reads as how evenly the
 case served its vendors, not as a statistical sample: the public-awareness,
@@ -48,16 +47,8 @@ from fractions import Fraction
 from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
 from vultron.measure.history import CaseEventHistory
-from vultron.measure.scoring.extended import (
-    embargo_scope,
-    multi_party_scope,
-    vendor_scope,
-)
-from vultron.measure.scoring.model import (
-    ScopeScore,
-    UnscoredScope,
-    VendorScore,
-)
+from vultron.measure.scoring.extended import vendor_scope
+from vultron.measure.scoring.model import PartScore, VendorScore
 from vultron.measure.scoring.record import CaseRecord
 from vultron.measure.scoring.score import score_prefix
 from vultron.measure.sequences import (
@@ -136,9 +127,6 @@ class CaseScoreSummary(BaseModel):
             order.
         unprojectable: Every participant with no sequence, with its reason
             (CEH-05-007), unscored.
-        embargo: The case-wide embargo group, or why it has no score.
-        multi_party: The case-wide multi-party group, or why it has no
-            score; ``None`` when the case has no vendor.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -146,8 +134,6 @@ class CaseScoreSummary(BaseModel):
     case_id: NonEmptyString
     vendors: tuple[VendorScore, ...] = ()
     unprojectable: tuple[UnprojectableParticipant, ...] = ()
-    embargo: ScopeScore | UnscoredScope
-    multi_party: ScopeScore | UnscoredScope | None = None
 
     @model_validator(mode="after")
     def _one_answer_per_participant(self) -> CaseScoreSummary:
@@ -162,32 +148,32 @@ class CaseScoreSummary(BaseModel):
         return self
 
     def _across(
-        self, read: Callable[[VendorScore], Fraction | None]
+        self, read: Callable[[PartScore], Fraction]
     ) -> AcrossVendors | None:
-        """*read* of each vendor's score, across the vendors; ``None`` with
+        """*read* of each vendor's total, across the vendors; ``None`` with
         no vendor, or a vendor with no total."""
-        values = [read(vendor) for vendor in self.vendors]
-        if not values or None in values:
+        totals = [vendor.total for vendor in self.vendors]
+        if not totals or None in totals:
             return None
-        return AcrossVendors.of(v for v in values if v is not None)
+        return AcrossVendors.of(read(t) for t in totals if t is not None)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def expected(self) -> AcrossVendors | None:
-        """The vendors' expected scores across the case."""
-        return self._across(lambda vendor: vendor.expected)
+        """The vendors' expected totals across the case."""
+        return self._across(lambda total: total.expected)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def best(self) -> AcrossVendors | None:
-        """The vendors' best scores across the case."""
-        return self._across(lambda vendor: vendor.best)
+        """The vendors' best totals across the case."""
+        return self._across(lambda total: total.best)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def worst(self) -> AcrossVendors | None:
-        """The vendors' worst scores across the case."""
-        return self._across(lambda vendor: vendor.worst)
+        """The vendors' worst totals across the case."""
+        return self._across(lambda total: total.worst)
 
     def for_participant(self, participant: str) -> VendorScore | None:
         """The score of *participant*, or ``None`` when it has none."""
@@ -202,9 +188,9 @@ def score_case(history: CaseEventHistory) -> CaseScoreSummary:
 
     The history is projected onto one sequence per vendor (CEH-05).  Every
     vendor is scored alone: its sequence through its completions
-    (:func:`.score_prefix`), and its extended desiderata on the one-vendor
-    walk from where it stands.  No case-wide sequence is built
-    (CEH-05-006).  Every unprojectable participant is carried over with its
+    (:func:`.score_prefix`), and its extended desiderata, in an end part and
+    an embargo part, on the one-vendor walk from where it stands.  No
+    case-wide sequence is built (CEH-05-006).  Every unprojectable participant is carried over with its
     reason (CEH-05-007).
     """
     sequences = case_state_sequences(history)
@@ -220,6 +206,4 @@ def score_case(history: CaseEventHistory) -> CaseScoreSummary:
             for s in sequences.sequences
         ),
         unprojectable=tuple(sequences.unprojectable),
-        embargo=embargo_scope(record),
-        multi_party=multi_party_scope(record),
     )

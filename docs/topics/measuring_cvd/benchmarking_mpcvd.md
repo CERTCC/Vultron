@@ -257,20 +257,28 @@ The next section describes how Vultron scores a multi-party case, and why it sum
 
 [ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) scores a multi-party case one vendor at a time.
 Each vendor's sequence holds that vendor's own vendor-awareness, fix-ready, and fix-deployed events, and the case's public-awareness, exploit, and attack events.
-That sequence is scored against the baseline of a one-vendor case, as [Reasoning over Possible Histories](reasoning_over_histories.md#scoring-a-case-that-is-still-in-progress) describes, so each vendor gets an expected, a best, and a worst score.
+That sequence is scored against the baseline of a one-vendor case, as [Reasoning over Possible Histories](reasoning_over_histories.md#scoring-a-case-that-is-still-in-progress) describes.
+The vendor's report-handling and embargo desiderata are scored in the same one-vendor model.
+Each vendor's score has an end part and an embargo part, and each part has an expected, a best, and a worst score.
+The end part holds the original twelve desiderata and the report-handling desiderata.
+The embargo part holds the embargo desiderata.
+The vendor's total adds up the two parts.
+A best or worst score that adds up more than one walk is a bound, because the walks share the events of the case.
 No sequence for the whole case is built, because no rule yet says which vendor's events stand for the case.
 
 The vendors' scores are not independent.
 Public awareness, a public exploit, and attacks happen once for the case, and every vendor's sequence holds each of those events that has happened.
 So the scores do not form a statistical sample, and a variance or standard deviation across them would describe a sampling distribution that the case does not have.
 
-For each of the expected, best, and worst scores, the case reports the unweighted median across its vendors and the spread.
+For each of the expected, best, and worst totals, the case reports the unweighted median across its vendors and the spread.
 The spread is the highest vendor's score minus the lowest vendor's score.
 It shows how evenly the case served its vendors: a spread of zero means that every vendor got the same score.
 The spread measures evenness across vendors, not across users.
 A vendor with few users counts as much as a vendor with many, and [Is the multi-party measure fair?](open_questions.md#is-the-multi-party-measure-fair) shows how that can mislead.
 
 A two-party case has one vendor, so its summary is that vendor's score, with a spread of zero.
+A vendor whose state the joint model has no place for has no total.
+Then the case has no median and no spread, because a median over the other vendors would look like a median over all of them.
 
 A participant with no vendor path, such as a deployer that does not hold the Vendor role, is out of scope.
 The case-state model has no state for a fix path that the participant does not have, so that participant has no sequence to score.

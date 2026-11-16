@@ -64,16 +64,16 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    Its valid completions are weighted by the probability the same walk gives them from where the case stands.
    The case reports the expected score over those completions, and the best and worst score it can still reach.
    A sequence the event-history layer derived from a ledger with holes never reaches the scorer, because that layer refuses it (ADR-0174).
-4. **A case reports a score for each scope.**
-   A scope is one vendor, or one case-wide group of desiderata: the embargo group or the multi-party group.
-   A vendor's score adds up the twelve original desiderata and the extended desiderata about that vendor alone.
-   The embargo group holds the embargo desiderata that name only the case's events.
-   The multi-party group holds the desiderata that relate the vendors, checked for each vendor and for each pair of vendors.
+4. **A case reports each vendor's score, with an end part and an embargo part.**
+   A scope is one vendor, and there is no case-wide scope (ADR-0200).
+   A vendor's end part adds up the twelve original desiderata and the report-handling desiderata.
+   Its embargo part adds up the embargo desiderata, `F_i ≺ Ex_own` included, each in that vendor's one-vendor model.
+   A vendor's score does not count the multi-party desiderata: `F_i ≺ P` is the twelve's `F ≺ P` for that vendor, and move advice does not use `V_i ≺ F_j`.
    A desideratum whose scope the case never enters counts as met, because not taking a path that needs a desideratum is not failing it.
-   The case also reports the unweighted median and spread of the vendors' scores.
+   The case also reports the unweighted median and spread of the vendors' total scores.
    The spread is read as how evenly the case served its vendors, not as a statistical sample, because the vendors share events.
    It measures evenness across vendors, not across users: weighting by users or risk stays an open question.
-   A two-party case has one vendor's score, with zero spread, and the two group scores.
+   A two-party case has one vendor's score, with zero spread.
    A participant with no vendor path has no score of its own until it has desiderata of its own and those desiderata have chance values, but the counts of rule 5 for each participant still apply.
 5. **Path preferences are simple counts.**
    A preference about the shape of a history is a count or ratio read from the event history.
@@ -91,7 +91,6 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
 - Bad, because skill is measured against "a one-vendor case handled by chance", not against a chance version of this particular case. The pages that report a score must say so.
 - Bad, because the unweighted median and spread can mislead when a few vendors carry most of the risk; the measure does not answer the weighting question.
 - Neutral, because a participant with no vendor path gets no score of its own, as ADR-0174 already records, but gets the counts of rule 5.
-- Neutral, because the embargo group's walk borrows a vendor for the vendor slot of the one-vendor model: the case's first vendor to become aware, or a vendor not yet aware when the case has none. Revisit this when that vendor's progress visibly shifts the embargo group's chance, or when its state cannot be placed and leaves the group unscored.
 
 ## Validation
 

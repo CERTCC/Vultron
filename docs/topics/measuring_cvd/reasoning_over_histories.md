@@ -311,12 +311,15 @@ It is refused, with the reason the prefix check gives, such as a fix ready befor
 A case whose ledger has holes never reaches the scorer: the [event history](../../adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md) refuses it, so a scored sequence is incomplete only because its remaining events have not happened yet.
 A multi-party case is scored once for each vendor, from that vendor's own sequence, and [Benchmarking MPCVD](benchmarking_mpcvd.md#scoring-a-multi-party-case) describes how the case summarizes those scores.
 
-The [desiderata from the process models](process_model_desiderata.md) are scored in the same way, for each scope that they state.
-Each vendor's score also includes the report-handling desiderata and $\evF_i \prec \evExOwn$.
-The case gets one more score for the embargo group and one more for the multi-party group.
+The [desiderata from the process models](process_model_desiderata.md) are scored in the same way, in the scope of each vendor.
+A vendor's score has two parts.
+The end part holds the original twelve desiderata and the report-handling desiderata.
+The embargo part holds the embargo desiderata and $\evF_i \prec \evExOwn$.
+The case gets no score for a group of desiderata across its vendors.
+The multi-party desiderata are not in a vendor's score: $\evF_i \prec \evP$ is already the vendor's $\evF \prec \evP$, and $\evV_i \prec \evF_j$ is not used.
 
 The walk for these desiderata starts at the state of the case now, not at the start of the model.
-Each walk uses one vendor, or one pair of vendors for $\evV_i \prec \evF_j$, so the scorer never combines the sequences of two vendors.
+Each walk uses one vendor and the events of the case, so the scorer never combines the sequences of two vendors.
 A group of equivalent desiderata, such as $\evE \prec \evP$, $\evE \prec \evX$ and $\evE \prec \evA$, counts only once.
 A desideratum whose scope the case never enters counts as met: a report that is never validated does not lose the desiderata for valid reports.
 When a score adds up more than one walk, its best and worst scores are bounds, because the walks share the events of the case.
