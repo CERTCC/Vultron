@@ -25,9 +25,10 @@ recorded response pasted into a larger file, or wrapped in a per-case bundle,
 is still VINCE data, and so is a string value that itself parses as a JSON
 object or array: a recording tool (a HAR file, a cassette) keeps each
 response body as such a string, and a HAR ``content`` object may hold it
-base64-encoded beside ``"encoding": "base64"``, which is decoded first. The ``csaf/`` read has no signature, because a CSAF
-document from VINCE has the same keys as any other CSAF document, and the
-shadow does not read it (crosswalk § Not read).
+base64-encoded beside ``"encoding": "base64"``, which is decoded first.
+The ``csaf/`` read has no signature, because a CSAF document from VINCE
+has the same keys as any other CSAF document, and the shadow does not read
+it (crosswalk § Not read).
 
 A signature is all or nothing: an object missing one of its signature's
 keys is not recognised. The signatures name only keys every response of
