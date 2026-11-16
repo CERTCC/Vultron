@@ -111,13 +111,13 @@ def message_text(node: ast.Call) -> str:
     )
     if len(node.args) <= position:
         return ""
-    first = node.args[position]
-    if isinstance(first, ast.Constant) and isinstance(first.value, str):
-        return first.value
-    if isinstance(first, ast.JoinedStr):
+    message = node.args[position]
+    if isinstance(message, ast.Constant) and isinstance(message.value, str):
+        return message.value
+    if isinstance(message, ast.JoinedStr):
         return "".join(
             part.value
-            for part in first.values
+            for part in message.values
             if isinstance(part, ast.Constant) and isinstance(part.value, str)
         )
     return ""

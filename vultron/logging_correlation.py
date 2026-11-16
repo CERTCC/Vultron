@@ -51,7 +51,8 @@ from vultron.primitives import require_non_empty
 DEFAULT_LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
 
 #: One context variable per correlation field, keyed by the record attribute
-#: it fills.  The one place the field names are spelled.
+#: it fills.  The one place the fields and their print order are defined;
+#: :func:`correlation_context` maps its keyword parameters onto these keys.
 _CONTEXT_VARS: dict[str, ContextVar[str | None]] = {
     name: ContextVar(f"vultron_log_{name}", default=None)
     for name in ("activity_id", "actor_id")
