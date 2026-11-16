@@ -464,6 +464,34 @@ def test_an_act_naming_its_case_refuses_a_reference_to_another_type() -> None:
         type(join).model_validate(body)
 
 
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.spec("MV-10-012")
+def test_a_case_reference_carrying_a_preview_is_no_case_reference() -> None:
+    """A case reference is exactly a case's ``id`` and ``type`` (ADR-0165).
+
+    One that also carries the case's preview is a previewed reference
+    (ADR-0205): an act on a case may not name the case by it, and the
+    receiver's case-reference exceptions do not apply to it.
+    """
+    previewed = as_TypedReference.model_validate(
+        {
+            "id": CASE_ID,
+            "type": "VulnerabilityCase",
+            "preview": {
+                "type": "VulnerabilityCaseStub",
+                "id": f"{CASE_ID}/stub",
+                "caseId": CASE_ID,
+                "summary": "A remote code execution vulnerability.",
+            },
+        }
+    )
+
+    assert not is_case_reference(previewed)
+    assert is_case_reference(
+        as_TypedReference(type_="VulnerabilityCase", id_=CASE_ID)
+    )
+
+
 @pytest.mark.spec("MV-10-011")
 def test_a_reference_in_a_slot_needing_the_whole_object_says_so() -> None:
     """A slot that admits only a whole object refuses a reference, and the
