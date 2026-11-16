@@ -1,6 +1,5 @@
 """Use cases for vulnerability case activities."""
 
-import logging
 from typing import ClassVar
 
 from vultron.core.behaviors.case.create_case_received_tree import (
@@ -27,8 +26,6 @@ from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-
-logger = logging.getLogger(__name__)
 
 
 class CreateCaseReceivedUseCase:

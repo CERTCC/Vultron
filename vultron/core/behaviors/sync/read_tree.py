@@ -6,14 +6,13 @@ case's ledger up to the entry it names (ADR-0155).  The tree here answers it
 at the CASE_MANAGER; ``state_positions_tree`` sends one (SYNC-17-007).
 """
 
-import py_trees
-
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.sender_check_context import SenderCheckContext
@@ -39,7 +38,7 @@ def create_read_log_entry_tree(
     *,
     sender_id: str,
     sender_rule: SenderRule,
-) -> py_trees.composites.Sequence:
+) -> ReceivedActivityTree:
     """Create the BT for inbound ``Read(CaseLedgerEntry)`` handling.
 
     The answer is the one a ``Reject(CaseLedgerEntry)`` gets, composed from

@@ -130,24 +130,55 @@ def _is_tree_run_call(node: ast.Call) -> bool:
     ) or (isinstance(func, ast.Name) and func.id in _TREE_RUN_CALLEES)
 
 
-def _is_returned_refusal(node: ast.AST) -> bool:
-    """True for ``return HandlerResult.refused(...)``.
+def _is_refusal_call(node: ast.AST, handler_result: frozenset[str]) -> bool:
+    """True for ``<HandlerResult>.refused(...)``, under any name it is bound to.
 
-    The verdict a use case decides in Python rather than reads from the run
-    of its tree (ADR-0195).  A refusal a nested reader function returns is
-    not in the walk's own scope, so it is not seen here.
+    *handler_result* holds the names ``HandlerResult`` is spelled by in the
+    module: its own and any ``import ... as`` alias.
     """
-    if not isinstance(node, ast.Return) or not isinstance(
-        node.value, ast.Call
-    ):
+    if not isinstance(node, ast.Call):
         return False
-    func = node.value.func
+    func = node.func
     return (
         isinstance(func, ast.Attribute)
         and func.attr == "refused"
         and isinstance(func.value, ast.Name)
-        and func.value.id == "HandlerResult"
+        and func.value.id in handler_result
     )
+
+
+def _returned_refusals(
+    func: _FunctionDef, handler_result: frozenset[str]
+) -> Iterator[ast.Return]:
+    """Each ``return`` in *func*'s own scope that returns a refusal.
+
+    The verdict a use case decides in Python rather than reads from the run
+    of its tree (ADR-0195).  Seen: ``return HandlerResult.refused(...)``; a
+    conditional expression with one in either branch; and a name the same
+    scope bound to one, then returned.  A refusal a nested reader function
+    returns is the reader's, outside this scope, so it is not seen.
+    """
+    bound = {
+        target.id
+        for node in _walk_own_scope(func)
+        if isinstance(node, ast.Assign)
+        and _is_refusal_call(node.value, handler_result)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+
+    def refuses(value: ast.expr | None) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, ast.IfExp):
+            return refuses(value.body) or refuses(value.orelse)
+        if isinstance(value, ast.Name):
+            return value.id in bound
+        return _is_refusal_call(value, handler_result)
+
+    for node in _walk_own_scope(func):
+        if isinstance(node, ast.Return) and refuses(node.value):
+            yield node
 
 
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:
@@ -378,13 +409,23 @@ class _UseCaseCorpus:
         module, _, func, _ = step
         found = {
             f"{module}:{node.lineno}"
-            for node in _walk_own_scope(func)
-            if isinstance(node, ast.Return) and _is_returned_refusal(node)
+            for node in _returned_refusals(func, self._handler_result(module))
         }
         for _, callee in self._calls(step):
             if callee is not None and callee[3] not in seen:
                 found |= self._refusals_reached(callee, seen)
         return found
+
+    def _handler_result(self, module: str) -> frozenset[str]:
+        """The names *module* spells ``HandlerResult`` by."""
+        aliases = {
+            local
+            for local, (_, name) in self._modules[
+                module
+            ].imported_names.items()
+            if name == "HandlerResult"
+        }
+        return frozenset({"HandlerResult", *aliases})
 
     def _executes(self, module: str) -> Iterator[tuple[str, _Step]]:
         """``(class, step)`` for each class in *module* with an ``execute()``."""

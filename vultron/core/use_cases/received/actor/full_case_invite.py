@@ -8,7 +8,6 @@ reply whose position is behind the Invite's floor, or names an entry its
 ledger does not hold (CM-11-012).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
@@ -39,8 +38,6 @@ from vultron.core.states.rm import RM
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
-
-logger = logging.getLogger(__name__)
 
 
 class InviteActorToFullCaseReceivedUseCase:

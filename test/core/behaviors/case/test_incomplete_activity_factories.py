@@ -338,6 +338,7 @@ def _incomplete_guards(
     return [n for n in tree.iterate() if isinstance(n, ActivityIncompleteNode)]
 
 
+@pytest.mark.spec("CLP-10-007")
 @pytest.mark.spec("CLP-10-018")
 @pytest.mark.parametrize(
     ("factory", "kwargs", "missing", "absent", "reason"), _cases()
@@ -354,6 +355,7 @@ def test_a_missing_field_gets_the_incomplete_activity_guard(
     assert [g.reason for g in guards] == [reason]
 
 
+@pytest.mark.spec("CLP-10-007")
 @pytest.mark.spec("CLP-10-018")
 @pytest.mark.parametrize(
     ("factory", "kwargs", "missing", "absent", "reason"), _cases()

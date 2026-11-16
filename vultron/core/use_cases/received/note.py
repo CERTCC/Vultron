@@ -1,6 +1,5 @@
 """Use cases for case note activities."""
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.case.received_run import run_received_tree
@@ -26,8 +25,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class AddNoteToCaseReceivedUseCase:

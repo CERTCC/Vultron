@@ -8,7 +8,6 @@ The case owner's activation of an embargo is
 (:mod:`.owner_decision`, ADR-0180).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -34,8 +33,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:

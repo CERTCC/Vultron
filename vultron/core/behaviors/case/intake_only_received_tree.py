@@ -38,19 +38,18 @@ tree the delivery runs (CLP-10-005, ADR-0135) and the activity is still
 archived (CLP-10-018).
 """
 
-import py_trees
-
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
     ActivityIncompleteNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
     create_receive_activity_tree,
 )
 
 
 def create_intake_only_received_tree(
     name: str,
-) -> py_trees.composites.Sequence:
+) -> ReceivedActivityTree:
     """Build the intake-only tree.
 
     Args:
@@ -67,7 +66,7 @@ def create_intake_only_received_tree(
 def create_incomplete_activity_received_tree(
     name: str,
     reason: str,
-) -> py_trees.composites.Sequence:
+) -> ReceivedActivityTree:
     """Build the tree that records an incomplete activity and refuses it.
 
     Doors (post-close guard among them) → intake → ``ActivityIncompleteNode``:

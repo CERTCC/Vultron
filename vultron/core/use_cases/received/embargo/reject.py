@@ -4,7 +4,6 @@ The case owner's rejection of a proposal for the case is
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`, ADR-0122).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -28,8 +27,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:

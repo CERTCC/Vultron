@@ -2194,7 +2194,11 @@ groups:
     verification: Inspection of every `execute()` method in `vultron/core/use_cases/received/`
       confirms that domain-significant operations are expressed as BT nodes within
       the single tree-factory function and that no procedural domain logic appears
-      directly in `execute()`.
+      directly in `execute()`. `test/architecture/test_received_use_case_execute.py`
+      fails when a received `execute()` that runs a tree returns
+      `HandlerResult.refused(...)` itself or through a use-case helper it reaches,
+      with no exemption set, so a missing field is refused by the tree's
+      incomplete-activity guard (CLP-10-018).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-005

@@ -28,7 +28,6 @@ Who may act is decided in the tree (BT-17-001) and reported by the handler
 of a copy refuses at the tree's addressee door guard (#3752).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.case.received_run import (
@@ -58,8 +57,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class OfferCaseParticipantReceivedUseCase:

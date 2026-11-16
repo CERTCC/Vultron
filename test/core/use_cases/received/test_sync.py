@@ -1031,16 +1031,33 @@ class TestAnnounceLedgerEntryDisposition:
         )
 
     @pytest.mark.spec("HP-01-003")
-    def test_missing_log_entry_is_refused(self, dl):
-        event = AnnounceLogEntryReceivedEvent(
-            activity_id="urn:uuid:no-entry",
-            actor_id=ACTOR_URI,
-            receiving_actor_id=RECEIVER_URI,
+    @pytest.mark.spec("CLP-10-018")
+    def test_missing_log_entry_is_refused(self, dl, genesis_entry):
+        """The tree's incomplete-activity guard refuses an Announce with no
+        entry: nothing is committed, and no pending assertion is cleared,
+        since the Announce confirms none (SYNC-11-003, #6493)."""
+        event = self._make_event(genesis_entry).model_copy(
+            update={"object_": None}
+        )
+        assert event.log_entry is None
+        pending = MagicMock(spec=PendingAssertionStore)
+
+        result = run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                pending_assertions=pending,
+            )
         )
 
-        result = self._run(dl, event)
-
         assert result.disposition == HandlerDisposition.REFUSED
+        assert (
+            result.reason == "Announce(CaseLedgerEntry) carries no log entry"
+        )
+        assert pending.method_calls == []
+        assert dl.list_objects("CaseLedgerEntry") == []
 
     @pytest.mark.spec("HP-01-003")
     def test_chain_extending_entry_is_applied(self, dl, genesis_entry):

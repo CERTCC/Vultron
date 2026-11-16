@@ -20,7 +20,7 @@ question of every received use case that runs a tree, over the same
 transitive walk the CLP-10-005 and CLP-10-020 ratchets use
 (:mod:`test.architecture._use_case_call_graph`).
 
-- **No refusal before the tree runs (CLP-10-018).**  An activity that lacks
+- **No refusal before the tree runs (CLP-10-007, CLP-10-018).**  An activity that lacks
   a value its tree needs (its inline object, the case it names) is refused
   by the tree's incomplete-activity guard
   (``create_incomplete_activity_received_tree``), so the doors run and
@@ -57,7 +57,7 @@ def _received_refusals(corpus: _UseCaseCorpus) -> dict[str, list[str]]:
     return found
 
 
-@pytest.mark.spec("CLP-10-018")
+@pytest.mark.spec("CLP-10-007")
 def test_no_received_execute_refuses_before_its_tree_runs() -> None:
     """No received ``execute()`` that runs a tree returns a refusal itself."""
     refusals = _received_refusals(build_use_case_corpus())
@@ -139,6 +139,39 @@ _UC = "vultron.core.use_cases.received.synthetic.UC"
             "        return run_received_tree(t)\n",
             True,
             id="refusal-in-a-self-method",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        no = HandlerResult.refused('no case')\n"
+            "        if self._r.case_id is None:\n"
+            "            return no\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="assigned-then-returned",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        return (\n"
+            "            HandlerResult.refused('no case')\n"
+            "            if self._r.case_id is None\n"
+            "            else run_received_tree(t)\n"
+            "        )\n",
+            True,
+            id="conditional-expression",
+        ),
+        pytest.param(
+            "from vultron.core.models.use_case_result import (\n"
+            "    HandlerResult as HR,\n"
+            ")\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        if self._r.case_id is None:\n"
+            "            return HR.refused('no case')\n"
+            "        return run_received_tree(t)\n",
+            True,
+            id="aliased-import",
         ),
         pytest.param(
             "class UC:\n"
