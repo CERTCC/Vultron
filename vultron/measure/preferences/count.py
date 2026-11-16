@@ -16,7 +16,10 @@
 :class:`~vultron.measure.history.CaseEventHistory`, never the ledger: the
 invitations, answers and timeouts are its consent events, the revisions its
 embargo starts, and the case's close its ``CASE_CLOSED`` event.
-``docs/topics/measuring_cvd/reward_functions.md`` defines each count.
+``docs/topics/measuring_cvd/reward_functions.md`` defines the measures.  Two
+it describes are not computed here, because the history records no
+proposal event: the count of revision proposals the Case Owner did not
+activate, and the split of the revisions by proposer.
 """
 
 from __future__ import annotations
@@ -50,9 +53,12 @@ def _closed_out(timeout: CaseEvent, close: CaseEvent | None) -> bool:
     """Whether the Case Owner's close timed *timeout* out before its RSVP
     deadline (CM-23-014).
 
-    The close's sweep follows the close entry.  An Invite whose deadline is
-    at or before the close's commit stamp had already lapsed, since expiry
-    is evaluated lazily (CM-28-007), so it timed out at its deadline.
+    The close's sweep follows the close entry, so a timeout before it is
+    never the close's.  An Invite whose deadline is at or before the close's
+    commit stamp had already lapsed, since expiry is evaluated lazily
+    (CM-28-007), so it timed out at its deadline.  A timeout whose deadline
+    the history lost, as a merge can, is read as the close's when it follows
+    the close: nothing shows the deadline had passed.
     """
     return (
         close is not None
@@ -149,6 +155,8 @@ def _duration(
     if not starts:
         return EmbargoDuration(undefined=DurationUndefined.NO_EMBARGO)
     start = starts[0]
+    # An exit before any start ends an embargo whose start the input lacks,
+    # as a merge missing the activation does; it is not this one's end.
     exit_ = next(
         (
             e
@@ -201,9 +209,7 @@ def path_preferences(history: CaseEventHistory) -> PathPreferences:
     """
     closes = history.of_kind(_K.CASE_CLOSED)
     close = closes[0] if closes else None
-    participants = dict.fromkeys(
-        e.participant for e in history.events if e.participant is not None
-    )
+    participants = history.participants()
     default_replaced, revisions = _revisions(history.of_kind(_K.EMBARGO_START))
     counts = PathPreferences(
         case_id=history.case_id,

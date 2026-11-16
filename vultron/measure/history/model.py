@@ -349,6 +349,14 @@ class CaseEventHistory(BaseModel):
         """The events that belong to *participant*, in history order."""
         return [e for e in self.events if e.participant == participant]
 
+    def participants(self) -> list[str]:
+        """Every participant an event names, in the order it first does."""
+        return list(
+            dict.fromkeys(
+                e.participant for e in self.events if e.participant is not None
+            )
+        )
+
 
 class CaseEventHistories(BaseModel):
     """The event history of every case in the ledger files a caller named.

@@ -39,8 +39,16 @@ from test.measure.history.builders import (
     stamp,
     status,
 )
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo.recordings.layout import recording_path
-from vultron.measure.history import read_case_event_histories
+from vultron.measure.history import (
+    CaseEvent,
+    CaseEventHistory,
+    EventKind,
+    read_case_event_histories,
+)
+from vultron.measure.ledger import LedgerSource
 from vultron.measure.preferences import (
     DurationUndefined,
     EmbargoDuration,
@@ -351,11 +359,56 @@ def test_every_fix_ready_before_the_embargo_started_has_no_ratio():
     assert duration.ratio is None
 
 
-def test_a_duration_states_a_ratio_or_why_not():
-    with pytest.raises(ValidationError, match="start, an end and a last fix"):
-        EmbargoDuration(start=_at(1))
-    with pytest.raises(ValidationError, match="after its start"):
-        EmbargoDuration(start=_at(5), end=_at(9), last_fix=_at(5))
+_U = DurationUndefined
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"start": _at(1)}, "with a ratio has end"),
+        (
+            {"start": _at(5), "end": _at(9), "last_fix": _at(5)},
+            "last fix after its start",
+        ),
+        ({"undefined": _U.NO_EMBARGO, "start": _at(1)}, "has no start"),
+        (
+            {"undefined": _U.NOT_ENDED, "start": _at(1), "end": _at(3)},
+            "has no end",
+        ),
+        (
+            {
+                "undefined": _U.NOT_ENDED,
+                "start": _at(1),
+                "vendors_without_fix": (VENDOR,),
+            },
+            "names no vendor without a fix",
+        ),
+        ({"undefined": _U.FIX_PENDING, "start": _at(1)}, "has end"),
+        (
+            {
+                "undefined": _U.NO_FIX,
+                "start": _at(1),
+                "end": _at(3),
+                "last_fix": _at(2),
+            },
+            "has no last fix",
+        ),
+        (
+            {
+                "undefined": _U.FIXES_BEFORE_EMBARGO,
+                "start": _at(1),
+                "end": _at(3),
+                "last_fix": _at(2),
+            },
+            "all ready before",
+        ),
+    ],
+)
+def test_a_duration_holds_exactly_the_times_its_reason_implies(
+    fields, message
+):
+    with pytest.raises(ValidationError, match=message):
+        EmbargoDuration(**fields)
 
 
 def test_a_participant_is_counted_once():
@@ -381,3 +434,99 @@ def test_a_recorded_revision_replaces_the_default_and_is_answered():
     vendor = _of(counts, "http://actor1:7999/api/v2/actors/actor1")
     assert (vendor.answered, vendor.timed_out) == (1, 0)
     assert counts.case.duration.ratio is not None
+
+
+def test_a_vendor_whose_report_never_reached_valid_is_not_waited_for():
+    """Only a vendor whose report reached Valid holds the ratio back, or is
+    named without a fix.  Indices: 0 genesis, 1 the aware vendor, 2 and 3
+    the fixed vendor (fix at second 7), 4 the exit (second 9)."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    seat_vendor(ledger, VENDOR, "Vf")
+    _valid_vendor(ledger, VENDOR_2, fixed=True)
+    _exit(ledger)
+    assert _counts(ledger).case.duration.ratio == Fraction(9 - 1, 7 - 1)
+    ledger.leave(OWNER)
+    assert _counts(ledger).case.duration.vendors_without_fix == ()
+
+
+def _event(kind: EventKind, index: int, **fields: object) -> CaseEvent:
+    return CaseEvent.model_validate(
+        {
+            "kind": kind,
+            "semantic_type": MessageSemantics.UPDATE_EMBARGO_CONSENT,
+            "log_index": index,
+            "committed_at": _at(index),
+            **fields,
+        }
+    )
+
+
+def _history(*events: CaseEvent) -> CaseEventHistory:
+    return CaseEventHistory(
+        case_id="urn:uuid:case-1",
+        source=LedgerSource.COMPLETE_COPY,
+        end_confirmed=True,
+        events=list(events),
+    )
+
+
+def test_a_timeout_before_the_close_is_never_the_closes():
+    """Even with its deadline after the close: the close's sweep follows it."""
+    history = _history(
+        _event(
+            EventKind.CONSENT_INVITED,
+            1,
+            participant=VENDOR,
+            embargo_id=EMBARGO_2,
+            rsvp_deadline=_at(9),
+        ),
+        _event(
+            EventKind.CONSENT_TIMED_OUT,
+            2,
+            participant=VENDOR,
+            embargo_id=EMBARGO_2,
+            deadline=_at(9),
+        ),
+        _event(EventKind.CASE_CLOSED, 3),
+    )
+    vendor = _of(path_preferences(history), VENDOR)
+    assert (vendor.timed_out, vendor.timed_out_by_close) == (1, 0)
+
+
+def test_a_timeout_after_the_close_with_no_deadline_is_the_closes():
+    """A merge can lose the deadline; nothing then shows it had passed."""
+    history = _history(
+        _event(
+            EventKind.CONSENT_INVITED,
+            1,
+            participant=VENDOR,
+            embargo_id=EMBARGO_2,
+            rsvp_deadline=_at(9),
+        ),
+        _event(EventKind.CASE_CLOSED, 2),
+        _event(
+            EventKind.CONSENT_TIMED_OUT,
+            3,
+            participant=VENDOR,
+            embargo_id=EMBARGO_2,
+        ),
+    )
+    vendor = _of(path_preferences(history), VENDOR)
+    assert (vendor.timed_out, vendor.timed_out_by_close) == (0, 1)
+
+
+def test_an_exit_before_the_first_start_is_not_its_end():
+    """A merge missing an activation can hold an exit with no start."""
+    history = _history(
+        _event(
+            EventKind.EMBARGO_EXIT,
+            1,
+            embargo_id=EMBARGO,
+            exit_reason=TerminationReason.EARLY,
+        ),
+        _event(EventKind.EMBARGO_START, 2, embargo_id=EMBARGO_2),
+    )
+    duration = path_preferences(history).case.duration
+    assert duration.undefined is DurationUndefined.NOT_ENDED
+    assert duration.start == _at(2)

@@ -603,6 +603,23 @@ def test_an_embargo_invite_is_an_event_carrying_its_rsvp_deadline():
 
 
 @pytest.mark.spec("CEH-04-017")
+def test_a_row_invited_again_with_no_deadline_keeps_none_from_before():
+    """A new invitation takes its own deadline, never the earlier one."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.invite(VENDOR, EMBARGO_2, stamp(4))
+    ledger.time_out(VENDOR, EMBARGO_2)
+    ledger.add(
+        "update_embargo_consent",
+        "Update",
+        CM,
+        consent(VENDOR, "INVITED", EMBARGO_2),
+    )
+    (invitation,) = ledger.history().of_kind(EventKind.CONSENT_INVITED)
+    assert invitation.rsvp_deadline == datetime.fromisoformat(stamp(4))
+
+
+@pytest.mark.spec("CEH-04-017")
 def test_a_stub_invites_row_is_no_invitation_event():
     """A stub Invite's ``INVITED`` row carries no RSVP deadline (CM-23-014)."""
     ledger = Ledger()

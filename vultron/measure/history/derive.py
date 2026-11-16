@@ -21,9 +21,11 @@ an event for each state it moves forward, nothing for a state already reached
 CEH-04-016).  A status is identified by its ``id``, so a snapshot that carries
 a participant's whole status list re-reports nothing it already recorded.
 
-Joining, embargo start and exit, and consent answers move no status
-dimension, so they come from the entry's **semantic type and carried object**
-(CEH-04-005, CEH-04-010).  ``notes/case-event-history.md`` gives the reasoning.
+Joining, embargo start and exit, consent answers and the Case Owner's close
+of the case move no status dimension, so they come from the entry's
+**semantic type and carried object** (CEH-04-005, CEH-04-010, CEH-04-018).
+An embargo invitation comes from a carried consent row that newly reads
+``INVITED`` with an RSVP deadline (CEH-04-017).  ``notes/case-event-history.md`` gives the reasoning.
 
 An inert participant — one the CASE_MANAGER seated when it sent a stub Invite
 (CM-11-006) — has not joined, so its seated state is not yet a case event.
@@ -198,6 +200,12 @@ class _Participant:
     #: Events recorded while inert, emitted when the participant joins.
     held: list[CaseEventKind] = field(default_factory=list)
 
+    @property
+    def current_roles(self) -> set[str]:
+        """Its case roles as the latest record stating them names, or every
+        role its records name when none does."""
+        return self.roles if self.case_roles is None else self.case_roles
+
 
 @dataclass
 class _Deriver:
@@ -350,10 +358,7 @@ class _Deriver:
         tracker = self.participants.get(context.actor or "")
         if self.closed or tracker is None:
             return
-        roles = (
-            tracker.roles if tracker.case_roles is None else tracker.case_roles
-        )
-        if _CASE_OWNER not in roles:
+        if _CASE_OWNER not in tracker.current_roles:
             return
         self.closed = True
         self.events.append(context.event(EventKind.CASE_CLOSED))
@@ -826,13 +831,7 @@ def _reached(deriver: _Deriver) -> ReachedState:
             ReachedParticipant(
                 participant=tracker.actor,
                 rm=tracker.rm,
-                roles=tuple(
-                    sorted(
-                        tracker.roles
-                        if tracker.case_roles is None
-                        else tracker.case_roles
-                    )
-                ),
+                roles=tuple(sorted(tracker.current_roles)),
                 joined=tracker.joined,
             )
             for tracker in deriver.participants.values()

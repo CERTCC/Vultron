@@ -94,6 +94,48 @@ class DurationUndefined(StrEnum):
     FIXES_BEFORE_EMBARGO = "fixes_before_embargo"
 
 
+#: The times each reason, or a ratio (``None``), implies: ``True`` present,
+#: ``False`` absent, ``None`` either.
+_TIMES_NEEDED: dict[DurationUndefined | None, dict[str, bool | None]] = {
+    None: {"start": True, "end": True, "last fix": True},
+    DurationUndefined.NO_EMBARGO: {
+        "start": False,
+        "end": False,
+        "last fix": False,
+    },
+    DurationUndefined.NOT_ENDED: {
+        "start": True,
+        "end": False,
+        "last fix": None,
+    },
+    DurationUndefined.FIX_PENDING: {
+        "start": True,
+        "end": True,
+        "last fix": None,
+    },
+    DurationUndefined.NO_FIX: {"start": True, "end": True, "last fix": False},
+    DurationUndefined.FIXES_BEFORE_EMBARGO: {
+        "start": True,
+        "end": True,
+        "last fix": True,
+    },
+}
+
+#: The reasons read before the case's vendors are, so none names a vendor
+#: without a fix: a vendor lacks one only once the case has closed.
+_BEFORE_THE_LAST_FIX = frozenset(
+    {
+        DurationUndefined.NO_EMBARGO,
+        DurationUndefined.NOT_ENDED,
+        DurationUndefined.FIX_PENDING,
+    }
+)
+
+
+def _named(reason: DurationUndefined | None) -> str:
+    return "with a ratio" if reason is None else f"undefined as {reason}"
+
+
 class EmbargoDuration(BaseModel):
     """The embargo's duration against the time until the last fix.
 
@@ -124,16 +166,38 @@ class EmbargoDuration(BaseModel):
 
     @model_validator(mode="after")
     def _a_ratio_or_why_not(self) -> EmbargoDuration:
-        if self.undefined is not None:
-            return self
-        if self.start is None or self.end is None or self.last_fix is None:
-            raise ValueError(
-                "a duration with a ratio has a start, an end and a last fix"
+        """Each reason, or the ratio, holds exactly the times it implies."""
+        problems: list[str] = []
+        reason = self.undefined
+        has = {
+            "start": self.start is not None,
+            "end": self.end is not None,
+            "last fix": self.last_fix is not None,
+        }
+        needs = _TIMES_NEEDED[reason]
+        problems.extend(
+            f"a duration {_named(reason)} {'has' if need else 'has no'} {name}"
+            for name, need in needs.items()
+            if need is not None and has[name] != need
+        )
+        if self.vendors_without_fix and reason in _BEFORE_THE_LAST_FIX:
+            problems.append(
+                f"a duration {_named(reason)} names no vendor without a fix"
             )
-        if self.last_fix <= self.start:
-            raise ValueError(
-                "a duration with a ratio has its last fix after its start"
-            )
+        if not problems and has["last fix"] and has["start"]:
+            assert self.last_fix is not None and self.start is not None
+            after = self.last_fix > self.start
+            if reason is None and not after:
+                problems.append(
+                    "a duration with a ratio has its last fix after its start"
+                )
+            if reason is DurationUndefined.FIXES_BEFORE_EMBARGO and after:
+                problems.append(
+                    "a duration whose fixes were all ready before the"
+                    " embargo has no last fix after its start"
+                )
+        if problems:
+            raise ValueError("; ".join(problems))
         return self
 
     @computed_field  # type: ignore[prop-decorator]

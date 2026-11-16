@@ -78,7 +78,7 @@ When the Case Owner closes the case, the CASE_MANAGER times out every invitation
 These `Update(EmbargoConsent)` entries come after the case-close entry in the ledger.
 Some of these invitations were already past their RSVP deadline, because the CASE_MANAGER times out an invitation only when it next reads the consent rows (CM-28-007).
 Thus the measure compares the RSVP deadline of each invitation with the commit stamp of the case-close entry.
-An invitation whose deadline is before the close counts as a deadline timeout.
+An invitation whose deadline is at or before the close counts as a deadline timeout.
 An invitation whose deadline is after the close is not counted, because the participant still had time to answer it.
 
 The ratio also does not count an invitation that stays at `INVITED` because its embargo was rejected, canceled, replaced, or ended before the participant answered.

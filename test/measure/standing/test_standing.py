@@ -59,7 +59,13 @@ from vultron.measure.ledger import (
     first_present,
     read_case_ledgers,
 )
-from vultron.measure.preferences import path_preferences
+from vultron.measure.preferences import (
+    CasePathCounts,
+    DurationUndefined,
+    EmbargoDuration,
+    PathPreferences,
+    path_preferences,
+)
 from vultron.measure.scoring import (
     met_desiderata,
     score_case,
@@ -370,6 +376,27 @@ def test_a_record_holds_a_reading_or_its_gap():
         StandingRecord(case_id="c", end_confirmed=False, gap=gap, case=case)
     with pytest.raises(ValidationError, match="holds the case's standing"):
         StandingRecord(case_id="c", end_confirmed=False)
+    counts = PathPreferences(
+        case_id="c",
+        case=CasePathCounts(
+            duration=EmbargoDuration(undefined=DurationUndefined.NO_EMBARGO)
+        ),
+    )
+    with pytest.raises(ValidationError, match="holds no reading"):
+        StandingRecord(
+            case_id="c", end_confirmed=False, gap=gap, path_preferences=counts
+        )
+    with pytest.raises(ValidationError, match="its path preferences"):
+        StandingRecord(case_id="c", end_confirmed=False, case=case)
+    assert (
+        StandingRecord(
+            case_id="c",
+            end_confirmed=False,
+            case=case,
+            path_preferences=counts,
+        ).path_preferences
+        == counts
+    )
 
 
 def test_a_participant_is_scored_or_says_why_not():
