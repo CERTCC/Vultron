@@ -146,15 +146,16 @@ def test_the_two_sides_are_the_merge_base_and_the_head_commit() -> None:
     assert (
         checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha }}"
     )
-    # Full history, or `git merge-base` has nothing to resolve against.
-    assert checkout["with"]["fetch-depth"] == 0
+    # A shallow checkout: the worktree step deepens it only to the merge base
+    # (#6535), rather than fetching every branch's history.
+    assert "fetch-depth" not in checkout["with"]
     # The merge base, not the base branch's tip: a tip that moved ahead would
     # attribute main's own verdict changes to this pull request. Asserted as
     # whole lines, because `git worktree add … "origin/${BASE_REF}"` — the
     # base-tip inversion this job exists to avoid — satisfies a pair of
     # substring checks for "git merge-base" and "git worktree add".
     assert (
-        'base_sha="$(git merge-base "origin/${BASE_REF}" HEAD)"'
+        'base_sha="$(bash .github/scripts/fetch-merge-base.sh "${BASE_REF}")"'
         in (worktree["run"])
     )
     assert (

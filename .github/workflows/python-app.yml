@@ -207,12 +207,11 @@ jobs:
               --ignore=test/wire
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Full history: the PR-only growth guards in test/architecture/
-          # compare against the merge base with origin/$GITHUB_BASE_REF and
-          # skip when a shallow clone has none (SR-05-005, MS-12-007, #4315).
-          fetch-depth: 0
-          fetch-tags: true
+      # The PR-only growth guards in test/architecture/ compare against the
+      # merge base with origin/$GITHUB_BASE_REF and skip when the checkout has
+      # none (SR-05-005, MS-12-007, #4315). Fetch only that, not every
+      # branch's history; a push has no base and fetches nothing (#6535).
+      - uses: ./.github/actions/fetch-merge-base
       - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
@@ -283,8 +282,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          fetch-tags: true
+          # `uv build` stamps the version from the nearest release tag
+          # (setuptools-scm), which needs history and tags. Only a push's
+          # artifact keeps that version; a pull request's build only proves
+          # the package builds, so it takes the default one-commit checkout
+          # and the fallback version (#6535).
+          fetch-depth: ${{ github.event_name == 'pull_request' && 1 || 0 }}
+          fetch-tags: ${{ github.event_name != 'pull_request' }}
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Build package

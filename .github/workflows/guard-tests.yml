@@ -53,13 +53,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Full history: the pull-request-only growth guards here (the line
-          # length ratchet, the AGENTS.md size ratchet) compare against the
-          # merge base with origin/$GITHUB_BASE_REF and skip when a shallow
-          # clone has none (SR-05-005, MS-12-007, #4315).
-          fetch-depth: 0
-          fetch-tags: true
+      # The pull-request-only growth guards here (the line length ratchet, the
+      # AGENTS.md size ratchet) compare against the merge base with
+      # origin/$GITHUB_BASE_REF and skip when the checkout has none
+      # (SR-05-005, MS-12-007, #4315). Fetch only that, not every branch's
+      # history (#6535).
+      - uses: ./.github/actions/fetch-merge-base
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Run the guard tests

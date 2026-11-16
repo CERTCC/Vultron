@@ -1,0 +1,27 @@
+name: Fetch the merge base
+description: >
+  On a pull request, fetch the base branch and deepen the shallow checkout
+  until `git merge-base origin/<base> HEAD` resolves, so a check that compares
+  against the merge base runs without `fetch-depth: 0`. That full fetch takes
+  every branch's history and every tag, and a hung one was cancelled by the
+  job cap with no test run (#6535, #6390). Each fetch here is bounded by a
+  timeout and retried. With no base ref (a push or a schedule) it does nothing,
+  because those events have no merge base to compare against.
+
+inputs:
+  base-ref:
+    description: >
+      The base branch name. Defaults to the pull request's base; empty skips
+      the step.
+    required: false
+    default: ${{ github.base_ref }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch the base branch to the merge base
+      if: inputs.base-ref != ''
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+      run: bash .github/scripts/fetch-merge-base.sh "$BASE_REF"

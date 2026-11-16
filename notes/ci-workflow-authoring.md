@@ -23,8 +23,9 @@ description: >
   has no concurrency group and never judges a cancelled run over a survivor,
   how to read the red checks its log names, why the ruleset requiring the gate
   admits no bypass actor, why a new pull-request check is verified on later
-  pull requests rather than its own, and why a conflicting pull request starts
-  no workflow at all.
+  pull requests rather than its own, why a conflicting pull request starts
+  no workflow at all, and why a pull-request check fetches the merge base
+  rather than the whole history.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -196,6 +197,20 @@ other steps, so a capped step still needs a job cap.
 A job that calls a reusable workflow (`uses: ./.github/workflows/...`) cannot
 carry `timeout-minutes`; GitHub rejects the key there. Cap the called
 workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
+
+## A Pull-Request Check Fetches the Merge Base, Not the Whole History
+
+A job that compares against the merge base with the base branch keeps the
+default one-commit checkout and adds `uses: ./.github/actions/fetch-merge-base`
+right after it, or calls `.github/scripts/fetch-merge-base.sh <base>` when the
+step needs the merge-base commit itself. Do not set `fetch-depth: 0` on a
+pull-request checkout: it fetches every branch's history and every tag, and when
+that fetch hangs the job cap cancels it before any test runs, which turns the
+`CI gate` red (#6535). The script deepens only as far as the merge base, under a
+timeout and a retry. `test/ci/test_fetch_merge_base.py` fails a pull-request
+workflow with a literal `fetch-depth: 0`. The release, publish and tag
+workflows keep full history because they read it, and so does the shared
+`build-site` action, whose build must match the publish build (DOCBW-06-004).
 
 ## A Split Test Job Derives Its Last Part From the Others' Claims
 
