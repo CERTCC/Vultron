@@ -9,6 +9,7 @@ import pytest
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.generated_files import serialize_json, stale_paths
+from vultron.metadata.git_runner import GitError
 from vultron.metadata.vince_data import check as check_module
 from vultron.metadata.vince_data.check import (
     check,
@@ -357,3 +358,24 @@ def test_main_check_reports_and_exits(
     assert "docs/recorded.json" in capsys.readouterr().err
     (root / "docs" / "recorded.json").unlink()
     assert check_module.main(["check"]) == 0
+
+
+def test_main_fails_when_git_cannot_list_the_tree(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def no_git(root: Path) -> list[str]:
+        raise GitError("cannot run git: not found")
+
+    monkeypatch.setattr(check_module, "tracked_json_files", no_git)
+    assert check_module.main(["check"]) == 1
+    assert "cannot run git" in capsys.readouterr().err
+
+
+def test_main_generate_writes_the_fixtures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(check_module, "repo_root", lambda: tmp_path)
+    assert check_module.main(["generate"]) == 0
+    assert _GENERATED_PATH in capsys.readouterr().out
