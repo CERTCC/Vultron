@@ -48,7 +48,11 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models.base import ValidatedAssignmentMixin
+from vultron.core.models.base import (
+    PropertyValueKind,
+    ValidatedAssignmentMixin,
+    vultron_property,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.primitives import NormalisedActorId
@@ -103,16 +107,35 @@ _FROZEN = ConfigDict(
 )
 
 
+#: The Vultron property ``kind`` every termination cause carries, declared
+#: once so the four causes give it one meaning (VM-10-012).
+CAUSE_KIND_PROPERTY = vultron_property(
+    "The kind of an embargo's early-termination cause: THREAT_SIGNAL, "
+    "FIX_READY, FIX_DEPLOYED or OTHER",
+    PropertyValueKind.PLAIN,
+)
+
+
 class ThreatSignalCause(ValidatedAssignmentMixin, BaseModel):
     """The embargo ended early because the case carries P, X or A."""
 
     model_config = _FROZEN
 
-    kind: Literal[TerminationCauseKind.THREAT_SIGNAL] = (
-        TerminationCauseKind.THREAT_SIGNAL
+    kind: Literal[TerminationCauseKind.THREAT_SIGNAL] = Field(
+        default=TerminationCauseKind.THREAT_SIGNAL,
+        json_schema_extra=CAUSE_KIND_PROPERTY,
     )
     #: The signals set when the embargo ended, in ``P``, ``X``, ``A`` order.
-    signals: list[ThreatSignal] = Field(min_length=1)
+    signals: list[ThreatSignal] = Field(
+        min_length=1,
+        json_schema_extra=vultron_property(
+            (
+                "The threat signals (P, X, A) set on a case when its embargo "
+                "ended"
+            ),
+            PropertyValueKind.SET,
+        ),
+    )
 
     @model_validator(mode="after")
     def _signals_are_distinct_and_ordered(self) -> ThreatSignalCause:
@@ -137,13 +160,24 @@ class FixReadyCause(ValidatedAssignmentMixin, BaseModel):
 
     model_config = _FROZEN
 
-    kind: Literal[TerminationCauseKind.FIX_READY] = (
-        TerminationCauseKind.FIX_READY
+    kind: Literal[TerminationCauseKind.FIX_READY] = Field(
+        default=TerminationCauseKind.FIX_READY,
+        json_schema_extra=CAUSE_KIND_PROPERTY,
     )
     #: The actor IDs of the vendors whose readiness made the quorum
     #: (VP-09-007); at least one, each named once, in its normalised
     #: spelling (OID-01-006), so one vendor has one form.
-    vendors: list[NormalisedActorId] = Field(min_length=1)
+    vendors: list[NormalisedActorId] = Field(
+        min_length=1,
+        json_schema_extra=vultron_property(
+            (
+                "The ids of the vendors whose readiness to fix made the "
+                "quorum that ended an embargo"
+            ),
+            PropertyValueKind.SET,
+            items=PropertyValueKind.IRI,
+        ),
+    )
 
     @model_validator(mode="after")
     def _vendors_are_distinct(self) -> FixReadyCause:
@@ -168,8 +202,9 @@ class FixDeployedCause(ValidatedAssignmentMixin, BaseModel):
 
     model_config = _FROZEN
 
-    kind: Literal[TerminationCauseKind.FIX_DEPLOYED] = (
-        TerminationCauseKind.FIX_DEPLOYED
+    kind: Literal[TerminationCauseKind.FIX_DEPLOYED] = Field(
+        default=TerminationCauseKind.FIX_DEPLOYED,
+        json_schema_extra=CAUSE_KIND_PROPERTY,
     )
 
 
@@ -181,7 +216,10 @@ class OtherCause(ValidatedAssignmentMixin, BaseModel):
 
     model_config = _FROZEN
 
-    kind: Literal[TerminationCauseKind.OTHER] = TerminationCauseKind.OTHER
+    kind: Literal[TerminationCauseKind.OTHER] = Field(
+        default=TerminationCauseKind.OTHER,
+        json_schema_extra=CAUSE_KIND_PROPERTY,
+    )
 
 
 #: The structured why of a termination: one model per kind, discriminated on
@@ -206,7 +244,16 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
     model_config = _FROZEN
 
     reason: TerminationReason
-    cause: TerminationCause | None = None
+    cause: TerminationCause | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            (
+                "Why an embargo ended early: an object whose kind names the "
+                "cause"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
 
     @model_validator(mode="after")
     def _cause_fits_reason(self) -> EmbargoTermination:

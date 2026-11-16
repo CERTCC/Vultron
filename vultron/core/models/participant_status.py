@@ -25,8 +25,13 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
+from vultron.core.models.case_status import CASE_STATUS_PROPERTY, CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     RmDimension,
@@ -104,21 +109,65 @@ class ParticipantStatus(CoreObject):
         default_factory=RmDimension,
         validation_alias=AliasChoices("rmState", "rm"),
         serialization_alias="rmState",
+        json_schema_extra=vultron_property(
+            "A participant's Report Management (RM) state in a case",
+            PropertyValueKind.PLAIN,
+        ),
     )
     vf: VfDimension | None = Field(
         default=None,
         validation_alias=AliasChoices("vfState", "vf"),
         serialization_alias="vfState",
+        json_schema_extra=vultron_property(
+            (
+                "A vendor participant's vendor-awareness and fix-readiness "
+                "(V, F) dimensions of the Case State (CS), as one state name"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
     d: DDimension | None = Field(
         default=None,
         validation_alias=AliasChoices("dState", "d"),
         serialization_alias="dState",
+        json_schema_extra=vultron_property(
+            (
+                "A deployer participant's fix-deployed (D) dimension of the "
+                "Case State (CS)"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
     )
-    case_engagement: bool = True
-    cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
-    tracking_id: NonEmptyString | None = None
-    case_status: CaseStatus | None = None
+    case_engagement: bool = Field(
+        default=True,
+        json_schema_extra=vultron_property(
+            "Whether a participant reports itself engaged in a case",
+            PropertyValueKind.PLAIN,
+        ),
+    )
+    cvd_role: list[CVDRole] = Field(
+        default_factory=lambda: [CVDRole.OBSERVER],
+        json_schema_extra=vultron_property(
+            (
+                "The CVD roles a participant status reports its participant "
+                "holding in the case"
+            ),
+            PropertyValueKind.SET,
+        ),
+    )
+    tracking_id: NonEmptyString | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            (
+                "A participant's own tracking identifier for a case, such as "
+                "its internal ticket number"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
+    case_status: CaseStatus | None = Field(
+        default=None, json_schema_extra=CASE_STATUS_PROPERTY
+    )
 
     previous_rm_state: RM | None = Field(
         default=None,

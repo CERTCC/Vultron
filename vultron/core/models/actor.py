@@ -22,7 +22,12 @@ from typing import Any, Literal, Self, TypeAlias, TypedDict
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from vultron.core.models._helpers import is_empty
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    PropertyValueKind,
+    vultron_property,
+)
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
 from vultron.core.models.multikey import Multikey
@@ -108,6 +113,13 @@ class CoreActor(CoreObject):
         description=(
             "The actor's published embargo policy, carried inline as part of"
             " the profile (EP-01-001)."
+        ),
+        json_schema_extra=vultron_property(
+            (
+                "The embargo policy an actor publishes in its profile: an "
+                "EmbargoPolicy object"
+            ),
+            PropertyValueKind.PLAIN,
         ),
     )
 

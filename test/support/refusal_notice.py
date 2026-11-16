@@ -14,9 +14,10 @@
 """Read the refusal notice a CASE_MANAGER queued for a refused activity.
 
 When a precondition guard at the CASE_MANAGER refuses an assertion, the
-CASE_MANAGER queues one ``Reject`` of it to the asserter (CLP-02-005,
-CLP-05-001).  Its id is derived from the CASE_MANAGER and the refused
-activity, so a test finds it from those two alone and checks its shape.
+CASE_MANAGER queues one ``Refuse`` of it to the asserter, sealed as
+``"type": ["Refuse", "Reject"]`` (CLP-02-005, CLP-05-001, ADR-0196).  Its
+id is derived from the CASE_MANAGER and the refused activity, so a test
+finds it from those two alone and checks its shape.
 """
 
 from typing import Any
@@ -24,6 +25,10 @@ from typing import Any
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+
+#: The ``type`` a sealed refusal notice carries: ``Refuse``, then the AS2
+#: type it refines (VM-03-005).
+REFUSAL_NOTICE_WIRE_TYPE = ["Refuse", "Reject"]
 
 
 def refusal_notice_id(manager: str, refused_id: str) -> str:
@@ -42,7 +47,7 @@ def assert_refusal_notice(
 ) -> dict[str, Any]:
     """Assert *manager* queued one refusal notice of *refused_id*.
 
-    The notice is a ``Reject`` of the refused activity, inline, threaded by
+    The notice is a ``Refuse`` of the refused activity, inline, threaded by
     ``inReplyTo``, addressed to *asserter* alone, about *case_id*, with the
     refusing guard's reason in ``summary``; *reason* must appear in it
     (CLP-05-001).
@@ -56,7 +61,7 @@ def assert_refusal_notice(
     )
     body = read_sealed_body_dict(dl, notice_id)
     assert body is not None, f"'{notice_id}' was never sealed"
-    assert body["type"] == "Reject"
+    assert body["type"] == REFUSAL_NOTICE_WIRE_TYPE
     assert body["actor"] == manager
     assert body["to"] == [asserter]
     assert body["context"] == case_id

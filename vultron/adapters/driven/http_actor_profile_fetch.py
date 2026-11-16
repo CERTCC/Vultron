@@ -53,6 +53,7 @@ from vultron.errors import (
     VultronActorProfileFetchError,
     VultronValidationError,
 )
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 
 #: The AS2 actor type that parses without the profile's keys.
 GENERIC_ACTOR_TYPE = "Actor"
@@ -233,7 +234,11 @@ class HttpActorProfileFetchAdapter:
                 f"fetching the profile of {actor_id!r} failed after"
                 f" {result.attempts} attempt(s): {result.failure}"
             )
-        if result.body.get("type") == GENERIC_ACTOR_TYPE:
+        # Through the shared resolver: a peer may send a type list (ADR-0196).
+        if (
+            resolved_wire_type_name(result.body.get("type"))
+            == GENERIC_ACTOR_TYPE
+        ):
             raise VultronActorProfileFetchError(
                 f"the profile of {actor_id!r} is typed"
                 f" {GENERIC_ACTOR_TYPE!r}, which this receiver reads without"

@@ -48,6 +48,7 @@ from test.architecture._vocab_example_corpus import (
 )
 from test.support.objects import authored_at, make
 from test.support.signatures import signature_of
+from vultron.core.models.type_terms import names_type
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -620,7 +621,7 @@ _INTRODUCING_EXAMPLES: dict[str, dict[str, Any]] = {
         (name, wire_body(activity))
         for name, activity in activity_examples().items()
     )
-    if body.get("type") in _INTRODUCING_TYPES
+    if names_type(body.get("type"), _INTRODUCING_TYPES)
 }
 
 

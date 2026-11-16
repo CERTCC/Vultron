@@ -29,7 +29,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from vultron.core.display import friendly_name
+from vultron.core.models.type_terms import body_type_terms, names_type
 from vultron.measure.ledger.fields import payload_of
+
+#: The participant record's type, as a set for :func:`names_type`.
+_PARTICIPANT_TYPE: frozenset[str] = frozenset({"CaseParticipant"})
 
 #: ActivityStreams actor types whose ``name`` field, when present, maps the
 #: ``id`` to a human-readable display name (e.g. "Vendor", "Reporter").
@@ -66,7 +70,7 @@ def _collect_actor_names_from_obj(
     obj_id = obj.get("id") or obj.get("id_")
     obj_name = obj.get("name")
     if (
-        obj_type in _NAME_BEARING_TYPES
+        names_type(obj_type, _NAME_BEARING_TYPES)
         and obj_id
         and obj_name
         and isinstance(obj_id, str)
@@ -115,7 +119,7 @@ def _collect_participant_actors_from_obj(
     obj_id = obj.get("id") or obj.get("id_")
     actor = obj.get("attributedTo") or obj.get("attributed_to")
     if (
-        obj_type == "CaseParticipant"
+        names_type(obj_type, _PARTICIPANT_TYPE)
         and isinstance(obj_id, str)
         and isinstance(actor, str)
         and obj_id
@@ -327,9 +331,11 @@ def _ref_and_type(value: object) -> tuple[str | None, str | None]:
     if not isinstance(value, dict):
         return None, None
     ref = value.get("id") or value.get("id_")
-    obj_type = value.get("type") or value.get("type_")
+    # A type list names its own type first (VM-03-005, ADR-0196).
+    terms = body_type_terms(value)
+    obj_type = terms[0] if terms else None
     # CaseParticipant is a proxy; use attributedTo for name resolution.
-    if obj_type == "CaseParticipant":
+    if "CaseParticipant" in terms:
         ref = value.get("attributedTo") or value.get("attributed_to") or ref
     return (
         str(ref) if ref else None,
@@ -348,10 +354,8 @@ def entry_references(payload: Mapping[str, Any]) -> EntryReferences:
     """
     raw_object = payload.get("object") or payload.get("object_")
     inner_target = None
-    while (
-        isinstance(raw_object, dict)
-        and (raw_object.get("type") or raw_object.get("type_"))
-        in WRAPPER_TYPES
+    while isinstance(raw_object, dict) and names_type(
+        raw_object.get("type") or raw_object.get("type_"), WRAPPER_TYPES
     ):
         inner_target = raw_object.get("target") or inner_target
         inner = raw_object.get("object") or raw_object.get("object_")

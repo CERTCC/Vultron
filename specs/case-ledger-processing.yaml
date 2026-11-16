@@ -172,14 +172,16 @@ groups:
       with its reason and the node that answers instead, and pins with a
       reason every received tree that commits nothing.
       `test/core/use_cases/received/test_refusal_notice.py` drives production
-      trees end to end: a refused RM regression and a refused `Add(Note)` at
-      the CASE_MANAGER each queue one `Reject` of the refused activity to its
-      sender and commit nothing of it, and a sender-guard refusal queues none.
+      trees end to end: `test_a_precondition_refusal_queues_one_refusal_notice`
+      asserts a refused `Accept` at the CASE_MANAGER queues one `Refuse` of it to
+      its sender and commits nothing of it, and
+      `test_a_sender_guard_refusal_queues_no_notice` asserts a sender-guard
+      refusal queues none.
     statement: >-
       When a precondition guard at the CASE_MANAGER refuses an incoming assertion, the
-      CASE_MANAGER MUST send a `Reject` protocol activity to the asserting participant
+      CASE_MANAGER MUST send a `Refuse` protocol activity to the asserting participant
       (CLP-05-001). The refusal itself is never written to the ledger (CLP-04-007). A
-      refusal at a door guard gets no `Reject` — the post-close boundary (CM-23-013),
+      refusal at a door guard gets no `Refuse` — the post-close boundary (CM-23-013),
       the addressee check (HP-01-005), the path stage (HP-01-039) or the closed-sender
       door (CM-23-018) — and neither does a refusal by the sender guard (HP-01-006).
     rationale: >-
@@ -192,6 +194,7 @@ groups:
     adr:
     - ADR-0131
     - ADR-0141
+    - ADR-0196
     stories:
     - story_2026_040
     relationships:
@@ -682,24 +685,31 @@ groups:
     priority: MUST
     kind: protocol
     verification: >-
-      `test/core/use_cases/received/test_refusal_notice.py` asserts that the factory
+      `test_a_precondition_refusal_queues_one_refusal_notice` and
+      `test_the_refusal_notice_embeds_the_refused_activity_as_received` in
+      `test/core/use_cases/received/test_refusal_notice.py` assert that the factory
       queues one notice of this shape on a precondition refusal at the CASE_MANAGER,
-      with the refused activity embedded as received, and that an event naming no
-      refused activity is refused at construction;
-      `test/wire/as2/test_refusal_notice_wire.py` asserts the notice carries the refused
-      activity inline.
+      with the refused activity embedded as received;
+      `test_the_notice_carries_the_refused_activity_inline`,
+      `test_the_notice_reads_back_as_a_refuse` and
+      `test_a_refuse_of_a_request_is_the_notice_and_its_reject_the_decline` in
+      `test/wire/as2/test_refusal_notice_wire.py` assert the notice is sent as
+      `["Refuse", "Reject"]` with the refused activity inline, reads back as a
+      `Refuse`, and reaches the refusal-notice use case for a refused `Invite` or
+      `Offer` while a participant's `Reject` of the same request reaches the decline.
     statement: >-
-      The refusal notice that CLP-02-005 requires MUST be a `Reject` whose object is the
+      The refusal notice that CLP-02-005 requires MUST be a `Refuse` whose object is the
       refused activity, inline. It names that activity's id in `inReplyTo`, is addressed
       to the asserting participant alone, and carries the refusing guard's reason in
-      `summary`.
+      `summary`. It is sent as `"type": ["Refuse", "Reject"]` (VM-03-005).
     rationale: >-
       A refused sender should learn that it was refused and why, and stop
       waiting for its assertion to be committed. One shape for every refused
       activity needs one emitter and one receiving use case (CS-22-001). A
-      `Reject` of an `Invite` or an `Offer` already means a decline, and a
-      decline and a refusal leave the sender in the same place, so the shapes
-      need not differ.
+      `Reject` of an `Invite` or an `Offer` already means a decline, so a
+      refusal of one needs its own type for the receiver to tell the two apart;
+      `Refuse` is a subtype of `Reject`, so a plain AS2 receiver still reads a
+      `Reject` (ADR-0196).
     note: >-
       The notice is the refusal's one answer. A refused `Add(CaseStatus)` or
       `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
@@ -708,11 +718,14 @@ groups:
       entry it cannot apply (RSH-09-006) is a different failure and stays.
     adr:
     - ADR-0141
+    - ADR-0196
     stories:
     - story_2026_040
     relationships:
     - rel_type: refines
       spec_id: CLP-02-005
+    - rel_type: uses_definition
+      spec_id: VM-03-005
   - id: CLP-05-004
     priority: MUST
     kind: protocol
@@ -831,18 +844,20 @@ groups:
       A participant MUST process the CASE_MANAGER's `Reject` of its own `Invite` or
       `Offer` as the decline of that request, which closes the pending entry.
     rationale: >-
-      A `Reject` of an `Invite` or an `Offer` has the same shape as a decline of that
-      request. A decline and a refusal leave the sender in the same place, because
-      either way the request had no effect, so the shapes need not differ.
+      A `Reject` is the CASE_MANAGER's own decision against the request, such as its
+      answer to an embargo Invite once P/X/A is set (EMB-01-002), so it is a decline.
+      The CASE_MANAGER's refusal of a request on a precondition is a `Refuse`
+      instead, which the refusal-notice use case reads (CLP-05-001, ADR-0196).
     verification: >-
-      `test_a_reject_of_an_invite_or_an_offer_is_not_the_notice` in
-      `test/wire/as2/test_refusal_notice_wire.py` asserts the notice's pattern takes no
-      `Reject` of an `Invite` or an `Offer`;
+      `test_a_refuse_of_a_request_is_the_notice_and_its_reject_the_decline` in
+      `test/wire/as2/test_refusal_notice_wire.py` asserts a `Reject` of an `Invite` or
+      an `Offer` reaches its decline semantics and not the refusal notice;
       `test_case_managers_reject_closes_the_pending_proposal` in
       `test/core/use_cases/received/test_pending_refusal.py` asserts the CASE_MANAGER's
       `Reject(Invite(EmbargoEvent))` closes the proposer's pending entry.
     adr:
     - ADR-0141
+    - ADR-0196
     stories:
     - story_2026_040
   - id: CLP-05-003

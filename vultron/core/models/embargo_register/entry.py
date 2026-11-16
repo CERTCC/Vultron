@@ -16,11 +16,16 @@
 
 from collections.abc import Sequence
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
+from vultron.core.models.base import (
+    NonEmptyString,
+    PropertyValueKind,
+    ValidatedAssignmentMixin,
+    vultron_property,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.embargo_register import (
@@ -55,10 +60,41 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
         frozen=True,
     )
 
-    embargo: NonEmptyString | EmbargoEvent
-    status: EmbargoRegisterStatus
-    replaces: NonEmptyString | None = None
-    termination: EmbargoTermination | None = None
+    embargo: NonEmptyString | EmbargoEvent = Field(
+        json_schema_extra=vultron_property(
+            (
+                "The embargo an embargo-register entry records: an "
+                "EmbargoEvent or its id"
+            ),
+            PropertyValueKind.IRI,
+        )
+    )
+    status: EmbargoRegisterStatus = Field(
+        json_schema_extra=vultron_property(
+            (
+                "The status of an embargo in its case's embargo register, "
+                "such as PROPOSED, ACTIVE or TERMINATED"
+            ),
+            PropertyValueKind.PLAIN,
+        )
+    )
+    replaces: NonEmptyString | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            "The id of the embargo that an activated revision replaced",
+            PropertyValueKind.IRI,
+        ),
+    )
+    termination: EmbargoTermination | None = Field(
+        default=None,
+        json_schema_extra=vultron_property(
+            (
+                "How a terminated embargo ended: an object that gives the "
+                "reason and, when recorded, its cause"
+            ),
+            PropertyValueKind.PLAIN,
+        ),
+    )
 
     @model_validator(mode="after")
     def _status_fields_agree(self) -> EmbargoRegisterEntry:

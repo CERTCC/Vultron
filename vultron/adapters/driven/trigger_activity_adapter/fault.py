@@ -139,7 +139,7 @@ class _FaultMixin:
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice (CLP-05-001).
 
-        A ``Reject`` of the refused activity, carried inline, threaded to it
+        A ``Refuse`` of the refused activity, carried inline, threaded to it
         by ``inReplyTo``, addressed to *asserter* alone, with *reason* in
         ``summary`` and the case, when given, in ``context``.  The id is
         derived from the CASE_MANAGER and the refused activity, so a retry

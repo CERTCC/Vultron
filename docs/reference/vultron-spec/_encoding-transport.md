@@ -27,6 +27,14 @@ Every Activity carries these fields:
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
+A Vultron type that refines an AS2 type is sent with that AS2 type too, as the list `["<Vultron type>", "<AS2 type>"]`, so an AS2 receiver that does not know the Vultron type still reads the AS2 type.
+A receiver reads a `type` list, in any order, as the most specific type it knows, and ignores a type name it does not know.
+It refuses a list that names two known types when neither is a subtype of the other, because it cannot tell which one the sender meant.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-03-005", "VM-03-006", "VM-03-007"))
+```
+
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
@@ -55,7 +63,7 @@ A message is therefore readable as ordinary JSON while remaining unambiguous abo
 
 An outbound message sets its top-level `@context` to a list of two URIs, in this order: the AS2 namespace, `https://www.w3.org/ns/activitystreams`, then the Vultron JSON-LD context document, `https://certcc.github.io/Vultron/ns/context.jsonld`.
 The AS2 URI comes first so that an AS2 receiver that does not process JSON-LD still finds it, as AS2 requires producers to provide.
-The Vultron context document declares every Vultron type name.
+The Vultron context document declares every Vultron type name and the Vultron properties, each typed by its value kind as the AS2 context types its own: a link as `"@type": "@id"`, a received document kept verbatim as `"@type": "@json"`, and an ordered array, unordered array or IRI-keyed map with `"@container"` set to `"@list"`, `"@set"` or `"@index"`.
 It also imports the AS2 namespace, but a receiver is not required to fetch it, so citing it alone would hide the AS2 reference from such a receiver.
 An object nested in an activity does not restate the `@context`, because a JSON-LD context applies to every object inside the document that declares it.
 An object a sender received from a peer and embeds as received keeps the `@context` it arrived with.

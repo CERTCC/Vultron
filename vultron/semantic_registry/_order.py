@@ -108,11 +108,10 @@ def _check_group_order(
 def _check_inline_activity_order(registry: list[SemanticEntry]) -> None:
     """Raise if an entry an inline-activity catch-all would shadow follows it.
 
-    An :class:`InlineActivityObjectPattern` matches every inline activity of
-    a verb it does not exclude, which the dump-subset comparison in
-    :func:`_check_group_order` cannot see.  So any later entry of the same
-    activity type whose object is a nested pattern of an included verb would
-    never be reached (SE-03-002).
+    An :class:`InlineActivityObjectPattern` matches every inline activity,
+    which the dump-subset comparison in :func:`_check_group_order` cannot
+    see.  So any later entry of the same activity type whose object is a
+    nested activity pattern would never be reached (SE-03-002).
 
     Raises:
         RegistryOrderError: When such an entry follows the catch-all.
@@ -121,14 +120,12 @@ def _check_inline_activity_order(registry: list[SemanticEntry]) -> None:
         catch_all = entry.pattern
         if not isinstance(catch_all, InlineActivityObjectPattern):
             continue
-        excluded = {str(v) for v in catch_all.excluded_object_verbs}
         for later in registry[idx + 1 :]:
             pattern = later.pattern
             if (
                 pattern is not None
                 and pattern.activity_ == catch_all.activity_
                 and isinstance(pattern.object_, ActivityPattern)
-                and str(pattern.object_.activity_) not in excluded
             ):
                 raise RegistryOrderError(
                     f"Registry ordering violation in"

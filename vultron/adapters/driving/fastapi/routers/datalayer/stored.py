@@ -37,6 +37,7 @@ from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronApplication,
     as_VultronGroup,
@@ -98,7 +99,11 @@ def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
         # delivery that routes it may still refuse it.
         and record.stage is ReceivedStage.ARCHIVED
         and record.received_body is not None
-        and json.loads(record.received_body).get("type") == _OFFER_TYPE
+        # As received: a peer may send a type list (ADR-0196).
+        and resolved_wire_type_name(
+            json.loads(record.received_body).get("type")
+        )
+        == _OFFER_TYPE
     }
 
 
