@@ -731,7 +731,7 @@ class TestNonOwnerLeaveReceivePath:
             and "CM-23-010" not in record.getMessage()
         ]
 
-    @pytest.mark.spec("CM-23-010", "CLP-05-001")
+    @pytest.mark.spec("CM-23-010", "CLP-05-001", "CLP-02-005")
     def test_a_case_manager_refusing_its_own_leave_sends_itself_no_notice(
         self, caplog: pytest.LogCaptureFixture
     ):
