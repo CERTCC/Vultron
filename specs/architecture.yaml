@@ -1216,8 +1216,10 @@ groups:
     verification: >-
       `test/metadata/test_ratchet_owner_close_guard.py::test_a_pull_request_job_checks_closed_ratchet_owners`
       requires a pull-request workflow that runs on a body edit and reads the ratchet
-      markers; it is a strict `xfail` until #6408 builds the job, whose own tests cover
-      a closed owner still cited.
+      markers. `test_a_closed_owner_still_cited_fails` in the same file runs
+      `ratchet-close-guard` over a scratch `test/` tree, and
+      `test/ci/test_ratchet_owner_close_guard_workflow.py` pins the workflow that runs
+      it.
     relationships:
     - rel_type: extends
       spec_id: ARCH-18-003

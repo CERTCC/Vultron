@@ -145,6 +145,29 @@ class _Body:
         return self.sections.get(name)
 
 
+def _line_closing_refs(line: str) -> list[str]:
+    """The closing references on one unfenced *line*, outside code spans."""
+    return _CLOSING_RE.findall(_CODE_SPAN_RE.sub("", line))
+
+
+def closing_references(text: str) -> list[str]:
+    """Every closing reference GitHub reads in body *text*, in order.
+
+    Each is the matched text, such as ``Closes #12`` or ``fixes:
+    CERTCC/Vultron#12``. A keyword inside an HTML comment, a fenced code block
+    or an inline code span is not one, as in :func:`_check_closing`. The
+    ratchet-owner close guard (:mod:`vultron.metadata.ratchet_close_guard`,
+    ARCH-18-012) reads a PR's closed issues through this.
+    """
+    body = _Body(text)
+    return [
+        ref
+        for line, fenced in zip(body.lines, body.fenced, strict=True)
+        if not fenced
+        for ref in _line_closing_refs(line)
+    ]
+
+
 def _check_closing(body: _Body) -> Iterator[Finding]:
     """PRB-01 and PRB-02."""
     in_opening = True
@@ -157,7 +180,7 @@ def _check_closing(body: _Body) -> Iterator[Finding]:
         if fenced:
             in_opening = False
             continue
-        refs = _CLOSING_RE.findall(_CODE_SPAN_RE.sub("", stripped))
+        refs = _line_closing_refs(stripped)
         if in_opening and refs:
             if len(refs) > 1 or not _CLOSES_BULLET_RE.match(stripped):
                 yield Finding(

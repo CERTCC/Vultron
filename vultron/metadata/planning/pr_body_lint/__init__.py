@@ -58,7 +58,11 @@ rules judge), ``facts`` (gathering a PR's facts from git and ``gh``),
 command line).
 """
 
-from vultron.metadata.planning.pr_body_lint.checks import Finding, lint_body
+from vultron.metadata.planning.pr_body_lint.checks import (
+    Finding,
+    closing_references,
+    lint_body,
+)
 from vultron.metadata.planning.pr_body_lint.cli import cli, main
 from vultron.metadata.planning.pr_body_lint.facts import (
     BodyFacts,
@@ -100,6 +104,7 @@ __all__ = [
     "TOOLING_PREFIXES",
     "amended_ids",
     "cli",
+    "closing_references",
     "is_maintainer_doc",
     "lint_body",
     "main",

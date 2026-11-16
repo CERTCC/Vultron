@@ -120,11 +120,11 @@ but not the gate leaves the gate's earlier verdict standing over a check that
 has since changed — and since the ruleset requires the gate and nothing else,
 a check turned red behind a green gate is a merge GitHub admits. So a `types:`
 list added to any `pull_request` workflow is added to `ci-gate.yml` too:
-`edited` for `verification-debt-owners.yml`, which reads the body, and
-`labeled`/`unlabeled` for `demo-verdict.yml`, whose verdict a label decides
-(#6026). `test/ci/test_ci_gate.py` compares the gate's list with every
-sibling's, defaulting an undeclared list to GitHub's `opened`, `synchronize`,
-`reopened`.
+`edited` for `verification-debt-owners.yml` and
+`ratchet-owner-close-guard.yml`, which read the body, and `labeled`/`unlabeled`
+for `demo-verdict.yml`, whose verdict a label decides (#6026).
+`test/ci/test_ci_gate.py` compares the gate's list with every sibling's,
+defaulting an undeclared list to GitHub's `opened`, `synchronize`, `reopened`.
 
 A red gate names what it judged, one `##[error]Red check: <name>: <conclusion>`
 line per red check, so the gate's own log says which check to open instead of
