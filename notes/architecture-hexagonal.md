@@ -194,9 +194,10 @@ enforced by `test/architecture/test_core_no_wire_imports.py` and
 **Connectors (`adapters/connectors/`)**
 
 - [ ] Plugins translate at boundaries only.
-- [ ] No case/business logic in connector modules: no import of use cases,
-  behaviors, services, participants, the case ledger or storage
-  (ARCH-05-002, `test/architecture/test_connector_boundaries.py`).
+- [ ] No case/business logic in connector modules: from `vultron`, a connector
+  imports only its package, its core ports, core models other than the case
+  ledger, errors and primitives (ARCH-05-002, an allow-list in
+  `test/architecture/test_connector_boundaries.py`).
 - [ ] No method, not even a raising stub, for a core port the connector lacks
   (ARCH-05-005).
 

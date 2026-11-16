@@ -29,7 +29,9 @@ plugin is not a :class:`~vultron.adapters.connectors.base.ConnectorPlugin`
 (no non-empty ``name``), or whose plugin implements no core port in
 :data:`~vultron.adapters.connectors.base.CONNECTOR_PORTS` (ARCH-05-006).
 It also refuses two entry points that share one name, because neither can
-then be chosen by it.  Each refusal names its entry point, and one
+then be chosen by it.  A caller that selects a connector, such as the
+case shadow, calls the loader once at its own start, so a bad package stops
+that start rather than a later case.  Each refusal names its entry point, and one
 :class:`ConnectorRefusedError` reports every refusal at once, so an operator
 fixes every bad package in one pass.
 
@@ -109,20 +111,23 @@ def _plugin_or_refusal(
     """Load and check one entry point's plugin, or say why it is refused."""
     described = _describe(entry_point)
     try:
-        plugin_class = entry_point.load()
-        plugin = plugin_class()
+        plugin = entry_point.load()()
+        name = getattr(plugin, "name", None)
+        ports = ports_implemented_by(plugin)
     except Exception as exc:
-        # Any error a third-party package raises refuses only its entry
-        # point; the traceback goes to the log for the operator.
-        logger.exception("Connector entry point %s failed to load", described)
+        # Third-party code (the import, the constructor, a ``name`` or port
+        # property) may raise anything; that refuses only its entry point.
+        # The traceback goes to the log, the refusal carries its summary.
+        logger.warning(
+            "Connector entry point %s failed to load", described, exc_info=True
+        )
         return ConnectorRefusal(
             entry_point=described,
             reason=(
-                "cannot be loaded and constructed:"
+                "cannot be loaded, constructed and checked:"
                 f" {type(exc).__name__}: {exc}"
             ),
         )
-    name = getattr(plugin, "name", None)
     if not isinstance(plugin, ConnectorPlugin) or not (
         isinstance(name, str) and name.strip()
     ):
@@ -132,7 +137,7 @@ def _plugin_or_refusal(
                 "is not a connector plugin: it has no non-empty string `name`"
             ),
         )
-    if not ports_implemented_by(plugin):
+    if not ports:
         return ConnectorRefusal(
             entry_point=described,
             reason=(
@@ -146,6 +151,11 @@ def load_connectors(
     found: Iterable[EntryPoint] | None = None,
 ) -> Mapping[str, ConnectorPlugin]:
     """Return every installed connector plugin, by its entry point's name.
+
+    Entry-point names are what an operator installs and chooses by, so two
+    entry points with one name are both refused.  Two plugins whose
+    ``name`` attributes match, under different entry-point names, are both
+    loaded: the ``name`` is for logs, and the key is the entry point's.
 
     Args:
         found: The entry points to load; by default, every entry point in

@@ -277,8 +277,8 @@ groups:
     verification: >-
       `test/adapters/connectors/test_loader.py` installs a fake distribution whose
       `entry_points.txt` declares `vultron.connectors` entry points and asserts
-      `load_connectors()` finds them through `importlib.metadata`, and that the
-      example connectors declare none.
+      `load_connectors()` finds them through `importlib.metadata`, and that neither
+      `pyproject.toml` nor any installed entry point names an example connector.
     statement: >-
       This codebase MUST discover connector plugins through Python entry points
       (`importlib.metadata`).
@@ -292,10 +292,11 @@ groups:
     priority: MUST
     kind: project
     verification: >-
-      `test/architecture/test_connector_boundaries.py` asserts no module under
-      `vultron/adapters/connectors/` imports use cases, behaviors, core services, the
-      dispatchers, participant authority, the hash-chained case ledger, or a storage
-      or delivery port or adapter, and that its check flags such an import.
+      `test/architecture/test_connector_boundaries.py` asserts every `vultron` module
+      a module under `vultron/adapters/connectors/` imports is on an allow-list (its
+      own package, the core ports in `CONNECTOR_PORTS`, core models other than the
+      hash-chained case ledger, errors, primitives), and that its check flags a use
+      case, behavior, sync helper, storage or delivery port, or other adapter import.
     statement: >-
       Connector plugins MUST translate only — no case handling logic, authorization, or
       case ledger management belongs in a connector.

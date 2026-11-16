@@ -27,10 +27,12 @@ Spec: ARCH-05-003, ARCH-05-006.
 
 from __future__ import annotations
 
+import logging
 import sys
 import textwrap
+import tomllib
 from collections.abc import Callable, Mapping
-from importlib.metadata import EntryPoint
+from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 from uuid import uuid4
 
@@ -76,6 +78,12 @@ _PLUGIN_SOURCE = textwrap.dedent(
         name = "name-only"
 
 
+    class RaisingName(Reader):
+        @property
+        def name(self):
+            raise RuntimeError("no name today")
+
+
     class NeedsArguments(Reader):
         def __init__(self, url):
             super().__init__()
@@ -86,7 +94,11 @@ Install = Callable[[Mapping[str, str]], str]
 
 
 @pytest.fixture
-def install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Install:
+def install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> Install:
     """Install a fake distribution declaring *entries* (name to target).
 
     A target ``:Class`` names a class in the distribution's own module.
@@ -109,7 +121,7 @@ def install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Install:
         ]
         (dist_info / "entry_points.txt").write_text("\n".join(lines) + "\n")
         monkeypatch.syspath_prepend(str(tmp_path))
-        monkeypatch.delitem(sys.modules, module, raising=False)
+        request.addfinalizer(lambda: sys.modules.pop(module, None))
         return module
 
     return _install
@@ -137,7 +149,17 @@ def test_the_loader_discovers_an_installed_entry_point(install: Install):
 
 @pytest.mark.spec("ARCH-05-003")
 def test_the_example_connectors_declare_no_entry_point():
-    assert load_connectors() == {}
+    pyproject = tomllib.loads(
+        (Path(__file__).parents[3] / "pyproject.toml").read_text()
+    )
+    declared = pyproject["project"].get("entry-points", {})
+    assert ENTRY_POINT_GROUP not in declared
+    example = "vultron.adapters.connectors.example"
+    assert not [
+        ep.name
+        for ep in entry_points(group=ENTRY_POINT_GROUP)
+        if ep.module == example or ep.module.startswith(example + ".")
+    ]
 
 
 def test_no_entry_points_load_no_connectors():
@@ -197,6 +219,32 @@ def test_one_refusal_refuses_the_whole_load_and_names_every_bad_entry(
     assert "TypeError" in refused["needs-args"]
 
 
+def test_a_plugin_whose_name_raises_is_refused_by_name(install: Install):
+    install({"raising": ":RaisingName"})
+
+    with pytest.raises(ConnectorRefusedError) as excinfo:
+        load_connectors()
+
+    assert "RuntimeError: no name today" in _refused(excinfo)["raising"]
+
+
+def test_a_load_failure_logs_its_traceback(
+    install: Install, caplog: pytest.LogCaptureFixture
+):
+    install({"needs-args": ":NeedsArguments"})
+
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(ConnectorRefusedError),
+    ):
+        load_connectors()
+
+    [record] = [r for r in caplog.records if "needs-args" in r.getMessage()]
+    assert record.levelno == logging.WARNING
+    assert record.exc_info is not None
+    assert record.exc_info[0] is TypeError
+
+
 def test_an_entry_point_whose_module_is_missing_is_refused_by_name():
     entry = EntryPoint(
         name="ghost",
@@ -236,3 +284,11 @@ def test_a_refused_load_is_a_configuration_fault():
 
     with pytest.raises(VultronConfigError):
         load_connectors([entry])
+
+
+def test_two_entry_points_with_one_plugin_name_both_load(install: Install):
+    install({"first": ":Reader", "second": ":Reader"})
+
+    plugins = load_connectors()
+
+    assert set(plugins) == {"first", "second"}
