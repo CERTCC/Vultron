@@ -137,7 +137,7 @@ A stub never overwrites a full case the recipient already holds ([MV-10-003](../
 | Normal protocol messages (Create, Accept, Announce) | Full inline object |
 | Inviting a participant before embargo acceptance | Case stub ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)) |
 | Case content already confirmed with recipient | Full inline object |
-| Privacy-sensitive fields must be withheld | Redacted object (a stub is permitted only for a case, [MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)) |
+| Privacy-sensitive fields must be withheld | A preview with each such field left out or marked `Redacted`; only a preview's field may carry the marker, and the case stub is the only preview ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001), [MV-12-002](../reference/vultron-spec/requirements/messages.md#mv-12-002)) |
 
 ### `None` is not the same as redacted
 

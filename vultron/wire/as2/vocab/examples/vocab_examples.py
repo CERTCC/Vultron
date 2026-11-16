@@ -151,6 +151,7 @@ from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     update_participant,
     vendor_participant,
 )
+from vultron.wire.as2.vocab.examples.redacted import redacted_marker
 from vultron.wire.as2.vocab.examples.report import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.report import (
     close_report,
@@ -305,6 +306,8 @@ EXAMPLES: tuple[tuple[Callable[[], BaseModel], str | None], ...] = (
     # fault reporting
     (create_processing_fault, None),
     (refusal_notice, None),
+    # the redaction marker a preview field may carry (ADR-0193)
+    (redacted_marker, None),
 )
 
 #: The inline objects written as files of their own, as
