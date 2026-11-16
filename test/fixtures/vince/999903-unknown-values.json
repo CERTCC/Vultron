@@ -1,0 +1,112 @@
+{
+  "synthetic": {
+    "producer": "generator"
+  },
+  "reads": {
+    "case": {
+      "vuid": "999903",
+      "created": "2026-01-05T14:00:00Z",
+      "status": "Pending",
+      "summary": "Synthetic case 999903: a made-up flaw in a made-up product, for tests only.",
+      "title": "Synthetic Widget flaw 999903",
+      "due_date": "2026-06-01T00:00:00Z",
+      "modified": "2026-02-20T09:30:00Z",
+      "pk": 9903
+    },
+    "posts": [
+      {
+        "created": "2026-02-05T08:00:00Z",
+        "author": {
+          "org": "Synthetic Vendor Zeta",
+          "active": true,
+          "name": "Zeta Responder",
+          "email": "zeta.responder@example.com"
+        },
+        "pinned": false,
+        "content": "One product is not affected."
+      }
+    ],
+    "report": {
+      "vendor_name": "Synthetic Vendor Alpha",
+      "product_name": "Synthetic Widget",
+      "product_version": "1.0",
+      "vul_description": "A made-up overflow in the widget's parser.",
+      "vul_exploit": "Send the widget an oversized synthetic header.",
+      "vul_impact": "The widget stops.",
+      "vul_discovery": "Reading synthetic source code.",
+      "vul_public": false,
+      "public_references": "",
+      "vul_exploited": false,
+      "exploit_references": "",
+      "vul_disclose": true,
+      "disclosure_plans": "Publish once the vendors are ready.",
+      "date_submitted": "2026-01-02T10:00:00Z",
+      "share_release": true,
+      "contact_name": "Synthetic Reporter",
+      "contact_phone": "+1-555-0100",
+      "contact_email": "reporter@example.org",
+      "contact_org": "Example Research Lab"
+    },
+    "vuls": [
+      {
+        "name": "VU#999903.1",
+        "cve": "CVE-2099-0003",
+        "description": "Synthetic flaw 1 of case 999903.",
+        "date_added": "2026-02-02T09:00:00Z"
+      },
+      {
+        "name": "VU#999903.2",
+        "cve": "CVE-2099-0004",
+        "description": "Synthetic flaw 2 of case 999903.",
+        "date_added": "2026-02-02T09:00:00Z"
+      }
+    ],
+    "vendors": [
+      {
+        "vendor": "Synthetic Vendor Epsilon",
+        "status": "Unknown",
+        "statement": "Synthetic Vendor Epsilon reviewed the synthetic report.",
+        "references": "https://example.com/vendor-notes",
+        "date_added": "2026-02-02T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": "2026-02-10T12:00:00Z"
+      },
+      {
+        "vendor": "Synthetic Vendor Zeta",
+        "status": "Unknown",
+        "statement": "Synthetic Vendor Zeta reviewed the synthetic report.",
+        "references": "https://example.com/vendor-notes",
+        "date_added": "2026-02-02T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": "2026-02-05T12:00:00Z"
+      }
+    ],
+    "vendors/vuls": [
+      {
+        "vulnerability": "VU#999903.1",
+        "vendor": "Synthetic Vendor Epsilon",
+        "status": "Fixed",
+        "statement": "Synthetic Vendor Epsilon marked VU#999903.1 Fixed.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-02-10T12:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999903.1",
+        "vendor": "Synthetic Vendor Zeta",
+        "status": "Not Affected",
+        "statement": "Synthetic Vendor Zeta marked VU#999903.1 Not Affected.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-02-05T12:00:00Z"
+      },
+      {
+        "vulnerability": "VU#999903.2",
+        "vendor": "Synthetic Vendor Zeta",
+        "status": "Unknown",
+        "statement": "",
+        "references": "",
+        "statement_date": "2026-02-02T09:00:00Z"
+      }
+    ],
+    "note": null
+  }
+}

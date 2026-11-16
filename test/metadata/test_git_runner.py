@@ -17,7 +17,7 @@ from vultron.metadata.specs.backstop import BackstopError, run_git
 ROOT = Path("/repo")
 
 
-def _returning(code: int, out: str = "", err: str = "", seen=None):
+def _returning(code: int, out: bytes = b"", err: bytes = b"", seen=None):
     def run(args, **kwargs):
         if seen is not None:
             seen.update(kwargs, args=args)
@@ -39,16 +39,24 @@ class TestGitRunner:
     ):
         seen: dict[str, object] = {}
         monkeypatch.setattr(
-            git_runner.subprocess, "run", _returning(0, "out\n", seen=seen)
+            git_runner.subprocess,
+            "run",
+            _returning(0, b"out\xff\n", seen=seen),
         )
-        assert git_runner.git_runner(ROOT)(["status"]) == "out\n"
+        assert git_runner.git_runner(ROOT)(["status"]) == "out\ufffd\n"
         assert seen["args"] == ["git", "status"]
         assert seen["cwd"] == ROOT
-        assert (seen["encoding"], seen["errors"]) == ("utf-8", "replace")
+
+    def test_the_bytes_runner_keeps_undecodable_bytes(self, monkeypatch):
+        monkeypatch.setattr(
+            git_runner.subprocess, "run", _returning(0, b"out\xff\n")
+        )
+        run = git_runner.git_bytes_runner(ROOT)
+        assert run(["cat-file", "blob", "HEAD:x"]) == b"out\xff\n"
 
     def test_a_failure_carries_the_command_and_stderr(self, monkeypatch):
         monkeypatch.setattr(
-            git_runner.subprocess, "run", _returning(128, err="fatal: bad\n")
+            git_runner.subprocess, "run", _returning(128, err=b"fatal: bad\n")
         )
         with pytest.raises(GitError, match=r"^git blame x: fatal: bad$"):
             git_runner.git_runner(ROOT)(["blame", "x"])

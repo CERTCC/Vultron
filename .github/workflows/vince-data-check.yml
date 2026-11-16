@@ -1,0 +1,52 @@
+# The committed-data check, on every pull request, whatever it changed
+# (VSD-02-001 to VSD-02-005, ADR-0189).
+#
+# `uv run vince-data check` reads every tracked JSON file and refuses one that
+# holds a VINCE API response unless it lies in test/fixtures/vince/ and is
+# either synthetic (marked, and vouched for by the generator or the sanitizer)
+# or from a case id on the committed cleared-case list. It fails on an empty
+# target set. `--history` also reads every file each of the pull request's own
+# commits added or changed: git keeps a commit's content after a later commit
+# deletes it, and main merges with merge commits, so the final tree alone
+# would let a response added and then removed reach main's history. The
+# pre-commit hook `vince-data-check` runs the tree check on each commit.
+#
+# No `paths` filter, on purpose: a recorded response can arrive in any file,
+# so the check's input is the whole tracked tree, and the `CI gate` passes a
+# skipped check (PAD-18-031, notes/ci-workflow-authoring.md).
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to main or a schedule. Every merge into `main`
+# passes through a pull request this job gated.
+
+name: "VINCE Data Check"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vince-data:
+    name: VINCE data check (VSD-02)
+    runs-on: ubuntu-latest
+    # The check takes a few seconds; the cap keeps a hang from holding a
+    # runner for GitHub's 6-h default (TB-14-006).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: --history walks origin/<base>..HEAD.
+          fetch-depth: 0
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check committed VINCE data
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: uv run vince-data check --history "origin/$BASE_REF"
