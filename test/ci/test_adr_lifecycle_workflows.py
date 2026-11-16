@@ -77,9 +77,9 @@ def test_edit_check_has_the_history_it_needs_and_no_write_scope():
         for i, s in enumerate(steps)
         if s.get("uses", "").startswith("actions/checkout")
     )
-    # The merge base, fetched by the shared action rather than by a
-    # full-history checkout (#6390).
-    assert "fetch-depth" not in (steps[at].get("with") or {})
+    # The merge commit and its first parent, which the shared action makes
+    # the base, rather than a full-history checkout (#6390).
+    assert steps[at]["with"]["fetch-depth"] == 2
     assert steps[at + 1].get("uses") == "./.github/actions/fetch-merge-base"
 
 

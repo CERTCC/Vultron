@@ -69,6 +69,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its parents: the first parent is the base.
+          fetch-depth: 2
       # The PR-only growth guards compare against the merge base with
       # origin/$GITHUB_BASE_REF and skip without it (#4315). Fetch only that,
       # not every branch's history; a push fetches nothing (#6535).

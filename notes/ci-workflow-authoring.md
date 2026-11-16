@@ -200,17 +200,20 @@ workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
 
 ## A Pull-Request Check Fetches the Merge Base, Not the Whole History
 
-A job that compares against the merge base with the base branch keeps the
-default one-commit checkout and adds `uses: ./.github/actions/fetch-merge-base`
-right after it, or calls `.github/scripts/fetch-merge-base.sh <base>` when the
-step needs the merge-base commit itself. Do not set `fetch-depth: 0` on a
-pull-request checkout: it fetches every branch's history and every tag, and when
-that fetch hangs the job cap cancels it before any test runs, which turns the
-`CI gate` red (#6535). The script deepens only as far as the merge base, under a
-timeout and a retry. `test/ci/test_fetch_merge_base.py` fails a pull-request
-workflow with a literal `fetch-depth: 0`. The release, publish and tag
-workflows keep full history because they read it, and so does the shared
-`build-site` action, whose build must match the publish build (DOCBW-06-004).
+A pull-request checkout is GitHub's merge commit, whose first parent is the base
+tip it merged against, so a job that diffs against the base checks out with
+`fetch-depth: 2` and adds `uses: ./.github/actions/fetch-merge-base` right after
+it; the action points `origin/<base>` at that parent and fetches nothing. A job
+that checks out the head commit itself, or reads every branch commit rather
+than the diff, calls `.github/scripts/fetch-merge-base.sh <base>`, which
+deepens only as far as the real merge base, under a timeout and a retry. Do not
+set `fetch-depth: 0` on a pull-request checkout: it fetches every branch's
+history and every tag, and when that fetch hangs the job cap cancels it before
+any test runs, which turns the `CI gate` red (#6535).
+`test/ci/test_fetch_merge_base.py` fails a pull-request workflow with a literal
+`fetch-depth: 0`. The release, publish and tag workflows keep full history
+because they read it, and so does the shared `build-site` action, whose build
+must match the publish build (DOCBW-06-004).
 
 ## A Split Test Job Derives Its Last Part From the Others' Claims
 

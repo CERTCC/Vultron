@@ -83,9 +83,10 @@ def test_no_pull_request_checkout_fetches_the_whole_history(
 def test_a_merge_base_job_fetches_the_merge_base_after_checkout(
     workflow: str, job_name: str
 ) -> None:
+    """Depth 2 holds GitHub's merge commit and its first parent, the base."""
     job = load_workflow(WORKFLOWS_DIR / workflow)["jobs"][job_name]
     (at, checkout), *_ = _checkouts(job)
-    assert "fetch-depth" not in (checkout.get("with") or {})
+    assert checkout["with"]["fetch-depth"] == 2
     assert job["steps"][at + 1].get("uses") == ACTION
 
 
@@ -103,12 +104,20 @@ def test_the_build_job_fetches_history_only_on_a_push() -> None:
     )
 
 
-def test_the_action_runs_the_script_and_skips_without_a_base() -> None:
+def _action_step() -> dict[str, Any]:
     action = load_workflow(
         REPO_ROOT / ".github/actions/fetch-merge-base/action.yml"
     )
     assert action["inputs"]["base-ref"]["default"] == "${{ github.base_ref }}"
     (step,) = action["runs"]["steps"]
+    assert isinstance(step, dict)
+    return step
+
+
+def test_the_action_skips_without_a_base_and_falls_back_to_the_script() -> (
+    None
+):
+    step = _action_step()
     assert step["if"] == "inputs.base-ref != ''"
     assert ".github/scripts/fetch-merge-base.sh" in step["run"]
 
@@ -201,9 +210,9 @@ def test_it_finds_the_merge_base_without_unshallowing(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == fork
-    # The fork commit, not main's tip, and still a shallow checkout.
+    # The fork commit, not main's tip, found by deepening alone.
     assert _git(clone, "rev-parse", "origin/main") != fork
-    assert _git(clone, "rev-parse", "--is-shallow-repository") == "true"
+    assert "fetching the full history" not in result.stderr
 
 
 @pytest.mark.usefixtures("isolated_git")
@@ -244,3 +253,46 @@ def test_it_refuses_a_missing_base() -> None:
     )
     assert result.returncode == 2
     assert "usage" in result.stderr
+
+
+@pytest.mark.usefixtures("isolated_git")
+def test_the_action_takes_a_merge_commits_first_parent_as_the_base(
+    tmp_path: Path,
+) -> None:
+    """GitHub's pull-request checkout, at depth 2, needs no fetch at all."""
+    bare, _ = _origin(tmp_path, fork_at=30, main_after=4)
+    seed = tmp_path / "seed"
+    main_tip = _git(seed, "rev-parse", "main")
+    # The commit GitHub synthesizes: the base tip merged with the PR head.
+    _git(
+        seed,
+        "merge",
+        "-q",
+        "--no-ff",
+        "-X",
+        "theirs",
+        "-m",
+        "Merge feature",
+        "feature",
+    )
+    _git(seed, "push", "-q", str(bare), "main:refs/pull/1/merge")
+    clone = tmp_path / "pr-checkout"
+    clone.mkdir()
+    _git(clone, "init", "-q")
+    _git(clone, "remote", "add", "origin", f"file://{bare}")
+    _git(clone, "fetch", "-q", "--depth=2", "origin", "refs/pull/1/merge")
+    _git(clone, "checkout", "-q", "--detach", "FETCH_HEAD")
+
+    result = subprocess.run(
+        ["bash", "-c", _action_step()["run"]],
+        cwd=clone,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "BASE_REF": "main"},
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "first parent" in result.stdout
+    assert _git(clone, "rev-parse", "origin/main") == main_tip
+    assert _git(clone, "merge-base", "origin/main", "HEAD") == main_tip

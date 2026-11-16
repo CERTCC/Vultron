@@ -207,6 +207,9 @@ jobs:
               --ignore=test/wire
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its parents: the first parent is the base.
+          fetch-depth: 2
       # The PR-only growth guards in test/architecture/ compare against the
       # merge base with origin/$GITHUB_BASE_REF and skip when the checkout has
       # none (SR-05-005, MS-12-007, #4315). Fetch only that, not every

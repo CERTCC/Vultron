@@ -312,6 +312,10 @@ EXCLUSIONS: Mapping[str, str] = {
     ),
     "uses:actions/setup-node": "the local npm is the toolchain",
     "uses:./.github/actions/debounce-main-push": "acts only on a push to main",
+    "uses:./.github/actions/fetch-merge-base": (
+        "readies a shallow CI checkout's base ref; the mirror runs in a "
+        "worktree whose origin already holds the base"
+    ),
     "uses:./.github/actions/notify-failure": (
         "files or closes CI-failure issues for main (CISEC-05); not a check"
     ),

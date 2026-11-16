@@ -7,9 +7,15 @@
 # with `fetch-depth: 0`, which downloads every branch's whole history and every
 # tag. That fetch is the largest one the job can make, and when it hangs the
 # job's `timeout-minutes` cancels it and the CI gate goes red with no test run
-# (#6535, #6390). This script fetches the base branch one commit deep, then
-# deepens the base and HEAD together until the two histories meet, and only
-# unshallows as a last resort.
+# (#6535, #6390).
+#
+# Most pull-request jobs need no fetch: their depth-2 checkout is GitHub's
+# merge commit, whose first parent is the base, and the `fetch-merge-base`
+# action points origin/<base> at it. This script is for the rest: a job that
+# checks out the head commit itself (demo-verdict), or one that reads every
+# branch commit rather than only the diff (vince-data-check). It fetches the
+# base branch one commit deep, then deepens the base and HEAD together until
+# the two histories meet, and only unshallows as a last resort.
 #
 # Each fetch runs under `timeout` and `retry`, so one hung fetch is retried
 # inside the job's cap instead of using all of it.
