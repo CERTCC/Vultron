@@ -103,8 +103,10 @@ class ClosePendingEmbargoAskNode(DataLayerActionWithPorts):
     Reject and before the tree states the replica's refusal (EP-09-019,
     EMB-02-004): the Reject records nothing in the case there, but a
     CASE_MANAGER's Reject still closes the ask the participant is waiting
-    on.  It decides nothing, so it always succeeds; ``closed`` says whether
-    the Reject was the manager's.
+    on.  It decides nothing, so it always succeeds.  It runs among the guards
+    yet writes: the pending-assertion store it clears is a per-actor
+    duplicate suppressor, not case state (CLP-06-002), so the write is no
+    effect of the act.
 
     Args:
         case_id: The case the Reject names.
@@ -123,18 +125,13 @@ class ClosePendingEmbargoAskNode(DataLayerActionWithPorts):
         self._case_id = case_id
         self._invite_id = invite_id
         self._rejecting_actor_id = rejecting_actor_id
-        self.closed = False
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.closed = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        self.closed = close_refused_embargo_ask(
+        closed = close_refused_embargo_ask(
             self.datalayer,
             receiving_actor_id=self.actor_id,
             case_id=self._case_id,
@@ -144,7 +141,7 @@ class ClosePendingEmbargoAskNode(DataLayerActionWithPorts):
         )
         self.feedback_message = (
             f"closed the pending ask about Invite '{self._invite_id}'"
-            if self.closed
+            if closed
             else f"'{self._rejecting_actor_id}' is not the CASE_MANAGER;"
             " no pending ask closed"
         )

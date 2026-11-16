@@ -50,7 +50,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.proposer_port import (
-    embargo_proposer,
+    attributed_proposer_id,
 )
 from vultron.core.behaviors.status.nodes import ThreatTerminationBranchNode
 from vultron.core.models.activity import VultronActivity
@@ -617,7 +617,7 @@ def _participant_of(
 def _proposer_of(event, dl: SqliteDataLayer) -> str:
     """The proposer the received Invite tree publishes for *event*."""
     attributed_to = event.activity.attributed_to
-    return embargo_proposer(
+    return attributed_proposer_id(
         dl,
         sender_id=event.actor_id,
         attributed_to=(

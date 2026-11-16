@@ -35,6 +35,7 @@ it:
     └─ case_manager_admits_proposal_guard   # EM admits PROPOSE and the terms
                                             # are new (EP-09-032; manager only)
     AdjudicateEmbargoProposal (CASE_MANAGER-gated Sequence)
+    ├─ PublishEmbargoProposerNode           # the proposer (CM-24-002)
     ├─ CollectEmbargoInviteRecipientsNode   # routing guard; writes recipients
     ├─ ProposeEmbargoLifecycleNode          # EM write (EmbargoLifecycle)
     └─ RelayEmbargoInviteToEachNode         # factory → outbox → commit → row

@@ -3,6 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.case.received_run import (
     OutcomeReader,
     ReceivedOutcome,
@@ -114,25 +116,28 @@ class ValidateReportReceivedUseCase:
             report_id,
         )
 
-        case_id = _case_id_for_report(self._dl, report_id)
-        if case_id is None:
-            logger.debug(
-                "ValidateReportReceivedUseCase: no case found for report '%s'"
-                " — the path stage will refuse the activity",
-                report_id,
+        def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # Read once the runner resolved the receiver (BT-17-009); the
+            # lookup moves into the tree in #6476.
+            case_id = _case_id_for_report(self._dl, report_id)
+            if case_id is None:
+                logger.debug(
+                    "ValidateReportReceivedUseCase: no case found for report"
+                    " '%s' — the path stage will refuse the activity",
+                    report_id,
+                )
+            return create_validate_report_received_tree(
+                report_id=report_id,
+                offer_id=offer_id,
+                sender_actor_id=sender_actor_id,
+                case_id=case_id,
+                sender_rule=self.sender_entitlement,
             )
 
-        tree = create_validate_report_received_tree(
-            report_id=report_id,
-            offer_id=offer_id,
-            sender_actor_id=sender_actor_id,
-            case_id=case_id,
-            sender_rule=self.sender_entitlement,
-        )
         # Only the CASE_MANAGER records the move: the path stage refuses any
         # other receiver (HP-01-005).
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="ValidateReportReceivedBT",
@@ -166,24 +171,28 @@ class InvalidateReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+
         # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
         # *executes* in the receiving actor's store, but the RM write is about
         # the *sender*, ``request.actor_id`` — the activity is an assertion
         # about the sender's state (HP-00-001), which the tree factory reads
         # from the request.
-        # The case the sender guard and the RM adjudication read.
-        case_id = _case_id_for_report(self._dl, request.report_id)
-        tree = create_invalidate_report_received_tree(
-            request,
-            case_id=case_id,
-            sender_rule=self.sender_entitlement,
-        )
+        def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # The case the sender guard and the RM adjudication read, once
+            # the runner resolved the receiver (BT-17-009); the lookup moves
+            # into the tree in #6476.
+            return create_invalidate_report_received_tree(
+                request,
+                case_id=_case_id_for_report(self._dl, request.report_id),
+                sender_rule=self.sender_entitlement,
+            )
+
         # A restated declaration changes nothing: its repeat guard says so,
         # and the runner reports SKIPPED (RSH-08-002).  Only the CASE_MANAGER
         # records the move: the path stage refuses any other receiver
         # (HP-01-005), and with no case the tree refuses an unknown case.
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="InvalidateReportReceivedBT",
@@ -274,13 +283,18 @@ class CloseReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        tree = create_close_report_received_tree(
-            request,
-            case_id=_case_id_for_report(self._dl, request.report_id),
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build(_receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+            # Read once the runner resolved the receiver (BT-17-009); the
+            # lookup moves into the tree in #6476.
+            return create_close_report_received_tree(
+                request,
+                case_id=_case_id_for_report(self._dl, request.report_id),
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_received_tree(
-            tree,
+            build,
             dl=self._dl,
             request=request,
             label="CloseReportReceivedBT",

@@ -1,4 +1,8 @@
-"""Received ``Invite(EmbargoEvent)`` (EP, EV) and its invitee and proposer."""
+"""Received ``Invite(EmbargoEvent)`` (EP, EV) and its invitee.
+
+The tree, not this handler, decides whose terms the Invite carries
+(``PublishEmbargoProposerNode``, CM-24-002).
+"""
 
 import logging
 from typing import TYPE_CHECKING, ClassVar

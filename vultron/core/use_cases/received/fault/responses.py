@@ -33,7 +33,6 @@ from vultron.core.behaviors.case.received_run import (
     find_named,
     find_node,
 )
-from vultron.core.behaviors.idempotency import repeat_ending_run
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
@@ -83,30 +82,6 @@ class FaultReading:
 
     reader: OutcomeReader
     judges: bool = True
-
-    def read(self, outcome: ReceivedOutcome) -> HandlerResult | None:
-        """The reading, with a tree that judges nothing read as one.
-
-        A failure no reader or declared repeat answers raises for such a
-        tree, as the runner's own ``judges=False`` reading would, so the
-        response can be chosen after the runner is called (#6476 moves the
-        entry read into the tree).
-
-        Raises:
-            VultronBTInternalError: The tree judges nothing and failed for a
-                reason no reader or declared repeat answers.
-        """
-        verdict = self.reader(outcome)
-        if (
-            verdict is None
-            and not self.judges
-            and not outcome.succeeded
-            and repeat_ending_run(outcome.tree) is None
-        ):
-            raise VultronBTInternalError(
-                f"{outcome.label}: {outcome.failure_reason}"
-            )
-        return verdict
 
 
 #: The reading of a response's run, given the entry the tree was built from.

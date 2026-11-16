@@ -21,7 +21,9 @@ the bridge and the ports, runs the tree once as that actor (BT-17-005,
 BT-17-009), and reads the ``HandlerResult`` from what the tree's nodes
 recorded (:func:`~vultron.core.behaviors.case.received_run.reading.read_outcome`).
 Nothing in it reads or writes the DataLayer around the run: a verdict that
-needs a fact the tree did not record needs a node, not code here.
+needs a fact the tree did not record needs a node, not code here.  (A
+handler's builder may still read the store to pick its tree until #6476
+moves the last such reads into the trees.)
 
 The runner is the one place a received use case's receiver is resolved, so
 no handler resolves it.  A tree whose shape names the receiver is handed
@@ -72,7 +74,7 @@ def run_received_tree(
     sync_port: SyncActivityPort | None = None,
     wire_render_port: WireRenderPort | None = None,
     reader: OutcomeReader | None = None,
-    judges: bool = True,
+    judges: bool | Callable[[], bool] = True,
     **context: Any,
 ) -> HandlerResult:
     """Run *tree* once as the receiver of *request* and return its verdict.
@@ -92,7 +94,8 @@ def run_received_tree(
             the doors (see ``read_outcome``).  It receives only the run.
         judges: ``False`` for a tree that only stores or commits what the
             handler accepted; a failure no door, reader or declared repeat
-            answers then raises.
+            answers then raises.  A callable is asked once the tree is
+            built, for a builder that chooses the tree.
         **context: Further blackboard keys for the run.
 
     Raises:
@@ -120,7 +123,7 @@ def run_received_tree(
             tree, result, label, receiving_actor_id=receiving_actor_id
         ),
         reader=reader,
-        judges=judges,
+        judges=judges if isinstance(judges, bool) else judges(),
     )
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(

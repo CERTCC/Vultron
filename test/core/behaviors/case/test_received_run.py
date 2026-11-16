@@ -18,6 +18,7 @@ Tree tests: they read outcomes through ``core/behaviors`` alone, never
 through ``use_cases`` (#5774).
 """
 
+import functools
 import logging
 
 import py_trees
@@ -981,6 +982,39 @@ def test_the_runner_builds_a_receiver_named_tree_for_the_actor_it_resolved(
     assert built_for == [_RECEIVER]
     assert probe.ticks == 1
     assert probe.seen["actor_id"] == _RECEIVER
+
+
+@pytest.mark.parametrize(
+    ("judges", "raises"), [(True, False), (False, True)], ids=["judges", "not"]
+)
+def test_the_runner_asks_a_lazy_judges_once_the_tree_is_built(
+    judges: bool, raises: bool
+):
+    """A builder that chooses its tree says whether it judges once built:
+    a failure of a tree that judges nothing raises, never refuses."""
+    built: list[str] = []
+
+    def build(receiving_actor_id: str) -> py_trees.behaviour.Behaviour:
+        built.append(receiving_actor_id)
+        return _probe_tree(_Records(Status.FAILURE))
+
+    def judges_of_built() -> bool:
+        assert built, "asked before the tree was built"
+        return judges
+
+    run = functools.partial(
+        run_received_tree,
+        build,
+        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+        request=_event(_RECEIVER),
+        label="ProbeBT",
+        judges=judges_of_built,
+    )
+    if raises:
+        with pytest.raises(VultronBTInternalError):
+            run()
+    else:
+        assert run() == HandlerResult.refused("ProbeBT: the probe refused")
 
 
 @pytest.mark.spec("BT-17-009")

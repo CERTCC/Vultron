@@ -160,7 +160,11 @@ class CreateProcessingFaultReceivedUseCase:
 
         def read(outcome: ReceivedOutcome) -> HandlerResult | None:
             (reading,) = readings
-            return reading.read(outcome)
+            return reading.reader(outcome)
+
+        def judges() -> bool:
+            (reading,) = readings
+            return reading.judges
 
         # Only the case's CASE_MANAGER acts on a fault about its ledger: the
         # tree declares the manager path alone, so its path stage refuses any
@@ -174,6 +178,7 @@ class CreateProcessingFaultReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
             reader=read,
+            judges=judges,
         )
 
     def _refused_entry(

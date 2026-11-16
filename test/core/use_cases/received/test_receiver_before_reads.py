@@ -15,10 +15,11 @@
 
 """A received use case resolves its receiver before its first store read.
 
-Each handler here reads the DataLayer, before its tree runs or through the
-tree's own doors (an unknown case is the path stage's refusal, HP-01-039).
-With no receiver to resolve, it must raise as a wiring fault before it
-touches the store, so a read's answer never turns our fault into a refusal
+Each handler here reads the DataLayer, in the builder it hands the runner
+(until #6476 moves the read into the tree) or through the tree's own doors
+(an unknown case is the path stage's refusal, HP-01-039).  The runner
+resolves the receiver first, so with none to resolve the handler raises as a
+wiring fault before it touches the store, so a read's answer never turns our fault into a refusal
 of the sender (BT-17-009, ARCH-15-001).  The store below reports no
 owner and fails on any other access, so a read ahead of the resolution fails
 the test with its own message instead of raising the expected error.
@@ -37,9 +38,6 @@ from vultron.core.use_cases.received.case.lifecycle import (
 )
 from vultron.core.use_cases.received.embargo.accept import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-)
-from vultron.core.use_cases.received.embargo.invite import (
-    InviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
@@ -119,11 +117,6 @@ _CASES = [
         AddReportToCaseReceivedUseCase,
         _request(report_id="r1", case_id=_CASE),
         id="add-report-to-case",
-    ),
-    pytest.param(
-        InviteToEmbargoOnCaseReceivedUseCase,
-        _request(context_id=_CASE),
-        id="invite-to-embargo",
     ),
     pytest.param(
         AcceptInviteToEmbargoOnCaseReceivedUseCase,

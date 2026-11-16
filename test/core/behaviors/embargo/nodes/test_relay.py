@@ -301,12 +301,28 @@ class TestPublishEmbargoProposerNode:
             activity_id=f"{CASE_ID}/embargo_proposals/p1",
             attributed_to=attributed_to,
         )
-        result = scenario.run(node)
+        seen: list[object] = []
+
+        class _ReadsTheProposer(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                storage = py_trees.blackboard.Blackboard.storage
+                seen.append(storage.get(f"/{EMBARGO_PROPOSER_KEY}"))
+                return Status.SUCCESS
+
+        result = scenario.run(
+            py_trees.composites.Sequence(
+                name="PublishThenRead",
+                memory=False,
+                children=[node, _ReadsTheProposer(name="ReadsTheProposer")],
+            )
+        )
         assert result.status == Status.SUCCESS
-        published = py_trees.blackboard.Blackboard.storage[
+        (published,) = seen
+        # Scoped to its run: the next run finds no proposer (CM-24-002).
+        assert (
             f"/{EMBARGO_PROPOSER_KEY}"
-        ]
-        assert published == node.proposer_id
+            not in py_trees.blackboard.Blackboard.storage
+        )
         return cast(str, published)
 
     @pytest.mark.executes_as(MANAGER)

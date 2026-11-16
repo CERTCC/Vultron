@@ -30,7 +30,7 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
@@ -61,7 +61,7 @@ def read_embargo_proposer(node: BehaviourWithPorts) -> str:
     return cast(str, node.get_input(EMBARGO_PROPOSER_KEY))
 
 
-def embargo_proposer(
+def attributed_proposer_id(
     datalayer: CasePersistence,
     *,
     sender_id: str,
@@ -104,7 +104,7 @@ def embargo_proposer(
     return sender_id
 
 
-class PublishEmbargoProposerNode(DataLayerConditionWithPorts):
+class PublishEmbargoProposerNode(DataLayerActionWithPorts):
     """Publish whose terms the proposal carries, for the adjudication.
 
     Always SUCCESS: the proposer is a fact the adjudication reads, not a
@@ -137,7 +137,6 @@ class PublishEmbargoProposerNode(DataLayerConditionWithPorts):
         self._case_id = case_id
         self._activity_id = activity_id
         self._attributed_to = attributed_to
-        self.proposer_id: str | None = None
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -147,15 +146,15 @@ class PublishEmbargoProposerNode(DataLayerConditionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        self.proposer_id = embargo_proposer(
+        proposer_id = attributed_proposer_id(
             self.datalayer,
             sender_id=self._sender_id,
             attributed_to=self._attributed_to,
             case_id=self._case_id,
             activity_id=self._activity_id,
         )
-        self._set_output(EMBARGO_PROPOSER_KEY, self.proposer_id)
-        self.feedback_message = f"the proposer is '{self.proposer_id}'"
+        self._set_output(EMBARGO_PROPOSER_KEY, proposer_id)
+        self.feedback_message = f"the proposer is '{proposer_id}'"
         return Status.SUCCESS
 
 
@@ -164,6 +163,6 @@ __all__ = [
     "EMBARGO_PROPOSER_KEY",
     "EMBARGO_PROPOSER_REMAPPING",
     "PublishEmbargoProposerNode",
-    "embargo_proposer",
+    "attributed_proposer_id",
     "read_embargo_proposer",
 ]
