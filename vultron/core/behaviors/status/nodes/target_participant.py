@@ -19,6 +19,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 
@@ -56,23 +57,22 @@ class TargetParticipantInCaseNode(CaseResolving, DataLayerConditionWithPorts):
 
         record = self.datalayer.read(self.participant_id)
         if not isinstance(record, CaseParticipant):
-            self.feedback_message = (
+            return fail_with_reason(
+                self,
                 f"this receiver holds no record of target participant"
-                f" '{self.participant_id}' — REFUSED (HP-08-014)"
+                f" '{self.participant_id}' — REFUSED (HP-08-014)",
             )
-        else:
-            context = _as_id(record.context)
-            if context and context == self.case_id:
-                return Status.SUCCESS
-            self.feedback_message = (
-                f"target participant '{self.participant_id}' belongs to case"
-                f" '{context}', not case '{self.case_id}' — REFUSED (HP-08-013)"
-                if context
-                else f"target participant '{self.participant_id}' names no"
-                " case — REFUSED (HP-08-014)"
-            )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        context = _as_id(record.context)
+        if context and context == self.case_id:
+            return Status.SUCCESS
+        return fail_with_reason(
+            self,
+            f"target participant '{self.participant_id}' belongs to case"
+            f" '{context}', not case '{self.case_id}' — REFUSED (HP-08-013)"
+            if context
+            else f"target participant '{self.participant_id}' names no"
+            " case — REFUSED (HP-08-014)",
+        )
 
 
 __all__ = ["TargetParticipantInCaseNode"]

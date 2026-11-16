@@ -112,14 +112,14 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
             case, self.datalayer, self._sender_actor_id
         ):
             return Status.SUCCESS
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Invitee '{self._sender_actor_id}' has left case"
             f" '{self._closure_case_id}' (RM CLOSED) and may answer nothing"
             " further — REFUSED (CM-23-018, HP-01-006)"
         )
 
     def _refuse_case_join(self, why: str) -> Status:
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Invite '{self._invite_id}' {why} — REFUSED (CM-11-017,"
             " HP-01-006)"
         )
@@ -165,7 +165,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
                 f"Invite '{self._invite_id}' was addressed to"
                 f" '{recipients[0]}'"
             )
-        return self._refuse_by_placement(
+        return self._fail_with_reason(
             f"Sender '{sender}' is not the invitee: {why}"
             " — REFUSED (EP-09-010, HP-01-006)"
         )

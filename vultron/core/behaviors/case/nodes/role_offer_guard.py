@@ -34,6 +34,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -110,11 +111,10 @@ class RoleOfferAdmissibleNode(
         benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
-        self.feedback_message = (
-            f"role Offer '{self.offer_id}' {reason} — REFUSED (CM-33-003)"
+        return fail_with_reason(
+            self,
+            f"role Offer '{self.offer_id}' {reason} — REFUSED (CM-33-003)",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
     def _redelivery(self, recorded: CaseLedgerEntry) -> Status:
         """Judge an Offer whose id the ledger already records."""
@@ -249,9 +249,7 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
         the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (CM-33-005)"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_reason(self, f"{reason} — REFUSED (CM-33-005)")
 
     def _recorded_offer(self, case: VulnerabilityCase) -> RecordedRoleOffer:
         """The Offer the answer names, as the CASE_MANAGER recorded it.

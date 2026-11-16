@@ -46,6 +46,7 @@ from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.participants.ownership_offer import (
     offer_made_from_proposal,
     open_ownership_offer,
@@ -108,9 +109,7 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     def _refuse(
         self, reason: str, spec: str = "CM-21-026, ADR-0148"
     ) -> Status:
-        self.feedback_message = f"{reason} — REFUSED ({spec})"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return fail_with_reason(self, f"{reason} — REFUSED ({spec})")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -232,14 +231,13 @@ class NoOpenOwnershipOfferNode(
         )
         if earlier is None:
             return Status.SUCCESS
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"case '{self.case_id}' already has an open ownership-transfer"
             f" Offer '{earlier.offer_id}' to '{earlier.transferee_id}';"
             " it must be answered before the case is offered again"
-            " — REFUSED (CM-21-014)"
+            " — REFUSED (CM-21-014)",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
 def case_manager_admits_ownership_proposal_guard(

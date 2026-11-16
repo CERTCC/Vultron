@@ -45,6 +45,7 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.refusal_wording import with_refusal_group
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.engage_defer import (
@@ -179,12 +180,14 @@ class TestEngageDeferCaseBTFailureReason:
         records = [
             r
             for r in caplog.records
-            if "EngageCaseBT did not succeed" in r.message
+            if r.message.startswith("EngageCaseBT refused activity")
         ]
-        assert records, "Expected EngageCaseBT warning to be emitted"
-        reason = records[0].message.rsplit(":", 1)[-1].strip()
-        assert reason, (
-            "EngageCaseBT warning must include a non-empty failure reason; "
+        assert len(records) == 1, "Expected one EngageCaseBT refusal line"
+        # The runner's line ends with the reason the handler reports.
+        assert records[0].message.endswith(
+            f": {with_refusal_group(result.reason)}"
+        ), (
+            "EngageCaseBT refusal line must carry the reported reason; "
             f"got: {records[0].message!r}"
         )
 
@@ -216,12 +219,14 @@ class TestEngageDeferCaseBTFailureReason:
         records = [
             r
             for r in caplog.records
-            if "DeferCaseBT did not succeed" in r.message
+            if r.message.startswith("DeferCaseBT refused activity")
         ]
-        assert records, "Expected DeferCaseBT warning to be emitted"
-        reason = records[0].message.rsplit(":", 1)[-1].strip()
-        assert reason, (
-            "DeferCaseBT warning must include a non-empty failure reason; "
+        assert len(records) == 1, "Expected one DeferCaseBT refusal line"
+        # The runner's line ends with the reason the handler reports.
+        assert records[0].message.endswith(
+            f": {with_refusal_group(result.reason)}"
+        ), (
+            "DeferCaseBT refusal line must carry the reported reason; "
             f"got: {records[0].message!r}"
         )
 

@@ -1,0 +1,59 @@
+# A pull request closes no issue a ratchet still names as its owner (ARCH-18-012).
+#
+# Every non-empty ratchet baseline under test/ names its owner with
+# `# owner: #N` (ARCH-18-003). A PR whose body says `Closes #N` closes that
+# owner on merge, which leaves the remaining entries with no owner; the
+# scheduled report in `ratchet-baseline-owners.yml` sees it only afterwards and
+# never fails the build (ARCH-18-004, ARCH-18-009). Closing the owner is this
+# PR's own act, so failing it races no other PR. `ratchet-close-guard` reads
+# the body's closing references and the markers at the merge commit through
+# `vultron.metadata.ratchet_markers`, the one marker parser.
+#
+# No `paths` filter: any PR body can close an owner, and a body edit adds a
+# closing reference without a commit, so it also runs on `edited`. The gate's
+# own `types` cover this list (`test/ci/test_ci_gate.py`).
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to main or a schedule, as `guard-tests.yml` and
+# `ci-gate.yml` do. A red run is the PR's own verdict, judged by the required
+# `CI gate`, and filing a `ci:main-failure` issue for it would report a PR's
+# refusal as a broken `main`.
+#
+# Reference: specs/architecture.yaml ARCH-18-012; specs/testability.yaml
+# TB-14-006.
+
+name: Ratchet Owner Close Guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  closing-pr:
+    name: PR Closes No Ratchet Owner Still Cited
+    runs-on: ubuntu-latest
+    # New job; its sibling `closing-pr` in verification-debt-owners.yml, which
+    # does the same setup, took up to 2.2 min (2026-10-30). Cap at 10 min so a
+    # hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check the owner issues this PR closes
+        # The body arrives through env, never interpolated into the script, so
+        # a body cannot inject shell. An empty body is an empty file.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          PYTHONPATH='' uv run ratchet-close-guard --body-file "$RUNNER_TEMP/pr-body.md"

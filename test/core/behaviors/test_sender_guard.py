@@ -70,6 +70,7 @@ from vultron.core.behaviors.case_id_scope import (
     with_case_id,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
@@ -90,9 +91,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsRequestAddresseeNode,
     SenderRule,
     any_of,
-    failure_is_the_refusal,
     in_declaration_order,
-    refuse_by_placement,
 )
 from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
@@ -123,6 +122,10 @@ from vultron.core.models.events.case import EngageCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.refusal_wording import (
+    carries_refusal_group,
+    without_refusal_group,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -1605,20 +1608,21 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
 
 
 # ---------------------------------------------------------------------------
-# A check a later arm can overrule logs no refusal (#5460)
+# A sender check records its facts at DEBUG; the runner logs the refusal
+# (SL-03-002 to SL-03-004, #6477)
 # ---------------------------------------------------------------------------
 
 
-#: The one function every sender check logs its refusal reason from
-#: (``refuse_by_placement``), so a line is recognised by the rule that chose
-#: its level rather than by its node class or its wording (#5786).
-_REFUSAL_FUNC = refuse_by_placement.__name__
+#: The one function every sender check fails through
+#: (``fail_with_reason``), so a line is recognised by the helper that wrote
+#: it rather than by its node class or its wording (#5786).
+_FAILURE_FUNC = fail_with_reason.__name__
 
 
-def _refusal_lines(
+def _failure_lines(
     caplog: pytest.LogCaptureFixture, node_class: type
 ) -> list[logging.LogRecord]:
-    """Every line *node_class* logged from the shared refusal helper.
+    """Every line *node_class* logged from the shared failure helper.
 
     Keyed on the helper rather than on the logger: ``py_trees`` writes its own
     ``tick()``/``stop()`` lines to the same per-class logger.
@@ -1627,69 +1631,80 @@ def _refusal_lines(
     return [
         record
         for record in caplog.records
-        if record.name == name and record.funcName == _REFUSAL_FUNC
+        if record.name == name and record.funcName == _FAILURE_FUNC
     ]
 
 
-def _all_refusal_lines(
+def _all_failure_lines(
     caplog: pytest.LogCaptureFixture,
 ) -> list[logging.LogRecord]:
-    """Every line any sender check logged from the shared refusal helper."""
+    """Every line any sender check logged from the shared failure helper."""
     return [
-        record for record in caplog.records if record.funcName == _REFUSAL_FUNC
+        record for record in caplog.records if record.funcName == _FAILURE_FUNC
     ]
 
 
-def _refusals_logged(caplog: pytest.LogCaptureFixture) -> list[str]:
-    """Every captured message a reader would read as a refusal (WARNING+)."""
+def _refusal_groups_logged(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Every captured message that carries a ``REFUSED (IDs)`` group."""
     return [
         record.getMessage()
         for record in caplog.records
-        if record.levelno >= logging.WARNING
+        if carries_refusal_group(record.getMessage())
     ]
 
 
-def _case_manager_checks(
-    guard: py_trees.behaviour.Behaviour | None,
-) -> list[SenderIsCaseManagerNode]:
-    """Every ``CASE_MANAGER`` check inside the composed *guard*."""
-    assert guard is not None
+def _above_debug(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Every message a sender check logged above DEBUG.
+
+    The bridge's own run summary is INFO by design (SL-04-001), so it is
+    not counted; it carries no ``REFUSED`` group either
+    (:func:`_refusal_groups_logged` reads every record).
+    """
     return [
-        node
-        for node in guard.iterate()
-        if isinstance(node, SenderIsCaseManagerNode)
+        record.getMessage()
+        for record in caplog.records
+        if record.name.startswith(_SENDER_CHECK_LOGGERS)
+        and record.levelno > logging.DEBUG
     ]
+
+
+#: The logger-name prefix of every sender check (one stdlib logger per class).
+_SENDER_CHECK_LOGGERS = "vultron.core.behaviors.sender_entitlement."
 
 
 def _only_case_manager_check(
     guard: py_trees.behaviour.Behaviour | None,
 ) -> SenderIsCaseManagerNode:
-    found = _case_manager_checks(guard)
+    assert guard is not None
+    found = [
+        node
+        for node in guard.iterate()
+        if isinstance(node, SenderIsCaseManagerNode)
+    ]
     assert len(found) == 1, found
     return found[0]
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
 def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The Case Owner's activity reaches the CASE_MANAGER: the ``CASE_MANAGER``
     arm fails, the ``CASE_OWNER`` arm admits it, and nothing was refused, so
-    the first arm's line is DEBUG and carries no ``REFUSED`` wording (#5460).
+    the first arm's line is DEBUG and carries no ``REFUSED`` group (#5460).
     """
     guard = staged_sender_guard(
         ANY_OF, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
     )
     assert guard is not None
-    check = _only_case_manager_check(guard)
-    assert failure_is_the_refusal(check) is False
+    _only_case_manager_check(guard)
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
             guard_tree(guard, CASE_ID),
             activity=SimpleNamespace(actor_id=OWNER),
         )
     assert result.status == Status.SUCCESS
-    lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
+    lines = _failure_lines(caplog, SenderIsCaseManagerNode)
     assert len(lines) == 1, [record.getMessage() for record in lines]
     assert lines[0].levelno == logging.DEBUG
     assert "REFUSED" not in lines[0].getMessage()
@@ -1697,145 +1712,47 @@ def test_a_kind_a_later_arm_overrules_logs_no_refusal(
     # Stripping the REFUSED group keeps the CASE_MANAGER it resolved, which
     # is the whole diagnostic the deleted WARNING carried as "expected '<id>'".
     assert f"which is '{MANAGER}'" in lines[0].getMessage()
-    assert _refusals_logged(caplog) == []
+    assert _above_debug(caplog) == []
+    assert _refusal_groups_logged(caplog) == []
 
 
-@pytest.mark.spec("HP-01-006", "SL-03-002")
-def test_the_lone_kind_of_a_side_still_logs_its_refusal_at_warning(
+@pytest.mark.spec("HP-01-006", "SL-03-002", "SL-03-003", "BT-13-001")
+def test_the_lone_kind_of_a_side_logs_debug_and_reports_its_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """``CASE_MANAGER`` alone on the side is the guard's whole answer, so its
-    FAILURE is the tree's refusal and stays at WARNING (#5460)."""
+    """``CASE_MANAGER`` alone on the side is the guard's whole answer, yet the
+    check still logs only a DEBUG fact: the runner, which reads the verdict,
+    logs the refusal.  The reason the bridge reports keeps the group."""
     guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_MANAGER),
         SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
     assert guard is not None
-    check = _only_case_manager_check(guard)
-    assert failure_is_the_refusal(check) is True
+    _only_case_manager_check(guard)
     with caplog.at_level(logging.DEBUG):
         result = _store(REPLICA).run(
             guard_tree(guard, CASE_ID),
             activity=SimpleNamespace(actor_id=VENDOR),
         )
     assert result.status == Status.FAILURE
-    lines = _refusal_lines(caplog, SenderIsCaseManagerNode)
-    assert [record.levelno for record in lines] == [logging.WARNING]
-    assert "REFUSED (HP-01-006)" in lines[0].getMessage()
+    lines = _failure_lines(caplog, SenderIsCaseManagerNode)
+    assert [record.levelno for record in lines] == [logging.DEBUG]
     assert f"which is '{MANAGER}'" in lines[0].getMessage()
-    assert (
-        BTBridge.get_failure_reason(guard)
-        == lines[0].getMessage().split(": ", 1)[1]
+    reason = BTBridge.get_failure_reason(guard)
+    assert reason.endswith("REFUSED (HP-01-006)")
+    assert lines[0].getMessage() == (
+        f"{lines[0].getMessage().split(': ', 1)[0]}: "
+        + without_refusal_group(reason)
     )
-
-
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
-def test_an_any_of_side_still_logs_one_refusal_for_a_sender_it_refuses(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Demoting an overruled arm to DEBUG keeps the refusal signal: the side's
-    last arm names every standing it accepts, at WARNING (BT-13-001)."""
-    guard = staged_sender_guard(
-        ANY_OF, SenderCheckContext(sender_id=STRANGER, case_id=CASE_ID)
-    )
-    assert guard is not None
-    with caplog.at_level(logging.DEBUG):
-        result = _store(MANAGER).run(
-            guard_tree(guard, CASE_ID),
-            activity=SimpleNamespace(actor_id=STRANGER),
-        )
-    assert result.status == Status.FAILURE
-    refusals = _refusals_logged(caplog)
-    assert len(refusals) == 1, refusals
-    assert "none of the standings" in refusals[0]
-    assert [
-        record.levelno
-        for record in _refusal_lines(caplog, SenderIsCaseManagerNode)
-    ] == [logging.DEBUG]
-
-
-def _side_guard(
-    guard: py_trees.behaviour.Behaviour | None, rule: SenderRule, side: str
-) -> py_trees.behaviour.Behaviour:
-    """The part of the composed *guard* that judges *rule*'s *side*.
-
-    A two-sided rule dispatches on the receiver's side, so each side's kinds
-    are the last child of their arm; anything else composes one guard.
-    """
-    assert guard is not None
-    if side == "outside_case" or rule.at_case_manager == rule.at_participant:
-        return guard
-    arm_name = (
-        "AtCaseManager" if side == "at_case_manager" else "AtParticipant"
-    )
-    arm = next(child for child in guard.children if child.name == arm_name)
-    return arm.children[-1]
-
-
-def _declared_case_manager_sides() -> list[tuple[str, str, SenderRule]]:
-    """Every (use case, side, rule) whose side names ``CASE_MANAGER``."""
-    sides = ("at_case_manager", "at_participant", "outside_case")
-    found: list[tuple[str, str, SenderRule]] = []
-    for entry in SEMANTIC_REGISTRY:
-        use_case = entry.use_case_class
-        rule = getattr(use_case, "sender_entitlement", None)
-        if use_case is None or not isinstance(rule, SenderRule):
-            continue
-        found.extend(
-            (use_case.__name__, side, rule)
-            for side in sides
-            if Kind.CASE_MANAGER in getattr(rule, side)
-        )
-    return found
-
-
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002")
-def test_every_declared_side_places_the_case_manager_check_knowingly() -> None:
-    """Each received rule naming ``CASE_MANAGER`` composes a check that knows
-    whether its own FAILURE refuses the sender: ``False`` where the side names
-    another kind that may still admit it, ``True`` where it is the side's
-    whole answer.  Read from the composed guards, so a rule that gains or
-    loses a kind moves with it, and recorded per side rather than counted, so
-    no subject is lost to a rename (#5460)."""
-    overruled: dict[str, bool] = {}
-    final: dict[str, bool] = {}
-    for name, side, rule in _declared_case_manager_sides():
-        guard = staged_sender_guard(
-            rule,
-            SenderCheckContext(
-                sender_id=VENDOR,
-                case_id=None if side == "outside_case" else CASE_ID,
-                invite_id="https://example.org/activities/invite",
-                request=CaseProposalRequest(report_id=REPORT_ID),
-                authored_object=AuthoredNote(note_id=NOTE_ID),
-            ),
-        )
-        checks = _case_manager_checks(_side_guard(guard, rule, side))
-        assert checks, f"{name}.{side} composed no CASE_MANAGER check"
-        answers = {failure_is_the_refusal(check) for check in checks}
-        if len(getattr(rule, side)) > 1:
-            overruled[f"{name}.{side}"] = answers == {False}
-        else:
-            final[f"{name}.{side}"] = answers == {True}
-    assert overruled, "no declared side names CASE_MANAGER beside another kind"
-    assert final, "no declared side names CASE_MANAGER alone"
-    assert [row for row, ok in overruled.items() if not ok] == []
-    assert [row for row, ok in final.items() if not ok] == []
-
-
-# ---------------------------------------------------------------------------
-# One refusal per refused sender, on every declared any-of side (#5786)
-# ---------------------------------------------------------------------------
+    assert _above_debug(caplog) == []
+    assert _refusal_groups_logged(caplog) == []
 
 
 def _multi_kind_sides() -> list[tuple[str, str, SenderRule]]:
     """Every (use case, side, rule) whose side names more than one kind.
 
     Derived from ``SEMANTIC_REGISTRY``, not from a list, so a rule that gains
-    a kind joins the subjects and one that loses one leaves them.  The
-    CASE_MANAGER pair ``{CASE_OWNER, CASE_MANAGER}`` the first version of this
-    assertion used is the one pair whose non-last arm already logged nothing
-    above DEBUG, so it could not have failed (#5786).
+    a kind joins the subjects and one that loses one leaves them (#5786).
     """
     sides = ("at_case_manager", "at_participant", "outside_case")
     found: dict[tuple[str, str], SenderRule] = {}
@@ -1893,16 +1810,14 @@ def test_every_authored_shape_is_ticked_or_excused() -> None:
 
     ``_author_node`` dispatches on the authored object's type, so a member of
     ``AuthoredObject`` that ``_AUTHORED_SHAPES`` does not carry is an
-    ``AUTHOR`` arm whose log level the test below never asserts — and it would
+    ``AUTHOR`` arm whose logging the test below never asserts — and it would
     go unverified in silence rather than failing (#5535).  Asked of the union
     itself, so a fourth member fails here and has to be decided.
 
     ``AuthoredCaseProposal`` is the one excused, because ticking it would
     assert the wrong thing: ``SenderIsProposalAuthorNode`` returns SUCCESS for
     a sender the store records no proposer for, so the side would admit the
-    stranger and the refusal this test is about would never happen.  The only
-    side naming that shape is a lone ``AUTHOR`` side, whose arm is the guard's
-    whole answer, so its level is WARNING either way.
+    stranger and the refusal this test is about would never happen.
     """
     excused = {AuthoredCaseProposal}
     assert (
@@ -1911,24 +1826,24 @@ def test_every_authored_shape_is_ticked_or_excused() -> None:
     )
 
 
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
-def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-003", "SL-03-004")
+def test_every_any_of_side_logs_only_debug_facts_for_a_sender_it_refuses(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A sender no arm of an any-of side admits gets one WARNING, and it is
-    the side's last arm naming every standing the side accepts (BT-13-001).
+    """A sender no arm of an any-of side admits: every arm logs one DEBUG
+    fact without the ``REFUSED`` group, and the reason the bridge reports is
+    the side's last arm naming every standing it accepts (BT-13-001).
 
     Asked of every multi-kind side ``SEMANTIC_REGISTRY`` declares rather than
-    of one chosen pair, because the pair the first version of this assertion
-    chose was the only one whose earlier arms were already quiet: for the
-    other four the same assertion saw two WARNINGs (#5786).  Each arm that
-    did log is recorded per side, so no subject is lost to a count (#3984).
+    of one chosen pair (#5786).  Each arm's lines are recorded per side, so
+    no subject is lost to a count (#3984).
     """
     stores: dict[str, BTTestScenario] = {}
     rows = _any_of_side_rows()
     assert len(rows) > 1, "no declared side names more than one kind"
-    warnings: dict[str, list[str]] = {}
-    overruled: dict[str, list[tuple[int, bool]]] = {}
+    loud: dict[str, list[str]] = {}
+    grouped: dict[str, list[str]] = {}
+    arms: dict[str, list[int]] = {}
     for label, rule, side, authored in rows:
         guard = staged_sender_guard(
             rule,
@@ -1946,22 +1861,16 @@ def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
             # One store per receiver: seeding a second store for the same
             # actor id in one test re-creates its participant records.
             stores[receiver] = _store(receiver)
-        scenario = stores[receiver]
         caplog.clear()
         with caplog.at_level(logging.DEBUG):
-            result = scenario.run(
+            result = stores[receiver].run(
                 guard_tree(guard, CASE_ID),
                 activity=SimpleNamespace(actor_id=STRANGER),
             )
         assert result.status == Status.FAILURE, label
-        warnings[label] = _refusals_logged(caplog)
-        # Every other arm that logged: its level, and whether its line still
-        # claims a refusal.  Both must be (DEBUG, no REFUSED) — SL-03-003.
-        overruled[label] = [
-            (record.levelno, "REFUSED" in record.getMessage())
-            for record in _all_refusal_lines(caplog)
-            if not record.name.endswith(SenderHoldsNoneOfNode.__name__)
-        ]
+        loud[label] = _above_debug(caplog)
+        grouped[label] = _refusal_groups_logged(caplog)
+        arms[label] = [record.levelno for record in _all_failure_lines(caplog)]
         kinds = ", ".join(
             kind.name for kind in in_declaration_order(getattr(rule, side))
         )
@@ -1970,43 +1879,34 @@ def test_every_any_of_side_logs_one_refusal_for_a_sender_it_refuses(
             f" ({kinds}) — REFUSED (HP-01-006, HP-01-023)"
         ), label
 
-    assert {
-        label: lines for label, lines in warnings.items() if len(lines) != 1
-    } == {}, "a refused sender drew more than one WARNING"
-    assert {
-        label: lines
-        for label, lines in warnings.items()
-        if "none of the standings" not in lines[0]
-    } == {}, "the one WARNING is not the arm naming every standing"
-    # Before judging the overruled arms' levels, require that some arm was
-    # overruled at all: `any()` over an empty list is False, so a DEBUG branch
-    # that went silent would pass the next assertion while proving nothing of
-    # SL-03-003 (the demoted arm must still record its reason, minus REFUSED).
-    assert {
-        label: seen for label, seen in overruled.items() if not seen
-    } == {}, (
-        "a side logged nothing from an overruled arm, so SL-03-003 is unpinned"
+    assert {label: lines for label, lines in loud.items() if lines} == {}, (
+        "a sender check logged above DEBUG"
     )
+    assert {label: lines for label, lines in grouped.items() if lines} == {}, (
+        "a sender check logged a REFUSED group; only the runner may"
+    )
+    # Every arm, the side's last included, logged its fact: a side whose arms
+    # went silent would pass the two assertions above while proving nothing.
     assert {
-        label: seen
-        for label, seen in overruled.items()
-        if any(level != logging.DEBUG or refused for level, refused in seen)
-    } == {}, "an overruled arm logged above DEBUG, or still claimed a refusal"
+        label: levels for label, levels in arms.items() if len(levels) < 2
+    } == {}, "a side's arms did not each log their fact"
+    assert {
+        label: levels
+        for label, levels in arms.items()
+        if set(levels) != {logging.DEBUG}
+    } == {}
 
 
-@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-001")
-def test_the_closed_sender_check_keeps_its_info_line(
+@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-002")
+def test_the_closed_sender_check_logs_its_fact_at_debug(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """``SenderClosureNotRecordedNode`` stays at INFO wherever it sits.
+    """``SenderClosureNotRecordedNode`` logs at DEBUG wherever it sits.
 
     Its FAILURE is not a refusal — the handler reports a repeat of a closing
-    act ``SKIPPED`` (ID-05-003) — so SL-03-002's WARNING-or-DEBUG choice does
-    not apply to it, and the reason is in its docstring.  It carries no
-    ``REFUSED`` wording, so nothing reads it as the tree's answer either
-    (SL-03-003).  Ticked in both placements it has, which
-    ``failure_is_the_refusal`` is asserted to read differently: a level taken
-    from the placement would have moved with them, and this one does not.
+    act ``SKIPPED`` (ID-05-003) — and its reason carries no ``REFUSED``
+    wording.  Ticked as a lone side and as an any-of arm: neither placement
+    changes its line.
     """
     scenario = _close_owner(_store(MANAGER))
     logger_name = (
@@ -2022,13 +1922,6 @@ def test_the_closed_sender_check_keeps_its_info_line(
             rule, SenderCheckContext(sender_id=OWNER, case_id=CASE_ID)
         )
         assert guard is not None
-        closure = [
-            node
-            for node in guard.iterate()
-            if isinstance(node, SenderClosureNotRecordedNode)
-        ]
-        assert len(closure) == 1, label
-        assert failure_is_the_refusal(closure[0]) is (label == "lone-side")
         caplog.clear()
         with caplog.at_level(logging.DEBUG):
             result = scenario.run(
@@ -2043,29 +1936,19 @@ def test_the_closed_sender_check_keeps_its_info_line(
             and "already closed" in record.getMessage()
         ]
     assert seen == {
-        "lone-side": [(logging.INFO, False)],
-        "any-of-arm": [(logging.INFO, False)],
+        "lone-side": [(logging.DEBUG, False)],
+        "any-of-arm": [(logging.DEBUG, False)],
     }
 
 
-# ---------------------------------------------------------------------------
-# A lone CASE_OWNER side logs its refusal; an overruled arm does not (#5845)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("HP-01-006", "SL-03-002", "BT-13-001")
-def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
+@pytest.mark.spec("HP-01-006", "SL-03-002", "SL-03-003", "BT-13-001")
+def test_a_lone_case_owner_side_logs_debug_and_reports_its_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """``CASE_OWNER`` alone on the side is the guard's whole answer, so a
-    sender that does not hold the role draws one WARNING, and it carries the
-    reason ``BTBridge.get_failure_reason`` reports (BT-13-001).
-
-    Lone-``CASE_OWNER`` sides are live — Add(Report),
-    Add/Remove(CaseParticipant), Offer(CaseParticipantRole) and the two owner
-    embargo decisions among them — so their refusal must reach a reader and
-    ``expect_no_sender_refusals`` (#5845).
-    """
+    """``CASE_OWNER`` alone on the side is the guard's whole answer: a sender
+    that does not hold the role draws one DEBUG fact, and the reason
+    ``BTBridge.get_failure_reason`` reports keeps the ``REFUSED (HP-01-006)``
+    group for the runner to log (BT-13-001, #5845)."""
     guard = staged_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
@@ -2073,50 +1956,18 @@ def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
     assert guard is not None
     check = unscoped(_owner_role_check(guard))
     assert isinstance(check, SenderIsCaseOwnerNode)
-    assert failure_is_the_refusal(check) is True
     with caplog.at_level(logging.DEBUG):
         result = _store(MANAGER).run(
             guard_tree(guard, CASE_ID),
             activity=SimpleNamespace(actor_id=VENDOR),
         )
     assert result.status == Status.FAILURE
-    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
-    assert [record.levelno for record in lines] == [logging.WARNING]
-    assert "is not the Case Owner" in lines[0].getMessage()
-    assert "REFUSED (HP-01-006)" in lines[0].getMessage()
-    assert (
-        BTBridge.get_failure_reason(guard)
-        == lines[0].getMessage().split(": ", 1)[1]
-    )
-    # The one line above DEBUG in the whole tick, so the refusal is neither
-    # missing nor doubled by a second line stating the same thing.
-    assert _refusals_logged(caplog) == [lines[0].getMessage()]
-
-
-@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
-def test_an_overruled_case_owner_arm_logs_debug_without_refusal_wording(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Inside an any-of side the ``CASE_OWNER`` arm refuses no one: the side's
-    last arm names every standing it accepts, so the arm's own line is DEBUG
-    and drops the ``REFUSED`` group (SL-03-002, SL-03-003)."""
-    guard = staged_sender_guard(
-        ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
-    )
-    assert guard is not None
-    with caplog.at_level(logging.DEBUG):
-        result = _store(MANAGER).run(
-            guard_tree(guard, CASE_ID),
-            activity=SimpleNamespace(actor_id=VENDOR),
-        )
-    assert result.status == Status.FAILURE
-    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    lines = _failure_lines(caplog, SenderIsCaseOwnerNode)
     assert [record.levelno for record in lines] == [logging.DEBUG]
     assert "is not the Case Owner" in lines[0].getMessage()
     assert "REFUSED" not in lines[0].getMessage()
-    refusals = _refusals_logged(caplog)
-    assert len(refusals) == 1, refusals
-    assert "none of the standings" in refusals[0]
+    assert BTBridge.get_failure_reason(guard).endswith("REFUSED (HP-01-006)")
+    assert _above_debug(caplog) == []
 
 
 # ---------------------------------------------------------------------------
@@ -2210,84 +2061,3 @@ def test_a_case_owner_read_outside_the_sender_guard_states_no_refusal() -> (
         " the sender door, which words its non-match as a refusal; read the"
         f" role with ActorHoldsRoleInCaseNode instead: {sorted(doors)}"
     )
-
-
-class _Leaf(py_trees.behaviour.Behaviour):
-    """A bare leaf, to place in a shape and ask where its FAILURE lands."""
-
-    def update(self) -> Status:
-        return Status.FAILURE
-
-
-@pytest.mark.spec("SL-03-002")
-@pytest.mark.parametrize(
-    ("shape", "expected"),
-    [
-        ("bare", True),
-        ("selector-first", False),
-        ("selector-last", True),
-        ("sequence", True),
-        ("inverted", False),
-        ("nested-in-a-selector-arm", False),
-    ],
-)
-def test_failure_is_the_refusal_reads_the_shape_above_the_node(
-    shape: str, expected: bool
-) -> None:
-    """A Selector with a later sibling, or any decorator, means something above
-    this node can still turn its FAILURE into an admission; a Sequence and the
-    root pass it on (#5460)."""
-    node = _Leaf(name="Check")
-    if shape == "selector-first":
-        py_trees.composites.Selector(
-            name="S", memory=False, children=[node, _Leaf(name="Next")]
-        )
-    elif shape == "selector-last":
-        py_trees.composites.Selector(
-            name="S", memory=False, children=[_Leaf(name="Prev"), node]
-        )
-    elif shape == "sequence":
-        py_trees.composites.Sequence(
-            name="Q", memory=False, children=[node, _Leaf(name="Next")]
-        )
-    elif shape == "inverted":
-        py_trees.decorators.Inverter(name="Not", child=node)
-    elif shape == "nested-in-a-selector-arm":
-        arm = py_trees.composites.Sequence(
-            name="Arm", memory=False, children=[node]
-        )
-        py_trees.composites.Selector(
-            name="S", memory=False, children=[arm, _Leaf(name="Next")]
-        )
-    assert failure_is_the_refusal(node) is expected
-
-
-@pytest.mark.spec("HP-01-006", "SL-03-002", "BTND-01-006")
-def test_a_case_id_scope_does_not_change_whether_a_failure_is_the_refusal() -> (
-    None
-):
-    """The scope that seeds a check's /case_id port passes its status through,
-    so a check under it refuses exactly where it would without it."""
-    lone = SenderIsCaseManagerNode(sender_actor_id=OWNER)
-    scoped_lone = with_case_id(lone, CASE_ID)
-    py_trees.composites.Sequence(
-        name="Guard", memory=False, children=[scoped_lone]
-    )
-    assert failure_is_the_refusal(lone) is True
-
-    first = SenderIsCaseManagerNode(sender_actor_id=OWNER)
-    py_trees.composites.Selector(
-        name="AnyOf",
-        memory=False,
-        children=[
-            with_case_id(first, CASE_ID),
-            SenderIsCaseManagerNode(sender_actor_id=OWNER),
-        ],
-    )
-    assert failure_is_the_refusal(first) is False
-
-    inverted = SenderIsCaseManagerNode(sender_actor_id=OWNER)
-    py_trees.decorators.Inverter(
-        name="Not", child=with_case_id(inverted, CASE_ID)
-    )
-    assert failure_is_the_refusal(inverted) is False

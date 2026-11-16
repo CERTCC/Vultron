@@ -44,8 +44,12 @@ from typing import Any
 from pydantic import JsonValue
 
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -61,6 +65,8 @@ from vultron.measure.history.model import (
     GapLabel,
     UnreadableEntry,
 )
+from vultron.measure.history.reached import ReachedParticipant, ReachedState
+from vultron.measure.history.register import RebuiltRegister
 from vultron.measure.history.snapshot import (
     ParticipantRecord,
     member_of,
@@ -180,6 +186,10 @@ class _Participant:
     vf: tuple[bool, ...] = (False, False)
     d: tuple[bool, ...] = (False,)
     roles: set[str] = field(default_factory=set)
+    #: The case roles the latest record stating them names; ``None`` until
+    #: one does.  Unlike *roles* it drops a role the participant gave up,
+    #: as the Case Owner role is on an ownership transfer.
+    case_roles: set[str] | None = None
     joined: bool = True
     #: Events recorded while inert, emitted when the participant joins.
     held: list[CaseEventKind] = field(default_factory=list)
@@ -207,6 +217,8 @@ class _Deriver:
     active_embargo: str | None = None
     started: set[str] = field(default_factory=set)
     exited: set[str] = field(default_factory=set)
+    #: Each embargo register entry's status as the ledger's steps leave it.
+    register: RebuiltRegister = field(default_factory=RebuiltRegister)
 
     # -- one entry -----------------------------------------------------
 
@@ -285,8 +297,32 @@ class _Deriver:
             handler(self, context, obj)
 
     def _on_embargo_terms(self, context: _Entry, obj: object) -> None:
-        """A created or proposed embargo: keep its end time."""
+        """A created embargo: keep its end time."""
         self._remember_end_time(obj)
+
+    def _on_proposal(self, context: _Entry, obj: object) -> None:
+        """A proposed embargo: keep its end time; a new one is ``PROPOSED``.
+
+        The CASE_MANAGER fans one proposal out as an Invite to each
+        participant, so only the first Invite of an embargo opens its entry.
+        """
+        self._remember_end_time(obj)
+        embargo_id = actor_uri(obj)
+        if embargo_id is not None:
+            self.register.propose(embargo_id)
+
+    def _on_proposal_rejected(self, context: _Entry, obj: object) -> None:
+        """The Case Owner's ``Reject(EmbargoEvent)`` of a proposal."""
+        embargo_id = actor_uri(obj)
+        if embargo_id is not None:
+            self.register.reject(embargo_id)
+
+    def _on_invite_undone(self, context: _Entry, invite: object) -> None:
+        """The CASE_MANAGER's ``Undo(Invite(EmbargoEvent))``: an abandoned
+        proposal is cancelled (EMB-16-001)."""
+        embargo_id = _invitee(invite)
+        if embargo_id is not None:
+            self.register.cancel(embargo_id)
 
     def _on_activation(self, context: _Entry, obj: object) -> None:
         self._remember_end_time(obj)
@@ -385,6 +421,7 @@ class _Deriver:
             return
         self.started.add(embargo_id)
         replaced = self.active_embargo
+        self.register.activate(embargo_id)
         self.events.append(
             context.event(
                 EventKind.EMBARGO_START,
@@ -460,6 +497,7 @@ class _Deriver:
             )
             return
         self.exited.add(embargo_id)
+        self.register.terminate(embargo_id)
         cause = first_present(
             context.payload, "terminationCause", "termination_cause"
         )
@@ -483,12 +521,19 @@ class _Deriver:
     def _register_entry(
         self, context: _Entry, register_entry: Mapping[str, Any]
     ) -> None:
-        """A carried case's register: an ``ACTIVE`` entry is in force."""
+        """A carried case's register: an ``ACTIVE`` entry is in force, and
+        any other status is carried unless it is behind the one held
+        (:meth:`.RebuiltRegister.carry`)."""
         embargo = register_entry.get("embargo")
         self._remember_end_time(embargo)
         embargo_id = actor_uri(embargo)
-        if embargo_id is not None and register_entry.get("status") == "ACTIVE":
+        status = member_of(EmbargoRegisterStatus, register_entry.get("status"))
+        if embargo_id is None:
+            return
+        if status is EmbargoRegisterStatus.ACTIVE:
             self._start(context, embargo_id)
+        elif status is not None:
+            self.register.carry(embargo_id, status)
 
     # -- consent answers (CEH-04-008, CEH-04-009) ----------------------
 
@@ -559,6 +604,8 @@ class _Deriver:
         known = record.actor in self.participants
         tracker = self._tracker(record.actor)
         tracker.roles |= record.roles
+        if record.roles_stated:
+            tracker.case_roles = set(record.roles)
         if not known and record.joined is False:
             tracker.joined = False
         elif not tracker.joined and record.joined is True:
@@ -719,6 +766,39 @@ class _Deriver:
             )
 
 
+def _pxa_of(flags: tuple[bool, ...]) -> CS_pxa:
+    """The public state the raised *flags* spell, one per ``p``, ``x``, ``a``."""
+    return CS_pxa[
+        "".join(
+            letter.upper() if up else letter
+            for (letter, _), up in zip(_PXA_FLAGS, flags, strict=True)
+        )
+    ]
+
+
+def _reached(deriver: _Deriver) -> ReachedState:
+    """What *deriver* has reached once it has read every entry."""
+    return ReachedState(
+        participants=[
+            ReachedParticipant(
+                participant=tracker.actor,
+                rm=tracker.rm,
+                roles=tuple(
+                    sorted(
+                        tracker.roles
+                        if tracker.case_roles is None
+                        else tracker.case_roles
+                    )
+                ),
+                joined=tracker.joined,
+            )
+            for tracker in deriver.participants.values()
+        ],
+        pxa=_pxa_of(deriver.pxa),
+        embargo_register=dict(deriver.register.statuses),
+    )
+
+
 def _invitee(invite: object) -> str | None:
     """The id of what an ``Invite`` invites: an actor, or an embargo."""
     return (
@@ -731,7 +811,9 @@ _Handler = Callable[[_Deriver, _Entry, object], None]
 #: The acts each semantic type names (CEH-04-005, CEH-04-010).
 _ACT_HANDLERS: dict[MessageSemantics, _Handler] = {
     MessageSemantics.CREATE_EMBARGO_EVENT: _Deriver._on_embargo_terms,
-    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: _Deriver._on_embargo_terms,
+    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: _Deriver._on_proposal,
+    MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE: _Deriver._on_proposal_rejected,
+    MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE: _Deriver._on_invite_undone,
     MessageSemantics.ACTIVATE_EMBARGO_ON_CASE: _Deriver._on_activation,
     MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: _Deriver._on_termination,
     MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: _Deriver._on_stub_accept,
@@ -774,6 +856,16 @@ def case_event_history(ledger: CaseLedger) -> CaseEventHistory:
         unreadable entry, and the ledger's holes, conflicts and end carried
         over so a caller can refuse a history it cannot trust.
     """
+    history, _ = derive_case(ledger)
+    return history
+
+
+def derive_case(ledger: CaseLedger) -> tuple[CaseEventHistory, ReachedState]:
+    """Derive one case's event history and the states its ledger reached.
+
+    One walk yields both, so the reached states are exactly those the
+    history's events lead to (:mod:`~vultron.measure.history.reached`).
+    """
     entries = ledger.entries
     managers = case_manager_ids(entries)
     creation_end = _creation_end(entries, managers)
@@ -784,7 +876,7 @@ def case_event_history(ledger: CaseLedger) -> CaseEventHistory:
             placed.log_index,
             creation=placed.log_index < creation_end,
         )
-    return CaseEventHistory(
+    history = CaseEventHistory(
         case_id=ledger.case_id,
         source=ledger.source,
         end_confirmed=ledger.end_confirmed,
@@ -795,6 +887,7 @@ def case_event_history(ledger: CaseLedger) -> CaseEventHistory:
         excluded=deriver.excluded,
         unreadable_entries=deriver.unreadable,
     )
+    return history, _reached(deriver)
 
 
 def read_case_event_histories(paths: Iterable[Path]) -> CaseEventHistories:

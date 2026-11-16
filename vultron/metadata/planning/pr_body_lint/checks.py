@@ -20,10 +20,14 @@ from vultron.metadata.planning.pr_body_lint.rules import (
 
 #: A reference GitHub closes on merge: a keyword, an optional colon, then
 #: ``#N``, ``owner/repo#N`` or an issue URL.
+#: Group ``repo`` (``owner/name``) is set for the qualified and URL forms,
+#: ``number`` always; a number runs to a non-word character, as on GitHub.
 _CLOSING_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+"
-    r"(?:[\w.-]+/[\w.-]+#\d+|#\d+"
-    r"|https://github\.com/[\w.-]+/[\w.-]+/issues/\d+)",
+    r"(?:(?P<repo>[\w.-]+/[\w.-]+)#(?P<number>\d+)(?!\w)"
+    r"|#(?P<bare>\d+)(?!\w)"
+    r"|https://github\.com/(?P<url_repo>[\w.-]+/[\w.-]+)/issues/"
+    r"(?P<url_number>\d+)(?!\w))",
     re.I,
 )
 
@@ -145,6 +149,54 @@ class _Body:
         return self.sections.get(name)
 
 
+@dataclass(frozen=True)
+class ClosingReference:
+    """One closing reference: its text, the repository it names, the issue.
+
+    ``repo`` is ``owner/name`` for the qualified and URL forms, and ``None``
+    for a bare ``#N``, which names the pull request's own repository.
+    """
+
+    text: str
+    repo: str | None
+    number: int
+
+
+def _line_matches(line: str) -> list[re.Match[str]]:
+    """The closing references on one unfenced *line*, outside code spans."""
+    return list(_CLOSING_RE.finditer(_CODE_SPAN_RE.sub("", line)))
+
+
+def _line_closing_refs(line: str) -> list[str]:
+    """The matched text of each closing reference on *line*."""
+    return [match.group(0) for match in _line_matches(line)]
+
+
+def closing_references(text: str) -> list[ClosingReference]:
+    """Every closing reference GitHub reads in body *text*, in order.
+
+    A keyword inside an HTML comment, a fenced code block or an inline code
+    span is not one, as in :func:`_check_closing`, and the URL form matches in
+    any case, as the keyword does. The ratchet-owner close guard
+    (:mod:`vultron.metadata.ratchet_close_guard`, ARCH-18-012) reads a PR's
+    closed issues through this.
+    """
+    body = _Body(text)
+    found: list[ClosingReference] = []
+    for line, fenced in zip(body.lines, body.fenced, strict=True):
+        if fenced:
+            continue
+        for match in _line_matches(line):
+            repo = match.group("repo") or match.group("url_repo")
+            number = (
+                match.group("number")
+                or match.group("bare")
+                or match.group("url_number")
+            )
+            found.append(ClosingReference(match.group(0), repo, int(number)))
+    return found
+
+
 def _check_closing(body: _Body) -> Iterator[Finding]:
     """PRB-01 and PRB-02."""
     in_opening = True
@@ -157,7 +209,7 @@ def _check_closing(body: _Body) -> Iterator[Finding]:
         if fenced:
             in_opening = False
             continue
-        refs = _CLOSING_RE.findall(_CODE_SPAN_RE.sub("", stripped))
+        refs = _line_closing_refs(stripped)
         if in_opening and refs:
             if len(refs) > 1 or not _CLOSES_BULLET_RE.match(stripped):
                 yield Finding(

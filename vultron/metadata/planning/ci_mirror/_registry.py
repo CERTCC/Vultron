@@ -219,6 +219,27 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         drops_env={"GH_TOKEN": "the local gh CLI reads its own login"},
         needs_pr=True,
     ),
+    MirrorCheck(
+        "ratchet-close-guard",
+        "ratchet-owner-close-guard.yml::closing-pr::"
+        "Check the owner issues this PR closes",
+        command=(
+            "bash",
+            "-c",
+            'body=$(gh pr view "$1" --json body --jq .body) || exit 2; '
+            "printf '%s' \"$body\" | PYTHONPATH= uv run ratchet-close-guard"
+            " --body-file -",
+            "ratchet-close-guard",
+            "{pr}",
+        ),
+        note=(
+            "reads the PR's live body through the gh CLI, where CI writes the "
+            "event's body to a file; a failed read exits 2, never a pass"
+        ),
+        drops_env={"PR_BODY": "the command reads the body with gh pr view"},
+        needs_pr=True,
+        tool="gh",
+    ),
     *(
         MirrorCheck(check_id, _DOCS + label)
         for check_id, label in (

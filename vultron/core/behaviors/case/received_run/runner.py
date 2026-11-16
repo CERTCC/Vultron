@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.received_run.reading import (
     read_outcome,
 )
 from vultron.core.models.events.base import VultronEvent
+from vultron.core.models.refusal_wording import with_refusal_group
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -125,16 +126,36 @@ def run_received_tree(
         reader=reader,
         judges=judges if isinstance(judges, bool) else judges(),
     )
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        logger.warning(
-            "%s did not succeed for activity '%s' from '%s' at '%s': %s",
-            label,
-            request.activity_id,
-            request.actor_id,
-            receiving_actor_id,
-            verdict.reason,
-        )
+    # A REFUSED HandlerResult always carries its reason (validated at
+    # construction), so the second test only narrows the type.
+    if (
+        verdict.disposition is HandlerDisposition.REFUSED
+        and verdict.reason is not None
+    ):
+        _log_refusal(label, request, receiving_actor_id, verdict.reason)
     return verdict
+
+
+def _log_refusal(
+    label: str, request: VultronEvent, receiving_actor_id: str, reason: str
+) -> None:
+    """Log the delivery's one ``REFUSED`` line, with the reason reported.
+
+    The runner is the only writer of this line: it alone knows the verdict,
+    so a node whose FAILURE a later arm overrules, or a skip the reading
+    reports ``SKIPPED``, can never be mistaken for a refusal (SL-03-002).
+    The reason is logged as the handler reports it, given the HP-01-003
+    group when it carries none, so every refused delivery has exactly one
+    record a reader greps and the demo matchers key on (SL-03-004).
+    """
+    logger.warning(
+        "%s refused activity '%s' from '%s' at '%s': %s",
+        label,
+        request.activity_id,
+        request.actor_id,
+        receiving_actor_id,
+        with_refusal_group(reason),
+    )
 
 
 __all__ = ["ReceivedTreeBuilder", "run_received_tree"]
