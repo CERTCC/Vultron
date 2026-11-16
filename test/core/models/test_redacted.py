@@ -106,12 +106,18 @@ def test_a_marker_carrying_the_withheld_value_is_refused(
 
 
 @pytest.mark.spec("MV-12-003")
-def test_a_marker_cannot_gain_a_field_after_construction() -> None:
-    """A marker is a frozen value, so no field is set on it later."""
+@pytest.mark.parametrize("field", ["summary", "content"])
+def test_a_marker_is_not_changed_after_construction(field: str) -> None:
+    """A marker is a frozen value: no field is reassigned or added later."""
     marker = Redacted(summary=REASON)
 
     with pytest.raises(ValidationError):
-        marker.summary = "Another reason"  # type: ignore[misc]
+        setattr(marker, field, "CVE-2026-0001")
+
+    assert marker.model_dump(by_alias=True) == {
+        "type": "Redacted",
+        "summary": REASON,
+    }
 
 
 def test_the_wire_registry_resolves_redacted_to_the_core_marker() -> None:

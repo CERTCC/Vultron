@@ -6,11 +6,12 @@ the whole of it; the case stub is the only one today.  A sender may put
 field has a value it withholds.  Anywhere else the marker is refused.
 
 The refusal holds for every declared field of a full object, which refuses a
-marker as a malformed value, and for an activity slot, whose type admits no
-``Redacted`` marker (#6557 registered the type).  Accepting the marker in a
-preview, and so refusing a marker that carries the withheld value there, need a
-preview field that admits the marker, so those rows are strict ``xfail`` until
-#6372 builds it.
+marker as a malformed value, and for an activity slot given a marker with a
+``summary``, which the slot reads as a ``Redacted`` value it does not admit
+(#6557 registered the type).  A marker of only ``id`` and ``type`` is still read
+as a typed reference, and accepting the marker in a preview, and so refusing a
+marker that carries the withheld value there, need a preview field that admits
+the marker; those rows are strict ``xfail`` until #6372 builds them.
 """
 
 from typing import Any
@@ -103,6 +104,7 @@ def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
 
     No activity slot admits the marker type; the row below gives the marker
     an ``id``, so the refusal cannot rest on a missing ``id`` (OID-01-013).
+    A marker of only ``id`` and ``type`` is held by the row after it.
     """
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(_envelope(**{slot: MARKER}))
@@ -116,9 +118,41 @@ def test_a_marker_with_an_id_in_an_activity_slot_is_refused(slot: str) -> None:
     """An ``id`` on the marker does not let it stand in an activity slot.
 
     The registered type reads the body as a marker, which no activity slot
-    admits, so the refusal does not rest on the ``id`` being absent.
+    admits, so the refusal does not rest on the ``id`` being absent.  The
+    ``summary`` keeps the body from being read as a typed reference.
     """
     marker = {**MARKER, "id": "https://example.org/redactions/1"}
+
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(_envelope(**{slot: marker}))
+
+    assert _error_locations(exc_info.value) == {slot}
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert "model_type" in {detail["type"] for detail in cause.errors()}, (
+        "the slot must refuse the marker as a value of the wrong type"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason=(
+        "MV-12-002: a marker of only id and type is read as a typed "
+        f"reference. {TRACKED}"
+    ),
+)
+@pytest.mark.spec("MV-12-002")
+@pytest.mark.parametrize("slot", ["object", "target"])
+def test_a_marker_of_only_id_and_type_in_an_activity_slot_is_refused(
+    slot: str,
+) -> None:
+    """A marker with no ``summary`` has the typed reference shape.
+
+    It must still be refused as a marker, not read as a reference to an
+    object of type ``Redacted``.
+    """
+    marker = {"type": "Redacted", "id": "https://example.org/redactions/1"}
 
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(_envelope(**{slot: marker}))

@@ -1056,6 +1056,9 @@ groups:
       `test_a_marker_with_an_id_in_an_activity_slot_is_refused` in the same file
       require a marker as an activity's `object` or `target` to be refused, with and
       without an `id`.
+      `test_a_marker_of_only_id_and_type_in_an_activity_slot_is_refused` requires the
+      same of a marker with no `summary`; it is a strict `xfail` until #6372 refuses
+      that typed reference shape.
     relationships:
     - rel_type: constrains
       spec_id: MV-12-001

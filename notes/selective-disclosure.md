@@ -80,8 +80,11 @@ reserved vul record, draft advisory) are #6257.
 
 The marker type is `vultron/core/models/redacted.py`, registered in
 `WIRE_TYPE_MAP`, and the type refuses every field but `type` and `summary`.
-The receiver refusal holds today for every declared field of a full object and
-for every activity slot, because none of their types admits the marker.
+The receiver refusal holds today for every declared field of a full object, and
+for an activity slot given a marker with a `summary`, because none of their
+types admits the marker. A marker of only `id` and `type` has the typed
+reference shape, so the parser reads it as a reference unless
+`reads_as_typed_reference` excludes `Redacted`; #6372 builds that refusal.
 Accepting the marker in a preview waits on #6244 and is built by #6372.
 
 - **A received marker's extra keys never reach the type.** The parse edge sets
