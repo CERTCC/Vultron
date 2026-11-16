@@ -248,6 +248,25 @@ def vultron_property_terms() -> dict[str, str | dict[str, str]]:
     }
 
 
+def field_declaration(
+    cls: type[BaseModel], name: str, info: WireField
+) -> VultronPropertyDeclaration | None:
+    """The Vultron property the field *name* of *cls* declares, if any.
+
+    A malformed marker raises with the class and field it sits on, so the
+    generator and the term check both name where to fix it.
+    """
+    where = f"{cls.__module__}.{cls.__qualname__}.{name}"
+    try:
+        return declared_vultron_property(info)
+    except TypeError as error:
+        raise TypeError(f"the marker on {where}: {error}") from error
+    except ValueError as error:
+        # A ``pydantic.ValidationError`` is a ``ValueError`` that cannot be
+        # rebuilt from a message, so re-raise the base type.
+        raise ValueError(f"the marker on {where}: {error}") from error
+
+
 def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
     """Map each Vultron property's wire name to its one declaration.
 
@@ -260,14 +279,7 @@ def vultron_property_declarations() -> dict[str, VultronPropertyDeclaration]:
     for cls in wire_field_classes():
         for name, info in serialized_fields(cls):
             where = f"{cls.__module__}.{cls.__qualname__}.{name}"
-            try:
-                declaration = declared_vultron_property(info)
-            except TypeError as error:
-                raise TypeError(f"the marker on {where}: {error}") from error
-            except ValueError as error:
-                # A ``pydantic.ValidationError`` is a ``ValueError`` that
-                # cannot be rebuilt from a message, so re-raise the base type.
-                raise ValueError(f"the marker on {where}: {error}") from error
+            declaration = field_declaration(cls, name, info)
             if declaration is None:
                 continue
             term = wire_name(name, info)

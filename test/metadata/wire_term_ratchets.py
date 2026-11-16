@@ -16,7 +16,8 @@
 these constants (:mod:`vultron.metadata.wire_context.terms`, by ``ast``, so
 each must stay a ``frozenset`` literal of strings).  An entry is
 ``<declaring class>.<wire name>: <rule>``, and it names a field that a rule
-of ADR-0194 refuses today (VM-10-007, VM-10-009, VM-10-012).  Each constant is
+of ADR-0194 refuses today (VM-10-007 or VM-10-009; a VM-10-012 entry is
+refused, because the context must give a name one definition).  Each constant is
 held equal to the violations it excuses in both directions: a new violation
 fails, and so does an entry whose field is fixed (ARCH-18-001, ARCH-18-006).
 When an owner Task fixes its fields, it deletes its constant or leaves it

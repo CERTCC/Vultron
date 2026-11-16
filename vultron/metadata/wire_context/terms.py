@@ -55,6 +55,13 @@ Loose readings, and whether each can miss or invent a violation:
 - **The first declaration of a name, in qualified-name order, is the
   reference for VM-10-012** (neither): every later one that disagrees is
   reported, and the first is named in each message.
+- **An unmarked field that reuses a cited term with another meaning
+  passes** (misses): the check sees that the term exists, not what the field
+  means by it.  ``VulnerabilityItemNote.audience`` sends CSAF free text under
+  AS2's ``audience``; #6416's acceptance criteria track it, not a ratchet.
+
+A VM-10-012 violation is never a ratchet entry: the generator refuses it too,
+so :func:`load_ratchets` refuses an entry for it.
 """
 
 from __future__ import annotations
@@ -70,15 +77,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 from vultron.core.models._helpers.class_annotations import own_annotations
-from vultron.core.models.base import (
-    VultronPropertyDeclaration,
-    declared_vultron_property,
-)
+from vultron.core.models.base import VultronPropertyDeclaration
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import MetadataLoadError, read_utf8
 from vultron.metadata.ratchet_markers import baselines_in, ratchet_bindings
 from vultron.metadata.wire_context.pin import ContextTerms, load_all_terms
 from vultron.metadata.wire_context.sync import (
+    field_declaration,
     serialized_fields,
     wire_field_classes,
     wire_name,
@@ -244,7 +249,7 @@ def term_violations(
         for name, info in serialized_fields(cls):
             wire = wire_name(name, info)
             owner = _declaring_class(cls, name).__qualname__
-            declaration = declared_vultron_property(info)
+            declaration = field_declaration(cls, name, info)
             if declaration is None:
                 if not (
                     wire.startswith("@")
@@ -309,7 +314,7 @@ def _entries(name: str, value: ast.expr, line: int) -> frozenset[str]:
             return frozenset()
         try:
             literal = ast.literal_eval(value.args[0])
-        except ValueError:
+        except ValueError, TypeError, SyntaxError, RecursionError:
             literal = None
         if isinstance(literal, (set, tuple, list)) and all(
             isinstance(item, str) for item in literal
@@ -351,14 +356,35 @@ def load_ratchets(root: Path | None = None) -> list[Ratchet]:
                 line=line,
             )
         seen.add(binding.name)
+        entries = _entries(binding.name, binding.value, line)
+        _refuse_unexcusable(binding.name, entries, line)
         ratchets.append(
             Ratchet(
-                binding.name,
-                owners.get((binding.name, line), ()),
-                _entries(binding.name, binding.value, line),
+                binding.name, owners.get((binding.name, line), ()), entries
             )
         )
     return ratchets
+
+
+def _refuse_unexcusable(name: str, entries: frozenset[str], line: int) -> None:
+    """Raise for an entry that excuses VM-10-012.
+
+    The context holds one term per wire name, so the generator refuses two
+    declarations that disagree
+    (:func:`~vultron.metadata.wire_context.sync.vultron_property_declarations`).
+    An excused disagreement would pass the term check and still stop
+    ``wire-context`` with a traceback, so no ratchet may hold one.
+    """
+    suffix = f": {TermRule.TWO_MEANINGS}"
+    unexcusable = sorted(e for e in entries if e.endswith(suffix))
+    if unexcusable:
+        raise MetadataLoadError(
+            f"{name} lists {', '.join(unexcusable)}: a VM-10-012 violation"
+            " cannot be ratcheted, because the context must give the name one"
+            " definition; share one declaration or rename one apart",
+            path=RATCHET_PATH,
+            line=line,
+        )
 
 
 @dataclass(frozen=True)

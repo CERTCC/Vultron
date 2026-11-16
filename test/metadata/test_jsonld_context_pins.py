@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Pinned copies of the external JSON-LD contexts Vultron cites (VM-10-011, VM-10-013).
+"""Pinned copies of the external JSON-LD contexts (VM-10-011, VM-10-013).
 
 The term check reads AS2, data-integrity, Multikey and Controlled Identifiers
 terms from byte-for-byte copies under ``third_party/jsonld/``, recorded in a
@@ -25,9 +25,13 @@ from pathlib import Path
 
 import pytest
 
+from vultron.metadata.wire_context.terms import CITED_CONTEXTS
+
 _PIN_PATH = Path(__file__).resolve().parents[2] / "third_party/jsonld/pin.json"
 
-_CITED_CONTEXTS = frozenset(
+#: Every context pinned: the cited ones, and Controlled Identifiers v1,
+#: pinned before a profile cites it.
+_PINNED_CONTEXTS = frozenset(
     {
         "https://www.w3.org/ns/activitystreams",
         "https://w3id.org/security/data-integrity/v2",
@@ -51,7 +55,9 @@ def _pinned_files() -> list[tuple[str, Path, str]]:
 @pytest.mark.spec("VM-10-011")
 def test_each_cited_context_has_a_pinned_copy() -> None:
     pinned = _pinned_files()
-    assert {url for url, _, _ in pinned} == _CITED_CONTEXTS
+    urls = {url for url, _, _ in pinned}
+    assert set(CITED_CONTEXTS) <= urls, "a cited context has no pinned copy"
+    assert urls == _PINNED_CONTEXTS
     assert all(path.is_file() for _, path, _ in pinned)
 
 

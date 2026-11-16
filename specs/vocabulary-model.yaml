@@ -1488,8 +1488,9 @@ groups:
       pin is moved on purpose.
     verification: >-
       `test/metadata/test_jsonld_context_pins.py::test_each_cited_context_has_a_pinned_copy`
-      requires a pin record naming exactly the four cited contexts, each with a local
-      copy.
+      requires the pin record to name every context in `CITED_CONTEXTS`
+      (`vultron/metadata/wire_context/terms.py`) and exactly the four pinned contexts,
+      each with a local copy.
     adr:
     - ADR-0194
     relationships:

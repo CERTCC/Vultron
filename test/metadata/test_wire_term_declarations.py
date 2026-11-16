@@ -242,6 +242,19 @@ def test_a_field_with_no_term_is_refused() -> None:
     assert "_Probe.caseId: VM-10-007" in _keys(_Probe)
 
 
+class _BadMarker(BaseModel):
+    flagged: str = Field(
+        default="v", json_schema_extra={"vultron_property": True}
+    )
+
+
+def test_a_malformed_marker_is_refused_with_its_place() -> None:
+    with pytest.raises(
+        TypeError, match=r"the marker on .*_BadMarker\.flagged"
+    ):
+        term_violations([_BadMarker], load_all_terms())
+
+
 @pytest.mark.spec("VM-10-007")
 def test_a_computed_field_is_checked_too() -> None:
     assert _keys(_Computed) == {"_Computed.derived_ids: VM-10-007"}
@@ -428,9 +441,22 @@ def test_a_ratchet_bound_twice_or_grown_is_refused(
         load_ratchets(tmp_path)
 
 
-def test_a_ratchet_that_is_not_a_literal_is_refused(tmp_path: Path) -> None:
-    _write_ratchets(tmp_path, "# owner: #7\nKNOWN_A = frozenset(other)\n")
+@pytest.mark.parametrize(
+    "value", ["frozenset(other)", "frozenset({('a', ['b'])})"]
+)
+def test_a_ratchet_that_is_not_a_literal_is_refused(
+    tmp_path: Path, value: str
+) -> None:
+    _write_ratchets(tmp_path, f"# owner: #7\nKNOWN_A = {value}\n")
     with pytest.raises(MetadataLoadError, match="KNOWN_A"):
+        load_ratchets(tmp_path)
+
+
+def test_a_ratchet_entry_for_two_meanings_is_refused(tmp_path: Path) -> None:
+    _write_ratchets(
+        tmp_path, "# owner: #7\nKNOWN_A = frozenset({'C.f: VM-10-012'})\n"
+    )
+    with pytest.raises(MetadataLoadError, match="cannot be ratcheted"):
         load_ratchets(tmp_path)
 
 
