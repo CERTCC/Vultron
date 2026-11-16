@@ -54,6 +54,7 @@ from vultron.adapters.connectors.vince import (
     VINCE_UNOBSERVABLE,
     vince_case_url,
 )
+from vultron.adapters.connectors.vince.case_rows import END_TIME_REACHED
 from vultron.adapters.connectors.vince.records import VinceCase
 from vultron.core.models.case_reading import (
     CaseReading,
@@ -247,6 +248,10 @@ def test_the_embargo_ends_at_due_date_once_the_reading_reaches_it(as_of):
     assert _rules(reading, entry.id_) == ["VINCE-EM-03"]
     # The rest of the case reads as it did before due_date.
     assert _reached(reading) == _reached(translate(ACTIVE))
+
+
+def test_the_exit_names_the_core_s_end_time_reason():
+    assert TerminationReason.END_TIME_REACHED.value == END_TIME_REACHED
 
 
 @pytest.mark.spec("CRD-03-001")
