@@ -1623,24 +1623,43 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The receiver MUST refuse, before the commit, an `Add(ParticipantStatus)` whose
-      activity `context` and status `context` name different cases, with a reason
-      that names both cases.
+      A receiver MUST refuse a received activity of any type when two `context`
+      values among the activity and the objects down its `object` chain name
+      different cases. The refusal reason MUST name each `context` and the case it
+      names. The chain is the activity's object and, when that object is an
+      activity, the inner activity's own object, at any depth. An object named by a
+      URI, a `Link` or a typed reference (MV-10-011) carries no `context` and is
+      not compared.
     rationale: >-
-      The status says which case it applies to (HP-08-013). An activity that names
-      another case says two things about where the act belongs, and applying either
-      one would ignore the other. Naming both cases lets the sender see the
-      disagreement.
+      Each `context` says which case the act belongs to. When two parts of one
+      message name different cases, the sender has said two things about where the
+      act belongs, and acting on either one would ignore the other. Every value
+      compared is in the message, so the check needs no receiver state and runs at
+      the parse edge, as for any message whose parts contradict each other
+      (ADR-0032). Naming each case lets the sender see the disagreement.
+    note: >-
+      Verdicts this rule changes. An `Add(ParticipantStatus)` whose activity and
+      status name different cases was refused by its received tree before the
+      commit, and is now refused at parse. Every other activity whose parts name
+      different cases was handled as the case its activity `context` names, and is
+      now refused at parse. A refusal at parse answers the delivery with HTTP 422
+      and the reason, and the receiver keeps nothing of it. An activity with only
+      one `context` in it, or whose parts all name the same case, keeps its
+      verdict.
     verification: >-
+      `test/wire/as2/test_context_agreement.py` parses activities whose parts name
+      different cases (a plain object, a nested activity, a two-level chain, a
+      `Link` context, a list of objects) and asserts each is refused with every
+      `context` and its case in the reason. It parses activities with one
+      `context`, matching contexts, and an object named by a URI, a `Link` or a
+      typed reference, and asserts each parses.
       `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_whose_activity_names_another_case_is_refused`
-      delivers an `Add` whose status and target name case A while its activity
-      `context` names case B, and asserts it is refused with both cases in the
-      reason, no entry and no appended status.
-      `test/core/behaviors/case/nodes/test_activity_context.py` drives the guard with
-      matching, differing and absent contexts.
+      delivers an `Add(ParticipantStatus)` whose status and target name case A
+      while its activity `context` names case B through the inbox ingress, and
+      asserts it does not parse.
     relationships:
-    - rel_type: extends
-      spec_id: HP-08-008
+    - rel_type: uses_definition
+      spec_id: MV-10-011
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

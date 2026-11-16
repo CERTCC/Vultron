@@ -38,9 +38,6 @@ from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import full_case_invite
-from vultron.core.behaviors.case.nodes.activity_context import (
-    ActivityContextMatchesObjectNode,
-)
 from vultron.core.behaviors.case.nodes.carried_object_case import (
     CarriedObjectInTargetCaseNode,
 )
@@ -113,7 +110,6 @@ from vultron.errors import (
 )
 
 _CASE = "https://example.org/cases/refusal-lines"
-_OTHER = "https://example.org/cases/other"
 
 
 def _bare[N: py_trees.behaviour.Behaviour](cls: type[N], **attrs: object) -> N:
@@ -142,13 +138,6 @@ def _case(label: str):
         return make
 
     return register
-
-
-@_case("activity-context")
-def _activity_context() -> py_trees.behaviour.Behaviour:
-    node = ActivityContextMatchesObjectNode(_CASE, _OTHER, "urn:obj")
-    assert node.update() is Status.FAILURE
-    return node
 
 
 @_case("carried-object")

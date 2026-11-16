@@ -27,25 +27,11 @@ case but not the context gets the case URI filled in, while an explicit
 
 from typing import Any, TypeVar
 
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
+# Defined beside the parse-edge check that reads it too (HP-08-015), which
+# the parser imports and so cannot import this package.
+from vultron.wire.as2.context_agreement import case_uri_of
 
 _Target = TypeVar("_Target")
-
-
-def case_uri_of(case_ref: object) -> str | None:
-    """Return the URI a case reference names.
-
-    That is the string itself, the case a stub stands for (its ``case_id``,
-    never its own ``<case-id>/stub`` id — CM-11-003), or the object's id.
-    """
-    if isinstance(case_ref, str):
-        return case_ref or None
-    if isinstance(case_ref, as_VulnerabilityCaseStub):
-        return case_ref.case_id
-    case_id = getattr(case_ref, "id_", None)
-    return case_id if isinstance(case_id, str) and case_id else None
 
 
 def with_case_context(
