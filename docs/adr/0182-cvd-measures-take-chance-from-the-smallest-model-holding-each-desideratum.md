@@ -70,6 +70,7 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    Its embargo part adds up the embargo desiderata, `F_i ≺ Ex_own` included, each in that vendor's one-vendor model.
    A vendor's score does not count the multi-party desiderata: `F_i ≺ P` is the twelve's `F ≺ P` for that vendor, and move advice does not use `V_i ≺ F_j`.
    A desideratum whose scope the case never enters counts as met, because not taking a path that needs a desideratum is not failing it.
+   A group of equivalent desiderata counts once in a part, such as `E ≺ P`, `E ≺ X` and `E ≺ A`.
    The case also reports the unweighted median and spread of the vendors' total scores.
    The spread is read as how evenly the case served its vendors, not as a statistical sample, because the vendors share events.
    It measures evenness across vendors, not across users: weighting by users or risk stays an open question.
