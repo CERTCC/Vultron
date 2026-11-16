@@ -54,6 +54,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -128,11 +129,10 @@ class ParticipantMoveGuardNode(DataLayerConditionWithPorts):
 
     def _refuse(self, reason: str) -> Status:
         """Fail the guard with *reason*, read as ``REFUSED`` by the handler."""
-        self.feedback_message = (
-            f"{reason} — {self.move} REFUSED ({_MOVE_SPEC[self.move]})"
+        return fail_with_reason(
+            self,
+            f"{reason} — {self.move} REFUSED ({_MOVE_SPEC[self.move]})",
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

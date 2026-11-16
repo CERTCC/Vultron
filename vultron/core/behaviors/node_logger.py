@@ -31,6 +31,9 @@ tree build, so Vultron nodes hand ``setup_ports`` the shared
 import logging
 
 import py_trees.behaviour
+from py_trees.common import Status
+
+from vultron.core.models.refusal_wording import without_refusal_group
 
 
 def node_logger(node: py_trees.behaviour.Behaviour) -> logging.Logger:
@@ -42,6 +45,27 @@ def node_logger(node: py_trees.behaviour.Behaviour) -> logging.Logger:
     """
     cls = type(node)
     return logging.getLogger(f"{cls.__module__}.{cls.__name__}")
+
+
+def fail_with_reason(
+    node: py_trees.behaviour.Behaviour, reason: str
+) -> Status:
+    """Record *reason* as *node*'s failure reason, log its facts; ``FAILURE``.
+
+    *reason* becomes ``feedback_message``, which is what
+    ``BTBridge.get_failure_reason`` reports (BT-13-001), so a reason worded
+    as a refusal keeps its ``— REFUSED (IDs)`` group there.  The node's own
+    line is DEBUG and drops that group: a node does not know whether its
+    FAILURE is the delivery's verdict — a later Selector arm may admit the
+    sender, or the reading may report the run ``SKIPPED`` — so the received
+    runner, which does, logs the one ``REFUSED`` line (SL-03-002, SL-03-003).
+
+    Writes through :func:`node_logger`, so the line lands where the node's
+    own ``self.logger`` lines land (SL-01-005).
+    """
+    node.feedback_message = reason
+    node_logger(node).debug("%s: %s", node.name, without_refusal_group(reason))
+    return Status.FAILURE
 
 
 #: The logger py_trees' typed-ports layer writes to for Vultron nodes.

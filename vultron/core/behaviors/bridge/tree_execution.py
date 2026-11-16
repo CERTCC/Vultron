@@ -27,6 +27,7 @@ from py_trees.common import Status
 from py_trees.display import unicode_tree
 
 from vultron.core.behaviors.bridge.result import BTExecutionResult
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.errors import (
     INTERNAL_FAULTS,
     VultronError,
@@ -177,12 +178,16 @@ class _BridgeExecution:
                         "BT execution completed: %s after %d ticks - %s",
                         root_status,
                         iteration,
-                        detail,
+                        # The received runner, not the bridge, logs the
+                        # delivery's REFUSED line (SL-03-002, SL-03-003).
+                        without_refusal_group(detail or ""),
                     )
                     # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
                     # Guard kept: lazy args do not skip the unicode_tree call.
                     if self.logger.isEnabledFor(logging.DEBUG):
-                        tree_repr = unicode_tree(bt.root, show_status=True)
+                        tree_repr = without_refusal_group(
+                            unicode_tree(bt.root, show_status=True)
+                        )
                         self.logger.debug("Final BT state:\n%s", tree_repr)
 
                     return BTExecutionResult(

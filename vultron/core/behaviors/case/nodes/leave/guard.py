@@ -18,6 +18,7 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.predicates.addressing import participant_id_for_actor
@@ -79,15 +80,9 @@ class CaseManagerLeavesOnlyAsCaseOwnerNode(DataLayerCondition):
             list(participant.roles) if participant.roles else []
         ):
             return Status.SUCCESS
-        self.feedback_message = (
+        return fail_with_reason(
+            self,
             f"The CASE_MANAGER '{self.sender_actor_id}' is not the Case Owner"
             f" of case '{self.case_id}', so it cannot leave it: its RM.CLOSED"
-            " means the Case Owner has left — REFUSED (CM-23-010)"
+            " means the Case Owner has left — REFUSED (CM-23-010)",
         )
-        self.logger.warning(
-            "%s: %s (activity sender '%s')",
-            self.name,
-            self.feedback_message,
-            self.sender_actor_id,
-        )
-        return Status.FAILURE

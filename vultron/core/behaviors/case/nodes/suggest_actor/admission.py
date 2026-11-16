@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     invitee_record,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
@@ -62,13 +63,12 @@ def refusal_status(
     """``SUCCESS`` when *refusal* is ``None``; otherwise refuse with it.
 
     A refusal becomes *node*'s ``feedback_message``, which the factory puts
-    in the refusal notice (CLP-05-005), and is logged at WARNING.
+    in the refusal notice (CLP-05-005); the node logs its facts at DEBUG and
+    the received runner logs the refusal (SL-03-002).
     """
     if refusal is None:
         return Status.SUCCESS
-    node.feedback_message = refusal
-    node.logger.warning("%s: %s", node.name, refusal)
-    return Status.FAILURE
+    return fail_with_reason(node, refusal)
 
 
 def removed_participant_refusal(

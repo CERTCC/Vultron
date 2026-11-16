@@ -188,41 +188,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A behaviour-tree node whose FAILURE states a refusal, and which a sibling arm
-      of an enclosing Selector can still turn into an admission, MUST log that
-      non-match at DEBUG. Only the node whose FAILURE every composite above it
-      passes on — the branch that is the tree's answer — logs at WARNING. A node
-      whose FAILURE states no refusal, because the handler decides its verdict from
-      the act, is outside this rule and takes its level from SL-03-001.
+      The received runner MUST log exactly one WARNING line for each received
+      delivery it reports `REFUSED`, carrying the reason it reports, the activity
+      id and the sending actor's id.
     rationale: >-
-      A Selector arm that fails so the next arm can run has decided nothing, so it
-      is not the recoverable anomaly WARNING means in SL-03-001; it is diagnostic
-      detail. A reader, and a log matcher, takes a WARNING as the outcome. The
-      sender guard's any-of side is the live case: a CASE_MANAGER check failing is
-      how a Case Owner's activity reaches the CASE_OWNER check that admits it, and
-      at WARNING that read as a refusal in every demo log of three passing runs.
-      Deciding the level from the node's placement in the running tree, rather than
-      from a flag its composer sets, is what keeps the level and the tree from
-      disagreeing (#5460). The rule picks the level of a refusal reason, so a
-      FAILURE that is not one is scoped out rather than forced into the choice: the
-      closed-sender check reports a recorded state whose act may be a repeat the
-      handler reports SKIPPED, not REFUSED (CM-23-018, ID-05-003), and it carries no
-      REFUSED wording for a reader to misread (#5786).
+      Only the runner reads the delivery's verdict, so only it knows whether a
+      FAILURE refused anything. A node guessed it from the tree's shape, and each
+      guess that went wrong logged a refusal for a sender the tree admitted or a
+      delivery it reported SKIPPED (#5460, #5786, #5845, #5903, #5917). One line per
+      refused delivery, written where the verdict is read, is the outcome a reader
+      and a log matcher can trust, and the reason in it is the one the handler
+      reports, so the two cannot drift (#6477).
     verification: >-
-      `test/core/behaviors/test_sender_guard.py` ticks composed guards and asserts
-      the overruled arm logs one DEBUG line while the arm that is the guard's own
-      answer logs WARNING, walks `SEMANTIC_REGISTRY` asserting every declared
-      side naming `CASE_MANAGER` composes the check where its own placement says
-      it belongs, and ticks every declared side naming more than one kind with a
-      sender none of its arms admits, asserting one WARNING — the last arm's,
-      naming every standing the side accepts — and DEBUG with no REFUSED wording
-      from each arm before it. It also pins the scoped-out closed-sender check at
-      INFO in both placements.
-      `test/architecture/test_sender_guard_failure_is_the_tree_refusal.py` asserts
-      the invariant the level is read from — that the factory places the composed
-      sender door where its FAILURE is the whole tree's refusal — across every
-      built received tree. A regression to WARNING on an overruled arm also fails
-      the three demo runs through `expect_no_sender_refusals`.
+      `test/core/behaviors/case/test_received_run.py` runs refused, SKIPPED and
+      APPLIED trees through `run_received_tree` with every record captured from
+      DEBUG up, and asserts a refused run logs one record carrying a `REFUSED
+      (IDs)` group, from the runner's logger at WARNING, ending with the reason it
+      reports and naming the activity and sender, while a SKIPPED or APPLIED run
+      logs none. A composed any-of sender guard refusing a stranger is among the
+      refused runs. The demo runs assert no such runner line cites HP-01-006
+      through `expect_no_sender_refusals`.
     relationships:
     - rel_type: refines
       spec_id: SL-03-001
@@ -230,20 +215,43 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A log line for a non-match that a sibling arm can still overrule MUST NOT
-      carry the `REFUSED` wording that a refusal reason ends with.
+      A behaviour-tree node MUST log the facts behind its own FAILURE at DEBUG.
+    rationale: >-
+      A node cannot know whether its FAILURE is the delivery's verdict: a later
+      Selector arm may admit the sender, and the verdict reading may report the run
+      SKIPPED. Its line is diagnostic detail under SL-03-001, and the refusal, when
+      there is one, is the runner's line (SL-03-002). Logging the facts at DEBUG
+      keeps them, including the CASE_MANAGER a sender check resolved, for whoever
+      debugs the run (#5460, #6477).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py` ticks every declared any-of side
+      with a sender none of its arms admits, the lone CASE_MANAGER and CASE_OWNER
+      sides, an overruled CASE_MANAGER arm and the closed-sender check in both its
+      placements, and asserts every sender check's line is DEBUG and keeps the
+      facts its reason states.
+    relationships:
+    - rel_type: refines
+      spec_id: SL-03-001
+  - id: SL-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A log line other than the received runner's refusal line MUST NOT carry the
+      `REFUSED (IDs)` group that a refusal reason ends with.
     rationale: >-
       `REFUSED` is the token a reader greps and the demo tests match to assert that
-      no sender was refused. If a line that refused nobody carries it, the token
-      stops meaning a refusal and the assertion stops being worth making. Keeping
-      the wording to the refusal is what lets one string serve both the reader and
-      the matcher, so a second bespoke template cannot drift out of the matcher's
-      sight the way the one this replaced did (#5460).
+      no sender was refused. A node, the bridge's run summary or the receipt-stub
+      line that repeats a reason with its group makes one refusal look like several,
+      and a reason from an overruled arm look like a refusal. Stripping the group
+      from every other line keeps the token to the verdict, so the matcher can key
+      on the runner's one line per refused delivery (#5460, #6477).
     verification: >-
-      `test/core/behaviors/test_sender_guard.py` asserts the overruled arm's DEBUG
-      line carries no `REFUSED` wording while keeping the facts the reason states,
-      including the CASE_MANAGER it resolved, and that the arm that is the guard's
-      answer still logs the full reason with its `REFUSED (IDs)` group.
+      `test/core/behaviors/case/test_received_run.py` asserts a refused run, a
+      composed sender guard's among them, leaves exactly one record carrying the
+      group — the runner's — across every logger from DEBUG up, and that a SKIPPED
+      or APPLIED run whose nodes failed with a reason worded as a refusal leaves
+      none. `test/core/behaviors/test_sender_guard.py` asserts no record of any
+      declared any-of side's run carries the group.
     relationships:
     - rel_type: extends
       spec_id: SL-03-002

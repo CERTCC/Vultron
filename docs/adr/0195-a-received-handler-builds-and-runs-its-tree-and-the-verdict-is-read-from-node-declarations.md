@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-13
-revision: 2
+updated: 2026-11-16
+revision: 3
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -62,17 +62,22 @@ The readings keep one order: the doors and the sender sequence stage, then the h
 The reader comes before the declarations so that a handler reading that names its own answer for a run wins.
 A reader returns no answer for any run it does not read, and the declarations then decide.
 
+The runner also logs the refusal.
+It writes one WARNING line for each delivery it reports `REFUSED`, with the activity id, the sender, the receiver and the reason it reports.
+A node logs the facts behind its failure at DEBUG and does not say it refused anything, because only the reading knows whether a failure was the verdict.
+
 ### Consequences
 
 - Good, because a guard that declares a repeat is reported `SKIPPED` in every tree it joins, with no handler change.
 - Good, because a handler's `execute()` shrinks to building a tree and running it.
 - Good, because tree tests read verdicts through `core/behaviors` alone.
+- Good, because a log reader and the demo matchers see one `REFUSED` line per refused delivery and none for a skipped or applied one.
 - Bad, because a few readings that read the DataLayer around the run stay in the use cases until each gets a node or a door of its own.
 - Neutral, because the reader is a deliberate escape hatch: a reading that recurs across handlers should become a node declaration, and a reading that only says "this guard failed, so refuse with its reason" is a declared refusal.
 
 ## Validation
 
-- Tree tests in `test/core/behaviors/case/test_received_run.py` check each reading and its order without importing a use case.
+- Tree tests in `test/core/behaviors/case/test_received_run.py` check each reading and its order without importing a use case, and check from captured records that a refused run logs one `REFUSED` line, the runner's, and a skipped or applied run logs none.
 - `test/architecture/test_received_side_actor_id.py` checks that no received use case calls the bridge's `execute_with_setup` and that the runner runs the tree as the resolved receiver.
 - The single-tree ratchet in `test/architecture/test_single_bt_execution_received_side.py` counts a call of the runner as the delivery's one tree run.
 

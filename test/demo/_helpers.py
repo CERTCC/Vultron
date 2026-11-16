@@ -29,6 +29,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
+import vultron.core.behaviors.case.received_run.runner as received_runner
 import vultron.core.behaviors.sync.nodes.chain as chain_nodes
 import vultron.demo.utils.environment as utils_environment
 from test.support.ledger import (
@@ -878,31 +879,56 @@ def expect_trusted_introductions(
         )
 
 
+#: The logger the received runner writes each refused delivery's one
+#: ``REFUSED`` line to (SL-03-002, #6477).
+RECEIVED_RUNNER_LOGGER = received_runner.logger.name
+
+
+def _runner_refusals(
+    caplog: pytest.LogCaptureFixture, pattern: str
+) -> list[str]:
+    """Every runner refusal line whose message matches the regex *pattern*."""
+    marker = re.compile(pattern)
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == RECEIVED_RUNNER_LOGGER
+        and marker.search(record.getMessage())
+    ]
+
+
 @contextlib.contextmanager
 def expect_no_sender_refusals(
     caplog: pytest.LogCaptureFixture,
 ) -> Iterator[None]:
-    """Assert no sender check refused a sender in the wrapped run (HP-01-006).
+    """Assert no received delivery was refused for its sender (HP-01-006).
 
-    Wrap a demo run in this.  On exit it asserts that no log message carries
-    a ``REFUSED (...)`` group citing HP-01-006, alone or beside another
-    gate's ID: ``REFUSED (HP-01-006)``, the refusal of a sender check such as
-    the anchored CASE_MANAGER check, ``REFUSED (HP-01-006, PCR-03-004)``, the
-    anchored check finding no trusted CASE_MANAGER, or ``REFUSED (HP-01-006,
+    Wrap a demo run in this.  On exit it asserts that no line the received
+    runner logged for a refused delivery carries a ``REFUSED (...)`` group
+    citing HP-01-006, alone or beside another gate's ID: ``REFUSED
+    (HP-01-006)``, the refusal of a sender check such as the anchored
+    CASE_MANAGER check, ``REFUSED (HP-01-006, PCR-03-004)``, the anchored
+    check finding no trusted CASE_MANAGER, or ``REFUSED (HP-01-006,
     HP-01-024)``, no sender being entitled at all.  A receiver refusing the
-    full-case Invite from its real CASE_MANAGER logged only the first, at
-    WARNING, while the demo passed (#4970); the suggest-actor demo's own-inbox
-    Accept logged the last (#5438).  The caller's ``caplog`` level must let
-    WARNING records through; entering at a higher level fails at once.
+    full-case Invite from its real CASE_MANAGER passed the demo while it
+    logged the first (#4970); the suggest-actor demo's own-inbox Accept
+    logged the last (#5438).
+
+    Keyed on the runner's line, the one record per refused delivery that
+    knows the verdict, so a sender check a later arm overruled, or a run
+    reported ``SKIPPED``, can never trip it (#6477).  The caller's
+    ``caplog`` level must let WARNING records through; entering at a higher
+    level fails at once.
     """
     assert caplog.handler.level <= logging.WARNING, (
         "expect_no_sender_refusals needs caplog at WARNING or lower, or an"
         " HP-01-006 sender refusal could not be seen"
     )
     yield
-    refusals = _logged_refusals(caplog, r"REFUSED \([^)]*\bHP-01-006\b[^)]*\)")
+    refusals = _runner_refusals(caplog, r"REFUSED \([^)]*\bHP-01-006\b[^)]*\)")
     assert not refusals, (
-        "a sender check refused a sender (HP-01-006):\n" + "\n".join(refusals)
+        "a received delivery was refused for its sender (HP-01-006):\n"
+        + "\n".join(refusals)
     )
 
 

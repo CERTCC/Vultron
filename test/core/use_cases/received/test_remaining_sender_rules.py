@@ -598,18 +598,17 @@ def test_a_second_leave_with_a_new_id_is_skipped_and_records_nothing() -> None:
     assert world.outbox() == outbox
 
 
-@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-002", "SL-03-003")
+@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-002", "SL-03-004")
 def test_a_skipped_repeat_leave_logs_no_sender_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The closed-sender door turns a closed non-owner's repeated Leave away
     as ``SKIPPED``, so no line claims a refusal.
 
-    The door's Case Owner arm is its Selector's last child, so a sender node
-    there would log ``REFUSED (HP-01-006)`` at WARNING for a delivery the
-    handler reports ``SKIPPED``.  The arm reads the role through
-    ``ActorHoldsRoleInCaseNode``, which states no refusal, and the closure
-    line keeps INFO (CM-23-018).
+    Only the received runner logs a refusal, and only for a ``REFUSED``
+    verdict, so a ``SKIPPED`` run leaves no record carrying the word at any
+    level (#6477).  The door's Case Owner arm reads the role through
+    ``ActorHoldsRoleInCaseNode``, which states no refusal either.
     """
     world = _World()
     first = world.leave_from(world.finder.id_, suffix="first")

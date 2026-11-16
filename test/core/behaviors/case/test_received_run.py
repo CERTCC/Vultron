@@ -26,6 +26,7 @@ from py_trees.common import Status
 
 from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
+from test.support.sender_guard import guard_tree, staged_sender_guard
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
@@ -53,6 +54,7 @@ from vultron.core.behaviors.case.received_run import (
     node_succeeded,
     read_outcome,
     run_received_tree,
+    runner as runner_module,
 )
 from vultron.core.behaviors.helpers import DATALAYER_UNAVAILABLE
 from vultron.core.behaviors.idempotency import (
@@ -64,6 +66,7 @@ from vultron.core.behaviors.idempotency import (
     repeat_ending_run,
     unchanged_by_run,
 )
+from vultron.core.behaviors.node_logger import fail_with_reason
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
@@ -82,6 +85,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.note import VultronNote
+from vultron.core.models.refusal_wording import carries_refusal_group
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -915,17 +919,122 @@ def test_the_runner_raises_when_no_receiver_can_be_resolved():
     assert probe.ticks == 0
 
 
-@pytest.mark.spec("HP-01-003")
-def test_the_runner_reads_and_logs_a_refusal(caplog):
-    caplog.set_level(logging.WARNING)
-    verdict = run_received_tree(
-        _probe_tree(_Records(Status.FAILURE)),
-        dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
-        request=_event(_RECEIVER),
-        label="ProbeBT",
-    )
+def _refusal_records(
+    caplog: pytest.LogCaptureFixture,
+) -> list[logging.LogRecord]:
+    """Every captured record whose message carries a ``REFUSED (IDs)`` group."""
+    return [
+        record
+        for record in caplog.records
+        if carries_refusal_group(record.getMessage())
+    ]
+
+
+def _run_logged(
+    caplog: pytest.LogCaptureFixture, tree: py_trees.behaviour.Behaviour
+) -> HandlerResult:
+    """Run *tree* through the runner with every record captured, DEBUG up."""
+    with caplog.at_level(logging.DEBUG):
+        return run_received_tree(
+            tree,
+            dl=SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER),
+            request=_event(_RECEIVER),
+            label="ProbeBT",
+        )
+
+
+@pytest.mark.spec("HP-01-003", "SL-03-002", "SL-03-003")
+def test_the_runner_logs_one_refusal_line_with_the_reason_it_reports(caplog):
+    """A refused delivery logs exactly one record carrying a ``REFUSED``
+    group: the runner's WARNING, naming the activity, the sender and the
+    receiver.  A reason with no group of its own gains HP-01-003's (#6477).
+    """
+    verdict = _run_logged(caplog, _probe_tree(_Records(Status.FAILURE)))
     assert verdict == HandlerResult.refused("ProbeBT: the probe refused")
-    assert "ProbeBT did not succeed for activity" in caplog.text
+    (record,) = _refusal_records(caplog)
+    assert record.name == runner_module.logger.name
+    assert record.levelno == logging.WARNING
+    assert record.getMessage() == (
+        f"ProbeBT refused activity '{_event(_RECEIVER).activity_id}' from"
+        f" '{_SENDER}' at '{_RECEIVER}': ProbeBT: the probe refused"
+        " — REFUSED (HP-01-003)"
+    )
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+def test_a_sender_guard_refusal_is_logged_once_by_the_runner(caplog):
+    """A composed any-of sender guard refuses a stranger: every check logs
+    a DEBUG fact without the group, and the one record carrying it is the
+    runner's, ending with the reason it reports verbatim (#6477)."""
+    guard = staged_sender_guard(
+        SenderRule.in_case(
+            SenderEntitlementKind.CASE_OWNER,
+            SenderEntitlementKind.PARTICIPANT,
+        ),
+        SenderCheckContext(sender_id=_SENDER, case_id=_CASE_ID),
+    )
+    assert guard is not None
+    root = py_trees.composites.Sequence(
+        name="ProbeBT", memory=False, children=[guard_tree(guard, _CASE_ID)]
+    )
+    verdict = _run_logged(caplog, root)
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None
+    assert verdict.reason.endswith("REFUSED (HP-01-006, HP-01-023)")
+    (record,) = _refusal_records(caplog)
+    assert record.name == runner_module.logger.name
+    assert record.getMessage().endswith(f": {verdict.reason}")
+    assert _event(_RECEIVER).activity_id in record.getMessage()
+    assert f"from '{_SENDER}'" in record.getMessage()
+    checks = [
+        r
+        for r in caplog.records
+        if r.name.startswith("vultron.core.behaviors.sender_entitlement.")
+        and r.funcName == fail_with_reason.__name__
+    ]
+    assert len(checks) >= 2, "the guard's arms logged no facts"
+    assert {r.levelno for r in checks} == {logging.DEBUG}
+
+
+@pytest.mark.spec("ID-05-003", "SL-03-002")
+def test_a_skipped_run_logs_no_refusal_line(caplog):
+    """A guard that failed as a repeat is ``SKIPPED``: no record carries a
+    ``REFUSED`` group, whatever the guard's message says."""
+    root = py_trees.composites.Sequence(
+        name="ProbeBT",
+        memory=False,
+        children=[
+            _RepeatGuard(
+                "Repeat",
+                repeat=True,
+                message="already done — REFUSED (HP-01-006)",
+            )
+        ],
+    )
+    verdict = _run_logged(caplog, root)
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    assert [
+        r.getMessage()
+        for r in _refusal_records(caplog)
+        if r.name == runner_module.logger.name
+    ] == []
+
+
+@pytest.mark.spec("HP-01-003", "SL-03-002")
+def test_an_applied_run_logs_no_refusal_line(caplog):
+    """A run that succeeded, though an overruled arm failed on the way with
+    a reason worded as a refusal, logs no record carrying the group."""
+    root = py_trees.composites.Selector(
+        name="ProbeBT",
+        memory=False,
+        children=[
+            _Guard("Overruled", Status.FAILURE, "no — REFUSED (HP-01-006)"),
+            _Guard("Admits", Status.SUCCESS),
+        ],
+    )
+    verdict = _run_logged(caplog, root)
+    assert verdict == HandlerResult.applied()
+    assert _refusal_records(caplog) == []
 
 
 def test_the_runner_hands_its_reader_only_the_finished_run():

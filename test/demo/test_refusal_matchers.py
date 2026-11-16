@@ -19,11 +19,15 @@ import logging
 import pytest
 
 from test.demo._helpers import (
+    RECEIVED_RUNNER_LOGGER,
     expect_no_inbox_refusals,
     expect_no_sender_refusals,
 )
 
 _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
+
+#: The received runner's logger: the one writer of a refused delivery's line.
+_RUNNER = logging.getLogger(RECEIVED_RUNNER_LOGGER)
 
 
 @pytest.mark.parametrize(
@@ -35,10 +39,8 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         "No sender is entitled to send this activity to the CASE_MANAGER"
         " — REFUSED (HP-01-006, HP-01-024)",
         "Invite 'i' was never recorded here — REFUSED (EP-09-010, HP-01-006)",
-        # The four reasons that logged a second WARNING beside
-        # SenderHoldsNoneOfNode's until #5786 demoted them.  The matcher was
-        # never blind to them — the demos just never drove these refusals —
-        # so it must still fail the run if one comes back at WARNING.
+        # Four reasons the demos never drive: the matcher must still fail
+        # the run when the runner reports one (#5786).
         "Sender 'a' is not an active participant of case 'c', or has left it"
         " — REFUSED (HP-01-006, CM-10-004, CM-23-018)",
         "Sender 'a' may not add a status to participant record 'p': the"
@@ -48,23 +50,34 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         " (CM-30-001, CM-23-018, HP-01-006)",
         "Sender 'a' is not a participant of case 'c' — REFUSED (HP-01-006,"
         " DEMOMA-07-003 step 1)",
-        # The same node's no-case refusal. It carried HP-01-006 but no
-        # `REFUSED` group until #5786's review, so the matcher could not see
-        # it even at WARNING; its sibling check always worded it this way.
+        # The same node's no-case refusal (#5786).
         "No case in this store to check sender 'a' against — REFUSED"
         " (HP-01-006, DEMOMA-07-003 step 1)",
         # The lone-CASE_OWNER refusal (#5845).  No demo drives one, so the
-        # line is pinned here rather than discovered the first time a demo
+        # reason is pinned here rather than discovered the first time a demo
         # step sends an owner-only activity from someone else.
         "Sender 'a' is not the Case Owner of case 'c' — REFUSED (HP-01-006)",
     ],
 )
 def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
-    """A ``REFUSED (...)`` group citing HP-01-006 anywhere fails the run."""
+    """A runner line whose ``REFUSED (...)`` group cites HP-01-006 fails the
+    run."""
     with caplog.at_level(logging.WARNING):
         with pytest.raises(AssertionError, match="HP-01-006"):
             with expect_no_sender_refusals(caplog):
-                _LOGGER.warning(message)
+                _RUNNER.warning(
+                    "Probe refused activity 'x' from 'a' at 'v': %s", message
+                )
+
+
+def test_sender_matcher_ignores_a_line_the_runner_did_not_write(caplog):
+    """Only the runner knows the verdict, so a group citing HP-01-006 in any
+    other logger's line — a node's, or the bridge's — is not a refusal
+    (#6477)."""
+    with caplog.at_level(logging.WARNING), expect_no_sender_refusals(caplog):
+        _LOGGER.warning(
+            "Sender 'a' is not the Case Owner of case 'c' — REFUSED (HP-01-006)"
+        )
 
 
 @pytest.mark.parametrize(
@@ -72,21 +85,19 @@ def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
     [
         "Invite 'i' was never recorded here — REFUSED (EP-09-010)",
         "Sender 'a' has no standing — REFUSED (HP-01-0061)",
-        # The same three reasons as an overruled arm words them: the trailing
-        # group is gone, so the line claims no refusal (SL-03-003, #5786).
+        # The same three facts without their group, as a node logs them
+        # (SL-03-003, #5786).
         "Sender 'a' is not an active participant of case 'c', or has left it",
         "Sender 'a' is not a participant of case 'c'",
         "No case in this store to check sender 'a' against",
-        # The CASE_OWNER arm of an any-of side, overruled by a later kind:
-        # the group is gone, so the arm claims no refusal (SL-03-003, #5845).
-        "Sender 'a' is not the Case Owner of case 'c'; a later arm of the"
-        " any-of side may still admit it",
     ],
 )
 def test_sender_matcher_ignores_groups_without_hp_01_006(caplog, message):
     """A refusal that does not cite HP-01-006 is not a sender refusal."""
     with caplog.at_level(logging.WARNING), expect_no_sender_refusals(caplog):
-        _LOGGER.warning(message)
+        _RUNNER.warning(
+            "Probe refused activity 'x' from 'a' at 'v': %s", message
+        )
 
 
 def test_inbox_matcher_catches_a_rejected_inbox_activity(caplog):

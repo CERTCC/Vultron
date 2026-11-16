@@ -46,6 +46,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.models.received_body import received_body_digest
+from vultron.core.models.refusal_wording import without_refusal_group
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -183,7 +184,10 @@ def _save_stub(
         " a receipt stub (CLP-10-018). Reason: %s",
         stub.activity_id,
         stub.sender_id,
-        stub.refusal_reason,
+        # The received runner logged the refusal with its group; the stub's
+        # line states the reason it keeps without it (SL-03-003).  A stub
+        # always carries its reason (validated at construction).
+        without_refusal_group(stub.refusal_reason or ""),
     )
     return stub
 
