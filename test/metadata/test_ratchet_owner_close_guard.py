@@ -14,10 +14,10 @@
 
 The guard is a pull-request job that reads the body's closing references and
 the ``# owner:`` markers at the merge commit through
-``vultron.metadata.ratchet_markers`` (#6408). It runs on every body edit as well as on a push, since a closing
-reference can be added without a commit. The tests below run
-``ratchet-close-guard`` (:mod:`vultron.metadata.ratchet_close_guard`) over a
-scratch ``test/`` tree.
+``vultron.metadata.ratchet_markers`` (#6408). It runs on every body edit as
+well as on a push, since a closing reference can be added without a commit.
+The tests below run ``ratchet-close-guard``
+(:mod:`vultron.metadata.ratchet_close_guard`) over a scratch ``test/`` tree.
 """
 
 import io

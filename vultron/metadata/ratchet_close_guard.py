@@ -22,8 +22,8 @@ instead (ARCH-18-012): it reads the body's closing references
 markers at the checked-out merge commit
 (:mod:`vultron.metadata.ratchet_markers`), so the scan sees the tree after the
 pull request's changes, and fails when a closed issue still owns a baseline
-that is not at its terminal value. A ``# permanent:`` marker never counts, and a ratchet the same pull
-request empties no longer cites its owner.
+that is not at its terminal value. A ``# permanent:`` marker never counts, and
+a ratchet the same pull request empties no longer cites its owner.
 
 It makes no network call: the workflow
 (``.github/workflows/ratchet-owner-close-guard.yml``) writes the event's body to
