@@ -32,7 +32,7 @@ just edited a metadata file and got it wrong, so **error messages are the produc
 | `demo_scenarios/` | the `@scenario` registry and the branch-point table in `vultron/demo/scenario/`; the committed recordings' case ids (`export_tree.py`); the ledger-line models, for the UI's TypeScript ledger types (`export_ledger_types.py`) | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the `AppConfig` model, for the generated settings tables on `docs/reference/configuration.md` (`config_reference/`, #4171); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, `path_boxes.py` — the `docs-path-boxes` check that every page renders its reading-path boxes, DF-11-045 — via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level`/`page_type`/`subject` (`page_frontmatter/`, DF-11); each nav section's pages' `subject`, so no section mixes protocol and implementation pages (`nav_subjects.py`, `docs-nav-subjects`, DF-11-020/025); each `docs/start/` page's `thread:` (`threads/` — the `docs-threads` check, the start-page listing `docs-site` splices and the reading-path box fragments it writes under `docs/start/_paths/`, which pages place by hand with `include-markdown`, DF-11-013–016, DF-11-022/023; `thread_order.py` — the `docs-thread-order` check that no member uses a term a later member introduces, reusing `level_order.py`'s scan, DF-11-024); the include directives naming the normative and specification-governs banners, against the normative set and protocol-design pages it declares (`normative_banner.py`, DF-12-006/007); the paragraphs of every target page, for the advisory cross-page copy report `lint-docs` reads (`duplicates.py`, `docs-duplicates`, SG-43, DF-10-002); the requirement registry, for the Requirements Catalog placement table, row lookup and link targets (`requirement_catalog/`, DF-12-001/002/005/010) and the page an exec block prints on (`exec_page.py`, an `on_pre_page` hook under `hooks:`); the story pages under `docs/reference/user_stories/` (`story_pages.py` — the catalog both `spec-lint` and the generators read) and that catalog against the registry's `stories:` fields, for the generated index table and traceability matrix `docs-site` writes (`story_coverage.py`, TRACE-01-001, TRACE-03-003); the registry and the `test/` tree's markers, through `specs/coverage.py`, for the Protocol Specification's known-gaps fragment `docs-site` writes (`known_gaps.py`, DF-12-019/020); the drafts register `docs/reference/vultron-spec/drafts.yaml`, for the Protocol Specification's status box and Revision Log status tables `docs-site` writes, the check that a released entry matches its entry at its release tag, the JSON reader for the promote and the deploy, and the `release` command that marks the open draft released with its predicted tag and publish date (`drafts_register.py`, `drafts-register`, DOCBW-08); the listed specification fragments, for RFC 2119 keywords in prose (`rfc2119_keywords.py`, DF-12-004); built-site URLs for links a renderer prints come from `site_urls.py`; `notes/nav-usability/suite.yaml`, a nav's labels and a built `site/`, for the agent usability test that gates a nav change (`nav_usability/`, ADR-0136) | `PageFrontmatter`, `WorkingRecordFrontmatter`, `ThreadDeclaration` (`page_schema/`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
 | `csaf/` | the pinned local copy of the CSAF 2.1 schemas and its pin record under `third_party/csaf/` (`pin.py`), generating `vultron/wire/csaf/models/` (`regenerate.py`, `csaf-models`, CSAF-05-002/003); a clone of `oasis-tcs/csaf` outside the repository, named by `--clone` and never read by a test or hook (`corpus.py`, `csaf-corpus`, CSAF-05-004); checkouts of `oasis-tcs/csaf` at the pinned commit and at its head, compared by the scheduled `CSAF Draft Watch` workflow (`draft_watch/`, `csaf-draft-watch`, CSAF-05-005 to CSAF-05-007) | `CsafPin` (`pin.py`) |
-| `vince_data/` | every tracked `.json`/`.jsonl`/`.ndjson` file, read for VINCE API response shapes (`shape.py`); the cleared-case list `test/fixtures/vince/cleared-cases.yaml` (`cleared.py`); generates the synthetic fixtures in `test/fixtures/vince/` (`generator.py`), each marked with the producer that wrote it (`marker.py`); `vince-data check` refuses VINCE data outside that directory, or inside it neither vouched for by its producer nor cleared (`check.py`, ADR-0189, VSD-02); the sanitizer (#6348) plugs in by replacing its `None` in `PRODUCER_VERIFIERS` | `ClearedCaseList` |
+| `vince_data/` | every tracked file with a JSON suffix (`JSON_SUFFIXES`) and each branch commit's (`--history`), read for VINCE API response shapes (`shape.py`); the cleared-case list `test/fixtures/vince/cleared-cases.yaml` (`cleared.py`); generates the synthetic fixtures in `test/fixtures/vince/` (`generator.py`), each marked with the producer that wrote it (`marker.py`); `vince-data check` refuses VINCE data outside that directory, or inside it neither vouched for by its producer nor cleared (`check.py`, ADR-0189, VSD-02); the sanitizer (#6348) plugs in by replacing its `None` in `PRODUCER_VERIFIERS` | `ClearedCaseList` |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests/`); merged `base:main` PRs and the Issues they close, through `gh` search, and a `git blame` trace of each bug-fix PR in the local clone (`size_calibration/`, `pr-size --calibrate`); `.github/workflows/` and a branch diff, running CI's pull-request checks locally (`ci_mirror/`: `prepush-ci-mirror`); a PR body file or `gh pr view` payload (`pr_body_lint/`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate and CI mirror: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
 Shared helpers live in `base.py`, `markdown_tables.py`, `git_runner.py` (`GitRunner`,
@@ -73,21 +73,18 @@ the private spelling will not find a public duplicate** — search for the behav
 
 ## Generate vs. Check
 
-Every subpackage that owns committed generated artifacts splits the same way:
-**generate what is derivable, check what is prose.** `adr/index_gen.py` regenerates
+Every subpackage that owns committed generated artifacts splits the same way: **generate
+what is derivable, check what is prose.** `adr/index_gen.py` regenerates
 `docs/adr/index.md` but checks only the hand-labelled nav; `demo_scenarios/` regenerates
 the CI matrix, every plot manifest, two scenario tables, the tree index and the UI
 ledger types, leaving spec enumerations and nav to checks; `msm/occasions/` the occasion
-YAML and fragments, not page prose; `csaf/` the CSAF models, whole; `vince_data/` the
-synthetic VINCE fixtures, whole. Each is a `--check` hook (`adr-index-sync`,
-`demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`, `demo-ledger-types-sync`,
-`csaf-models-sync`) comparing bytes via `generated_files.py`, except that
-`vince_data/`'s comparison is one part of `vince-data check`, which also refuses
-VINCE-shaped JSON committed anywhere else (`vince-data-check`);
+YAML and fragments, not page prose; `csaf/` the CSAF models, whole. Each is a `--check`
+hook (`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`,
+`demo-ledger-types-sync`, `csaf-models-sync`) comparing bytes via `generated_files.py`;
 an ungated one is hand-edited. `docs/landing_pages/` (`docs-site-sync`) splits per page:
 a nav group's `index.md` declares `contents: generated | routing | rendered`, and a
-routing index is *checked* to link every member of its section, not written (#3617).
-No fourth shape or default: an undeclared group index is a fault on purpose.
+routing index is *checked* to link every member of its section, not written (#3617). No
+fourth shape or default: an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
@@ -98,10 +95,9 @@ built-site URLs (`rv/`) from a renderer, not source paths.
 
 ## Loader Failure Attribution (MS-17)
 
-Every loader here has the same shape: walk a directory, parse each file, then
-validate the parsed data against a Pydantic model. Both steps can fail, and
-**both must name the file that failed** — as `path:line:col` when the parser
-supplies a position (MS-17-001).
+Every loader here has the same shape: walk a directory, parse each file, then validate
+the parsed data against a Pydantic model. Both steps can fail, and **both must name the
+file that failed** — as `path:line:col` when the parser supplies a position (MS-17-001).
 
 Route both steps through `file_loading.py`; do not write a new wrapper
 (MS-17-003). A ratchet (`test/architecture/test_metadata_loader_attribution.py`)

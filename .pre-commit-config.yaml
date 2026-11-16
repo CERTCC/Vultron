@@ -321,7 +321,7 @@ repos:
 
       - id: vince-data-check
         name: No VINCE API data committed unless synthetic or cleared
-        # ADR-0189 rules 3 and 4, VSD-02-001 to VSD-02-005. Reads every
+        # VSD-02-001 to VSD-02-005, ADR-0189. Reads every
         # tracked JSON file, not only the staged ones: the target set must
         # never be empty, and a fixture or the cleared-case list can change
         # the verdict on a file the commit did not touch. Watched: every

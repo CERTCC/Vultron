@@ -1,4 +1,4 @@
-# The VINCE case ids a maintainer has cleared for committing (ADR-0189 rule 3).
+# The VINCE case ids a maintainer has cleared for committing (VSD-02-001, ADR-0189).
 #
 # A recorded VINCE response without the synthetic marker may be committed in
 # test/fixtures/vince/ only when its case id is listed here. Each entry names

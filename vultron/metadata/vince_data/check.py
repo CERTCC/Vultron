@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The committed-data check: no VINCE API data reaches a commit unless it is
-synthetic or cleared (ADR-0189 rules 3 and 4, VSD-02-001 to VSD-02-005).
+synthetic or cleared (VSD-02-001 to VSD-02-005, ADR-0189).
 
 Every tracked file with a JSON suffix (:data:`~.shape.JSON_SUFFIXES`) is read,
 and each VINCE-shaped document (:mod:`.shape`) must

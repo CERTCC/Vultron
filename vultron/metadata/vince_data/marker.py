@@ -13,7 +13,7 @@
 """The synthetic marker, the fixture directory, and the tools that may mark.
 
 A committed VINCE-shaped file is synthetic only when one of two tools wrote
-it and it carries the marker (ADR-0189 rule 4, VSD-02-005). The marker names
+it and it carries the marker (VSD-02-005, ADR-0189). The marker names
 which tool wrote the file, at the top level of the file's one document::
 
     {"synthetic": {"producer": "generator"}, "reads": {...}}

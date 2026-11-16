@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Committed VINCE data: synthetic fixtures and the check that refuses the
-rest (ADR-0189 rules 3 and 4, VSD-02).
+rest (VSD-02, ADR-0189).
 
 - :mod:`.marker` holds the fixture directory, the synthetic marker and the
   names of the two tools that may write it: the generator and the sanitizer

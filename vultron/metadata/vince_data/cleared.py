@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The committed cleared-case list (ADR-0189 rule 3, VSD-02-002, VSD-02-003).
+"""The committed cleared-case list (VSD-02-002, VSD-02-003).
 
 A recorded VINCE response with no synthetic marker may be committed only when
 a maintainer has cleared its VINCE case id. Each entry names one case id and

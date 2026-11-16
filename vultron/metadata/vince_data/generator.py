@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The committed VINCE fixture generator (#5961, ADR-0189 rule 4).
+"""The committed VINCE fixture generator (#5961, VSD-02-005).
 
 Writes one file per synthetic VINCE case into :data:`~.marker.FIXTURE_DIR`,
 each carrying the synthetic marker with ``producer`` set to

@@ -1,5 +1,5 @@
 # The committed-data check, on every pull request, whatever it changed
-# (ADR-0189 rules 3 and 4, VSD-02-001 to VSD-02-005).
+# (VSD-02-001 to VSD-02-005, ADR-0189).
 #
 # `uv run vince-data check` reads every tracked JSON file and refuses one that
 # holds a VINCE API response unless it lies in test/fixtures/vince/ and is
