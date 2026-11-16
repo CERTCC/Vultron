@@ -90,11 +90,11 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
-| VINCE data handling in the case shadow (logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
+| VINCE data handling in the case shadow tool (logs, credential, clearance, sanitizer) | `vince-shadow-data.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
 | Demo scenario report tool | `demo-report.yaml` |
 | Case event history for measurement | `case-event-history.yaml` |
-| Case shadow (read-only advisor, packaging) | `case-shadow.yaml` |
+| Case shadow tool (read-only advisor, packaging, move advice, live Vultron case reader) | `case-shadow.yaml` |
 | Outside-system case reader port | `case-reader.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
@@ -132,13 +132,14 @@ related requirements across files.
   (ARCH-01 through ARCH-12; ARCH-01-004, ARCH-04-002 added to track sync
   port and broader wire-import violations in core/)
 - **`vince-shadow-data.yaml`** - Handling of data read from VINCE by the
-  case shadow: no long-lived copy, id-only logs, runtime-only credential, and
+  case shadow tool: no long-lived copy, id-only logs, runtime-only credential, and
   per-case clearance or sanitization before anything enters the repository
   (VSD-01, VSD-02; ADR-0189)
-- **`case-shadow.yaml`** - The case shadow: a standalone, read-only tool that
-  translates one outside-system case on request and shows Vultron's analysis;
-  no delivery or write path, no long-lived copy, loopback-only packaging
-  (SHD-01, SHD-02; ADR-0190, ADR-0192)
+- **`case-shadow.yaml`** - The case shadow tool: a standalone, read-only advisor
+  that reads one case on request and shows Vultron's analysis; no delivery or
+  write path, nothing left on the host after it exits, loopback-only packaging,
+  move advice, and the live Vultron case reader (SHD-01 to SHD-04; ADR-0190,
+  ADR-0192, ADR-0200)
 - **`case-reader.yaml`** - The read-only `CaseReader` port through which an
   outside system's case reaches the core as a translated case ledger, each
   entry citing its source record (CRD-01; ADR-0191)

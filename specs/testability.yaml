@@ -742,9 +742,9 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      When a timeout tier fires on honest work rather than on a hang, the tier
-      SHOULD be raised, rather than each affected test given its own
-      `@pytest.mark.timeout` or recorded as flaky.
+      A timeout tier that fires on honest work across its tests SHOULD be raised,
+      not each test given its own `@pytest.mark.timeout` or recorded as
+      flaky. One outlier test is TB-14-011's case.
     rationale: >-
       A ceiling is a hang detector, not a performance budget. Contention on CI
       runners and loaded dev boxes inflates honest tests far past their idle cost,
@@ -752,6 +752,22 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: TB-14-001
+  - id: TB-14-011
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A single test that trips its timeout tier on honest work SHOULD be made
+      faster. A per-test `@pytest.mark.timeout` is a stopgap whose comment names the
+      issue that will remove it.
+    rationale: >-
+      The tier is the hang detector for every other test it bounds. Raising it for
+      one outlier makes every hang hold a worker longer, so the cheapest fix for the
+      whole suite is to speed up the outlier, for example by sharing work it
+      repeats. A marker with no named issue becomes a permanent exemption that
+      nobody revisits.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-14-003
   - id: TB-14-004
     priority: MUST
     kind: project

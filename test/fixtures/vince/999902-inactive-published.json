@@ -1,0 +1,87 @@
+{
+  "synthetic": {
+    "producer": "generator"
+  },
+  "reads": {
+    "case": {
+      "vuid": "999902",
+      "created": "2026-01-05T14:00:00Z",
+      "status": "Inactive",
+      "summary": "Synthetic case 999902: a made-up flaw in a made-up product, for tests only.",
+      "title": "Synthetic Widget flaw 999902",
+      "due_date": null,
+      "modified": "2026-05-20T16:00:00Z",
+      "pk": 9902
+    },
+    "posts": [
+      {
+        "created": "2026-03-10T10:00:00Z",
+        "author": {
+          "org": "CERT/CC",
+          "active": true,
+          "name": "Synthetic Coordinator",
+          "email": "synthetic.coordinator@example.com"
+        },
+        "pinned": true,
+        "content": "Publication is planned."
+      }
+    ],
+    "report": {
+      "vendor_name": "Synthetic Vendor Alpha",
+      "product_name": "Synthetic Widget",
+      "product_version": "1.0",
+      "vul_description": "A made-up overflow in the widget's parser.",
+      "vul_exploit": "Send the widget an oversized synthetic header.",
+      "vul_impact": "The widget stops.",
+      "vul_discovery": "Reading synthetic source code.",
+      "vul_public": true,
+      "public_references": "https://example.com/advisory",
+      "vul_exploited": true,
+      "exploit_references": "https://example.com/exploit-writeup",
+      "vul_disclose": true,
+      "disclosure_plans": "Publish once the vendors are ready.",
+      "date_submitted": "2026-01-02T10:00:00Z"
+    },
+    "vuls": [
+      {
+        "name": "VU#999902.1",
+        "cve": "CVE-2099-0002",
+        "description": "Synthetic flaw 1 of case 999902.",
+        "date_added": "2026-03-10T09:00:00Z"
+      }
+    ],
+    "vendors": [
+      {
+        "vendor": "Synthetic Vendor Delta",
+        "status": "Affected",
+        "statement": "Synthetic Vendor Delta reviewed the synthetic report.",
+        "references": "https://example.com/vendor-notes",
+        "date_added": "2026-03-10T09:00:00Z",
+        "cert_addendum": null,
+        "statement_date": "2026-03-01T12:00:00Z"
+      }
+    ],
+    "vendors/vuls": [
+      {
+        "vulnerability": "VU#999902.1",
+        "vendor": "Synthetic Vendor Delta",
+        "status": "Affected",
+        "statement": "Synthetic Vendor Delta marked VU#999902.1 Affected.",
+        "references": "https://example.com/vendor-notes",
+        "statement_date": "2026-03-01T12:00:00Z"
+      }
+    ],
+    "note": {
+      "vuid": "999902",
+      "title": "Synthetic Widget flaw 999902",
+      "content": "A synthetic vulnerability note.",
+      "references": [
+        "https://example.com/advisory"
+      ],
+      "datefirstpublished": "2026-05-01T12:00:00Z",
+      "dateupdated": "2026-05-03T12:00:00Z",
+      "published": true,
+      "revision": 2
+    }
+  }
+}

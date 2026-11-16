@@ -108,8 +108,10 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | `vultron/trigger_registry/` | One `TriggerEntry` per trigger verb (request model, use case, result type, exposure, spec IDs) | Per-verb behavior | `vultron/trigger_registry/__init__.py` |
 | `vultron/adapters/driving/` | FastAPI routers, inbox orchestration, outbox handling and monitor, CLI; `shared_inbox.py` is a `NotImplementedError` stub | Business logic, persistence | `vultron/adapters/driving/fastapi/` |
 | `vultron/adapters/driven/` | SQLite data layer (CRUD + queues), outbound HTTP delivery, sync adapter, trigger-activity adapter, wire render adapter | Core domain rules | `vultron/adapters/driven/datalayer_sqlite/`, `vultron/adapters/driven/wire_render/` |
-| `vultron/adapters/connectors/` | Outside-system connector plugins, each implementing core ports such as `CaseReader` (a VINCE example), and a connector loader | Direct protocol handling | `vultron/adapters/connectors/` |
+| `vultron/adapters/connectors/` | Outside-system connector plugins, each implementing a port in `CONNECTOR_PORTS` (today only `CaseReader`; the VINCE module is a stub example, #5963), and the entry-point loader | Direct protocol handling; any `vultron` import beyond its own package, its ports, the core models it translates into, the shared errors and primitives (ARCH-05-002) | `vultron/adapters/connectors/base.py`, `test/architecture/test_connector_boundaries.py` |
 | `vultron/config/` | Settings models, YAML + env loading, `get_config()` | Adapter or core imports | `vultron/config/app.py`, `vultron/config/actor.py` |
+| `vultron/measure/` | Read-only case-ledger readers, the CVD event history and the desiderata chance baselines | Store or ledger writes (CEH-01-002); being imported by `core/`, `wire/` or `adapters/` (CEH-01-001) | `vultron/measure/__init__.py`, `test/architecture/test_measure_layer_boundaries.py` |
+| `vultron/shadow/` | The case shadow: a standalone read-only advisor over one case, reading it only through a `CaseReader` (the Vultron ledger-file reader by default, `select_case_reader`) and the measure layer (ADR-0190) | An inbox, outbox or activity delivery (SHD-01-001) | `vultron/shadow/__init__.py`, `vultron/shadow/readers/selection.py` |
 | `vultron/bt/` | Legacy BT simulator (custom engine, read-only reference for protocol BTs) | Use by production code or demo scenarios | `notes/bt-composability.md`, `test/architecture/test_demo_no_bt_imports.py` |
 
 ### 4) Reused Patterns
@@ -127,6 +129,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
 | Typed ports on BT DataLayer nodes | `vultron/core/behaviors/` (`INPUT_PORTS`/`OUTPUT_PORTS`) | Declare blackboard key dependencies as typed class attributes instead of calling `register_key()` at runtime; enforced by `test/architecture/test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009) |
 | `WireRenderPort` driven port | `vultron/core/ports/wire_render.py` + `vultron/adapters/driven/wire_render/as2.py` | Lets core obtain wire-shaped (AS2 camelCase) JSON without importing `vultron/wire/`; the adapter returns the `CoreObject`'s own by-alias dump (ADR-0099) and refuses anything that is not a `CoreObject` |
+| List-valued extension `type` | `vultron/wire/as2/vocab/extension_activities.py`, `vultron/core/models/type_terms.py` | A Vultron extension activity is sent as `[own type, AS2 core type]` so a plain AS2 reader still understands it; core readers ask whether a body's `type` names a type (`type_terms()`), never compare the raw value (VM-03-005, ADR-0196) |
 | Sealed outbound body | `vultron/adapters/outbox_sealed_body.py` | The JSON a factory produced is the ledger snapshot and the delivered body, byte for byte (VM-08-003) |
 
 ### 5) Known Architectural Risks
@@ -167,6 +170,10 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - `vultron/semantic_registry/__init__.py`
 - `vultron/trigger_registry/__init__.py`
 - `vultron/adapters/driven/wire_render/as2.py`
+- `vultron/core/behaviors/case/received_run/__init__.py`
+- `vultron/core/ports/case_reader.py`
+- `vultron/shadow/__init__.py`
+- `vultron/wire/as2/vocab/extension_activities.py`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_core_no_wire_imports.py`
 - `test/architecture/test_wire_core_import_allowlist.py`

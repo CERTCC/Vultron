@@ -14,9 +14,10 @@ stakeholder_type: [project-contributor]
 | Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other actors' inboxes | None implemented. ADR-0164 (`accepted-provisional`) puts an object-level proof (FEP-8b32, `eddsa-jcs-2022`, seeded Ed25519 keys) inside every sent activity and defers HTTP Signatures to productionization (#1184); the `prod_http_delivery.py` stub docstring still describes HTTP Signatures (OX-10-004) | High | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driven/demo_http_delivery.py` |
 | ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | ADR-0164 object proofs: the inbox verifies each body's FEP-8b32 proof by the key its author's profile publishes, before it parses the body, and refuses a missing or invalid proof with 422; keys are seeded and make no security claim (#1184); the shared-inbox stub (OX-11-001 to OX-11-004) still plans signature validation | High | `vultron/adapters/driving/fastapi/inbox_verification.py`, `vultron/adapters/driving/fastapi/routers/actors/_inbox.py`, `vultron/adapters/driving/shared_inbox.py`, `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` |
 | Dedicated CaseActor service | Outbound HTTP API | A case proposal goes to the CaseActor at `{case_actor_service_url}/actors/case-actor`, one per container (CP-04-005, CP-08-001) | None (as for peer actors) | High | `vultron/config/actor.py`, `docker/docker-compose-multi-actor.yml` |
-| Outside systems (VINCE) | Connector adapter | Implement the core ports for outside systems, today the read-only `CaseReader`, which returns one case as a case reading; plugins are discovered through the `vultron.connectors` entry-point group | a VINCE example only, which declares no entry point; the plugin loader is built | Low | `vultron/adapters/connectors/example/`, `vultron/adapters/connectors/loader.py` |
+| Outside systems (VINCE) | Connector adapter | Implement the core ports for outside systems, today the read-only `CaseReader`, which returns one case as a case reading; plugins are discovered through the `vultron.connectors` entry-point group | The VINCE API token, `VULTRON_VINCE__API_TOKEN`, a `SecretStr` read only from the environment (`vultron/config/vince.py`, VSD-01-004); the VINCE module is a stub example (`VinceCaseReader.read_case` raises `NotImplementedError`, #5963) that declares no entry point, and the plugin loader is built | Low | `vultron/adapters/connectors/example/vince.py`, `vultron/adapters/connectors/loader.py`, `vultron/config/vince.py` |
 | Docker Compose (multi-actor demo) | Orchestration | Stands up multiple actor containers sharing an AS2 network for the end-to-end demo | None (local demo) | Low | `docker/docker-compose-multi-actor.yml`, `docker/demo-entrypoint.sh` |
-| GitHub Pages | Static hosting | Publishes the MkDocs site | GitHub Actions token | Low | `.github/workflows/deploy_site.yml` |
+| GitHub Pages | Static hosting | Publishes the MkDocs site from `publish-YYYY-MM-DD.N` tags on weekday mornings, on demand, and once a GitHub Release is published; every publish serves each released Protocol Specification draft's frozen pages at `spec/draft-N/` (ADR-0171, ADR-0188, DOCBW-06-032) | GitHub Actions token | Low | `.github/workflows/deploy_site.yml`, `.github/workflows/publish_after_release.yml`, `.github/scripts/serve_frozen_drafts.py` |
+| GitHub Releases | Release hosting | A maintainer-started promote tags a publish with the next `vYYYY.M.P` and opens a draft release, attaching a released draft's frozen-pages archive and its SHA-256 manifest; the maintainer publishes it (DOCBW-07, DOCBW-08-021 to DOCBW-08-023) | GitHub Actions token | Low | `.github/workflows/promote_release.yml`, `.github/scripts/release.py`, `.github/scripts/frozen_draft.py`, `.github/scripts/github_releases.py` |
 | `oasis-tcs/csaf` (CSAF 2.1 draft) | Upstream repository, read by CI | A weekday job checks it out at the pinned commit and at its head, and opens one issue when the draft changes what the CSAF models depend on (CSAF-05-005); nothing at runtime reads it | None (public, read-only checkout) | Low | `.github/workflows/csaf-draft-watch.yml`, `vultron/metadata/csaf/draft_watch/` |
 
 ### 2) Data Stores
@@ -28,7 +29,8 @@ stakeholder_type: [project-contributor]
 
 ### 3) Secrets and Credentials Handling
 
-- **Credential sources**: `VULTRON_CONFIG` YAML file and/or `VULTRON_`-prefixed environment variables; only `PROJECT_NAME` is documented in `.env.example`
+- **Credential sources**: `VULTRON_CONFIG` YAML file and/or `VULTRON_`-prefixed environment variables; only `PROJECT_NAME` is documented in `.env.example`.
+  The one credential setting today is `VULTRON_VINCE__API_TOKEN`; a setting typed as a pydantic secret is read only from the environment, and a config file that names one is refused at load (`vultron/config/secrets.py`, VSD-01-004, SHD-02-003)
 - **Hardcoding checks**: no hardcoded credentials observed in source; the database URL is injected via config
 - **Rotation or lifecycle notes**: no secrets manager integration observed.
   ADR-0164 computes each prototype actor's signing key from a fixed seed, which makes no security claim; production key generation, private-key storage and rotation are deferred to #1184.
@@ -56,7 +58,8 @@ stakeholder_type: [project-contributor]
 
 - **Logging around external calls**: `logging.getLogger(__name__)` is used throughout; delivery success logs at INFO, retries at WARNING and terminal failures at ERROR in `http_delivery.py`
 - **Metrics/tracing**: no dedicated metrics or distributed tracing framework observed (no Prometheus, OpenTelemetry, Datadog)
-- **Missing visibility gaps**: no structured log correlation IDs between inbound AS2 activity and outbound delivery confirmation; no health-check metrics for outbound delivery failures beyond the dead-letter store
+- **Correlation ids**: `vultron/logging_correlation.py` defines the context, filter and formatter that put `activity_id` and `actor_id` on every record inside a processing boundary (SL-02-003), but no entry point installs it and no boundary enters it yet (#3992), so log lines still carry no correlation ids
+- **Missing visibility gaps**: no health-check metrics for outbound delivery failures beyond the dead-letter store
 
 ### 6) Evidence
 
@@ -75,4 +78,9 @@ stakeholder_type: [project-contributor]
 - `.github/workflows/deploy_site.yml`
 - `.env.example`
 - `vultron/config/actor.py`
+- `vultron/config/vince.py`
+- `vultron/config/secrets.py`
+- `vultron/logging_correlation.py`
+- `.github/workflows/promote_release.yml`
+- `.github/workflows/publish_after_release.yml`
 - `docs/adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md`

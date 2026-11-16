@@ -212,6 +212,11 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         tool="jq",
     ),
     MirrorCheck(
+        "vince-data",
+        "vince-data-check.yml::vince-data::Check committed VINCE data",
+        env={"BASE_REF": "{base}"},
+    ),
+    MirrorCheck(
         "closing-pr-owners",
         "verification-debt-owners.yml::closing-pr::"
         "Check the owner issues this PR closes",

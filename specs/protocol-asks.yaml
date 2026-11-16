@@ -691,6 +691,13 @@ groups:
     rationale: >
       Time passing delivers no message, so opportunistic evaluation is the only
       mechanism guaranteed to run; a peer's own retry is frequently the clock.
+    note: >
+      This binds the outstanding-ask register of ASK-04, which is durable across
+      restarts (ASK-04-003). The pending-assertion store is a separate, ephemeral
+      instance of the shared lifecycle (ASK-04-007), and its time-out is governed
+      by SYNC-11-005, not by this requirement. Either register judges an entry's
+      age against an instant it is given, not one it reads from the clock
+      (ADR-0176).
     verification: >
       Entering a gated tree with an expired outstanding ask takes the expired
       branch.

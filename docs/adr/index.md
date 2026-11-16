@@ -284,7 +284,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(revision 2)* *(provisional)*
 - [ADR-0188 Each Released Protocol Specification Draft Is a Frozen Archive on Its Release, Served Beside the Current Draft](0188-each-released-protocol-specification-draft-is-a-frozen-archive-on-its-release.md) *(provisional)*
 - [ADR-0189 VINCE-Derived Data Stays Out of the Repository Unless It Is Synthetic or Cleared by Case Id](0189-vince-derived-data-stays-out-of-the-repository-unless-synthetic-or-cleared-by-case-id.md) *(revision 3)*
-- [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) *(revision 4)*
+- [ADR-0190 Shadow Mode Is a Standalone, Read-Only Advisor That Translates a Case on Request](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md) *(revision 5)*
 - [ADR-0191 An Outside System Reaches the Core Through a Read-Only Case Reader Port](0191-an-outside-system-reaches-the-core-through-a-read-only-case-reader-port.md) *(revision 2)*
 - [ADR-0192 The Shadow Is a Streamlit Dashboard, Shipped as a Compose Service](0192-the-shadow-is-a-streamlit-dashboard-shipped-as-a-compose-service.md) *(revision 2)*
 - [ADR-0193 A Redacted Marker Builds a Preview and Appears Nowhere Else](0193-a-redacted-marker-builds-a-preview-and-appears-nowhere-else.md) *(provisional)*
@@ -292,6 +292,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) *(provisional)* — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
 - [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md) *(revision 2)*
 - [ADR-0198 An Object Slot Holds a Whole Object, a Typed Reference or a URI, and a Received Whole Object Carries Its Time](0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md) *(provisional)* — partially supersedes 0103-object-time-is-carried-never-minted.md, 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
+- [ADR-0200 Move Advice Puts Moves in Bands by Outcome Shift, Not by One Case Score](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md) *(revision 2)* *(provisional)*
 
 ## Proposed ADRs
 
@@ -304,12 +305,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 - [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 3)*
 - [ADR-0199 An Owner's Request Is an Offer of the Act, Which the CASE_MANAGER Accepts and Makes](0199-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
-- [ADR-0200 Move Advice Puts Moves in Bands by Outcome Shift, Not by One Case Score](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md)
 - [ADR-0201 An EmbargoEvent Is a Vultron Extension Type and a Subtype of Event](0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md)
 - [ADR-0202 An Embargo Stores Its Own Status, and the Register Is the Case's Ordered List of Embargoes](0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md) — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0203 An Embargo's End Is an Update of the Embargo, Announced to Every Signatory](0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0122-per-embargo-participant-consent.md
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0205 Invites Use AS2's Slots, and the Stub Is the Case's Preview](0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md
+- [ADR-0206 Each App Resolves Its Own Configuration](0206-each-app-resolves-its-own-configuration.md)
 
 ## Rejected ADRs
 
