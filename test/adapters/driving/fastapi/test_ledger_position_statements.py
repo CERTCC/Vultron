@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.support.objects import authored_at
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import ledger_position_statements as lps
@@ -64,10 +65,12 @@ def hosted(monkeypatch: pytest.MonkeyPatch, participant_dl) -> list[str]:
 
     monkeypatch.setattr(io, "outbox_handler", _drain)
     monkeypatch.setattr(
-        lps.actor_hosts, "hosted_actor_ids", lambda *_node: [SIGNATORY_ID]
+        actor_hosts, "hosted_actor_ids", lambda *_node: [SIGNATORY_ID]
     )
     monkeypatch.setattr(
-        lps, "get_datalayer", lambda _actor_id, db_url=None: participant_dl
+        actor_hosts,
+        "get_datalayer",
+        lambda _actor_id, db_url=None: participant_dl,
     )
     return drains
 
@@ -106,10 +109,12 @@ def test_one_actor_failing_does_not_stop_the_round(
     broken = "https://example.org/actors/broken"
     stores = {broken: None, SIGNATORY_ID: participant_dl}
     monkeypatch.setattr(
-        lps.actor_hosts, "hosted_actor_ids", lambda *_node: [*stores]
+        actor_hosts, "hosted_actor_ids", lambda *_node: [*stores]
     )
     monkeypatch.setattr(
-        lps, "get_datalayer", lambda actor_id, db_url=None: stores[actor_id]
+        actor_hosts,
+        "get_datalayer",
+        lambda actor_id, db_url=None: stores[actor_id],
     )
 
     assert asyncio.run(lps.state_hosted_ledger_positions()) == 1

@@ -35,10 +35,14 @@ exist, and resolve an inbound URL segment without consulting any store at all.
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    get_datalayer,
+)
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     _is_memory_url,
     actor_slug,
@@ -171,7 +175,7 @@ class NodeDeployment:
 
     Work a node runs outside a request (the startup inbox replay, the ledger
     position statements, the sender-sequence hold timer, the outbox monitor)
-    enumerates the actors it hosts and opens their stores under these two
+    enumerates the actors it hosts and opens their stores under these
     values, as a route does from its serving app
     (``deps.node_db_url_template``, ``deps.node_base_url``).  ``None`` for
     either reads the configured value, which is right where one process is
@@ -183,10 +187,43 @@ class NodeDeployment:
             ``DatabaseConfig.db_url``.
         base_url: The node's base URL, or ``None`` for
             ``ServerConfig.base_url``.
+        opened: The app's own registry of the stores its routes were handed,
+            keyed by actor URI, when it keeps one
+            (``_auto_inject_isolated_datalayer``).  A store is then taken
+            from it, and one opened here is added to it, so the routes and
+            the background work share one instance per actor: an enqueue
+            wakes the outbox monitor, and the app's teardown closes it.
+            ``None`` (or no ``db_url``) opens stores through
+            ``get_datalayer``, as the routes of an app without a registry do.
     """
 
     db_url: str | None = None
     base_url: str | None = None
+    opened: dict[str, SqliteDataLayer] | None = field(
+        default=None, compare=False
+    )
+
+    def actor_ids(self) -> list[str]:
+        """The canonical URIs of the actors this node hosts."""
+        return hosted_actor_ids(self.db_url, self.base_url)
+
+    def store(self, actor_id: str) -> SqliteDataLayer:
+        """The store of *actor_id* on this node, opened if need be."""
+        if self.opened is None or self.db_url is None:
+            return get_datalayer(actor_id, db_url=self.db_url)
+        found = self.opened.get(actor_id)
+        if found is None:
+            found = self.opened.setdefault(
+                actor_id,
+                SqliteDataLayer(db_url=self.db_url, actor_id=actor_id),
+            )
+        return found
+
+    def stores(self) -> dict[str, SqliteDataLayer]:
+        """The store of every actor this node hosts, keyed by actor URI."""
+        return {
+            actor_id: self.store(actor_id) for actor_id in self.actor_ids()
+        }
 
 
 #: The node one process is: the configured template and base URL.

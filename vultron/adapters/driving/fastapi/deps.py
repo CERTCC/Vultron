@@ -153,10 +153,14 @@ def app_node_deployment(application: FastAPI) -> NodeDeployment:
     :func:`node_base_url` read for a request, read from the app itself for
     work it runs outside a request.  An app that declares neither is on
     configuration (``CONFIGURED_NODE``), the one-node-per-process case.
+    The app's store registry, when it keeps one, is shared, so its routes
+    and its background work use one store instance per actor.
     """
+    registry = getattr(application.state, "actor_dls", None)
     return NodeDeployment(
         db_url=_declared_state_str(application.state, "db_url"),
         base_url=_declared_state_str(application.state, "node_base_url"),
+        opened=registry if isinstance(registry, dict) else None,
     )
 
 

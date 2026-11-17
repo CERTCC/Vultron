@@ -34,7 +34,8 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from datetime import timedelta
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from fastapi import BackgroundTasks, FastAPI
@@ -48,7 +49,14 @@ from vultron.adapters.driving.fastapi import (
     sender_sequence_holds,
 )
 from vultron.adapters.driving.fastapi.app import create_app
-from vultron.config import AppConfig, get_config
+from vultron.adapters.driving.fastapi.deps import app_node_deployment
+from vultron.config import (
+    AppConfig,
+    app_config_scope,
+    get_config,
+    holding_app_config,
+)
+from vultron.core.ports.datalayer import DataLayer
 from vultron.demo.in_process import (
     InProcessRouter,
     IsolatedActorApp,
@@ -189,7 +197,7 @@ def test_outbox_monitor_drains_its_own_nodes_stores_in_its_own_scope(
 def test_hold_timer_reads_its_own_apps_hold_in_its_worker_thread(
     nodes: list[IsolatedActorApp], monkeypatch
 ) -> None:
-    """The timer's interval and each round's hold are its own app's."""
+    """Each round's hold, read in the round's worker thread, is its app's."""
     records: set[tuple] = set()
 
     def _record_round(persistence: Any, at: Any, hold: timedelta) -> int:
@@ -351,8 +359,110 @@ def test_lifespan_work_that_lost_its_scope_raises_at_shutdown(
                 ),
                 f"the {path} task to end",
             )
+            others = [
+                _task_of(other, node.app)
+                for other in _LOST_SCOPE_POINTS
+                if other != path
+            ]
 
-    # The teardown after the failed task still ran, and the hold is gone.
+    # Every other task was stopped and awaited too, not left running while
+    # the stores closed; the teardown still ran, and the hold is gone.
+    assert all(task is not None and task.done() for task in others)
     assert node.app.state.dispatcher is None
     assert node.app.state.outbox_monitor is None
     assert held_app_configs() == holds_before
+
+
+def test_a_rerun_that_lost_its_scope_is_not_logged_as_one_records_failure(
+    monkeypatch,
+) -> None:
+    """The per-record boundary of the startup re-run re-raises the refusal.
+
+    A re-run that fails is logged and the next record is run; a lost scope
+    is no one record's failure, so it raises out of the re-run instead.
+    """
+    record = SimpleNamespace(activity_id="urn:uuid:held", received_at=None)
+    reruns: list[str] = []
+
+    async def _lost_scope_pipeline(*_args: Any, **_kwargs: Any) -> None:
+        reruns.append("run")
+        _lost_scope_read()
+
+    monkeypatch.setattr(
+        inbox_startup_replay,
+        "records_left_in_holding",
+        lambda _dl: [record, record],
+    )
+    monkeypatch.setattr(
+        inbox_startup_replay, "_rerun_budget_left", lambda *_args: True
+    )
+    monkeypatch.setattr(
+        inbox_startup_replay, "sealed_body_of", lambda _r: "{}"
+    )
+    monkeypatch.setattr(
+        inbox_startup_replay,
+        "run_delivery_without_replay",
+        _lost_scope_pipeline,
+    )
+
+    with holding_app_config(own_app_config()):
+        with pytest.raises(VultronWiringError, match="ADR-0206"):
+            asyncio.run(
+                inbox_startup_replay.rerun_left_in_holding(
+                    cast(DataLayer, object()), "urn:uuid:actor", None, None
+                )
+            )
+    # The second record was not run: the refusal ended the re-runs.
+    assert reruns == ["run"]
+
+
+def test_a_monitor_loop_that_ended_on_another_error_is_logged(
+    caplog,
+) -> None:
+    """``stop()`` logs a loop crash it read, so asyncio's report is not lost."""
+
+    def _failing_factory() -> dict:
+        raise RuntimeError("the store listing failed")
+
+    async def _run() -> None:
+        monitor = outbox_monitor.OutboxMonitor(
+            poll_interval=0.01, actor_datalayers_factory=_failing_factory
+        )
+        monitor.start()
+        task = monitor._task
+        assert task is not None
+        await asyncio.wait({task})
+        monitor.stop()
+
+    with caplog.at_level("ERROR", logger=outbox_monitor.__name__):
+        asyncio.run(_run())
+
+    assert "drain loop ended on an error" in caplog.text
+    assert "the store listing failed" in caplog.text
+
+
+def test_an_apps_background_work_shares_its_routes_store_instances() -> None:
+    """With the app's own store registry, one instance per actor serves both.
+
+    An enqueue through a route then wakes the app's outbox monitor, which
+    registers its wakeup on the instances it drains, and the app's teardown
+    closes every store the work opened.
+    """
+    config = own_app_config()
+    app = create_app(config=config)
+    with TestClient(app) as client, app_config_scope(config):
+        # The test body is work of the app too, so it reads in its scope.
+        client.get("/api/v2/actors/vendor")
+        registry: dict[str, Any] = app.state.actor_dls
+        (actor_id,) = registry
+        node = app_node_deployment(app)
+
+        assert node.opened is not None
+        assert node.opened is registry
+        assert node.store(actor_id) is registry[actor_id]
+        assert node.stores() == {actor_id: registry[actor_id]}
+
+        # A store the work opens first is the one a route is handed later.
+        other = f"{actor_id.rsplit('/', 1)[0]}/other"
+        opened = node.store(other)
+        assert registry[other] is opened

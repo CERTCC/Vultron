@@ -18,13 +18,12 @@ Vultron API v2 Application
 
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
     asynccontextmanager,
 )
-from functools import partial
 from typing import Any
 from uuid import uuid4
 
@@ -65,7 +64,6 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
 )
 from vultron.adapters.driving.fastapi.outbox_monitor import (
     OutboxMonitor,
-    node_actor_datalayers,
 )
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
 from vultron.adapters.driving.fastapi.sender_sequence_holds import (
@@ -202,6 +200,29 @@ def _teardown_per_app_state(application: FastAPI) -> None:
     # an in-memory database lives only while a connection to it is open.
     for actor_dl in registry.values():
         actor_dl.close()
+
+
+async def _finish_background_work(
+    application: FastAPI,
+    finishes: tuple[tuple[str, Coroutine[Any, Any, None]], ...],
+) -> None:
+    """Await each ``(state attribute, finish)`` pair, then raise the first error.
+
+    Every finish is awaited, and its ``app.state`` attribute cleared, even
+    when an earlier one raised: a finish stops its own task before it waits
+    for it, so skipping one would leave that task running while the
+    teardown closes the stores it reads.
+    """
+    errors: list[Exception] = []
+    for attribute, finish in finishes:
+        try:
+            await finish
+        except Exception as error:  # noqa: BLE001 - re-raised below
+            errors.append(error)
+        finally:
+            setattr(application.state, attribute, None)
+    if errors:
+        raise errors[0]
 
 
 def _finish_teardown(
@@ -352,7 +373,7 @@ def _make_lifespan(
             # process (DL-07-011).  The emitter is the one a host set on the
             # app, else the process default, as the app's routes use.
             monitor = OutboxMonitor(
-                actor_datalayers_factory=partial(node_actor_datalayers, node),
+                actor_datalayers_factory=node.stores,
                 emitter=getattr(application.state, "emitter", None),
             )
         if monitor is not None:
@@ -409,16 +430,28 @@ def _make_lifespan(
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
-        # The background work is awaited, so a task that ended on an error,
-        # such as one that lost its config scope (ADR-0206), raises here;
-        # the teardown after it still runs.
+        # Each background task is stopped and awaited in turn, every one even
+        # when an earlier one raised, so none is left running while the
+        # stores it reads are closed.  The first error, such as a task that
+        # lost its config scope (ADR-0206), is raised after the teardown.
         try:
-            await finish_sender_sequence_hold_timer(hold_timer)
-            application.state.sender_sequence_hold_timer = None
-            await finish_ledger_position_statements(position_statements)
-            application.state.ledger_position_statements = None
-            await finish_startup_inbox_replay(startup_replay)
-            application.state.startup_inbox_replay = None
+            await _finish_background_work(
+                application,
+                (
+                    (
+                        "sender_sequence_hold_timer",
+                        finish_sender_sequence_hold_timer(hold_timer),
+                    ),
+                    (
+                        "ledger_position_statements",
+                        finish_ledger_position_statements(position_statements),
+                    ),
+                    (
+                        "startup_inbox_replay",
+                        finish_startup_inbox_replay(startup_replay),
+                    ),
+                ),
+            )
         finally:
             _finish_teardown(
                 application, monitor, undo_global_installs, configure_globals

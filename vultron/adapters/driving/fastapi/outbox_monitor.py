@@ -37,33 +37,13 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.actor_hosts import NodeDeployment
-from vultron.adapters.driven.datalayer import (
-    get_all_actor_datalayers,
-    get_datalayer,
-)
+from vultron.adapters.driven.datalayer import get_all_actor_datalayers
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
-
-
-def node_actor_datalayers(node: NodeDeployment) -> dict[str, SqliteDataLayer]:
-    """Return the store of every actor *node* hosts, keyed by actor URI.
-
-    The node-scoped factory for an :class:`OutboxMonitor` in a process that
-    runs several nodes: unlike ``get_all_actor_datalayers()``, it lists only
-    *node*'s own deployment (DL-07-011).
-    """
-    return {
-        actor_id: get_datalayer(actor_id, db_url=node.db_url)
-        for actor_id in actor_hosts.hosted_actor_ids(
-            node.db_url, node.base_url
-        )
-    }
 
 
 class OutboxMonitor:
@@ -87,10 +67,11 @@ class OutboxMonitor:
     is right only in the single-node production lifespan
     (``configure_globals=True``), where every store this process opened
     belongs to the node's own configured ``db_url``.  An app built by
-    ``create_app`` with its own config starts it with
-    :func:`node_actor_datalayers` for its own deployment, so in a process
-    running several nodes it never drains another node's outbox (DL-07-011,
-    ADR-0206).  A ``create_app`` app with no config never starts it.
+    ``create_app`` with its own config starts it with its own deployment's
+    :meth:`~vultron.adapters.driven.actor_hosts.NodeDeployment.stores`, so in
+    a process running several nodes it never drains another node's outbox
+    (DL-07-011, ADR-0206).  A ``create_app`` app with no config never starts
+    it.
 
     Args:
         poll_interval: Maximum seconds between drain passes (default 1.0).
@@ -288,3 +269,11 @@ class OutboxMonitor:
             error = task.exception()
             if isinstance(error, VultronWiringError):
                 raise error
+            if error is not None:
+                # Reading the exception marks it retrieved, so asyncio would
+                # no longer report it; the crash is logged here instead.
+                logger.error(
+                    "OutboxMonitor: drain loop ended on an error: %s",
+                    error,
+                    exc_info=error,
+                )

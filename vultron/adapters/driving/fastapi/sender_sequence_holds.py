@@ -38,10 +38,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import cast
 
-from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.actor_hosts import CONFIGURED_NODE, NodeDeployment
 from vultron.adapters.driven.clock import act_clock
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     queue_due_held_activities,
 )
@@ -130,9 +128,9 @@ async def end_hosted_expired_holds(
     """
     total = 0
     clock = act_clock()
-    for actor_id in actor_hosts.hosted_actor_ids(node.db_url, node.base_url):
+    for actor_id in node.actor_ids():
         try:
-            actor_dl = get_datalayer(actor_id, db_url=node.db_url)
+            actor_dl = node.store(actor_id)
             ended: list[int] = []
             await run_actor_work_then_replay(
                 actor_dl,

@@ -32,10 +32,8 @@ import logging
 from dataclasses import dataclass
 from functools import partial
 
-from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.actor_hosts import CONFIGURED_NODE, NodeDeployment
 from vultron.adapters.driven.clock import act_clock
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -89,9 +87,9 @@ async def state_hosted_ledger_positions(
         The number of statements queued across every hosted actor.
     """
     total = 0
-    for actor_id in actor_hosts.hosted_actor_ids(node.db_url, node.base_url):
+    for actor_id in node.actor_ids():
         try:
-            actor_dl = get_datalayer(actor_id, db_url=node.db_url)
+            actor_dl = node.store(actor_id)
             sent: list[int] = []
             await run_serialised_actor_work(
                 actor_dl,

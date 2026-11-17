@@ -46,6 +46,7 @@ from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.rerun_from_holding import effects
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driving.fastapi import inbox_startup_replay
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -290,12 +291,12 @@ def test_the_startup_runs_the_held_records_then_the_queue(monkeypatch):
     monkeypatch.setattr(inbox_startup_replay, "rerun_left_in_holding", _rerun)
     monkeypatch.setattr(inbox_startup_replay, "replay_inbox_queue", _replay)
     monkeypatch.setattr(
-        inbox_startup_replay.actor_hosts,
+        actor_hosts,
         "hosted_actor_ids",
         lambda *_node: [MANAGER],
     )
     monkeypatch.setattr(
-        inbox_startup_replay,
+        actor_hosts,
         "get_datalayer",
         lambda actor_id, db_url=None: net.stores[MANAGER],
     )
