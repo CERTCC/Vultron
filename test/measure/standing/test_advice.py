@@ -34,6 +34,7 @@ from test.measure.history.builders import (
     seat_unnotified_vendor,
     seat_vendor,
     status,
+    two_vendors_ledger,
 )
 from vultron.core.states.cs import CS, CS_d, CS_pxa, CS_vf
 from vultron.core.states.cs_invariants import CSEvent
@@ -137,6 +138,35 @@ def test_a_non_vendors_move_names_why_it_has_no_number():
     assert move.changes is None
     assert move.unscored is not None
     assert "moves no vendor's state" in move.unscored
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_event_s_own_move_has_a_reason_not_a_number():
+    """A vendor's D may already have happened where D is unobservable."""
+    ledger = two_vendors_ledger().case_ledger()
+    record = case_standing(ledger, frozenset({CSEvent.D}))
+    deploy = _scored(record, VENDOR, "cs.fix_is_deployed")
+    assert deploy.changes is None
+    assert deploy.unscored is not None
+    assert "cannot observe D" in deploy.unscored
+    assert _scored(case_standing(ledger), VENDOR, "cs.fix_is_deployed").changes
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_a_move_that_shifts_a_desideratum_over_an_unseen_event_has_a_reason():
+    """Publication from ``Vfdpxa`` changes ``D ≺ P``, so with D unobservable
+    it carries the reason, while a move that changes nothing over D keeps
+    its number."""
+    ledger = _vendor_case().case_ledger()
+    record = case_standing(ledger, frozenset({CSEvent.D}))
+    publication = _scored(record, VENDOR, "cs.public_becomes_aware")
+    assert publication.changes is None
+    assert publication.unscored is not None
+    assert "desiderata over D" in publication.unscored
+    proposal = _scored(record, VENDOR, "em.propose")
+    plain = _scored(case_standing(ledger), VENDOR, "em.propose")
+    assert proposal == plain
+    assert proposal.changes is not None
 
 
 def test_a_move_that_keeps_every_state_is_advice_with_no_number():

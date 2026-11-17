@@ -46,6 +46,7 @@ from pydantic import ConfigDict, model_validator
 
 from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.primitives import NonEmptyString
 
 
@@ -127,10 +128,15 @@ class UnobservableFact(_ReadingPart):
     Attributes:
         fact: The state dimension or event the source cannot observe.
         why: Why the source cannot observe it.
+        events: The case-state events *fact* covers, so a consumer can read
+            each one as unknown.  Empty when the fact names none, as a fact
+            about a report-management step or an activity log does; such a
+            fact changes no standing.
     """
 
     fact: NonEmptyString
     why: NonEmptyString
+    events: frozenset[CSEvent] = frozenset()
 
 
 class CaseReading(_ReadingPart):
@@ -156,6 +162,12 @@ class CaseReading(_ReadingPart):
     inferences: tuple[Inference, ...] = ()
     untranslated: tuple[UntranslatedFact, ...] = ()
     unobservable: tuple[UnobservableFact, ...] = ()
+
+    @property
+    def unobservable_events(self) -> frozenset[CSEvent]:
+        """Every case-state event the reading declares unobservable, which a
+        consumer reads as unknown, never as false (CRD-02-005)."""
+        return frozenset(e for fact in self.unobservable for e in fact.events)
 
     @model_validator(mode="after")
     def _parts_agree(self) -> Self:

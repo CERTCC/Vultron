@@ -78,7 +78,7 @@ A node that is not in prototype run mode does not serve that endpoint, so the to
 The page shows the case as it stands at its last ledger entry.
 
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
-- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
+- **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳), and of those it cannot know (❔) when the source cannot observe an event.
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
 - **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
@@ -120,6 +120,9 @@ Development work, including Coding Agent sessions, uses a test VINCE instance wi
 
 The **Not translated** panel lists each fact the connector read and could not translate, with the reason.
 The **Not observable** panel lists what the outside system never records; read each one as unknown, not as false.
+Its **Reads as unknown** column names the case-state events each fact covers.
+Each desideratum that orders one of those events shows as unknown (❔), never as met or broken.
+Each move whose change in outcome rests on one of those events goes under **Moves with no band**, with that reason.
 
 ---
 
