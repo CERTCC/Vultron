@@ -221,8 +221,9 @@ class VultronNodeCaseReader:
                 cannot be reached, does not serve the ledger endpoint, holds
                 no such case or no entry for it, sends a row that is not a
                 valid ledger entry or entries that are not one case's ledger
-                in log-index order, or answers with another case's ledger.  The error names the node and the case
-                and carries every problem found.
+                in log-index order, or answers with another case's ledger.
+                The error names the node and the case and carries every
+                problem found.
         """
         path = self._log_path(case_id)
         text = self._fetch(case_id, path)
