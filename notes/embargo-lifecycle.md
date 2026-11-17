@@ -302,7 +302,7 @@ catch-up path.
   deadline on an open proposal or the embargo in force. It shares
   `ExpireInvitationsNode` with the settle step, so the expiry path is one copy,
   and it runs before the activity's own guards, so a refused activity still
-  leaves its expiries recorded (ADR-0135). See
+  leaves its expiries recorded (ADR-0208). See
   `notes/participant-embargo-consent.md` § "Sweep due expiries before the owner
   decides".
 

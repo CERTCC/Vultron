@@ -219,7 +219,7 @@ step, a notice) runs in the same transaction, in one `ActTransaction`
 commits to a case this is the default: `create_receive_activity_tree` runs the
 guarded commit of the act's own entry and every effect after it in one
 `{name}Act` block, so a failed received act keeps no entry and a later delivery
-is not stopped as a repeat (ADR-0151). A tree runs outside one only by naming a
+is not stopped as a repeat (ADR-0208). A tree runs outside one only by naming a
 registered `OneActExemption` (none is registered); a trigger arm passes
 `create_case_manager_gated_tree(as_one_act=True)` (#4949). So a received act
 never needs "resume" logic for a redelivery: a guard that admits a recorded act
