@@ -54,7 +54,9 @@ def _alias_ignore_message() -> str:
     """The message regex of the project's alias ``ignore`` entry."""
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     config = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    entries = config["tool"]["pytest"]["ini_options"]["filterwarnings"]
+    entries: list[str] = config["tool"]["pytest"]["ini_options"][
+        "filterwarnings"
+    ]
     (entry,) = [
         e
         for e in entries
