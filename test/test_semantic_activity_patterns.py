@@ -1843,13 +1843,18 @@ def test_an_actor_target_held_as_a_generic_object_routes_as_an_actor() -> None:
     generic = as_Object.model_construct(
         id_=str(invite.target), type_="Organization"
     )
+    # A stored record rehydrated into the slot keeps a core type name.
+    stored = as_Object.model_construct(
+        id_=str(invite.target), type_="CoreActor"
+    )
     not_an_actor = as_Object.model_construct(
         id_=str(invite.target), type_="Note"
     )
 
-    assert InviteToEmbargoOnCasePattern.match(
-        invite.model_copy(update={"target": generic})
-    )
+    for target in (generic, stored):
+        assert InviteToEmbargoOnCasePattern.match(
+            invite.model_copy(update={"target": target})
+        )
     assert not InviteToEmbargoOnCasePattern.match(
         invite.model_copy(update={"target": not_an_actor})
     )
