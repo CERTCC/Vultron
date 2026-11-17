@@ -17,7 +17,8 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
-  why a lifespan task that outlives its test segfaults a later worker,
+  why a lifespan task that outlives its test segfaults a later worker (and
+  the guard that fails one draining in the wrong namespace),
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -465,7 +466,10 @@ as ended while its `asyncio.to_thread` worker may still be reading. For the
 hold timer, `stop_hold_timer_from_another_thread()` in
 `test/support/hold_timers.py` does this; `test/demo/conftest.py`'s `client`
 fixture is the worked case. A leaked hold timer is stopped at disposal and
-fails its own test with `HoldTimerLeakedError`.
+fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
+hosted actors in the configured namespace opens a `testserver` actor's store
+under a second id; `no_store_shared_across_authorities()`
+(`test/support/store_sharing.py`) fails every `client` test that does (#6085).
 
 ### Store Scoping
 
