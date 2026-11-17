@@ -213,7 +213,14 @@ def _in_config_scope(
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[dict[str, Any]]],
     config: AppConfig | None,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[dict[str, Any]]]:
-    """Wrap *lifespan* so all of it runs in the app's config scope."""
+    """Wrap *lifespan* so all of it runs in the app's config scope.
+
+    The scope is a context variable set on entry and reset on exit, so the
+    lifespan MUST be entered and exited in one task, as Starlette's router,
+    uvicorn and ``TestClient`` do.  Driving it across tasks (an async
+    generator fixture closed elsewhere) makes the reset raise ``ValueError``;
+    the held-app record is still released (``holding_app_config``).
+    """
 
     @asynccontextmanager
     async def _scoped(application: FastAPI) -> AsyncIterator[dict[str, Any]]:

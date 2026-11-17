@@ -268,16 +268,19 @@ def _no_app_config_hold_outlives_its_test() -> Iterator[None]:
     no app scope raises ``VultronWiringError`` for the whole process
     (ADR-0206).  A ``TestClient`` the test never exits would keep that
     refusal on for every later test on the worker, failing them far from the
-    cause.  So the count is put back and this test fails instead.  The check
-    compares with the count before the test, so a module-scoped app that
-    holds its config across tests is not mistaken for a leak.
+    cause.  So every hold started during the test and still running is
+    released, and this test fails instead.  Holds running before the test
+    are left alone, so a module-scoped app a test declares (pytest sets it up
+    before this fixture) is not mistaken for a leak.  One the test first
+    starts itself, through ``request.getfixturevalue``, is reported as this
+    test's; releasing it is harmless when its fixture later exits it.
     """
     from test.support.app_configs import (
-        held_app_config_count,
+        held_app_configs,
         release_leaked_app_config_holds,
     )
 
-    before = held_app_config_count()
+    before = held_app_configs()
     yield
     leaked = release_leaked_app_config_holds(before)
     if leaked:

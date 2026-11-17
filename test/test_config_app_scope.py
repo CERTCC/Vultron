@@ -28,7 +28,7 @@ from collections.abc import Callable
 import pytest
 
 from test.support.app_configs import (
-    held_app_config_count,
+    held_app_configs,
     own_app_config,
     release_leaked_app_config_holds,
 )
@@ -176,20 +176,35 @@ def test_process_wide_reload_and_override_work_while_an_app_holds() -> None:
 
 def test_leak_guard_puts_back_a_hold_the_test_left_running() -> None:
     """The autouse guard's helper undoes a hold a test never released."""
-    before = held_app_config_count()
-    # The count a hold leaves when it is never exited, as a TestClient left
-    # open would leave it.
-    app_config_module._HELD_APP_CONFIGS.add(1)
+    before = held_app_configs()
+    # The hold a TestClient left open leaves: recorded, never released.
+    app_config_module._HELD_APP_CONFIGS.hold()
     with pytest.raises(VultronWiringError):
         _in_no_scope(get_config)
 
     assert release_leaked_app_config_holds(before) == 1
-    assert held_app_config_count() == before
+    assert held_app_configs() == before
     assert _in_no_scope(get_config) is get_config()
 
 
 def test_leak_guard_reports_none_when_every_hold_was_released() -> None:
-    before = held_app_config_count()
+    before = held_app_configs()
     with holding_app_config(_own_config(5)):
         pass
     assert release_leaked_app_config_holds(before) == 0
+
+
+def test_a_released_hold_that_later_exits_leaves_no_refusal() -> None:
+    """The guard's release, then the app's own exit, releases it once.
+
+    A holder the guard reports and releases (a module-scoped app first
+    started by ``getfixturevalue``, or a leaked client closed later) still
+    exits its lifespan afterwards.  That exit must not take off a second
+    hold, or the refusal would stay on with no app running.
+    """
+    before = held_app_configs()
+    with holding_app_config(_own_config(5)):
+        assert release_leaked_app_config_holds(before) == 1
+    assert held_app_configs() == before
+    assert release_leaked_app_config_holds(before) == 0
+    assert _in_no_scope(get_config) is get_config()

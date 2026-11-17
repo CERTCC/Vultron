@@ -30,22 +30,24 @@ def own_app_config(**updates: Any) -> AppConfig:
     return AppConfig().model_copy(update=updates)
 
 
-def held_app_config_count() -> int:
-    """How many apps holding their own config are running in this process."""
-    return app_config._HELD_APP_CONFIGS.count
+def held_app_configs() -> frozenset[object]:
+    """The holds of the apps holding their own config running now."""
+    return app_config._HELD_APP_CONFIGS.snapshot()
 
 
-def release_leaked_app_config_holds(before: int) -> int:
-    """Put the held count back to *before* and return how many had leaked.
+def release_leaked_app_config_holds(before: frozenset[object]) -> int:
+    """Release every hold not in *before* and return how many there were.
+
+    A released hold whose app later exits is not released again, so the
+    record of running apps never goes short (ADR-0206).
 
     Args:
-        before: :func:`held_app_config_count` at the start of the test.
+        before: :func:`held_app_configs` at the start of the test.
 
     Returns:
         The number of holds the test left running, ``0`` when none.
     """
-    leaked = held_app_config_count() - before
-    if leaked > 0:
-        app_config._HELD_APP_CONFIGS.add(-leaked)
-        return leaked
-    return 0
+    leaked = held_app_configs() - before
+    for token in leaked:
+        app_config._HELD_APP_CONFIGS.release(token)
+    return len(leaked)

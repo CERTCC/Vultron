@@ -270,19 +270,40 @@ _APP_CONFIG_SCOPE: ContextVar[AppConfig | _ProcessWide | None] = ContextVar(
 )
 
 
-# How many apps holding their own config are running in this process.  While
-# any is, the process-wide config is no node's config, so a read made in no
-# app scope is a path that lost its app's config and raises (ADR-0206).
+# The running apps that hold their own config in this process.  While any
+# is, the process-wide config is no node's config, so a read made in no app
+# scope is a path that lost its app's config and raises (ADR-0206).
 class _HeldAppConfigs:
-    """A thread-safe count of the running apps that hold their own config."""
+    """A thread-safe record of the running apps that hold their own config.
+
+    Each hold is a token rather than a count, so releasing one is idempotent:
+    a hold released twice (a test's leak guard drops it, then its lifespan
+    exits) cannot leave the record short and the refusal stuck on.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self.count = 0
+        self._holds: set[object] = set()
 
-    def add(self, delta: int) -> None:
+    def __bool__(self) -> bool:
+        return bool(self._holds)
+
+    def snapshot(self) -> frozenset[object]:
+        """Return the holds running now."""
         with self._lock:
-            self.count += delta
+            return frozenset(self._holds)
+
+    def hold(self) -> object:
+        """Record a new hold and return its token."""
+        token = object()
+        with self._lock:
+            self._holds.add(token)
+        return token
+
+    def release(self, token: object) -> None:
+        """Drop the hold *token*; a token already dropped is ignored."""
+        with self._lock:
+            self._holds.discard(token)
 
 
 _HELD_APP_CONFIGS = _HeldAppConfigs()
@@ -315,7 +336,7 @@ def get_config() -> AppConfig:
     scoped = _APP_CONFIG_SCOPE.get()
     if isinstance(scoped, AppConfig):
         return scoped
-    if scoped is None and _HELD_APP_CONFIGS.count:
+    if scoped is None and _HELD_APP_CONFIGS:
         raise VultronWiringError(
             "get_config() was called in no app scope while an app holding "
             "its own AppConfig runs in this process, so the process-wide "
@@ -360,12 +381,12 @@ def holding_app_config(config: AppConfig) -> Generator[None]:
     Args:
         config: The app's own config.
     """
-    _HELD_APP_CONFIGS.add(1)
+    hold = _HELD_APP_CONFIGS.hold()
     try:
         with app_config_scope(config):
             yield
     finally:
-        _HELD_APP_CONFIGS.add(-1)
+        _HELD_APP_CONFIGS.release(hold)
 
 
 def clear_config_cache() -> None:
