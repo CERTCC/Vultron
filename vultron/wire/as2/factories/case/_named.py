@@ -17,16 +17,15 @@
 from vultron.wire.as2.factories._context import (
     case_uri_of,
 )
+from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseReference,
-    case_reference,
 )
 
 
 def _named_case(
     case: as_VulnerabilityCase | str,
-) -> as_VulnerabilityCaseReference:
+) -> as_TypedReference:
     """The typed reference a participant's act on *case* names it by.
 
     ``Join``, ``Ignore`` and ``Leave`` of a case and the ownership-transfer

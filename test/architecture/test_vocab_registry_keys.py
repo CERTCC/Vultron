@@ -19,7 +19,7 @@ Since #4045 the stub emits ``type: "VulnerabilityCaseStub"`` and owns that key
 ``_SANCTIONED_SHADOWS`` is a pinned exemption set, not a ratchet (ARCH-18-005): the
 ``as_Vultron*`` actor exception is enumerated by design and has no empty end state.
 
-Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008, VM-01-012 to VM-01-015.
+Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008, VM-01-012, VM-01-013, VM-01-017.
 See: GitHub issue #2982.
 """
 
@@ -36,21 +36,15 @@ See: GitHub issue #2982.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import ClassVar
-
-from pydantic import Field
-
 from test.support.wire_vocab import import_all_wire_vocab
 from vultron.subclasses import all_subclasses
-from vultron.wire.as2.enums import as_ObjectType
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
     declared_wire_type,
     declares_registrable_type,
-    is_wire_type_alias,
     wire_type_value,
 )
 
@@ -164,59 +158,18 @@ def test_every_declared_wire_type_resolves() -> None:
     )
 
 
-def _registered_aliases(type_map: dict[str, type]) -> dict[str, str]:
-    """The keys of *type_map* held by a class that declares itself an alias."""
-    return {
-        key: cls.__name__
-        for key, cls in type_map.items()
-        if is_wire_type_alias(cls)
-    }
+def test_a_typed_reference_claims_no_wire_type_key() -> None:
+    """VM-01-017: a typed reference is read by its shape, never by its type.
 
-
-def test_declared_aliases_do_not_own_a_registry_key() -> None:
-    """A class flagged an alias must not appear in ``WIRE_TYPE_MAP`` at all."""
-    _force_full_registration()
-
-    registered_aliases = _registered_aliases(WIRE_TYPE_MAP)
-
-    assert not registered_aliases, (
-        "A class declaring `_wire_type_alias = True` shares another class's "
-        "wire 'type' value and must not hold a registry key of its own "
-        "{key: class}: " + repr(registered_aliases)
-    )
-
-
-def test_an_alias_declaration_keeps_the_class_out_of_the_registry() -> None:
-    """Self-test: the alias mechanism works and the guard above can fail.
-
-    No production class declares ``_wire_type_alias`` since #4045 gave the
-    case stub its own ``type``, so the guard above would pass whatever the
-    mechanism did.  A throwaway alias proves both halves: declaring the flag
-    keeps the class out of ``WIRE_TYPE_MAP``, and a map that did hold it is
-    flagged.
+    It carries the ``type`` of the object it names, any type at all, so a
+    registry key of its own would take that type from its owner.  It declares
+    no concrete ``type_``, so the registration gate passes it by.
     """
     _force_full_registration()
-    snapshot = dict(WIRE_TYPE_MAP)
-    try:
 
-        class _ThrowawayNoteAlias(as_Note):
-            _wire_type_alias: ClassVar[bool] = True
-            type_: as_ObjectType = Field(
-                default=as_ObjectType.NOTE,
-                validation_alias="type",
-                serialization_alias="type",
-            )
-
-        assert declares_registrable_type(_ThrowawayNoteAlias)
-        assert is_wire_type_alias(_ThrowawayNoteAlias)
-        assert WIRE_TYPE_MAP["Note"] is snapshot["Note"]
-        assert _ThrowawayNoteAlias not in WIRE_TYPE_MAP.values()
-        assert _registered_aliases({"Note": _ThrowawayNoteAlias}) == {
-            "Note": "_ThrowawayNoteAlias"
-        }
-    finally:
-        WIRE_TYPE_MAP.clear()
-        WIRE_TYPE_MAP.update(snapshot)
+    assert not declares_registrable_type(as_TypedReference)
+    assert as_TypedReference not in WIRE_TYPE_MAP.values()
+    assert as_TypedReference.__name__ not in VOCABULARY
 
 
 def _registrable_wire_classes() -> list[type[as_Base]]:
@@ -226,7 +179,6 @@ def _registrable_wire_classes() -> list[type[as_Base]]:
         for cls in all_subclasses(as_Base)
         if cls.__module__.startswith("vultron.wire.as2.vocab")
         and declares_registrable_type(cls)
-        and not is_wire_type_alias(cls)
     ]
 
 
@@ -250,9 +202,9 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
         if len(names) > 1 and value not in _SANCTIONED_SHADOWS
     }
     assert not collisions, (
-        "These wire 'type' values are claimed by more than one class. Mark "
-        "the non-owner `_wire_type_alias = True` (VM-01-014) {value: "
-        "classes}: " + repr(collisions)
+        "These wire 'type' values are claimed by more than one class. Give "
+        "each class its own `type` value, or make the non-owner an ADR-0099 "
+        "alias of the owner (VM-01-013) {value: classes}: " + repr(collisions)
     )
 
     wrong_winner = {
@@ -267,7 +219,7 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
 
 
 def test_no_test_class_owns_a_wire_type_key() -> None:
-    """VM-01-014: a production ``type`` value is never owned by a test class.
+    """VM-01-013: a production ``type`` value is never owned by a test class.
 
     ``test_no_unsanctioned_wire_type_collisions`` above cannot see this case.
     Its subclass walk is scoped to ``vultron.wire.as2.vocab`` modules, so a
@@ -279,10 +231,10 @@ def test_no_test_class_owns_a_wire_type_key() -> None:
     process: every later lookup of that value resolves to the stand-in, in a
     different file, with no mention of the test that defined it (#3592).
 
-    Such a stand-in must declare ``_wire_type_alias = True``, which is what it
-    is — a class sharing another's ``type`` value that the value must not
-    deserialize to. This check runs over the live registry, so it sees the
-    squatter whatever module it came from.
+    A test that defines a registrable class therefore restores the registries
+    it changes, with ``patch.dict(WIRE_TYPE_MAP)`` and ``patch.dict(VOCABULARY)``
+    around the definition. This check runs over the live registry, so it sees
+    the squatter whatever module it came from.
     """
     _force_full_registration()
 
@@ -294,7 +246,7 @@ def test_no_test_class_owns_a_wire_type_key() -> None:
 
     assert not intruders, (
         "These wire 'type' values are owned by a class defined outside "
-        "`vultron.` — a test stand-in that registered itself. Declare "
-        "`_wire_type_alias: ClassVar[bool] = True` on it (VM-01-014) "
+        "`vultron.` — a test stand-in that registered itself. Define it "
+        "inside `patch.dict(WIRE_TYPE_MAP)` and `patch.dict(VOCABULARY)` "
         "{value: class}: " + repr(intruders)
     )

@@ -21,8 +21,10 @@ participant stands in it.
 
 Everything that follows from the states is read from them, never stored
 beside them, so it cannot disagree: each desideratum's status is read from
-the score's completions (:class:`DesideratumStanding`), and each allowed move
-from the states (:mod:`~vultron.measure.standing.moves`).
+the score's completions (:class:`DesideratumStanding`), each allowed move
+from the states (:mod:`~vultron.measure.standing.moves`), and each CVD
+action a participant's case state makes possible from the action rules
+(:class:`ActionAdvice`, :mod:`~vultron.core.states.cs_actions`).
 
 A ledger with a hole yields no reading at all, only the
 :class:`StandingGap` that names the hole: a measure over a history with a
@@ -33,6 +35,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from fractions import Fraction
+from typing import Annotated
 
 from pydantic import (
     BaseModel,
@@ -42,6 +45,8 @@ from pydantic import (
     model_validator,
 )
 
+from vultron.core.scoring.potential_actions import Actions
+from vultron.core.states.cs_actions import cs_actions
 from vultron.core.states.cs_invariants import (
     CSEvent,
     cs_dimensions,
@@ -52,6 +57,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.measure.baselines import ORIGINAL, case_state_query
 from vultron.measure.history import (
+    BY_NAME,
     CaseEventHistory,
     PxaName,
     UnreadableEntry,
@@ -320,6 +326,43 @@ class ScoredMove(BaseModel):
         return self
 
 
+#: A CVD action, serialized by its member name.
+ActionName = Annotated[Actions, BY_NAME]
+
+
+class ActionAdvice(BaseModel):
+    """One CVD action a participant's case state makes possible.
+
+    The action changes no state, so it is advice with no number: no vendor's
+    expected outcome is scored for it.  It is a possibility, never a duty
+    (:mod:`~vultron.core.states.cs_actions`).
+
+    Fields:
+        participant: The participant whose case state matches the rule.
+        action: The action rule's action, such as ``MONITOR_FOR_ATTACKS``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    participant: NonEmptyString
+    action: ActionName
+
+
+def action_advice(standing: ParticipantStanding) -> tuple[ActionAdvice, ...]:
+    """The CVD actions *standing*'s case state makes possible.
+
+    Empty for a participant with no case state: the action rules read a
+    compound case state, which only a vendor's sequence has (CEH-05-001).
+    """
+    state = standing.case_state
+    if state is None:
+        return ()
+    return tuple(
+        ActionAdvice(participant=standing.participant, action=action)
+        for action in cs_actions(state)
+    )
+
+
 class StandingGap(BaseModel):
     """What keeps a ledger from yielding a standing record (CEH-02-006).
 
@@ -388,6 +431,9 @@ class StandingRecord(BaseModel):
         path_preferences: The case's path-preference counts, for every
             participant and for the case (ADR-0182); ``None`` exactly
             when *gap* is set.
+
+    :attr:`action_advice` lists the CVD actions each participant's case
+    state makes possible, read from :attr:`participants`.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -437,6 +483,17 @@ class StandingRecord(BaseModel):
         if problems:
             raise ValueError("; ".join(problems))
         return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def action_advice(self) -> tuple[ActionAdvice, ...]:
+        """Each participant's possible CVD actions, in participant order,
+        each advice with no number; empty when *gap* is set."""
+        return tuple(
+            advice
+            for standing in self.participants
+            for advice in action_advice(standing)
+        )
 
     def for_participant(self, participant: str) -> ParticipantStanding | None:
         """The standing of *participant*, or ``None`` when it has none."""

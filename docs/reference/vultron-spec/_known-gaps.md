@@ -290,7 +290,6 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "MV-12-001",
-    "MV-12-003",
     "MV-12-005",
 ))
 ```
@@ -343,6 +342,7 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "MV-12-002",
+    "MV-12-003",
 ))
 ```
 

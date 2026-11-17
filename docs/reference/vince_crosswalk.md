@@ -129,12 +129,18 @@ The coordinator sets a planned publication date, and nobody records an agreement
 |---|---|---|---|---|
 | VINCE-EM-01 | The case's `due_date` | An active embargo, proposed by CERT/CC, that ends at `due_date` | Inferred | `created` |
 | VINCE-EM-02 | The case's `due_date`, for each vendor at Received or later | That vendor accepted the embargo | Inferred | The later of `created` and the vendor's `date_added` |
+| VINCE-EM-03 | The case's `due_date`, when the time of reading is at or after it | The embargo ended at `due_date` | Inferred | `due_date` |
 
 The caveats are:
 
 - VINCE-EM-01: "VINCE records a planned publication date. VINCE does not record when the date was set."
 - VINCE-EM-02: "VINCE does not track embargo consent. Vultron infers the vendor's agreement from its place on the case."
+- VINCE-EM-03: "VINCE does not record an embargo's end. Vultron infers that it ended at `due_date`, judged against the time of reading."
 
+The time of reading is the time the caller read the case, and the caller supplies it.
+The reader compares it with `due_date` and does not read a clock.
+Before `due_date`, the embargo is still active.
+A vendor added after the embargo ended accepts no embargo.
 A case with no `due_date` has no embargo.
 
 ---

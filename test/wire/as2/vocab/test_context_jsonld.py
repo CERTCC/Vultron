@@ -241,22 +241,26 @@ def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
     failed this module's annotation guard spuriously and — when annotated
     VULTRON — injected a bogus term into the *normative* artifact.
     """
-    from typing import ClassVar, Literal
+    from typing import Literal
+    from unittest.mock import patch
 
     from pydantic import Field
 
+    from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
     from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
     before = vultron_context_terms()
 
-    class as_LeakProbe(as_VultronObject):
-        # Keeps the probe out of WIRE_TYPE_MAP too, not just enumeration (#3592).
-        _wire_type_alias: ClassVar[bool] = True
-        type_: Literal["LeakProbe"] = Field(
-            default="LeakProbe",
-            validation_alias="type",
-            serialization_alias="type",
-        )
+    # The registries are restored, so the probe owns no key past this test
+    # (#3592).
+    with patch.dict(WIRE_TYPE_MAP), patch.dict(VOCABULARY):
+
+        class as_LeakProbe(as_VultronObject):
+            type_: Literal["LeakProbe"] = Field(
+                default="LeakProbe",
+                validation_alias="type",
+                serialization_alias="type",
+            )
 
     assert as_LeakProbe not in _all_object_subclasses()
     assert "LeakProbe" not in vultron_context_terms()

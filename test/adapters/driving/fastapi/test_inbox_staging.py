@@ -63,13 +63,13 @@ from vultron.errors import VultronWiringError
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import is_case_reference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseReference,
 )
 
 _SENDER_ID = "https://example.org/actors/sender-staging"
@@ -424,9 +424,7 @@ def test_stage_inline_object_stages_nothing_for_a_case_reference(
             "object": {"id": case_id, "type": "VulnerabilityCase"},
         }
     )
-    assert isinstance(
-        getattr(activity, "object_", None), as_VulnerabilityCaseReference
-    )
+    assert is_case_reference(getattr(activity, "object_", None))
 
     _stage_inline_object(datalayer, activity)
 

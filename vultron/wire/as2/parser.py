@@ -21,6 +21,7 @@ from vultron.wire.as2.case_reference_placement import (
     refuse_misplaced_case_reference,
     refuse_misplaced_case_stub,
 )
+from vultron.wire.as2.context_agreement import refuse_context_disagreement
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -278,7 +279,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             the object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer``
             (AKM-03-004), if a case stub sits anywhere but the target of an
             Invite whose object is the inline actor it invites to the case
-            (MV-10-002),
+            (MV-10-002), if the activity's ``context`` and that of an
+            object down its ``object`` chain name different cases
+            (HP-08-015),
             or if the body cannot be re-serialized as strict JSON to seal it
             as received evidence (VM-08-002).
     """
@@ -394,6 +397,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     refuse_misplaced_case_reference(activity)
     # A case stub stands for the case only in a case invitation (MV-10-002).
     refuse_misplaced_case_stub(activity)
+    # An activity and the objects it carries name one case (HP-08-015).
+    refuse_context_disagreement(activity)
 
     activity.seal_received_evidence(evidence_json)
     return activity

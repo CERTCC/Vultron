@@ -38,11 +38,14 @@ from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_case_reference,
+)
 from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
     case_stub_id,
 )
@@ -100,7 +103,7 @@ def test_an_id_and_type_case_is_a_case_reference_not_a_stub():
     resolved = _inline_vocab_class(
         {"type": "VulnerabilityCase", "id": _CASE_ID}
     )
-    assert resolved is as_VulnerabilityCaseReference
+    assert resolved is as_TypedReference
 
 
 def _body(type_: str, obj: dict) -> dict:
@@ -120,7 +123,7 @@ _REFERENCE = {"type": "VulnerabilityCase", "id": _CASE_ID}
 @pytest.mark.parametrize("type_", ["Join", "Ignore", "Leave", "Offer"])
 def test_an_act_naming_its_case_parses_the_reference(type_):
     named = cast(Any, parse_activity(_body(type_, dict(_REFERENCE)))).object_
-    assert isinstance(named, as_VulnerabilityCaseReference)
+    assert is_case_reference(named)
     assert named.id_ == _CASE_ID
 
 
@@ -135,9 +138,7 @@ def test_an_answer_embedding_an_act_keeps_its_reference():
         "target": {"type": "Actor", "id": "https://example.org/actors/t"},
     }
     inner = cast(Any, parse_activity(_body("Accept", offer))).object_
-    assert isinstance(
-        getattr(inner, "object_", None), as_VulnerabilityCaseReference
-    )
+    assert is_case_reference(getattr(inner, "object_", None))
 
 
 @pytest.mark.spec("AKM-03-004")

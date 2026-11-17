@@ -180,6 +180,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/adapters/driving/fastapi/outbox_lanes.py` | Per-recipient ordered delivery lanes for one actor's outbox (ADR-0112) |
 | `vultron/adapters/outbox_sealed_body.py` | Seals the outbound activity JSON at emission so delivery relays it byte for byte (VM-08-003) |
 | `vultron/wire/as2/unknown_keys.py` | Inbound unknown-key disposition at the parse edge (MV-11) |
+| `vultron/wire/as2/context_agreement.py` | Parse-edge refusal of an activity whose parts' `context` name different cases (HP-08-015); `object_chain` walks an activity's `object` chain |
 | `vultron/metadata/specs/kind_classification.py`, `vultron/metadata/specs/yaml_items.py` | MS-12 kind-tree enforcement for `spec-lint`, and the spec-YAML item slicer shared by `scripts/` |
 | `vultron/metadata/specs/growth_guard/` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005), `missing_story_reference` (MS-12-007), compound-statement (MS-03-007) and `verification_debt` (MS-10-016) guards |
 | `vultron/metadata/specs/rationale.py` | `spec-rationale`: the advisory history-narration and candidate-`adr:`-link worklists (MS-10-015) |
@@ -191,7 +192,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 |--------|---------|
 | `vultron/core/behaviors/case/received_run/` | `run_received_tree()`, which runs a received tree once as the receiving actor and reads the `HandlerResult` from what its nodes declared (`reading.py`, `readers.py`, `doors.py`, `sequence.py`, `lookup.py`); replaced the use-case-side verdict package `_bt_verdict` (ADR-0195) |
 | `vultron/core/services/receiving_actor.py` | Whose replica a received message is applied to, one answer shared by the runner and the use cases (BT-17-005, BT-17-009) |
-| `vultron/core/behaviors/case/nodes/held_case.py`, `nodes/activity_context.py` | The `held_case=` declaration for acts that name their case by reference (`Join`, `Ignore`, `Leave`, the ownership-transfer proposal), refused on the no-case path (AKM-03-004, AKM-03-006); the guard that an activity's `context` and its object name the same case |
+| `vultron/core/behaviors/case/nodes/held_case.py` | The `held_case=` declaration for acts that name their case by reference (`Join`, `Ignore`, `Leave`, the ownership-transfer proposal), refused on the no-case path (AKM-03-004, AKM-03-006) |
 | `vultron/core/models/case_reading.py` + `vultron/core/ports/case_reader.py` | `CaseReading` (ledger, citations, inferences, untranslated and unobservable facts, CRD-02-001) and the read-only `CaseReader` port that returns one (ADR-0197) |
 | `vultron/shadow/readers/` | The Vultron case reader over a case-ledger file (`vultron_ledger.py`) and `select_case_reader` (`selection.py`) |
 | `vultron/core/models/type_terms.py` | `type_terms()`: a core reader asks whether a body's `type` names a type, so an AS2 list `type` reads correctly (ADR-0196) |

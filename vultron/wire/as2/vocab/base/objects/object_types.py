@@ -15,12 +15,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
-from typing import ClassVar, TypeAlias
+from typing import TypeAlias
 
 from pydantic import Field
 
 from vultron.core.models._helpers import timestamp_serializer
-from vultron.core.models.attached_document import ATTACHED_FILE_TYPES
+from vultron.core.models.attached_document import (
+    ATTACHED_FILE_TYPES,
+    AttachedAudio,
+    AttachedDocument,
+    AttachedImage,
+    AttachedVideo,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -28,60 +34,22 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import print_object_examples
 
-
-class as_Document(as_Object):
-    """Base class for all ActivityPub documents. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-document>"""
-
-    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
-    _wire_type_alias: ClassVar[bool] = True
-
-    type_: O_type = Field(
-        default=O_type.DOCUMENT,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_Image(as_Document):
-    """Base class for all ActivityPub images. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-image>"""
-
-    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
-    _wire_type_alias: ClassVar[bool] = True
-
-    type_: O_type = Field(
-        default=O_type.IMAGE,
-        validation_alias="type",
-        serialization_alias="type",
-    )
+# A report's attachments are core files (CSAF-01-001), so the core classes
+# are the AS2 file types' wire form too: each name below is the core class,
+# as ``as_VulnerabilityCase`` is (ARCH-25-003, ADR-0099), and the parser
+# builds one for an inline ``Document``, ``Image``, ``Audio`` or ``Video``.
+# No wire class declares those ``type`` values, so each has one owner
+# (VM-01-013).
+as_Document = AttachedDocument
+as_Image = AttachedImage
+as_Audio = AttachedAudio
+as_Video = AttachedVideo
+WIRE_TYPE_MAP.update(ATTACHED_FILE_TYPES)
 
 
-class as_Video(as_Document):
-    """Base class for all ActivityPub videos. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-video>"""
-
-    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
-    _wire_type_alias: ClassVar[bool] = True
-
-    type_: O_type = Field(
-        default=O_type.VIDEO,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_Audio(as_Document):
-    """Base class for all ActivityPub audio. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-audio>"""
-
-    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
-    _wire_type_alias: ClassVar[bool] = True
-
-    type_: O_type = Field(
-        default=O_type.AUDIO,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_Page(as_Document):
+# AS2 makes ``Page`` and ``Article`` kinds of ``Document``.  The core file
+# class above owns ``Document``, so these wire classes extend ``as_Object``.
+class as_Page(as_Object):
     """Base class for all ActivityPub pages. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-page>"""
 
     type_: O_type = Field(
@@ -91,7 +59,7 @@ class as_Page(as_Document):
     )
 
 
-class as_Article(as_Document):
+class as_Article(as_Object):
     """Base class for all ActivityPub articles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-article>"""
 
     type_: O_type = Field(
@@ -99,17 +67,6 @@ class as_Article(as_Document):
         validation_alias="type",
         serialization_alias="type",
     )
-
-
-# A report's attachments are core files (CSAF-01-001), so the core classes
-# own the AS2 file types and the parser builds one for an inline ``Document``,
-# ``Image``, ``Audio`` or ``Video`` (ARCH-25-003, ADR-0099).  The wire classes
-# above declare themselves aliases, so the registration does not depend on
-# which module is imported first.
-WIRE_TYPE_MAP.update(ATTACHED_FILE_TYPES)
-
-# A Document can be any of its subclasses
-as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 
 
 class as_Note(as_Object):

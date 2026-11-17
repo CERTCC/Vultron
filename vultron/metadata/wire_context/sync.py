@@ -60,6 +60,7 @@ from pydantic import BaseModel
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
+from vultron.core.models.attached_document import ATTACHED_FILE_TYPES
 from vultron.core.models.base import (
     PropertyValueKind,
     VultronPropertyDeclaration,
@@ -148,13 +149,17 @@ def as2_term_values() -> set[str]:
     exists to catch, so deriving the AS2 term set from that annotation would
     make the guard unable to see it.  ``WIRE_TYPE_MAP`` is likewise unusable
     here — it is the whole wire registry, Vultron terms included.
+
+    The attached-file types are a second source: the core classes own
+    ``Document``, ``Image``, ``Audio`` and ``Video`` (ARCH-25-003, ADR-0099),
+    so no base-package wire class declares them, yet they are AS2 terms.
     """
     return {
         value
         for cls in _all_object_subclasses()
         if cls.__module__.startswith(AS2_BASE_PACKAGE)
         and (value := _concrete_type_value(cls)) is not None
-    }
+    } | set(ATTACHED_FILE_TYPES)
 
 
 def _concrete_type_value(cls: type) -> str | None:

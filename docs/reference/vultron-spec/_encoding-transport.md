@@ -109,10 +109,13 @@ An object slot holds one of three forms, told apart by their keys alone ([ADR-01
 
 A receiver routes an activity by a typed reference's `type` as it routes by a whole object's, but never reads the reference as the object.
 A handler uses the object the receiver holds, or the receiver fetches the object first.
-No type defines a preview yet, so a typed reference that carries a `preview` is refused, and the refusal names its position.
+Only the case defines a preview: a case reference may carry the case stub, inline, as its `preview` ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
+A typed reference that carries any other `preview` is refused, and the refusal names its position.
+A receiver reads a reference that carries a preview as received.
+It never puts the object it holds in the reference's place, never fetches that object, and never seeds or updates a replica from it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-10-011", "MV-10-012"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-10-011", "MV-10-012", "MV-10-013"))
 ```
 
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).

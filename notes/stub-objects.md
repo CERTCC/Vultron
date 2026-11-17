@@ -12,6 +12,7 @@ related_specs:
   - specs/case-management.yaml (CM-11-013, CM-17-002, CM-17-010, CM-17-011, MV-10-001)
   - specs/actor-knowledge-model.yaml (AKM-05-017)
   - specs/case-ledger-processing.yaml (CLP-15-011)
+  - specs/semantic-extraction.yaml (SE-01-009)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -56,8 +57,8 @@ refusal: a partial inline object and a corrupt one are indistinguishable to the
 parser, which is why the refusal exists. The shape is the test (ADR-0198): exactly
 `id` and `type`, with or without `preview`, is a typed reference; any other key
 makes a whole object, validated in full and never completed by a default that
-creates state (#5265). A `preview` is refused until its type's preview is defined
-(MV-10-012; the case stub moves into one in #6244).
+creates state (#5265). A `preview` is refused unless it is its type's preview, and
+only the case has one: the stub, carried inline (MV-10-012, ADR-0205).
 
 ## Receiving a Stub
 
@@ -69,6 +70,13 @@ only the case invitation asks the question the stub answers (MV-10-002,
 `refuse_misplaced_case_stub`). A bare URI or `Link` object does not qualify: it may
 name an embargo's terms (ADR-0123), which rehydration resolves only after the parse
 edge has run (#5895).
+
+A stub is also accepted as the `preview` of a case reference that is an `Invite`'s
+`object`, the form ADR-0205 gives the stub Invite. That reference is read as
+received (MV-10-013): rehydration, the stored row and the inbox never put the held
+case in its place or fetch the case, and only a pattern that sets
+`object_form=PREVIEWED_REFERENCE` matches it (SE-01-009). Every other pattern skips
+it, so a preview never seeds or updates a replica.
 
 Look the full object up in the local DataLayer by `id`; if absent, the stub is a
 placeholder until the full case is shared. A stub never overwrites a full object

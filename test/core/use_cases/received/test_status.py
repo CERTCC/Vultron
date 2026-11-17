@@ -78,10 +78,12 @@ from vultron.core.use_cases.received.status import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.enums import as_TransitiveActivityType
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -783,10 +785,10 @@ class TestStatusUseCases:
         ]
         assert pstatus.id_ in status_ids
 
-    def _deliver_across_cases(self, status_case: str):
+    def _across_cases(self, status_case: str):
         """An Add from a participant of cases A and B, its target A's
-        participant and its activity ``context`` case B, through the inbox
-        ingress; the status names case *status_case* (``"a"`` or ``"b"``).
+        participant and its activity ``context`` case B; the status names
+        case *status_case* (``"a"`` or ``"b"``).
 
         The sender is a participant of both cases, so the sender guard would
         pass on either.
@@ -830,6 +832,13 @@ class TestStatusUseCases:
             to=[dl.actor_id],
             context=case_b.id_,
             at=authored_at(),
+        )
+        return dl, activity, target, status_id, case_a, case_b, entries_before
+
+    def _deliver_across_cases(self, status_case: str):
+        """:meth:`_across_cases`'s Add, run through the inbox ingress."""
+        dl, activity, target, status_id, case_a, case_b, entries_before = (
+            self._across_cases(status_case)
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(delivered_body(activity, at=dl))
@@ -888,19 +897,21 @@ class TestStatusUseCases:
         self,
     ):
         """A status and target of case A, in an activity whose ``context``
-        names case B, is refused before the commit with both cases in the
-        reason: the sender said two things about which case the act is for
-        (HP-08-015)."""
-        result, dl, target, status_id, case_a, case_b, before = (
-            self._deliver_across_cases("a")
+        names case B, does not parse, with both cases in the reason: the
+        sender said two things about which case the act is for, so the inbox
+        ingress drops it and nothing is kept (HP-08-015)."""
+        dl, activity, target, status_id, case_a, case_b, before = (
+            self._across_cases("a")
         )
+        body = delivered_body(activity, at=dl)
 
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None
+        assert FastAPIIngressAdapter(dl).parse(body) is None
+        with pytest.raises(VultronParseValidationError) as exc:
+            parse_activity(body)
         assert (
-            f"the activity's context names case '{case_b.id_}' but"
-            f" '{status_id}' names case '{case_a.id_}' — REFUSED (HP-08-015)"
-        ) in result.reason
+            f"context names case '{case_b.id_}'; object.context names case"
+            f" '{case_a.id_}'"
+        ) in str(exc.value)
         self._assert_nothing_kept(dl, target, status_id, before)
 
     @pytest.mark.spec("HP-08-008")

@@ -1623,24 +1623,75 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The receiver MUST refuse, before the commit, an `Add(ParticipantStatus)` whose
-      activity `context` and status `context` name different cases, with a reason
-      that names both cases.
+      A receiver MUST refuse any received activity in which two `context` values,
+      on the activity or an object down its `object` chain, name different cases.
+      The chain is the activity's object and, when that object is an
+      activity, the inner activity's own object, at any depth. An object named by a
+      URI, a `Link` or a typed reference (MV-10-011) carries no `context` and is
+      not compared. The chain ends at a `Refuse`, whose object is the refused act
+      quoted as it arrived (CLP-05-001).
     rationale: >-
-      The status says which case it applies to (HP-08-013). An activity that names
-      another case says two things about where the act belongs, and applying either
-      one would ignore the other. Naming both cases lets the sender see the
-      disagreement.
+      Two parts naming different cases say two things about where the act belongs,
+      and acting on either would ignore the other. Every value compared is in the
+      message, so the check needs no receiver state and runs at the parse edge
+      (ADR-0032). A refusal notice's quoted act may carry an object of another case
+      (HP-08-007). The quote is evidence of what arrived, not a part of the notice,
+      so the participant can still read it (CLP-06-006).
+    note: >-
+      A `context` holding several values names each of them, and two parts
+      disagree when the sets of cases they name differ: one `context` listing two
+      cases, with no other part naming a case, is not refused by this rule.
+      Verdicts this rule changes. An `Add(ParticipantStatus)` whose activity and
+      status name different cases was refused by its received tree before the
+      commit, and is now refused at parse. An activity whose carried object names
+      a case other than its target was refused by its tree's guards (HP-08-007,
+      HP-08-013) with a refusal notice; when its activity `context` also names the
+      target, it is now refused at parse. Every other activity whose parts name
+      different cases was handled as the case its activity `context` names, and is
+      now refused at parse. A refusal at parse answers the delivery with HTTP 422
+      and the reason, sends no refusal notice, and the receiver keeps nothing of
+      it, so a sender's pending assertion for it waits for its timeout (CLP-06).
+      The same refusal answers a local client's outbox POST, and a body held
+      before this rule that it refuses no longer parses when re-read. An activity
+      with only one `context` in it, or whose parts all name the same case, keeps
+      its verdict.
     verification: >-
+      `test/wire/as2/test_context_agreement.py` parses activities whose parts name
+      different cases (a plain object, a nested activity, a two-level chain, a
+      `Link` context, a list `context`) and asserts each is refused with every
+      `context` and its case in the reason. It parses activities with one
+      `context`, matching contexts, and an object named by a URI, a `Link` or a
+      typed reference, and asserts each parses.
+      `test_a_refusal_notice_is_not_compared_with_the_act_it_quotes` in the same
+      file parses a refusal notice whose quoted `Add` carries a note of another
+      case.
       `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_whose_activity_names_another_case_is_refused`
-      delivers an `Add` whose status and target name case A while its activity
-      `context` names case B, and asserts it is refused with both cases in the
-      reason, no entry and no appended status.
-      `test/core/behaviors/case/nodes/test_activity_context.py` drives the guard with
-      matching, differing and absent contexts.
+      delivers an `Add(ParticipantStatus)` whose status and target name case A
+      while its activity `context` names case B through the inbox ingress, and
+      asserts it does not parse.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: MV-10-011
+    - rel_type: uses_definition
+      spec_id: CLP-05-001
+  - id: HP-08-016
+    priority: MUST
+    kind: project
+    statement: >-
+      A refusal under HP-08-015 MUST name in its reason each `context` position
+      that names a case, and the case it names.
+    rationale: >-
+      The sender has to see which parts disagree to correct the message. A reason
+      that named only one case, or no position, would leave it guessing which part
+      to change. Every part is named at once, as for any refusal at a validation
+      boundary (EH-07-001).
+    verification: >-
+      `test/wire/as2/test_context_agreement.py::test_parts_naming_different_cases_are_refused_naming_each`
+      asserts that each refused activity's reason names every `context` position
+      and the case it names.
     relationships:
     - rel_type: extends
-      spec_id: HP-08-008
+      spec_id: HP-08-015
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

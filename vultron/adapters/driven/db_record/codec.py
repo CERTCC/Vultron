@@ -39,13 +39,13 @@ from vultron.core.models.base.core_object import (
 from vultron.core.models.protocols import PersistableModel
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    carries_preview,
+    is_case_reference,
+    is_previewed_reference,
+    is_typed_reference_shape,
     reads_as_typed_reference,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-    is_case_reference_shape,
-)
 
 STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
 """Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
@@ -109,18 +109,21 @@ def _dehydrate_data(
     reference to the nested object instead of an inline copy, eliminating
     redundant storage.
 
-    Three things are never collapsed:
+    Four things are never collapsed:
 
     - a nested value whose ``type_`` is in ``_KEEP_INLINE_NESTED_TYPES``;
     - a field named in *obj*'s ``inline_required_refs`` (or its semantic
       class's, see :func:`_inline_required_refs`), for models whose protocol
       contract is to carry the object rather than reference it;
-    - a typed case reference (:class:`as_VulnerabilityCaseReference`), which
-      names a case and has no record of its own: collapsed to its id, it
-      would be read back as a bare id, and routing could no longer tell its
-      type when the store does not hold the case (ADR-0165).
+    - a case reference (:func:`is_case_reference`), which names a case and
+      has no record of its own: collapsed to its id, it would be read back
+      as a bare id, and routing could no longer tell its type when the store
+      does not hold the case (ADR-0165);
+    - a typed reference that carries a preview, which is read as received:
+      collapsed to its id, a lookup would read it back as the object it
+      names (MV-10-011, ADR-0205).
 
-    Both exist for the same reason: dehydration is only reversible when the
+    All exist for the same reason: dehydration is only reversible when the
     nested object has a record of its own to be read back from.  It often does
     not — ingress gives a record only to the *first* level of an inbound
     activity's nesting — and a collapse with no counterpart write is silent
@@ -158,9 +161,14 @@ def _dehydrate_data(
             # it would store a URI that nothing can resolve.
             result[key] = value
             continue
-        if isinstance(getattr(obj, key, None), as_VulnerabilityCaseReference):
+        if is_case_reference(getattr(obj, key, None)):
             # A reference is already the smallest form, and the case it names
             # need not be held here (ADR-0165).
+            result[key] = value
+            continue
+        if is_previewed_reference(getattr(obj, key, None)):
+            # Read as received (ADR-0205): collapsed to its id, it would read
+            # back as the object it names, which a later lookup expands.
             result[key] = value
             continue
         if key in ref_fields and isinstance(value, dict):
@@ -200,14 +208,6 @@ def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
         for k, v in raw.items()
         if v is not None
     }
-    if is_case_reference_shape(reference):
-        # A stored case reference reads back as one, never as a sparse case
-        # that fails the case's validation (ADR-0165).
-        if isinstance(
-            getattr(obj, field_name, None), as_VulnerabilityCaseReference
-        ):
-            return None
-        return as_VulnerabilityCaseReference.model_validate(reference)
     try:
         # Both-branch: a stored inline ref may be any persisted type, core
         # records included, so this read path opts into the core fallback
@@ -219,7 +219,9 @@ def _retype_inline_ref(obj: BaseModel, field_name: str, raw: object) -> Any:
         return None
     if reads_as_typed_reference(reference, specific_cls):
         # A stored typed reference reads back as one, never as a hollow
-        # object of its type with that class's defaults (MV-10-011).
+        # object of its type with that class's defaults, nor a case
+        # reference as a sparse case that fails the case's validation
+        # (MV-10-011, ADR-0165).
         if isinstance(getattr(obj, field_name, None), as_TypedReference):
             return None
         return as_TypedReference.model_validate(reference)
@@ -312,4 +314,46 @@ def _build_unmodelled_inline(
             built = _build_unmodelled_item(raw)
         if built is not raw:
             updates[name] = built
+    return {**data, **updates} if updates else data
+
+
+def _stored_previewed_reference(
+    raw: dict[str, Any],
+) -> as_TypedReference | None:
+    """The previewed reference *raw* was stored from, or ``None``."""
+    reference: dict[str, Any] = {
+        _PYTHON_TO_WIRE_IDENTITY_KEYS.get(str(k), str(k)): v
+        for k, v in raw.items()
+        if v is not None
+    }
+    if not (
+        is_typed_reference_shape(reference) and carries_preview(reference)
+    ):
+        return None
+    return as_TypedReference.model_validate(
+        reference, context=STORED_ROW_CONTEXT
+    )
+
+
+def _build_previewed_references(data: dict[str, Any]) -> dict[str, Any]:
+    """Build each stored previewed reference before its holder reads *data*.
+
+    A generic object slot reads ``preview`` as a URI, so a stored reference
+    carrying the case's preview (ADR-0205) would fail its holder's class, or
+    be read as another object.  It is built as the reference it was, at any
+    depth of the activity's object-reference slots (an ``Accept`` keeps its
+    ``Invite`` inline), so a lookup reads it back as received (MV-10-011).
+    """
+    updates: dict[str, Any] = {}
+    for key in _activity_object_ref_properties() & data.keys():
+        raw = data[key]
+        if not isinstance(raw, dict):
+            continue
+        reference = _stored_previewed_reference(raw)
+        if reference is not None:
+            updates[key] = reference
+            continue
+        nested = _build_previewed_references(raw)
+        if nested is not raw:
+            updates[key] = nested
     return {**data, **updates} if updates else data

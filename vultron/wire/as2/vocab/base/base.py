@@ -56,7 +56,6 @@ from vultron.wire.as2.vocab.base.registry import (
     AmbiguousWireTypeError,
     declared_wire_type,
     declares_registrable_type,
-    is_wire_type_alias,
     narrow_type_list,
     wire_type_value,
 )
@@ -101,15 +100,6 @@ class as_Base(BaseModel):
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS
 
-    #: Set ``True`` on a class that shares another class's wire ``type`` value
-    #: and is therefore not what that value should deserialize to. No
-    #: production class declares it today; the case stub, its last user, became
-    #: its own ``VulnerabilityCaseStub`` type in #4045 (CM-11-013). Such a
-    #: class is still listed in ``VOCABULARY`` under its class name, but it
-    #: claims no ``WIRE_TYPE_MAP`` key, so no wire ``type`` value resolves to it
-    #: (VM-01-015, VM-01-016).
-    _wire_type_alias: ClassVar[bool] = False
-
     #: Set on an extension class whose type overlaps an AS2 core type: the
     #: AS2 class it refines, which must be an ancestor.  AS2 requires such an
     #: extension type to carry the core type too, so the class serializes its
@@ -137,8 +127,7 @@ class as_Base(BaseModel):
         # deserialize to?", so its key is the emitted `type` value — not the
         # class name, which diverges for the Vultron actor subtypes and would
         # register a key no payload ever carries (VM-01-012, issue #2982).
-        if not is_wire_type_alias(cls):
-            WIRE_TYPE_MAP[wire_type_value(cls)] = cls
+        WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
     # Every outbound document cites AS2 and then the Vultron context
     # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognizes it, Vultron so

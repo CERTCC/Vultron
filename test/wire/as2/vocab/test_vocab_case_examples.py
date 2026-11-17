@@ -18,6 +18,7 @@ import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.wire.as2.typed_reference import case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -37,7 +38,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseReference,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -190,9 +190,7 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         # The act names the case by typed reference (ADR-0165).
-        self.assertEqual(
-            activity.object_, as_VulnerabilityCaseReference(id_=case.id_)
-        )
+        self.assertEqual(activity.object_, case_reference(case.id_))
 
     def test_close_case(self):
         activity = examples.close_case()
@@ -205,9 +203,7 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         # The act names the case by typed reference (ADR-0165).
-        self.assertEqual(
-            activity.object_, as_VulnerabilityCaseReference(id_=case.id_)
-        )
+        self.assertEqual(activity.object_, case_reference(case.id_))
 
     def test_defer_case(self):
         activity = examples.defer_case()
@@ -220,9 +216,7 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         # The act names the case by typed reference (ADR-0165).
-        self.assertEqual(
-            activity.object_, as_VulnerabilityCaseReference(id_=case.id_)
-        )
+        self.assertEqual(activity.object_, case_reference(case.id_))
 
     def test_reengage_case(self):
         activity = examples.reengage_case()
@@ -235,9 +229,7 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         # The act names the case by typed reference (ADR-0165).
-        self.assertEqual(
-            activity.object_, as_VulnerabilityCaseReference(id_=case.id_)
-        )
+        self.assertEqual(activity.object_, case_reference(case.id_))
 
     def test_update_case(self):
         activity = examples.update_case()
@@ -319,9 +311,7 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(cast(as_Actor, activity.target).id_, coordinator.id_)
 
         # The Offer names the case by typed reference (ADR-0165).
-        self.assertEqual(
-            activity.object_, as_VulnerabilityCaseReference(id_=case.id_)
-        )
+        self.assertEqual(activity.object_, case_reference(case.id_))
 
     def test_accept_case_ownership_transfer(self):
         activity = examples.accept_case_ownership_transfer()

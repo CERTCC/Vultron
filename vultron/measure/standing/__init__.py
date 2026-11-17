@@ -21,8 +21,9 @@ ledger through the layers below it and adds no rule of its own.
 * :mod:`~vultron.measure.standing.moves` — the allowed moves, one typed
   class per machine; a case-state move extends a history a measure can
   score.
-* :mod:`~vultron.measure.standing.model` — the standing record, and the gap
-  a ledger with a hole yields in its place.
+* :mod:`~vultron.measure.standing.model` — the standing record, the CVD
+  actions each participant's case state makes possible, and the gap a ledger
+  with a hole yields in its place.
 * :mod:`~vultron.measure.standing.joint` — the standing as a point of the
   case's joint walk, and the joint step each move takes there.
 * :mod:`~vultron.measure.standing.read` — :func:`case_standing`, each
@@ -36,6 +37,7 @@ from vultron.measure.standing.joint import (
     vendor_numbers,
 )
 from vultron.measure.standing.model import (
+    ActionAdvice,
     CaseStanding,
     DesideratumChange,
     DesideratumStanding,
@@ -44,6 +46,7 @@ from vultron.measure.standing.model import (
     ScoredMove,
     StandingGap,
     StandingRecord,
+    action_advice,
     desiderata_standing,
 )
 from vultron.measure.standing.moves import (
@@ -57,6 +60,7 @@ from vultron.measure.standing.moves import (
 from vultron.measure.standing.read import case_standing
 
 __all__ = [
+    "ActionAdvice",
     "CSMove",
     "CaseStanding",
     "DesideratumChange",
@@ -69,6 +73,7 @@ __all__ = [
     "ScoredMove",
     "StandingGap",
     "StandingRecord",
+    "action_advice",
     "case_prefix",
     "case_standing",
     "cs_moves",

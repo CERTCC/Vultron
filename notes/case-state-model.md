@@ -3,12 +3,12 @@ title: Case State Model Notes
 status: active
 kind: guidance
 description: >
-  Rules for working with the CVD case state: where the CS rules live and the
-  legacy reference model's status, which dimensions are per-participant versus
-  per-case, role-gated VF/D writes, the two v→V drive paths, the d→D causal
-  gate, append-only status history, the invite-path RM entry point, the
-  same-write promotion out of an ephemeral state, and why the compound CS
-  enum stays.
+  Rules for working with the CVD case state: where the CS rules and the CVD
+  action rules live and the legacy reference model's status, which dimensions
+  are per-participant versus per-case, role-gated VF/D writes, the two v→V
+  drive paths, the d→D causal gate, append-only status history, the
+  invite-path RM entry point, the same-write promotion out of an ephemeral
+  state, and why the compound CS enum stays.
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
@@ -75,6 +75,12 @@ rules for changing the code that implements it.
   received claim is stored as sent (RSH-09-010); the CASE_MANAGER's adopted
   `CaseStatus` is the forced form, so read case-level P/X/A from the case's
   status, never from a `ParticipantStatus` (#6080).
+
+- **CVD action rules**: `vultron/core/states/cs_actions.py` (`cs_actions()`),
+  keyed on `CS`. New code MUST read it, not
+  `case_states.patterns.potential_actions`, whose `action()` is its test
+  oracle over the 32 valid states (`test_cs_actions.py`). `vultron/measure/`
+  is held to the same no-legacy-import rule as `vultron/core/states/` (#6515).
 
 Do not delete the legacy module (ADR-0060):
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
