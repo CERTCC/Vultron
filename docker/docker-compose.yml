@@ -106,6 +106,32 @@ services:
     stdin_open: true
     tty: true
 
+  shadow:
+    # The case shadow tool: a read-only dashboard over one case at a time
+    # (ADR-0190, ADR-0192). Start it with `docker compose up shadow` and open
+    # http://127.0.0.1:8501. It reads the committed demo recordings by
+    # default; see docs/howto/run_the_case_shadow.md.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: shadow
+    image: ${PROJECT_NAME}-shadow:latest
+    depends_on:
+      - dependencies
+    ports:
+      # Loopback only: the page shows embargoed case data (SHD-02-002).
+      - "127.0.0.1:8501:8501"
+    # No volumes: nothing the tool reads outlives the container (SHD-02-001).
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_SHADOW__LEDGER_DIR=/app/ui/src/recordings
+      # Passed through from the shell that runs `docker compose`, by name
+      # only, so no value is ever written here (SHD-02-003). Unset in the
+      # shell means unset in the container.
+      - VULTRON_SHADOW__CONNECTOR
+      - VULTRON_VINCE__BASE_URL
+      - VULTRON_VINCE__API_TOKEN
+
 networks:
   vultron-network:
     driver: bridge

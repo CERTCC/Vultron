@@ -2588,7 +2588,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER admits a participant
-      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) while an embargo
+      (`Accept(Invite(VulnerabilityCase preview)[target=Actor])`) while an embargo
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`

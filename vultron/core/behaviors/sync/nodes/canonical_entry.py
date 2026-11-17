@@ -114,10 +114,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Join", "VulnerabilityCase"),
     ("Ignore", "VulnerabilityCase"),
     ("Leave", "VulnerabilityCase"),
-    # The full-case Invite names its case by URI (CM-11-010); the stub Invite
-    # carries the stub, a type of its own (CM-11-013).
+    # Both case Invites carry the case in ``object`` (ADR-0205): the
+    # full-case Invite the whole case (CM-11-010), the stub Invite the case's
+    # reference carrying its preview.
     ("Invite", "VulnerabilityCase"),
-    ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
     # The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
@@ -170,12 +170,12 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 def _snapshot_object_types(
     snapshot: dict[str, Any], case_id: str
 ) -> tuple[str, ...]:
-    # Invite(Actor)[target=...]: object_ is the actor; use target.type so the
-    # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
-    # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
-    # A target that is the case URI itself names the same thing, so it
-    # resolves the same way.  A received ``type`` may be a list, kept as it
-    # arrived (VM-08-002), so each slot yields every name it carries.
+    # An act whose object_ is an actor and whose target is what it acts on
+    # (``X(Actor)[target=...]``): use target.type so the signature resolves
+    # to the target's type, not ('X','Org').  A target that is the case URI
+    # itself names the same thing, so it resolves the same way.  A received
+    # ``type`` may be a list, kept as it arrived (VM-08-002), so each slot
+    # yields every name it carries.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
         return ()

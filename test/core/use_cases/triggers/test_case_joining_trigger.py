@@ -562,11 +562,14 @@ def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
 
 
 def _invites_to(dl: SqliteDataLayer, invitee_id: str) -> list[as_Invite]:
+    """The case Invites, stub and full-case, naming *invitee_id* in
+    ``target`` (ADR-0205)."""
     return [
         obj
         for obj in dl.list_objects("Invite")
         if isinstance(obj, as_Invite)
-        and getattr(obj.object_, "id_", obj.object_) == invitee_id
+        and getattr(obj.target, "id_", obj.target) == invitee_id
+        and getattr(obj.object_, "type_", None) == "VulnerabilityCase"
     ]
 
 

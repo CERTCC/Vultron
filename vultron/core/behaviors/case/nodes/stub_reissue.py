@@ -36,7 +36,7 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
-    current_stub_embargo_id,
+    current_preview_embargo_id,
     outstanding_stale_stubs,
 )
 from vultron.core.behaviors.embargo.decided_entries import (
@@ -121,7 +121,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         assert self.trigger_activity_factory is not None
         # A re-issued stub invites to the embargo it carries, the one in
         # force (CM-11-016); with none in force it invites to nothing.
-        in_force = current_stub_embargo_id(case)
+        in_force = current_preview_embargo_id(case)
         for stale in stale_stubs:
             self._reissue(stale, in_force)
         return Status.SUCCESS

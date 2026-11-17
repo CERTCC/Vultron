@@ -25,6 +25,9 @@ Each entry cites itself, by its ledger id, as its source record: a native
 entry has no outside record behind it (CRD-01-004).  The reading carries no
 inferences, no untranslated facts and declares nothing unobservable, so the
 dashboard shows the full display for a source with nothing left untranslated.
+The reading is built by
+:func:`~vultron.shadow.readers.ledger_reading.ledger_reading`, which the live
+reader over a running node shares.
 
 The file is read with the measure layer's
 :func:`~vultron.measure.ledger.read_ledger_file`.  That reader degrades a
@@ -36,34 +39,18 @@ a partial ledger.
 from __future__ import annotations
 
 import logging
-from operator import attrgetter
+import os
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_reading import (
-    CaseReading,
-    EntryCitation,
-    UnobservableFact,
-    ledger_problems,
-)
+from vultron.core.models.case_reading import CaseReading, UnobservableFact
 from vultron.errors import CaseLedgerFileError, LedgerReadError
-from vultron.measure.ledger import UnusableRow, read_ledger_file
+from vultron.measure.ledger import read_ledger_file
+from vultron.shadow.readers.ledger_reading import (
+    _summary,  # noqa: F401  # its tests import it from here
+    ledger_reading,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _summary(exc: ValidationError) -> str:
-    """*exc*'s errors on one line, each with the field it is about."""
-    return "; ".join(
-        (
-            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
-            if error["loc"]
-            else error["msg"]
-        )
-        for error in exc.errors()
-    )
 
 
 class VultronCaseReader:
@@ -73,11 +60,11 @@ class VultronCaseReader:
     request and keeps nothing between requests (SHD-01-003).
 
     Args:
-        root: When set, the directory every requested file must resolve
-            inside, symbolic links followed; a path outside it is refused
-            before it is opened, so an analyst's input cannot probe the
-            host's other files.  A relative case id is then taken relative
-            to *root*, not to the working directory.
+        root: The directory every requested file must resolve inside,
+            symbolic links followed; a path outside it is refused before it
+            is opened, so an analyst's input cannot probe the host's other
+            files.  A relative case id is taken relative to it.  When it is
+            ``None`` the working directory at construction is the root.
     """
 
     name = "vultron"
@@ -86,23 +73,30 @@ class VultronCaseReader:
     unobservable: tuple[UnobservableFact, ...] = ()
 
     def __init__(self, root: Path | None = None) -> None:
-        self._root = root.resolve() if root is not None else None
+        # The root as a real path, symbolic links resolved, so the check in
+        # _confined compares two real paths.
+        self._root = os.path.realpath(root if root is not None else Path.cwd())
 
     def _confined(self, case_id: str) -> Path:
-        """The path to open for *case_id*, refused if outside the root."""
-        if self._root is None:
-            return Path(case_id)
+        """The path to open for *case_id*, refused if outside the root.
+
+        Every read is confined: a case id may come from a page an analyst
+        types into, so no path reaches the file system unchecked.
+        """
         try:
-            path = (self._root / case_id).resolve()
+            path = os.path.realpath(os.path.join(self._root, case_id))
         except (OSError, ValueError) as exc:
             raise CaseLedgerFileError(
                 case_id, [f"it is not a usable path: {exc}"]
             ) from exc
-        if not path.is_relative_to(self._root):
+        # Only a path strictly under the root passes: the root itself is a
+        # directory, never a ledger file.
+        inside = self._root.rstrip(os.sep) + os.sep
+        if not path.startswith(inside):
             raise CaseLedgerFileError(
                 case_id, [f"it is outside the ledger directory {self._root}"]
             )
-        return path
+        return Path(path)
 
     def read_case(self, case_id: str) -> CaseReading:
         """Read the case ledger in the file at path *case_id*.
@@ -124,39 +118,15 @@ class VultronCaseReader:
                 case_id, [f"it is not a usable path: {exc}"]
             ) from exc
 
-        bad_rows: list[UnusableRow] = list(ledger_file.unusable_rows)
-        entries: list[CaseLedgerEntry] = []
-        for row in ledger_file.rows:
-            try:
-                entries.append(CaseLedgerEntry.model_validate(row.data))
-            except ValidationError as exc:
-                bad_rows.append(
-                    row.unusable(f"not a case ledger entry: {_summary(exc)}")
-                )
-        citations = tuple(
-            EntryCitation(entry_id=entry.id_, source_record=entry.id_)
-            for entry in entries
-        )
-        problems = [
-            row.describe() for row in sorted(bad_rows, key=attrgetter("line"))
-        ]
-        # The citations are built one per entry, so only the ledger can
-        # disagree with itself (EH-07-002).
-        problems += ledger_problems(entries)
-        if not entries and not bad_rows:
-            problems.append("it holds no ledger entry")
-        if problems:
-            raise CaseLedgerFileError(case_id, problems)
-
-        reading = CaseReading(
-            ledger=tuple(entries),
-            citations=citations,
+        reading = ledger_reading(
+            ledger_file,
             unobservable=self.unobservable,
+            refuse=lambda problems: CaseLedgerFileError(case_id, problems),
         )
         logger.debug(
             "Read case %s: %d ledger entries from %s",
-            entries[0].case_id,
-            len(entries),
+            reading.ledger[0].case_id,
+            len(reading.ledger),
             path,
         )
         return reading

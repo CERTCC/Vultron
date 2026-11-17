@@ -208,6 +208,10 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
             "ledger.position_statement_interval_seconds": ("60", 60),
             "vince.base_url": ("https://vince.example/api", None),
             "vince.api_token": ("marker-credential", None),
+            "shadow.connector": ("vince", None),
+            "shadow.ledger_dir": ("/srv/ledgers", None),
+            "shadow.node_url": ("http://case-actor:7999/api/v2", None),
+            "shadow.node_actor_id": ("case-actor", None),
         }
         raw, expected = overrides[setting.yaml_key]
         if expected is None:
@@ -264,6 +268,16 @@ def test_unset_default_renders_as_unset(settings: list[ConfigSetting]) -> None:
     )
     assert url.default == "unset"
     assert url.type_label == "HTTP(S) URL, or unset"
+
+
+def test_non_empty_string_and_path_have_labels(
+    settings: list[ConfigSetting],
+) -> None:
+    by_key = _by_key(settings)
+    assert by_key["shadow.connector"].type_label == (
+        "non-empty string, or unset"
+    )
+    assert by_key["shadow.ledger_dir"].type_label == "path, or unset"
 
 
 def test_bounds_are_rendered(settings: list[ConfigSetting]) -> None:

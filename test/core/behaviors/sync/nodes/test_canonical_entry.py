@@ -438,55 +438,57 @@ def test_bare_object_is_still_refused():
         )
 
 
-def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
-    """``Invite(Actor)`` with a bare case URI target signs as the full-case Invite.
-
-    The signature is ``("Invite", "VulnerabilityCase")``.
-    """
+def test_a_full_case_invite_resolves_to_the_invite_of_a_case_signature():
+    """``Invite(whole VulnerabilityCase)[target=Actor]`` signs as an Invite
+    of a case: ``("Invite", "VulnerabilityCase")`` (ADR-0205)."""
     snapshot = {
         "type": "Invite",
         "actor": OWNER_ACTOR_ID,
         "published": now_utc().isoformat(),
-        "object": {
+        "object": {"type": "VulnerabilityCase", "id": CASE_ID},
+        "target": {
             "type": "Organization",
             "id": "https://example.org/actors/vendor",
         },
-        "target": CASE_ID,
         "context": CASE_ID,
     }
+    assert _snapshot_object_types(snapshot, CASE_ID) == ("VulnerabilityCase",)
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        semantic_type="invite_actor_to_case",
+        semantic_type="invite_actor_to_full_case",
         at=datetime.now(UTC),
     )
 
 
 @pytest.mark.spec("CM-11-038")
-def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
-    """``Invite(Actor)[target=VulnerabilityCaseStub]`` is its own signature.
+def test_a_stub_invite_resolves_to_the_invite_of_a_case_signature():
+    """``Invite(VulnerabilityCase preview)[target=Actor]`` is an Invite of a case.
 
-    The stub Invite is told apart from the full-case Invite by its target's
-    ``type`` (CM-11-013), and the ledger records it under that type.
+    The stub Invite names the case in its ``object``, a typed reference
+    carrying the case's preview (ADR-0205), so the ledger records it under
+    the case's type, as the full-case Invite.
     """
     snapshot = {
         "type": "Invite",
         "actor": OWNER_ACTOR_ID,
         "published": now_utc().isoformat(),
         "object": {
+            "type": "VulnerabilityCase",
+            "id": CASE_ID,
+            "preview": {
+                "type": "CasePreview",
+                "id": "https://example.org/previews/1",
+                "summary": "A case to join",
+            },
+        },
+        "target": {
             "type": "Organization",
             "id": "https://example.org/actors/vendor",
         },
-        "target": {
-            "type": "VulnerabilityCaseStub",
-            "id": f"{CASE_ID}/stub",
-            "caseId": CASE_ID,
-        },
         "context": CASE_ID,
     }
-    assert _snapshot_object_types(snapshot, CASE_ID) == (
-        "VulnerabilityCaseStub",
-    )
+    assert _snapshot_object_types(snapshot, CASE_ID) == ("VulnerabilityCase",)
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
@@ -503,11 +505,8 @@ def test_a_received_type_list_signs_as_the_type_it_names():
         "type": ["Foo", "Invite"],
         "actor": OWNER_ACTOR_ID,
         "published": now_utc().isoformat(),
-        "object": {
-            "type": ["Bar", "Organization"],
-            "id": "https://example.org/actors/vendor",
-        },
-        "target": CASE_ID,
+        "object": {"type": ["Bar", "VulnerabilityCase"], "id": CASE_ID},
+        "target": "https://example.org/actors/vendor",
         "context": CASE_ID,
     }
     _validate_canonical_entry(

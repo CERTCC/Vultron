@@ -31,11 +31,11 @@ Case          EM ACTIVE → EXITED; PXA pxa → Pxa
 05  Coordinator   Coordinator suggested Vendor for the case
       Offer(Actor)[target=VulnerabilityCase]
       → Reporter, Case Manager
-06  Case Manager  Case Manager invited Vendor to the case
-      Invite(Actor)[target=VulnerabilityCaseStub]
-      → Reporter, Coordinator
+06  Coordinator   Coordinator invited Vendor to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
+      → Reporter, Case Manager
 07  Vendor        Vendor declined the case invitation
-      Reject(Invite(Actor)[target=VulnerabilityCaseStub])
+      Reject(Invite(VulnerabilityCase preview)[target=Actor])
       → Reporter, Coordinator, Case Manager
 08  Reporter      Reporter added a note to the case
       Add(Note)[target=VulnerabilityCase] · Note: "Question from Reporter" · Vendor rejected the invitation. What is the plan for coordinated disclosure?

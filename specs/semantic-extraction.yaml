@@ -142,8 +142,10 @@ groups:
       `ActivityPattern`'s type constraint on that field, except where SE-08-004 requires
       `strict=True`.
     rationale: >-
-      A case in `target` or `context` travels as its URI by rule (MV-10-009). Only a
-      case invitation carries a stub, in its `target` (MV-10-002). A pattern that
+      A case in `target` or `context` travels as its URI by rule (MV-10-009,
+      AKM-02-003);
+      the stub travels only as a preview in an Invite's `object` (MV-10-002). A pattern
+      that
       refused a bare case URI there would refuse well-formed activities. Only the
       `object` names the thing the activity acts on.
     verification: >-

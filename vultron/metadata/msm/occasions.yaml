@@ -348,7 +348,7 @@ groups:
   - anchor: invite-actor-to-case
     heading: Invite actor to case
     when: the CASE_MANAGER invites an actor to join the case
-    send: Invite(Actor)[target=VulnerabilityCaseStub]
+    send: Invite(VulnerabilityCase preview)[target=Actor]
     send_to: a participant
     sent_by: the CASE_MANAGER
     semantics: invite_actor_to_case
@@ -364,7 +364,7 @@ groups:
   - anchor: accept-invite-to-case
     heading: Accept invite to case
     when: an invited actor agrees to join the case
-    send: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+    send: Accept(Invite(VulnerabilityCase preview)[target=Actor])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     semantics: accept_invite_actor_to_case
@@ -379,7 +379,7 @@ groups:
   - anchor: reject-invite-to-case
     heading: Reject invite to case
     when: an invited actor declines to join the case
-    send: Reject(Invite(Actor)[target=VulnerabilityCaseStub])
+    send: Reject(Invite(VulnerabilityCase preview)[target=Actor])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     semantics: reject_invite_actor_to_case
@@ -392,7 +392,7 @@ groups:
   - anchor: invite-actor-to-full-case
     heading: Send Full-Case Invite
     when: the CASE_MANAGER has replayed the case ledger to a newly joined Participant
-    send: Invite(Actor)[target=VulnerabilityCase]
+    send: Invite(whole VulnerabilityCase)[target=Actor]
     send_to: a participant
     sent_by: the CASE_MANAGER
     semantics: invite_actor_to_full_case
@@ -406,7 +406,7 @@ groups:
   - anchor: accept-full-case-invite
     heading: Accept Full-Case Invite
     when: a Participant asked by a Full-Case Invite judges the case valid
-    send: Accept(Invite(Actor)[target=VulnerabilityCase])
+    send: Accept(Invite(whole VulnerabilityCase)[target=Actor])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     semantics: accept_invite_actor_to_full_case
@@ -421,7 +421,7 @@ groups:
   - anchor: tentatively-reject-full-case-invite
     heading: Tentatively reject Full-Case Invite
     when: a Participant asked by a Full-Case Invite judges the case invalid
-    send: TentativeReject(Invite(Actor)[target=VulnerabilityCase])
+    send: TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     semantics: tentative_reject_invite_actor_to_full_case
@@ -436,7 +436,7 @@ groups:
   - anchor: reject-full-case-invite
     heading: Reject Full-Case Invite
     when: a Participant asked by a Full-Case Invite closes the case
-    send: Reject(Invite(Actor)[target=VulnerabilityCase])
+    send: Reject(Invite(whole VulnerabilityCase)[target=Actor])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     semantics: reject_invite_actor_to_full_case

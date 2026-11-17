@@ -18,6 +18,7 @@ from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
     LedgerEntryRejectPattern,
     LedgerPositionReadPattern,
+    ObjectForm,
 )
 
 # ---------------------------------------------------------------------------
@@ -391,52 +392,68 @@ UndoCaseOwnershipTransferActivityPattern = ActivityPattern(
 
 InviteActorToCasePattern = ActivityPattern(
     description=(
-        "The stub Invite: Invite(Actor)[target=VulnerabilityCaseStub]"
-        " (VAM-04-004).  The target's type alone identifies it (CM-11-013);"
-        " strict (SE-08-004), so an Invite whose target is a bare URI — the"
-        " full-case Invite references its case by ID (CM-11-010) — does not"
-        " match."
+        "The stub Invite: Invite(VulnerabilityCase preview)[target=Actor]"
+        " (VAM-04-004, ADR-0205).  Its object is the case's typed reference"
+        " carrying the case's preview, the case stub (CM-17-010), which"
+        " object_form requires (SE-01-009): the form, not the type, tells it"
+        " from the full-case Invite."
     ),
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
-    target_=VOtype.VULNERABILITY_CASE_STUB,
-    strict=True,
+    object_=VOtype.VULNERABILITY_CASE,
+    object_form=ObjectForm.PREVIEWED_REFERENCE,
+    target_=AOtype.ACTOR,
 )
 AcceptInviteActorToCasePattern = ActivityPattern(
+    description=(
+        "Accept(Invite(VulnerabilityCase preview)[target=Actor])"
+        " (VAM-04-005): the nested stub Invite's form tells it from the RV"
+        " reply to the full-case Invite."
+    ),
     activity_=TAtype.ACCEPT,
     object_=InviteActorToCasePattern,
 )
 RejectInviteActorToCasePattern = ActivityPattern(
+    description=(
+        "Reject(Invite(VulnerabilityCase preview)[target=Actor])"
+        " (VAM-04-006): the nested stub Invite's form tells it from the RC"
+        " reply to the full-case Invite."
+    ),
     activity_=TAtype.REJECT,
     object_=InviteActorToCasePattern,
 )
 InviteActorToFullCasePattern = ActivityPattern(
     description=(
-        "The full-case Invite: Invite(Actor)[target=VulnerabilityCase]"
-        " (VAM-04-011, CM-11-010).  The target is the plain case URI"
-        " (AKM-02-003), which a permissive pattern accepts; the stub Invite's"
-        " target is a VulnerabilityCaseStub object, whose type does not match,"
-        " so the two Invites are told apart by their target."
+        "The full-case Invite: Invite(whole VulnerabilityCase)[target=Actor]"
+        " (VAM-04-011, CM-11-010, ADR-0205).  Its object is the whole case,"
+        " which object_form requires (SE-01-009), so the stub Invite's"
+        " previewed reference does not match."
     ),
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
-    target_=VOtype.VULNERABILITY_CASE,
+    object_=VOtype.VULNERABILITY_CASE,
+    object_form=ObjectForm.WHOLE_OBJECT,
+    target_=AOtype.ACTOR,
 )
 AcceptInviteActorToFullCasePattern = ActivityPattern(
-    description="RV: Accept(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-012).",
+    description=(
+        "RV: Accept(Invite(whole VulnerabilityCase)[target=Actor])"
+        " (VAM-04-012)."
+    ),
     activity_=TAtype.ACCEPT,
     object_=InviteActorToFullCasePattern,
 )
 TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
     description=(
-        "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
+        "RI: TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])"
         " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-028)."
     ),
     activity_=TAtype.TENTATIVE_REJECT,
     object_=InviteActorToFullCasePattern,
 )
 RejectInviteActorToFullCasePattern = ActivityPattern(
-    description="RC: Reject(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-014).",
+    description=(
+        "RC: Reject(Invite(whole VulnerabilityCase)[target=Actor])"
+        " (VAM-04-014)."
+    ),
     activity_=TAtype.REJECT,
     object_=InviteActorToFullCasePattern,
 )

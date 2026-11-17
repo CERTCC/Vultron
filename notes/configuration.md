@@ -37,8 +37,9 @@ related_notes:
 Requirements: `specs/configuration.yaml` (CFG). Code: `vultron/config/`
 (`app.py` for `AppConfig`, `get_config()`, `reload_config()`,
 `clear_config_cache()`, `config_override()`; `actor.py` for `ActorConfig`;
-`ledger.py` for `LedgerConfig`; `vince.py` for `VinceConfig`; `secrets.py`
-for the secret-setting rule). Field meanings and defaults live in those
+`ledger.py` for `LedgerConfig`; `vince.py` for `VinceConfig`; `shadow.py` for
+`ShadowConfig`; `secrets.py` for the secret-setting rule). Field meanings and
+defaults live in those
 modules' docstrings. The reader-facing list of every setting, its
 `config.yaml` key and its `VULTRON_*` variable is
 `docs/reference/configuration.md`, generated from `AppConfig` by

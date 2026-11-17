@@ -37,7 +37,7 @@ class UnusableRow(BaseModel):
     """One ledger row the reader could not use, and why (CEH-02-008).
 
     Fields:
-        path: The file the row is in.
+        path: The file the row is in, or the endpoint path that served it.
         line: The row's 1-based line number in that file.
         reason: Why the row is unusable.
     """
@@ -57,7 +57,7 @@ class LedgerRow(BaseModel):
     """One parsed ledger row and where it was read from.
 
     Fields:
-        path: The file the row is in.
+        path: The file the row is in, or the endpoint path that served it.
         line: The row's 1-based line number in that file.
         data: The row's JSON object, as written.
     """
@@ -109,7 +109,22 @@ def read_ledger_file(path: Path) -> LedgerFile:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise LedgerReadError(f"Cannot read {path}: {exc}") from exc
+    return parse_ledger_text(text, path)
 
+
+def parse_ledger_text(text: str, path: Path) -> LedgerFile:
+    """Parse case-ledger JSONL *text*, tolerating malformed rows.
+
+    The parsing half of :func:`read_ledger_file`, for a caller that holds
+    the text already, such as a node's NDJSON answer.  Blank lines are
+    skipped; a non-blank line that is not a JSON object becomes one
+    :class:`UnusableRow` (CEH-02-008).
+
+    Args:
+        text: The JSONL text, one ledger row per line.
+        path: Where the text was read from, quoted in each row's
+            description: a file, or the path of the endpoint that served it.
+    """
     rows: list[LedgerRow] = []
     unusable: list[UnusableRow] = []
     for lineno, line in enumerate(text.splitlines(), start=1):

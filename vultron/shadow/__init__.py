@@ -27,8 +27,13 @@ standing through the measure layer, and no module under ``vultron/core/``,
 Layout:
 
 * :mod:`vultron.shadow.readers` — the shadow's case readers and the choice of
-  which one a run uses: the Vultron case reader over a case-ledger file, the
-  default when no outside-system reader is configured.  An outside system's
+  which one a run uses: the live Vultron case reader over a running node's
+  case ledger when a node is configured, else the Vultron case reader over a
+  case-ledger file, the default when no outside-system reader is
+  configured.  An outside system's
   reader, such as the VINCE case reader, is a connector plugin under
   ``vultron/adapters/connectors/`` (ARCH-05-004), handed in from there.
+* :mod:`vultron.shadow.analysis` — a case reading's standing record.
+* :mod:`vultron.shadow.dashboard` — the Streamlit page that shows it, and
+  ``vultron-shadow``, which starts it.
 """

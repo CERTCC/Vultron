@@ -72,11 +72,6 @@ KNOWN_OFFER_REFERENCE_TERM_VIOLATIONS = frozenset(
     }
 )
 
-# owner: #6420
-KNOWN_CASE_STUB_TERM_VIOLATIONS = frozenset(
-    {"as_VulnerabilityCaseStub.caseId: VM-10-007"}
-)
-
 # owner: #6421
 KNOWN_EMBARGO_TERMINATION_TERM_VIOLATIONS = frozenset(
     {"EmbargoTermination.reason: VM-10-007"}

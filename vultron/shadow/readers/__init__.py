@@ -17,12 +17,26 @@
 
 * :class:`~vultron.shadow.readers.vultron_ledger.VultronCaseReader` — reads
   a Vultron case-ledger JSONL file, untranslated.
+* :class:`~vultron.shadow.readers.vultron_node.VultronNodeCaseReader` — the
+  live Vultron case reader: a running node's case ledger, untranslated.
+* :func:`~vultron.shadow.readers.ledger_reading.ledger_reading` — the case
+  reading both Vultron readers build from a ledger's parsed rows.
 * :func:`~vultron.shadow.readers.selection.select_case_reader` — the reader a
-  run uses: the configured outside-system reader, or the Vultron case reader
-  when none is configured.
+  run uses: the configured outside-system reader, else the live reader when
+  a node is configured, else the Vultron case reader.
+* :func:`~vultron.shadow.readers.configured.configured_case_reader` — that
+  choice made from the run's ``shadow:`` settings.
 """
 
-from vultron.shadow.readers.selection import select_case_reader
+from vultron.shadow.readers.configured import configured_case_reader
+from vultron.shadow.readers.selection import VultronNode, select_case_reader
 from vultron.shadow.readers.vultron_ledger import VultronCaseReader
+from vultron.shadow.readers.vultron_node import VultronNodeCaseReader
 
-__all__ = ["VultronCaseReader", "select_case_reader"]
+__all__ = [
+    "VultronCaseReader",
+    "VultronNode",
+    "VultronNodeCaseReader",
+    "configured_case_reader",
+    "select_case_reader",
+]

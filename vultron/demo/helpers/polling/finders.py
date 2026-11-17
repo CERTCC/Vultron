@@ -41,46 +41,32 @@ from vultron.enums.object_types import VultronObjectType
 logger = logging.getLogger(__name__)
 
 
-def _stub_case_id(stub: dict) -> object:
-    """The case a received ``VulnerabilityCaseStub`` names (CM-11-013).
-
-    The archive record keeps the Invite as the body that arrived
-    (ADR-0149), so the stub is in its wire form.
-    """
-    return stub.get("caseId")
-
-
 def _is_case_invite_for(
     obj_data: dict, case_id: str, invitee_id: str, *, full_case: bool = False
 ) -> bool:
     """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
 
-    A stub Invite names its case in the stub's ``caseId`` (CM-11-037); the
-    stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
-    Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
-    two is wanted: any case Invite by default, only a full-case one when true.
+    Both case Invites name the case in ``object`` and the invitee in
+    ``target`` (ADR-0205).  A stub Invite's object is the case's reference
+    carrying its ``preview``; a full-case Invite's is the whole case.
+    *full_case* selects which of the two is wanted: any case Invite by
+    default, only a full-case one when true.  The archive record keeps the
+    Invite as the body that arrived (ADR-0149), so it is read in its wire
+    form.
     """
     invite = received_activity_or_none(obj_data)
     if invite is None or invite.get("type") != "Invite":
         return False
-    target_raw = invite.get("target")
-    is_stub = (
-        isinstance(target_raw, dict)
-        and target_raw.get("type")
-        == VultronObjectType.VULNERABILITY_CASE_STUB.value
-    )
-    if full_case and is_stub:
+    case_raw = invite.get("object")
+    if not isinstance(case_raw, dict):
         return False
-    if isinstance(target_raw, dict):
-        target_case_id = (
-            _stub_case_id(target_raw) if is_stub else target_raw.get("id")
-        )
-    else:
-        target_case_id = target_raw
-    if target_case_id != case_id:
+    if case_raw.get("type") != VultronObjectType.VULNERABILITY_CASE.value:
         return False
-    inner_id = _ref_id(invite.get("object"))
-    return inner_id == invitee_id
+    if full_case and "preview" in case_raw:
+        return False
+    if case_raw.get("id") != case_id:
+        return False
+    return _ref_id(invite.get("target")) == invitee_id
 
 
 def find_case_invite_for_actor(
@@ -90,8 +76,7 @@ def find_case_invite_for_actor(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> str:
-    """Poll until the CaseActor's Invite(Actor)[target=VulnerabilityCaseStub] for
-    *invitee_id* arrives.
+    """Poll until the CaseActor's stub Invite for *invitee_id* arrives.
 
     The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
     recommendation (ADR-0026) and on the owner's direct invite alike

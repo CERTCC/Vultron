@@ -614,8 +614,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ]
         assert invites, "the recorded invitee must be invited"
         invitees = {
-            getattr(getattr(i, "object_", None), "id_", None)
-            or getattr(i, "object_", None)
+            getattr(getattr(i, "target", None), "id_", None)
+            or getattr(i, "target", None)
             for i in invites
         }
         assert invitees == {RECOMMENDED_ID}
@@ -1514,7 +1514,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
           EmitInviteActorToCaseNode (roles=None, no blackboard key) →
-          Invite(Actor) stored with roles=None → Accept(Invite) →
+          stub Invite stored with roles=None → Accept(Invite) →
           CaseParticipant.case_roles == [].
 
     AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``

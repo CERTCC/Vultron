@@ -262,7 +262,7 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
 
     invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
-    assert invite["target"]["activeEmbargo"]["id"] == in_force.id_
+    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force.id_
     assert _deadline(invite) == in_force.end_time
 
 
@@ -562,11 +562,11 @@ def test_a_joined_invitee_is_not_reissued_on_an_embargo_change(
     _terminate(dl, owner.id_, case.id_)
 
     # Joining sent the invitee its full-case Invite (CM-11-010), whose
-    # target is the case URI (AKM-02-003); no stub Invite was re-issued.
+    # object is the whole case (ADR-0205); no stub Invite was re-issued.
     stub_invites = [
         i
         for i in _invites_to(dl, invitee.id_)
-        if getattr(i.target, "type_", None) == "VulnerabilityCaseStub"
+        if getattr(i.object_, "preview", None) is not None
     ]
     assert [i.id_ for i in stub_invites] == [original["id"]]
 
@@ -584,7 +584,7 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     dl.create(invitee)
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
-    assert original["target"].get("activeEmbargo") is not None
+    assert original["object"]["preview"].get("activeEmbargo") is not None
     roster_before = dl.read_case(case.id_)
     assert roster_before is not None
 
@@ -597,7 +597,14 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     assert replacement.roles == original["roles"]
     assert replacement.end_time is not None
     assert replacement.end_time >= _deadline(original)
-    assert getattr(replacement.target, "active_embargo", None) is None
+    assert (
+        getattr(
+            getattr(replacement.object_, "preview", None),
+            "active_embargo",
+            None,
+        )
+        is None
+    )
     # One record throughout; the re-issue wrote no participant state.
     after = dl.read_case(case.id_)
     assert after is not None
@@ -793,7 +800,7 @@ def _send_stub_invite_during_revision(
     invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
 
     # The stub carries the embargo in force, not the open revision (CM-17-002, CM-17-014).
-    assert invite["target"]["activeEmbargo"]["id"] == in_force
+    assert invite["object"]["preview"]["activeEmbargo"]["id"] == in_force
     stored = dl.read_case(case.id_)
     assert stored is not None
     return owner, invitee, dl, stored, revision.id_, invite
@@ -867,7 +874,9 @@ def test_an_activated_revision_reissues_a_stub_sent_in_revise(
         i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
     ]
     assert replacement.in_reply_to == invite["id"]
-    carried = getattr(replacement.target, "active_embargo", None)
+    carried = getattr(
+        getattr(replacement.object_, "preview", None), "active_embargo", None
+    )
     assert getattr(carried, "id_", carried) == revision_id
 
 

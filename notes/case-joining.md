@@ -19,6 +19,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/handler-protocol.yaml
   - specs/case-bootstrap-trust.yaml
+  - specs/semantic-extraction.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/case-ledger-authority.md
@@ -62,15 +63,15 @@ the case), ADR-0116 (removal and reinstatement). The participant-facing flow is 
 
 | Step | Message | RM | VF (vendor) | Embargo consent | Inert? |
 |---|---|---|---|---|---|
-| 1 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
+| 1 | CASE_MANAGER sends `Invite(VulnerabilityCase preview)[target=Actor]`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
-| 2a | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
-| 2b | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
+| 2a | `Accept(Invite(VulnerabilityCase preview)[target=Actor])` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
+| 2b | `Reject(Invite(VulnerabilityCase preview)[target=Actor])` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
-| 4 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCase]` with its ledger position | — | — | — | no |
-| 5a | `Accept(Invite(Actor)[target=VulnerabilityCase])` (RV) | `VALID` | — | — | no |
-| 5b | `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` (RI) | `INVALID` | — | — | no |
-| 5c | `Reject(Invite(Actor)[target=VulnerabilityCase])` (RC) | `CLOSED` | — | — | stops receiving |
+| 4 | CASE_MANAGER sends `Invite(whole VulnerabilityCase)[target=Actor]` with its ledger position | — | — | — | no |
+| 5a | `Accept(Invite(whole VulnerabilityCase)[target=Actor])` (RV) | `VALID` | — | — | no |
+| 5b | `TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])` (RI) | `INVALID` | — | — | no |
+| 5c | `Reject(Invite(whole VulnerabilityCase)[target=Actor])` (RC) | `CLOSED` | — | — | stops receiving |
 | 6 | `Join(VulnerabilityCase)` (RA) / `Ignore(VulnerabilityCase)` (RD) | `ACCEPTED` / `DEFERRED` | — | — | no |
 
 A stub Invite has two replies, not three: accepting a stub is not a judgement of the
@@ -201,7 +202,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 | 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it the Owner's own `Add(<Actor>, target=<case>)`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
 
 - **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
   itself or the Case Owner; it never removes on its own. Self-removal is
@@ -227,10 +228,11 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `ActivityNotYetLedgeredNode` skips first (CLP-05-006). At a replica the
   received tree writes nothing; the entry is replayed by the apply nodes, which
   resolve the record through `actor_participant_index`.
-- **`Add(CaseParticipant)` only reinstates** (CM-31-012). It is refused for a
-  participant not removed or never joined, and nothing emits it after a stub-Invite
-  acceptance: replicas learn of a new member from the entries for the messages
-  exchanged (ADR-0114).
+- **A reinstatement request never seats a member** (CM-31-036). It is refused for
+  a participant not removed or never joined. An acceptance of a stub Invite adds no
+  record (CM-31-012): the record was added when the Invite went out (CM-11-023), and
+  replicas learn of the new member from the entries for the messages exchanged
+  (ADR-0114).
 - **Catch-up follows the active check.** The reinstatement entry is withheld while the
   participant is still removed and recorded in its pause (`embargo_paused_from_index`);
   `BackfillAdmittedParticipantsNode` then sends every entry from that index, so the
@@ -253,10 +255,10 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 | What happens | Entry | A replica |
 |---|---|---|
 | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
-| the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` | stores the record carried |
-| the invitee sends `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
+| the CASE_MANAGER creates the inert record and adds it to the case | `add_case_participant_to_case`, `Add(CaseParticipant)` with the case as `target` | stores the record carried in the case `target` names |
+| the invitee sends `Accept(Invite(VulnerabilityCase preview)[target=Actor])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
-| the invitee sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
+| the invitee sends `Reject(Invite(VulnerabilityCase preview)[target=Actor])`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
 | the record closes (RM `CLOSED`, vendor `Vf`) | `add_participant_status_to_participant` | stores the status |
 | expiry | none | nothing changed (CM-11-040) |
 
@@ -308,10 +310,13 @@ distinction in new messages: we accept offers and invitations, never bare object
   are recorded, backward moves refused before the receipt commit, restatements
   `SKIPPED`; see [received-status-authorization](received-status-authorization.md).
 - **The full-case Invite's position is its `ledgerPosition`** (VAM-04-011,
-  SYNC-18-001); `target` stays the plain case URI (AKM-02-003). The extractor refuses
+  SYNC-18-001); its `object` is the whole case and its `target` the participant
+  (ADR-0205). The extractor refuses
   a missing or non-parsing one (SYNC-18-015). A stored stub Invite states the
   CASE_MANAGER's tail too, but sets no floor (`stored_invite_floor`). An empty ledger
   is `logIndex` -1 with the case's `genesisHash` (CLP-08-004).
-- **Resolve the case from the stub's `caseId`, never its id.** Stub-Invite reply
-  patterns match only a `VulnerabilityCaseStub` target; full-case replies have their
-  own patterns.
+- **Resolve the case from the Invite's `object` id, never from the stub.** Both case
+  Invites name the case in `object` and the invitee in `target` (ADR-0205): a reply
+  reads the nested Invite's `object` id and `target`. Stub-Invite reply patterns
+  match only the previewed-reference form (`object_form=PREVIEWED_REFERENCE`),
+  full-case ones only the whole case (`WHOLE_OBJECT`, SE-01-009).

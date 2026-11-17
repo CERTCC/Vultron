@@ -26,7 +26,7 @@ stakeholder_type: [project-contributor]
 | `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but the boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Decided 2026-11-02: no issue. Only `vultron/metadata/` (dev tooling) imports demo code, and `test/architecture/test_core_no_demo_imports.py` guards core |
 | Correlation logging built but not installed | `vultron/logging_correlation.py` landed ahead of its wiring | `vultron/logging_correlation.py`; no module under `vultron/` calls `correlation_context()` or `install_correlation_logging()` | SL-02-001 to SL-02-003 (`MUST`) stay unmet: log lines carry no `activity_id` or `actor_id` | Enter the context at the inbox, BT and poll boundaries and install it at each entry point (#3992) |
 | pytest capped below 9.2 | pytest 9.2 stores node ids in a structured form, so pytest-xdist 3.8.0 drops every `xdist_group` mark (#6181) | `pyproject.toml` `[dependency-groups].dev`, `test/test_xdist_loadgroup.py` | The suite stays on an old pytest until pytest-xdist ships the fix | Lift the cap once a pytest-xdist release carries both fixes the `pyproject.toml` comment names; `test/test_xdist_loadgroup.py` decides |
-| Unimplemented adapter stubs | Production delivery and the shared inbox are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py` | No production-ready transport | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is built (ARCH-05-003); the VINCE module is an example, ahead of the VINCE case reader (#5963) |
+| Unimplemented adapter stubs | Production delivery and the shared inbox are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py` | No production-ready transport | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is built (ARCH-05-003), and the VINCE case reader is its first installed plugin (#5963) |
 
 ### 3) Security Concerns
 
@@ -74,7 +74,7 @@ Each answer is recorded here so a later scan does not raise it again.
 2. Production database: tracked in #511; the backend choice belongs there.
 3. Personal and embargoed data in logs: Concern #5607.
 4. Coverage target: set by TB-02-001 and TB-02-002; tooling in #4014.
-5. Connector adapters: the VINCE module is an example `CaseReader`, ahead of the VINCE case reader (#5963); the entry-point loader is built (ARCH-05-003).
+5. Connector adapters: the VINCE case reader is built and installed as the `vince` entry point (#5963); the entry-point loader is built (ARCH-05-003).
 6. `scipy`: keep it, though nothing imports it.
    networkx computes `nx.pagerank()` with it, and `vultron/core/case_states/hypercube/model.py` calls that; the `pyproject.toml` comment says so (#5599).
 7. Oversized modules: split issues go under Epic #5417.

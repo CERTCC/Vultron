@@ -1230,6 +1230,40 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
         assert ledger_at_append == [[]]
 
 
+class TestEmitInviteActorToCaseNodeRefusesAnUnheldCase:
+    """The stub Invite's preview is built from the case, so the node builds
+    none for a case this actor does not hold (CM-17-010, ADR-0205)."""
+
+    @pytest.fixture
+    def dl(self, store_for):
+        return store_for(ACTOR_ID)
+
+    @pytest.mark.spec("CM-17-010")
+    def test_fails_and_sends_nothing_without_the_case(self, dl):
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        factory = MagicMock(spec=TriggerActivityAdapter)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID, case_id=AC3_CASE_ID, roles=["vendor"]
+        )
+
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        factory.invite_actor_to_case.assert_not_called()
+        assert dl.outbox_list() == []
+
+
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
     """AC-2 (ISSUE-1406): factory.invite_actor_to_case() called with roles=None.
 
@@ -1276,11 +1310,11 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
                     # The real factory always emits ``published``; the commit
                     # boundary requires it (CLP-07-011).
                     "published": now_utc().isoformat(),
-                    "object_": {"type": "CoreActor", "id_": INVITEE_ID},
-                    "target": {
+                    "object_": {
                         "type": "VulnerabilityCase",
                         "id_": AC3_CASE_ID,
                     },
+                    "target": {"type": "CoreActor", "id_": INVITEE_ID},
                     "context": AC3_CASE_ID,
                 }
             ),

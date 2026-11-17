@@ -28,6 +28,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.objects import make
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _RecommendActorActivity,
@@ -117,6 +118,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -124,7 +126,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -160,9 +161,18 @@ _LOG_ENTRY = make(
 )
 
 _SUBMIT = make(_RmSubmitReportActivity, actor=_ACTOR, object_=_REPORT)
-_STUB = as_VulnerabilityCaseStub(case_id=_CASE.id_)
+#: The stub Invite's object: the case's typed reference carrying its
+#: preview, the stub (ADR-0205).
+_PREVIEWED_CASE = as_TypedReference(
+    type_=_CASE.type_,
+    id_=_CASE.id_,
+    preview=as_CasePreview(summary="A case to join"),
+)
 _INVITE = make(
-    _RmInviteToCaseActivity, actor=_ACTOR, object_=_ACTOR, target=_STUB
+    _RmInviteToCaseActivity,
+    actor=_ACTOR,
+    object_=_PREVIEWED_CASE,
+    target=_ACTOR,
 )
 _PROPOSE = make(
     _EmProposeEmbargoActivity,
@@ -682,10 +692,10 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
                 self._assert_missing_rejected(cls)
 
     def test_rm_invite_to_case_rejects_none(self):
-        self._assert_none_rejected(_RmInviteToCaseActivity, target=_STUB)
+        self._assert_none_rejected(_RmInviteToCaseActivity, target=_ACTOR)
 
     def test_rm_invite_to_case_rejects_missing(self):
-        self._assert_missing_rejected(_RmInviteToCaseActivity, target=_STUB)
+        self._assert_missing_rejected(_RmInviteToCaseActivity, target=_ACTOR)
 
 
 if __name__ == "__main__":

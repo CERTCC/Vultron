@@ -292,7 +292,8 @@ groups:
     kind: project
     statement: >-
       This codebase's inbox MUST refuse a received `Create(CaseStatus)`,
-      `Create(ParticipantStatus)` or `Create(Note)` as an unrecognized activity. It
+      `Create(ParticipantStatus)`, `Create(CaseParticipant)` or `Create(Note)` as an
+      unrecognized activity. It
       refuses a received `Create` of any `Event` other than an `EmbargoEvent` the same
       way.
     rationale: >-
@@ -304,7 +305,8 @@ groups:
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
       of these received `Create` activities, including `Create(Note)` with and without
-      a case `context` and a `Create` of a plain `Event`, resolves to `UNKNOWN` and is
+      a case `context`, `Create(CaseParticipant)` (#6295) and a `Create` of a plain
+      `Event`, resolves to `UNKNOWN` and is
       refused, and that the case, the ledger and the outbox stay unchanged.
     relationships:
     - rel_type: refines
@@ -316,18 +318,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase's inbox MUST report a received `Create(CaseParticipant)` or
-      `Create(EmbargoEvent)` as "no use case found" (SE-05-002, ADR-0140).
+      This codebase's inbox MUST report a received
+      `Add(CaseParticipant)[target=VulnerabilityCase]` or `Create(EmbargoEvent)` as
+      "no use case found" (SE-05-002, ADR-0140).
     rationale: >-
-      Each is the CASE_MANAGER's own record of a creation (VAM-05-016), so the inbox
-      recognizes it. `Create(CaseParticipant)` and `Create(EmbargoEvent)` are ledger
-      records of the CASE_MANAGER that a replica copies from the ledger (ADR-0124),
-      not messages a use case handles.
+      Each is the CASE_MANAGER's own record of a change (VAM-05-016, VAM-06-004), so
+      the inbox recognizes it. Both are ledger records of the CASE_MANAGER that a
+      replica copies from the ledger (ADR-0124), not messages a use case handles.
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
-      received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is recognized,
-      reported unhandled, and changes nothing.
+      received `Add(CaseParticipant)[target=VulnerabilityCase]` (#6295) or
+      `Create(EmbargoEvent)` is recognized, reported unhandled, and changes nothing.
     adr:
     - ADR-0137
     - ADR-0140
@@ -400,9 +402,9 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
       `Create` activities, including `Create(Note)` with and without a case
       `context`, to an inbox and confirms that the case, the ledger and the outbox
-      stay unchanged. `test_a_received_case_manager_act_is_recognized_and_unhandled`
-      in the same file confirms the same for `Create(CaseParticipant)` and
-      `Create(EmbargoEvent)`.
+      stay unchanged, `Create(CaseParticipant)` included (#6295).
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
+      confirms that a received `Create(EmbargoEvent)` changes nothing.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-01-011
@@ -423,8 +425,10 @@ groups:
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
-      received `Create(CaseParticipant)` is recognized, reported unhandled, and
-      creates no participant.
+      received `Add(CaseParticipant)[target=VulnerabilityCase]` is recognized,
+      reported unhandled, and creates no participant, and
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms the
+      same for a received `Create(CaseParticipant)` (#6295).
 - id: VAM-02
   title: Report Management Messages
   specs:
@@ -724,23 +728,29 @@ groups:
     kind: protocol
     statement: >-
       `INVITE_ACTOR_TO_CASE` (the stub Invite) MUST be represented as
-      `Invite(Actor)[target=VulnerabilityCaseStub]`, with the stub shaped as CM-11-013
-      requires.
+      `Invite(VulnerabilityCase preview)[target=Actor]`: its `object` is the case's
+      typed reference carrying the case's preview, shaped as CM-11-013 requires, and
+      its `target` is the invitee.
     rationale: >-
-      An invitee has not yet joined the case, so the Invite carries a stub that
-      stands for the case (ADR-0114). The stub has its own type (CM-11-013), so a
-      receiver tells the stub Invite from the full-case Invite (VAM-04-011) by the
-      `type` of the `target`, with no lookup.
+      AS2 puts what one is invited to in `object` and the invitee in `target`
+      (ADR-0205). An invitee has not yet joined the case, so the Invite carries the
+      case's preview, not the case (ADR-0114). A receiver tells the stub Invite from
+      the full-case Invite (VAM-04-011) by the form of the `object`, as received
+      (SE-01-009), with no lookup.
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `InviteActorToCasePattern` uses `TAtype.INVITE`, `object_=ACTOR` and a
-      `VulnerabilityCaseStub` target; integration tests in
+      `InviteActorToCasePattern` uses `TAtype.INVITE`, a `VulnerabilityCase` object in
+      the previewed-reference form and an `Actor` target;
+      `test_stub_invite_names_the_case_in_object_and_the_invitee_in_target` in
+      `test/wire/as2/test_case_joining_wire.py` confirms the factory's shape;
+      integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
       `test_only_a_stub_invite_matches_the_stub_invite_pattern` and
       `test_invite_actor_to_case_matches_all_actor_subtypes` in
-      `test/test_semantic_activity_patterns.py` confirm that an `Invite` of an actor
-      with a stub target matches the stub Invite pattern.
+      `test/test_semantic_activity_patterns.py` confirm that an `Invite` of the case's
+      previewed reference matches the stub Invite pattern.
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_013
@@ -753,11 +763,11 @@ groups:
     kind: protocol
     statement: >-
       `ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as
-      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
+      `Accept(Invite(VulnerabilityCase preview)[target=Actor])`
     rationale: >-
       The invitee answers the Invite that it received, so its `Accept` wraps that
-      Invite. The stub `target` tells this `Accept` apart from the RV reply to the
-      full-case Invite (VAM-04-012).
+      Invite. The form of the nested Invite's `object` tells this `Accept` apart from
+      the RV reply to the full-case Invite (VAM-04-012, ADR-0205).
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteActorToCasePattern` wraps `InviteActorToCasePattern` inside an
@@ -766,6 +776,7 @@ groups:
       in `test/test_semantic_activity_patterns.py` confirms that an `Accept` of the stub
       Invite maps to `ACCEPT_INVITE_ACTOR_TO_CASE`.
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_013
@@ -775,10 +786,11 @@ groups:
     kind: protocol
     statement: >-
       `REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as
-      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
+      `Reject(Invite(VulnerabilityCase preview)[target=Actor])`
     rationale: >-
       A `Reject` of the stub Invite is the invitee's refusal to join (CM-11-007). The
-      stub `target` tells it apart from the RC reply to the full-case Invite
+      form of the nested Invite's `object` tells it apart from the RC reply to the
+      full-case Invite
       (VAM-04-014), which a participant that has already joined sends to close the
       report.
     verification: >-
@@ -789,6 +801,7 @@ groups:
       `test/wire/as2/test_case_joining_wire.py` confirms that a `Reject` of the stub
       Invite maps to `REJECT_INVITE_ACTOR_TO_CASE`.
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_006
@@ -873,9 +886,10 @@ groups:
     kind: protocol
     statement: >-
       The full-case Invite (CM-11-010) MUST be represented as
-      `Invite(Actor)[target=VulnerabilityCase]`, with the case referenced by its plain
-      URI in `target` (AKM-02-003) and the CASE_MANAGER's ledger position carried as the
-      Invite's `ledgerPosition`, the object with `logIndex` and `entryHash` every case
+      `Invite(whole VulnerabilityCase)[target=Actor]`, with the whole case as its
+      `object`, the invitee as its `target` and the CASE_MANAGER's ledger position
+      carried as the Invite's `ledgerPosition`, the object with `logIndex` and
+      `entryHash` every case
       activity carries (SYNC-18-001), for example
       `"ledgerPosition": {"logIndex": 3, "entryHash": "<hash>"}`. The position of an
       empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash`
@@ -883,16 +897,20 @@ groups:
       or does not parse as a ledger position, naming the activity and writing nothing
       (SYNC-18-015).
     rationale: >-
-      The participant already holds the case from the replica, so the Invite references
-      it by ID. Because the stub is its own type (VAM-04-004, CM-11-013), this shape and
-      the stub Invite differ in their target's `type` and are classified without a
-      lookup. The position is the sender's ledger tail, which every case activity
+      AS2 puts what one is invited to in `object` and the invitee in `target`
+      (ADR-0205). The participant has joined, so it is entitled to the whole case, and
+      the whole case and the stub Invite's previewed reference differ in form, so the
+      two Invites are classified without a lookup (SE-01-009). The position is the
+      sender's ledger tail, which every case activity
       states in the same property (ADR-0156), so the Invite's floor needs no slot of
       its own.
     verification: >-
-      A unit test confirms that an `Invite` whose `target` is a `VulnerabilityCase`
-      matches the full-case Invite pattern and not the stub Invite pattern, and that one
-      whose `target` is a `VulnerabilityCaseStub` matches only the stub Invite pattern.
+      `test_full_case_invite_carries_the_whole_case` and
+      `test_full_case_invite_and_stub_invite_match_different_patterns` in
+      `test/wire/as2/test_case_joining_wire.py` confirm that an `Invite` whose `object`
+      is the whole case matches the full-case Invite pattern and not the stub Invite
+      pattern, and that one whose `object` is the case's previewed reference matches
+      only the stub Invite pattern.
       `test/wire/as2/factories/test_full_case_invite_factories.py` confirms the Invite's
       `ledgerPosition` carries the position's `logIndex` and `entryHash` and that it
       has no `content`; `test/core/use_cases/received/actor/test_full_case_invite.py`
@@ -902,6 +920,7 @@ groups:
     - ADR-0121
     - ADR-0114
     - ADR-0156
+    - ADR-0205
     stories:
     - story_2022_013
     - story_2022_054
@@ -910,8 +929,6 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CM-11-010
-    - rel_type: refines
-      spec_id: AKM-02-003
     - rel_type: refines
       spec_id: SYNC-18-001
     - rel_type: refines
@@ -924,16 +941,16 @@ groups:
     kind: protocol
     statement: >-
       The RV reply to the full-case Invite MUST be represented as
-      `Accept(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
-      position as its `ledgerPosition`, in the form VAM-04-011 defines (CM-11-011,
-      SYNC-18-001).
+      `Accept(Invite(whole VulnerabilityCase)[target=Actor])`, carrying the replier's
+      ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
+      (CM-11-011, SYNC-18-001).
     rationale: >-
       The RV reply answers the full-case Invite, so it wraps that Invite. Its ledger
       position states the replier's ledger tail when it judged the case (ADR-0156). The
-      full-case `target` tells this reply apart from the `Accept` of a stub Invite
-      (VAM-04-005).
+      whole case in the nested Invite's `object` tells this reply apart from the
+      `Accept` of a stub Invite (VAM-04-005, ADR-0205).
     verification: >-
-      A unit test confirms that `Accept(Invite(Actor)[target=VulnerabilityCase])`
+      A unit test confirms that `Accept(Invite(whole VulnerabilityCase)[target=Actor])`
       matches the full-case Invite's RV pattern and not the stub Invite's `Accept`
       pattern (VAM-04-005).
     adr:
@@ -955,8 +972,8 @@ groups:
     kind: protocol
     statement: >-
       The RI reply to the full-case Invite MUST be represented as
-      `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's
-      ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
+      `TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])`, carrying the
+      replier's ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
       (CM-11-011, SYNC-18-001).
     rationale: >-
       `TentativeReject` records RM Invalid, from which the participant's RM state can
@@ -965,10 +982,12 @@ groups:
       exists only for the full-case Invite.
     verification: >-
       A unit test confirms that
-      `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
+      `TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])` matches the
+      full-case
       Invite's RI pattern, and that a `TentativeReject` of a stub Invite matches no
       pattern (CM-11-028).
     adr:
+    - ADR-0205
     - ADR-0121
     - ADR-0156
     stories:
@@ -987,15 +1006,15 @@ groups:
     kind: protocol
     statement: >-
       The RC reply to the full-case Invite MUST be represented as
-      `Reject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
-      position as its `ledgerPosition`, in the form VAM-04-011 defines (CM-11-011,
-      SYNC-18-001).
+      `Reject(Invite(whole VulnerabilityCase)[target=Actor])`, carrying the replier's
+      ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
+      (CM-11-011, SYNC-18-001).
     rationale: >-
-      `Reject` records RM Closed for a participant that has already joined. The
-      full-case `target` tells it apart from a refusal to join, which is the `Reject` of
-      a stub Invite (VAM-04-006).
+      `Reject` records RM Closed for a participant that has already joined. The whole
+      case in the nested Invite's `object` tells it apart from a refusal to join, which
+      is the `Reject` of a stub Invite (VAM-04-006, ADR-0205).
     verification: >-
-      A unit test confirms that `Reject(Invite(Actor)[target=VulnerabilityCase])`
+      A unit test confirms that `Reject(Invite(whole VulnerabilityCase)[target=Actor])`
       matches the full-case Invite's RC pattern and not the stub Invite's `Reject`
       pattern (VAM-04-006).
     adr:
@@ -1471,28 +1490,6 @@ groups:
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
-  - id: VAM-06-002
-    priority: MUST
-    kind: protocol
-    statement: '`ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`'
-    rationale: >-
-      The message is the Case Owner's request to reinstate a removed participant into the case's
-      `activeParticipants` (CM-31-011, ADR-0116); it does not seat a new member, which joins by
-      accepting a stub Invite.
-    verification: >-
-      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`,
-      and `target_=VULNERABILITY_CASE`; integration tests in
-      `test/demo/test_manage_participants_demo.py` exercise this flow.
-      `test_wire_form_examples_map_to_their_semantics` in
-      `test/test_semantic_activity_patterns.py` confirms that the
-      `add_vendor_participant_to_case` vocabulary example maps to
-      `ADD_CASE_PARTICIPANT_TO_CASE`.
-    adr:
-    - ADR-0116
-    stories:
-    - story_2022_013
-    - story_2022_052
   - id: VAM-06-003
     priority: MUST
     kind: protocol
@@ -1519,28 +1516,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)`,
+      `ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as
+      `Add(CaseParticipant)[target=VulnerabilityCase]`, with `context` the case,
       carrying the record in full. Only the CASE_MANAGER sends it, as its own act
-      when it brings a participant record into existence (ADR-0114, CLP-07-013), and
+      when it brings a participant record into the case (ADR-0114, CLP-07-021), and
       it is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140).
-      A received `Create(CaseParticipant)` is still not a protocol message
-      (VAM-01-011): it is recognized only so that it is reported, not acted on.
+      The record joins the case's participant list, so its entry names the case as
+      `target`, as the case's other lists do (CLP-07-021), and a replica reads the
+      list from the entry rather than choosing it (CM-23-044). The Case Owner's
+      reinstatement is its own `Add` naming the actor, not the record (CM-31-011,
+      ADR-0199), so this form has one meaning. A received copy is recognized only
+      so that it is reported, not acted on.
     verification: >-
       `test_case_manager_acts_map_to_their_semantics` in
-      `test/test_semantic_activity_patterns.py` confirms that the
-      `create_participant` example maps to `CREATE_CASE_PARTICIPANT`.
+      `test/test_semantic_activity_patterns.py` confirms that the participant-seating
+      example maps to `ADD_CASE_PARTICIPANT_TO_CASE`, and a pattern test confirms
+      that `Create(CaseParticipant)` matches no participant-seating pattern (#6295).
     adr:
     - ADR-0140
+    - ADR-0199
     stories:
     - story_2022_013
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
-    see_also:
-    - spec_id: CLP-07-013
-      reason: 'context for the reader'
+    - rel_type: refines
+      spec_id: CLP-07-021
   - id: VAM-06-005
     priority: MUST
     kind: protocol

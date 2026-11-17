@@ -1052,7 +1052,7 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     case.stub_summary = "A case you are invited to join."
     invite = rm_invite_to_case_activity(
         receiver,
-        target=case,
+        case=case,
         roles=["coordinator"],
         actor=_CASE_MANAGER_ID,
         to=[_RECEIVER_ID],

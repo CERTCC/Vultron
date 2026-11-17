@@ -334,6 +334,11 @@ EXCLUSIONS: Mapping[str, str] = {
     "demo-integration.yml": (
         "container demos need Docker and take many minutes; they stay CI's"
     ),
+    "shadow-image.yml": (
+        "builds the case shadow tool's Docker image and starts its Compose "
+        "service; the dev container has no Docker, so the job stays CI's, "
+        "and the required CI gate judges it (PAD-18-031)"
+    ),
     "demo-verdict.yml": (
         "CI's demo-verdict job owns the base-versus-head comparison: it "
         "records the whole scenario tree twice, about 366 s a pass, and it "

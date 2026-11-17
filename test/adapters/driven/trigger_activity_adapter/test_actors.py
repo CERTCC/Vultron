@@ -49,7 +49,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -57,9 +56,16 @@ _ACTOR = "https://example.org/actors/coordinator"
 STORE_OWNER = _ACTOR
 _INVITEE = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
-#: A receiver refuses a stub with no summary at parse (MV-10-001), so the
-#: Invite a test delivers carries one.
-_STUB = as_VulnerabilityCaseStub(case_id=_CASE_ID, summary="A case to join")
+#: The case a stub Invite is built from.  A receiver refuses a preview with no
+#: summary at parse (MV-10-001), so the case carries the summary it is built
+#: from (ADR-0205).
+_CASE = make(
+    as_VulnerabilityCase,
+    id_=_CASE_ID,
+    attributed_to=CASE_OWNER_ID,
+    name="A case to join",
+    stub_summary="A case to join",
+)
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
@@ -134,13 +140,14 @@ class TestInviteActorToCaseWithInlineEmbargo:
             at=authored_at(),
         )
 
-        target = json.loads(blob)["target"]
-        assert target["type"] == "VulnerabilityCaseStub"
-        assert target["id"] == f"{case_id}/stub"
-        assert target["caseId"] == case_id
-        assert target["activeEmbargo"]["id"] == embargo.id_
-        assert target["activeEmbargo"]["endTime"]
-        assert target["caseStatus"]["emState"] == "ACTIVE"
+        reference = json.loads(blob)["object"]
+        assert reference["id"] == case_id
+        preview = reference["preview"]
+        assert preview["type"] == "CasePreview"
+        assert "caseId" not in preview
+        assert preview["activeEmbargo"]["id"] == embargo.id_
+        assert preview["activeEmbargo"]["endTime"]
+        assert preview["caseStatus"]["emState"] == "ACTIVE"
 
 
 class TestInviteActorToCaseWithEmbargoHeldById:
@@ -203,7 +210,9 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         )
         # Nested, it does not restate the activity's ``@context`` (VM-10-004).
         del expected["@context"]
-        assert json.loads(blob)["target"]["activeEmbargo"] == expected
+        assert json.loads(blob)["object"]["preview"]["activeEmbargo"] == (
+            expected
+        )
 
     @pytest.mark.spec("CM-17-024")
     def test_invite_is_refused_when_the_embargo_is_not_in_the_store(
@@ -226,6 +235,11 @@ class TestInviteActorToCaseWithEmbargoHeldById:
 
 
 class TestInviteActorToCase:
+    @pytest.fixture(autouse=True)
+    def _held_case(self, dl):
+        """The CASE_MANAGER holds the case the preview is built from."""
+        dl.create(_CASE)
+
     def test_returns_id_and_dict(self, adapter, dl):
         activity_id, activity_dict = adapter.invite_actor_to_case(
             invitee_id=_INVITEE,
@@ -262,6 +276,60 @@ class TestInviteActorToCase:
 
         assert json.loads(activity_dict).get("attributedTo") == owner
 
+    def test_the_invite_names_the_case_in_object_and_the_invitee_in_target(
+        self, adapter
+    ):
+        """``Invite(<case>)[target=<invitee>]`` (ADR-0205)."""
+        _, activity_dict = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            at=authored_at(),
+        )
+
+        body = json.loads(activity_dict)
+        assert body["object"]["id"] == _CASE_ID
+        assert body["object"]["preview"]["summary"] == "A case to join"
+        assert body["target"] == _INVITEE or body["target"]["id"] == _INVITEE
+
+
+@pytest.mark.spec("CM-17-010")
+def test_invite_actor_to_case_refuses_a_case_it_does_not_hold(adapter):
+    """No case, no preview: the adapter builds no stub Invite naming the
+    case by URI alone (AC-3a of #6497, ADR-0205)."""
+    with pytest.raises(VultronValidationError, match="preview"):
+        adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id="https://example.org/cases/not-held",
+            actor=_ACTOR,
+            at=authored_at(),
+        )
+
+
+@pytest.mark.spec("CM-11-001")
+def test_invite_actor_to_full_case_refuses_a_case_it_does_not_hold(
+    adapter, dl
+):
+    """The full-case Invite carries the case whole, so a case the store
+    does not hold gets no Invite, and nothing is written (ADR-0205)."""
+    dl.create(make(as_Service, id_=_INVITEE, name="Vendor"))
+    before = {
+        kind: len(dl.list_objects(kind)) for kind in ("Invite", "Activity")
+    }
+    with pytest.raises(VultronNotFoundError, match="VulnerabilityCase"):
+        adapter.invite_actor_to_full_case(
+            invitee_id=_INVITEE,
+            case_id="https://example.org/cases/not-held",
+            actor=_ACTOR,
+            ledger_log_index=0,
+            ledger_entry_hash="0" * 64,
+            at=authored_at(),
+        )
+    assert dl.outbox_list() == []
+    assert {
+        kind: len(dl.list_objects(kind)) for kind in ("Invite", "Activity")
+    } == before
+
 
 @pytest.mark.parametrize("store_owner", [_INVITEE])
 class TestAcceptCaseInvite:
@@ -272,7 +340,7 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=_STUB,
+            case=_CASE,
             actor=_ACTOR,
             to=[_INVITEE],
             at=authored_at(),
@@ -363,14 +431,13 @@ class TestAcceptCaseInvite:
         )
         assert obj.get("id") == invite_id
 
-    @pytest.mark.spec("AKM-02-003")
     @pytest.mark.spec("CM-11-013")
-    def test_embedded_invite_keeps_the_case_stub(self, adapter, dl):
-        """The reply embeds the Invite as received, stub target and all.
+    def test_embedded_invite_keeps_the_case_preview(self, adapter, dl):
+        """The reply embeds the Invite as received, preview and all.
 
-        The stub's ``type`` is what tells the reply apart from a reply to a
-        full-case Invite (CM-11-013), and its ``caseId`` names the case
-        (AKM-02-003 permits the stub in ``target``).
+        The previewed case reference is what tells the reply apart from a
+        reply to a full-case Invite, and its ``id`` names the case
+        (ADR-0205).
         """
         invite_id = self._make_invite(dl)
 
@@ -378,9 +445,9 @@ class TestAcceptCaseInvite:
             invite_id=invite_id, actor=_INVITEE, at=authored_at()
         )
 
-        target = json.loads(activity_dict)["object"]["target"]
-        assert target["type"] == "VulnerabilityCaseStub"
-        assert target["caseId"] == _CASE_ID
+        reference = json.loads(activity_dict)["object"]["object"]
+        assert reference["id"] == _CASE_ID
+        assert reference["preview"]["type"] == "CasePreview"
 
     @pytest.mark.spec("DL-06-006")
     def test_an_invite_held_only_under_the_senders_id_is_not_answered(
@@ -394,7 +461,7 @@ class TestAcceptCaseInvite:
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,
-            target=_STUB,
+            case=_CASE,
             actor=_ACTOR,
             to=[_INVITEE],
             at=authored_at(),
@@ -416,9 +483,8 @@ class TestAcceptCaseInvite:
                 at=authored_at(),
             )
 
-    @pytest.mark.spec("CM-11-038")
     @pytest.mark.parametrize(
-        "held_target",
+        "held_object",
         [
             with_times(
                 as_VulnerabilityCase,
@@ -426,14 +492,15 @@ class TestAcceptCaseInvite:
             ),
             _CASE_ID,
         ],
-        ids=["full-case-target", "uri-target"],
+        ids=["full-case-object", "uri-object"],
     )
-    def test_a_held_invite_that_does_not_carry_a_stub_is_refused(
-        self, adapter, monkeypatch, held_target
+    def test_a_held_invite_that_does_not_carry_a_preview_is_refused(
+        self, adapter, monkeypatch, held_object
     ):
-        """Only a stub Invite is answered here, and a stub is recognised by
-        its ``type`` alone (CM-11-013).  A stub that fails its own validation
-        never gets this far: the parse of the archived body refuses it."""
+        """Only a stub Invite is answered here, and it is recognised by its
+        object's form: the case's reference carrying its preview (ADR-0205).
+        A preview that fails its own validation never gets this far: the
+        parse of the archived body refuses it."""
         from vultron.adapters.driven.trigger_activity_adapter.actors import (
             _helpers,
         )
@@ -441,8 +508,8 @@ class TestAcceptCaseInvite:
         held = make(
             as_Invite,
             actor=_ACTOR,
-            object_=make(as_Service, id_=_INVITEE),
-            target=held_target,
+            object_=held_object,
+            target=make(as_Service, id_=_INVITEE),
         )
         monkeypatch.setattr(
             _helpers, "read_received_as_received", lambda *_args: held

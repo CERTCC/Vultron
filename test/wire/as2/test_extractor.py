@@ -415,7 +415,7 @@ def test_extract_intent_preserves_sender_published_timestamp():
     assert event.activity.published == claimed
 
 
-@pytest.mark.spec("VAM-06-002")
+@pytest.mark.spec("VAM-06-004")
 def test_extract_intent_participant_case_roles():
     """CaseParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.enums.roles import CVDRole

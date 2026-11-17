@@ -301,7 +301,7 @@ class TestCaseTimelineEventParsing:
         assert event.target_ref == "urn:uuid:rep3"
 
     def test_invite_wrapper_surfaces_inner_target(self):
-        """Accept(Invite(Actor)[target=VulnerabilityCase]) → org → case arrow."""
+        """Accept(Invite(whole VulnerabilityCase)[target=Actor]) → org → case arrow."""
         raw = _camel_entry(
             semanticType="accept_invite_actor_to_case",
             payloadSnapshot={

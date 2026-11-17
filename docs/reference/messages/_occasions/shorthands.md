@@ -3,11 +3,11 @@
 | Type | Name | Model | Wire activity |
 | :---: | --- | :---: | --- |
 | `RS` | Report Submission | RM | [`Offer(VulnerabilityReport)`](../rm.md#report-submission) |
-| `RI` | Report Invalid | RM | [`TentativeReject(Offer(VulnerabilityReport))`](../rm.md#report-invalid), [`TentativeReject(Invite(Actor)[target=VulnerabilityCase])`](../case_management.md#tentatively-reject-full-case-invite) |
-| `RV` | Report Valid | RM | [`Accept(Offer(VulnerabilityReport))`](../rm.md#report-valid), [`Accept(Invite(Actor)[target=VulnerabilityCase])`](../case_management.md#accept-full-case-invite) |
+| `RI` | Report Invalid | RM | [`TentativeReject(Offer(VulnerabilityReport))`](../rm.md#report-invalid), [`TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])`](../case_management.md#tentatively-reject-full-case-invite) |
+| `RV` | Report Valid | RM | [`Accept(Offer(VulnerabilityReport))`](../rm.md#report-valid), [`Accept(Invite(whole VulnerabilityCase)[target=Actor])`](../case_management.md#accept-full-case-invite) |
 | `RD` | Report/Case Deferred | RM | [`Ignore(VulnerabilityCase)`](../rm.md#report-deferred) |
 | `RA` | Report/Case Accepted | RM | [`Join(VulnerabilityCase)`](../rm.md#report-accepted) |
-| `RC` | Report Closed | RM | [`Reject(Offer(VulnerabilityReport))`](../rm.md#report-closed), [`Reject(Invite(Actor)[target=VulnerabilityCase])`](../case_management.md#reject-full-case-invite) |
+| `RC` | Report Closed | RM | [`Reject(Offer(VulnerabilityReport))`](../rm.md#report-closed), [`Reject(Invite(whole VulnerabilityCase)[target=Actor])`](../case_management.md#reject-full-case-invite) |
 | `RK` | Report Acknowledgment | RM | [`Read(Offer(VulnerabilityReport))`](../rm.md#report-acknowledgment) |
 | `RE` | Report Error | RM | [none](../rm.md#formal-messages-with-no-dedicated-wire-activity) |
 | `EP` | Embargo Proposal | EM | [`Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`](../em.md#embargo-proposal) |

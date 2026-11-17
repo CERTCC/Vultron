@@ -281,8 +281,8 @@ def resolve_inline_class(
     dict to either, so it refuses the activity as an unknown type at any
     depth, as it does at the top (ADR-0196).  *path* locates it.
 
-    The ``type`` decides the class, a case stub included: a stub names
-    itself ``VulnerabilityCaseStub`` (CM-11-013).  The one exception is a
+    The ``type`` decides the class, the case's preview included: it names
+    itself ``CasePreview`` (MV-10-012).  The one exception is a
     dict that carries only its ``id`` and ``type``: that is a typed
     reference, read as an :class:`as_TypedReference` (MV-10-011, ADR-0198),
     unless its class has a reference form of its own

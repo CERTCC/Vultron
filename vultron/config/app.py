@@ -45,6 +45,7 @@ from vultron.config.actor import ActorConfig
 from vultron.config.env_names import ENV_NESTED_DELIMITER, ENV_PREFIX
 from vultron.config.ledger import LedgerConfig
 from vultron.config.secrets import refuse_secrets_in_file
+from vultron.config.shadow import ShadowConfig
 from vultron.config.vince import VinceConfig
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,8 @@ class AppConfig(BaseSettings):
         vince: The VINCE API endpoint and credential the shadow's VINCE
             connector reads cases with; the credential is read only from the
             environment (VSD-01-004).
+        shadow: Which case reader the case shadow tool reads cases through,
+            and the directory it reads Vultron case-ledger files from.
         mode: Operational mode (``prototype`` or ``prod``).
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
@@ -210,6 +213,7 @@ class AppConfig(BaseSettings):
     actor: ActorConfig = ActorConfig()
     ledger: LedgerConfig = LedgerConfig()
     vince: VinceConfig = VinceConfig()
+    shadow: ShadowConfig = ShadowConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
     max_inbox_retry_attempts: int = 12

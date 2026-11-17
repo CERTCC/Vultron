@@ -64,8 +64,8 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     When ``case_id`` is given the Invite is a case-join Invite, and the
     record must also be one this store's owner (the CASE_MANAGER) issued
     (CM-11-017: "an Invite it sent and recorded") and be for that case: a
-    stub Invite names its case through its stub target, and an invitee of one
-    case cannot answer for another.
+    case Invite names its case in its ``object`` (ADR-0205), and an invitee
+    of one case cannot answer for another.
 
     When ``closure_case_id`` is given, an invitee whose closure that case
     records (RM ``CLOSED``) is refused too: it has left the case and may
@@ -97,10 +97,9 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
 
     @staticmethod
     def _named_case(invite: object) -> str | None:
-        """The case a recorded Invite is for: its stub target's case, else its target."""
-        target = getattr(invite, "target", None)
-        stub_case = getattr(target, "case_id", None)
-        return stub_case if isinstance(stub_case, str) else _as_id(target)
+        """The case a recorded case Invite is for: its ``object``, the
+        case's previewed reference or the whole case (ADR-0205)."""
+        return _as_id(getattr(invite, "object_", None))
 
     def _admit_unless_closed(self) -> Status:
         """SUCCESS, unless the case records the invitee's closure (CM-23-018)."""

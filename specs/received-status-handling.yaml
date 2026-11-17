@@ -774,7 +774,8 @@ groups:
       the report activities `Accept(Offer(VulnerabilityReport))` and
       `TentativeReject(Offer(VulnerabilityReport))`. They include the full-case Invite
       replies `Accept`, `TentativeReject` and
-      `Reject(Invite(Actor)[target=VulnerabilityCase])` (CM-11-011). They include the
+      `Reject(Invite(whole VulnerabilityCase)[target=Actor])` (CM-11-011). They include
+      the
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
       only `Add(ParticipantStatus)[target=CaseParticipant]`. A declaration from a sender
       whose closure the case's ledger records is not adjudicated. It is refused before

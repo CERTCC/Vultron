@@ -155,22 +155,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A case named in an activity's `target` MUST take one of two forms. It is the case
-      URI when the recipient already holds the case. It is the case stub
-      (`VulnerabilityCaseStub`, CM-11-013) that the stub Invite sends to an actor that
-      does not yet hold the case.
+      A case named in an activity's `target` MUST be the case URI.
     rationale: >-
       A participant or CASE_MANAGER addressed about a case already holds it and needs
-      only its URI, while an actor that does not yet hold the case needs only the stub
-      to decide whether to join.
-    note: >-
-      A recipient that already holds the case is a participant or the CASE_MANAGER
-      being addressed about it, as in the full-case Invite of CM-11-010.
+      only its URI. An actor that does not yet hold the case is told of it by the stub
+      Invite, whose `object` is the case's reference carrying the case's preview
+      (CM-11-013), so no case travels in a `target` as anything but its URI
+      (ADR-0205).
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
-      every trigger-port activity's `target`: a case there is a URI or an object of type
-      `VulnerabilityCaseStub`.
+      every trigger-port activity's `target`: a case there is a URI.
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_053
@@ -188,8 +184,8 @@ groups:
       case contents to an actor that has not joined.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
-      that a case in every trigger-port activity's `target` is a URI or a
-      `VulnerabilityCaseStub`, never a full case, and
+      that a case in every trigger-port activity's `target` is a URI, never a full
+      case or a stub, and
       `test/wire/as2/factories/test_case_context.py` checks that the factories send the
       URI of a full case given as `target`.
     relationships:
@@ -277,7 +273,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Except for the case reference AKM-03-004 requires, this codebase MUST carry the
+      Except for the case reference AKM-03-004 requires and the stub Invite's case
+      reference carrying the case's preview (CM-11-013), this codebase MUST carry the
       `object` of every outbound activity as a fully inline typed object, never as a
       bare URI reference or an `as_Link`. AKM-03-002 enforces this at delivery.
     rationale: >-
@@ -304,6 +301,10 @@ groups:
       reference, and that every example activity does the same.
     adr:
     - ADR-0165
+    - ADR-0205
+    see_also:
+    - spec_id: CM-11-013
+      reason: the stub Invite's previewed case reference, the rule's other exception
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
@@ -801,7 +802,7 @@ groups:
       exactly the actor's `id` and a `type`.
     rationale: >-
       A sender may name a peer it knows only by URI (AKM-05-001), and a receiver routes
-      `Offer(Actor)` and `Invite(Actor)` by the object's `type`, so the actor must
+      `Offer(Actor)` by the object's `type`, so the actor must
       travel inline with a `type` even when nothing else is known. Anything beyond the
       id and type would be invented (AKM-02-006). The reference only gets the activity
       routed: a receiver that needs the actor's profile fetches it from the actor before

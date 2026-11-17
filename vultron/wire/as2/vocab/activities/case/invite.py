@@ -18,11 +18,11 @@ from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
-from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.activities.base import (
     RepliesToObject,
     reply_to_object,
 )
+from vultron.wire.as2.vocab.activities.case.named_case import PreviewedCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -33,21 +33,24 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_CarriedActor,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
+    as_VulnerabilityCase,
 )
 
 
 class _RmInviteToCaseActivity(as_Invite):
-    """The actor is inviting another actor to a case.
+    """The CASE_MANAGER invites an actor to a case: the stub Invite.
+
+    ``Invite(<case>)[target=<invitee>]`` (VAM-04-004, CM-17-001, ADR-0205).
     This corresponds to the Vultron Message Type RS when a case already exists.
     See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
-    object_: the Actor being invited
-    target: the ``as_VulnerabilityCaseStub`` naming the case (CM-11-013);
-        required, so an Invite whose target is a URI or a full case is not
-        this class
+
+    object_: the typed reference naming the case by its ``id`` and carrying
+        the case's preview, the case stub (CM-17-010); required, so an Invite
+        whose object is a URI or a whole case is not this class
+    target: the Actor being invited
     roles: inherited from as_Invite (CM-17-003)
 
-    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003). The
+    Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
     invitee is by definition a *peer* — under ADR-0073 its record lives in the
     store of whichever actor knows it, and the sender here is the Case Actor,
     which does not. Dehydrating the invitee to its id therefore had nothing to
@@ -57,12 +60,12 @@ class _RmInviteToCaseActivity(as_Invite):
     answered 404 for an invite it had never been told about (#2548, rcv-reject).
     """
 
-    object_: as_CarriedActor = Field(
+    object_: PreviewedCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseStub = Field(...)
+    target: as_CarriedActor = Field(...)
 
-    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
 
 class _RmAcceptInviteToCaseActivity(RepliesToObject, as_Accept):
@@ -107,22 +110,22 @@ def _check_ledger_position(activity: Any, what: str) -> None:
 class _RmInviteToFullCaseActivity(as_Invite):
     """The CASE_MANAGER asks a joined participant to judge the case.
 
-    ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
-    (VAM-04-011, CM-11-010, ADR-0121).  The ``target`` is the plain case URI:
-    the invitee already holds the case from the Announce (AKM-02-003).  The
+    ``Invite(<case>)[target=<invitee>]`` — the full-case Invite (VAM-04-011,
+    CM-11-010, ADR-0121, ADR-0205).  The ``object`` is the whole case: the
+    invitee is a joined participant, entitled to it (CM-10-004).  The
     CASE_MANAGER's ledger position when it issued the Invite, the floor the
     participant's reply must reach, is its ``ledgerPosition`` (SYNC-18-001).
 
-    Declares ``object_`` in :attr:`inline_required_refs`: the invitee is a
+    Declares ``target`` in :attr:`inline_required_refs`: the invitee is a
     peer the sender holds no record of (see :class:`_RmInviteToCaseActivity`).
     """
 
-    object_: as_CarriedActor = Field(
+    object_: as_VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: NonEmptyString = Field(...)
+    target: as_CarriedActor = Field(...)
 
-    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
     @model_validator(mode="after")
     def _states_a_ledger_position(self):

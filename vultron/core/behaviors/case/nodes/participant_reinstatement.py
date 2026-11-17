@@ -17,7 +17,9 @@
 
 ``Add(CaseParticipant)[target=VulnerabilityCase]`` is the Case Owner's request
 to the CASE_MANAGER to reinstate a removed participant, and only that
-(ADR-0116, VAM-06-002).  It mirrors the removal pipeline in
+(ADR-0116), until #6465 replaces it with the CM-31-011 ``Add(<Actor>)``
+(ADR-0199).  It
+mirrors the removal pipeline in
 :mod:`~vultron.core.behaviors.case.nodes.case_participant_received`, reusing
 its guard, effect and notice frames:
 
@@ -73,7 +75,7 @@ class ParticipantHasJoinedNode(ParticipantMoveGuardNode):
 class ParticipantIsRemovedNode(ParticipantMoveGuardNode):
     """Guard: the participant an ``Add(CaseParticipant)`` names is removed.
 
-    ``Add`` only reinstates (CM-31-036, VAM-06-002), so an ``Add`` naming a
+    ``Add`` only reinstates (ADR-0116), so an ``Add`` naming a
     participant that carries no removal fact is refused, not skipped: it is
     not a repeat of an earlier reinstatement the CASE_MANAGER could tell
     apart from a request to seat a member.

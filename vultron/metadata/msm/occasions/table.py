@@ -37,7 +37,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
 )
 from vultron.wire.as2.enums import as_ObjectType as AOtype
-from vultron.wire.as2.extractor._pattern import ActivityPattern
+from vultron.wire.as2.extractor._pattern import ActivityPattern, ObjectForm
 
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run msm-occasions --write"
@@ -137,23 +137,44 @@ def emitted_type(type_name: object) -> str:
     return _EMITTED_TYPE.get(name, name)
 
 
+def _formed(form: ObjectForm | None, type_name: str) -> str:
+    """*type_name* as Wire Activity notation writes an object of *form*.
+
+    A previewed reference is the type's reference carrying its preview
+    (``VulnerabilityCase preview``), and a whole object is ``whole``; an
+    unconstrained object is its type alone (SE-01-009, ADR-0205).
+    """
+    if form is ObjectForm.PREVIEWED_REFERENCE:
+        return f"{type_name} preview"
+    if form is ObjectForm.WHOLE_OBJECT:
+        return f"whole {type_name}"
+    return type_name
+
+
 def format_pattern(pattern: ActivityPattern) -> str:
     """Render *pattern* as a compact wire-form string.
 
-    Object types are rendered as the sender emits them (:data:`_EMITTED_TYPE`).
+    Object types are rendered as the sender emits them (:data:`_EMITTED_TYPE`),
+    and the form a pattern requires of its object (SE-01-009) is written
+    beside the type (:func:`_formed`), so two patterns that differ only in
+    form render apart.
 
     Examples::
 
         Offer(VulnerabilityReport)
         Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
         Add(CaseStatus)[target=VulnerabilityCase]
+        Invite(VulnerabilityCase preview)[target=Actor]
+        Invite(whole VulnerabilityCase)[target=Actor]
     """
     parts: list[str] = []
     if pattern.object_ is not None:
         if isinstance(pattern.object_, ActivityPattern):
             parts.append(f"({format_pattern(pattern.object_)})")
         else:
-            parts.append(f"({emitted_type(pattern.object_)})")
+            parts.append(
+                f"({_formed(pattern.object_form, emitted_type(pattern.object_))})"
+            )
 
     qualifiers: list[str] = []
     if pattern.target_ is not None:

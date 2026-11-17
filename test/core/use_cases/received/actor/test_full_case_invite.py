@@ -29,7 +29,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     route_received,
 )
 from test.support.objects import authored_at, make
-from test.support.received import received_event
+from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.actor import (
@@ -141,14 +141,16 @@ def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
     position = LedgerPosition(log_index=3, entry_hash=_HASH)
     invite = rm_invite_to_full_case_activity(
         make(as_Organization, id_="https://example.org/actors/a"),
-        "https://example.org/cases/c",
+        case_stub("https://example.org/cases/c"),
         position,
         actor="https://example.org/actors/m",
         at=authored_at(),
     )
 
     assert invite.content is None
-    assert invite.target == "https://example.org/cases/c"
+    assert (
+        getattr(invite.object_, "id_", None) == "https://example.org/cases/c"
+    )
     assert invite.ledger_position == position
     event = received_event(invite)
     assert isinstance(event, InviteActorToFullCaseReceivedEvent)
@@ -476,7 +478,7 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
         joining_case.dl.create(
             rm_invite_to_full_case_activity(
                 make(as_Organization, id_=invitee),
-                case_id,
+                case_stub(case_id),
                 position,
                 id_=f"https://example.org/invitations/unrelated-{n}",
                 actor=joining_case.case_actor_id,
@@ -507,7 +509,7 @@ def _full_case_invite_from(joining, sender: str, suffix: str):
     """A full-case Invite to the invitee, claiming to come from *sender*."""
     return rm_invite_to_full_case_activity(
         make(as_Organization, id_=joining.invitee_id),
-        joining.case.id_,
+        joining.case,
         LedgerPosition(log_index=0, entry_hash=_HASH),
         id_=f"{joining.case.id_}/invitations/full-{suffix}",
         actor=sender,

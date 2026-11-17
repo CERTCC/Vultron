@@ -16,8 +16,9 @@
 """The VINCE connector: VINCE case records, translated to a case reading.
 
 The translation (:func:`translate_case`) follows the VINCE crosswalk,
-``docs/reference/vince_crosswalk.md`` (CRD-03).  The VINCE case reader that
-fetches a case's records and calls it is built in #5963.
+``docs/reference/vince_crosswalk.md`` (CRD-03).  The VINCE case reader
+(:class:`VinceCaseReader`) fetches a case's records from the VINCE API and
+calls it; it is installed as the ``vince`` connector plugin.
 """
 
 from vultron.adapters.connectors.vince.case_rows import ISSUE_TRACKING_REL
@@ -26,6 +27,7 @@ from vultron.adapters.connectors.vince.crosswalk import (
     VINCE_UNOBSERVABLE,
 )
 from vultron.adapters.connectors.vince.ids import vince_case_url
+from vultron.adapters.connectors.vince.reader import VinceCaseReader
 from vultron.adapters.connectors.vince.records import READS
 from vultron.adapters.connectors.vince.translate import translate_case
 
@@ -34,6 +36,7 @@ __all__ = [
     "ISSUE_TRACKING_REL",
     "READS",
     "VINCE_UNOBSERVABLE",
+    "VinceCaseReader",
     "translate_case",
     "vince_case_url",
 ]

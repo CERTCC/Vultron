@@ -94,7 +94,7 @@ def _accept(actor: object, invitee: object) -> dict:
         "payloadSnapshot": {
             "type": "Accept",
             "actor": actor,
-            "object": {"type": "Invite", "object": invitee, "target": CASE},
+            "object": {"type": "Invite", "object": CASE, "target": invitee},
         },
     }
 
@@ -108,7 +108,7 @@ def test_a_row_names_its_actor_and_object_by_display_name():
     )
     row = event_row(_event(), entry, label_names({"f": [entry]}), CASE)
     assert row.actor == "Acme Vendor"
-    assert row.object == "Invitee Inc → case"
+    assert row.object == "case → Invitee Inc"
     assert row.participant == "Acme Vendor"
     assert row.activity == "Acme Vendor accepted the case invitation"
     for cell in (row.actor, row.object, row.participant, row.activity):
@@ -122,7 +122,7 @@ def test_an_object_with_no_display_name_shows_the_fallback_not_its_uri():
     entry["payloadSnapshot"]["object"]["object"] = NOTE
     row = event_row(_event(), entry, label_names({"f": [entry]}), CASE)
     assert row.actor == UNNAMED_ACTOR
-    assert row.object == f"{UNNAMED_OBJECT} → case"
+    assert row.object == f"{UNNAMED_OBJECT} → {UNNAMED_ACTOR}"
     assert not _OPAQUE.search(row.actor + row.object + row.activity)
 
 

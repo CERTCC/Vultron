@@ -13,6 +13,7 @@ tracks:
   - "#6243"   # consent as an agreed end date (provisional)
   - "#3701"   # merge spec; wire form recorded as a comment
   - "#6244"   # Invite slots; stub as preview
+  - "#6498"   # embargo Invite names its invitee in target (slice of #6244)
   - "#6245"   # origin and inReplyTo
   - "#6246"   # embargo end as Update
   - "#6253"   # JSON-LD terms and check
@@ -28,11 +29,10 @@ tracks:
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
-  - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
-  - "#6482"   # embargo end is Update; owner Offers it (slice of #6246)
+  - "#6482"   # embargo end is Update; owner's early end its own (#6246)
   - "#6483"   # end announced as Announce(<the Update>) (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
   - "#6484"   # ledger commit is an Add that acknowledges (slice of #6247)
@@ -54,9 +54,12 @@ tracks:
   - "#6258"   # end-date poll (deferred)
   - "#6259"   # concern: rebuilt replies
   - "#6260"   # concern: Create(CaseParticipant) target
-  - "#6295"   # Create(CaseParticipant) drops target, keeps context
+  - "#6295"   # new participant record is Add(CaseParticipant, target=case)
   - "#6261"   # concern: stale Offer(EmbargoEvent) payload
   - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
+  - "#6487"   # idea: the decider sends the act; owner embargo decisions are Updates
+  - "#6625"   # owner embargo activation and rejection are its own Updates
+  - "#6626"   # idea: proposer's own Invite, announced (case invite, embargo relay)
 description: >
   Decisions from a review of the wire protocol against the full ActivityStreams 2.0
   vocabulary: which AS2 verbs and properties say a CVD sentence more naturally than
@@ -85,6 +88,7 @@ related_notes:
   - notes/vocabulary-registry.md
   - notes/call-out-configuration.md
   - notes/selective-disclosure.md
+  - notes/stub-objects.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/semantic_registry
@@ -228,57 +232,19 @@ Not Processed").
 
 Issue: #6244. Record: ADR-0205.
 
-**Decision.**
+**Built (case Invites).** Both case Invites name the case in `object` and the
+invitee in `target`: the stub Invite's object is the case's typed reference carrying
+the stub as its `preview`, the full-case Invite's the whole case, and patterns tell
+them apart by `object_form` (SE-01-009). The stub has no `caseId` and no `/stub` id.
+See `vultron/wire/as2/extractor/_instances.py` and
+[stub-objects.md](stub-objects.md).
 
-1. Both Invites follow AS2: `object` is what the invitee is invited to, `target` is
-   the invitee.
-   - Case Invites: `Invite(VulnerabilityCase or reference)[target=Actor]`, replacing
-     `Invite(Actor)[target=Case|Stub]`.
-   - Embargo Invite: `Invite(EmbargoEvent)[target=Actor]`, adding the `target` it
-     lacked (#6498).
-2. The stub becomes the case's `preview`. The stub Invite's object is a typed case
-   reference (ADR-0165 form: `id` and `type` only) carrying
-   `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron
-   `caseId` is dropped: the case is named by the reference's own `id`. The full-case
-   Invite carries the full case.
-3. **A preview is not the case.** Only a full case is a case: no receiver seeds or
-   updates a replica from a reference that carries a preview.
-4. **A receiver tells the two case Invites apart by the object's form**, as received:
-   a typed reference carrying a preview, or the whole case. A pattern can require
-   either form. Lookup of held objects does not expand a previewed reference, and a
-   receiver does not fetch the case such a reference names, so an invitee answers
-   from the preview alone and a CASE_MANAGER holding the case still reads an Accept
-   of the stub Invite as the stub answer (ADR-0205). Keeping a stub type, or a
-   Vultron Invite subtype, was considered and rejected there.
+**Built (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]` names the invitee
+in `target` as well as `to` (#6498).
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
-is the person, kept for compatibility. VOC `preview`: "Identifies an entity that
-provides a preview of this object." Primer chess example: `Accept(Invite)` whose
-`result` is the new game.
-
-**Today.** `vultron/wire/as2/extractor/_instances.py` tells the stub Invite from the
-full-case Invite only by the type in `target`, which needs `strict=True`
-(`notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and Object Need
-a Strict Discriminator"). The stub class is
-`vultron/wire/as2/vocab/objects/vulnerability_case.py` (`as_VulnerabilityCaseStub`).
-About eight message semantics in the CM-11 join flow and the embargo Invite family.
-
-**Term-check owner.** #6420 owns the stub's `caseId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6420
-for that field rather than filing a second Task.
-
-**Touches.** CM-11 (CM-11-003, CM-11-013), CM-17, MV-10-001, VAM-04, ADR-0114 ("the
-stub is its own type and its own object" part), ADR-0165,
-`vultron/wire/as2/case_reference_placement.py`, the examples under
-`vultron/wire/as2/vocab/examples/`, `docs/reference/messages/`.
-
-**Parse-edge rule.** A case reference `{id, type, preview}` whose `preview` is an
-inline stub parses as an `as_TypedReference` (MV-10-012), only as an `Invite`'s
-`object` (MV-10-002), and is read as received (MV-10-013). A pattern tells it from
-the whole case with `object_form` (`ObjectForm`, SE-01-009); a pattern without one
-never matches it. The stub Invite patterns that set it, and the preview type that
-replaces the stub's own `type`, `/stub` id and `caseId`, are #6497.
+is the person, kept for compatibility.
 
 ---
 
@@ -303,8 +269,8 @@ Issue: #6245.
   (ADR-0109; the ownership-transfer trigger already sends its proposal). The
   CASE_MANAGER is not modelled as anyone's `instrument`: it has its own authority and
   must be the `actor` receivers authenticate (CM-24-001).
-- `Remove(CaseParticipant)` is replaced by the CASE_MANAGER's `Remove(<Actor>,
-  origin=<case>)` (§ "The Owner Offers a Removal or Reinstatement"), and
+- `Remove(CaseParticipant)` is replaced by the Case Owner's `Remove(<Actor>,
+  origin=<case>)` (§ "The Owner Sends Its Removal or Reinstatement"), and
   `Remove(EmbargoEvent)` by an `Update` (§ "Embargo End Is an Update With a
   Termination Object"), so this section moves only `Remove(Note)`, whose path has no
   sender (CM-30-003).
@@ -327,57 +293,51 @@ for that field rather than filing a second Task.
 
 **Touches.** CM-16-004, CP-01-007, CM-24-002, CM-24-012, the delegated-authorship
 helper `vultron/core/behaviors/delegated_authorship.py`. Moving `Remove(Note)` to
-`origin`, and the CASE_MANAGER's `Remove(<Actor>, origin=<case>)` (§ "The Owner
-Offers a Removal or Reinstatement"), need an `origin_` field on `ActivityPattern`,
+`origin`, and the Owner's `Remove(<Actor>, origin=<case>)` (§ "The Owner Sends
+Its Removal or Reinstatement"), need an `origin_` field on `ActivityPattern`,
 so the rule "no `origin_` field" in `vultron/wire/as2/AGENTS.md` and the root
 `AGENTS.md` pattern-matching row change with it; `notes/case-joining.md` shows
 today's `Remove(CaseParticipant)[target=…]`.
 
 ---
 
-## The Owner Offers a Removal or Reinstatement
+## The Owner Sends Its Removal or Reinstatement
 
-Issue: #6293. Record: ADR-0199.
+Issues: #6293, #6487. Record: ADR-0199 revision 2.
 
 **Decision.**
 
-- The Case Owner asks with `Offer(Remove(<Actor>, origin=<case>))` or
-  `Offer(Add(<Actor>, target=<case>))`, sent to the CASE_MANAGER only. The inner act
-  names the actor as a typed reference (`id` + `type`), not the `CaseParticipant`:
-  the case has one record per actor, as `actor_participant_index` keyed by actor id
-  implies (CM-19-003), so the actor identifies it, and reinstatement reuses it
-  (CM-31-034, CM-31-035).
-- The CASE_MANAGER refuses a request that breaks the CM-31-004 or CM-31-036 rules
-  with a refusal notice, changing nothing. Otherwise it sends the Owner
-  `Accept(<the Offer>)` and makes the act itself: `actor` = CASE_MANAGER,
-  `attributedTo` = Owner, `inReplyTo` = the Offer, an id derived from the Offer. The
-  Accept's id derives from the Offer too, so a retry resends the same Accept
-  (OX-06-002, SYNC-09-002). The Accept and the act are written in one atomic act
-  (ADR-0146); only the act is ledgered.
-- An Owner that is also the CASE_MANAGER sends no Offer and no Accept: it makes the
-  act directly, under the same rules, with no `attributedTo` or `inReplyTo`.
-- That act is the ledger entry and, under the same id, the direct message to the
-  actor it names. The separate unledgered notice (CM-31-006, CM-31-026) goes. A
+- The Case Owner decides a removal or a reinstatement, so it sends the act itself:
+  `Remove(<Actor>, origin=<case>)` or `Add(<Actor>, target=<case>)`, to the
+  CASE_MANAGER only. The act names the actor as a typed reference (`id` + `type`),
+  not the `CaseParticipant`: the case has one record per actor, as
+  `actor_participant_index` keyed by actor id implies (CM-19-003), so the actor
+  identifies it, and reinstatement reuses it (CM-31-034, CM-31-035).
+- The CASE_MANAGER refuses an act that breaks the CM-31-004 or CM-31-036 rules with
+  a refusal notice, changing nothing. Otherwise it admits the Owner's act as the
+  ledger entry and changes the record. It sends no `Accept` and makes no act of its
+  own: the entry's fan-out tells the Owner its act was admitted.
+- The removed or reinstated actor receives the CASE_MANAGER's `Announce(<the Owner's
+  act>)`. It replaces the separate unledgered notice (CM-31-006, CM-31-026). A
   replica still applies the change only from the entry (CM-31-007, CM-31-029), so the
-  direct copy and the entry's fan-out apply it once.
-- The ownership-transfer proposal gets the same answer: the CASE_MANAGER sends the
-  Owner `Accept(Offer(Offer(VulnerabilityCase)))`, written in one act with the
-  transfer Offer it makes (CM-21-028), and that Offer names the proposal in `inReplyTo`.
+  notice and the entry's fan-out apply it once.
+- An Owner that is also the CASE_MANAGER sends the same act and admits it under the
+  same rules, without posting to its own inbox.
 
-**AS2 basis.** An activity states what its sender did; a request for another to act
-is an `Offer` of the act (VOC Offer). ActivityPub answers a request with `Accept`,
-then makes the change; the `Accept` answers the Offer, not its delivery (delivery is
-the HTTP response). The Owner's decision is the Offer; the CASE_MANAGER's Accept
-admits it under its rules (CM-31-004).
+**AS2 basis.** An activity states what its sender did. The Owner's removal is its
+decision, which it makes, so the bare act is true of it; the CASE_MANAGER's ledger
+entry is its admission of the act (CLP-02-012), as for a participant's consent. VOC
+Announce can carry an activity.
 
 **Today.** The Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` and
 `Add(CaseParticipant)[target=VulnerabilityCase]`, carrying the whole record; the
 CASE_MANAGER ledgers the received act as its entry (CM-31-005, CM-31-025) and sends a
-second, unledgered `Remove` (CM-31-006). The ownership-transfer proposal gets no
-answer of its own.
+second, unledgered `Remove` (CM-31-006). Revision 1 of ADR-0199 had the Owner offer
+the act and the CASE_MANAGER accept and make it (#6465 as first filed); revision 2
+reversed that before it was built.
 
-**Touches.** CM-31 (004, 005, 006, 011, 022, 024, 025, 026, 029, 036), CM-21-028,
-CM-24-002, VAM-04, the add and remove participant received trees and their trigger,
+**Touches.** CM-31 (004, 005, 006, 011, 022, 024, 025, 026, 029, 036), CM-24-002,
+VAM-04, the add and remove participant received trees and their trigger,
 the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
 `docs/reference/messages/case_management.md`, the occasion lookups
 (`docs/reference/messages/_occasions/lookup.md`, `lookup-case_management.md`,
@@ -387,7 +347,7 @@ the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
 (the removal table), `notes/ownership-transfer.md`,
 `notes/demo-ci-scenario-coverage.md`, the manage-participants demo. Frees
 `Add(CaseParticipant)` for the CASE_MANAGER's own record-keeping
-(§ "Create(CaseParticipant) Names Its Case in context").
+(§ "The CASE_MANAGER Adds a New Participant Record to the Case").
 
 ---
 
@@ -410,11 +370,11 @@ Issue: #6246. Records: ADR-0201, ADR-0202, ADR-0203.
   names the `Update` act.
 - **The end is `Update(EmbargoEvent)`** setting `status` terminated and the
   termination. `END_TIME_REACHED` is a cause like the others, so the `EARLY` /
-  `END_TIME_REACHED` enum goes. The CASE_MANAGER makes and ledgers every such
-  `Update`. Its own endings (end time, threat signal) are a bare `Update`; the Case
-  Owner's early ending is `Offer(Update(EmbargoEvent))`, refused (a `THREAT_SIGNAL`
-  cause from the Owner) or accepted, with the CASE_MANAGER's own `Update` carrying
-  `attributedTo` = Owner and `inReplyTo` = the Offer (ADR-0199, ADR-0203).
+  `END_TIME_REACHED` enum goes. The CASE_MANAGER ledgers every such `Update`.
+  Its own endings (end time, threat signal) are its own `Update`; the Case
+  Owner's early ending is its own `Update(EmbargoEvent)`, which the CASE_MANAGER
+  refuses (a `THREAT_SIGNAL` cause from the Owner) or admits as the ledger entry
+  (ADR-0199 revision 2, ADR-0203 revision 2).
 - **Every signatory is told by `Announce(<the Update>)`**, sent to every active
   participant and every signatory the ledger fan-out skips. It keeps the teardown
   notice's purpose (everyone the embargo may have bound learns it ended) and replaces
@@ -457,6 +417,104 @@ names `Remove(EmbargoEvent)` or `terminationCause`: among them
 `docs/reference/messages/em.md` and its `_occasions/` embargo-termination
 fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
 `docs/reference/vultron-spec/` partials.
+
+---
+
+## The Owner Decides an Embargo Proposal With an Update
+
+Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-0180).
+
+**Decision.**
+
+- **The decider sends the act.** The Case Owner decides whether a proposed embargo
+  goes into force, so it sends the act itself, to the CASE_MANAGER, which admits it
+  as the ledger entry or refuses it with a refusal notice. No `Offer`, no `Accept`.
+- **Activation is `Update(EmbargoEvent{id, status: ACTIVE})`**, for a first proposal
+  (EA) and a revision (EC) alike, with `inReplyTo` naming the proposal's
+  `Invite(EmbargoEvent)`. The proposal already put the embargo on the register
+  (ADR-0202), so `Add` to the case is no longer true. It replaces
+  `Add(EmbargoEvent)[target=VulnerabilityCase]`.
+- **Rejection is `Update(EmbargoEvent{id, status: REJECTED})`** (ER, EJ), with the
+  same `inReplyTo`. It replaces `Reject(EmbargoEvent)[target=VulnerabilityCase]`,
+  so a `Reject` from the Owner only ever means its own consent,
+  `Reject(Invite(EmbargoEvent))`.
+- **Consent effects unchanged.** The activation marks the Owner's row `AGREED` from
+  `UNINVITED`, `INVITED` or `TIMED_OUT` (MSM-07-028), an activation from a `DECLINED`
+  row is refused (MSM-07-037), and a rejection changes no row (MSM-07-031). The other
+  refusals stand: Owner only (MSM-07-027, MSM-07-030), an open proposal only
+  (MSM-07-029, MSM-07-033), no activation at P/X/A (EMB-02-002). The rejection of the
+  last revision at P/X/A still also ends the embargo in force (MSM-07-032), now the
+  Owner's `Update` entry then the CASE_MANAGER's own terminating `Update`.
+- **Patterns read the status.** Activation, rejection and the end (§ "Embargo End Is
+  an Update With a Termination Object") share `Update(EmbargoEvent)`, so an
+  `ActivityPattern` gains a way to require the `status` value its object sets. Each
+  decision keeps its own semantic type, use case and tree
+  (`ACTIVATE_EMBARGO_ON_CASE`, `REJECT_EMBARGO_PROPOSAL_ON_CASE`, the termination).
+  An `Update(EmbargoEvent)` with no `status`, or one no pattern names, matches
+  nothing.
+- **An `Update` of an embargo changes only its status**, and its termination when it
+  ends. Its terms change only by a revision proposal, so an `Update` that carries a
+  changed term is refused.
+
+**AS2 basis.** VOC Update: "the actor has updated the object"; `Update` is partial
+(§ "Update Versus a New Object"). FEP-8a8e sends an event's status change as
+`Update(Event)`.
+
+**Today.** `Add(EmbargoEvent)[target=VulnerabilityCase]` and
+`Reject(EmbargoEvent)[target=VulnerabilityCase]`, registered in
+`vultron/semantic_registry/embargo/decision.py`; the activation effect is
+`vultron/core/behaviors/embargo/nodes/activation_effect.py`. Patterns match types
+only (`vultron/wire/as2/extractor/_pattern.py`). Depends on the embargo carrying its
+own `status` (#6481) and the `EmbargoEvent` wire type (#6480).
+
+**Touches.** VAM-05-008, VAM-05-009, VAM-05-010, MSM-02-002, MSM-02-005 and the ER/EJ
+shorthands, MSM-07-005, MSM-07-008, MSM-07-009, MSM-07-023, MSM-07-032, EMB-02-002,
+EP-09-005, CM-28-015, the patterns and factories in `vultron/wire/as2/`, the
+`activate_embargo`, `activate_embargo_revision`, `reject_embargo_proposal` and
+`reject_embargo_revision_proposal` examples, `vultron/measure/history/derive.py`, the
+VINCE connector (`vultron/adapters/connectors/vince/case_rows.py`),
+`docs/reference/messages/em.md` and its `_occasions/` embargo-acceptance and
+rejection fragments, `docs/reference/vultron-spec/_oq-delegated-embargo-activation.md`
+(its premise goes: activation is the Owner's act, and delegation is no longer the
+question), and `notes/participant-embargo-consent.md`.
+
+---
+
+## The Owner Offers Ownership, and the CASE_MANAGER Announces It
+
+Issues: #6487, #6466. Record: ADR-0199 revision 2 (partially superseding ADR-0148).
+
+**Decision.**
+
+- The transferee decides whether to take the case, so the Owner offers it: its own
+  `Offer(VulnerabilityCase)` with the transferee as `target`, sent to the CASE_MANAGER.
+  The nested `Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER's own transfer
+  Offer are retired.
+- The CASE_MANAGER refuses the Offer under ADR-0148's rules (Owner only, one open
+  Offer per case, the transferee an active participant other than the CASE_MANAGER
+  and the Owner; CM-21-014, CM-21-019, CM-21-021), or admits it as the ledger entry
+  and sends the transferee `Announce(<the Owner's Offer>)`. The `Announce`'s `actor`
+  is the CASE_MANAGER, so the transferee's trust check is unchanged.
+- The transferee answers the Owner's Offer by its id, to the CASE_MANAGER, which
+  admits the `Accept` only while the transferee is still active (CM-21-021). The
+  Owner withdraws with `Undo` of its own Offer (CM-21-015).
+- The open-Offer bookkeeping is keyed by the case (one open Offer per case), not by
+  the Owner's id. No replica builds a record of the Offer from the ledger: only the
+  transferee holds it, in its intake archive, so #4911 stays fixed.
+
+**History.** ADR-0053 moved the Owner's direct Offer to the transferee through the
+CASE_MANAGER so the ledger records it. Its forward made two Offers per transfer, so
+ADR-0148 chose the nested Offer, rejecting a relay because the delivered `actor`
+would not be the sender and the CASE_MANAGER would keep its record under the Owner's
+id. The `Announce` answers the first; the second no longer applies, because the
+Offer is the Owner's own act.
+
+**Today.** `Offer(Offer(VulnerabilityCase))`, `notes/ownership-transfer.md`. #6466's
+first scope (an `Accept` to the Owner) is retired; #6466 now builds this section.
+
+**Touches.** CM-21 (014 to 021, 028), CM-24-002, the ownership-transfer trigger,
+received trees, patterns and examples, `notes/ownership-transfer.md`, the glossary's
+**Case Ownership Transfer**, the ownership-transfer demo.
 
 ---
 
@@ -530,7 +588,6 @@ acceptance criteria track them.
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
-| stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the
@@ -726,9 +783,10 @@ closed with no wire form) becomes the CASE_MANAGER sending the Owner
 `Offer(Add(CaseStatus, target=<case>/statuses))`. `Question` is for choices and open
 inquiries where no single act is proposed.
 
-The ownership transfer's `Offer(Offer(VulnerabilityCase))` (ADR-0148) is this pattern
-and stays, now answered with an `Accept` and naming the proposal in `inReplyTo`
-(ADR-0199, § "The Owner Offers a Removal or Reinstatement").
+The rule behind it is ADR-0199's: an `Offer` asks another actor to decide. The
+ownership transfer is the Owner's own `Offer(VulnerabilityCase)`, because the
+transferee decides (§ "The Owner Offers Ownership, and the CASE_MANAGER Announces
+It").
 
 **AS2 basis.** VOC Offer can propose an action ("Sally is offering to add a File to
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
@@ -774,30 +832,47 @@ extending the RSVP deadline is a separate Idea.
 
 ---
 
-## Create(CaseParticipant) Names Its Case in context
+## The CASE_MANAGER Adds a New Participant Record to the Case
 
-Issue: #6295 (from Concern #6260).
+Issue: #6295 (decision: #6330; specs: #6518).
 
-**Decision.** The CASE_MANAGER's `Create(CaseParticipant)` ledger entry drops `target`
-and keeps `context` = the case. It stays a `Create`: the act is "this record now
-exists", and seating is not part of it. Only the CASE_MANAGER sends it, so a receiver
-needs no rule for a stray `target`.
+**Decision.** The CASE_MANAGER records a new participant record as one
+`Add(CaseParticipant, target=<case>)`, with `context` = the case, carrying the full
+record (CLP-07-021, VAM-06-004, CM-11-023). Its semantic type is
+`ADD_CASE_PARTICIPANT_TO_CASE`. No `Create(CaseParticipant)` is sent or ledgered; a
+received one is refused as unrecognized (VAM-01-017).
 
-`Add(CaseParticipant, target=<case>)` was considered and rejected for now: that shape
-is already the Case Owner's reinstatement request (CM-31-011), and a pattern cannot
-tell the two apart by sender. ADR-0199 (#6293) moves the Owner's requests to an
-`Offer` naming the Actor, which frees `Add(CaseParticipant)`.
+- **Why `Add`:** the record joins the case's participant list. A `Create` names no
+  list, so the replica would have to pick one, which a replica must not do
+  (CM-23-044). The case's other lists already follow this rule (#6317).
+- **Why the form is free:** the Case Owner's reinstatement is its own
+  `Add(<Actor>, target=<case>)`, naming the actor (CM-31-011, ADR-0199 revision 2).
+  The object type tells the two `Add`s apart.
+- **The replica** stores the record in the case the entry's `target` names, not one
+  taken from `entry.case_id` or the verb.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
-**Today.** `create_participant_activity` sets `target=case_target_ref(target)`
-(`vultron/wire/as2/factories/case_participant.py`); `_CreateParticipantActivity`
-declares `target`. Both callers already set `context`. The pattern and the replica's
-apply read no `target`: the apply takes the case from the ledger entry's `case_id`.
+**Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
+`target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
+`ApplyCreateCaseParticipantFromLedgerNode` seats the record from `entry.case_id`.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
-`create_participant` example, the generated "Create case participant" message page.
+`create_participant` example, the semantic registry and canonical signatures, the
+replica's apply node, `docs/reference/messages/case_management.md` and its
+`_occasions` fragments, the docs pages
+that name the `create_case_participant` entry
+(`docs/topics/case_lifecycle/case_initialization.md`,
+`docs/reference/messages/ledger_replication.md`,
+`docs/reference/rv-demo-protocol.md`, the `rv`, `rcv`, `rcv-reject` and `rvv`
+scenario pages and `docs/topics/scenarios/_engagement_status_entry.md`),
+`notes/demo-ci-scenario-coverage.md`, the demo ledger recordings, and the
+strict-xfail probes that hold the amended specs
+(`test/architecture/test_participant_seating_add_planned.py` and
+`test_the_stub_invite_adds_the_participant_record_to_the_case` in
+`test/core/use_cases/received/test_stub_invite_replay.py`). Builds after #6465,
+which retires the Case Owner's `Add(CaseParticipant)` request.
 
 ---
 
