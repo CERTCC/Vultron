@@ -335,6 +335,24 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
+def test_init_dispatcher_returns_an_undo_that_restores_the_previous(
+    monkeypatch,
+):
+    """The returned undo puts back the dispatcher held before (#5874)."""
+    previous = Mock()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", previous)
+    monkeypatch.setattr(
+        ih,
+        "get_dispatcher",
+        lambda use_case_map, port_factories=None: Mock(),
+    )
+
+    undo = ih.init_dispatcher()
+    assert ih._DISPATCHER_SLOT.value is not previous
+    undo()
+    assert ih._DISPATCHER_SLOT.value is previous
+
+
 def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
     """A rebuildable ``Add(Note)`` the legacy worker can hold for replay."""
     from vultron.wire.as2.factories import add_note_to_case_activity
