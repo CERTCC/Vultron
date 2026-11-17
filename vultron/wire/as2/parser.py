@@ -277,8 +277,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             if a ``Create(CaseProposal)`` does not carry its proposer's inline
             actor profile (CP-01-010), if a case reference sits anywhere but
             the object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer``
-            (AKM-03-004), if a case stub sits anywhere but the target of an
-            Invite whose object is the inline actor it invites to the case
+            (AKM-03-004), if a case preview sits anywhere but the
+            ``preview`` of the case reference that is an Invite's ``object``
             (MV-10-002), if the activity's ``context`` and that of an
             object down its ``object`` chain name different cases
             (HP-08-015),
@@ -395,7 +395,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     refuse_malformed_case_proposal_envelope(activity)
     # A case reference names the case only where an act may (AKM-03-004).
     refuse_misplaced_case_reference(activity)
-    # A case stub stands for the case only in a case invitation (MV-10-002).
+    # A case preview stands for the case only in a stub Invite (MV-10-002).
     refuse_misplaced_case_preview(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)

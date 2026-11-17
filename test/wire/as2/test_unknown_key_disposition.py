@@ -817,12 +817,17 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
     """
     body = _envelope(
         type="Invite",
-        object=INVITEE,
-        target={
-            "type": "CasePreview",
-            "caseId": "https://example.org/cases/1",
-            misspelled: {"type": "CaseStatus", "context": "x"},
+        object={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "preview": {
+                "type": "CasePreview",
+                "id": "https://example.org/previews/1",
+                "summary": "A case to join",
+                misspelled: {"type": "CaseStatus", "context": "x"},
+            },
         },
+        target=INVITEE,
     )
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
@@ -934,14 +939,18 @@ def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     the ``NonEmptyString`` type; an absent value is refused by the inbound
     validator added by #4165.
     """
-    target: dict[str, Any] = {
+    preview: dict[str, Any] = {
         "type": "CasePreview",
-        "id": "https://example.org/cases/1/stub",
-        "caseId": "https://example.org/cases/1",
+        "id": "https://example.org/previews/1",
     }
     if summary is not None:
-        target["summary"] = summary
-    body = _envelope(type="Invite", object=INVITEE, target=target)
+        preview["summary"] = summary
+    reference = {
+        "type": "VulnerabilityCase",
+        "id": "https://example.org/cases/1",
+        "preview": preview,
+    }
+    body = _envelope(type="Invite", object=reference, target=INVITEE)
     with pytest.raises(VultronParseValidationError, match="summary"):
         parse_activity(body)
 

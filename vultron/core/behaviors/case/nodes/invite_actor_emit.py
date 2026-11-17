@@ -44,6 +44,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import serialize_roles
+from vultron.errors import VultronNotFoundError
 
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
@@ -79,23 +80,24 @@ def build_stub_invite(
     is the earlier attempt's Invite: the factory hands back the body sealed
     then, and the outbox and the commit each record it once (OX-06-002).
     Returns ``(activity_id, activity_blob)``.
+
+    Raises:
+        VultronNotFoundError: When *datalayer* holds no case under
+            *case_id*: the preview is built from the case.
     """
     # CM-17-002: pass the full case object so the adapter+factory can
     # project it to the case's preview (embedding the full active embargo,
     # CM-17-011, while an embargo is in force: EM ACTIVE or REVISE).  The
-    # preview is built from the case, so the adapter refuses to build an
-    # Invite for a case it does not hold (CM-17-010, ADR-0205); this read
-    # stays unguarded (conformance allowlist) and the port reports the miss.
+    # preview is built from the case, so a case this actor does not hold
+    # gets no stub Invite (CM-17-010, ADR-0205).
     case = datalayer.read_case(case_id)
+    if case is None:
+        raise VultronNotFoundError("VulnerabilityCase", case_id)
     # The CASE_MANAGER states the reply deadline once, the way it does on an
     # embargo Invite (CM-11-014, CM-28-012, ASK-03-004); the cap is the end of
     # the embargo the stub carries, when it carries one.
     stamp = stamp_rsvp_deadline(
-        current_preview_embargo_end(datalayer, case)
-        if case is not None
-        else None,
-        at,
-        actor_config,
+        current_preview_embargo_end(datalayer, case), at, actor_config
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
     # asked for it is the attributed author (PCR-08-007, CM-24-005).

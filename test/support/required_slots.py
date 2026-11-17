@@ -303,6 +303,14 @@ CASES: tuple[SlotCase, ...] = (
     SlotCase(
         "Invite(stub)", _S.INVITE_ACTOR_TO_CASE, "invitee_id", (("target",),)
     ),
+    # A case reference with no preview is no stub Invite's object: the
+    # pattern refuses the cut (SE-01-009), so the event is never reached.
+    SlotCase(
+        "Invite(stub)",
+        _S.INVITE_ACTOR_TO_CASE,
+        "preview",
+        (("object_", "preview"),),
+    ),
     SlotCase(
         "Accept(stub Invite)",
         _S.ACCEPT_INVITE_ACTOR_TO_CASE,

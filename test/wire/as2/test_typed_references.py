@@ -479,7 +479,7 @@ def test_a_case_reference_carrying_a_preview_is_no_case_reference() -> None:
             "type": "VulnerabilityCase",
             "preview": {
                 "type": "CasePreview",
-                "id": f"{CASE_ID}/stub",
+                "id": "https://example.org/previews/1",
                 "summary": "A remote code execution vulnerability.",
             },
         }

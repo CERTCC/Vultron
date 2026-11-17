@@ -63,7 +63,7 @@ class RecordedStubInvite:
 
     Attributes:
         invite_id: The Invite's id.
-        invitee_id: The invited actor (the Invite's ``object``).
+        invitee_id: The invited actor (the Invite's ``target``).
         case_id: The case the stub names.
         published: When the Invite was sent.
         end_time: The reply deadline, or ``None`` for an Invite sent before

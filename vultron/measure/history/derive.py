@@ -334,7 +334,7 @@ class _Deriver:
     def _on_invite_undone(self, context: _Entry, invite: object) -> None:
         """The CASE_MANAGER's ``Undo(Invite(EmbargoEvent))``: an abandoned
         proposal is cancelled (EMB-16-001)."""
-        embargo_id = _invitee(invite)
+        embargo_id = _invited_embargo(invite)
         if embargo_id is not None:
             self.register.cancel(embargo_id)
 
@@ -380,7 +380,7 @@ class _Deriver:
 
     def _on_embargo_reply(self, context: _Entry, invite: object) -> None:
         """A participant's ``Accept`` or ``Reject`` of an embargo Invite."""
-        embargo_id = _invitee(invite)
+        embargo_id = _invited_embargo(invite)
         if context.actor is None or embargo_id is None:
             self._unreadable(
                 context.log_index,
@@ -856,7 +856,7 @@ def _case_invitee(invite: object) -> str | None:
     )
 
 
-def _invitee(invite: object) -> str | None:
+def _invited_embargo(invite: object) -> str | None:
     """The id of what an embargo ``Invite`` invites to: its ``object``."""
     return (
         actor_uri(invite.get("object")) if isinstance(invite, dict) else None

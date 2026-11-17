@@ -306,6 +306,31 @@ def test_invite_actor_to_case_refuses_a_case_it_does_not_hold(adapter):
         )
 
 
+@pytest.mark.spec("CM-11-001")
+def test_invite_actor_to_full_case_refuses_a_case_it_does_not_hold(
+    adapter, dl
+):
+    """The full-case Invite carries the case whole, so a case the store
+    does not hold gets no Invite, and nothing is written (ADR-0205)."""
+    dl.create(make(as_Service, id_=_INVITEE, name="Vendor"))
+    before = {
+        kind: len(dl.list_objects(kind)) for kind in ("Invite", "Activity")
+    }
+    with pytest.raises(VultronNotFoundError, match="VulnerabilityCase"):
+        adapter.invite_actor_to_full_case(
+            invitee_id=_INVITEE,
+            case_id="https://example.org/cases/not-held",
+            actor=_ACTOR,
+            ledger_log_index=0,
+            ledger_entry_hash="0" * 64,
+            at=authored_at(),
+        )
+    assert dl.outbox_list() == []
+    assert {
+        kind: len(dl.list_objects(kind)) for kind in ("Invite", "Activity")
+    } == before
+
+
 @pytest.mark.parametrize("store_owner", [_INVITEE])
 class TestAcceptCaseInvite:
     def _make_invite(self, dl) -> str:

@@ -29,8 +29,8 @@ A typed reference shares the ``type`` of the object it names, so it claims no
 object of that type (VM-01-017).  An actor reference keeps the form it had
 before this rule generalized it: the actor's own class carrying only its
 ``id`` (AKM-05-017, ADR-0159).  A collection carrying only its ``id`` is the
-address of an actor's endpoint (AKM-02-006), and a case stub keeps its own
-shape and position rules (MV-10-001, MV-10-002).  A case reference names a
+address of an actor's endpoint (AKM-02-006), and a ``CasePreview`` keeps its
+own shape and position rules (MV-10-001, MV-10-002).  A case reference names a
 case by exactly its ``id`` and ``type`` (ADR-0165); one that also carries the
 case's preview is a previewed reference, read by the preview's rules
 (ADR-0205), and is not a case reference.
@@ -82,10 +82,11 @@ TYPED_REFERENCE_KEYS: frozenset[str] = frozenset(
 PREVIEW_KEY = "preview"
 
 #: The preview the protocol defines for each type, by the type's wire name
-#: (MV-10-012, ADR-0198).  A case's preview is the case stub, carrying what
+#: (MV-10-012, ADR-0198).  A case's preview is ``CasePreview``, carrying what
 #: an invitee decides on before it may see the case (CM-17-010, ADR-0205).
 #: A typed reference of any other type that carries a ``preview`` is
-#: refused, as is a case reference whose preview is not an inline stub.
+#: refused, as is a case reference whose preview is not an inline
+#: ``CasePreview``.
 #: Previews beyond the case's are #6257.
 DEFINED_PREVIEWS: Mapping[str, type[BaseModel]] = MappingProxyType(
     {"VulnerabilityCase": as_CasePreview}
@@ -187,7 +188,8 @@ def reads_as_typed_reference(
     True for a typed reference shape whose class has no reference form of
     its own.  An actor's class is its actor reference (AKM-05-017), a
     collection naming only its ``id`` is an endpoint's address, and a
-    ``Link`` is not an object.  A case stub keeps its own rules (MV-10-001).
+    ``Link`` is not an object.  A ``CasePreview`` keeps its own rules
+    (MV-10-001).
     A case is read here like any other type: its ``{id, type}`` shape is the
     case reference (ADR-0165).
     """

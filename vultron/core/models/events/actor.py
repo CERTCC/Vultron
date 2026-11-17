@@ -279,7 +279,11 @@ class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    required_slots: ClassVar[tuple[str, ...]] = ("case_id", "invitee_id")
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "case_id",
+        "invitee_id",
+        "preview",
+    )
 
     @property
     def case_id(self) -> str:
@@ -292,10 +296,11 @@ class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
         return self._required("invitee_id", self.target_id)
 
     @property
-    def preview(self) -> CasePreview | None:
+    def preview(self) -> CasePreview:
         """The case's preview the Invite carries, what the invitee decides
-        on (CM-17-010)."""
-        return case_preview_of(self.object_)
+        on (CM-17-010); the stub Invite's pattern matches only an object
+        that carries one (SE-01-009)."""
+        return self._required("preview", case_preview_of(self.object_))
 
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):

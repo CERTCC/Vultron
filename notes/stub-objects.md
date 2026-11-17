@@ -73,7 +73,7 @@ A stub is accepted only as the `preview` of a case reference that is an
 `Reject`, or in a refusal notice quoting such a reply. The parser refuses it
 anywhere else, an `Invite`'s `target` and an embargo invitation included, because
 only the stub Invite asks the question the stub answers (MV-10-002,
-`refuse_misplaced_case_stub`).
+`refuse_misplaced_case_preview`).
 
 That reference is read as received (MV-10-013): rehydration, the stored row and
 the inbox never put the held case in its place or fetch the case, and only a
