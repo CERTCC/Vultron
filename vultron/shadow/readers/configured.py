@@ -47,6 +47,7 @@ from vultron.shadow.readers.selection import (
     VultronNode,
     select_case_reader,
 )
+from vultron.shadow.readers.vultron_node import path_segment
 
 
 def _configured_node(config: ShadowConfig) -> VultronNode | None:
@@ -54,7 +55,8 @@ def _configured_node(config: ShadowConfig) -> VultronNode | None:
 
     Raises:
         VultronConfigError: Only one of the node URL and the actor id is
-            set; either alone names no case ledger.
+            set, since either alone names no case ledger, or the actor id
+            names no actor.
     """
     if config.node_url is None and config.node_actor_id is None:
         return None
@@ -64,6 +66,12 @@ def _configured_node(config: ShadowConfig) -> VultronNode | None:
             f" {SHADOW_NODE_ACTOR_ID_ENV_VAR} to read a Vultron node, or"
             " neither"
         )
+    try:
+        path_segment(config.node_actor_id)
+    except ValueError as exc:
+        raise VultronConfigError(
+            f"{SHADOW_NODE_ACTOR_ID_ENV_VAR} names no actor on the node: {exc}"
+        ) from exc
     return VultronNode(config.node_url, config.node_actor_id)
 
 
@@ -82,7 +90,8 @@ def configured_case_reader(
         ShadowConnectorError: The named connector is not installed, or does
             not implement ``CaseReader``.
         VultronConfigError: With no connector named, only one of the node
-            URL and the node actor id is set.
+            URL and the node actor id is set, or the actor id names no
+            actor.
         ConnectorRefusedError: The loader refused an installed entry point.
     """
     if config.connector is None:

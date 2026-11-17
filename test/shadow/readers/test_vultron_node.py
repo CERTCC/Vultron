@@ -229,7 +229,7 @@ def test_a_full_actor_id_is_sent_as_its_short_segment():
 
 @pytest.mark.parametrize(
     ("case_id", "segment"),
-    [("a b%2F..", "a%20b%252F.."), ("x?y=1#z", "x"), ("x%3Fy", "x%253Fy")],
+    [("a b%2F..", "a%20b%252F.."), ("x%3Fy", "x%253Fy")],
 )
 def test_a_case_id_cannot_add_a_path_segment_or_query(case_id, segment):
     recorder = _answering(404, json.dumps({"detail": "Case not found."}))
@@ -242,7 +242,8 @@ def test_a_case_id_cannot_add_a_path_segment_or_query(case_id, segment):
 
 
 @pytest.mark.parametrize(
-    "case_id", ["", "   ", "..", "x/..", "x/./", "urn:uuid:"]
+    "case_id",
+    ["", "   ", "..", "x/..", "x/./", "urn:uuid:", "x?y=1", "abc#frag", "x?"],
 )
 def test_a_case_id_that_names_no_case_is_refused_unsent(case_id):
     recorder = _answering()
@@ -311,9 +312,10 @@ def test_a_node_with_no_such_case_raises_the_domain_error(node_dl):
     assert "holds no such case" in str(caught.value)
 
 
-def test_a_404_with_a_body_that_is_not_json_reads_as_no_endpoint():
+@pytest.mark.parametrize("body", ["<html>", "[]", '"x"'])
+def test_a_404_whose_body_is_no_json_object_reads_as_no_endpoint(body):
     with pytest.raises(VultronNodeCaseReadError, match="prototype run mode"):
-        _reader(_answering(404, "<html>")).read_case(_CASE)
+        _reader(_answering(404, body)).read_case(_CASE)
 
 
 @pytest.mark.parametrize("status", [302, 500, 503])
@@ -365,3 +367,24 @@ def test_a_case_with_no_entry_is_refused_rather_than_shown_empty(
     with pytest.raises(VultronNodeCaseReadError) as caught:
         _reader(recorder).read_case(_CASE)
     assert [v.message for v in caught.value.violations] == [NO_ENTRY]
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    ["urn:uuid:case-2", "https://other.example/api/v2/cases/case-1"],
+    ids=["other-case", "other-node"],
+)
+def test_a_ledger_of_another_case_than_the_one_asked_for_is_refused(case_id):
+    """A full id must match whole; the node's answer must be that case."""
+    body = _ndjson([_entry_row(_CASE, 0)])
+    with pytest.raises(VultronNodeCaseReadError) as caught:
+        _reader(_answering(body=body)).read_case(case_id)
+    assert [v.message for v in caught.value.violations] == [
+        f"the node answered with the ledger of case {_CASE}"
+    ]
+
+
+def test_a_short_case_id_matches_the_served_cases_last_segment():
+    body = _ndjson([_entry_row(_CASE, 0)])
+    reading = _reader(_answering(body=body)).read_case("case-1")
+    assert reading.ledger[0].case_id == _CASE

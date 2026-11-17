@@ -76,17 +76,38 @@ def path_segment(identifier: str) -> str:
     an id can add a path segment, a query or a fragment to the request.
 
     Raises:
-        ValueError: *identifier* has no segment, or its segment is ``.`` or
-            ``..``, which a URL resolves to another path.
+        ValueError: *identifier* has no segment, its segment is ``.`` or
+            ``..``, which a URL resolves to another path, or it carries a
+            query or a fragment, which would be dropped and so read another
+            case or actor than the one named.
     """
     text = identifier.strip()
     if text.startswith(_URN_UUID):
         segment = text[len(_URN_UUID) :]
     else:
-        segment = urlsplit(text).path.rstrip("/").rpartition("/")[2]
+        parts = urlsplit(text)
+        if parts.query or parts.fragment or "?" in text or "#" in text:
+            raise ValueError(
+                f"{identifier!r} names no case or actor: it carries a query"
+                " or a fragment"
+            )
+        segment = parts.path.rstrip("/").rpartition("/")[2]
     if segment in ("", ".", ".."):
         raise ValueError(f"{identifier!r} names no case or actor")
     return quote(segment, safe="")
+
+
+def _names(requested: str, served: str) -> bool:
+    """Whether *served*, a case id the node answered with, is *requested*.
+
+    A full id must match whole, apart from a trailing slash, so a case of
+    another node with the same last segment is not read as this one; a
+    short id matches the served id's last segment.
+    """
+    asked = requested.strip().rstrip("/")
+    if asked.startswith(_URN_UUID) or urlsplit(asked).scheme:
+        return served.rstrip("/") == asked
+    return path_segment(served) == path_segment(asked)
 
 
 def _not_found(response: httpx.Response) -> str:
@@ -198,9 +219,9 @@ class VultronNodeCaseReader:
         Raises:
             VultronNodeCaseReadError: *case_id* names no case, the node
                 cannot be reached, does not serve the ledger endpoint, holds
-                no such case or no entry for it, or sends a row that is not a
+                no such case or no entry for it, sends a row that is not a
                 valid ledger entry or entries that are not one case's ledger
-                in log-index order.  The error names the node and the case
+                in log-index order, or answers with another case's ledger.  The error names the node and the case
                 and carries every problem found.
         """
         path = self._log_path(case_id)
@@ -214,6 +235,12 @@ class VultronNodeCaseReader:
             unobservable=self.unobservable,
             refuse=lambda problems: self._refused(case_id, problems),
         )
+        served = reading.ledger[0].case_id
+        if not _names(case_id, served):
+            raise self._refused(
+                case_id,
+                [f"the node answered with the ledger of case {served}"],
+            )
         logger.info(
             "Read case %s: %d ledger entries from the Vultron node at %s",
             reading.ledger[0].case_id,

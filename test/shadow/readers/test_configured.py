@@ -152,3 +152,32 @@ def test_a_half_set_node_is_refused_before_any_read(fields):
 def test_a_node_url_without_an_http_scheme_is_refused_at_load():
     with pytest.raises(ValueError, match="http:// or https://"):
         ShadowConfig(node_url="case-actor:7999", node_actor_id="case-actor")
+
+
+@pytest.mark.parametrize("actor_id", ["/", "urn:uuid:", ".", "a?b"])
+def test_an_actor_id_that_names_no_actor_is_refused_as_configuration(actor_id):
+    """The page shows a configuration error, never a traceback."""
+    with pytest.raises(VultronConfigError) as caught:
+        configured_case_reader(
+            ShadowConfig(
+                node_url="http://case-actor:7999/api/v2",
+                node_actor_id=actor_id,
+            ),
+            connectors=_never,
+        )
+    assert SHADOW_NODE_ACTOR_ID_ENV_VAR in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://user:secret@case-actor:7999/api/v2",
+        "http://case-actor:7999/api/v2?token=x",
+        "http://case-actor:7999/api/v2#frag",
+    ],
+    ids=["userinfo", "query", "fragment"],
+)
+def test_a_node_url_with_more_than_its_api_root_is_refused_at_load(url):
+    with pytest.raises(ValueError, match="only the node's API root") as caught:
+        ShadowConfig(node_url=url, node_actor_id="case-actor")
+    assert "secret" not in str(caught.value)

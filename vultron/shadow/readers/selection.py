@@ -20,10 +20,11 @@ The dashboard reads one case through one
 reader is used when one is configured.  Otherwise a configured Vultron node
 is read through the live Vultron case reader (#6530), and with no node the
 run reads Vultron case-ledger files through the Vultron case reader: both
-are sources with nothing left untranslated.  How an outside-system reader is found is the connector
-loader's job (``vultron/adapters/connectors/loader.py``), and which one a run
-uses is its settings' (:mod:`~vultron.shadow.readers.configured`); this
-function only makes the choice.
+are sources with nothing left untranslated.  How an outside-system reader is
+found is the connector loader's job (``vultron/adapters/connectors/loader.py``),
+and which one a run uses is its settings'
+(:mod:`~vultron.shadow.readers.configured`); this function only makes the
+choice.
 """
 
 from __future__ import annotations

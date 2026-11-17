@@ -38,8 +38,9 @@ settings, such as the ``vince:`` section (SHD-02-003).
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.config.env_names import env_var_name
 from vultron.primitives import NonEmptyString
@@ -75,6 +76,10 @@ class ShadowConfig(BaseModel):
             them is refused before any case is read.  Default ``None``.
     """
 
+    # A validation error names the field but never quotes its input, so a
+    # refused node URL is not echoed into a log or the page (VSD-01-005).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     connector: NonEmptyString | None = None
     ledger_dir: Path | None = None
     node_url: NonEmptyString | None = None
@@ -83,7 +88,20 @@ class ShadowConfig(BaseModel):
     @field_validator("node_url")
     @classmethod
     def validate_node_url(cls, v: str | None) -> str | None:
-        """Require an http:// or https:// scheme when a node URL is set."""
-        if v is not None and not v.startswith(("http://", "https://")):
+        """Require a plain http:// or https:// API root when one is set.
+
+        A user name or password, a query or a fragment is refused: the URL
+        is quoted in the reader's errors, on the page and in the logs, so it
+        must carry nothing but where the node is.
+        """
+        if v is None:
+            return v
+        if not v.startswith(("http://", "https://")):
             raise ValueError("node_url must start with http:// or https://")
+        parts = urlsplit(v)
+        if "@" in parts.netloc or parts.query or parts.fragment:
+            raise ValueError(
+                "node_url must name only the node's API root: no user name,"
+                " password, query or fragment"
+            )
         return v
