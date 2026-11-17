@@ -348,6 +348,7 @@ class TestAcceptRejectFromCoreState:
             embargo,
             context=case.id_,
             actor=actor_id,
+            invitee=actor_id,
             at=authored_at(),
         )
         dl.create(proposal)
@@ -416,7 +417,11 @@ class TestAcceptRejectFromCoreState:
         )
         dl.create(counter)
         counter_proposal = em_propose_embargo_activity(
-            counter, context=case.id_, actor=actor_id, at=authored_at()
+            counter,
+            context=case.id_,
+            actor=actor_id,
+            invitee=actor_id,
+            at=authored_at(),
         )
         dl.create(counter_proposal)
         case_obj = dl.read(case.id_)
@@ -584,6 +589,7 @@ class TestReceivedRejectPrunesOpenProposals:
             embargo=embargo,
             context=case.id_,
             actor=self._OWNER,
+            invitee=self._OWNER,
             at=authored_at(),
         )
         dl.create(proposal)
@@ -741,6 +747,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             embargo=embargo,
             context=case_id,
             actor=actor_id,
+            invitee=actor_id,
             id_=proposal_id,
             at=authored_at(),
         )

@@ -108,7 +108,8 @@ def accept_invite_to_embargo_tree(
     """Create the BT for accepting an embargo invitation.
 
     Handles receipt of an
-    ``Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`` activity: the
+    ``Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])``
+    activity: the
     sender's own consent, the case owner's included (ADR-0122).  The Accept's
     canonical entry is the accepter's row's entry: the ``AGREED`` row it
     states is applied by copying (ADR-0124), and it moves no register entry.
@@ -289,7 +290,8 @@ def reject_invite_to_embargo_tree(
     """Create the BT for rejecting an embargo invitation.
 
     Handles receipt of a
-    ``Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`` activity: the
+    ``Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])``
+    activity: the
     sender's own consent, the case owner's included (ADR-0122)::
 
         RejectInviteToEmbargoBT (Sequence)

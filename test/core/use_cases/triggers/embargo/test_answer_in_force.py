@@ -31,6 +31,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
+from test.support.misrouted_invite import readdressed
 from test.support.objects import authored_at, make
 from test.support.received import (
     archive_received,
@@ -162,9 +163,12 @@ def _store_received_invite(
         embargo,
         context=case_id,
         actor=manager_id,
-        to=to if to is not None else [invitee_id],
+        to=to if to is not None and len(to) == 1 else [invitee_id],
         at=authored_at(),
     )
+    if to is not None and len(to) != 1:
+        # No factory builds a misrouted Invite (EP-09-010).
+        invite = readdressed(invite, to)
     if deferred:
         hold_deferred(dl, invite)
     else:

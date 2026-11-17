@@ -197,6 +197,7 @@ class TestCoerceToSemanticClass:
             embargo,
             context=case.id_,
             actor="https://alice.example.org",
+            invitee="https://alice.example.org",
             at=authored_at(),
         )
         dl.save(case)

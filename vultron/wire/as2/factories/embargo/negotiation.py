@@ -19,7 +19,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 from datetime import datetime, timedelta
 
-from vultron.core.models._helpers import as_utc
+from vultron.core.models._helpers import _as_id, as_utc
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -66,13 +66,7 @@ def _invitee_of(to: object) -> str | None:
     if to is None:
         return None
     recipients = list(to) if isinstance(to, (list, tuple)) else [to]
-    ids = [
-        recipient
-        if isinstance(recipient, str)
-        else getattr(recipient, "id_", None)
-        for recipient in recipients
-    ]
-    named = [rid for rid in ids if rid]
+    named = [rid for rid in map(_as_id, recipients) if rid]
     distinct = list(dict.fromkeys(normalise_actor_id(rid) for rid in named))
     if len(distinct) > 1:
         raise VultronActivityConstructionError(
@@ -90,6 +84,7 @@ def em_propose_embargo_activity(
     min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
     *,
     at: datetime,
+    invitee: str | None = None,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(EmbargoEvent) — the EP/EV message.
@@ -111,6 +106,10 @@ def em_propose_embargo_activity(
             to apply the configured floor.
         at: The authoring act's instant: the Invite's ``published``, which
             the RSVP window is measured from (ADR-0176).
+        invitee: The actor an Invite addressed to nobody invites: the
+            CASE_MANAGER's own proposal, which it ledgers and does not send
+            (EP-09-001), names the CASE_MANAGER.  An addressed Invite's
+            invitee is its one recipient, so a given *invitee* must be it.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).  ``target`` is not one of them: it is
             derived from ``to``.
@@ -118,24 +117,37 @@ def em_propose_embargo_activity(
     Returns:
         An ``as_Invite`` whose ``object_`` is the embargo event and whose
         ``target`` is the invitee, the one actor ``to`` names (ADR-0205,
-        EP-09-010), with ``end_time`` set to *rsvp_deadline* when provided.
-        An Invite with no ``to`` has no ``target``.
+        EP-09-010), or *invitee* for an Invite addressed to nobody, with
+        ``end_time`` set to *rsvp_deadline* when provided.  An Invite with
+        neither has no ``target``.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
             if *rsvp_deadline* is naive, below the applicable minimum, or
             after the embargo's end, or if *embargo* is not an
-            ``as_EmbargoEvent``, or if ``to`` names several actors, or if
-            the caller passes a ``target``.
+            ``as_EmbargoEvent``, or if ``to`` names several actors or an
+            actor other than *invitee*, or if the caller passes a
+            ``target``.
     """
     if "target" in kwargs:
         raise VultronActivityConstructionError(
             "em_propose_embargo_activity: the Invite's target is its invitee,"
-            " derived from 'to'; pass the invitee in 'to' (ADR-0205)"
+            " derived from 'to'; pass the invitee in 'to', or in 'invitee'"
+            " for an Invite addressed to nobody (ADR-0205)"
         )
-    invitee = _invitee_of(kwargs.get("to"))
-    if invitee is not None:
-        kwargs["target"] = invitee
+    recipient = _invitee_of(kwargs.get("to"))
+    if (
+        invitee is not None
+        and recipient is not None
+        and normalise_actor_id(invitee) != normalise_actor_id(recipient)
+    ):
+        raise VultronActivityConstructionError(
+            f"em_propose_embargo_activity: invitee '{invitee}' is not the"
+            f" Invite's recipient '{recipient}' (EP-09-010, ADR-0205)"
+        )
+    target = recipient if recipient is not None else invitee
+    if target is not None:
+        kwargs["target"] = target
     # The wire class takes the terms by URI for a received Invite (ADR-0123);
     # this codebase always sends them inline (VAM-01-016).
     embargo = require_inline(

@@ -235,7 +235,7 @@ Issue: #6244. Record: ADR-0205.
    - Case Invites: `Invite(VulnerabilityCase or reference)[target=Actor]`, replacing
      `Invite(Actor)[target=Case|Stub]`.
    - Embargo Invite: `Invite(EmbargoEvent)[target=Actor]`, adding the `target` it
-     lacks (the invitee is only in `to` today).
+     lacked (#6498).
 2. The stub becomes the case's `preview`. The stub Invite's object is a typed case
    reference (ADR-0165 form: `id` and `type` only) carrying
    `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron

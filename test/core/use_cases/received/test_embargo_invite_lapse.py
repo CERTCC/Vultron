@@ -1730,6 +1730,25 @@ class TestInviteeIdProperty:
         assert event.invitee_id == _INVITEE
 
     @pytest.mark.spec("EP-09-026")
+    def test_an_event_with_no_target_names_no_invitee(self, make_payload):
+        """No ``target`` is no invitee, even with one recipient.
+
+        The embargo Invite pattern does not match such an Invite
+        (VAM-05-005), so this is the resolver's own guard, reached here by
+        removing the received event's ``target``.
+        """
+        event = self._event(make_payload, [_INVITEE]).model_copy(
+            update={"target": None}
+        )
+        assert event.target_invitee_id is None
+        assert event.invitee_id is None
+        with pytest.raises(
+            VultronProtocolViolationError,
+            match="names no invitee in 'target'",
+        ):
+            resolve_invitee_id(event, "invite")
+
+    @pytest.mark.spec("EP-09-026")
     def test_a_target_that_is_not_the_recipient_is_a_misrouting(
         self, make_payload
     ):
