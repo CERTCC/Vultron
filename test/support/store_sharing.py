@@ -55,7 +55,11 @@ def no_store_shared_across_authorities() -> Iterator[None]:
     """Assert no actor store was opened under two authorities in the block.
 
     Reads the engine logger through its own handler rather than ``caplog``,
-    so a test's own log-level settings cannot hide the warning.
+    and raises that logger to WARNING on entry if it is set higher, so a
+    level a test set before the block cannot hide the warning.  Two things
+    still can: a level raised on that logger inside the block, and a global
+    :func:`logging.disable` in force when the warning is logged (the ledger
+    rebuild check in ``test/demo/_helpers.py`` sets one while it runs).
 
     Raises:
         AssertionError: on exit, naming each store and its two actor ids.

@@ -21,11 +21,17 @@ its queue under the wrong id.  They use no ``client``, so the autouse guard
 does not also see the warnings they provoke on purpose.
 """
 
+import logging
+
 import pytest
 
 from test.support.store_sharing import no_store_shared_across_authorities
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+from vultron.adapters.driven.datalayer_sqlite import (
+    engine as sqlite_engine,
+    get_datalayer,
+    reset_datalayer,
+)
 
 _SLUG = "store-authority-guard"
 _SERVING_BASE = "http://testserver/api/v2"
@@ -52,9 +58,30 @@ def test_a_store_reopened_in_the_configured_namespace_fails_the_run():
 
 
 def test_a_store_reopened_under_its_own_id_passes():
+    """A second open under the same id passes the claimant check.
+
+    The cached DataLayer is dropped between the opens, so the second one
+    reaches the engine's claimant check, which keeps the first claim.
+    """
     with no_store_shared_across_authorities():
         get_datalayer(_served_actor_id())
+        reset_datalayer(_served_actor_id())
         get_datalayer(_served_actor_id())
+
+
+def test_a_quieter_engine_logger_still_fails_the_run_and_is_restored():
+    """A level above WARNING set before the block does not hide the warning."""
+    logger = sqlite_engine.logger
+    previous_level = logger.level
+    logger.setLevel(logging.ERROR)
+    try:
+        with pytest.raises(AssertionError, match="two authorities"):
+            with no_store_shared_across_authorities():
+                get_datalayer(_served_actor_id())
+                get_datalayer(actor_hosts.canonical_actor_uri(_SLUG))
+        assert logger.level == logging.ERROR
+    finally:
+        logger.setLevel(previous_level)
 
 
 def test_an_error_in_the_run_is_not_masked_by_the_guard():

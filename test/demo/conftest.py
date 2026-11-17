@@ -403,7 +403,12 @@ def client():
         configure_default_emitter,
     )
 
-    with TestClient(api_app) as test_client:
+    # The guard spans the lifespan's startup and shutdown and the gaps
+    # between tests, which the per-test guard below cannot see (#6085).
+    with (
+        no_store_shared_across_authorities(),
+        TestClient(api_app) as test_client,
+    ):
         # The root lifespan now starts the production OutboxMonitor
         # (OX-09-002).  These tests assert on the effect of a trigger right
         # after its 202 and rely on the TestClient running the inline drain
@@ -514,6 +519,12 @@ def single_node_opens_no_store_under_a_second_authority(
     addressee door refused the entry it popped (#6085).  Tests that build
     their own apps (``create_isolated_actor_app``) run several nodes that may
     share a slug, so only tests using ``client`` are checked.
+
+    The check keys on the fixture *name*, so a module that overrides
+    ``client`` with another fixture is checked too.  ``client`` itself is
+    module-scoped and set up before this guard, so it runs its own guard
+    over the app's whole life: startup, the gaps between tests, and
+    shutdown.  This one names the test whose body opened the store.
     """
     if "client" not in request.fixturenames:
         yield
