@@ -49,7 +49,7 @@ NAMES = {VENDOR: "Vendor", VENDOR_2: "Vendor2"}
 
 def _analysis():
     path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
-    return analyse(VultronCaseReader().read_case(str(path)))
+    return analyse(VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path)))
 
 
 def test_every_state_and_status_has_a_badge():

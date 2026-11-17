@@ -32,7 +32,7 @@ _RECORDING = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
 
 @pytest.mark.spec("CRD-01-003")
 def test_the_standing_is_the_one_the_file_itself_yields():
-    reading = VultronCaseReader().read_case(str(_RECORDING))
+    reading = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
     (from_file,) = read_case_ledgers([_RECORDING]).cases.values()
     assert analyse(reading).standing == case_standing(from_file)
 
@@ -51,7 +51,9 @@ def test_the_bridged_ledger_is_one_complete_copy_in_log_index_order():
 
 
 def test_the_analysis_names_actors_by_their_payload_names():
-    analysis = analyse(VultronCaseReader().read_case(str(_RECORDING)))
+    analysis = analyse(
+        VultronCaseReader(root=RECORDINGS_DIR).read_case(str(_RECORDING))
+    )
     assert "Vendor" in analysis.actor_names.values()
 
 
@@ -78,7 +80,9 @@ def test_a_reading_with_no_entry_has_no_standing_but_keeps_its_report():
 def test_a_desideratum_over_an_unobservable_event_is_not_scored():
     """A recorded case whose reader declares Fix Deployed unobservable: its
     ``D ≺ P`` reads broken today, where it must read unknown."""
-    recorded = VultronCaseReader().read_case(str(_RECORDING))
+    recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(
+        str(_RECORDING)
+    )
     reading = CaseReading(
         ledger=recorded.ledger,
         citations=recorded.citations,

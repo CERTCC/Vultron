@@ -55,8 +55,13 @@ def _write(path: Path, lines: list[str]) -> str:
     return str(path)
 
 
+#: A root every test path lies under, for tests that are not about
+#: confinement: the reader confines every read.
+_FILESYSTEM = Path("/")
+
+
 def _read(case_id: str) -> CaseReading:
-    return VultronCaseReader().read_case(case_id)
+    return VultronCaseReader(root=_FILESYSTEM).read_case(case_id)
 
 
 def test_there_are_committed_recordings_to_read():
@@ -245,6 +250,17 @@ def test_a_path_outside_the_readers_root_is_refused_unopened(tmp_path):
         VultronCaseReader(root=root).read_case(str(escape))
 
 
+def test_with_no_root_the_working_directory_confines_every_read(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "inside").mkdir()
+    monkeypatch.chdir(tmp_path / "inside")
+    reader = VultronCaseReader()
+    for path in ("../outside.jsonl", "/etc/passwd"):
+        with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+            reader.read_case(path)
+
+
 def test_a_path_inside_the_readers_root_is_read():
     reader = VultronCaseReader(root=RECORDINGS_DIR)
     assert reader.read_case(str(_RECORDING)).ledger
@@ -273,9 +289,8 @@ def test_a_relative_case_id_is_taken_relative_to_the_root(
     assert reader.read_case(relative).ledger == _read(str(_RECORDING)).ledger
 
 
-@pytest.mark.parametrize("root", [None, "root"])
-def test_a_path_with_a_nul_byte_raises_the_domain_error(tmp_path, root):
-    reader = VultronCaseReader(root=tmp_path if root else None)
+def test_a_path_with_a_nul_byte_raises_the_domain_error(tmp_path):
+    reader = VultronCaseReader(root=tmp_path)
     with pytest.raises(CaseLedgerFileError) as caught:
         reader.read_case("bad\x00name.jsonl")
     assert _problems(caught.value)[0].startswith("it is not a usable path")

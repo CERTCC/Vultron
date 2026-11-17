@@ -36,6 +36,7 @@ a partial ledger.
 from __future__ import annotations
 
 import logging
+import os
 from operator import attrgetter
 from pathlib import Path
 
@@ -73,11 +74,11 @@ class VultronCaseReader:
     request and keeps nothing between requests (SHD-01-003).
 
     Args:
-        root: When set, the directory every requested file must resolve
-            inside, symbolic links followed; a path outside it is refused
-            before it is opened, so an analyst's input cannot probe the
-            host's other files.  A relative case id is then taken relative
-            to *root*, not to the working directory.
+        root: The directory every requested file must resolve inside,
+            symbolic links followed; a path outside it is refused before it
+            is opened, so an analyst's input cannot probe the host's other
+            files.  A relative case id is taken relative to it.  When it is
+            ``None`` the working directory at construction is the root.
     """
 
     name = "vultron"
@@ -86,23 +87,28 @@ class VultronCaseReader:
     unobservable: tuple[UnobservableFact, ...] = ()
 
     def __init__(self, root: Path | None = None) -> None:
-        self._root = root.resolve() if root is not None else None
+        # The root as a real path, symbolic links resolved, so the check in
+        # _confined compares two real paths.
+        self._root = os.path.realpath(root if root is not None else Path.cwd())
 
     def _confined(self, case_id: str) -> Path:
-        """The path to open for *case_id*, refused if outside the root."""
-        if self._root is None:
-            return Path(case_id)
+        """The path to open for *case_id*, refused if outside the root.
+
+        Every read is confined: a case id may come from a page an analyst
+        types into, so no path reaches the file system unchecked.
+        """
         try:
-            path = (self._root / case_id).resolve()
+            path = os.path.realpath(os.path.join(self._root, case_id))
         except (OSError, ValueError) as exc:
             raise CaseLedgerFileError(
                 case_id, [f"it is not a usable path: {exc}"]
             ) from exc
-        if not path.is_relative_to(self._root):
+        inside = self._root.rstrip(os.sep) + os.sep
+        if path != self._root and not path.startswith(inside):
             raise CaseLedgerFileError(
                 case_id, [f"it is outside the ledger directory {self._root}"]
             )
-        return path
+        return Path(path)
 
     def read_case(self, case_id: str) -> CaseReading:
         """Read the case ledger in the file at path *case_id*.

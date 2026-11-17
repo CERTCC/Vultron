@@ -31,7 +31,6 @@ ledgers is not stopped by a bad third-party package it does not use.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from pathlib import Path
 
 from vultron.adapters.connectors.base import ConnectorPlugin
 from vultron.adapters.connectors.loader import load_connectors
@@ -58,12 +57,9 @@ def configured_case_reader(
         ConnectorRefusedError: The loader refused an installed entry point.
     """
     if config.connector is None:
-        # A case id is typed into a page, so the reader always keeps it to
-        # one directory: the configured one, or the one the run starts in.
-        root = (
-            config.ledger_dir if config.ledger_dir is not None else Path.cwd()
-        )
-        return select_case_reader(ledger_root=root)
+        # The reader confines every read: to ledger_dir, or to the
+        # directory the run starts in when it is unset.
+        return select_case_reader(ledger_root=config.ledger_dir)
     installed = connectors()
     plugin = installed.get(config.connector)
     if plugin is None:
