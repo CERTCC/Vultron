@@ -4,9 +4,8 @@ The real script over a committed recording shows the case's states,
 desiderata and open moves (AC-1); the move advice reads band by band, with
 its shades, marks, harms and unbanded moves (#6603); a fake reader's
 untranslated facts, inferences and unobservable facts are shown beside the
-analysis (AC-2); a
-read the reader refuses, a ledger with a hole, a reading with no entry and
-a setting the reader cannot use each say so on the page.
+analysis (AC-2); a read the reader refuses, a ledger with a hole, a reading
+with no entry and a setting the reader cannot use each say so on the page.
 
 Spec: SHD-01-002, SHD-01-004, SHD-03-002.
 """
@@ -255,6 +254,8 @@ def test_each_shaded_band_is_filled_by_layer_and_marks_top_moves(advice_app):
     for heading in ("Harm-free", "Trade-off"):
         styles = _frame(at, heading).proto.arrow_data.styler.styles
         assert "background-color: #" in styles
+        # The layer is a number, so its column sorts as one.
+        assert _table(at, heading)["Layer"].dtype.kind == "i"
     harm_free = _table(at, "Harm-free")
     assert TOP_MARK in harm_free["Mark"].tolist()
     unhelpful = _frame(at, "Unhelpful").proto.arrow_data

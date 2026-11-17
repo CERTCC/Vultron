@@ -395,10 +395,15 @@ class BandView(BaseModel):
     shades: tuple[Shade, ...] = ()
     empty: str
 
+    @property
+    def shaded(self) -> bool:
+        """Whether its rows are shaded by layer: all but the unhelpful band."""
+        return self.band is not Band.UNHELPFUL
+
     @model_validator(mode="after")
     def _a_shade_for_every_row_or_none(self) -> BandView:
         """A shaded band has one shade per row; the unhelpful band none."""
-        if self.band is Band.UNHELPFUL:
+        if not self.shaded:
             if self.shades:
                 raise ValueError("the unhelpful band is not shaded")
         elif len(self.shades) != len(self.rows):
