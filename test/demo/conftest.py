@@ -13,6 +13,7 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+import asyncio
 import logging
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,12 +26,19 @@ import vultron.demo.utils as demo_utils
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
+from test.support.hold_timers import stop_hold_timer_from_another_thread
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driven.http_actor_profile_fetch import (
     HttpActorProfileFetchAdapter,
 )
 from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
+from vultron.adapters.driving.fastapi.inbox_startup_replay import (
+    finish_startup_inbox_replay,
+)
+from vultron.adapters.driving.fastapi.ledger_position_statements import (
+    finish_ledger_position_statements,
+)
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
@@ -403,9 +411,20 @@ def client():
         # that immediate read into a race.  The monitor's own behaviour is
         # covered by test_outbox_monitor.py, the root-lifespan test and the
         # Docker demo matrix.
+        # The app's background work runs on the portal's event loop, so it
+        # is stopped there, and waited for: the root conftest disposes the
+        # stores after each test, and closing a store while any of this work
+        # reads it segfaults the worker (#6148).
+        portal = test_client.portal
+        assert portal is not None, "TestClient entered without a portal"
         monitor = getattr(api_app.state, "outbox_monitor", None)
         if monitor is not None:
-            monitor.stop()
+            # stop() cancels the drain task; asyncio's cancel is safe only on
+            # the task's own loop.  The task ends at the drain's next await.
+            monitor_task = monitor._task
+            portal.call(monitor.stop)
+            if monitor_task is not None:
+                portal.call(asyncio.wait, {monitor_task})
         # The sender-sequence hold timer drains every hosted actor's inbox
         # queue each quarter of the hold wait (SYNC-21-011), under the
         # *configured* node's actor ids (``localhost:7999``), while these
@@ -416,15 +435,18 @@ def client():
         # a hold's expiry; the timer is covered by its own tests.
         hold_timer = getattr(api_app.state, "sender_sequence_hold_timer", None)
         if hold_timer is not None:
-            # The timer's event belongs to the app's event loop.
-            portal = test_client.portal
-            assert portal is not None, "TestClient entered without a portal"
-            portal.call(hold_timer.stop.set)
-
-            async def _timer_ended() -> None:
-                await hold_timer.task
-
-            portal.call(_timer_ended)
+            stop_hold_timer_from_another_thread(hold_timer)
+        # The startup replay and the position statements are one-shot at
+        # startup (no position interval is configured here); end both the
+        # way the lifespan's shutdown does.
+        portal.call(
+            finish_startup_inbox_replay,
+            getattr(api_app.state, "startup_inbox_replay", None),
+        )
+        portal.call(
+            finish_ledger_position_statements,
+            getattr(api_app.state, "ledger_position_statements", None),
+        )
         # Build a router that routes deliveries back to the single app and
         # drops anything sent to external fictional URLs.
         router = InProcessRouter()
