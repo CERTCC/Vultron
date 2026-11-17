@@ -169,6 +169,37 @@ def test_stopping_a_timer_from_its_own_loop_is_refused(no_hosted_actors):
     asyncio.run(_body())
 
 
+def test_a_round_that_outlives_the_stop_timeout_fails_by_name():
+    """A round still reading after the timeout is reported, not waited out."""
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    release = threading.Event()
+
+    async def _make() -> holds.SenderSequenceHoldTimer:
+        async def _stuck_round() -> None:
+            await asyncio.to_thread(release.wait, _WAIT_SECONDS)
+
+        return holds.SenderSequenceHoldTimer(
+            task=asyncio.create_task(_stuck_round()), stop=asyncio.Event()
+        )
+
+    timer = asyncio.run_coroutine_threadsafe(_make(), loop).result(
+        _WAIT_SECONDS
+    )
+    try:
+        with pytest.raises(HoldTimerLeakedError, match="did not finish"):
+            stop_hold_timer_from_another_thread(timer, timeout=0.05)
+    finally:
+        release.set()
+        asyncio.run_coroutine_threadsafe(
+            asyncio.wait({timer.task}), loop
+        ).result(_WAIT_SECONDS)
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(_WAIT_SECONDS)
+        loop.close()
+
+
 @pytest.mark.spec("SYNC-21-011")
 def test_the_production_lifespan_stops_its_hold_timer_at_shutdown(
     no_hosted_actors,
