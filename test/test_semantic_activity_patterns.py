@@ -1823,3 +1823,33 @@ def test_an_embargo_invite_without_a_target_is_not_an_embargo_invite() -> None:
         find_matching_semantics(old_accept)
         != MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
     )
+
+
+@pytest.mark.spec("VAM-05-005")
+def test_an_actor_target_held_as_a_generic_object_routes_as_an_actor() -> None:
+    """A nested slot of a plain activity holds its object as ``as_Object``.
+
+    An Accept carries the Invite it answers as a plain ``Invite``, whose
+    ``target`` is then a generic object of an actor ``type``; it still
+    routes as an actor, as a typed reference does (MV-10-011, ADR-0205).
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+    from vultron.wire.as2.extractor._instances import (
+        InviteToEmbargoOnCasePattern,
+    )
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    invite = examples.relay_embargo_proposal()
+    generic = as_Object.model_construct(
+        id_=str(invite.target), type_="Organization"
+    )
+    not_an_actor = as_Object.model_construct(
+        id_=str(invite.target), type_="Note"
+    )
+
+    assert InviteToEmbargoOnCasePattern.match(
+        invite.model_copy(update={"target": generic})
+    )
+    assert not InviteToEmbargoOnCasePattern.match(
+        invite.model_copy(update={"target": not_an_actor})
+    )

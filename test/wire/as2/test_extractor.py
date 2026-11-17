@@ -278,11 +278,14 @@ def test_extract_intent_embargo_pass_through_fields():
         updated=now,
         end_time=days_from_now(45),
     )
-    # InviteToEmbargoOnCase pattern: Invite + EVENT + context=VULNERABILITY_CASE
+    # InviteToEmbargoOnCase pattern: Invite + EVENT + target=ACTOR
+    # + context=VULNERABILITY_CASE (ADR-0205)
     activity = make(
         as_Invite,
         actor="https://example.org/alice",
         object_=embargo,
+        to=["https://example.org/bob"],
+        target="https://example.org/bob",
         context="https://example.org/cases/1",
     )
     event = extract_stamped(activity)
@@ -556,6 +559,9 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
         "object_": embargo,
         "context": case,
         "actor": "https://example.org/alice",
+        # The invitee, named in target (ADR-0205).
+        "to": [CASE_OWNER_ID],
+        "target": CASE_OWNER_ID,
     }
     if end_time is not None:
         kwargs["end_time"] = end_time

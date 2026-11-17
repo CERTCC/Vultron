@@ -7,6 +7,7 @@ dispatch entries. This is the primitive building block imported by both
 """
 
 from enum import StrEnum
+from typing import cast
 
 from pydantic import BaseModel, model_validator
 
@@ -28,6 +29,7 @@ from vultron.wire.as2.typed_reference import (
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 
@@ -295,10 +297,14 @@ def _match_activity_field(
     if isinstance(activity_field, str):
         return not strict
     # A typed reference routes by the class its ``type`` names, as a whole
-    # object routes by its own (MV-10-011, ADR-0198).
+    # object routes by its own (MV-10-011, ADR-0198).  So does an object
+    # held only as the generic ``as_Object``, as a nested slot of a plain
+    # activity is: an actor in an embargo Invite's ``target`` (ADR-0205)
+    # still routes as an actor.
     kind: type | None = (
-        referenced_class(activity_field)
+        referenced_class(cast(as_TypedReference, activity_field))
         if isinstance(activity_field, as_TypedReference)
+        or type(activity_field) is as_Object
         else type(activity_field)
     )
     if (
