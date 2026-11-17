@@ -253,7 +253,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 | What happens | Entry | A replica |
 |---|---|---|
 | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
-| the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` | stores the record carried |
+| the CASE_MANAGER creates the inert record and adds it to the case | `add_case_participant_to_case`, `Add(CaseParticipant)` with the case as `target` | stores the record carried in the case `target` names |
 | the invitee sends `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
 | the invitee sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |

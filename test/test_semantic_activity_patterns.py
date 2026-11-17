@@ -1490,7 +1490,7 @@ def test_case_manager_acts_map_to_their_semantics(
 
 # ---------------------------------------------------------------------------
 # VAM-02-002, VAM-05-003, VAM-05-005, VAM-08-002, and per row VAM-03-006,
-# VAM-05-004, VAM-06-002, VAM-06-003 — each wire form maps to its semantic type
+# VAM-05-004, VAM-06-003, and CM-31-011 — each wire form maps to its semantic type
 # ---------------------------------------------------------------------------
 
 
@@ -1533,7 +1533,7 @@ def test_case_manager_acts_map_to_their_semantics(
             "participant",
             "add_vendor_participant_to_case",
             MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-            marks=pytest.mark.spec("VAM-06-002"),
+            marks=pytest.mark.spec("CM-31-011"),
         ),
         pytest.param(
             "participant",

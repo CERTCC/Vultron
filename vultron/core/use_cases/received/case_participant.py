@@ -216,7 +216,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
 ):
     """The Case Owner asks the CASE_MANAGER to reinstate a participant (CM-31-011).
 
-    ``Add(CaseParticipant)`` only reinstates (ADR-0116, VAM-06-002).  At the
+    ``Add(CaseParticipant)`` only reinstates (ADR-0116).  At the
     CASE_MANAGER: a sender that does not hold ``CASE_OWNER``, an ``Add``
     naming no participant of the case, one naming an invitee that never
     joined, and one naming a participant that is not removed are all

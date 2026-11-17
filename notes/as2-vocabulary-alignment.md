@@ -54,7 +54,7 @@ tracks:
   - "#6258"   # end-date poll (deferred)
   - "#6259"   # concern: rebuilt replies
   - "#6260"   # concern: Create(CaseParticipant) target
-  - "#6295"   # Create(CaseParticipant) drops target, keeps context
+  - "#6295"   # new participant record is Add(CaseParticipant, target=case)
   - "#6261"   # concern: stale Offer(EmbargoEvent) payload
   - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
 description: >
@@ -387,7 +387,7 @@ the semantic registry, `vultron/wire/as2/vocab/examples/participant.py`,
 (the removal table), `notes/ownership-transfer.md`,
 `notes/demo-ci-scenario-coverage.md`, the manage-participants demo. Frees
 `Add(CaseParticipant)` for the CASE_MANAGER's own record-keeping
-(§ "Create(CaseParticipant) Names Its Case in context").
+(§ "The CASE_MANAGER Adds a New Participant Record to the Case").
 
 ---
 
@@ -774,30 +774,37 @@ extending the RSVP deadline is a separate Idea.
 
 ---
 
-## Create(CaseParticipant) Names Its Case in context
+## The CASE_MANAGER Adds a New Participant Record to the Case
 
-Issue: #6295 (from Concern #6260).
+Issue: #6295 (decision: #6330; specs: #6518).
 
-**Decision.** The CASE_MANAGER's `Create(CaseParticipant)` ledger entry drops `target`
-and keeps `context` = the case. It stays a `Create`: the act is "this record now
-exists", and seating is not part of it. Only the CASE_MANAGER sends it, so a receiver
-needs no rule for a stray `target`.
+**Decision.** The CASE_MANAGER records a new participant record as one
+`Add(CaseParticipant, target=<case>)`, with `context` = the case, carrying the full
+record (CLP-07-021, VAM-06-004, CM-11-023). Its semantic type is
+`ADD_CASE_PARTICIPANT_TO_CASE`. No `Create(CaseParticipant)` is sent or ledgered; a
+received one is refused as unrecognized (VAM-01-017).
 
-`Add(CaseParticipant, target=<case>)` was considered and rejected for now: that shape
-is already the Case Owner's reinstatement request (CM-31-011), and a pattern cannot
-tell the two apart by sender. ADR-0199 (#6293) moves the Owner's requests to an
-`Offer` naming the Actor, which frees `Add(CaseParticipant)`.
+- **Why `Add`:** the record joins the case's participant list. A `Create` names no
+  list, so the replica would have to pick one, which a replica must not do
+  (CM-23-044). The case's other lists already follow this rule (#6317).
+- **Why the form is free:** the Case Owner's reinstatement request is
+  `Offer(Add(<Actor>, target=<case>))`, naming the actor, and the CASE_MANAGER's act
+  is `Add(<Actor>)` (CM-31-011, ADR-0199). The object type tells the two `Add`s apart.
+- **The replica** stores the record in the case the entry's `target` names, not one
+  taken from `entry.case_id` or the verb.
 
 **AS2 basis.** CORE App. B: the AS1 "post" verb maps to `Create` without a target and
 to `Add` with one.
 
-**Today.** `create_participant_activity` sets `target=case_target_ref(target)`
-(`vultron/wire/as2/factories/case_participant.py`); `_CreateParticipantActivity`
-declares `target`. Both callers already set `context`. The pattern and the replica's
-apply read no `target`: the apply takes the case from the ledger entry's `case_id`.
+**Today.** `create_participant_activity` builds `Create(CaseParticipant)` with
+`target=case_target_ref(target)` (`vultron/wire/as2/factories/case_participant.py`);
+`ApplyCreateCaseParticipantFromLedgerNode` seats the record from `entry.case_id`.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
-`create_participant` example, the generated "Create case participant" message page.
+`create_participant` example, the semantic registry and canonical signatures, the
+replica's apply node, `docs/reference/messages/case_management.md`, and the demo
+ledger recordings. Builds after #6465, which retires the Case Owner's
+`Add(CaseParticipant)` request.
 
 ---
 
