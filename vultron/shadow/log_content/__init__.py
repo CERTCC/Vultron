@@ -34,8 +34,9 @@ handler later writes it, is cleaned when it is made:
   :data:`WITHHELD`.  A string is found only where a record quotes it whole,
   or quotes one whole line of it: a word, a truncation or a changed case of
   a value is not found, nor is a value under four characters.  So code
-  logs ids and counts, never a piece of a value.  An exception raised inside the context carries the
-  context out with it, so a record made after the context has exited, such as
+  logs ids and counts, never a piece of a value.  An exception raised
+  inside the context carries the context out with it, so a record made
+  after the context has exited, such as
   Streamlit's log of an uncaught page exception, is cleaned too and carries
   the case's ids as attributes.  Streamlit writes that record with its own
   plain formatter, which prints no attribute.
@@ -45,8 +46,9 @@ The ids stay: inside :func:`case_log_context` each record carries
 tracker reference (an ``issue-tracking`` ``CaseReference``, such as a VINCE
 case URL).  The reference is known once the case is read
 (:meth:`CaseLog.withhold`), so a record the reader makes during the read
-names the case by ``case_id`` alone.  The shadow keeps no copy of a case (SHD-01-003), so that reference
-is how a log read after the run finds the case again.  The correlation ids
+names the case by ``case_id`` alone.  The shadow keeps no copy of a case
+(SHD-01-003), so that reference is how a log read after the run finds the
+case again.  The correlation ids
 (``activity_id``, ``actor_id``) come from
 :func:`~vultron.logging_correlation.correlation_context`, and
 :class:`ShadowFormatter` prints all of them after the message.
