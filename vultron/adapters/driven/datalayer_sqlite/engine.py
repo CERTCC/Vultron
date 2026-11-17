@@ -18,6 +18,7 @@
 import json
 import logging
 import re
+import secrets
 import threading
 import weakref
 from contextlib import AbstractContextManager, nullcontext
@@ -48,6 +49,9 @@ _MEMORY_NAME_RE = re.compile(r"file:([^?]+)")
 
 #: Default base name for in-memory stores when the template does not supply one.
 _DEFAULT_MEMORY_BASE = "vultron"
+
+#: The characters :func:`fresh_memory_url` admits in its *purpose* slug.
+_PURPOSE_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def _is_memory_url(db_url: str) -> bool:
@@ -221,6 +225,49 @@ def scratch_memory_url(db_url: str, purpose: str) -> str:
         base = Path(db_url.partition("///")[2]).stem or _DEFAULT_MEMORY_BASE
     return (
         f"sqlite:///file:{base}-~{purpose}?mode=memory&cache=shared&uri=true"
+    )
+
+
+def fresh_memory_url(purpose: str) -> str:
+    """Return an in-memory URL template with a name no earlier call returned.
+
+    Use it when a script or test needs a store that starts empty, with no
+    rows from an earlier scenario.  Every handle opened for one actor from
+    one template reaches that actor's one store (DL-07-004), so a second
+    ``SqliteDataLayer("sqlite:///:memory:", actor_id=X)`` gets the first
+    one's rows back; a template from this helper names a store no other
+    handle can reach.  Open it in a ``with`` block so the store is disposed
+    on exit.
+
+    The random part of the name is drawn from ``secrets``, not from the
+    object-id source, so it takes nothing from the ids a seeded demo run
+    mints (OID-01-012).
+
+    The name is ``fresh~{token}~{purpose}``.  The token holds no ``-`` and
+    is followed by ``~``, so any deployment base whose
+    :func:`_memory_store_prefix` matches the resolved store name contains
+    the whole token: no other deployment lists the store in
+    :func:`open_memory_store_slugs` (DL-07-013).
+
+    Args:
+        purpose: A slug naming what the store is for (e.g., ``"suggest"``):
+            letters, digits, ``-`` and ``_`` only.
+
+    Returns:
+        An in-memory URL template, resolved per actor like any other.
+
+    Raises:
+        ValueError: If *purpose* is empty or holds any other character.
+    """
+    if _PURPOSE_RE.fullmatch(purpose) is None:
+        raise ValueError(
+            "purpose must be a non-empty slug of letters, digits, '-' and "
+            f"'_', got {purpose!r}"
+        )
+    token = secrets.token_hex(16)
+    return (
+        f"sqlite:///file:fresh~{token}~{purpose}"
+        "?mode=memory&cache=shared&uri=true"
     )
 
 
