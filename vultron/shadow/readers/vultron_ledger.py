@@ -25,6 +25,9 @@ Each entry cites itself, by its ledger id, as its source record: a native
 entry has no outside record behind it (CRD-01-004).  The reading carries no
 inferences, no untranslated facts and declares nothing unobservable, so the
 dashboard shows the full display for a source with nothing left untranslated.
+The reading is built by
+:func:`~vultron.shadow.readers.ledger_reading.ledger_reading`, which the live
+reader over a running node shares.
 
 The file is read with the measure layer's
 :func:`~vultron.measure.ledger.read_ledger_file`.  That reader degrades a
@@ -37,34 +40,17 @@ from __future__ import annotations
 
 import logging
 import os
-from operator import attrgetter
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_reading import (
-    CaseReading,
-    EntryCitation,
-    UnobservableFact,
-    ledger_problems,
-)
+from vultron.core.models.case_reading import CaseReading, UnobservableFact
 from vultron.errors import CaseLedgerFileError, LedgerReadError
-from vultron.measure.ledger import UnusableRow, read_ledger_file
+from vultron.measure.ledger import read_ledger_file
+from vultron.shadow.readers.ledger_reading import (
+    _summary,  # noqa: F401  # its tests import it from here
+    ledger_reading,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _summary(exc: ValidationError) -> str:
-    """*exc*'s errors on one line, each with the field it is about."""
-    return "; ".join(
-        (
-            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
-            if error["loc"]
-            else error["msg"]
-        )
-        for error in exc.errors()
-    )
 
 
 class VultronCaseReader:
@@ -132,39 +118,15 @@ class VultronCaseReader:
                 case_id, [f"it is not a usable path: {exc}"]
             ) from exc
 
-        bad_rows: list[UnusableRow] = list(ledger_file.unusable_rows)
-        entries: list[CaseLedgerEntry] = []
-        for row in ledger_file.rows:
-            try:
-                entries.append(CaseLedgerEntry.model_validate(row.data))
-            except ValidationError as exc:
-                bad_rows.append(
-                    row.unusable(f"not a case ledger entry: {_summary(exc)}")
-                )
-        citations = tuple(
-            EntryCitation(entry_id=entry.id_, source_record=entry.id_)
-            for entry in entries
-        )
-        problems = [
-            row.describe() for row in sorted(bad_rows, key=attrgetter("line"))
-        ]
-        # The citations are built one per entry, so only the ledger can
-        # disagree with itself (EH-07-002).
-        problems += ledger_problems(entries)
-        if not entries and not bad_rows:
-            problems.append("it holds no ledger entry")
-        if problems:
-            raise CaseLedgerFileError(case_id, problems)
-
-        reading = CaseReading(
-            ledger=tuple(entries),
-            citations=citations,
+        reading = ledger_reading(
+            ledger_file,
             unobservable=self.unobservable,
+            refuse=lambda problems: CaseLedgerFileError(case_id, problems),
         )
         logger.debug(
             "Read case %s: %d ledger entries from %s",
-            entries[0].case_id,
-            len(entries),
+            reading.ledger[0].case_id,
+            len(reading.ledger),
             path,
         )
         return reading

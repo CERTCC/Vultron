@@ -20,9 +20,11 @@
 :class:`~vultron.core.ports.case_reader.CaseReader`.  A named connector is
 found among the installed connector plugins
 (:func:`~vultron.adapters.connectors.loader.load_connectors`, ARCH-05-003);
-with none named, the run reads Vultron case-ledger files
-(:func:`~vultron.shadow.readers.selection.select_case_reader`), confined to
-``ledger_dir`` or, when it is unset, to the directory the run starts in.
+with none named, the run reads a configured Vultron node's case ledger
+through the live Vultron case reader, or, with no node configured, Vultron
+case-ledger files confined to ``ledger_dir`` or, when it is unset, to the
+directory the run starts in
+(:func:`~vultron.shadow.readers.selection.select_case_reader`).
 
 The loader runs only when a connector is named, so a run over Vultron
 ledgers is not stopped by a bad third-party package it does not use.
@@ -34,10 +36,35 @@ from collections.abc import Callable, Mapping
 
 from vultron.adapters.connectors.base import ConnectorPlugin
 from vultron.adapters.connectors.loader import load_connectors
-from vultron.config.shadow import ShadowConfig
+from vultron.config.shadow import (
+    SHADOW_NODE_ACTOR_ID_ENV_VAR,
+    SHADOW_NODE_URL_ENV_VAR,
+    ShadowConfig,
+)
 from vultron.core.ports.case_reader import CaseReader
-from vultron.errors import ShadowConnectorError
-from vultron.shadow.readers.selection import select_case_reader
+from vultron.errors import ShadowConnectorError, VultronConfigError
+from vultron.shadow.readers.selection import (
+    VultronNode,
+    select_case_reader,
+)
+
+
+def _configured_node(config: ShadowConfig) -> VultronNode | None:
+    """The Vultron node *config* names, or ``None`` when it names none.
+
+    Raises:
+        VultronConfigError: Only one of the node URL and the actor id is
+            set; either alone names no case ledger.
+    """
+    if config.node_url is None and config.node_actor_id is None:
+        return None
+    if config.node_url is None or config.node_actor_id is None:
+        raise VultronConfigError(
+            f"set both {SHADOW_NODE_URL_ENV_VAR} and"
+            f" {SHADOW_NODE_ACTOR_ID_ENV_VAR} to read a Vultron node, or"
+            " neither"
+        )
+    return VultronNode(config.node_url, config.node_actor_id)
 
 
 def configured_case_reader(
@@ -54,12 +81,16 @@ def configured_case_reader(
     Raises:
         ShadowConnectorError: The named connector is not installed, or does
             not implement ``CaseReader``.
+        VultronConfigError: With no connector named, only one of the node
+            URL and the node actor id is set.
         ConnectorRefusedError: The loader refused an installed entry point.
     """
     if config.connector is None:
-        # The reader confines every read: to ledger_dir, or to the
+        # The file reader confines every read: to ledger_dir, or to the
         # directory the run starts in when it is unset.
-        return select_case_reader(ledger_root=config.ledger_dir)
+        return select_case_reader(
+            node=_configured_node(config), ledger_root=config.ledger_dir
+        )
     installed = connectors()
     plugin = installed.get(config.connector)
     if plugin is None:

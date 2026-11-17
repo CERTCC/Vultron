@@ -283,3 +283,14 @@ def test_a_run_through_a_connector_or_with_no_ledger_dir_suggests_none(
         ledger_suggestions(ShadowConfig(connector="x", ledger_dir=tmp_path))
         == []
     )
+
+
+def test_a_run_through_a_vultron_node_suggests_no_ledger_file(tmp_path):
+    """A node's cases are named by case id, not by a file under ledger_dir."""
+    (tmp_path / "b.jsonl").write_text("")
+    config = ShadowConfig(
+        ledger_dir=tmp_path,
+        node_url="http://case-actor:7999/api/v2",
+        node_actor_id="case-actor",
+    )
+    assert ledger_suggestions(config) == []
