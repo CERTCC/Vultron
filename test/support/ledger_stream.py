@@ -40,6 +40,7 @@ from test.support.act_clock import ACT_AT
 from test.support.objects import make
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.shadow.readers import VultronNodeCaseReader
+from vultron.shadow.readers.vultron_node import DEFAULT_RECONNECTS
 
 #: The node and the CASE_MANAGER a scripted reader reads.
 NODE = "http://node.test/api/v2"
@@ -130,9 +131,14 @@ class ScriptedStream:
             return httpx.Response(200, headers=headers, stream=answer)
         return httpx.Response(200, headers=headers, text=answer)
 
-    def reader(self, **kwargs: Any) -> VultronNodeCaseReader:
+    def reader(
+        self, *, reconnects: int = DEFAULT_RECONNECTS
+    ) -> VultronNodeCaseReader:
         """A live reader whose requests this script answers, with no delay."""
-        kwargs.setdefault("retry_delay", 0)
         return VultronNodeCaseReader(
-            NODE, ACTOR, transport=httpx.MockTransport(self._answer), **kwargs
+            NODE,
+            ACTOR,
+            transport=httpx.MockTransport(self._answer),
+            reconnects=reconnects,
+            retry_delay=0,
         )

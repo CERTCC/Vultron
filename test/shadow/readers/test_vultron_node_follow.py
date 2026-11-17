@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Callable, Iterator
-from typing import Any
 
 import httpx2 as httpx
 import pytest
@@ -38,6 +37,7 @@ from vultron.core.models.case_reading import CaseReading
 from vultron.errors import VultronNodeCaseReadError
 from vultron.shadow.readers import VultronCaseReader, VultronNodeCaseReader
 from vultron.shadow.readers.following import CaseFollower, FollowedReading
+from vultron.shadow.readers.vultron_node import DEFAULT_RECONNECTS
 
 _CASE = "urn:uuid:case-1"
 _STREAM_PATH = "/api/v2/actors/case-actor/demo/cases/case-1/log/stream"
@@ -47,11 +47,14 @@ def _entries(*indices: int) -> str:
     return "".join(sse_event(ledger_entry_row(_CASE, i), i) for i in indices)
 
 
-def _follow(script: ScriptedStream, **kwargs: Any) -> list[FollowedReading]:
-    heartbeat: Callable[[], None] | None = kwargs.pop("heartbeat", None)
-    return list(
-        script.reader(**kwargs).follow_case(_CASE, heartbeat=heartbeat)
-    )
+def _follow(
+    script: ScriptedStream,
+    *,
+    reconnects: int = DEFAULT_RECONNECTS,
+    heartbeat: Callable[[], None] | None = None,
+) -> list[FollowedReading]:
+    reader = script.reader(reconnects=reconnects)
+    return list(reader.follow_case(_CASE, heartbeat=heartbeat))
 
 
 def _sizes(items: list[FollowedReading]) -> list[int | str]:
@@ -287,13 +290,18 @@ def _closing_node_app(dl: SqliteDataLayer) -> TestClient:
     return TestClient(app)
 
 
+def _forwarded(client: TestClient, request: httpx.Request) -> httpx.Response:
+    """The node app's answer to *request*, as *client* receives it."""
+    return client.request(
+        request.method,
+        request.url.raw_path.decode(),
+        headers=dict(request.headers),
+    )
+
+
 def _forwarding_transport(client: TestClient) -> httpx.MockTransport:
     def forward(request: httpx.Request) -> httpx.Response:
-        answer = client.request(
-            request.method,
-            request.url.raw_path.decode(),
-            headers=dict(request.headers),
-        )
+        answer = _forwarded(client, request)
         return httpx.Response(
             answer.status_code, headers=answer.headers, content=answer.content
         )
@@ -351,11 +359,7 @@ def test_a_real_node_resumes_a_dropped_stream_after_the_last_entry(
 
     def forward(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        answer = client.request(
-            request.method,
-            request.url.raw_path.decode(),
-            headers=dict(request.headers),
-        )
+        answer = _forwarded(client, request)
         events = [e for e in answer.text.split("\n\n") if e.startswith("id:")]
         replayed.append(len(events))
         headers = {"Content-Type": "text/event-stream"}
@@ -374,3 +378,38 @@ def test_a_real_node_resumes_a_dropped_stream_after_the_last_entry(
     assert items[-1] == reader.read_case(demo_case)
     assert requests[1].headers["last-event-id"] == "1"
     assert replayed[:2] == [total, total - 2]
+
+
+def test_a_keepalive_resets_the_count_of_connections_lost_in_a_row():
+    """Drops apart in time, each after a keepalive, do not add up."""
+    script = ScriptedStream(
+        Dropping(": keepalive\n\n"),
+        Dropping(": keepalive\n\n"),
+        _entries(0) + CLOSE,
+    )
+    assert _sizes(_follow(script, reconnects=1)) == [1]
+
+
+def test_an_event_without_an_id_keeps_the_resume_point():
+    """A reconnected stream's id-less event does not clear Last-Event-ID."""
+    script = ScriptedStream(
+        Dropping(_entries(0)),
+        Dropping("event: ping\ndata: x\n\n"),
+        _entries(1) + CLOSE,
+    )
+    assert _sizes(_follow(script)) == [1, 2]
+    assert [r.headers.get("last-event-id") for r in script.requests] == [
+        None,
+        "0",
+        "0",
+    ]
+
+
+def test_a_quiet_reconnect_is_logged_at_debug(caplog):
+    script = ScriptedStream(Quiet(_entries(0)), _entries(1) + CLOSE)
+    with caplog.at_level("DEBUG", logger="vultron.shadow.readers"):
+        assert _sizes(_follow(script)) == [1, 2]
+    assert any(
+        r.levelname == "DEBUG" and "went quiet; reconnecting" in r.getMessage()
+        for r in caplog.records
+    )

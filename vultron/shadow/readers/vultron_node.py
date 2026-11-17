@@ -181,13 +181,11 @@ def _transport_problem(exc: httpx.HTTPError) -> str:
     return f"the node cannot be reached ({type(exc).__name__})"
 
 
-def _beating(
-    lines: Iterator[str], heartbeat: Callable[[], None] | None
-) -> Iterator[str]:
-    """*lines*, calling *heartbeat* at each comment, a quiet node's keepalive."""
+def _beating(lines: Iterator[str], beat: Callable[[], None]) -> Iterator[str]:
+    """*lines*, calling *beat* at each comment, a quiet node's keepalive."""
     for line in lines:
-        if heartbeat is not None and line.startswith(":"):
-            heartbeat()
+        if line.startswith(":"):
+            beat()
         yield line
 
 
@@ -200,7 +198,8 @@ class _Follow:
         served_by: The stream endpoint's path, describing each bad entry.
         rows: Every entry received, parsed, in the order it arrived.
         last_event_id: The last event id received, sent back on reconnect.
-        losses: Connections lost in a row since the last event.
+        losses: Connections lost in a row since the node last sent an
+            event or a keepalive.
     """
 
     case_id: str
@@ -362,7 +361,7 @@ class VultronNodeCaseReader:
         case_id: str,
         *,
         heartbeat: Callable[[], None] | None = None,
-    ) -> Iterator[FollowedReading]:
+    ) -> Generator[FollowedReading]:
         """Follow the case ledger of *case_id* on the node as it grows.
 
         Sends a ``GET`` of the case's ledger event-stream endpoint and, for
@@ -425,6 +424,13 @@ class VultronNodeCaseReader:
                     follow.losses,
                     self._reconnects,
                 )
+            else:
+                logger.debug(
+                    "The stream of case %s on the Vultron node at %s went"
+                    " quiet; reconnecting",
+                    case_id,
+                    self._node_url,
+                )
             if heartbeat is not None:
                 heartbeat()
             if lost:
@@ -462,10 +468,20 @@ class VultronNodeCaseReader:
                     )
                     return None
                 answered = True
-                lines = _beating(response.iter_lines(), heartbeat)
+
+                def beat() -> None:
+                    # A keepalive shows the node is still there.
+                    follow.losses = 0
+                    if heartbeat is not None:
+                        heartbeat()
+
+                lines = _beating(response.iter_lines(), beat)
                 for event in server_sent_events(lines):
                     follow.losses = 0
-                    follow.last_event_id = event.last_event_id
+                    # Each connection's parser starts with no id, so an
+                    # event without one keeps the follow's resume point.
+                    if event.last_event_id is not None:
+                        follow.last_event_id = event.last_event_id
                     if event.type == CLOSE_EVENT:
                         logger.info(
                             "Stopped following case %s: the Vultron node at"

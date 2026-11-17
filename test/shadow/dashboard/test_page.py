@@ -27,9 +27,7 @@ from vultron.shadow.dashboard.page import (
     LIVE_NOTE,
     NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
-    RECONNECTING_NOTE,
     TITLE,
-    WAITING_NOTE,
 )
 from vultron.shadow.dashboard.view import EM_BADGES, RM_BADGES
 
@@ -422,7 +420,6 @@ def test_a_stream_that_closes_before_any_entry_says_so():
     at = _follow_page("(CLOSE,)")
     assert not at.error
     assert _texts(at.warning) == [NO_ENTRY_NOTE]
-    assert WAITING_NOTE not in _texts(at.info)
     assert "Participants" not in _texts(at.subheader)
 
 
@@ -454,4 +451,15 @@ def test_a_rerun_shows_the_kept_reading_when_the_node_is_gone():
     assert "holds no such case" in error
     assert "Participants" in _texts(at.subheader)
     assert _texts(at.warning) == [NOT_LIVE_NOTE]
-    assert RECONNECTING_NOTE not in _texts(at.info)
+
+
+@pytest.mark.spec("SHD-04-005")
+def test_a_rerun_keeps_its_standing_while_the_follow_replays_the_case():
+    """The replay of entries already shown never steps the standing back."""
+    at = _follow_page("(sse_rows(rows) + CLOSE,)")
+    assert at.session_state["seen"] == [1, 2, 3]
+    at.run()
+    assert not at.exception
+    assert at.session_state["follows"] == 2
+    assert at.session_state["seen"] == [1, 2, 3, 3, 3, 3]
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]

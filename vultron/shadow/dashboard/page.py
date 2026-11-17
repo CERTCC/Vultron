@@ -204,8 +204,8 @@ def _follow(follower: CaseFollower, case_id: str) -> None:
     replaces the one shown and is kept in session state; a refusal shows
     above the last accepted reading, which stays; once the follow ends, the
     reading is marked as no longer live (SHD-04-005).  A rerun of the page
-    for the same case shows the kept reading until the follow sends a new
-    one.
+    for the same case shows the kept reading until the follow's replay
+    reaches it, so the standing never steps back.
     """
     notice = st.empty()
     problem = st.empty()
@@ -213,10 +213,11 @@ def _follow(follower: CaseFollower, case_id: str) -> None:
     kept = st.session_state.get(LAST_READING_KEY)
     last: CaseReading | None = None
     if kept is not None and kept[0] == case_id:
-        last = kept[1]
+        kept_reading: CaseReading = kept[1]
+        last = kept_reading
         notice.info(RECONNECTING_NOTE)
         with body.container():
-            _show_reading(last)
+            _show_reading(kept_reading)
     else:
         st.session_state.pop(LAST_READING_KEY, None)
         notice.info(WAITING_NOTE)
@@ -230,8 +231,18 @@ def _follow(follower: CaseFollower, case_id: str) -> None:
         )
 
     refused = False
+    # A rerun's follow replays the case from its first entry, so a kept
+    # reading stays until the replay reaches it rather than stepping back.
+    catching_up = last is not None
     for item in follower.follow_case(case_id, heartbeat=heartbeat):
         if isinstance(item, CaseReading):
+            if (
+                catching_up
+                and last is not None
+                and len(item.ledger) < len(last.ledger)
+            ):
+                continue
+            catching_up = False
             last = item
             st.session_state[LAST_READING_KEY] = (case_id, item)
             notice.caption(LIVE_NOTE)
