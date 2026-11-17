@@ -6,7 +6,7 @@
   ],
   "type": "Reject",
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/abandon",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601 to https://vultron.example/case-actors/vendorco-case-actor",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
   "published": "2026-06-01T19:12:00.000000+00:00",
@@ -15,12 +15,16 @@
   "object": {
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
-    "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
+    "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601 to https://vultron.example/case-actors/vendorco-case-actor",
     "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "summary": "We propose to embargo case 1 for 90 days.",
+    "to": [
+      "https://vultron.example/case-actors/vendorco-case-actor"
+    ],
     "actor": "https://vultron.example/organizations/vendorco",
+    "target": "https://vultron.example/case-actors/vendorco-case-actor",
     "object": {
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
       "type": "EmbargoEvent",
@@ -44,6 +48,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2piNrrwxTahrEepm7Mk6hqqJb52PFwaxEsrF4Z47RT33WpX4EE5cbCxuabEFLxR5GZx5Q8AJzKjkS8CirZqi4CzD"
+    "proofValue": "z2NbJq2KADRQnkTYVd4mg78VMf4JaVuUDSKSFk4Vfag6ogtCDUS5rKXcTZmqiGUjXy8VYwtx5tjfmMZfbjonf8jqm"
   }
 }
