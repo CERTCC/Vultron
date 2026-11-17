@@ -73,10 +73,12 @@ def _verify(document: dict[str, Any], **kwargs: Any) -> None:
 def _note(actor: str = AUTHOR) -> dict[str, Any]:
     return {
         "type": "Create",
+        "published": "2026-01-01T00:00:00+00:00",
         "id": "https://author.example/activities/1",
         "actor": actor,
         "object": {
             "type": "Note",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://example.org/notes/signed",
             "content": "signed",
         },
@@ -87,6 +89,7 @@ def _announce(snapshot: dict[str, Any]) -> dict[str, Any]:
     return signed_body(
         {
             "type": "Announce",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://manager.example/announces/1",
             "actor": MANAGER,
             "object": {
@@ -221,6 +224,7 @@ def test_a_snapshot_spelled_by_its_field_name_is_checked_too(
     announce = signed_body(
         {
             "type": "Announce",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://manager.example/announces/1",
             "actor": MANAGER,
             object_key: {
@@ -240,6 +244,7 @@ def test_a_snapshot_that_is_not_an_object_is_refused():
     announce = signed_body(
         {
             "type": "Announce",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://manager.example/announces/1",
             "actor": MANAGER,
             "object": {

@@ -53,6 +53,7 @@ from vultron.errors import (
     VultronActorProfileFetchError,
     VultronValidationError,
 )
+from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.vocab.base.registry import resolved_wire_type_name
 
 #: The AS2 actor type that parses without the profile's keys.
@@ -247,7 +248,7 @@ class HttpActorProfileFetchAdapter:
             )
         try:
             parsed = parse_fetched_object(result.body, actor_id, actor_id)
-        except VultronValidationError as exc:
+        except (VultronValidationError, VultronParseError) as exc:
             raise VultronActorProfileFetchError(str(exc)) from exc
         if not isinstance(parsed, CoreActor):
             raise VultronActorProfileFetchError(

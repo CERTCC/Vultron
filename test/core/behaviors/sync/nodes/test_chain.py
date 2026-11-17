@@ -49,6 +49,7 @@ def _canonical_note_snapshot(actor_id: str) -> dict[str, object]:
         "published": now_utc().isoformat(),
         "object": {
             "type": "Note",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": "https://example.org/notes/note-1",
             "context": CASE_ID,
         },
@@ -63,6 +64,7 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
         "published": now_utc().isoformat(),
         "object": {
             "type": "VulnerabilityCase",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": CASE_ID,
             "context": CASE_ID,
         },
@@ -114,9 +116,11 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
         (
             {
                 "type": "Read",
+                "published": "2026-01-01T00:00:00+00:00",
                 "actor": PARTICIPANT_ACTOR_ID,
                 "object": {
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": "https://example.org/notes/note-2",
                     "context": CASE_ID,
                 },
@@ -127,9 +131,11 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
         (
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "actor": "",
                 "object": {
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": "https://example.org/notes/note-3",
                     "context": CASE_ID,
                 },
@@ -140,6 +146,7 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
         (
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "actor": PARTICIPANT_ACTOR_ID,
                 "object": "https://example.org/notes/note-4",
                 "context": CASE_ID,
@@ -149,9 +156,11 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
         (
             {
                 "type": "Add",
+                "published": "2026-01-01T00:00:00+00:00",
                 "actor": PARTICIPANT_ACTOR_ID,
                 "object": {
                     "type": "Note",
+                    "published": "2026-01-01T00:00:00+00:00",
                     "id": "https://example.org/notes/note-5",
                     "context": CASE_ID,
                 },
@@ -504,9 +513,9 @@ def test_update_replication_state_node_keeps_the_first_claimed_published(
     """The peer's claimed time for its position is retained (#5253).
 
     A restatement of the same position keeps the earliest claim, so the
-    time reads as when the peer first reached it, and one that claims no
-    time keeps the held claim; a new position takes its own statement's
-    claim, none included.
+    time reads as when the peer first reached it, and a new position takes
+    its own statement's claim.  A statement always claims a time: one
+    without is refused at parse (CLP-15-008).
     """
     entry0 = _make_entry(0)
     entry1 = _make_entry(1, prev_hash=entry0.entry_hash)
@@ -528,17 +537,10 @@ def test_update_replication_state_node_keeps_the_first_claimed_published(
     _acknowledge_via_node(owner_bridge, entry0, earlier)
     assert _stored().last_acknowledged_published == earlier
 
-    _acknowledge_via_node(owner_bridge, entry0, None)
-    assert _stored().last_acknowledged_published == earlier
-
     _acknowledge_via_node(owner_bridge, entry1, first)
     stored = _stored()
     assert stored.last_acknowledged_hash == entry1.entry_hash
     assert stored.last_acknowledged_published == first
-
-    entry2 = _make_entry(2, prev_hash=entry1.entry_hash)
-    _acknowledge_via_node(owner_bridge, entry2, None)
-    assert _stored().last_acknowledged_published is None
 
 
 @pytest.mark.spec("SYNC-16-008")

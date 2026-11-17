@@ -44,6 +44,7 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.errors import VultronValidationError
 from vultron.wire.as2 import signing
+from vultron.wire.as2.errors import VultronParseMissingPublishedError
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
@@ -51,6 +52,7 @@ _HOST = "https://example.org/api/v2/actors/case-actor"
 _CASE = "https://example.org/cases/c-1"
 _OBJECT = "urn:uuid:embargo-1"
 _REQUESTER = "https://example.org/actors/vendor"
+_PUBLISHED = "2026-01-01T00:00:00+00:00"
 
 _CASE_REF = ObjectReference(
     object_id=_OBJECT,
@@ -321,12 +323,22 @@ _FOREIGN_KEY = "peerExtension"
 #: one silently.  Neither configuration may decide (MV-11-001, MV-11-004).
 _BRANCHES = [
     pytest.param(
-        {"type": "VulnerabilityReport", "id": _FETCHED_ID, "name": "r"},
+        {
+            "type": "VulnerabilityReport",
+            "id": _FETCHED_ID,
+            "name": "r",
+            "published": _PUBLISHED,
+        },
         CoreObject,
         id="core-class",
     ),
     pytest.param(
-        {"type": "Note", "id": _FETCHED_ID, "name": "n"},
+        {
+            "type": "Note",
+            "id": _FETCHED_ID,
+            "name": "n",
+            "published": _PUBLISHED,
+        },
         as_Base,
         id="wire-class",
     ),
@@ -373,17 +385,61 @@ class TestAFetchedObjectsUnknownKeys:
         assert _HOST in message
         assert "the fetched object" in message
 
+    @pytest.mark.spec("CLP-15-011")
+    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    def test_a_fetched_whole_object_without_published_is_refused(
+        self, body: dict[str, Any], branch: type
+    ):
+        """A fetched body is received data: a whole object in it carries its
+        author's time, on a core class and on a wire class (CLP-15-011)."""
+        untimed = {k: v for k, v in body.items() if k != "published"}
+
+        with pytest.raises(
+            VultronParseMissingPublishedError, match="CLP-15-011"
+        ):
+            parse_fetched_object(untimed, _FETCHED_ID, _HOST)
+        assert branch is not None
+
+    @pytest.mark.spec("CLP-15-011")
+    def test_a_fetched_nested_object_without_published_is_refused(self):
+        """The rule reaches a nested whole object, naming where it sat."""
+        document = {
+            "type": "Create",
+            "id": _FETCHED_ID,
+            "actor": _HOST,
+            "published": _PUBLISHED,
+            "object": {
+                "type": "Note",
+                "id": f"{_FETCHED_ID}/n",
+                "content": "x",
+            },
+        }
+
+        with pytest.raises(
+            VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-011"
+        ):
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
+
     @pytest.mark.spec("CLP-15-007")
-    def test_a_fetched_body_that_omits_its_times_claims_none(self):
-        """A fetched body is received data: an omitted time reads as ``None``,
-        never as this node's clock (ADR-0103, ADR-0176)."""
-        document = {"type": "Note", "id": _FETCHED_ID, "content": "held"}
+    @pytest.mark.spec("CLP-15-011")
+    def test_a_fetched_body_that_omits_updated_claims_none(self):
+        """An omitted ``updated`` reads as ``None``, never as this node's
+        clock, and a fetched profile needs no ``published`` (ADR-0103,
+        ADR-0176)."""
+        note = {
+            "type": "Note",
+            "id": _FETCHED_ID,
+            "content": "held",
+            "published": _PUBLISHED,
+        }
+        profile = {"type": "Person", "id": _FETCHED_ID, "name": "Bob"}
 
-        parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
+        parsed_note = parse_fetched_object(note, _FETCHED_ID, _HOST)
+        parsed_profile = parse_fetched_object(profile, _FETCHED_ID, _HOST)
 
-        assert isinstance(parsed, as_Object)
-        assert parsed.published is None
-        assert parsed.updated is None
+        assert isinstance(parsed_note, as_Object)
+        assert parsed_note.updated is None
+        assert parsed_profile.published is None
 
     @pytest.mark.spec("CM-29-004")
     def test_a_fetched_case_with_no_status_history_is_refused(self):
@@ -447,7 +503,12 @@ class TestAFetchedObjectsUnknownKeys:
         """The partition walks every depth of a fetched body, not its root."""
         caplog.set_level(logging.INFO)
         author = {"type": "Person", "id": _REQUESTER, _FOREIGN_KEY: "x"}
-        document = {"type": "Note", "id": _FETCHED_ID, "attributedTo": author}
+        document = {
+            "type": "Note",
+            "id": _FETCHED_ID,
+            "published": _PUBLISHED,
+            "attributedTo": author,
+        }
 
         parse_fetched_object(document, _FETCHED_ID, _HOST)
 

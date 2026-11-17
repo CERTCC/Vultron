@@ -284,6 +284,7 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
         "inReplyTo": "urn:uuid:invite-1",
         "object": {
             "type": "Invite",
+            "published": PUBLISHED,
             "id": "urn:uuid:invite-1",
             "actor": "https://example.org/actors/vendor",
             "object": {
@@ -333,23 +334,24 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
 
 @pytest.mark.spec("CS-08-001")
 @pytest.mark.spec("MV-04-003")
-def test_parse_activity_keeps_nested_subtype_when_nested_published_is_blank():
-    """A blank timestamp on a nested object must not erase that object's type.
+@pytest.mark.spec("CLP-15-011")
+def test_parse_activity_refuses_a_nested_object_whose_published_is_blank():
+    """A blank nested ``published`` is refused, never degraded to a ``Link``.
 
     ``_expand_inline_value`` types nested dicts so pattern matching can see the
-    inner ``Invite``.  When that validation failed the raw dict was returned
-    instead, the parent validated it as a bare ``as_Link``, and the activity
-    parsed *clean* — extracting as ``UNKNOWN`` with the case id gone, so the
-    inbox answered 202 for a real Accept it had silently mis-routed
-    (ISSUE-3217).  Reading the blank as absence keeps the subtype.
+    inner ``Invite``.  When that validation failed the raw dict was once
+    returned instead, the parent validated it as a bare ``as_Link``, and the
+    activity parsed *clean*, extracting as ``UNKNOWN`` with the case id gone
+    (ISSUE-3217).  A blank time is absence (CS-08-001), and a nested whole
+    object without its time is refused, naming where it sits (CLP-15-011).
     """
     body = _invite_response_body("Accept")
     body["object"]["published"] = ""  # type: ignore[index]
 
-    event = extract_event(parse_activity(body))
-
-    assert event.semantic_type == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
-    assert event.case_id == "https://example.org/cases/case-1"
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-011"
+    ):
+        parse_activity(body)
 
 
 @pytest.mark.spec("MV-04-003")
@@ -612,33 +614,35 @@ def test_parse_activity_refuses_inbound_case_without_owner(owner: object):
         parse_activity(body)
 
 
-@pytest.mark.spec("CLP-15-010")
+@pytest.mark.spec("CLP-15-011")
 def test_missing_claimed_time_refusal_reads_the_object_alone_without_a_position():
     """A refusal raised for the object itself names no position, only the rule."""
     from pydantic import ValidationError
 
     from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
     from vultron.core.models.case_status import CaseStatus
-    from vultron.wire.as2.parser import _refuse_missing_claimed_time
+    from vultron.wire.as2.parser import refuse_missing_claimed_time
 
     with pytest.raises(ValidationError) as caught:
         CaseStatus.model_validate(
-            {"type": "CaseStatus", "context": "https://example.org/cases/1"},
+            {
+                "type": "CaseStatus",
+                "id": "https://example.org/cases/1/statuses/0",
+                "context": "https://example.org/cases/1",
+            },
             context={INBOUND_CONTEXT_KEY: True},
         )
 
     with pytest.raises(VultronParseMissingPublishedError) as refused:
-        _refuse_missing_claimed_time(caught.value, "")
+        refuse_missing_claimed_time(caught.value, "")
     assert str(refused.value).startswith("Missing 'published': ")
 
 
 def test_missing_claimed_time_refusal_ignores_other_faults():
     """Any other validation fault is left to the caller's schema-fault refusal."""
-    from vultron.wire.as2.parser import _refuse_missing_claimed_time
+    from vultron.wire.as2.parser import refuse_missing_claimed_time
 
-    _refuse_missing_claimed_time(
-        ValueError("not a validation error"), "object"
-    )
+    refuse_missing_claimed_time(ValueError("not a validation error"), "object")
 
 
 @pytest.fixture

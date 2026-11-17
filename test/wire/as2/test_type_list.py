@@ -365,6 +365,7 @@ class TestInboundTypeList:
                 "type": ["Foo", "VulnerabilityReport"],
                 "id": "https://example.org/reports/1",
                 "name": "r",
+                "published": "2026-01-01T00:00:00+00:00",
             },
         )
 
@@ -392,6 +393,7 @@ class TestInboundTypeList:
             "type": ["Foo", "Note"],
             "id": "https://example.org/objects/fetched-1",
             "content": "held",
+            "published": "2026-01-01T00:00:00+00:00",
         }
 
         parsed = parse_fetched_object(

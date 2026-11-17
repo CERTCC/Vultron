@@ -187,6 +187,7 @@ def test_a_url_holding_another_object_type_is_refused():
                 _reference(
                     {
                         "type": "Note",
+                        "published": _PUBLISHED,
                         "id": "urn:test:note:1",
                         "content": "not a link",
                     }

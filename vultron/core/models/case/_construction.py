@@ -150,10 +150,12 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
     ``attributed_to`` and lets this validator compute the hash; it does
     not pass a hash of its own.
 
-    ``genesis_hash`` MUST be non-empty after this validator runs — if the
-    hash cannot be computed (e.g., ``published`` is absent), a
-    :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
-    per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
+    ``genesis_hash`` MUST be non-empty after this validator runs
+    (fail-closed per CLP-08-003/CLP-08-004).  A case with no ``published``
+    and no hash is left to the required ``published`` field, which refuses
+    it, or, for a received case, to the refusal of a whole object with no
+    time (CLP-15-011), so the sender reads the field it left out rather than
+    a hash it never sent.  No-ops when ``genesis_hash`` is already
     set — a received case keeps its sender's hash; one that carries none
     derives it here from its carried inputs (ADR-0103).  The owner is read
     as carried, before the field's inbound normaliser strips a trailing
@@ -165,8 +167,8 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
     Both spellings of each input are read: the class is its own wire class
     (ARCH-25-003, ADR-0099), so an inbound case arrives as ``attributedTo`` and
     ``genesisHash``.  An omitted or blank ``published`` is never a cue to
-    mint one: an authored case states it, and a received case that omits it
-    claimed no time (ADR-0103, ADR-0176).
+    mint one: an authored case states it (ADR-0176), and a received case
+    that omits it is refused (CLP-15-011).
 
     Spec: CLP-08-002, CLP-08-003.
     """
@@ -177,25 +179,19 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
         return data  # the field checks refuse the case
     hash_key = _present_key(data, "genesis_hash")
     if not data.get(hash_key):
+        published_val = _genesis_published(data)
+        if published_val is None:
+            return data  # the ``published`` checks refuse the case
         data = dict(data)
         # Mint only an absent id: a blank one is refused by ``id_``'s
         # type, not silently replaced (CS-08-001).
         if data.get("id") is None and data.get("id_") is None:
             data["id"] = new_object_id()
         case_id = data.get("id") or data.get("id_")
-        published_val = _genesis_published(data)
-        if published_val is not None:
-            data[hash_key] = compute_genesis_hash(
-                case_id=case_id,
-                created_at=published_val,
-                owner_actor_id=attributed_to,
-            )
-    if not data.get(hash_key):
-        case_id = data.get("id") or data.get("id_") or "<unknown>"
-        raise VultronValidationError(
-            f"VulnerabilityCase '{case_id}': genesis_hash could not "
-            "be computed — 'published' timestamp is required "
-            "(CLP-08-003)."
+        data[hash_key] = compute_genesis_hash(
+            case_id=case_id,
+            created_at=published_val,
+            owner_actor_id=attributed_to,
         )
     # The genesis hash is the empty ledger's position, so the position
     # starts here, once the hash is known (SYNC-16-005).

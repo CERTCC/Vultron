@@ -50,6 +50,7 @@ def _offer_report() -> dict[str, Any]:
         "published": "2026-01-02T03:04:05+00:00",
         "object": {
             "type": "VulnerabilityReport",
+            "published": "2026-01-01T00:00:00+00:00",
             "id": REPORT_ID,
             "name": "r",
             "content": "the sender's words",

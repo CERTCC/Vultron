@@ -71,6 +71,7 @@ def _full_case(**fields: Any) -> dict[str, Any]:
     return {
         **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
+        "published": PUBLISHED,
         "id": CASE_ID,
         "name": "a case",
         **fields,

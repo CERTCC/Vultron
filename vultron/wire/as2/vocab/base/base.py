@@ -32,6 +32,7 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
     refuse_absent_id,
+    refuse_absent_published,
 )
 from vultron.core.models.base import (
     VULTRON_CONTEXT_URI,
@@ -49,6 +50,7 @@ from vultron.core.models.base.context import (
 )
 from vultron.core.models.type_terms import type_terms
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.reference_shape import is_typed_reference_shape
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -114,6 +116,9 @@ class as_Base(BaseModel):
     #: (``as_Link`` and its subtypes): a received one may omit its ``id``, and
     #: keeps none rather than one minted for it (OID-01-013).
     _inbound_requires_id: ClassVar[bool] = True
+    #: Set on a kind received without a ``published``, which every subclass
+    #: inherits (``received_without_published``, CLP-15-011).
+    _received_without_published: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
@@ -166,11 +171,15 @@ class as_Base(BaseModel):
     def carry_absent_times_on_inbound(
         cls, data: Any, info: ValidationInfo
     ) -> Any:
-        """Read an absent required timestamp as ``None`` when inbound.
+        """Refuse a received whole object with no ``published``, and read
+        any other absent timestamp as ``None``, when inbound.
 
         The same classes author outbound activities and validate inbound ones.
-        An authored object states its time (ADR-0176); a received one may
-        omit it, and the omission is the sender claiming no time, never the
+        An authored object states its time (ADR-0176).  A received whole
+        object carries its author's ``published``, and one without it is
+        refused with ``MissingClaimedTimeError`` unless its kind is exempt or
+        it is a typed reference (CLP-15-011, MV-10-011).  Any other time it
+        omits, such as ``updated``, is the sender claiming none, never the
         receiver's clock presented as the sender's claim (ISSUE-3257,
         CLP-15-007).  The two directions are told apart by
         validation context rather than by a field default: ``parse_activity``
@@ -203,6 +212,12 @@ class as_Base(BaseModel):
         elif data.get("id") is None and data.get("id_") is None:
             # A received Link may omit its id; it keeps none (OID-01-013).
             data["id"] = None
+        # A received whole object carries its author's time, unless its kind
+        # is exempt.  A typed reference is no whole object, whatever class
+        # its slot reads it as (MV-10-011), and ``updated`` stays optional
+        # (CLP-15-011, CLP-15-007).
+        if not is_typed_reference_shape(data):
+            refuse_absent_published(cls, data)
         return absent_times_as_none(cls, data)
 
     @model_validator(mode="before")

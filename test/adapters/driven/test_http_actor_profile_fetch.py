@@ -202,7 +202,12 @@ def test_a_profile_of_another_actor_is_refused():
 
 
 def test_a_body_that_is_not_an_actor_is_refused():
-    body = {"type": "Note", "id": AUTHOR, "content": "not a profile"}
+    body = {
+        "type": "Note",
+        "id": AUTHOR,
+        "content": "not a profile",
+        "published": "2026-01-01T00:00:00+00:00",
+    }
 
     with pytest.raises(VultronActorProfileFetchError) as caught:
         _fetch(_TableFetcher(_fetched(body)))

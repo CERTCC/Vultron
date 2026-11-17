@@ -26,6 +26,7 @@ from pydantic import (
 from vultron.core.models._helpers import new_object_id
 from vultron.core.models.case_participant.participant import (
     CaseParticipant,
+    carries_published,
     first_status,
 )
 from vultron.core.models.dimensions import RmDimension
@@ -43,7 +44,9 @@ def _seed_accepted_status(data: Any) -> Any:
     A reporter has, by definition, accepted the report, so its first ladder
     rung is ``RM.ACCEPTED``.  Used by :class:`ReporterParticipant`.
     """
-    if not isinstance(data, dict):
+    if not isinstance(data, dict) or not carries_published(
+        ReporterParticipant, data
+    ):
         return data
     data = dict(data)
     if not data.get("id") and not data.get("id_"):

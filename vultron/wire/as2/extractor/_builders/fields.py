@@ -14,6 +14,7 @@ from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
 from vultron.wire.as2.errors import (
+    VultronParseMissingPublishedError,
     VultronParseValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -136,3 +137,23 @@ def _get_timestamp(obj: object, field: str) -> datetime | None:
     """
     val = getattr(obj, field, None)
     return val if isinstance(val, datetime) else None
+
+
+def _required_published(obj: object) -> datetime:
+    """A received whole object's ``published``, which it must carry.
+
+    ``parse_activity`` refuses a whole object without one (CLP-15-011), so
+    only an object that bypassed the parser reaches here without it, and
+    this never mints a time to stand in for the missing one.
+
+    Raises:
+        VultronParseMissingPublishedError: When *obj* carries no
+            ``published``, naming the object.
+    """
+    published = _get_timestamp(obj, "published")
+    if published is None:
+        raise VultronParseMissingPublishedError(
+            f"{type(obj).__name__} {_get_id(obj)!r} carries no 'published';"
+            " the receiver does not supply its own clock (CLP-15-011)"
+        )
+    return published

@@ -4684,12 +4684,14 @@ groups:
       AS2 makes object timestamps optional. A value that the receiver makes is later
       indistinguishable from the sender's claim. For example, each receiver would derive
       its own genesis hash for one case, and order received statuses by arrival.
-    verification: '`as_Base.carry_absent_times_on_inbound` reads an omitted clock-defaulted
-      timestamp as `None` for any class validated under the inbound context `parse_activity`
-      passes, the extractor builders pass timestamps through unchanged, and
-      `project_wire_snapshot_to_core` does the same when a replica rebuilds a core object
-      from a stored snapshot. Covered by `test/wire/as2/test_nested_timestamps.py` and
-      `test/core/behaviors/sync/nodes/test_participant_status_effect.py`.'
+    verification: '`as_Base.carry_absent_times_on_inbound` and its core twin read an
+      omitted optional timestamp as `None` for any class validated under the inbound
+      context `parse_activity` passes, the extractor builders pass timestamps through
+      unchanged, and `project_wire_snapshot_to_core` does the same when a replica
+      rebuilds a core object from a stored snapshot.
+      `test_nested_object_without_updated_extracts_with_no_updated` in
+      `test/wire/as2/test_nested_timestamps.py` and
+      `test/core/behaviors/sync/nodes/test_participant_status_effect.py` cover it.'
     adr:
     - ADR-0103
     - ADR-0079
@@ -4768,15 +4770,27 @@ groups:
     note: >-
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
-      reach them.
+      reach them. A case stub is a case's preview, and carries exactly the keys
+      CM-17-010 names, none of them `published`, so the rule does not reach the stub
+      itself; the embargo and status it carries are whole objects and carry theirs.
+      An `EmbargoConsent` row is a row of the consent table, which carries no time
+      because a replica copies it without reading a clock (CM-23-044), so the rule
+      does not reach it either.
     verification: >-
       `test_a_whole_object_without_published_is_refused` and
       `test_a_nested_whole_object_without_published_is_refused` in
       `test/wire/as2/test_typed_references.py` assert `parse_activity` refuses an
       activity whose inline `Note`, at the top or nested one level down, has no
-      `published`. Both are strict xfails until #6456 lands.
-      `test_an_actor_profile_or_collection_without_published_is_accepted` in the
-      same file asserts the two exemptions.
+      `published`, and `test_parse_refuses_a_nested_whole_object_without_published`
+      and `test_a_deeply_nested_whole_object_is_refused_naming_its_position` in
+      `test/wire/as2/test_nested_timestamps.py` assert it for every nested kind and
+      name the position.
+      `test_an_actor_profile_or_collection_without_published_is_accepted` and
+      `test_a_reference_uri_or_link_without_published_is_accepted` in
+      `test_typed_references.py` assert the exemptions and the forms the rule does
+      not reach. `test_a_fetched_whole_object_without_published_is_refused` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts the same at the fetch
+      edge.
     relationships:
     - rel_type: extends
       spec_id: CLP-15-007

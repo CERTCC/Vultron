@@ -14,7 +14,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal, TypeAlias
+from typing import ClassVar, Literal, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -31,6 +31,10 @@ class as_Collection(as_Object):
     (ActivityPub publishes them as addresses), so the AS2 paging properties
     (``current``, ``first``, ``last``, ``CollectionPage``) are not modelled.
     """
+
+    #: A collection is a container, not an act made at a moment
+    #: (CLP-15-011).
+    _received_without_published: ClassVar[bool] = True
 
     #: Narrowed so the class registers under the ``type`` it presents
     #: (VM-03-002); without it ``set_type_from_class_name`` still emits

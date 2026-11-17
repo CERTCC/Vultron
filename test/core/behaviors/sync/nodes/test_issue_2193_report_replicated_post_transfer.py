@@ -119,9 +119,11 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
         payload_snapshot={
             "type": "Update",
+            "published": "2026-01-01T00:00:00+00:00",
             "object": {
                 "id": CASE_ID,
                 "type": "VulnerabilityCase",
+                "published": "2026-01-01T00:00:00+00:00",
                 "attributedTo": NEW_OWNER_ACTOR_ID,
             },
         },
@@ -144,6 +146,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
         semantic_type="add_report_to_case",
         payload_snapshot={
             "type": "Add",
+            "published": "2026-01-01T00:00:00+00:00",
             "actor": NEW_OWNER_ACTOR_ID,
             "context": CASE_ID,
             "offerId": OFFER_ID,
@@ -151,6 +154,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
             "object": {
                 "id": REPORT_ID,
                 "type": "VulnerabilityReport",
+                "published": "2026-01-01T00:00:00+00:00",
                 "content": "Test vulnerability report",
                 "attributedTo": REPORTER_ACTOR_ID,
             },

@@ -277,7 +277,7 @@ def test_post_untimed_case_status_to_actor_inbox_returns_422(
         _inbox_path(actor.id_), json=signed_body(payload)
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert "CLP-15-010" in resp.text
+    assert "CLP-15-011" in resp.text
 
 
 def _inbox_path(actor_id: str) -> str:
@@ -318,6 +318,7 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "anyOf": [
                     {
                         "type": "Note",
+                        "published": _PUBLISHED,
                         "id": "https://example.org/notes/yes",
                         "name": "yes",
                     }
@@ -325,6 +326,7 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "oneOf": [
                     {
                         "type": "Note",
+                        "published": _PUBLISHED,
                         "id": "https://example.org/notes/no",
                         "name": "no",
                     }

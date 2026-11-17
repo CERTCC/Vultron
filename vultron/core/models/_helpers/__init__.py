@@ -74,6 +74,7 @@ from vultron.core.models._helpers.timestamps import (
     blank_as_none,
     format_timestamp,
     parse_published,
+    received_without_published,
     refuse_absent_published,
     timestamp_serializer,
 )
@@ -107,6 +108,7 @@ __all__ = [
     "new_object_id",
     "now_utc",
     "parse_published",
+    "received_without_published",
     "project_wire_snapshot_to_core",
     "refuse_absent_id",
     "normalise_inbound_actor_id",

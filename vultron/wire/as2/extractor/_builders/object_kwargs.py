@@ -19,6 +19,7 @@ from vultron.wire.as2.extractor._builders.fields import (
     _get_id,
     _get_id_list,
     _get_timestamp,
+    _required_published,
     _to_domain_obj,
 )
 from vultron.wire.as2.extractor._builders.objects import (
@@ -89,12 +90,14 @@ def _build_activity_snapshot(
     the event carries (``VultronEvent.received_evidence``, CLP-07-011).
     """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
+    # Only an activity that bypassed the parser lacks one (CLP-15-008).
+    published = _required_published(activity)
     return VultronActivity(
         id_=activity.id_,
         type_=activity_type,
         actor=actor_id,
         attributed_to=_get_id(getattr(activity, "attributed_to", None)),
-        published=_get_timestamp(activity, "published"),
+        published=published,
         updated=_get_timestamp(activity, "updated"),
         object_=obj,
         # A typed reference names its target and is never the object
