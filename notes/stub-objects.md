@@ -13,12 +13,15 @@ related_specs:
   - specs/actor-knowledge-model.yaml (AKM-05-017)
   - specs/case-ledger-processing.yaml (CLP-15-011)
   - specs/semantic-extraction.yaml (SE-01-009)
+  - specs/vultron-as2-mapping.yaml (VAM-04-004)
+  - specs/object-ids.yaml (OID-01-013)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
   - notes/case-joining.md
   - notes/selective-disclosure.md
   - notes/participant-embargo-consent.md
+  - notes/as2-vocabulary-alignment.md
 relevant_packages:
   - vultron/wire/as2
 ---
@@ -37,17 +40,20 @@ redaction is not built: see [selective-disclosure.md](selective-disclosure.md).
 ## Why Only `VulnerabilityCase`
 
 An invitee must evaluate a case *before* accepting, and the case cannot be shared
-until they accept (MV-10-005). So the stub is transient: a placeholder that
-rehydrates into the full object once the invitee is admitted. Everywhere else,
+until they accept (MV-10-005). So the stub is transient: the case's `preview`,
+read as received, until the full case is announced once the invitee is
+admitted. Everywhere else,
 this codebase sends the full inline object (AKM-03-003, a prototype shortcut;
 the protocol allows a fetchable reference, AKM-03-001), or a bare URI or `Link`
 for an object the recipient already holds.
 
-The stub has its own wire `type`, `VulnerabilityCaseStub`, ID `<case-id>/stub`,
-and a `caseId` field naming the case (CM-11-013). A receiver recognizes it by
-`type` alone and resolves the case from `caseId`, never by parsing the ID. Its
-`type` is also what routes it through semantic extraction; a stub without one
-routes to `UNKNOWN`.
+The stub is the `preview` of a typed case reference, `{id, type, preview}`, that
+is the stub Invite's `object` (CM-11-013, ADR-0205). The reference's `id` names
+the case; the stub carries no case id and no ID derived from the case's. Its own
+`type`, `VulnerabilityCaseStub`, is the case's defined preview (MV-10-012), and
+its own `id` is minted like any object's (OID-01-013). The Invite is routed by
+the reference's `type` and its form: only a pattern with
+`object_form=PREVIEWED_REFERENCE` matches it (SE-01-009).
 
 ## Do Not Add Stubs of Other Types
 
@@ -62,30 +68,27 @@ only the case has one: the stub, carried inline (MV-10-012, ADR-0205).
 
 ## Receiving a Stub
 
-A stub is accepted only as the `target` of an `Invite` whose `object` is an inline
-actor (its profile or an actor reference, AKM-05-017), wherever that `Invite` is
-carried inline: in its `Accept` or `Reject`, or in a refusal notice quoting such a
-reply. The parser refuses it anywhere else, an embargo invitation included, because
-only the case invitation asks the question the stub answers (MV-10-002,
-`refuse_misplaced_case_stub`). A bare URI or `Link` object does not qualify: it may
-name an embargo's terms (ADR-0123), which rehydration resolves only after the parse
-edge has run (#5895).
+A stub is accepted only as the `preview` of a case reference that is an
+`Invite`'s `object`, wherever that `Invite` is carried inline: in its `Accept` or
+`Reject`, or in a refusal notice quoting such a reply. The parser refuses it
+anywhere else, an `Invite`'s `target` and an embargo invitation included, because
+only the stub Invite asks the question the stub answers (MV-10-002,
+`refuse_misplaced_case_stub`).
 
-A stub is also accepted as the `preview` of a case reference that is an `Invite`'s
-`object`, the form ADR-0205 gives the stub Invite. That reference is read as
-received (MV-10-013): rehydration, the stored row and the inbox never put the held
-case in its place or fetch the case, and only a pattern that sets
-`object_form=PREVIEWED_REFERENCE` matches it (SE-01-009). Every other pattern skips
-it, so a preview never seeds or updates a replica.
-
-Look the full object up in the local DataLayer by `id`; if absent, the stub is a
-placeholder until the full case is shared. A stub never overwrites a full object
-already held (MV-10-003) and never creates a new domain record (MV-10-004).
+That reference is read as received (MV-10-013): rehydration, the stored row and
+the inbox never put the held case in its place or fetch the case, and only a
+pattern that sets `object_form=PREVIEWED_REFERENCE` matches it (SE-01-009). Every
+other pattern skips it, so a preview never seeds or updates a replica. A stub never
+overwrites a full object already held (MV-10-003) and never creates a new domain
+record (MV-10-004). The extractor carries the preview's content into core as a
+`PreviewedCaseReference` whose `preview` is a `CasePreview`
+(`vultron/core/models/case_preview.py`); core reads a recorded stub Invite's case
+with `previewed_case_id`, never from the stub.
 
 ## Building the Stub
 
-- The stub discloses only `id`, `type`, `caseId`, `summary`, and the embargo
-  terms when an embargo is in force (CM-17-010). It overrides the `published` and
+- The stub discloses only `id`, `type`, `summary`, and the embargo terms when an
+  embargo is in force (CM-17-010). It overrides the `published` and
   `updated` defaults it would inherit, or `model_dump(exclude_none=True)` leaks them.
 - `summary` is required. The case owner sets `VulnerabilityCase.stub_summary`
   before emitting a stub Invite; `_project_case_to_stub()` refuses with

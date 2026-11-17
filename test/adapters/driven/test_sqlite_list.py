@@ -94,17 +94,20 @@ class TestListMethod:
         """list() applies semantic coercion so activities get their subtype."""
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCaseStub,
+            as_VulnerabilityCase,
         )
 
         actor = make(as_Service, name="Coordinator")
         invitee = make(as_Service, name="Vendor")
-        stub = as_VulnerabilityCaseStub(
-            case_id="https://example.org/cases/list-test",
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/list-test",
+            attributed_to="https://example.org/actors/owner",
+            stub_summary="A case to list",
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=stub,
+            case=case,
             actor=actor.id_,
             at=authored_at(),
         )

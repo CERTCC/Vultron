@@ -40,13 +40,13 @@ title: Case Roster Over the Life of a Case
 ---
 flowchart TB
     subgraph as:Invite
-        RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
+        RmInviteToCase["Invite Actor to Case<br/>Invite(VulnerabilityCase preview)"]
     end
     subgraph as:Accept
-        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(Actor))"]
+        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(VulnerabilityCase preview))"]
     end
     subgraph as:Reject
-        RmRejectInviteToCase["Reject Invite to Case<br/>Reject(Invite(Actor))"]
+        RmRejectInviteToCase["Reject Invite to Case<br/>Reject(Invite(VulnerabilityCase preview))"]
     end
     subgraph as:Add
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
@@ -77,13 +77,13 @@ flowchart TB
 ## Admit an actor
 
 1. Trigger the invitation.
-   The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
+   The CASE_MANAGER sends `Invite(VulnerabilityCase preview)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
-3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
+3. If the reply is `Accept(Invite(VulnerabilityCase preview))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
    The CASE_MANAGER ledgers the record's creation when it sends the Invite.
-   The invitee's `Accept(Invite(Actor))` is the ledger entry for its consent and `joined` mark.
+   The invitee's `Accept(Invite(VulnerabilityCase preview))` is the ledger entry for its consent and `joined` mark.
    A replica applies those entries, and nothing else is sent to seat the participant.
-4. If the reply is `Reject(Invite(Actor))`, stop.
+4. If the reply is `Reject(Invite(VulnerabilityCase preview))`, stop.
    The actor never becomes active, and nothing further is owed.
    The CASE_MANAGER keeps its inert participant record at RM `CLOSED`.
 
@@ -92,15 +92,15 @@ For the full invitation sequence, including the routing rule and its rationale, 
 !!! warning "Do not address the handshake to the Case Owner"
 
     An invitee that replies directly to the Case Owner bypasses the CASE_MANAGER, so the reply is never committed to the ledger and no replica learns of it.
-    Address `Accept(Invite(Actor))` and `Reject(Invite(Actor))` to the CASE_MANAGER.
+    Address `Accept(Invite(VulnerabilityCase preview))` and `Reject(Invite(VulnerabilityCase preview))` to the CASE_MANAGER.
 
 ---
 
 ## Judge the case after joining
 
-Once a participant is seated, the CASE_MANAGER sends it a second invitation, `Invite(Actor)` with the case as its `target`, after the case announcement and the ledger replay.
-This full-case Invite carries the CASE_MANAGER's ledger position as its `ledgerPosition`, an object with `logIndex` and `entryHash`, as every case message does.
-The `target` stays the plain case URI.
+Once a participant is seated, the CASE_MANAGER sends it a second invitation, `Invite(whole VulnerabilityCase)[target=Actor]`, after the case announcement and the ledger replay.
+This full-case Invite carries the whole case as its `object` and names the participant in its `target`.
+It carries the CASE_MANAGER's ledger position as its `ledgerPosition`, an object with `logIndex` and `entryHash`, as every case message does.
 That position is the floor: the participant's reply must reach it.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-full-case.md" %}
@@ -201,8 +201,8 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 
 | What you sent | What to confirm |
 |---|---|
-| `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
-| `Accept(Invite(Actor))` | The roster holds the participant with its roles. |
+| `Invite(VulnerabilityCase preview)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `Accept(Invite(VulnerabilityCase preview))` | The roster holds the participant with its roles. |
 | `Add(ParticipantStatus)` | The participant record carries the new status. |
 | `Remove(CaseParticipant)` | The roster still lists the participant, and its record names your `Remove` as its `removalActivity`. |
 | `Add(CaseParticipant)` | The participant's record has no `removalActivity`, and the participant holds the ledger entries it missed. |

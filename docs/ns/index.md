@@ -35,13 +35,13 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `Redacted` | — | Marker in a preview's field: the field has a value the sender withholds from the recipient, with an optional `summary` giving the reason |
 | `Refuse` | `as:Reject` | The CASE_MANAGER's refusal of an activity a precondition did not admit, sent as `"type": ["Refuse", "Reject"]`; a participant's decline of a request stays a `Reject` |
 | `VulnerabilityCase` | — | Coordination container for a vulnerability disclosure case |
-| `VulnerabilityCaseStub` | — | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
+| `VulnerabilityCaseStub` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case |
 | `VulnerabilityItem` | — | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
 | `VulnerabilityReport` | — | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.
 Those terms come from the wire `type` value each class emits, never from its class name, so a class that emits another class's `type` value gets no term of its own.
-The stub form of a case is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
+The case's preview is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
 A type with a "Subtype of" entry refines that ActivityStreams type: it is transmitted as a list of its own type and that type, so a receiver that knows only ActivityStreams still reads the message.
 `context.jsonld` states each such pair in its `@graph`, as `rdfs:subClassOf`.
 

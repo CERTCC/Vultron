@@ -472,9 +472,9 @@ class TestOwnerInviteThroughARemoteCaseActor:
         """CM-17-002 and CM-16-018, on the wire form the invitee is sent.
 
         The sealed body is what the CaseActor's outbox delivers, so it is the
-        boundary that decides what the invitee sees.  An ``activeEmbargo`` on
-        the target means the CaseActor read the case *and* its EmbargoEvent out
-        of a store that holds them.
+        boundary that decides what the invitee sees.  An ``activeEmbargo`` in
+        the preview means the CaseActor read the case *and* its EmbargoEvent
+        out of a store that holds them.
         """
         case_id = "urn:uuid:remote-ca-target-enrichment"
         _, ca_dl, _ = _bootstrap(topology, case_id)
@@ -484,14 +484,15 @@ class TestOwnerInviteThroughARemoteCaseActor:
         invite = _case_actor_invite(topology, ca_dl)
         wire = read_sealed_body_dict(ca_dl, str(invite.id_))
         assert wire is not None, "the CaseActor sealed no body for its Invite"
-        target = wire.get("target")
-        assert isinstance(target, dict), (
-            "the Invite's target degraded to a bare case id, so the emit read a"
-            f" store with no case in it. target={target!r}"
+        reference = wire.get("object")
+        assert isinstance(reference, dict) and "preview" in reference, (
+            "the Invite's object carries no case preview, so the emit read a"
+            f" store with no case in it. object={reference!r}"
         )
-        assert target.get("activeEmbargo"), (
-            "the target carries no embargo terms, so the invitee could not give"
-            f" informed consent (CM-17-002). target={target!r}"
+        preview = reference["preview"]
+        assert preview.get("activeEmbargo"), (
+            "the preview carries no embargo terms, so the invitee could not"
+            f" give informed consent (CM-17-002). preview={preview!r}"
         )
         assert wire.get("roles") == _OFFERED_ROLES
         assert "cc" not in wire, (

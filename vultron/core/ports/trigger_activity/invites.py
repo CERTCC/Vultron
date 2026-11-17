@@ -83,7 +83,8 @@ class TriggerInvitesPort(Protocol):
         """Create and persist the full-case ``Invite(<case>)[target=<invitee>]``.
 
         ``actor`` MUST be the CASE_MANAGER's ID.  The Invite carries the
-        case whole, read by ``case_id`` (ADR-0205), and carries the CASE_MANAGER's ledger tail
+        case whole, read by ``case_id`` (ADR-0205), and carries the CASE_MANAGER's
+        ledger tail
         (``ledger_log_index``, ``ledger_entry_hash``) as the floor the
         invitee's reply must reach (CM-11-010, VAM-04-011).
         Returns ``(activity_id, activity_blob)``.

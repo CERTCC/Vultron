@@ -199,7 +199,7 @@ def invite(other_actor_and_dl, actor, case_obj):
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
         other,
-        target=case_stub(case_obj.id_),
+        case=case_stub(case_obj.id_),
         actor=actor.id_,
         at=authored_at(),
     )

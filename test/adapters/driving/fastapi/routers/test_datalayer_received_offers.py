@@ -150,7 +150,7 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
 ):
     invite = rm_invite_to_case_activity(
         make(as_Service, id_=dl_actor_id),
-        target=make(
+        case=make(
             as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/c-1",

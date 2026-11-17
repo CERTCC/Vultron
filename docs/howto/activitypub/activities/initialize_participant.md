@@ -36,10 +36,10 @@ title: Seating a Participant on an Existing Case
 ---
 flowchart LR
     subgraph as:Invite
-        RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
+        RmInviteToCase["Invite Actor to Case<br/>Invite(VulnerabilityCase preview)"]
     end
     subgraph as:Accept
-        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(Actor))"]
+        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(VulnerabilityCase preview))"]
     end
     RmInviteToCase --> RmAcceptInviteToCase
 ```
@@ -49,11 +49,11 @@ flowchart LR
 ## Seat the participant
 
 1. Ask the CASE_MANAGER to invite the actor, naming the roles it will hold — see [How to Invite an Actor to a Case](invite_actor.md).
-   The CASE_MANAGER sends the stub `Invite(Actor)` and records an inert `CaseParticipant` for the actor, with the roles the Invite names.
+   The CASE_MANAGER sends the stub `Invite(VulnerabilityCase preview)` and records an inert `CaseParticipant` for the actor, with the roles the Invite names.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
 
-2. The actor answers `Accept(Invite(Actor))` to the CASE_MANAGER.
+2. The actor answers `Accept(Invite(VulnerabilityCase preview))` to the CASE_MANAGER.
    The CASE_MANAGER commits the `Accept` as a ledger entry and seats the actor.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/accept-invite-to-case.md" %}
@@ -61,7 +61,7 @@ flowchart LR
 3. The CASE_MANAGER sends the new participant the case and the ledger it missed, then the full-case Invite that asks it to judge the case.
    The ledger holds the messages exchanged.
    First is the CASE_MANAGER's entry for creating the inert record.
-   Then comes the invitee's `Accept(Invite(Actor))` itself, which every other replica applies.
+   Then comes the invitee's `Accept(Invite(VulnerabilityCase preview))` itself, which every other replica applies.
    The ledger also holds the CASE_MANAGER's entry for a vendor's VF status.
 
 If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
@@ -82,7 +82,7 @@ If all participants are known when the case is created, seat them inline on the 
 ## Verify
 
 The case roster holds the new `CaseParticipant` with the roles you assigned.
-The `Accept(Invite(Actor))` appears as a ledger entry, and each participant's replica lists the new member.
+The `Accept(Invite(VulnerabilityCase preview))` appears as a ledger entry, and each participant's replica lists the new member.
 
 ---
 

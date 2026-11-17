@@ -69,7 +69,7 @@ def _invited(name: str) -> tuple[LedgerNetwork, as_Invite]:
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=JOINER),
         to=[JOINER],
-        target=case_stub(net.case_id),
+        case=case_stub(net.case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",
@@ -148,7 +148,7 @@ def accept_invite_actor_to_case_with_no_record() -> Scenario:
     stub = rm_invite_to_case_activity(
         make(as_Actor, id_=JOINER),
         to=[JOINER],
-        target=case_stub(net.case_id),
+        case=case_stub(net.case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",

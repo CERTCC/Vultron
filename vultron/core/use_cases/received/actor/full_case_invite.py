@@ -41,7 +41,8 @@ if TYPE_CHECKING:
 
 
 class InviteActorToFullCaseReceivedUseCase:
-    """The invitee receives the full-case ``Invite(whole VulnerabilityCase)[target=Actor]``.
+    """The invitee receives the full-case ``Invite(whole
+    VulnerabilityCase)[target=Actor]``.
 
     Intake records the Invite so the invitee can answer it; the ledger
     position it carries is the floor the reply must reach (CM-11-031).  The

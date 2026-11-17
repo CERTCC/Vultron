@@ -16,7 +16,8 @@
 
 """Invitee idempotency and record-exists guard nodes.
 
-Guards a duplicate ``Accept(Invite(VulnerabilityCase preview)[target=Actor])`` from a joined
+Guards a duplicate ``Accept(Invite(VulnerabilityCase preview)[target=Actor])`` from a
+joined
 or removed
 participant (CM-17-012), and refuses an Accept whose invitee has no
 participant record (CM-11-052): the record is created when the stub Invite is

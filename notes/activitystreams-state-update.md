@@ -144,4 +144,6 @@ bare URI target matches any typed target constraint. A new semantic that shares
 an `(activity_, object_)` pair with an existing pattern MUST either use a
 distinct object type (preferred, SE-08-003) or add a more specific discriminator
 with `strict=True` and sit before the less specific entry in `SEMANTIC_REGISTRY`
-(SE-08-001, SE-08-004).
+(SE-08-001, SE-08-004). Two patterns whose objects share a type but not a form
+are told apart by `object_form` instead, as the stub and full-case Invites are
+(`PREVIEWED_REFERENCE` against `WHOLE_OBJECT`, SE-01-009, ADR-0205).

@@ -318,7 +318,7 @@ def parse_submit_report_offer(
             coerced = offer_data
         else:
             coerced = _RmSubmitReportActivity.model_validate(
-                offer_data.model_dump(by_alias=True)
+                offer_data.model_dump(by_alias=True, serialize_as_any=True)
             )
         return coerced.object_, coerced
     except (ValidationError, AttributeError) as exc:

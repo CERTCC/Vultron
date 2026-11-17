@@ -82,7 +82,7 @@ def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
     """The embargo Invites relayed to *actor_id* (not the full-case Invite).
 
     The full-case Invite (CM-11-010) is also an Invite to the joiner; it
-    invites the joiner itself, not to an embargo, and is not a relayed
+    invites the joiner to the case, not to an embargo, and is not a relayed
     proposal (EP-09-011).
     """
     return [
@@ -90,7 +90,7 @@ def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
         if a.type_ == "Invite"
         and (a.to or []) == [actor_id]
-        and _as_id(a.object_) != actor_id
+        and not isinstance(dl.read(_as_id(a.object_) or ""), VulnerabilityCase)
     ]
 
 
@@ -116,7 +116,7 @@ def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=JOINER),
         to=[JOINER],
-        target=case_stub(case_id),
+        case=case_stub(case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{case_id}/invitations/joiner",
@@ -488,7 +488,8 @@ def _full_case_invite_to_joiner(dl: SqliteDataLayer) -> VultronActivity:
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
         if a.type_ == "Invite"
         and (a.to or []) == [JOINER]
-        and _as_id(a.object_) == JOINER
+        and _as_id(a.target) == JOINER
+        and isinstance(dl.read(_as_id(a.object_) or ""), VulnerabilityCase)
     ]
     return invite
 

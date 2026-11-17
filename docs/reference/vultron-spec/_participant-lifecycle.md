@@ -53,17 +53,17 @@ Being in the case's participant list does not make it one ([§9.7 Gating Full Ca
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-004", "CM-17-005"))
 ```
 
-The protocol solves this with a **case stub**: a minimal stand-in for the case that carries enough for the invitee to decide, and no vulnerability detail.
-The stub is its own object, of type `VulnerabilityCaseStub`, and is not the case.
+The protocol solves this with a **case stub**: the case's preview, which carries enough for the invitee to decide, and no vulnerability detail.
+The invitation names the case by a typed reference: an object with the case's `id`, the `type` `VulnerabilityCase`, and the stub as its `preview`.
+The stub is an object of its own type, `VulnerabilityCaseStub`, and is not the case.
 A sender's stub carries exactly the required fields and, while an embargo is in force, the embargo fields.
 
 Every stub carries these required fields:
 
-- `id`: the stub's own identifier, which is the case's identifier with `/stub` appended.
-  A receiver never derives the case from it.
+- `id`: the stub's own identifier.
+  It names only the stub; the reference that carries the stub names the case.
 - `type`: `VulnerabilityCaseStub`.
   A receiver tells a stub from a case by its `type` alone.
-- `caseId`: the identifier of the case the stub stands for.
 - `summary`: required human-readable context saying what the invitee is being asked to join.
   The sender chooses it.
   It may be the case name, or a deliberately less revealing string.
@@ -88,7 +88,7 @@ The reference implementation's stub object does accept more on receipt, all opti
 The reference implementation sets none of these on a stub it sends.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-037", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))
 ```
 
 The stub does not name the case's coordinator or Case Owner.
@@ -98,7 +98,7 @@ Full content follows only after the invitee accepts.
 Two paths bring an actor into a case, and they differ in who initiates.
 
 **Direct invitation.**
-The CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]` to the actor.
+The CASE_MANAGER sends `Invite(VulnerabilityCase preview)[target=Actor]` to the actor: the `object` is the case's reference carrying the stub as its preview, and the `target` is the actor invited.
 At the same time, it records the invitee in the case as an *inert* participant at RM Received.
 The CASE_MANAGER commits the record's creation to the case ledger, and a replica applying that entry creates the same inert record.
 The record is not yet an active participant: it does not receive case content and is not included in embargo fan-out.

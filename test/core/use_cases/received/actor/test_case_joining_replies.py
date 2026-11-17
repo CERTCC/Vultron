@@ -59,6 +59,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
+from vultron.core.models.events import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -240,7 +241,7 @@ def joining_case() -> Any:
     stub_invite = rm_invite_to_case_activity(
         invitee,
         to=[invitee.id_],
-        target=case,
+        case=case,
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/stub-1",
@@ -466,14 +467,15 @@ def _full_case_invites_to(joining: _JoiningCase) -> list[str]:
             or obj.id_ == joining.stub_invite.id_
         ):
             continue
-        target = obj.target
-        target_type = getattr(target, "type_", None)
-        invitee = getattr(obj.object_, "id_", obj.object_)
+        case = obj.object_
+        case_type = getattr(case, "type_", None)
+        invitee = getattr(obj.target, "id_", obj.target)
         if (
             invitee == joining.invitee_id
-            and str(getattr(target_type, "value", target_type))
+            and str(getattr(case_type, "value", case_type))
             == "VulnerabilityCase"
-            and getattr(target, "id_", target) == joining.case.id_
+            and getattr(case, "preview", None) is None
+            and getattr(case, "id_", case) == joining.case.id_
         ):
             found.append(obj.id_)
     for name, args, kwargs in joining.trigger_activity.mock_calls:
@@ -503,7 +505,7 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     )
 
     assert _full_case_invites_to(joining_case), (
-        "no Invite(whole VulnerabilityCase)[target=Actor] was sent to the participant"
+        "no full-case Invite was sent to the participant"
     )
 
 
@@ -588,7 +590,7 @@ def _full_case_invite_at(
         joining.join()
     invite = rm_invite_to_full_case_activity(
         make(as_Organization, id_=joining.invitee_id),
-        joining.case.id_,
+        joining.case,
         _position(log_index, entry_hash),
         id_=f"{joining.case.id_}/invitations/full-floor-{log_index}",
         actor=joining.case_actor_id,
@@ -655,8 +657,8 @@ def test_full_case_invite_reply_moves_rm_from_received(
 ) -> None:
     """Each full-case reply at the Invite's floor is one RM transition.
 
-    The stub-Invite patterns recognise only a ``VulnerabilityCaseStub``
-    target (#4045), so each reply is told apart by the full-case patterns.
+    The stub-Invite patterns recognise only a previewed case reference
+    (ADR-0205), so each reply is told apart by the full-case patterns.
     """
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
@@ -722,12 +724,12 @@ def test_full_case_invite_reply_position_is_checked_against_the_floor(
 def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
     joining_case,
 ) -> None:
-    """The stub has its own ID (CM-11-013), so the case cannot come from it.
+    """The case is the one the nested Invite's ``object`` names.
 
-    The reply's top-level ``target`` is unset; the case is the one the nested
-    Invite's stub names in its ``caseId``.  The stub carries its own ID
-    (``<case-id>/stub``, #4045), so "derive the case from the stub's ID" and
-    "resolve the named case" are told apart.
+    The reply's top-level ``target`` is unset; the nested Invite names the
+    case by its typed reference's own ``id`` and carries the case's preview,
+    and names the invitee in its ``target`` (ADR-0205), so the case cannot
+    be read from the invitee's slot.
     """
     accept = rm_accept_invite_to_case_activity(
         joining_case.stub_invite,
@@ -735,17 +737,75 @@ def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
         to=[joining_case.case_actor_id],
         at=authored_at(),
     )
-    stub = joining_case.stub_invite.target
+    reference = joining_case.stub_invite.object_
     assert accept.target is None
+    assert getattr(reference, "preview", None) is not None
+    assert getattr(reference, "id_", None) == joining_case.case.id_
 
-    assert getattr(stub, "id_", stub) != joining_case.case.id_, (
-        "the stub must carry its own ID for this requirement to be observable"
-    )
-    assert getattr(received_event(accept), "case_id", None) == (
-        joining_case.case.id_
-    )
+    event = received_event(accept)
+    assert getattr(event, "case_id", None) == joining_case.case.id_
+    assert getattr(event, "invitee_id", None) == joining_case.invitee_id
     result = joining_case.route(accept)
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
+
+
+@pytest.mark.spec("CM-17-004")
+@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-011")
+def test_the_join_flow_runs_end_to_end_with_the_as2_invite_forms(
+    joining_case,
+) -> None:
+    """Stub Invite, its Accept, the full-case Invite and the RV reply.
+
+    The stub Invite names the case's previewed reference in ``object`` and
+    the invitee in ``target`` (ADR-0205); the CASE_MANAGER holding the case
+    reads the invitee's Accept of it as the stub answer, seeds and replays,
+    and sends the full-case Invite carrying the whole case; the invitee's
+    ``Accept`` of that Invite moves it to RM ``VALID``.
+    """
+    stub_invite = joining_case.stub_invite
+    assert getattr(stub_invite.object_, "preview", None) is not None
+    assert getattr(stub_invite.target, "id_", None) == joining_case.invitee_id
+
+    accept = rm_accept_invite_to_case_activity(
+        stub_invite,
+        actor=joining_case.invitee_id,
+        to=[joining_case.case_actor_id],
+        at=authored_at(),
+    )
+    assert (
+        find_matching_semantics(accept)
+        is MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    )
+    joined = joining_case.route(accept)
+    assert joined.disposition is HandlerDisposition.APPLIED, joined.reason
+    joining_case.trigger_activity.announce_vulnerability_case.assert_called_once()
+
+    (full_invite_id,) = [
+        found
+        for found in _full_case_invites_to(joining_case)
+        if not found.startswith("trigger.")
+    ]
+    full_invite = joining_case.dl.read(full_invite_id)
+    assert isinstance(full_invite, as_Invite)
+    assert isinstance(full_invite.object_, as_VulnerabilityCase)
+    assert full_invite.object_.id_ == joining_case.case.id_
+    assert (
+        find_matching_semantics(full_invite)
+        is MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
+    )
+
+    tail = _ledger_tail(joining_case)[-1]
+    reply = _full_case_reply_at(
+        "accept", joining_case, full_invite, position=tail
+    )
+    assert (
+        find_matching_semantics(reply)
+        is MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE
+    )
+    judged = joining_case.route(reply)
+    assert judged.disposition is HandlerDisposition.APPLIED, judged.reason
+    assert _rm_history(joining_case)[-2:] == [RM.RECEIVED, RM.VALID]
 
 
 def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:

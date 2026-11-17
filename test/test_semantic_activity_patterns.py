@@ -39,6 +39,7 @@ from vultron.wire.as2.factories import (
     undo_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -386,44 +387,59 @@ ACTOR_URI = "https://example.org/actors/alice"
 OWNER_URI = "https://example.org/actors/owner"
 
 
-def _make_case() -> as_VulnerabilityCaseStub:
-    return as_VulnerabilityCaseStub(case_id=CASE_URI)
+def _make_case() -> as_VulnerabilityCase:
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_URI,
+        name="Case",
+        stub_summary="A case to join",
+    )
+
+
+def _previewed_case() -> as_TypedReference:
+    """The case's typed reference carrying its preview (ADR-0205)."""
+    return as_TypedReference(
+        type_="VulnerabilityCase",
+        id_=CASE_URI,
+        preview=as_VulnerabilityCaseStub(summary="A case to join"),
+    )
 
 
 @pytest.mark.parametrize(
-    ("invitee", "target"),
+    ("case_object", "invitee"),
     [
-        (make(as_Actor, id_=ACTOR_URI), CASE_URI),
+        (CASE_URI, make(as_Actor, id_=ACTOR_URI)),
+        (case_reference(CASE_URI), make(as_Actor, id_=ACTOR_URI)),
         (
-            make(as_Actor, id_=ACTOR_URI),
             make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=CASE_URI,
                 name="Full case",
             ),
+            make(as_Actor, id_=ACTOR_URI),
         ),
-        (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
     ],
-    ids=["uri-target", "full-case-target", "bare-uri-invitee"],
+    ids=["uri-object", "case-reference-object", "full-case-object"],
 )
-@pytest.mark.spec("CM-11-038")
 @pytest.mark.spec("VAM-04-004")
-@pytest.mark.spec("SE-08-004")
-def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
-    """The stub Invite pattern is strict (AC-2 of #4045).
+@pytest.mark.spec("SE-01-009")
+def test_only_a_stub_invite_matches_the_stub_invite_pattern(
+    case_object, invitee
+):
+    """The stub Invite pattern requires a previewed case reference (ADR-0205).
 
-    A stub is recognised by its target's ``type`` alone, so neither a case
-    named by URI nor an inline full case matches it.  Strictness covers
-    ``object`` too: an invitee left as a bare URI after rehydration cannot be
-    confirmed as an actor, so the Invite matches no stub pattern either.
+    Neither a case named by URI, nor a case reference with no preview, nor
+    an inline full case matches it, and neither does a reply to such an
+    Invite.
     """
     invite = make(
         as_Invite,
         id_="https://example.org/invitations/not-a-stub",
         actor=OWNER_URI,
-        object_=invitee,
-        target=target,
+        object_=case_object,
+        target=invitee,
     )
     assert find_matching_semantics(invite) != (
         MessageSemantics.INVITE_ACTOR_TO_CASE
@@ -457,7 +473,7 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     """
     invite = rm_invite_to_case_activity(
         actor_obj,
-        target=_make_case(),
+        case=_make_case(),
         actor=OWNER_URI,
         id_="https://example.org/invitations/1",
         at=authored_at(),
@@ -491,7 +507,7 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     """
     invite = rm_invite_to_case_activity(
         actor_obj,
-        target=_make_case(),
+        case=_make_case(),
         actor=OWNER_URI,
         id_="https://example.org/invitations/1",
         at=authored_at(),
@@ -509,11 +525,11 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
 
 
 @pytest.mark.spec("SE-01-004")
-def test_invite_actor_to_case_without_actor_object_does_not_match():
-    """Invite(Note)[target=VulnerabilityCase] must NOT match INVITE_ACTOR_TO_CASE.
+def test_invite_actor_to_case_without_actor_target_does_not_match():
+    """Invite(VulnerabilityCase preview)[target=Object] must NOT match
+    INVITE_ACTOR_TO_CASE.
 
-    Enforces the object_ discriminator added by DR-07: a non-Actor object
-    must not be accepted as an actor-invite pattern match.
+    The invitee is the ``target``: a non-Actor target is no invitee.
     """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Invite,
@@ -523,8 +539,8 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
     invite_with_non_actor = make(
         as_Invite,
         actor=OWNER_URI,
-        object_=make(as_Object, id_="https://example.org/notes/1"),
-        target=_make_case(),
+        object_=_previewed_case(),
+        target=make(as_Object, id_="https://example.org/notes/1"),
     )
     result = find_matching_semantics(invite_with_non_actor)
     assert result != MessageSemantics.INVITE_ACTOR_TO_CASE
@@ -556,20 +572,19 @@ def test_announce_vulnerability_case_pattern_matches():
 
 @pytest.mark.spec("VM-07-001")
 @pytest.mark.spec("VM-07-002")
+@pytest.mark.spec("CM-17-010")
 def test_vulnerability_case_stub_serialises_minimally():
-    """A bare stub serialises as only {id, type, caseId} (CM-17-010).
+    """A bare stub serialises as only {id, type, summary} (CM-17-010).
 
-    DR-10 / MV-10-001: the stub is the selective-disclosure object used in
-    Invite.target; it must not expose full case details to uninvited parties.
+    The stub is the case's preview: it names no case of its own, so it
+    carries no ``caseId`` and no ID derived from the case's (ADR-0205).
     """
-    stub = as_VulnerabilityCaseStub(
-        case_id="https://example.org/cases/case-stub-001",
-    )
+    stub = as_VulnerabilityCaseStub(summary="Heap overflow in libfoo")
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
-    assert set(dumped.keys()) <= {"id", "type", "caseId", "@context"}
-    assert dumped.get("id") == "https://example.org/cases/case-stub-001/stub"
+    assert set(dumped.keys()) <= {"id", "type", "summary", "@context"}
     assert dumped.get("type") == "VulnerabilityCaseStub"
-    assert dumped.get("caseId") == "https://example.org/cases/case-stub-001"
+    assert dumped.get("summary") == "Heap overflow in libfoo"
+    assert not str(dumped.get("id")).endswith("/stub")
 
 
 @pytest.mark.spec("CM-11-038")
@@ -581,31 +596,18 @@ def test_a_stub_that_claims_another_type_is_refused():
         as_VulnerabilityCaseStub.model_validate(
             with_times(
                 as_VulnerabilityCaseStub,
-                {"type": "VulnerabilityCase", "caseId": CASE_URI},
+                {"type": "VulnerabilityCase", "summary": "A case"},
             )
         )
 
 
-@pytest.mark.spec("VM-07-001")
-def test_vulnerability_case_stub_with_summary():
-    """as_VulnerabilityCaseStub may expose a summary field (MV-10-001)."""
-    stub = as_VulnerabilityCaseStub(
-        case_id="https://example.org/cases/case-stub-002",
-        summary="Heap overflow in libfoo",
-    )
-    dumped = stub.model_dump(by_alias=True, exclude_none=True)
-    assert "summary" in dumped
-    assert dumped["summary"] == "Heap overflow in libfoo"
-
-
 @pytest.mark.spec("CM-17-002")
 def test_rm_invite_projects_full_vulnerability_case_to_stub():
-    """rm_invite_to_case_activity projects a full as_VulnerabilityCase to a stub.
+    """rm_invite_to_case_activity projects a full case to its preview.
 
-    DR-10 / MV-10-001: the factory accepts a full as_VulnerabilityCase as target
-    for projection (CM-17-002 enrichment path) but the resulting wire activity's
-    target is always a as_VulnerabilityCaseStub — full case details never reach
-    uninvited parties on the wire.
+    The wire activity's ``object`` is the case's typed reference carrying
+    the stub as its preview: full case details never reach an invitee on
+    the wire (MV-10-001, ADR-0205).
     """
     actor = make(as_Actor, id_="https://example.org/actors/alice")
     full_case = make(
@@ -617,15 +619,15 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     )
     activity = rm_invite_to_case_activity(
         actor,
-        target=cast(Any, full_case),
+        case=cast(Any, full_case),
         actor=actor.id_,
         at=authored_at(),
     )
-    assert isinstance(activity.target, as_VulnerabilityCaseStub), (
-        "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
-    )
-    assert activity.target.case_id == full_case.id_
-    assert activity.target.id_ == f"{full_case.id_}/stub"
+    reference = activity.object_
+    assert isinstance(reference, as_TypedReference)
+    assert reference.id_ == full_case.id_
+    assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+    assert reference.preview.summary == full_case.stub_summary
 
 
 # ---------------------------------------------------------------------------

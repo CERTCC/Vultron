@@ -135,7 +135,7 @@ def _role_offer():
         pytest.param(
             lambda: rm_invite_to_case_activity(
                 invitee=_VENDOR,
-                target=make(
+                case=make(
                     as_VulnerabilityCase,
                     attributed_to=CASE_OWNER_ID,
                     id_=_CASE_ID,
@@ -146,15 +146,6 @@ def _role_offer():
                 at=authored_at(),
             ),
             id="invite_actor_to_case",
-        ),
-        pytest.param(
-            lambda: rm_invite_to_case_activity(
-                invitee=_VENDOR,
-                target=_CASE_ID,
-                actor=_ACTOR,
-                at=authored_at(),
-            ),
-            id="invite_actor_to_case-bare-target",
         ),
         pytest.param(
             lambda: update_case_activity(

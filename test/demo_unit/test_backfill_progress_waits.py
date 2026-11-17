@@ -52,6 +52,9 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
 )
 from vultron.wire.as2.factories import rm_invite_to_full_case_activity
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 CASE_ID = "http://example.com/cases/case-1"
 OTHER_CASE_ID = "http://example.com/cases/case-2"
@@ -88,7 +91,7 @@ def _entry(index: int, case_id: str = CASE_ID) -> CaseLedgerEntry:
 def _full_case_invite():
     return rm_invite_to_full_case_activity(
         INVITEE,
-        CASE_ID,
+        make(as_VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER),
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=MANAGER,
         id_=INVITE_ID,

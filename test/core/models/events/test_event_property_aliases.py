@@ -11,15 +11,25 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
-from test.support.received import TEST_SENDER_POSITION, named_case, named_note
+from test.support.objects import authored_at, make
+from test.support.received import (
+    TEST_SENDER_POSITION,
+    named_case,
+    named_note,
+    received_event,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview import (
+    CasePreview,
+    PreviewedCaseReference,
+)
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.case_stub import CaseStubReference
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -71,7 +81,10 @@ from vultron.core.models.events.status import (
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 # Shared required fields for all VultronEvent instances.
 _ACT_ID = "https://example.org/activities/act-1"
@@ -80,6 +93,7 @@ _ACTOR_ID = "https://example.org/actors/alice"
 # Fixed domain objects reused across test cases so identity checks are reliable.
 _CASE_URI = "https://example.org/cases/c1"
 _ACTOR_URI = "https://example.org/actors/alice"
+_INVITEE_URI = "https://example.org/actors/bob"
 
 _report = make(VulnerabilityReport, id_="https://example.org/reports/r1")
 _case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
@@ -120,11 +134,20 @@ _activity = make(
 _obj = make(CoreObject, id_="https://example.org/objects/o1")
 
 
-_stub = make(
-    CaseStubReference,
-    id_=f"{_CASE_URI}/stub",
-    type_="VulnerabilityCaseStub",
-    case_id=_CASE_URI,
+#: The stub Invite's object as core receives it: the case's reference
+#: carrying its preview (ADR-0205).
+_previewed = PreviewedCaseReference(
+    id_=_CASE_URI,
+    type_="VulnerabilityCase",
+    published=None,
+    updated=None,
+    preview=CasePreview(
+        id_="urn:uuid:case-preview",
+        type_="VulnerabilityCaseStub",
+        published=None,
+        updated=None,
+        summary="A case to join",
+    ),
 )
 
 
@@ -285,16 +308,24 @@ _CASES = [
     (
         AcceptInviteActorToCaseReceivedEvent,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity, "inner_target": _stub, "inner_object": _obj},
+        {
+            "object_": _activity,
+            "inner_object": _previewed,
+            "inner_target": _obj,
+        },
         [
-            ("invitee_id", "inner_object_id"),
-            ("invitee", "inner_object"),
+            ("invitee_id", "inner_target_id"),
+            ("invitee", "inner_target"),
         ],
     ),
     (
         RejectInviteActorToCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity, "activity": _activity, "inner_target": _stub},
+        {
+            "object_": _activity,
+            "activity": _activity,
+            "inner_object": _previewed,
+        },
         [
             ("invite_id", "object_id"),
             ("invite", "object_"),
@@ -493,20 +524,28 @@ _STUB_CASES = [
     (
         InviteActorToCaseReceivedEvent,
         MessageSemantics.INVITE_ACTOR_TO_CASE,
-        {"activity": _activity, "object_": _obj, "target": _stub},
-        "target",
+        {"activity": _activity, "object_": _previewed, "target": _obj},
+        "object_",
     ),
     (
         AcceptInviteActorToCaseReceivedEvent,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity, "inner_target": _stub, "inner_object": _obj},
-        "inner_target",
+        {
+            "object_": _activity,
+            "inner_object": _previewed,
+            "inner_target": _obj,
+        },
+        "inner_object",
     ),
     (
         RejectInviteActorToCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity, "activity": _activity, "inner_target": _stub},
-        "inner_target",
+        {
+            "object_": _activity,
+            "activity": _activity,
+            "inner_object": _previewed,
+        },
+        "inner_object",
     ),
 ]
 
@@ -517,13 +556,14 @@ _STUB_CASES = [
     _STUB_CASES,
     ids=[c[0].__name__ for c in _STUB_CASES],
 )
-def test_stub_invite_case_id_is_the_case_the_stub_names(
+def test_stub_invite_case_id_is_the_id_its_object_names(
     cls, semantic, fields, slot
 ):
-    """``case_id`` reads the stub's ``case_id``, never the stub's own ID."""
+    """``case_id`` is the id of the (nested) Invite's ``object``, the case's
+    previewed reference (ADR-0205)."""
     event = _mk(cls, semantic, **fields)
     assert event.case_id == _CASE_URI
-    assert getattr(event, f"{slot}_id") == f"{_CASE_URI}/stub"
+    assert getattr(event, f"{slot.rstrip('_')}_id") == _CASE_URI
 
 
 @pytest.mark.spec("CM-11-003")
@@ -532,13 +572,73 @@ def test_stub_invite_case_id_is_the_case_the_stub_names(
     _STUB_CASES,
     ids=[c[0].__name__ for c in _STUB_CASES],
 )
-def test_an_invite_whose_stub_slot_holds_no_stub_names_no_case(
-    cls, semantic, fields, slot
-):
-    """A case in the stub's slot names no stub, so no case is derived from it,
-    and the event, which requires its case, refuses it (ARCH-10-001)."""
+def test_an_invite_naming_no_case_is_refused(cls, semantic, fields, slot):
+    """An event whose Invite names no case in its ``object`` refuses it, as
+    it requires its case (ARCH-10-001)."""
     with pytest.raises(ValidationError, match="missing its required case_id"):
-        _mk(cls, semantic, **{**fields, slot: _case})
+        _mk(cls, semantic, **{k: v for k, v in fields.items() if k != slot})
+
+
+def _received_stub_invite(
+    case: VulnerabilityCase,
+) -> InviteActorToCaseReceivedEvent:
+    """The event a receiver extracts from the stub Invite for *case*."""
+    invite = rm_invite_to_case_activity(
+        make(as_Organization, id_=_INVITEE_URI),
+        case=case,
+        embargo_obj=case.active_embargo,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI],
+        at=authored_at(),
+    )
+    event = received_event(invite)
+    assert isinstance(event, InviteActorToCaseReceivedEvent)
+    return event
+
+
+@pytest.mark.spec("CM-17-010")
+@pytest.mark.spec("CM-17-002")
+@pytest.mark.spec("CM-17-013")
+def test_the_stub_invite_event_carries_the_case_preview():
+    """The preview's content reaches core with the case its reference names
+    (ADR-0205): no embargo, then an embargo in force."""
+    bare = make(
+        VulnerabilityCase,
+        id_=_CASE_URI,
+        name="A case",
+        attributed_to=_ACTOR_URI,
+        stub_summary="A case to join",
+    )
+    event = _received_stub_invite(bare)
+    assert event.case_id == _CASE_URI
+    assert event.invitee_id == _INVITEE_URI
+    assert event.preview is not None
+    assert event.preview.summary == "A case to join"
+    assert event.preview.active_embargo is None
+    assert event.preview.em_state is None
+
+    embargo = make(EmbargoEvent, context=_CASE_URI, end_time=days_from_now(30))
+    embargoed = make(
+        VulnerabilityCase,
+        id_=_CASE_URI,
+        name="A case",
+        attributed_to=_ACTOR_URI,
+        stub_summary="A case to join",
+        case_statuses=[
+            make(
+                CaseStatus,
+                context=_CASE_URI,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.ACTIVE),
+            )
+        ],
+        embargo_register=register(active=embargo),
+    )
+    preview = _received_stub_invite(embargoed).preview
+    assert preview is not None
+    assert isinstance(preview.active_embargo, EmbargoEvent)
+    assert preview.active_embargo.id_ == embargo.id_
+    assert preview.em_state is EM.ACTIVE
 
 
 @pytest.mark.spec("SYNC-18-007")

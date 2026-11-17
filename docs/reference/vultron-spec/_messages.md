@@ -102,7 +102,7 @@ classDiagram
 | Object | What it is |
 |---|---|
 | `VulnerabilityCase` | The case itself: the container for everything below |
-| `VulnerabilityCaseStub` | A minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail |
+| `VulnerabilityCaseStub` | The case's preview: a minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail, sent as the `preview` of the case reference a stub Invite carries as its `object` |
 | `VulnerabilityReport` | A report of the vulnerability, such as the one that started the case |
 | `CaseParticipant` | An actor's membership in a case, carrying the roles it holds and the state it owns |
 | `CaseParticipantRole` | A role offered to an actor in the context of a case. It is a distinct type so that offering a role is structurally different from offering ownership of the case |
@@ -176,7 +176,7 @@ How a participant joins, changes role and leaves is specified at [§12 Participa
 **The two ways an actor joins a case are different messages.**
 Conflating them loses a round trip in which the Case Owner decides:
 
-- `Invite(Actor)[target=VulnerabilityCaseStub]` is the CASE_MANAGER inviting an actor to join on the Case Owner's behalf.
+- `Invite(VulnerabilityCase preview)[target=Actor]` is the CASE_MANAGER inviting an actor to join on the Case Owner's behalf.
   It is answered with `Accept` or `Reject`.
 - `Offer(Actor)[target=VulnerabilityCase]` is a participant *recommending* an actor ([§4.10 General Messages](layers.md#410-general-messages)).
   It goes to the CASE_MANAGER, which passes it to the Case Owner as an `Offer(CaseParticipant)`.
@@ -185,7 +185,7 @@ Conflating them loses a round trip in which the Case Owner decides:
 
 Both paths end in an `Accept` of the stub `Invite` ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 That `Accept` joins the case; it is not `RV`.
-The joined participant judges the case by answering the full-case `Invite`, `Invite(Actor)[target=VulnerabilityCase]`, and that answer is `RV`, `RI` or `RC`.
+The joined participant judges the case by answering the full-case `Invite`, `Invite(whole VulnerabilityCase)[target=Actor]`, and that answer is `RV`, `RI` or `RC`.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-034", "CM-11-020", "CM-11-051"))

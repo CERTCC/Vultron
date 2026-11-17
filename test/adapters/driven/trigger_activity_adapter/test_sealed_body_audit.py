@@ -1040,8 +1040,8 @@ def test_a_role_delegate_given_by_uri_carries_no_invented_field(world, method):
 #: Methods that name the held peer ``_PEER``, with the path to the actor in
 #: the sealed body.
 _HELD_ACTOR_PATHS: dict[str, tuple[str, ...]] = {
-    "invite_actor_to_case": ("object",),
-    "invite_actor_to_full_case": ("object",),
+    "invite_actor_to_case": ("target",),
+    "invite_actor_to_full_case": ("target",),
     "suggest_actor_to_case": ("object",),
     "offer_case_ownership_transfer": ("target",),
     "propose_case_ownership_transfer": ("object", "target"),

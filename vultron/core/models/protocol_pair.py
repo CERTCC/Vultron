@@ -60,7 +60,8 @@ OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply semantic types that close an ``Invite(VulnerabilityCase preview)[target=Actor]``
+#: Reply semantic types that close an ``Invite(VulnerabilityCase
+# preview)[target=Actor]``
 #: protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {

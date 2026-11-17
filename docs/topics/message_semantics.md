@@ -121,13 +121,14 @@ In the specification's words, it is "a minimal description of the case carrying 
 The specification, not this page, says what that description contains.
 At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)).
 The case stub's `type` is `VulnerabilityCaseStub`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
-Its `id` is the stub's own, not the case's, and its `caseId` field names the case it describes ([CM-11-037](../reference/vultron-spec/requirements/case-management.md#cm-11-037)).
+The stub travels as the case's `preview`: the stub Invite's `object` is a typed reference to the case, whose `id` names the case and whose `preview` is the stub ([MV-10-012](../reference/vultron-spec/requirements/messages.md#mv-10-012)).
+The stub's own `id` names only the stub, and the stub carries no field naming the case.
 
 A minimal stub is still valid ActivityStreams 2.0.
 Almost all AS2 properties are optional, so an object with only `id` and `type` is standards-conformant.
 
-When a recipient receives a stub, they look up the full case in their own records by its `caseId`, and use it if they already hold it.
-If they do not, the stub is a placeholder: it does not create a new case record, and the full case is delivered separately once the invitee has accepted the stub invitation and, while an embargo is active, given its [embargo consent](behavior_logic/use-cases/embargo-lifecycle.md) ([MV-10-004](../reference/specs/project.md#mv-10-004), [MV-10-005](../reference/vultron-spec/requirements/messages.md#mv-10-005)).
+A recipient reads a reference carrying a preview as it arrived: it does not put its own copy of the case in the reference's place, and does not fetch the case ([MV-10-013](../reference/vultron-spec/requirements/messages.md#mv-10-013)).
+The stub is a placeholder: it does not create a new case record, and the full case is delivered separately once the invitee has accepted the stub invitation and, while an embargo is active, given its [embargo consent](behavior_logic/use-cases/embargo-lifecycle.md) ([MV-10-004](../reference/specs/project.md#mv-10-004), [MV-10-005](../reference/vultron-spec/requirements/messages.md#mv-10-005)).
 A stub never overwrites a full case the recipient already holds ([MV-10-003](../reference/specs/project.md#mv-10-003)).
 
 ### When to use each

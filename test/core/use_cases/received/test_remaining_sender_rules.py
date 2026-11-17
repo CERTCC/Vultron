@@ -41,7 +41,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
-from test.support.received import received_event
+from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -294,7 +294,7 @@ class _World:
         )
         activity = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee),
-            target=self.case_id,
+            case=case_stub(self.case_id),
             actor=sender_id,
             to=[invitee],
             id_=f"{self.case_id}/invitations/1",

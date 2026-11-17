@@ -934,7 +934,7 @@ groups:
     rationale: >-
       By default, Pydantic v2 serializes a field by its declared type. A field typed as
       `as_Object` that holds an `as_VulnerabilityCaseStub` is serialized with the
-      `as_Object` schema, so the stub's own fields (`caseId`, `activeEmbargo`,
+      `as_Object` schema, so the stub's own fields (`summary`, `activeEmbargo`,
       `caseStatus`) are dropped with no error. Both the persistence boundary and the
       delivery boundary need the flag: a correct stored copy still gives wrong wire
       output if the delivery serializer drops the fields.

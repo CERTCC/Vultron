@@ -906,7 +906,7 @@ def _archived_invite_entry(
     """A received Invite as the datalayer router serializes its record."""
     invite = rm_invite_to_case_activity(
         make(as_Service, id_=invitee_id),
-        target=make(
+        case=make(
             as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=case_id,
@@ -943,14 +943,19 @@ class TestFindCaseInviteForActor:
         assert found == _INVITE_ID
         assert record_id != _INVITE_ID
 
-    @pytest.mark.spec("CM-11-037")
     @pytest.mark.spec("CM-11-013")
-    def test_matches_the_case_the_stub_names_not_the_stub_id(self):
-        """The stub's own ID is ``<case-id>/stub``; ``caseId`` names the case."""
+    def test_matches_the_case_the_reference_names_and_the_invitee_in_target(
+        self,
+    ):
+        """The Invite's ``object`` names the case by its own ``id`` and
+        carries the preview; the invitee is the ``target`` (ADR-0205)."""
         record_id, record = _archived_invite_entry()
-        target = json.loads(record["received_body"])["target"]
-        assert target["type"] == "VulnerabilityCaseStub"
-        assert target["id"] != CASE_ID and target["caseId"] == CASE_ID
+        body = json.loads(record["received_body"])
+        assert body["object"]["type"] == "VulnerabilityCase"
+        assert body["object"]["id"] == CASE_ID
+        assert body["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+        assert "caseId" not in body["object"]["preview"]
+        assert body["target"]["id"] == ACTOR_B
         client = _dl_client({record_id: record})
 
         found = find_case_invite_for_actor(
@@ -1001,7 +1006,7 @@ def _archived_full_case_invite_entry() -> tuple[str, dict]:
     """A received full-case Invite as the datalayer router serializes its record."""
     invite = rm_invite_to_full_case_activity(
         ACTOR_B,
-        CASE_ID,
+        make(as_VulnerabilityCase, id_=CASE_ID, attributed_to=CASE_OWNER_ID),
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=_MANAGER,
         id_="http://example.com/activities/full-invite-1",

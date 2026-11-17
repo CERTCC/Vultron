@@ -112,12 +112,13 @@ def test_the_emitter_receives_the_blob_the_adapter_returned_to_core(dl):
 
 @pytest.mark.spec("CM-17-002")
 @pytest.mark.spec("VM-08-003")
-def test_the_invite_case_stub_survives_to_the_emitter(dl):
-    """The Invite's ``target`` reaches the wire as the stub the factory built.
+def test_the_invite_case_preview_survives_to_the_emitter(dl):
+    """The Invite's ``object`` reaches the wire as the previewed case
+    reference the factory built.
 
-    Reading the record back would have rehydrated ``target`` into the full
-    stored case and then collapsed it to a bare URI, which is how the enriched
-    stub CM-17-002 requires was being lost before delivery.
+    Reading the record back would have rehydrated the reference into the full
+    stored case, which is how the enriched stub CM-17-002 requires was once
+    lost before delivery; a previewed reference is read as built (ADR-0205).
     """
     _stub_summary = "Security issue — details shared after acceptance"
     case = make(
@@ -137,10 +138,13 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
 
     _, body, _ = _deliver(dl, activity_id)
     delivered = json.loads(body)
-    assert delivered["target"] == {
+    reference = delivered["object"]
+    assert reference["type"] == "VulnerabilityCase"
+    assert reference["id"] == case.id_
+    preview = dict(reference["preview"])
+    assert preview.pop("id")
+    assert preview == {
         "type": "VulnerabilityCaseStub",
-        "id": f"{case.id_}/stub",
-        "caseId": case.id_,
         "summary": _stub_summary,
     }
     assert delivered["context"] == case.id_
@@ -256,4 +260,4 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
 
     assert recipients == [_INVITEE]
     assert entry.payload_snapshot == json.loads(delivered_body)
-    assert "activeEmbargo" in entry.payload_snapshot["target"]
+    assert "activeEmbargo" in entry.payload_snapshot["object"]["preview"]

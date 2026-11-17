@@ -276,13 +276,13 @@ CASES: tuple[SlotCase, ...] = (
         "Invite(full case)",
         _S.INVITE_ACTOR_TO_FULL_CASE,
         "case_id",
-        (("target",),),
+        (_OBJ,),
     ),
     SlotCase(
         "Invite(full case)",
         _S.INVITE_ACTOR_TO_FULL_CASE,
         "invitee_id",
-        (_OBJ,),
+        (("target",),),
     ),
     *(
         SlotCase(message, semantics, slot, cuts)
@@ -296,13 +296,13 @@ CASES: tuple[SlotCase, ...] = (
         )
         for slot, cuts in (
             ("invite_id", (_OBJ,)),
-            ("case_id", (("object_", "target"),)),
+            ("case_id", (("object_", "object_"),)),
         )
     ),
+    SlotCase("Invite(stub)", _S.INVITE_ACTOR_TO_CASE, "case_id", (_OBJ,)),
     SlotCase(
-        "Invite(stub)", _S.INVITE_ACTOR_TO_CASE, "case_id", (("target",),)
+        "Invite(stub)", _S.INVITE_ACTOR_TO_CASE, "invitee_id", (("target",),)
     ),
-    SlotCase("Invite(stub)", _S.INVITE_ACTOR_TO_CASE, "invitee_id", (_OBJ,)),
     SlotCase(
         "Accept(stub Invite)",
         _S.ACCEPT_INVITE_ACTOR_TO_CASE,
@@ -313,13 +313,13 @@ CASES: tuple[SlotCase, ...] = (
         "Accept(stub Invite)",
         _S.ACCEPT_INVITE_ACTOR_TO_CASE,
         "case_id",
-        (("object_", "target"),),
+        (("object_", "object_"),),
     ),
     SlotCase(
         "Accept(stub Invite)",
         _S.ACCEPT_INVITE_ACTOR_TO_CASE,
         "invitee_id",
-        (("object_", "object_"),),
+        (("object_", "target"),),
     ),
     SlotCase(
         "Reject(stub Invite)",
@@ -331,7 +331,7 @@ CASES: tuple[SlotCase, ...] = (
         "Reject(stub Invite)",
         _S.REJECT_INVITE_ACTOR_TO_CASE,
         "case_id",
-        (("object_", "target"),),
+        (("object_", "object_"),),
     ),
     SlotCase(
         "Offer(CaseParticipant)",

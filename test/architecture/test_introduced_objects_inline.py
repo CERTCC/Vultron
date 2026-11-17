@@ -48,6 +48,7 @@ from test.architecture._vocab_example_corpus import (
 )
 from test.support.objects import authored_at, make
 from test.support.signatures import signature_of
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.type_terms import names_type
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -237,13 +238,23 @@ BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
         "object",
     ),
     # The invitee does not hold the case yet, so the stub Invite introduces
-    # it: the stub, built from a case given only by URI, goes in ``target``
-    # (CM-17-002, MV-10-001).
+    # it: the case's reference carrying the preview the factory builds from
+    # the case goes in ``object`` (CM-17-002, MV-10-001, ADR-0205).
     "rm_invite_to_case_activity": (
         lambda: rm_invite_to_case_activity(
-            _PEER, target=_CASE, actor=_ACTOR, to=[_PEER], at=authored_at()
+            _PEER,
+            case=make(
+                VulnerabilityCase,
+                id_=_CASE,
+                name="Case c1",
+                attributed_to=_ACTOR,
+                stub_summary="A case to join",
+            ),
+            actor=_ACTOR,
+            to=[_PEER],
+            at=authored_at(),
         ),
-        "target",
+        "object",
     ),
 }
 

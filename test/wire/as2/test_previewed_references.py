@@ -63,10 +63,10 @@ _RECEIVER = CASE_MANAGER_ID
 
 
 def _stub(case_id: str) -> dict[str, Any]:
+    """The case's preview: its own id, which names nothing (ADR-0205)."""
     return {
         "type": "VulnerabilityCaseStub",
-        "id": f"{case_id}/stub",
-        "caseId": case_id,
+        "id": f"urn:uuid:preview-of-{case_id.rsplit('/', 1)[-1]}",
         "summary": "A remote code execution vulnerability in widget.",
     }
 
@@ -255,9 +255,11 @@ def test_a_whole_object_pattern_refuses_every_reference_form() -> None:
 def test_no_registered_pattern_reads_a_preview_as_the_case(
     held: tuple[SqliteDataLayer, VulnerabilityCase],
 ) -> None:
-    """Until a pattern asks for a previewed reference, an activity carrying
-    one is unknown, and never ``ANNOUNCE_VULNERABILITY_CASE`` or any other
-    semantics that would read the preview as the case."""
+    """Only the stub Invite and its answers ask for a previewed reference
+    (ADR-0205), so an ``Invite`` of a preview is the stub Invite, and an
+    activity no such pattern routes is unknown: never
+    ``ANNOUNCE_VULNERABILITY_CASE`` or any other semantics that would read
+    the preview as the case."""
     _, case = held
     asking = [
         entry.semantics.name
@@ -273,8 +275,10 @@ def test_no_registered_pattern_reads_a_preview_as_the_case(
     )
     object.__setattr__(announce, "object_", _object_chain_end(invite))
 
-    assert asking == []
-    assert find_matching_semantics(invite) is MessageSemantics.UNKNOWN
+    assert asking == [MessageSemantics.INVITE_ACTOR_TO_CASE.name]
+    assert find_matching_semantics(invite) is (
+        MessageSemantics.INVITE_ACTOR_TO_CASE
+    )
     assert find_matching_semantics(announce) is MessageSemantics.UNKNOWN
 
 
@@ -368,7 +372,7 @@ def test_a_stored_previewed_reference_reads_back_as_received(
         assert is_previewed_reference(reference), type(reference)
         assert isinstance(reference, as_TypedReference)
         assert isinstance(reference.preview, as_VulnerabilityCaseStub)
-        assert reference.preview.case_id == case.id_
+        assert reference.id_ == case.id_
 
 
 @pytest.mark.spec("MV-10-013")
@@ -388,15 +392,6 @@ def test_an_accept_naming_a_held_stub_invite_by_id_keeps_its_preview(
     assert is_previewed_reference(_object_chain_end(rehydrated))
     assert isinstance(rehydrated, as_Activity)
     assert bare_object_id(rehydrated) is None
-
-
-@pytest.mark.spec("MV-10-012")
-def test_a_case_preview_naming_another_case_is_refused() -> None:
-    reference = _previewed("https://example.org/cases/c1")
-    reference["preview"] = _stub("https://example.org/cases/other")
-
-    with pytest.raises(VultronParseError, match="MV-10-012"):
-        parse_activity(_invite(reference))
 
 
 @pytest.mark.spec("MV-10-012")

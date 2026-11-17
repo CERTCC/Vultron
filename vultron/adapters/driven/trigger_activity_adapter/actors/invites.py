@@ -43,6 +43,7 @@ from vultron.wire.as2.factories.case import (
 
 from .._base import (
     _addressing,
+    _case_for_wire,
     _create_and_seal,
     _seal,
     _stamped,
@@ -203,19 +204,16 @@ class _InvitesMixin:
         """Create and persist the full-case ``Invite(<case>)[target=<invitee>]``.
 
         The Invite carries the case whole, read from the DataLayer by
-        ``case_id`` (ADR-0205).
+        ``case_id`` with its references carried inline, as every activity
+        that puts a case on the wire does (``_case_for_wire``, AKM-02-004,
+        ADR-0205).
 
         Raises:
-            VultronValidationError: When the DataLayer holds no case under
+            VultronNotFoundError: When the DataLayer holds no case under
                 ``case_id``.
         """
         extra = _addressing(actor, to, id_)
-        case = self._dl.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
-            raise VultronValidationError(
-                f"invite_actor_to_full_case: no case '{case_id}' to carry"
-                " in the full-case Invite (ADR-0205)"
-            )
+        case = _case_for_wire(self._dl, case_id)
         activity = rm_invite_to_full_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
             case=case,

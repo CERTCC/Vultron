@@ -65,7 +65,7 @@ def _invite(actor: str = _ACTOR):
     )
     return rm_invite_to_case_activity(
         invitee=_INVITEE,
-        target=case,
+        case=case,
         actor=actor,
         to=[_INVITEE],
         at=authored_at(),
@@ -123,9 +123,9 @@ def test_the_sealed_body_carries_its_authors_proof(dl):
 
 @pytest.mark.spec("SIG-01-003")
 def test_the_sealed_proof_covers_the_nested_objects(dl):
-    """Changing the inline case stub after sealing breaks the proof."""
+    """Changing the inline case preview after sealing breaks the proof."""
     body = json.loads(seal_outbound_body(dl, _invite()))
-    body["target"]["name"] = "changed after sealing"
+    body["object"]["preview"]["summary"] = "changed after sealing"
 
     with pytest.raises(VultronProofInvalidError):
         signing.verify(body, _published_key(_ACTOR))
@@ -255,17 +255,17 @@ def test_seal_refuses_an_activity_with_no_authored_time(dl):
 
 
 @pytest.mark.spec("VM-08-003")
-def test_sealed_body_keeps_the_case_stub_inline(dl):
-    """What is sealed is what the factory built: the Invite's case stub.
+def test_sealed_body_keeps_the_case_preview_inline(dl):
+    """What is sealed is what the factory built: the Invite's case preview.
 
     Delivery reads the sealed body and not the activity record (#2655), so
-    the stub reaches the wire exactly as the factory built it.
+    the preview reaches the wire exactly as the factory built it.
     """
     invite = _invite()
     body = json.loads(seal_outbound_body(dl, invite))
-    assert isinstance(body["target"], dict)
-    assert body["target"]["type"] == "VulnerabilityCaseStub"
-    assert body["context"] == body["target"]["caseId"]
+    assert isinstance(body["object"], dict)
+    assert body["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+    assert body["context"] == body["object"]["id"]
 
 
 def test_seal_is_write_once_per_activity_id(dl):

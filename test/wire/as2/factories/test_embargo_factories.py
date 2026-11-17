@@ -750,12 +750,18 @@ def test_answer_refuses_a_received_activity_that_is_not_an_embargo_invite(
     """A received activity of another shape fails validation, wrapped."""
     from vultron.wire.as2.factories import rm_invite_to_case_activity
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseStub,
+        as_VulnerabilityCase,
     )
 
     case_invite = rm_invite_to_case_activity(
         "https://example.org/actors/invitee",
-        target=as_VulnerabilityCaseStub(case_id=_CASE_URI, summary="A case"),
+        case=make(
+            as_VulnerabilityCase,
+            id_=_CASE_URI,
+            name="A case",
+            attributed_to="https://example.org/actors/owner",
+            stub_summary="A case",
+        ),
         actor=_ACTOR_URI,
         at=authored_at(),
     )

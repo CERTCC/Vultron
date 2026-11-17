@@ -31,6 +31,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from test.support.objects import make
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
 )
@@ -209,6 +210,24 @@ def test_report_factories_log_before_raising(
     _assert_logged(factory, caplog)
 
 
+def _idless_case() -> VulnerabilityCase:
+    """A case whose id is blank, so the reference to it fails validation.
+
+    Set past validation, as only a bug could: the preview's reference is
+    built inside the factory's scope, so the failure is a construction
+    error.
+    """
+    case = make(
+        VulnerabilityCase,
+        id_="https://example.org/cases/1",
+        name="Case",
+        attributed_to="https://example.org/actors/owner",
+        stub_summary="A case to join",
+    )
+    case.__dict__["id_"] = ""
+    return case
+
+
 @pytest.mark.spec("AF-04-001", "AF-04-003")
 @pytest.mark.parametrize(
     ("factory", "args", "kwargs"),
@@ -224,7 +243,10 @@ def test_report_factories_log_before_raising(
         (
             rm_invite_to_case_activity,
             (),
-            {"invitee": "https://example.org/actors/b", "target": ""},
+            {
+                "invitee": "https://example.org/actors/b",
+                "case": _idless_case(),
+            },
         ),
     ],
     ids=["participant", "invite-stub"],
@@ -235,7 +257,7 @@ def test_argument_construction_runs_inside_the_guarded_scope(
     kwargs: dict[str, object],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The participant an Offer carries and the stub an Invite carries are
+    """The participant an Offer carries and the preview an Invite carries are
     built inside the factory's scope, so a bad argument is a construction
     error, not a raw ``ValidationError`` (AF-04-001)."""
     with caplog.at_level(logging.WARNING):

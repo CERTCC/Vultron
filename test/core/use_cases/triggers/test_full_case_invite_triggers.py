@@ -110,7 +110,7 @@ def participant() -> Iterator[tuple[as_Service, SqliteDataLayer, str, str]]:
 def _hold_invite(dl, actor, case_id: str, floor: LedgerPosition) -> str:
     invite = rm_invite_to_full_case_activity(
         actor,
-        case_id,
+        case_stub(case_id),
         floor,
         actor=_MANAGER,
         to=[actor.id_],
@@ -192,7 +192,7 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
     # position like every case activity (SYNC-18-001).
     stub_like = rm_invite_to_case_activity(
         actor,
-        target=case_stub(case_id),
+        case=case_stub(case_id),
         actor=_MANAGER,
         to=[actor.id_],
         at=authored_at(),

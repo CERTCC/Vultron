@@ -614,8 +614,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ]
         assert invites, "the recorded invitee must be invited"
         invitees = {
-            getattr(getattr(i, "object_", None), "id_", None)
-            or getattr(i, "object_", None)
+            getattr(getattr(i, "target", None), "id_", None)
+            or getattr(i, "target", None)
             for i in invites
         }
         assert invitees == {RECOMMENDED_ID}
