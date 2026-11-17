@@ -61,6 +61,15 @@ FROM dependencies AS api-dev
 RUN mkdir -p /app/data
 CMD ["uv","run","uvicorn","vultron.adapters.driving.fastapi.main:app","--host","0.0.0.0","--port","7999","--reload"]
 
+FROM dependencies AS shadow
+# The case shadow tool's dashboard (ADR-0192). It listens on every interface
+# inside the container; the Compose service publishes the port on the host's
+# loopback only (SHD-02-002). No VOLUME: a case it reads lives only in the
+# process (SHD-02-001). A credential is never a build argument: the service
+# passes it from the environment it runs in (SHD-02-003).
+EXPOSE 8501
+CMD ["vultron-shadow", "--address", "0.0.0.0", "--port", "8501"]
+
 FROM dependencies AS demo
 COPY --chmod=755 docker/demo-entrypoint.sh /app/demo-entrypoint.sh
 ENTRYPOINT ["/app/demo-entrypoint.sh"]

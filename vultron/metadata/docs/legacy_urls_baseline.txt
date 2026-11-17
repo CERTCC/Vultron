@@ -298,6 +298,7 @@ howto/general_implementation.md
 howto/index.md
 howto/measure_your_cvd_program.md
 howto/process_implementation.md
+howto/run_the_case_shadow.md
 howto/wire_capability.md
 includes/curr_ver.md
 includes/do_not_start_here.md

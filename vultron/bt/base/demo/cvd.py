@@ -128,7 +128,9 @@ def _shorten_names(y):
 
 def _print_sim_result():
     """Print a de-duplicated tabular summary of the simulation state log."""
-    df = pd.DataFrame(STATELOG)
+    # object dtype keeps the enum members: with pyarrow installed, pandas 3
+    # infers a string column for StrEnum values and drops the members.
+    df = pd.DataFrame(STATELOG, dtype=object)
     df.index += 1
 
     df["q_rm"] = df["q_rm"].apply(lambda x: cast(Any, x).value)

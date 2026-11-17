@@ -63,6 +63,7 @@ dependencies = [
     "cryptography>=50.0.2",
     "rfc8785>=0.1.4",
     "base58>=2.1.1",
+    "streamlit>=1.67.0",
 ]
 dynamic = ["version",]
 
@@ -74,6 +75,7 @@ vultrabot="vultron.bt.base.demo.cvd:main"
 vultron-demo="vultron.demo.cli:main"
 vultron-demo-report="vultron.demo.report:main"
 vultron-case-history="vultron.measure.history.cli:main"
+vultron-shadow="vultron.shadow.dashboard.cli:main"
 export-demo-states="vultron.metadata.demo_scenarios.export_states:main"
 export-demo-semantics="vultron.metadata.demo_scenarios.export_semantics:main"
 export-demo-tree="vultron.metadata.demo_scenarios.export_tree:main"
