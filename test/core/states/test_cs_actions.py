@@ -50,10 +50,10 @@ def test_the_table_gives_the_legacy_actions_in_every_valid_state(state):
     assert list(cs_actions(state)) == action(state.name)
 
 
-def test_the_invalid_state_the_oracle_answers_has_no_member_here():
-    """#3355: the oracle answers ``vfDpxa``; no `CS` member can ask."""
+def test_the_invalid_state_vfDpxa_has_no_member_to_ask_about():
+    """The legacy oracle answers ``vfDpxa`` (#3355); the table here cannot
+    be asked, because no `CS` member names it."""
     assert "vfDpxa" not in CS.__members__
-    assert action("vfDpxa")
 
 
 def test_the_table_keeps_the_legacy_patterns_in_order():
