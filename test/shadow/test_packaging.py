@@ -5,7 +5,10 @@ outside system's settings without a value; its image runs ``vultron-shadow``,
 which turns Streamlit's usage statistics off; Streamlit stays inside the
 shadow package; and nothing the tool imports can deliver an activity.
 
-Spec: SHD-01-001, SHD-02-002, SHD-02-003, SHD-02-004.
+The service and its image declare no volume, so the container has nowhere
+persistent to write a case.
+
+Spec: SHD-01-001, SHD-02-001, SHD-02-002, SHD-02-003, SHD-02-004.
 """
 
 from __future__ import annotations
@@ -90,6 +93,47 @@ def _shadow_stage() -> list[str]:
             break
         stage.append(line)
     return stage
+
+
+@pytest.mark.spec("SHD-02-001")
+def test_the_service_declares_no_volume():
+    assert "volumes" not in _service()
+    assert "volumes_from" not in _service()
+    assert "tmpfs" not in _service()
+
+
+def test_the_volume_check_reads_a_service_that_has_volumes():
+    """The check above reads a key Compose uses: another service has it."""
+    services = yaml.safe_load(_COMPOSE.read_text())["services"]
+    assert any("volumes" in service for service in services.values())
+
+
+def _stage_ancestry(stage: str) -> list[list[str]]:
+    """The lines of *stage* and of every stage it is built ``FROM``."""
+    stages: dict[str, tuple[str, list[str]]] = {}
+    current: list[str] = []
+    for line in _DOCKERFILE.read_text().splitlines():
+        match = re.match(r"FROM\s+(\S+)\s+AS\s+(\S+)", line, re.IGNORECASE)
+        if match:
+            current = []
+            stages[match.group(2)] = (match.group(1), current)
+        else:
+            current.append(line)
+    chain = []
+    while stage in stages:
+        parent, lines = stages[stage]
+        chain.append(lines)
+        stage = parent
+    return chain
+
+
+@pytest.mark.spec("SHD-02-001")
+def test_the_image_declares_no_volume():
+    chain = _stage_ancestry("shadow")
+    assert len(chain) > 1, "the shadow stage builds on the dependency stages"
+    for lines in chain:
+        for line in lines:
+            assert not line.lstrip().upper().startswith("VOLUME"), line
 
 
 def test_the_image_runs_the_page_on_every_interface_in_the_container():
