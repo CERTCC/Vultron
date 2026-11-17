@@ -56,6 +56,21 @@ With `VULTRON_SHADOW__LEDGER_DIR` unset, as in a `uv run vultron-shadow` run, th
 
 A Vultron ledger needs no translation, so its **Not translated**, **Inferred**, and **Not observable** panels are empty.
 
+### Read a case from a running Vultron node
+
+The tool can also read a case's ledger from a running Vultron node in prototype run mode.
+Set these environment variables in the shell that starts the tool:
+
+| Variable | Value |
+|---|---|
+| `VULTRON_SHADOW__NODE_URL` | The node's API root, such as `http://case-actor:7999/api/v2`. The tool refuses a URL that has a user name, a password, a query, or a fragment. |
+| `VULTRON_SHADOW__NODE_ACTOR_ID` | The Case Manager on that node whose ledger the tool reads, such as `case-actor`. The tool refuses an id that names no actor. |
+
+Set both variables, or neither.
+With both set and no connector set, type the case's id on that node in the **Case** box.
+For each read, the tool sends the node one request only: a `GET` of the case's demo ledger endpoint.
+A node that is not in prototype run mode does not serve that endpoint, so the tool shows an error that names the node and the case.
+
 ---
 
 ## Step 3: Read the scoreboard

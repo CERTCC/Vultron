@@ -311,6 +311,8 @@ def test_nothing_the_tool_imports_can_deliver_an_activity():
     )
     loaded = json.loads(result.stdout)
     assert "vultron.shadow.dashboard.page" in loaded
+    # The live reader's HTTP client is among what the scan covers.
+    assert "vultron.shadow.readers.vultron_node" in loaded
     assert [name for name in loaded if _DELIVERY.match(name)] == []
 
 

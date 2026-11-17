@@ -210,6 +210,8 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
             "vince.api_token": ("marker-credential", None),
             "shadow.connector": ("vince", None),
             "shadow.ledger_dir": ("/srv/ledgers", None),
+            "shadow.node_url": ("http://case-actor:7999/api/v2", None),
+            "shadow.node_actor_id": ("case-actor", None),
         }
         raw, expected = overrides[setting.yaml_key]
         if expected is None:
