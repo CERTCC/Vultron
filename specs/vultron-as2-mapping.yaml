@@ -1488,8 +1488,8 @@ groups:
       The record joins the case's participant list, so its entry names the case as
       `target`, as the case's other lists do (CLP-07-021), and a replica reads the
       list from the entry rather than choosing it (CM-23-044). The Case Owner's
-      reinstatement request is an Offer naming the actor (CM-31-011, ADR-0199), so
-      this form has one meaning. A received copy is recognized only so that it is
+      reinstatement is its own `Add` naming the actor, not the record (CM-31-011,
+      ADR-0199), so this form has one meaning. A received copy is recognized only so that it is
       reported, not acted on.
     verification: >-
       `test_case_manager_acts_map_to_their_semantics` in

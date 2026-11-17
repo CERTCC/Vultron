@@ -10440,19 +10440,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The Case Owner MUST ask the CASE_MANAGER to reinstate a removed participant with
-      `Offer(Add(<Actor>, target=VulnerabilityCase))`, sent to the CASE_MANAGER only,
-      whose inner `Add` names the participant's actor as a typed reference, not its
-      `CaseParticipant`.
+      The Case Owner MUST reinstate a removed participant by sending
+      `Add(<Actor>, target=VulnerabilityCase)` to the CASE_MANAGER only, naming the
+      participant's actor as a typed reference, not its `CaseParticipant`.
     rationale: >-
-      Owners make mistakes and disputes resolve, so removal is reversible. An activity
-      states what its sender did, and the Case Owner does not change the record the
-      CASE_MANAGER holds, so it offers the act (ADR-0199). The case holds one record
-      per actor, so the actor names the record, and reinstatement reuses it
-      (CM-31-034).
+      Owners make mistakes and disputes resolve, so removal is reversible. The
+      reinstatement is the Case Owner's decision, so it sends the act itself, and the
+      CASE_MANAGER admits or refuses it (ADR-0199). The case holds one record per
+      actor, so the actor names the record, and reinstatement reuses it (CM-31-034).
     verification: >-
       A test under `test/core/use_cases/triggers/` asserts that the Case Owner's
-      reinstate trigger sends this Offer to the CASE_MANAGER only, naming the actor
+      reinstate trigger sends this `Add` to the CASE_MANAGER only, naming the actor
       (#6465).
     relationships:
     - rel_type: uses_definition
@@ -10466,17 +10464,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse a CM-31-011 reinstatement Offer from a sender that
-      does not hold `CASE_OWNER`, with a refusal notice, sending no `Accept` and
-      committing nothing.
+      The CASE_MANAGER MUST refuse a CM-31-011 reinstatement from a sender that does
+      not hold `CASE_OWNER`, with a refusal notice, committing nothing.
     rationale: >-
       Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
     verification: >-
       A strict-xfail probe in
       `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
       place of a test, which #6465
-      adds, asserting that a non-owner's Offer is refused with no `Accept` and no
-      ledger entry.
+      adds, asserting that a non-owner's reinstatement is refused with a refusal
+      notice and no ledger entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
@@ -10488,49 +10485,44 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For an admitted CM-31-011 Offer, the CASE_MANAGER MUST, in one atomic act, send
-      the Case Owner an `Accept` of it and make the
-      `Add(<Actor>, target=VulnerabilityCase)` itself. The `Add` has `actor` the
-      CASE_MANAGER, `attributedTo` the Case Owner, `inReplyTo` the Offer and an id
-      derived from the Offer. It is the reinstatement's one ledger entry and, under
-      the same id, the direct message to the reinstated actor. The `Accept`'s id is
-      derived from the Offer too.
+      For an admitted CM-31-011 reinstatement, the CASE_MANAGER MUST commit the Case
+      Owner's `Add(<Actor>)` as the reinstatement's one ledger entry and send the
+      reinstated actor `Announce(<that Add>)`, with an id derived from the `Add`.
     rationale: >-
-      The Accept answers the Offer and the `Add` says the act was carried out
-      (ADR-0199). Committing both together keeps the Case Owner from holding an
-      Accept for an act that did not happen (ADR-0146). A derived id makes a retry
-      resend the same messages (SYNC-09-002).
+      The Case Owner's act is its decision, and the entry is the CASE_MANAGER's
+      admission of it, so the CASE_MANAGER sends no `Accept` and makes no `Add` of
+      its own (ADR-0199). The reinstated actor may be outside the fan-out, so the
+      `Announce` tells it, and its `actor` is the CASE_MANAGER the receiver trusts. A
+      derived id makes a retry resend the same notice (SYNC-09-002).
     verification: >-
       A strict-xfail probe in
       `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
       place of a test, which #6465
-      adds, asserting one ledger entry, the CASE_MANAGER's `Add(<Actor>)` with these
-      fields, the `Accept` to the Case Owner and the same `Add`, by id, to the
-      reinstated actor, and that a failure building either message keeps neither.
+      adds, asserting one ledger entry carrying the Case Owner's `Add(<Actor>)`, an
+      `Announce` of that `Add` to the reinstated actor, and no `Accept`.
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
     - ADR-0199
-    - ADR-0146
     stories:
     - story_2022_052
   - id: CM-31-045
     priority: MUST
     kind: protocol
     statement: >-
-      A replica MUST apply a reinstatement only from its ledger entry, never from a
-      directly received `Add(<Actor>)`.
+      A replica MUST apply a reinstatement only from its ledger entry, never from the
+      `Announce` of it.
     rationale: >-
-      The direct copy and the entry's fan-out are the same activity, so applying
-      from the entry alone applies it once, in ledger order (RSH-08-003), as for a
-      removal (CM-31-007).
+      The `Announce` and the entry's fan-out carry the same act, so applying from the
+      entry alone applies it once, in ledger order (RSH-08-003), as for a removal
+      (CM-31-007).
     verification: >-
       A strict-xfail probe in
       `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
       place of a test, which #6465
-      adds, asserting that a replica receiving the direct `Add(<Actor>)` and then its
-      entry applies the reinstatement once, from the entry.
+      adds, asserting that a replica receiving the `Announce` and then the entry
+      applies the reinstatement once, from the entry.
     relationships:
     - rel_type: extends
       spec_id: CM-31-044
@@ -10583,19 +10575,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse an `Offer(Add(<Actor>, target=VulnerabilityCase))`
-      naming an actor whose participant is not removed, that never joined, or that is
-      no participant of the case. It sends the Case Owner a refusal notice and no
-      `Accept`, and commits nothing.
+      The CASE_MANAGER MUST refuse an `Add(<Actor>, target=VulnerabilityCase)` from
+      the Case Owner naming an actor whose participant is not removed, that never
+      joined, or that is no participant of the case. It sends the Case Owner a
+      refusal notice and commits nothing.
     rationale: >-
       Joining requires accepting a stub Invite (ADR-0114), and a reinstatement must
       not become a way around that. An actor whose participant is not removed has
       nothing to reinstate.
     verification: >-
       Tests in `test/core/use_cases/received/test_participant_reinstatement.py`
-      assert that an Offer naming an invitee that never joined, a participant that
-      is not removed, or an actor with no participant record is refused, with a
-      refusal notice, no `Accept` and no ledger entry (#6465).
+      assert that a reinstatement naming an invitee that never joined, a participant
+      that is not removed, or an actor with no participant record is refused, with a
+      refusal notice and no ledger entry (#6465).
     relationships:
     - rel_type: extends
       spec_id: CM-31-011

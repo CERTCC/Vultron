@@ -398,6 +398,8 @@ plugins:
         # ADR-0146 was renamed when it widened from embargo acts to every
         # CASE_MANAGER act (#4983).
         adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md
+        # ADR-0199 was renamed when revision 2 reversed its rule (#6487).
+        adr/0199-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md: adr/0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md
         howto/activitypub/activities/_accept_embargo.md: reference/messages/em.md
         howto/activitypub/activities/_accept_invite_to_case.md: reference/messages/case_management.md
         howto/activitypub/activities/_activate_embargo.md: reference/messages/em.md

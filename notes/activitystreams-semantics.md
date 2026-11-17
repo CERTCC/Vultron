@@ -102,11 +102,12 @@ The changes these rules imply for today's code are tracked in
 - **A request for an approval of a concrete act is `Offer(<the act>)`**, answered by
   `Accept` or `Reject`; `Question` is for choices and open inquiries (VOC Offer,
   Question).
-- **A request for another actor to act is `Offer(<the act>)` too, not the act
-  itself.** The actor that holds the record answers with a refusal notice and
-  changes nothing, or answers `Accept` and makes the act with `inReplyTo` = the
-  Offer; the Accept and the act are written in one atomic act (ADR-0146, ADR-0199).
-  Sending the bare act would state that the asker did it.
+- **The decider sends the act; an `Offer` asks another actor to decide.** An
+  actor sends a decision it has the authority to make as the act itself, and the
+  CASE_MANAGER admits it as the ledger entry or refuses it with a refusal notice,
+  never re-making it (ADR-0199). Only when another actor decides is the act sent as
+  `Offer(<the act>)`. An admitted act that someone outside the fan-out must see or
+  answer is delivered as the CASE_MANAGER's `Announce(<the act>)`.
 
 ## Responses Reference the Request Twice
 
