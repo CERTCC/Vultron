@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: superseded
 status_override: >-
   The maintainer chose on 2026-10-15, in the ISSUE-4641 decisions recorded on
   the issue during the Epic #4638 run, to revise ADR-0135 in place as
@@ -20,7 +20,12 @@ partially_superseded_by:
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
+superseded_by: 0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
 ---
+
+> **Superseded by [ADR-0208](../0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md).**
+> ADR-0208 states the received-side stage order, the staged record, the atomic act and what the receiver keeps as one decision, consolidating ADR-0111, ADR-0135, ADR-0151 and ADR-0154.
+> This record is kept as it stood when it was superseded.
 
 # Compose Received Trees, Never Chain Them
 
@@ -131,7 +136,7 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 
 ## More Information
 
-- [ADR-0022](0022-single-bt-execution-for-received-side-case-actor-routing.md) set the one-tree contract this record extends to helpers.
+- [ADR-0022](../0022-single-bt-execution-for-received-side-case-actor-routing.md) set the one-tree contract this record extends to helpers.
 - [ADR-0111](0111-intake-is-the-first-received-side-stage.md) set the four stages; this record adds the clock-decision stage between its door guards and precondition guards.
 
 Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-006 and CLP-10-010 (amended), CLP-10-025; `sync-ledger-replication.yaml` SYNC-14-009; `behavior-tree-integration.yaml` BT-15-003.

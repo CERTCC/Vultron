@@ -127,7 +127,7 @@ Inside a use case, protocol-significant work runs as a **behavior tree** (BT).
 A behavior tree is a hierarchy of nodes ticked from the root; each node returns *Success*, *Failure*, or *Running*, and the control-flow nodes above them compose those results into higher-level behavior.
 Vultron uses this structure because CVD activities compose the same way: validate a report, propose an embargo, publish an advisory — each is a small tree that slots into a larger one ([ADR-0002](../adr/0002-model-processes-with-behavior-trees.md)).
 
-On the received side, a tree first asks its door questions: is the message addressed to the receiver, has the receiver seen it before, which path does it take, and is the case open to the write from this sender (CLP-10-010, [ADR-0154](../adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md)).
+On the received side, a tree first asks its door questions: is the message addressed to the receiver, has the receiver seen it before, which path does it take, and is the case open to the write from this sender (CLP-10-010, [ADR-0208](../adr/0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md)).
 Each answer can end the run, and nothing is stored before the last one.
 A resend is answered at the second door from what the receiver recorded for it, and nothing runs again.
 The tree then stores what arrived (intake), runs guards, commits the ledger entry, and fires effects, in that order (CLP-10-006).

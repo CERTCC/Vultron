@@ -1001,7 +1001,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-28-015
     adr:
-    - ADR-0135
+    - ADR-0208
 - id: BT-17
   title: Role-Gated BT Subtrees and Blackboard Hygiene
   specs:

@@ -395,6 +395,10 @@ plugins:
         # issues, specs and notes since it merged.
         adr/0017-domain-wire-object-separation.md: adr/archived/0017-domain-wire-object-separation.md
         adr/0082-wire-core-boundary-pairing-registry.md: adr/archived/0082-wire-core-boundary-pairing-registry.md
+        adr/0111-intake-is-the-first-received-side-stage.md: adr/archived/0111-intake-is-the-first-received-side-stage.md
+        adr/0135-compose-received-trees-never-chain-them.md: adr/archived/0135-compose-received-trees-never-chain-them.md
+        adr/0151-a-received-act-commits-its-own-entry-with-its-consequences.md: adr/archived/0151-a-received-act-commits-its-own-entry-with-its-consequences.md
+        adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md: adr/archived/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
         # ADR-0146 was renamed when it widened from embargo acts to every
         # CASE_MANAGER act (#4983).
         adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md

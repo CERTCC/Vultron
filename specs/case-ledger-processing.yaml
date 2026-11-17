@@ -1319,7 +1319,7 @@ groups:
       spec_id: CLP-07-013
     adr:
     - ADR-0146
-    - ADR-0151
+    - ADR-0208
     stories:
     - story_2026_078
   - id: CLP-07-023
@@ -2125,7 +2125,7 @@ groups:
     adr:
     - ADR-0021
     - ADR-0022
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-028
     priority: MUST
     kind: project
@@ -2172,7 +2172,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-030
     priority: MUST_NOT
     kind: project
@@ -2282,9 +2282,8 @@ groups:
       `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts no refusal effect runs on an admitted delivery.'
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0022
-    - ADR-0135
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-017
@@ -2360,10 +2359,8 @@ groups:
       a receipt stub, an archive, a record owed a replay and a record left in holding,
       and assert each answer and that nothing after the door ran.
     adr:
-    - ADR-0111
-    - ADR-0135
+    - ADR-0208
     - ADR-0153
-    - ADR-0154
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-017
@@ -2462,7 +2459,7 @@ groups:
       CASE_MANAGER commits the entry once, any other receiver skips it, and a refused
       activity leaves no entry.
     adr:
-    - ADR-0111
+    - ADR-0208
   - id: CLP-10-033
     priority: MUST
     kind: project
@@ -2482,7 +2479,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-013
     adr:
-    - ADR-0111
+    - ADR-0208
     see_also:
     - spec_id: CLP-10-004
       reason: 'context for the reader'
@@ -2509,7 +2506,7 @@ groups:
     - rel_type: supersedes
       spec_id: CLP-10-013
     adr:
-    - ADR-0111
+    - ADR-0208
     see_also:
     - spec_id: CLP-02-013
       reason: 'context for the reader'
@@ -2672,9 +2669,8 @@ groups:
       an applied or skipped delivery's record is archived with the sealed body intake
       wrote.
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0149
-    - ADR-0154
   - id: CLP-10-036
     priority: MUST
     kind: project
@@ -2703,7 +2699,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VM-08-002
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0149
   - id: CLP-10-037
     priority: MUST
@@ -2744,7 +2740,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-017
     adr:
-    - ADR-0111
+    - ADR-0208
   - id: CLP-10-018
     priority: MUST
     kind: project
@@ -2787,8 +2783,7 @@ groups:
         the body a replay still owes is IO-03-009's hold, named here only to say which
         delivery this rule leaves alone
     adr:
-    - ADR-0111
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-019
     priority: MUST_NOT
     kind: project
@@ -2813,7 +2808,7 @@ groups:
       helper, so a handler-local store path fails the build unless enumerated in
       `KNOWN_VIOLATIONS`.'
     adr:
-    - ADR-0111
+    - ADR-0208
   - id: CLP-10-039
     priority: MUST_NOT
     kind: project
@@ -2832,7 +2827,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-019
     adr:
-    - ADR-0111
+    - ADR-0208
   - id: CLP-10-020
     priority: MUST
     kind: process
@@ -2854,7 +2849,7 @@ groups:
       `execute()` is flagged, that a helper two calls deep is flagged, and that a write
       inside a BT node the tree runs is not.
     adr:
-    - ADR-0111
+    - ADR-0208
     relationships:
     - rel_type: verifies
       spec_id: CLP-10-030
@@ -2876,7 +2871,7 @@ groups:
     - rel_type: refines
       spec_id: ARCH-18-001
     adr:
-    - ADR-0111
+    - ADR-0208
   - id: CLP-10-021
     priority: MUST
     kind: project
@@ -2926,7 +2921,7 @@ groups:
       asserts every received tree that commits and has a precondition guard holds one
       notice or a registered exemption.
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
     relationships:
     - rel_type: implements
@@ -2951,7 +2946,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-042
     priority: MUST
@@ -2976,7 +2971,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-043
     priority: MUST
@@ -2996,7 +2991,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-044
     priority: MUST_NOT
@@ -3021,7 +3016,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-045
     priority: MUST
@@ -3041,7 +3036,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-046
     priority: MUST
@@ -3063,7 +3058,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-047
     priority: MUST
@@ -3081,7 +3076,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-022
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-048
     priority: MUST_NOT
@@ -3107,7 +3102,7 @@ groups:
     - rel_type: uses_definition
       spec_id: RSH-06-004
     adr:
-    - ADR-0111
+    - ADR-0208
     - ADR-0141
   - id: CLP-10-025
     priority: MUST
@@ -3135,7 +3130,7 @@ groups:
     - rel_type: constrains
       spec_id: CM-28-015
     adr:
-    - ADR-0135
+    - ADR-0208
     see_also:
     - spec_id: CM-21-043
       reason: 'context for the reader'
@@ -3161,7 +3156,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-050
     priority: MUST
     kind: project
@@ -3181,7 +3176,7 @@ groups:
     - rel_type: refines
       spec_id: BT-17-001
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-051
     priority: MUST
     kind: project
@@ -3211,7 +3206,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-007
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-052
     priority: MUST
     kind: project
@@ -3235,7 +3230,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-053
     priority: MUST
     kind: project
@@ -3260,7 +3255,7 @@ groups:
     - rel_type: derives_from
       spec_id: EP-08-004
     adr:
-    - ADR-0135
+    - ADR-0208
     - ADR-0122
   - id: CLP-10-054
     priority: MUST
@@ -3280,7 +3275,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-055
     priority: MAY
     kind: project
@@ -3295,7 +3290,7 @@ groups:
       `test/core/use_cases/received/test_note_and_announce_sender_rules.py` asserts that
       a participant's note prompts the end-time decision for its case.
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-056
     priority: MAY
     kind: project
@@ -3313,7 +3308,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-15-003
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-057
     priority: MUST
     kind: project
@@ -3331,7 +3326,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-058
     priority: MUST
     kind: project
@@ -3349,7 +3344,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-059
     priority: MUST_NOT
     kind: project
@@ -3370,7 +3365,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
     see_also:
     - spec_id: EMB-17-001
       reason: 'context for the reader'
@@ -3391,7 +3386,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-025
     adr:
-    - ADR-0135
+    - ADR-0208
     - ADR-0095
   - id: CLP-10-026
     priority: MUST
@@ -3429,7 +3424,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0135
+    - ADR-0208
     see_also:
     - spec_id: CLP-02-005
       reason: 'context for the reader'
@@ -3458,7 +3453,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-062
     priority: MUST
     kind: project
@@ -3477,7 +3472,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-063
     priority: MUST
     kind: project
@@ -3497,7 +3492,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-064
     priority: MUST_NOT
     kind: project
@@ -3514,7 +3509,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-065
     priority: MUST
     kind: project
@@ -3536,7 +3531,7 @@ groups:
     - rel_type: refines
       spec_id: BT-17-001
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-066
     priority: MUST
     kind: project
@@ -3556,7 +3551,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-067
     priority: MUST
     kind: project
@@ -3576,7 +3571,7 @@ groups:
     - rel_type: extends
       spec_id: CLP-10-026
     adr:
-    - ADR-0135
+    - ADR-0208
     see_also:
     - spec_id: RSH-08-003
       reason: 'context for the reader'
@@ -3595,7 +3590,7 @@ groups:
       `test/core/behaviors/case/nodes/test_diversion_stage.py` builds a receiver
       diversion that answers from the activity it holds.
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-069
     priority: MUST
     kind: project
@@ -3616,7 +3611,7 @@ groups:
     - rel_type: uses_definition
       spec_id: BT-17-008
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-070
     priority: MUST
     kind: project
@@ -3638,7 +3633,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-022
     adr:
-    - ADR-0135
+    - ADR-0208
   - id: CLP-10-027
     priority: MUST
     kind: project
@@ -3738,7 +3733,7 @@ groups:
     - rel_type: uses_definition
       spec_id: UCORG-05-010
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-074
     priority: MUST
     kind: project
@@ -3774,7 +3769,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-075
     priority: MUST_NOT
     kind: project
@@ -3794,7 +3789,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-076
     priority: MUST_NOT
     kind: project
@@ -3814,7 +3809,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IO-03-009
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-077
     priority: MUST
     kind: project
@@ -3834,7 +3829,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-018
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-078
     priority: MUST_NOT
     kind: project
@@ -3859,7 +3854,7 @@ groups:
     - rel_type: uses_definition
       spec_id: UCORG-05-010
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-079
     priority: MUST_NOT
     kind: project
@@ -3877,7 +3872,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-073
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-080
     priority: MUST
     kind: project
@@ -3900,7 +3895,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-074
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-082
     priority: MUST
     kind: project
@@ -3920,7 +3915,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-10-080
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-081
     priority: MUST
     kind: project
@@ -3945,7 +3940,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-10-010
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-083
     priority: MUST
     kind: project
@@ -3970,7 +3965,7 @@ groups:
     - rel_type: uses_definition
       spec_id: IE-06-014
     adr:
-    - ADR-0154
+    - ADR-0208
   - id: CLP-10-084
     priority: MUST_NOT
     kind: project
@@ -3996,7 +3991,7 @@ groups:
     - rel_type: uses_definition
       spec_id: HP-01-036
     adr:
-    - ADR-0154
+    - ADR-0208
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair
