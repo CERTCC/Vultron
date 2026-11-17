@@ -163,7 +163,7 @@ class TestRehydrateFields:
         )
 
         invitee = "https://example.org/actors/minimal-peer"
-        dl.create(CoreActor(id_=invitee, published=None, updated=None))
+        dl.create(make(CoreActor, id_=invitee, published=None, updated=None))
         case_id = "urn:uuid:case-sqlite-coerce-minimal-peer"
         embargo = make(
             as_EmbargoEvent, context=case_id, end_time=days_from_now(45)
