@@ -168,9 +168,9 @@ def as2_term_values() -> set[str]:
         }
         | set(ATTACHED_FILE_TYPES)
         | {
-            value
+            declared
             for cls in AS2_BASE_CLASSES
-            if isinstance(value := own_type(cls), str)
+            if isinstance(declared := own_type(cls), str)
         }
     )
 
