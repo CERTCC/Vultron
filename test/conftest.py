@@ -247,21 +247,17 @@ def _dispose_actor_stores_between_tests():
     warning it then failed on (#3545).
 
     No store is disposed while a sender-sequence hold timer still runs: the
-    timer reads the stores from its app's loop thread, and closing a
-    connection under that read segfaults the worker (#6148).  The leaking
-    test fails here with :class:`~test.support.hold_timers.HoldTimerLeakedError`
-    instead.
+    timer reads the stores on its app's loop and in the worker thread each
+    round is offloaded to, and closing a connection under that read
+    segfaults the worker (#6148).  A timer the test left running is stopped
+    first, and the test fails with
+    :class:`~test.support.hold_timers.HoldTimerLeakedError` once the stores
+    are disposed.
     """
     yield
-    from test.support.hold_timers import refuse_disposal_under_live_hold_timer
-    from vultron.adapters.driven.datalayer_sqlite import (
-        reset_datalayer,
-        reset_store_claimants,
-    )
+    from test.support.hold_timers import dispose_actor_stores_between_tests
 
-    refuse_disposal_under_live_hold_timer()
-    reset_datalayer()
-    reset_store_claimants()
+    dispose_actor_stores_between_tests()
 
 
 @pytest.fixture(autouse=True)

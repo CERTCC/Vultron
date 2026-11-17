@@ -166,10 +166,11 @@ async def _end_holds_on_interval(
 
 
 #: Every hold timer started in this process whose task has not ended.  A
-#: timer reads every hosted actor's store from its event loop's thread, so a
-#: caller about to close those stores asks first
-#: (:func:`running_sender_sequence_hold_timers`).  Locked because the timer's
-#: loop thread removes entries while another thread may be reading them.
+#: timer reads every hosted actor's store, on its event loop and in the
+#: worker thread each actor's round is offloaded to, so a caller about to
+#: close those stores asks first (:func:`running_sender_sequence_hold_timers`).
+#: Locked because the timer's loop thread removes entries while another
+#: thread may be reading them.
 _started_timers: set[SenderSequenceHoldTimer] = set()
 _started_timers_lock = threading.Lock()
 
@@ -183,7 +184,11 @@ def running_sender_sequence_hold_timers() -> list[SenderSequenceHoldTimer]:
     """The hold timers started in this process whose task has not ended.
 
     A timer that has been told to stop but is still finishing a round is
-    running: the round is still reading stores.
+    running: the round is still reading stores.  That holds because a timer
+    is stopped by signalling it and awaiting its task
+    (:func:`finish_sender_sequence_hold_timer`): its task ends only once the
+    round's worker thread has returned.  A *cancelled* task reads as ended
+    while that thread may still be reading.
     """
     with _started_timers_lock:
         return [timer for timer in _started_timers if not timer.task.done()]

@@ -11,36 +11,108 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Refuse to close the actor stores while a sender-sequence hold timer runs.
+"""Close the actor stores after a test, never under a sender-sequence hold timer.
 
-The hold timer reads every hosted actor's store from its app's event-loop
-thread (SYNC-21-011).  Closing a SQLite connection under a read on another
-thread segfaults the interpreter, which kills the xdist worker and fails the
-run with no assertion behind it (#6148).  A test that leaves a timer running
-must fail in its own teardown, with a name, instead.
+The hold timer reads every hosted actor's store, on its app's event loop and
+in the worker thread each round is offloaded to (SYNC-21-011).  Closing a
+SQLite connection under a read on another thread segfaults the interpreter,
+which kills the xdist worker and fails the run with no assertion behind it
+(#6148).  So per-test disposal first stops any timer a test left running,
+then disposes, then fails that test by name.
 """
 
+import asyncio
+
 from vultron.adapters.driving.fastapi.sender_sequence_holds import (
+    SenderSequenceHoldTimer,
+    finish_sender_sequence_hold_timer,
     running_sender_sequence_hold_timers,
 )
+
+#: How long a stop waits for the timer's round in progress to finish.
+STOP_TIMEOUT_SECONDS = 10.0
 
 
 class HoldTimerLeakedError(RuntimeError):
     """A sender-sequence hold timer was still running at store disposal."""
 
 
-def refuse_disposal_under_live_hold_timer() -> None:
-    """Raise :class:`HoldTimerLeakedError` if any hold timer still runs.
+def stop_hold_timer_from_another_thread(
+    timer: SenderSequenceHoldTimer,
+    *,
+    timeout: float = STOP_TIMEOUT_SECONDS,
+) -> None:
+    """Stop *timer* from outside its event loop and wait for its task to end.
 
-    Called before the stores are disposed, so a leak is reported by the test
-    that left it, and nothing is closed under the timer's read.
+    Signalled and awaited on the timer's own loop, as the lifespan's shutdown
+    does, never cancelled: a cancelled task reads as ended while its round's
+    worker thread may still be reading a store.
+
+    Raises:
+        HoldTimerLeakedError: the timer's loop is no longer running, so
+            nothing can end the task, or its round did not finish within
+            *timeout*.
+        RuntimeError: called from the timer's own loop thread, where the wait
+            would deadlock.
     """
-    running = running_sender_sequence_hold_timers()
-    if running:
+    loop = timer.task.get_loop()
+    try:
+        running_here = asyncio.get_running_loop() is loop
+    except RuntimeError:
+        running_here = False
+    if running_here:
+        raise RuntimeError(
+            "stop_hold_timer_from_another_thread() was called on the timer's"
+            " own loop; await finish_sender_sequence_hold_timer() there."
+        )
+    if not loop.is_running():
         raise HoldTimerLeakedError(
-            f"{len(running)} sender-sequence hold timer(s) still running at"
+            "a sender-sequence hold timer's event loop stopped with the timer"
+            " still running, so it cannot be stopped; the actor stores were"
+            " not disposed (#6148)."
+        )
+    stopped = asyncio.run_coroutine_threadsafe(
+        finish_sender_sequence_hold_timer(timer), loop
+    )
+    try:
+        stopped.result(timeout=timeout)
+    except TimeoutError as exc:
+        raise HoldTimerLeakedError(
+            f"a sender-sequence hold timer's round did not finish within"
+            f" {timeout}s of being stopped; the actor stores were not"
+            f" disposed (#6148)."
+        ) from exc
+
+
+def dispose_actor_stores_between_tests() -> None:
+    """Dispose every actor store, first stopping any hold timer still running.
+
+    The body of the root conftest's ``_dispose_actor_stores_between_tests``.
+    A timer that cannot be stopped leaves the stores open: a later test fails
+    on their rows, but no store is closed under a read.
+
+    Raises:
+        HoldTimerLeakedError: a timer was still running.  When it was stopped,
+            the stores are disposed before this is raised, so only the test
+            that leaked it fails.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import (
+        reset_datalayer,
+        reset_store_claimants,
+    )
+
+    leaked = running_sender_sequence_hold_timers()
+    for timer in leaked:
+        stop_hold_timer_from_another_thread(timer)
+    reset_datalayer()
+    reset_store_claimants()
+    if leaked:
+        raise HoldTimerLeakedError(
+            f"{len(leaked)} sender-sequence hold timer(s) still running at"
             " store disposal: a fixture or test started the production"
-            " lifespan and did not stop the timer before it ended.  Exit the"
-            " TestClient (its shutdown awaits the timer), or stop it as"
-            " test/demo/conftest.py's client fixture does (#6148)."
+            " lifespan and did not stop the timer before it ended.  The"
+            " timer was stopped and the stores disposed.  Exit the TestClient"
+            " (its shutdown awaits the timer), or stop it with"
+            " stop_hold_timer_from_another_thread() as test/demo/conftest.py's"
+            " client fixture does (#6148)."
         )
