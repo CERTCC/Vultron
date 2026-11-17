@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-"""This module provides activitystreams collection objects"""
 
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -14,87 +13,32 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import ClassVar, Literal, TypeAlias
+"""The AS2 collection types on the wire.
 
-from pydantic import Field, PrivateAttr, model_validator
+Core owns them (ADR-0208): ``as_Collection`` and ``as_OrderedCollection``
+are aliases of the core classes, as ADR-0099 made the domain types, and the
+wire registers them under the ``type`` values a received body names.
+"""
 
+from typing import TypeAlias
+
+from vultron.core.models.collection import Collection, OrderedCollection
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import print_object_examples
 
+#: Vultron uses collections only as an actor's ``inbox``/``outbox`` endpoint
+#: (ActivityPub publishes them as addresses), so the AS2 paging properties
+#: (``current``, ``first``, ``last``, ``CollectionPage``) are not modelled.
+as_Collection = Collection
+as_OrderedCollection = OrderedCollection
 
-class as_Collection(as_Object):
-    """A collection is a list of objects. The items in the list MAY be ordered.
-    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collection>
-
-    Vultron uses collections only as an actor's ``inbox``/``outbox`` endpoint
-    (ActivityPub publishes them as addresses), so the AS2 paging properties
-    (``current``, ``first``, ``last``, ``CollectionPage``) are not modelled.
-    """
-
-    #: A collection is a container, not an act made at a moment
-    #: (CLP-15-011).
-    _received_without_published: ClassVar[bool] = True
-
-    #: Narrowed so the class registers under the ``type`` it presents
-    #: (VM-03-002); without it ``set_type_from_class_name`` still emits
-    #: ``"Collection"`` but nothing registers, and a wire lookup falls through
-    #: to the core map (ISSUE-3242).
-    type_: Literal["Collection"] = Field(
-        default="Collection",
-        validation_alias="type",
-        serialization_alias="type",
-    )
-    items: list[as_ObjectRef | None] = Field(default_factory=list)
-
-    _ids: set[str] = PrivateAttr(
-        default_factory=set
-    )  # tracks id_ URIs for duplicate detection
-
-    @model_validator(mode="after")
-    def _populate_ids(self) -> as_Collection:
-        for item in self.items:
-            if item is None or isinstance(item, str):
-                continue
-            item_id = getattr(item, "id_", None)
-            if item_id:
-                self._ids.add(str(item_id))
-        return self
-
-    @property
-    def totalItems(self):
-        return len(self.items)
-
-    def append(self, item: as_ObjectRef) -> None:
-        if not isinstance(item, str):
-            raw_id = getattr(item, "id_", None)
-            item_id = str(raw_id) if raw_id else ""
-            if item_id and item_id in self._ids:
-                return
-        else:
-            item_id = ""
-        self.items.append(item)
-        if item_id:
-            self._ids.add(item_id)
-
+# Registered in WIRE_TYPE_MAP by hand, as an aliased core class is
+# (ADR-0099), so the parser admits each inline by its ``type``.
+WIRE_TYPE_MAP["Collection"] = Collection
+WIRE_TYPE_MAP["OrderedCollection"] = OrderedCollection
 
 as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]
-
-
-class as_OrderedCollection(as_Collection):
-    """A collection that has its items explicitly ordered. The items in the list are assumed to always be in the same order.
-    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollection>
-    """
-
-    # Narrowing a parent's Literal to a disjoint one is how a subclass presents
-    # its own `type` (VM-03-002); mypy reads it as an incompatible override.
-    type_: Literal["OrderedCollection"] = Field(  # type: ignore[assignment]
-        default="OrderedCollection",
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
 as_OrderedCollectionRef: TypeAlias = ActivityStreamRef[as_OrderedCollection]
 
 

@@ -852,6 +852,18 @@ def test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt(
 
 
 @pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("ARCH-25-034")
+@pytest.mark.parametrize("type_", ["Collection", "OrderedCollection"])
+@pytest.mark.parametrize("generic", ["as_Object", "CoreObject"])
+def test_a_generic_slot_passes_an_untimed_collection(generic: str, type_: str):
+    """A collection is exempt in a generic slot on both sides: core owns the
+    collection classes (ADR-0208), so its generic slot knows one by class."""
+    parsed = _inbound(_generic(generic), _untimed(type_))
+
+    assert parsed.published is None
+
+
+@pytest.mark.spec("CLP-15-011")
 @pytest.mark.parametrize(
     "type_",
     ["Note", "Bogus", ["Note", "Person"], ["Person", "Note"]],

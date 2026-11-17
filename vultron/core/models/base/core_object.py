@@ -56,6 +56,7 @@ from vultron.core.models._helpers import (
     refuse_absent_id,
     refuse_absent_published,
 )
+from vultron.core.models.as2_base import as2_base_class
 from vultron.core.models.base._computed import (
     check_computed_field_inputs,
     computed_field_spellings,
@@ -78,6 +79,7 @@ from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString
 
 
+@as2_base_class
 class CoreObject(CoreRecord):
     """The one AS2 object root of the Vultron core domain model.
 

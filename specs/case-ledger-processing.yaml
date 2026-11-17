@@ -4804,6 +4804,8 @@ groups:
       `test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt` and
       `test_a_generic_slot_refuses_an_untimed_object_whose_type_is_not_exempt` assert
       that a class admitting any object exempts only a `type` naming an exempt kind,
+      `test_a_generic_slot_passes_an_untimed_collection` that it knows a collection
+      by core's own collection class (ADR-0208),
       and `test_a_typed_class_is_not_exempted_by_the_type_its_data_names` that a class
       declaring its own type is judged by itself.
       `test_a_fetched_whole_object_without_published_is_refused` in

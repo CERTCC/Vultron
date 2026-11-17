@@ -262,16 +262,17 @@ class TestCoreTypeMapFallback:
     ]
 
     @pytest.mark.spec("VM-06-008")
-    def test_ordered_collection_is_not_a_core_type(self):
-        """No core class claims ``OrderedCollection`` (ISSUE-3563).
-
-        The vestigial ``CoreActorCollection`` registered under that name, so
-        the core-map fallback answered a wire caller with a core class
-        (ISSUE-3217).  Core models an actor's inbox as a URL, not a list.
-        """
+    def test_ordered_collection_is_one_class_for_core_and_wire(self):
+        """Core owns ``OrderedCollection`` (ADR-0208), so the wire's map and
+        core's name the one class, and a wire caller never gets a second one
+        (ISSUE-3217).  The vestigial ``CoreActorCollection`` stays gone
+        (ISSUE-3563)."""
         from vultron.core.models.registry import CORE_TYPE_MAP
 
-        assert "OrderedCollection" not in CORE_TYPE_MAP
+        assert (
+            CORE_TYPE_MAP["OrderedCollection"]
+            is WIRE_TYPE_MAP["OrderedCollection"]
+        )
         assert "CoreActorCollection" not in CORE_TYPE_MAP
 
     def test_core_types_absent_from_vocabulary(self):

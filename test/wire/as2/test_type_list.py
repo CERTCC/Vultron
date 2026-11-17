@@ -21,9 +21,7 @@ module and removed after it, so the tests do not depend on ``Refuse``.
 
 import copy
 import json
-import re
 from collections.abc import Iterator
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar, Literal
 from unittest.mock import patch
@@ -31,6 +29,12 @@ from unittest.mock import patch
 import pytest
 from pydantic import Field, ValidationError
 
+from test.support.as2_ontology import (
+    ONTOLOGY_ROOTS,
+    RECOMMENDATION_OVER_PINNED_ONTOLOGY,
+    as2_subclass_pairs,
+    pinned_ontology_supertypes,
+)
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import parse_fetched_object
@@ -435,59 +439,6 @@ class TestInboundTypeList:
         )
 
 
-_ONTOLOGY = (
-    Path(__file__).resolve().parents[3] / "ontology/activitystreams2.owl"
-)
-
-#: The classes the pinned ontology gives no named supertype: the roots
-#: ``Object`` and ``Link``, and ``OrderedItems``, an ``rdf:List`` shape and
-#: not an AS2 type.
-_ONTOLOGY_ROOTS = frozenset({"Object", "Link", "OrderedItems"})
-
-#: Where the pinned ontology contradicts the AS2 Vocabulary Recommendation
-#: (§ 3.3, "Extends"), the Recommendation wins: ``(subtype, pinned supertype)``
-#: maps to the Recommendation's supertype.  The pinned copy puts ``Page``
-#: under ``Object``; the Recommendation puts it under ``Document``.
-_RECOMMENDATION_OVER_PINNED_ONTOLOGY = {("Page", "Object"): "Document"}
-
-
-def _pinned_ontology_supertypes() -> dict[str, list[str]]:
-    """Each class of the pinned AS2 ontology, with the supertypes it names.
-
-    Reads every name of a ``rdfs:subClassOf`` list and the named class an
-    ``owl:intersectionOf`` restricts, the two forms the ontology uses.
-    """
-    supertypes: dict[str, list[str]] = {}
-    for block in _ONTOLOGY.read_text(encoding="utf-8").split("\n\n"):
-        match = re.match(r"as:(\w+) a owl:Class", block.strip())
-        if not match:
-            continue
-        named = [
-            name
-            for names in re.findall(
-                r"rdfs:subClassOf\s+(as:\w+(?:\s*,\s*as:\w+)*)", block
-            )
-            for name in re.findall(r"as:(\w+)", names)
-        ]
-        named += re.findall(
-            r"rdfs:subClassOf\s*\[\s*a owl:Class;\s*"
-            r"owl:intersectionOf\s*\(\s*as:(\w+)",
-            block,
-        )
-        supertypes[match.group(1)] = named
-    return supertypes
-
-
-def _as2_subclass_pairs() -> list[tuple[str, str]]:
-    """Each ``(subtype, supertype)`` of AS2: the pinned ontology's pairs, with
-    each recorded departure replaced by the Recommendation's pair."""
-    return [
-        (sub, _RECOMMENDATION_OVER_PINNED_ONTOLOGY.get((sub, sup), sup))
-        for sub, supertypes in _pinned_ontology_supertypes().items()
-        for sup in supertypes
-    ]
-
-
 @pytest.mark.spec("VM-03-006")
 class TestAs2SubtypeOutsideTheClassHierarchy:
     """A list naming a type with its AS2 supertype resolves to the subtype even
@@ -618,11 +569,11 @@ class TestAs2SubtypeOutsideTheClassHierarchy:
         """Every ontology class but the roots yields a supertype, so a pair
         written in a form the reader does not know fails here, not silently
         in the ratchet below."""
-        supertypes = _pinned_ontology_supertypes()
+        supertypes = pinned_ontology_supertypes()
 
         assert {
             cls for cls, named in supertypes.items() if not named
-        } == _ONTOLOGY_ROOTS
+        } == ONTOLOGY_ROOTS
         assert supertypes["OrderedCollectionPage"] == [
             "OrderedCollection",
             "CollectionPage",
@@ -631,7 +582,7 @@ class TestAs2SubtypeOutsideTheClassHierarchy:
 
     @pytest.mark.parametrize(
         ("pinned", "recommended"),
-        sorted(_RECOMMENDATION_OVER_PINNED_ONTOLOGY.items()),
+        sorted(RECOMMENDATION_OVER_PINNED_ONTOLOGY.items()),
     )
     def test_each_recorded_ontology_departure_still_departs(
         self, pinned, recommended
@@ -640,7 +591,7 @@ class TestAs2SubtypeOutsideTheClassHierarchy:
         states its pair and not the Recommendation's: a refreshed copy that
         agrees makes the entry stale, and this fails."""
         subtype, pinned_supertype = pinned
-        named = _pinned_ontology_supertypes()[subtype]
+        named = pinned_ontology_supertypes()[subtype]
 
         assert pinned_supertype in named
         assert recommended not in named
@@ -650,7 +601,7 @@ class TestAs2SubtypeOutsideTheClassHierarchy:
         subtype when the vocabulary registers both."""
         pairs = [
             (sub, sup)
-            for sub, sup in _as2_subclass_pairs()
+            for sub, sup in as2_subclass_pairs()
             if sub in WIRE_TYPE_MAP and sup in WIRE_TYPE_MAP
         ]
         # A pair held only by the table, one only by inheritance, and the

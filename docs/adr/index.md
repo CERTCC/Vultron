@@ -200,7 +200,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md) *(revision 2)*
 - [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md) — partially superseded by 0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md; partially supersedes 0024-coordination-agent-taxonomy.md
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
-- [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — partially superseded by 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md; supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
+- [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — partially superseded by 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md, 0208-core-owns-the-as2-base-vocabulary.md; supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
 - [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
@@ -312,6 +312,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0206 Each App Resolves Its Own Configuration](0206-each-app-resolves-its-own-configuration.md)
 - [ADR-0207 A Tree Has a Fixed Shape, and Every Act Runs One](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md) *(revision 2)*
+- [ADR-0208 Core Owns the AS2 Base Vocabulary](0208-core-owns-the-as2-base-vocabulary.md) — partially supersedes 0099-one-object-model-as2-is-a-serialization.md
 
 ## Rejected ADRs
 

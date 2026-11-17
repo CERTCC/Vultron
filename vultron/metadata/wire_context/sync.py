@@ -60,6 +60,8 @@ from pydantic import BaseModel
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
+from vultron.core.models._helpers import own_type
+from vultron.core.models.as2_base import AS2_BASE_CLASSES
 from vultron.core.models.attached_document import ATTACHED_FILE_TYPES
 from vultron.core.models.base import (
     PropertyValueKind,
@@ -152,14 +154,25 @@ def as2_term_values() -> set[str]:
 
     The attached-file types are a second source: the core classes own
     ``Document``, ``Image``, ``Audio`` and ``Video`` (ARCH-25-003, ADR-0099),
-    so no base-package wire class declares them, yet they are AS2 terms.
+    so no base-package wire class declares them, yet they are AS2 terms.  Core's
+    AS2 base classes are a third (``Collection``, ADR-0208): each is an AS2 type
+    by the conformance check that holds the registry to the AS2 ontology
+    (ARCH-25-035).
     """
-    return {
-        value
-        for cls in _all_object_subclasses()
-        if cls.__module__.startswith(AS2_BASE_PACKAGE)
-        and (value := _concrete_type_value(cls)) is not None
-    } | set(ATTACHED_FILE_TYPES)
+    return (
+        {
+            value
+            for cls in _all_object_subclasses()
+            if cls.__module__.startswith(AS2_BASE_PACKAGE)
+            and (value := _concrete_type_value(cls)) is not None
+        }
+        | set(ATTACHED_FILE_TYPES)
+        | {
+            value
+            for cls in AS2_BASE_CLASSES
+            if isinstance(value := own_type(cls), str)
+        }
+    )
 
 
 def _concrete_type_value(cls: type) -> str | None:
