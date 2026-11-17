@@ -6,7 +6,8 @@ and writes one transient working file that holds the marker too.  After
 the child exits, the marker is in no file under its working directory, its
 temporary directory or its home (which holds ``~/.streamlit``): when it
 exits normally (AC-1), when the read fails partway through the ledger
-(a row that does not parse), and when it is stopped with ``SIGTERM`` while it holds the case (AC-2).
+(a row that does not parse), and when it is stopped with ``SIGTERM``
+while it holds the case (AC-2).
 The child drives the page with Streamlit's ``AppTest``, so it reads and
 holds the case exactly as a browser session would, without a socket.
 
