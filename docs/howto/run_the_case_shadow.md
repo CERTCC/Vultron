@@ -80,14 +80,15 @@ The page shows the case as it stands at its last ledger entry.
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
 - **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
-- **Move advice** puts each open move in one of three bands.
+- **Move advice** puts each open move in one of three bands, by the method that [Move Bands Against Pathology Cases](../topics/measuring_cvd/move_bands.md) tests.
   A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
   A **Harm-free** move raises at least one Vendor above the chance value and lowers none.
   A **Trade-off** move raises one Vendor at another's cost.
   An **Unhelpful** move raises no Vendor; its band is closed until you open it.
 - In the harm-free and trade-off bands, each move's row is shaded by its layer, with layer 1 the darkest.
   Layer 1 holds the moves that no other open move beats, and each move in a lighter layer is beaten by a move in a darker one.
-  A ⭐ marks a top move, and 👉 marks a coordinator's move that none of the coordinator's other moves beats.
+  A ⭐ marks a top move: a harm-free or trade-off move in layer 1.
+  A 👉 marks a coordinator's move that none of the coordinator's other moves beats.
   Choose the darkest move in the highest band that has one.
 - **Harms by vendor** lists each Vendor that a move leaves below the chance value, in its end or its embargo desiderata, with how far below.
   A harm-free move can still harm a Vendor's embargo desiderata when its end desiderata decide its band.
