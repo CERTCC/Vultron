@@ -42,7 +42,8 @@ def select_case_reader(
         outside: The outside-system case reader the run is configured with,
             or ``None`` when no outside system is configured.
         ledger_root: The directory the Vultron case reader confines its
-            ledger files to, when one is set.
+            ledger files to; when it is ``None``, the reader confines them
+            to the working directory at construction.
     """
     if outside is None:
         return VultronCaseReader(root=ledger_root)
