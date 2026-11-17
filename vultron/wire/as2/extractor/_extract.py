@@ -47,12 +47,9 @@ from vultron.wire.as2.extractor._builders.semantic_kwargs import (
     _proposer_profile,
     _unresolved_object_id,
 )
+from vultron.wire.as2.typed_reference import case_reference, is_case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-    case_reference,
-)
 from vultron.wire.csaf.reader import read_report_attachments
 
 logger = logging.getLogger(__name__)
@@ -76,7 +73,7 @@ def _as_case_reference(
     value: BaseModel | str | None,
 ) -> BaseModel | str | None:
     """*value* reduced to its case reference when it is a case, else as is."""
-    if isinstance(value, (as_VulnerabilityCaseReference, str)):
+    if isinstance(value, str) or is_case_reference(value):
         return value
     if str(getattr(value, "type_", "")) != str(VOtype.VULNERABILITY_CASE):
         return value

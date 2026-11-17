@@ -213,18 +213,14 @@ class TestDynamicDiscovery:
         assert "as_VulnerabilityCase" not in VOCABULARY
 
     def test_case_stub_owns_its_own_wire_type_key(self):
-        """VM-01-008, CM-11-013: the stub is its own type, not an alias.
+        """VM-01-008, CM-11-013: the stub is its own type.
 
         ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCaseStub"``
         and owns that ``WIRE_TYPE_MAP`` key (ADR-0114, #4045); the full case
-        keeps ``VulnerabilityCase``.  Before #4045 the stub was a
-        ``_wire_type_alias`` of the case and owned no key.
+        keeps ``VulnerabilityCase``.
         """
         import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
-        from vultron.wire.as2.vocab.base.registry import (
-            is_wire_type_alias,
-            wire_type_value,
-        )
+        from vultron.wire.as2.vocab.base.registry import wire_type_value
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
             as_VulnerabilityCaseStub,
@@ -234,7 +230,6 @@ class TestDynamicDiscovery:
             wire_type_value(as_VulnerabilityCaseStub)
             == "VulnerabilityCaseStub"
         )
-        assert not is_wire_type_alias(as_VulnerabilityCaseStub)
         assert (
             WIRE_TYPE_MAP["VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
         )
@@ -556,6 +551,40 @@ class TestWireTypeValues:
         }
         assert set(_UNREGISTERED_WIRE_TYPES) - needing == set()
 
+    @pytest.mark.spec("VM-01-007")
+    @pytest.mark.spec("VM-01-017")
+    def test_a_class_missing_its_type_default_is_caught_as_unreachable(self):
+        """Self-test: the gate's no-default skip cannot hide a real wire type.
+
+        The registration gate passes by a class whose ``type_`` has no
+        default, as the typed reference is (VM-01-017).  A wire class that
+        forgot its default is skipped the same way, so the reachability test
+        above must still see it: it presents its class-name ``type`` and
+        ``WIRE_TYPE_MAP`` does not answer that value with it.
+        """
+        from typing import Literal
+        from unittest.mock import patch
+
+        from pydantic import Field
+
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+        from vultron.wire.as2.vocab.base.registry import (
+            declares_registrable_type,
+            wire_type_value,
+        )
+
+        with patch.dict(WIRE_TYPE_MAP), patch.dict(VOCABULARY):
+
+            class as_DefaultlessWidget(as_Object):
+                type_: Literal["DefaultlessWidget"] = Field(  # type: ignore[assignment]
+                    ..., validation_alias="type", serialization_alias="type"
+                )
+
+            assert not declares_registrable_type(as_DefaultlessWidget)
+            value = wire_type_value(as_DefaultlessWidget)
+            assert value == "DefaultlessWidget"
+            assert WIRE_TYPE_MAP.get(value) is not as_DefaultlessWidget
+
     @pytest.mark.spec("VM-03-002")
     @pytest.mark.spec("VM-06-008")
     @pytest.mark.parametrize(
@@ -587,12 +616,6 @@ _BASE = f"{_VOCAB}.base.objects"
 #: deliberately not what that value deserializes to, each with the reason
 #: (VM-01-011).  ``test_every_exemption_is_live`` keeps this set from outliving
 #: its members.
-_CORE_FILE_TYPE = (
-    "ARCH-25-003 (ADR-0099): a core attached-file class owns this `type`, so "
-    "a report's attachments are core objects (CSAF-01-001); the wire class "
-    "declares itself an alias (VM-01-014)"
-)
-
 _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     f"{_BASE}.base.as_Object": "abstract root of the AS2 object branch; the "
     "class an unresolved inline object is left to, not a type Vultron emits",
@@ -609,10 +632,9 @@ _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     "as_VultronApplication owns `Application`",
     f"{_BASE}.actors.as_Group": "VM-01-013 sanctioned shadow: "
     "as_VultronGroup owns `Group`",
-    f"{_BASE}.object_types.as_Audio": _CORE_FILE_TYPE,
-    f"{_BASE}.object_types.as_Document": _CORE_FILE_TYPE,
-    f"{_BASE}.object_types.as_Image": _CORE_FILE_TYPE,
-    f"{_BASE}.object_types.as_Video": _CORE_FILE_TYPE,
+    "vultron.wire.as2.typed_reference.as_TypedReference": "VM-01-017: a "
+    "typed reference carries the `type` of the object it names, so its shape "
+    "reads it and it claims no key; `TypedReference` is no type Vultron emits",
 }
 
 

@@ -60,12 +60,15 @@ def declared_wire_type(cls: type) -> str | None:
 
 
 def declares_registrable_type(cls: type) -> bool:
-    """Return whether *cls* itself annotates a concrete (non-union) ``type_``.
+    """Return whether *cls* itself declares a concrete ``type_`` value.
 
     This is the gate ``as_Base.__init_subclass__`` applies before registering a
     class: an abstract base leaves ``type_`` unannotated or typed as a union
     (``str | None``), and a subclass that merely inherits ``type_`` is not a new
-    wire type. Shared with the registry ratchet so both apply one rule.
+    wire type. A class whose ``type_`` has no default, such as the typed
+    reference, takes its ``type`` from the object it names, so it is no wire
+    type of its own either: its shape, not the registry, reads it
+    (VM-01-017). Shared with the registry ratchet so both apply one rule.
     """
     annotations = own_annotations(cls)
     if "type_" not in annotations:
@@ -73,7 +76,9 @@ def declares_registrable_type(cls: type) -> bool:
     annotation = annotations["type_"]
     if isinstance(annotation, _types.UnionType):
         return False
-    return _typing.get_origin(annotation) is not _typing.Union
+    if _typing.get_origin(annotation) is _typing.Union:
+        return False
+    return declared_wire_type(cls) is not None
 
 
 def wire_type_value(cls: type) -> str:
@@ -84,17 +89,6 @@ def wire_type_value(cls: type) -> str:
     removed. This is the key form ``WIRE_TYPE_MAP`` uses (VM-01-008).
     """
     return declared_wire_type(cls) or cls.__name__.removeprefix("as_")
-
-
-def is_wire_type_alias(cls: type) -> bool:
-    """Return whether *cls* declares itself an alias of another wire type.
-
-    An alias shares another class's wire ``type`` value and therefore MUST NOT own a
-    ``WIRE_TYPE_MAP`` key: exactly one class can be what a given ``type`` value
-    deserializes to. Read off the class's own namespace rather than inherited,
-    so a subclass that narrows ``type_`` to a distinct value still registers.
-    """
-    return bool(cls.__dict__.get("_wire_type_alias", False))
 
 
 def find_in_vocabulary(

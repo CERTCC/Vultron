@@ -47,10 +47,8 @@ from vultron.wire.as2.factories import (
     rm_defer_case_activity,
     rm_engage_case_activity,
 )
+from vultron.wire.as2.typed_reference import is_case_reference
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-)
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -226,7 +224,7 @@ def test_the_ingress_edge_keeps_the_reference_as_a_reference(
     named: Any = routed
     for key in path:
         named = getattr(named, f"{key}_")
-    assert isinstance(named, as_VulnerabilityCaseReference)
+    assert is_case_reference(named)
 
 
 @pytest.mark.spec("AKM-03-005")

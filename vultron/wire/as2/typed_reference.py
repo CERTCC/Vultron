@@ -20,17 +20,20 @@ This module is the one place that reads that shape:
 - :func:`is_previewed_reference` answers whether a parsed object is a typed
   reference carrying a preview, which a receiver reads as received: never
   expanded into the object it names, never fetched, and never a replica's
-  source (MV-10-011, ADR-0205).
+  source (MV-10-011, ADR-0205);
+- :func:`case_reference` builds the typed reference a participant's act on a
+  case names it by, and :func:`is_case_reference` recognizes one (ADR-0165).
 
-Two types keep the reference forms they had before this rule generalized
-them: an actor reference is the actor's own class carrying only its ``id``
-(AKM-05-017, ADR-0159), and a case reference is
-:class:`~vultron.wire.as2.vocab.objects.vulnerability_case.as_VulnerabilityCaseReference`
-(ADR-0165).  A collection carrying only its ``id`` is the address of an
-actor's endpoint (AKM-02-006), and a case stub keeps its own shape and
-position rules (MV-10-001, MV-10-002).  A case reference that carries the
-case's preview is an :class:`as_TypedReference`: the case reference class
-names a case by exactly its ``id`` and ``type`` (ADR-0205).
+A typed reference shares the ``type`` of the object it names, so it claims no
+``WIRE_TYPE_MAP`` key: the shape, not the registry, tells it from a whole
+object of that type (VM-01-017).  An actor reference keeps the form it had
+before this rule generalized it: the actor's own class carrying only its
+``id`` (AKM-05-017, ADR-0159).  A collection carrying only its ``id`` is the
+address of an actor's endpoint (AKM-02-006), and a case stub keeps its own
+shape and position rules (MV-10-001, MV-10-002).  A case reference names a
+case by exactly its ``id`` and ``type`` (ADR-0165); one that also carries the
+case's preview is a previewed reference, read by the preview's rules
+(ADR-0205), and is not a case reference.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -55,6 +58,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
+from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -67,7 +71,6 @@ from vultron.wire.as2.vocab.base.registry import (
     resolved_wire_type_name,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 
@@ -186,8 +189,9 @@ def reads_as_typed_reference(
     True for a typed reference shape whose class has no reference form of
     its own.  An actor's class is its actor reference (AKM-05-017), a
     collection naming only its ``id`` is an endpoint's address, and a
-    ``Link`` is not an object; the case's reference is resolved before this
-    is asked (ADR-0165).  A case stub keeps its own rules (MV-10-001).
+    ``Link`` is not an object.  A case stub keeps its own rules (MV-10-001).
+    A case is read here like any other type: its ``{id, type}`` shape is the
+    case reference (ADR-0165).
     """
     if cls is None or not is_typed_reference_shape(value):
         return False
@@ -198,7 +202,6 @@ def reads_as_typed_reference(
             CoreActor,
             as_Collection,
             as_Link,
-            as_VulnerabilityCaseReference,
             as_VulnerabilityCaseStub,
         ),
     )
@@ -214,10 +217,14 @@ class as_TypedReference(as_Object):
     object's would (SE-01-002).  It is never the object a handler reads:
     rehydration puts the object the receiver holds in its place, or reduces
     it to its bare id when the receiver holds none, so the inbox fetches the
-    object first (AKM-05-007, AKM-05-010).
+    object first (AKM-05-007, AKM-05-010).  A case reference
+    (:func:`is_case_reference`) is the exception: rehydration leaves it as
+    it arrived and no fetch is named for it, because the handler reads the
+    case from the receiver's own store and refuses one it lacks (AKM-03-006,
+    ADR-0165).
 
     It claims no ``WIRE_TYPE_MAP`` key: its ``type`` is the referenced
-    object's, any type at all, so it declares no ``Literal``.
+    object's, any type at all, so it declares no ``Literal`` (VM-01-017).
 
     It may carry its type's preview, which only a case defines: the case
     stub (MV-10-012, ADR-0205).  A reference carrying a preview is read as
@@ -287,6 +294,32 @@ def is_previewed_reference(value: object) -> TypeGuard[as_TypedReference]:
     return isinstance(value, as_TypedReference) and value.preview is not None
 
 
+def case_reference(case_id: str) -> as_TypedReference:
+    """Return the typed reference that names the case *case_id*.
+
+    A participant's ``Join``, ``Ignore`` and ``Leave`` of a case and the
+    ownership-transfer ``Offer`` name the case by this reference rather than
+    carry a copy of it (AKM-03-003, ADR-0165).
+    """
+    return as_TypedReference(
+        type_=VO_type.VULNERABILITY_CASE.value, id_=case_id
+    )
+
+
+def is_case_reference(value: object) -> bool:
+    """Whether *value* is a case reference: exactly a case's id and type.
+
+    A participant's act on a case names it this way (ADR-0165).  A typed
+    reference to a case that carries the case's preview is not one: it is a
+    previewed reference (:func:`is_previewed_reference`, ADR-0205).
+    """
+    return (
+        isinstance(value, as_TypedReference)
+        and value.type_ == VO_type.VULNERABILITY_CASE
+        and value.preview is None
+    )
+
+
 #: Core classes that are a kind of an AS2 base type without subclassing its
 #: wire class (ADR-0034, ADR-0099): a core actor is an ``Actor``, and the
 #: core ``EmbargoEvent`` is an ``Event``.
@@ -332,6 +365,8 @@ __all__ = [
     "TYPES_WITH_DEFINED_PREVIEW",
     "as_TypedReference",
     "carries_preview",
+    "case_reference",
+    "is_case_reference",
     "is_of_kind",
     "is_previewed_reference",
     "is_typed_reference_shape",

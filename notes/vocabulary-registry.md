@@ -8,8 +8,9 @@ description: >
   __init_subclass__, flat dict, VocabNamespace, the rule for declaring a
   Vultron extension term (new type, subtype of an AS2 type, new property,
   retired term) in the generated JSON-LD context, fail-fast lookup, received
-  type lists (resolve_wire_type, _as2_core_supertype), CORE_TYPE_MAP, and
-  disjoint registry keys.
+  type lists (resolve_wire_type, _as2_core_supertype), CORE_TYPE_MAP,
+  disjoint registry keys, and one owner per type value (typed references and
+  ADR-0099 aliases claim none).
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
@@ -18,7 +19,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
     ARCH-12-014, ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
-  - specs/message-validation.yaml (MV-04-003)
+  - specs/message-validation.yaml (MV-04-003, MV-10-011)
   - specs/case-ledger-processing.yaml (CLP-05-001)
   - specs/csaf-report-content.yaml (CSAF-01-001)
 related_notes:
@@ -103,10 +104,9 @@ by one line in its wire module (`WIRE_TYPE_MAP["VulnerabilityReport"] =
 VulnerabilityReport`); it carries no `_vocab_ns` (ARCH-25-003). A wire-only class
 is annotated `_vocab_ns = VocabNamespace.VULTRON` (§ 4). It is sent with one
 `type` value. Its fields reuse AS2 properties where AS2 has the meaning, so they
-need no term (the `Redacted` marker's `summary`). A class that
-shares another class's `type` value declares `_wire_type_alias = True` and gets no
-term (VM-01-014). Add its canonical example under
-`vultron/wire/as2/vocab/examples/`.
+need no term (the `Redacted` marker's `summary`). It may not share another
+class's `type` value: the collision ratchet fails it (VM-01-013). Add its
+canonical example under `vultron/wire/as2/vocab/examples/`.
 
 **Subtype of an AS2 type.** A new type is a subtype when each of its instances is
 also an instance of one specific AS2 type, so a plain AS2 reader that sees only
@@ -281,15 +281,18 @@ consults `VOCABULARY`, so an inbound `"type": "as_Activity"` is an unknown type
 name: `as_Activity.type_` is a bare `str` and refuses nothing (#5738).
 
 Both keys are derived by `as_Base.__init_subclass__`, `WIRE_TYPE_MAP` via
-`wire_type_value()`. Two classes cannot own one `type` value, so a class that
-shares another's declares `_wire_type_alias: ClassVar[bool] = True` and takes no
-`WIRE_TYPE_MAP` key. The Vultron actor classes (`as_VultronPerson`, …) are
-the only sanctioned unflagged sharers: they register after the base actors and
+`wire_type_value()`. Two classes cannot own one `type` value, and there is no
+opt-out flag (#4119). The Vultron actor classes (`as_VultronPerson`, …) are
+the only sanctioned sharers: they register after the base actors and
 shadow them, so `{"type": "Person"}` gets the subclass carrying
-`embargo_policy`. A core class may own an AS2 `type` whose wire class stays a base
-for others: the attached-file classes own `Document`, `Image`, `Audio` and `Video`,
-and `as_Document` and its file subtypes declare `_wire_type_alias`, so the owner
-does not depend on import order (CSAF-01-001). The ratchet fails on any other
+`embargo_policy`. When a core class owns an AS2 `type`, the wire name is an
+ADR-0099 alias of it, never a second class: `as_Document`, `as_Image`, `as_Audio`
+and `as_Video` are the core attached-file classes (CSAF-01-001), so `as_Page` and
+`as_Article` extend `as_Object`. A typed reference carries the `type` of the
+object it names and declares a `type_` with no default, so the gate passes it by
+and its shape, not the registry, reads it (VM-01-017, ADR-0198); a case reference
+is one. A test that defines a registrable class restores the registries with
+`patch.dict`. The ratchet fails on any other
 collision, which would silently move the key to whichever class imports last
 (`test/architecture/test_vocab_registry_keys.py`; disjointness from
 `CORE_VOCABULARY` in `test/wire/as2/vocab/base/test_registry.py`). Do not

@@ -64,6 +64,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case.invite import _stub_embargo
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import case_reference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -83,7 +84,6 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -348,7 +348,7 @@ def test_rm_engage_case_object_names_the_case(sample_case):
     result = rm_engage_case_activity(
         case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
-    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+    assert result.object_ == case_reference(sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
@@ -389,7 +389,7 @@ def test_rm_defer_case_object_names_the_case(sample_case):
     result = rm_defer_case_activity(
         case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
-    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+    assert result.object_ == case_reference(sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
@@ -430,7 +430,7 @@ def test_rm_close_case_object_names_the_case(sample_case):
     result = rm_close_case_activity(
         case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
-    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+    assert result.object_ == case_reference(sample_case.id_)
 
 
 @pytest.mark.spec("AKM-03-004")
@@ -471,7 +471,7 @@ def test_offer_ownership_transfer_object_names_the_case(sample_case):
     result = offer_case_ownership_transfer_activity(
         case=sample_case, actor=_ACTOR_URI, at=authored_at()
     )
-    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+    assert result.object_ == case_reference(sample_case.id_)
 
 
 def test_offer_ownership_transfer_target_is_set(sample_case, sample_actor):
@@ -625,7 +625,7 @@ def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
     assert result.context == sample_case.id_
     inner = result.object_
     assert isinstance(inner, as_Offer)
-    assert inner.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+    assert inner.object_ == case_reference(sample_case.id_)
     assert isinstance(inner.target, as_Actor)
     assert inner.target.id_ == _TARGET_URI
     assert inner.end_time == deadline

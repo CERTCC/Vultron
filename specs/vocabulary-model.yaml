@@ -245,46 +245,32 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: VM-01-008
-  - id: VM-01-014
-    priority: MUST
-    kind: project
-    statement: >-
-      A class that shares another class's `type` value MUST declare itself an alias with
-      `_wire_type_alias = True`, unless it is a sanctioned shadow (VM-01-013).
-    rationale: >-
-      The alias flag is how a class that is not what its `type` value should
-      deserialize to steps aside, so the owner of that value keeps the key.
-    verification: >-
-      `test_no_unsanctioned_wire_type_collisions` and
-      `test_no_test_class_owns_a_wire_type_key` in
-      `test/architecture/test_vocab_registry_keys.py` fail a class that shares a `type`
-      value without the alias flag.
-    relationships:
-    - rel_type: implements
-      spec_id: VM-01-013
-  - id: VM-01-015
+  - id: VM-01-017
     priority: MUST_NOT
     kind: project
     statement: >-
-      A class declared as an alias MUST NOT hold a `WIRE_TYPE_MAP` key. It is still
-      listed in `VOCABULARY` under its class name (VM-01-004), but no wire `type`
-      value resolves to it (VM-01-016).
+      A typed reference MUST NOT hold a `WIRE_TYPE_MAP` or `VOCABULARY` key. It
+      carries the `type` of the object it names, and the parser tells it from a whole
+      object of that type by its shape (MV-10-011), not by a registry lookup.
     rationale: >-
-      An alias is not what its `type` value deserializes to, so a key of its own would
-      give the inbound lookup a second answer for that value.
+      A typed reference shares its `type` with the class that owns that value, a case
+      reference with the case. A key of its own would take the value from its owner
+      or add a `type` no sender emits, and either breaks the one owner for each value
+      that VM-01-013 requires.
+    note: >-
+      `as_TypedReference` declares a `type_` with no default, which the registration
+      gate reads as no wire type of its own.
     verification: >-
-      `test_declared_aliases_do_not_own_a_registry_key` and
-      `test_an_alias_declaration_keeps_the_class_out_of_the_registry` in
-      `test/architecture/test_vocab_registry_keys.py` assert that no class declaring
-      `_wire_type_alias` holds a key.
+      `test_a_typed_reference_claims_no_wire_type_key` in
+      `test/architecture/test_vocab_registry_keys.py` asserts the typed reference
+      passes the registration gate by and holds no key in either registry.
+    adr:
+    - ADR-0198
     relationships:
+    - rel_type: refines
+      spec_id: VM-01-013
     - rel_type: uses_definition
-      spec_id: VM-01-014
-    see_also:
-    - spec_id: VM-01-004
-      reason: 'context for the reader'
-    - spec_id: VM-01-016
-      reason: 'context for the reader'
+      spec_id: MV-10-011
 - id: VM-02
   title: Base Model Configuration
   specs:
@@ -397,10 +383,9 @@ groups:
       name MUST NOT declare its own `type_` annotation.
     rationale: >-
       Any own `type_` declaration lists the class in `VOCABULARY` under its class
-      name. The prohibition covers only aliases that must not be listed there. A class
-      that shares another class's `type` but must stay listed declares
-      `_wire_type_alias` instead (VM-01-014). A listing is not a lookup: no wire
-      `type` value resolves through `VOCABULARY` (VM-01-016).
+      name. The prohibition covers only aliases that must not be listed there. A
+      listing is not a lookup: no wire `type` value resolves through `VOCABULARY`
+      (VM-01-016).
     note: >-
       Such an alias is the `_XxxActivity` pattern, which presents an ancestor's `type`.
     verification: >-
@@ -1349,7 +1334,7 @@ groups:
       document declares. Each schema is published at
       `ns/<wire version>/schema/types/<Type>.json`, beside that context document, with
       that URL as its `$id`. It is generated from the Pydantic class that defines the
-      term, in the form Vultron accepts. A wire-alias class (VM-01-014) contributes no
+      term, in the form Vultron accepts. A typed reference (VM-01-017) contributes no
       schema, and a property term gets none.
     rationale: >-
       An outside implementer needs a machine-readable description of each Vultron
@@ -1370,7 +1355,7 @@ groups:
     - rel_type: uses_definition
       spec_id: VM-10-001
     - rel_type: uses_definition
-      spec_id: VM-01-014
+      spec_id: VM-01-017
   - id: VM-10-007
     priority: MUST
     kind: project

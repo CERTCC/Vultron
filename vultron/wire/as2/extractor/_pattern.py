@@ -20,6 +20,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    is_case_reference,
     is_of_kind,
     is_previewed_reference,
     referenced_class,
@@ -29,9 +30,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-)
 
 
 class ObjectForm(StrEnum):
@@ -66,12 +64,12 @@ def _names_only_its_identity(value: BaseModel) -> bool:
 def _is_whole_object(value: object) -> bool:
     """Whether *value* is an inline whole object (ADR-0198).
 
-    Not a typed reference, a case reference or a ``Link``, nor an actor or
+    Not a typed reference (a case reference is one) or a ``Link``, nor an actor or
     collection named by its identity alone: the actor reference
     (AKM-05-017) and an endpoint's address (AKM-02-006) are references too.
     """
     if not isinstance(value, BaseModel) or isinstance(
-        value, (as_TypedReference, as_VulnerabilityCaseReference, as_Link)
+        value, (as_TypedReference, as_Link)
     ):
         return False
     if isinstance(value, (as_Actor, CoreActor, as_Collection)):
@@ -328,14 +326,16 @@ def bare_object_id(activity: as_Activity) -> str | None:
     the one the receiver lacks (VAM-01-009, AKM-05-007).  A typed reference
     ending the chain names its id the same way: no pattern matched it, so the
     object must be read before the activity can be.  ``None`` when the chain
-    ends in an inline whole object, in a typed reference that carries a
-    preview, or in no object at all: a previewed reference is read as
-    received, and the receiver fetches nothing for it (MV-10-011, ADR-0205).
+    ends in an inline whole object, in a case reference, in a typed reference
+    that carries a preview, or in no object at all: a case is read from the
+    receiver's own store and never fetched (AKM-03-006, ADR-0165), and a
+    previewed reference is read as received, and the receiver fetches nothing
+    for it (MV-10-011, ADR-0205).
     """
     obj: object = getattr(activity, "object_", None)
     while isinstance(obj, as_Activity):
         obj = getattr(obj, "object_", None)
-    if is_previewed_reference(obj):
+    if is_case_reference(obj) or is_previewed_reference(obj):
         return None
     if isinstance(obj, as_TypedReference):
         # A reference no pattern matched names an object the receiver must

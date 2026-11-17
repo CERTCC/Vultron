@@ -73,6 +73,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.typed_reference import is_typed_reference_shape
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.examples.status import (
     add_fix_readiness_to_participant,
@@ -81,7 +82,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    is_case_reference_shape,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -960,7 +960,7 @@ def _carried_case_copies(value: Any, path: str = "body") -> list[str]:
             names_type(value.get("type"), CASE_NAMING_ACTIVITY_TYPES)
             and isinstance(obj, dict)
             and obj.get("type") == "VulnerabilityCase"
-            and not is_case_reference_shape(obj)
+            and not is_typed_reference_shape(obj)
         ):
             found.append(f"{path}.object")
         for key, child in value.items():

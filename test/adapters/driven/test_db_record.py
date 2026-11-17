@@ -1197,6 +1197,34 @@ def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
 
 
 @pytest.mark.spec("AKM-03-004")
+def test_a_typed_reference_to_another_type_is_stored_as_its_id():
+    """Only a case reference stays inline; any other is stored as its id.
+
+    The case reference is the generic typed reference now, and the exemption
+    is the case's alone (ADR-0165), so the stored row shape of every other
+    reference is unchanged.
+    """
+    from vultron.wire.as2.parser import parse_activity
+    from vultron.wire.as2.typed_reference import as_TypedReference
+
+    note_id = "https://example.org/notes/n1"
+    activity = parse_activity(
+        {
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "type": "Create",
+            "id": "https://example.org/activities/create-ref",
+            "actor": _CASE_ACTOR_ID,
+            "published": "2026-01-02T03:04:05+00:00",
+            "object": {"id": note_id, "type": "Note"},
+        }
+    )
+    assert isinstance(getattr(activity, "object_", None), as_TypedReference)
+
+    record = object_to_record(cast(Any, activity))
+
+    assert record.data_.get("object_") == note_id
+
+
 def test_a_case_reference_round_trips_as_a_reference():
     """A Join's case reference is stored inline and read back as one.
 
@@ -1206,9 +1234,7 @@ def test_a_case_reference_round_trips_as_a_reference():
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.wire.as2.factories import rm_engage_case_activity
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseReference,
-    )
+    from vultron.wire.as2.typed_reference import is_case_reference
 
     case_id = "urn:uuid:case-reference-roundtrip"
     join = rm_engage_case_activity(
@@ -1219,10 +1245,7 @@ def test_a_case_reference_round_trips_as_a_reference():
     assert isinstance(stored, dict) and stored.get("id") == case_id
     # The row reads back as a base ``Join``, whose object a case's own
     # validation would refuse; it is retyped as the reference it is.
-    assert isinstance(
-        getattr(record.to_obj(), "object_", None),
-        as_VulnerabilityCaseReference,
-    )
+    assert is_case_reference(getattr(record.to_obj(), "object_", None))
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     try:
@@ -1231,9 +1254,7 @@ def test_a_case_reference_round_trips_as_a_reference():
         assert dl.read(case_id) is None
     finally:
         dl.close()
-    assert isinstance(
-        getattr(back, "object_", None), as_VulnerabilityCaseReference
-    )
+    assert is_case_reference(getattr(back, "object_", None))
 
 
 @pytest.mark.spec("OID-02-003")

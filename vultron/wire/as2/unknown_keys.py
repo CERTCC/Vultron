@@ -74,10 +74,6 @@ from vultron.wire.as2.vocab.base.registry import (
     resolve_wire_type,
     resolved_wire_type_name,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-    is_case_reference_shape,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -287,24 +283,21 @@ def resolve_inline_class(
 
     The ``type`` decides the class, a case stub included: a stub names
     itself ``VulnerabilityCaseStub`` (CM-11-013).  The one exception is a
-    ``VulnerabilityCase`` that carries only its ``id`` and ``type``: that is
-    the typed reference a participant's act on a case names it by
-    (:class:`as_VulnerabilityCaseReference`, AKM-03-004), and a dict with any
-    other key is a case.  The partition, on the raw dict, therefore decides a
-    foreign key against the case's fields and sets it aside; the expansion,
-    on the partitioned dict, then sees the reference that remains.  A key the
-    case declares keeps the dict a case in both calls.
-
-    Every other type reads its ``{id, type}`` shape the same way, as an
-    :class:`as_TypedReference` (MV-10-011, ADR-0198), unless its class has a
-    reference form of its own
+    dict that carries only its ``id`` and ``type``: that is a typed
+    reference, read as an :class:`as_TypedReference` (MV-10-011, ADR-0198),
+    unless its class has a reference form of its own
     (:func:`~vultron.wire.as2.typed_reference.reads_as_typed_reference`).
+    A ``VulnerabilityCase`` of that shape is the case reference a
+    participant's act on a case names it by (AKM-03-004, ADR-0165), and a
+    dict with any other key is a case.  The partition, on the raw dict,
+    therefore decides a foreign key against the class's fields and sets it
+    aside; the expansion, on the partitioned dict, then sees the reference
+    that remains.  A key the class declares keeps the dict a whole object in
+    both calls.
     A typed reference carrying a ``preview`` its type does not define is
     refused here, at its position (MV-10-012).
     """
     refuse_undefined_preview(value, path)
-    if is_case_reference_shape(value):
-        return as_VulnerabilityCaseReference
     try:
         cls = resolve_wire_type(value.get("type"))
     except AmbiguousWireTypeError as exc:

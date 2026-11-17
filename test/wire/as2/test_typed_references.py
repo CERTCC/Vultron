@@ -30,11 +30,13 @@ import logging
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.semantic_registry import extract_event, find_matching_semantics
@@ -44,15 +46,16 @@ from vultron.wire.as2.errors import (
 )
 from vultron.wire.as2.extractor._builders import proposed_embargo_from
 from vultron.wire.as2.extractor._pattern import bare_object_id
+from vultron.wire.as2.factories import rm_engage_case_activity
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.typed_reference import as_TypedReference
+from vultron.wire.as2.typed_reference import (
+    as_TypedReference,
+    is_case_reference,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseReference,
-)
 
 ACTOR = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
@@ -332,6 +335,30 @@ def test_a_reference_no_pattern_matches_names_the_object_to_fetch() -> None:
     assert bare_object_id(parsed) == reference["id"]
 
 
+@pytest.mark.spec("AKM-03-006")
+@pytest.mark.parametrize("outer", ["Undo", "Reject", "Announce"])
+def test_an_unmatched_act_ending_in_a_case_reference_names_nothing_to_fetch(
+    outer: str,
+) -> None:
+    """A case is read from the receiver's store, never fetched (ADR-0165).
+
+    An act no pattern matches whose ``object`` chain ends in a case
+    reference stays unknown: it names no object for the inbox to fetch.
+    """
+    join = {
+        "type": "Join",
+        "id": "https://example.org/activities/join-1",
+        "actor": ACTOR,
+        "published": PUBLISHED,
+        "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
+    }
+
+    parsed = parse_activity(_body(join, outer))
+
+    assert find_matching_semantics(parsed) is MessageSemantics.UNKNOWN
+    assert bare_object_id(parsed) is None
+
+
 @pytest.mark.spec("MV-10-012")
 @pytest.mark.parametrize(
     ("type_", "slot"),
@@ -405,13 +432,64 @@ def test_an_actor_reference_is_still_read_as_the_actor() -> None:
 
 
 @pytest.mark.spec("MV-10-011")
-def test_a_case_reference_is_still_the_case_reference() -> None:
-    """The typed case reference keeps its own class (ADR-0165)."""
+def test_a_case_reference_is_a_typed_reference() -> None:
+    """The case reference is the generic typed reference (ADR-0165, ADR-0198).
+
+    No class of its own is registered under ``VulnerabilityCase``: the shape,
+    not the registry, tells it from a case (VM-01-017).
+    """
     reference = {"id": CASE_ID, "type": "VulnerabilityCase"}
 
     parsed = parse_activity(_body(reference, "Join"))
 
-    assert isinstance(_object_of(parsed), as_VulnerabilityCaseReference)
+    named = _as_typed_reference(_object_of(parsed))
+    assert named.type_ == "VulnerabilityCase"
+    assert named.id_ == CASE_ID
+    assert find_in_vocabulary("VulnerabilityCase") is VulnerabilityCase
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_an_act_naming_its_case_refuses_a_reference_to_another_type() -> None:
+    """The object of an act on a case is the case, never another reference.
+
+    The case reference is the generic typed reference, so the slot checks
+    the type it names (ADR-0165).
+    """
+    join = rm_engage_case_activity(CASE_ID, actor=ACTOR, at=authored_at())
+    assert is_case_reference(join.object_)
+    note = {"id": "https://example.org/notes/n1", "type": "Note"}
+    body = join.model_dump(by_alias=True, mode="json") | {"object": note}
+
+    with pytest.raises(ValidationError, match="names no case"):
+        type(join).model_validate(body)
+
+
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.spec("MV-10-012")
+def test_a_case_reference_carrying_a_preview_is_no_case_reference() -> None:
+    """A case reference is exactly a case's ``id`` and ``type`` (ADR-0165).
+
+    One that also carries the case's preview is a previewed reference
+    (ADR-0205): an act on a case may not name the case by it, and the
+    receiver's case-reference exceptions do not apply to it.
+    """
+    previewed = as_TypedReference.model_validate(
+        {
+            "id": CASE_ID,
+            "type": "VulnerabilityCase",
+            "preview": {
+                "type": "VulnerabilityCaseStub",
+                "id": f"{CASE_ID}/stub",
+                "caseId": CASE_ID,
+                "summary": "A remote code execution vulnerability.",
+            },
+        }
+    )
+
+    assert not is_case_reference(previewed)
+    assert is_case_reference(
+        as_TypedReference(type_="VulnerabilityCase", id_=CASE_ID)
+    )
 
 
 @pytest.mark.spec("MV-10-011")
