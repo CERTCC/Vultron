@@ -17,6 +17,7 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
+  why a lifespan task that outlives its test segfaults a later worker,
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -451,6 +452,20 @@ read past red, so the next real failure is read past too. Two shapes of it:
   `*.sh` for the constructs that have bitten;
   [ci-workflow-authoring](ci-workflow-authoring.md) § "A Script Runs On The
   Host's bash, Which May Be 3.2" carries the portable spellings.
+
+### A Lifespan Task That Outlives Its Test Segfaults a Later Worker
+
+A fixture that keeps the production lifespan open past one test MUST stop its
+background work on the app's loop, and wait for it, before the test ends. The
+root conftest closes the actor stores after every test, and closing a SQLite
+connection while another thread reads it segfaults the xdist worker: the run
+reports `node down` with an innocent test as the victim (#6148). Stop by
+signal and await, never by cancel from another thread: a cancelled task reads
+as ended while its `asyncio.to_thread` worker may still be reading. For the
+hold timer, `stop_hold_timer_from_another_thread()` in
+`test/support/hold_timers.py` does this; `test/demo/conftest.py`'s `client`
+fixture is the worked case. A leaked hold timer is stopped at disposal and
+fails its own test with `HoldTimerLeakedError`.
 
 ### Store Scoping
 

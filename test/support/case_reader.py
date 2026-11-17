@@ -38,10 +38,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from test.measure.history.builders import (
+    CM,
+    VENDOR,
+    VENDOR_2,
+    Ledger,
+    participant,
+    status,
+)
 from test.support.objects import make
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_reading import (
@@ -54,11 +61,7 @@ from vultron.core.models.case_reading import (
 )
 from vultron.errors import VultronNotFoundError
 from vultron.measure.history import CaseEventHistory, case_event_history
-from vultron.measure.ledger import (
-    LedgerFile,
-    LedgerRow,
-    case_ledgers_from_files,
-)
+from vultron.shadow.analysis import reading_ledger
 
 FAKE_CASE = "urn:uuid:case-1"
 
@@ -140,19 +143,12 @@ def projected_history(reading: CaseReading) -> CaseEventHistory:
 
     Core has no entries-to-case apply function yet, so the measures'
     projection stands in for "the core's projection accepts the ledger"
-    (CRD-01-003).
+    (CRD-01-003).  The ledger is the one the case shadow tool analyses
+    (:func:`~vultron.shadow.analysis.reading_ledger`).
     """
-    path = Path("case-reading.jsonl")
-    rows = [
-        LedgerRow(
-            path=path,
-            line=i + 1,
-            data=entry.model_dump(by_alias=True, mode="json"),
-        )
-        for i, entry in enumerate(reading.ledger)
-    ]
-    read = case_ledgers_from_files([LedgerFile(path=path, rows=rows)])
-    return case_event_history(read.cases[reading.ledger[0].case_id])
+    ledger = reading_ledger(reading)
+    assert ledger is not None, "a reading with no entry has no history"
+    return case_event_history(ledger)
 
 
 def _entry(
@@ -268,3 +264,61 @@ class FakeCaseReader:
             untranslated=tuple(untranslated),
             unobservable=self.unobservable,
         )
+
+
+_T0 = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _at(minutes: int) -> datetime:
+    return _T0 + timedelta(minutes=minutes)
+
+
+def _genesis_case() -> dict[str, Any]:
+    """The standard hand-built genesis case object the measures read."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    case: dict[str, Any] = ledger.entries[0]["payloadSnapshot"]["object"]
+    return case
+
+
+def _vendor_participant(actor: str = VENDOR) -> dict[str, Any]:
+    return participant(
+        actor,
+        [status(f"{actor}-r", actor, "RECEIVED", vf="vf", roles=("VENDOR",))],
+        roles=("VENDOR",),
+    )
+
+
+def fake_case_records() -> list[OutsideRecord]:
+    """A fake case holding one record of every kind the fake reader meets:
+    translated, inferred, undated, and each untranslated reason."""
+    return [
+        OutsideRecord("rec-open", "case_opened", CM, _at(0), _genesis_case()),
+        OutsideRecord(
+            "rec-vendor", "vendor_listed", CM, _at(1), _vendor_participant()
+        ),
+        OutsideRecord(
+            "rec-status",
+            "vendor_status",
+            VENDOR,
+            _at(2),
+            status("vendor-v", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
+        ),
+        OutsideRecord(
+            "rec-undated",
+            "vendor_listed",
+            CM,
+            None,
+            _vendor_participant(VENDOR_2),
+        ),
+        OutsideRecord("rec-odd", "vendor_mood", VENDOR, _at(3)),
+        OutsideRecord("rec-pinned", "pinned_post", CM, _at(4)),
+        OutsideRecord(
+            "rec-early",
+            "vendor_status",
+            VENDOR,
+            _at(0),
+            status("vendor-x", VENDOR, "VALID", vf="Vf", roles=("VENDOR",)),
+        ),
+        OutsideRecord("rec-untimed", "vendor_status", VENDOR, None),
+    ]

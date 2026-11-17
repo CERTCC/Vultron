@@ -24,7 +24,8 @@ Two import boundaries, each read from the source of every module:
 - A module under ``vultron/adapters/connectors/`` imports, from ``vultron``,
   only what translation needs (ARCH-05-002): its own package, the core ports
   it implements (:data:`CONNECTOR_PORTS`), the core models it translates
-  into except the hash-chained case ledger, the shared errors and the
+  into except the hash-chained case ledger, the node's configuration (where
+  a connector reads its endpoint and credential), the shared errors and the
   primitives.  This is an allow-list, so a use case, a behavior, a service,
   a sync helper that stores a ledger entry, a dispatcher, a storage or
   delivery port, or any other adapter is refused without being named here.
@@ -49,7 +50,7 @@ _CONNECTORS = "vultron.adapters.connectors"
 _CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 _CONNECTORS_ROOT = _corpus.REPO_ROOT / "vultron" / "adapters" / "connectors"
 _CORE_PROBE = _CORE_ROOT / "_probe.py"
-_CONNECTOR_PROBE = _CONNECTORS_ROOT / "example" / "_probe.py"
+_CONNECTOR_PROBE = _CONNECTORS_ROOT / "vince" / "_probe.py"
 
 #: The ``vultron`` modules a connector may import (ARCH-05-002).  A module
 #: and everything under it are covered.
@@ -57,6 +58,7 @@ _TRANSLATION = (
     _CONNECTORS,
     *sorted({port.__module__ for port in CONNECTOR_PORTS}),
     "vultron.core.models",
+    "vultron.config",
     "vultron.errors",
     "vultron.primitives",
 )
@@ -116,7 +118,7 @@ def test_the_connector_scan_reads_the_connector_modules():
     scanned = {
         path.name for path, _tree in _corpus.all_trees(_CONNECTORS_ROOT)
     }
-    assert {"base.py", "loader.py", "vince.py"} <= scanned
+    assert {"base.py", "loader.py", "reader.py", "translate.py"} <= scanned
 
 
 def _flags(
@@ -129,7 +131,7 @@ def _flags(
 @pytest.mark.parametrize(
     "source",
     [
-        "from vultron.adapters.connectors.example import vince",
+        "from vultron.adapters.connectors.vince import reader",
         "def f():\n    import vultron.adapters.connectors.base",
         "from ..adapters.connectors import base",
         "from typing import TYPE_CHECKING\n"
@@ -175,6 +177,7 @@ def test_the_connector_check_admits_what_translation_needs():
         "from vultron.core.models.case_ledger_entry import CaseLedgerEntry\n"
         "from vultron.errors import VultronNotFoundError\n"
         "from vultron.primitives import NonEmptyString\n"
+        "from vultron.config import get_config\n"
         "from .. import base\n"
     )
     assert _flags(source, _CONNECTOR_PROBE, _connector_violation) == []

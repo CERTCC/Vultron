@@ -1809,8 +1809,9 @@ groups:
     kind: protocol
     statement: >-
       When it sends a stub Invite, the CASE_MANAGER MUST commit its own
-      `create_case_participant` (`Create(CaseParticipant)`) entry, separate from
-      the Invite's `invite_actor_to_case` entry.
+      `add_case_participant_to_case` entry, `Add(CaseParticipant)` with the case as
+      its `target` and `context` (CLP-07-021), separate from the Invite's
+      `invite_actor_to_case` entry.
     rationale: >-
       The ledger holds the wire messages that the actors exchanged, and every state
       change has a message. The Invite is one message. Creating the invitee's record
@@ -1821,10 +1822,12 @@ groups:
       `test/core/behaviors/case/nodes/test_invitee_accept_entries.py` and
       `test_the_ledger_holds_the_messages_and_the_one_creation_entry` in
       `test/core/use_cases/received/test_stub_invite_replay.py` find the
-      `create_case_participant` entry beside the Invite's entry.
+      `add_case_participant_to_case` entry beside the Invite's entry.
     relationships:
     - rel_type: extends
       spec_id: CM-11-006
+    - rel_type: refines
+      spec_id: CLP-07-021
     adr:
     - ADR-0114
     - ADR-0124
@@ -1834,7 +1837,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `create_case_participant` entry MUST carry the whole participant record
+      The `add_case_participant_to_case` entry MUST carry the whole participant record
       as stored: its statuses and consent rows, with their ids and times.
     rationale: >-
       A replica copies the record from the entry and derives nothing (CM-11-025,
@@ -1857,8 +1860,8 @@ groups:
     kind: protocol
     statement: >-
       A replica MUST store an invitee's record exactly as the
-      `create_case_participant` entry carries it, and derive none of it from the
-      Invite's entry.
+      `add_case_participant_to_case` entry carries it, in the case its `target`
+      names, and derive none of it from the Invite's entry.
     rationale: >-
       Replicas copy; they never mint ids, read clocks or run lifecycle logic
       (ADR-0124). A record a replica derived could differ from the CASE_MANAGER's in
@@ -1870,7 +1873,9 @@ groups:
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's in every field, status ids and
-      times included.
+      times included. A test replays an entry whose `target` names the case and
+      finds the record in that case, not in one taken from the entry's `case_id`
+      (#6295).
     relationships:
     - rel_type: depends_on
       spec_id: CM-11-024
@@ -10432,27 +10437,102 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `Add(CaseParticipant)[target=VulnerabilityCase]` is the Case Owner's request to
-      the CASE_MANAGER to reinstate a removed participant. The CASE_MANAGER MUST handle
-      it through the CM-31-004 to CM-31-007 pipeline. That is Case Owner only, one
-      ledger entry, a direct notice, and replicas applying it from the entry.
+      The Case Owner MUST ask the CASE_MANAGER to reinstate a removed participant with
+      `Offer(Add(<Actor>, target=VulnerabilityCase))`, sent to the CASE_MANAGER only,
+      whose inner `Add` names the participant's actor as a typed reference, not its
+      `CaseParticipant`.
     rationale: >-
-      Owners make mistakes and disputes resolve, so removal is reversible. Reinstatement
-      reuses the removal pipeline, so it is the Case Owner's decision, recorded once and
-      reaching every replica the same way.
+      Owners make mistakes and disputes resolve, so removal is reversible. An activity
+      states what its sender did, and the Case Owner does not change the record the
+      CASE_MANAGER holds, so it offers the act (ADR-0199). The case holds one record
+      per actor, so the actor names the record, and reinstatement reuses it
+      (CM-31-034).
     verification: >-
-      `test_reinstatement_is_one_entry_and_a_delegated_notice` and
-      `test_add_from_a_non_owner_is_refused` in
-      `test/core/use_cases/received/test_participant_reinstatement.py` assert the
-      Case Owner's `Add` reinstates a removed participant with one entry and a
-      delegated notice, and that a non-owner's `Add` is refused.
+      A test under `test/core/use_cases/triggers/` asserts that the Case Owner's
+      reinstate trigger sends this Offer to the CASE_MANAGER only, naming the actor
+      (#6465).
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-004
-    - rel_type: uses_definition
-      spec_id: CM-31-007
     adr:
     - ADR-0116
+    - ADR-0199
+    stories:
+    - story_2022_052
+  - id: CM-31-043
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse a CM-31-011 reinstatement Offer from a sender that
+      does not hold `CASE_OWNER`, with a refusal notice, sending no `Accept` and
+      committing nothing.
+    rationale: >-
+      Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
+    verification: >-
+      A strict-xfail probe in
+      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      place of a test, which #6465
+      adds, asserting that a non-owner's Offer is refused with no `Accept` and no
+      ledger entry.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-31-011
+    adr:
+    - ADR-0199
+    stories:
+    - story_2022_052
+  - id: CM-31-044
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For an admitted CM-31-011 Offer, the CASE_MANAGER MUST, in one atomic act, send
+      the Case Owner an `Accept` of it and make the
+      `Add(<Actor>, target=VulnerabilityCase)` itself. The `Add` has `actor` the
+      CASE_MANAGER, `attributedTo` the Case Owner, `inReplyTo` the Offer and an id
+      derived from the Offer. It is the reinstatement's one ledger entry and, under
+      the same id, the direct message to the reinstated actor. The `Accept`'s id is
+      derived from the Offer too.
+    rationale: >-
+      The Accept answers the Offer and the `Add` says the act was carried out
+      (ADR-0199). Committing both together keeps the Case Owner from holding an
+      Accept for an act that did not happen (ADR-0146). A derived id makes a retry
+      resend the same messages (SYNC-09-002).
+    verification: >-
+      A strict-xfail probe in
+      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      place of a test, which #6465
+      adds, asserting one ledger entry, the CASE_MANAGER's `Add(<Actor>)` with these
+      fields, the `Accept` to the Case Owner and the same `Add`, by id, to the
+      reinstated actor, and that a failure building either message keeps neither.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-31-011
+    adr:
+    - ADR-0199
+    - ADR-0146
+    stories:
+    - story_2022_052
+  - id: CM-31-045
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST apply a reinstatement only from its ledger entry, never from a
+      directly received `Add(<Actor>)`.
+    rationale: >-
+      The direct copy and the entry's fan-out are the same activity, so applying
+      from the entry alone applies it once, in ledger order (RSH-08-003), as for a
+      removal (CM-31-007).
+    verification: >-
+      A strict-xfail probe in
+      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      place of a test, which #6465
+      adds, asserting that a replica receiving the direct `Add(<Actor>)` and then its
+      entry applies the reinstatement once, from the entry.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-31-044
+    adr:
+    - ADR-0199
     stories:
     - story_2022_052
   - id: CM-31-034
@@ -10500,24 +10580,26 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse an `Add(CaseParticipant)[target=VulnerabilityCase]`
-      naming a participant that is not removed or that never joined.
+      The CASE_MANAGER MUST refuse an `Offer(Add(<Actor>, target=VulnerabilityCase))`
+      naming an actor whose participant is not removed, that never joined, or that is
+      no participant of the case. It sends the Case Owner a refusal notice and no
+      `Accept`, and commits nothing.
     rationale: >-
-      Joining requires accepting a stub Invite (ADR-0114), and `Add` must not become a
-      way around that. `Add` means reinstatement only, so a participant that is not
-      removed has nothing to reinstate.
+      Joining requires accepting a stub Invite (ADR-0114), and a reinstatement must
+      not become a way around that. An actor whose participant is not removed has
+      nothing to reinstate.
     verification: >-
-      `test_add_naming_an_invitee_that_never_joined_is_refused` in
-      `test/core/use_cases/received/test_participant_reinstatement.py` and
-      `test_add_naming_a_participant_that_is_not_removed_is_refused` in
-      `test/core/use_cases/received/test_participant_removal_planned.py` assert that
-      both `Add` requests are refused.
+      Tests in `test/core/use_cases/received/test_participant_reinstatement.py`
+      assert that an Offer naming an invitee that never joined, a participant that
+      is not removed, or an actor with no participant record is refused, with a
+      refusal notice, no `Accept` and no ledger entry (#6465).
     relationships:
     - rel_type: extends
       spec_id: CM-31-011
     adr:
     - ADR-0116
     - ADR-0114
+    - ADR-0199
     stories:
     - story_2022_052
   - id: CM-31-012
@@ -10525,17 +10607,18 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an
-      `add_case_participant` ledger entry, when an invitee accepts the stub Invite.
-      The invitee's `Accept` (`accept_invite_actor_to_case`) is already the ledger entry
-      for the consent row it signs and the `joined` mark.
+      `add_case_participant_to_case` ledger entry, when an invitee accepts the stub
+      Invite. The invitee's `Accept` (`accept_invite_actor_to_case`) is already the
+      ledger entry for the consent row it signs and the `joined` mark.
     rationale: >-
-      CM-17-004 does not call for it, the Accept message is already the entry for its effects, and a
-      replica usually refuses the direct message for want of the participant record it names. It also
-      records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
+      The invitee's record was added to the case when the stub Invite went out
+      (CM-11-023), so the Accept adds no record. CM-17-004 does not call for a second
+      entry, and the Accept message is already the entry for its effects. A second
+      `Add` would record one move twice.
     verification: >-
-      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
-      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is
-      committed.
+      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts
+      that the acceptance enqueues no `Add(CaseParticipant)` and commits no
+      `add_case_participant_to_case` entry.
     relationships:
     - rel_type: constrains
       spec_id: CM-17-004

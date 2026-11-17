@@ -1197,7 +1197,7 @@ groups:
       the act's entry as its own CASE_MANAGER-authored entry. The entries follow in the
       order the CASE_MANAGER writes them. Each one's `payloadSnapshot` carries the
       object in full (CLP-07-006). A record the change adds to one of the case's
-      content lists (its reports, notes, statuses, vulnerability items or case
+      lists (its participants, reports, notes, statuses, vulnerability items or case
       references) is recorded as an `Add` of the record with the case as its `target`.
       Any other record the CASE_MANAGER brings into existence is recorded as a
       `Create`, and a changed record as an `Update`.
@@ -1220,7 +1220,10 @@ groups:
       `test_each_item_and_reference_is_an_add_entry_after_the_genesis_entry` in
       `test/core/use_cases/received/test_case_from_csaf_report.py` asserts each
       vulnerability item and case reference a creation wrote is its own `Add` entry,
-      carrying the record in full with the case as its `target`.
+      carrying the record in full with the case as its `target`. A test of the stub
+      Invite's entries asserts that the invitee's new participant record is an
+      `Add(CaseParticipant)` entry with the case as its `target` and `context`
+      (#6295).
     relationships:
     - rel_type: extends
       spec_id: CLP-07-013

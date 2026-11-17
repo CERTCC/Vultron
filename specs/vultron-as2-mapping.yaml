@@ -292,7 +292,8 @@ groups:
     kind: project
     statement: >-
       This codebase's inbox MUST refuse a received `Create(CaseStatus)`,
-      `Create(ParticipantStatus)` or `Create(Note)` as an unrecognized activity. It
+      `Create(ParticipantStatus)`, `Create(CaseParticipant)` or `Create(Note)` as an
+      unrecognized activity. It
       refuses a received `Create` of any `Event` other than an `EmbargoEvent` the same
       way.
     rationale: >-
@@ -304,7 +305,8 @@ groups:
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
       of these received `Create` activities, including `Create(Note)` with and without
-      a case `context` and a `Create` of a plain `Event`, resolves to `UNKNOWN` and is
+      a case `context`, `Create(CaseParticipant)` (#6295) and a `Create` of a plain
+      `Event`, resolves to `UNKNOWN` and is
       refused, and that the case, the ledger and the outbox stay unchanged.
     relationships:
     - rel_type: refines
@@ -316,18 +318,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase's inbox MUST report a received `Create(CaseParticipant)` or
-      `Create(EmbargoEvent)` as "no use case found" (SE-05-002, ADR-0140).
+      This codebase's inbox MUST report a received
+      `Add(CaseParticipant)[target=VulnerabilityCase]` or `Create(EmbargoEvent)` as
+      "no use case found" (SE-05-002, ADR-0140).
     rationale: >-
-      Each is the CASE_MANAGER's own record of a creation (VAM-05-016), so the inbox
-      recognizes it. `Create(CaseParticipant)` and `Create(EmbargoEvent)` are ledger
-      records of the CASE_MANAGER that a replica copies from the ledger (ADR-0124),
-      not messages a use case handles.
+      Each is the CASE_MANAGER's own record of a change (VAM-05-016, VAM-06-004), so
+      the inbox recognizes it. Both are ledger records of the CASE_MANAGER that a
+      replica copies from the ledger (ADR-0124), not messages a use case handles.
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
-      received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is recognized,
-      reported unhandled, and changes nothing.
+      received `Add(CaseParticipant)[target=VulnerabilityCase]` (#6295) or
+      `Create(EmbargoEvent)` is recognized, reported unhandled, and changes nothing.
     adr:
     - ADR-0137
     - ADR-0140
@@ -400,9 +402,9 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
       `Create` activities, including `Create(Note)` with and without a case
       `context`, to an inbox and confirms that the case, the ledger and the outbox
-      stay unchanged. `test_a_received_case_manager_act_is_recognized_and_unhandled`
-      in the same file confirms the same for `Create(CaseParticipant)` and
-      `Create(EmbargoEvent)`.
+      stay unchanged, `Create(CaseParticipant)` included (#6295).
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
+      confirms that a received `Create(EmbargoEvent)` changes nothing.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-01-011
@@ -423,8 +425,10 @@ groups:
     verification: >-
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
-      received `Create(CaseParticipant)` is recognized, reported unhandled, and
-      creates no participant.
+      received `Add(CaseParticipant)[target=VulnerabilityCase]` is recognized,
+      reported unhandled, and creates no participant, and
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms the
+      same for a received `Create(CaseParticipant)` (#6295).
 - id: VAM-02
   title: Report Management Messages
   specs:
@@ -1463,28 +1467,6 @@ groups:
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
-  - id: VAM-06-002
-    priority: MUST
-    kind: protocol
-    statement: '`ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`'
-    rationale: >-
-      The message is the Case Owner's request to reinstate a removed participant into the case's
-      `activeParticipants` (CM-31-011, ADR-0116); it does not seat a new member, which joins by
-      accepting a stub Invite.
-    verification: >-
-      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`,
-      and `target_=VULNERABILITY_CASE`; integration tests in
-      `test/demo/test_manage_participants_demo.py` exercise this flow.
-      `test_wire_form_examples_map_to_their_semantics` in
-      `test/test_semantic_activity_patterns.py` confirms that the
-      `add_vendor_participant_to_case` vocabulary example maps to
-      `ADD_CASE_PARTICIPANT_TO_CASE`.
-    adr:
-    - ADR-0116
-    stories:
-    - story_2022_013
-    - story_2022_052
   - id: VAM-06-003
     priority: MUST
     kind: protocol
@@ -1511,28 +1493,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)`,
+      `ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as
+      `Add(CaseParticipant)[target=VulnerabilityCase]`, with `context` the case,
       carrying the record in full. Only the CASE_MANAGER sends it, as its own act
-      when it brings a participant record into existence (ADR-0114, CLP-07-013), and
+      when it brings a participant record into the case (ADR-0114, CLP-07-021), and
       it is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140).
-      A received `Create(CaseParticipant)` is still not a protocol message
-      (VAM-01-011): it is recognized only so that it is reported, not acted on.
+      The record joins the case's participant list, so its entry names the case as
+      `target`, as the case's other lists do (CLP-07-021), and a replica reads the
+      list from the entry rather than choosing it (CM-23-044). The Case Owner's
+      reinstatement request is an Offer naming the actor (CM-31-011, ADR-0199), so
+      this form has one meaning. A received copy is recognized only so that it is
+      reported, not acted on.
     verification: >-
       `test_case_manager_acts_map_to_their_semantics` in
-      `test/test_semantic_activity_patterns.py` confirms that the
-      `create_participant` example maps to `CREATE_CASE_PARTICIPANT`.
+      `test/test_semantic_activity_patterns.py` confirms that the participant-seating
+      example maps to `ADD_CASE_PARTICIPANT_TO_CASE`, and a pattern test confirms
+      that `Create(CaseParticipant)` matches no participant-seating pattern (#6295).
     adr:
     - ADR-0140
+    - ADR-0199
     stories:
     - story_2022_013
     relationships:
     - rel_type: uses_definition
       spec_id: SE-05-002
-    see_also:
-    - spec_id: CLP-07-013
-      reason: 'context for the reader'
+    - rel_type: refines
+      spec_id: CLP-07-021
   - id: VAM-06-005
     priority: MUST
     kind: protocol

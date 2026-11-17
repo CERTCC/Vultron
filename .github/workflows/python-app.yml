@@ -73,6 +73,10 @@ on:
       # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
       # bumps only the base image must run it (#6052).
       - docker/Dockerfile
+      # test/shadow/test_packaging.py reads the case shadow tool's Compose
+      # service (SHD-02-002, SHD-02-003), so a pull request that edits only
+      # the Compose file must run it.
+      - docker/docker-compose.yml
   pull_request:
     branches: [ "main" ]
     paths:
@@ -123,6 +127,8 @@ on:
       # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
       # bumps only the base image must run it (#6052).
       - docker/Dockerfile
+      # The case shadow tool's Compose service; see the push filter.
+      - docker/docker-compose.yml
   workflow_dispatch:
 
 permissions:

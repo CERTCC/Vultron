@@ -32,3 +32,4 @@ On **Reference Implementation**:
 
 - [Wiring a Capability](wire_capability.md)
 - [Run the RVV Demo](demos/rvv-demo.md)
+- [Run the Case Shadow Tool](run_the_case_shadow.md)

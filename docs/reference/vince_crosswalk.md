@@ -52,7 +52,7 @@ Each table has five columns.
 | None | No Vultron counterpart exists. The reader returns the fact as untranslated. |
 
 Every time comes from a VINCE record.
-The reader never reads a clock.
+The reader never reads a clock to date an entry.
 An act that VINCE gives no time for takes the time its row names, most often the case's `created` time, and the reader lists it as an inference.
 
 [Report Management (RM)](glossary.md#state-machines-and-status) state belongs to one participant.
@@ -71,6 +71,7 @@ No row sets a case-wide RM state.
 The caveat for VINCE-CA-03 is: "VINCE marks the case Inactive. The time is the case's last change, which may be later than the closure."
 A `status` of `Active` adds no entry.
 Any other `status` value is untranslated, with the reason *unknown value*.
+An `Inactive` case whose `modified` is earlier than CERT/CC's last RM step is untranslated, with the reason *rule conflict*.
 
 ---
 
@@ -85,6 +86,7 @@ Any other `status` value is untranslated, with the reason *unknown value*.
 
 VINCE leaves out the contact fields when the reporter did not agree to share them.
 The caveat for VINCE-PA-04 is: "The reporter withheld their contact details. The identity is a placeholder."
+A vendor listed more than once on the case is seated once, and each further listing is untranslated, with the reason *rule conflict*.
 
 ---
 
@@ -117,6 +119,8 @@ Its inference names the Received entry that VINCE-RM-04 wrote for the same vendo
 
 A vendor status value other than `Affected`, `Not Affected` or `Unknown` is untranslated, with the reason *unknown value*.
 A statement dated before its vendor's `date_added` is untranslated, with the reason *rule conflict*.
+A report whose `date_submitted` is later than the case's `created` contradicts the case, because VINCE opens a case only after its report arrives.
+The reader still enters the report and seats the Reporter, but it writes no Received step for CERT/CC (VINCE-RM-01), and it returns the report's `date_submitted` as untranslated, with the reason *rule conflict*.
 
 ---
 
@@ -137,8 +141,8 @@ The caveats are:
 - VINCE-EM-02: "VINCE does not track embargo consent. Vultron infers the vendor's agreement from its place on the case."
 - VINCE-EM-03: "VINCE does not record an embargo's end. Vultron infers that it ended at `due_date`, judged against the time of reading."
 
-The time of reading is the time the caller read the case, and the caller supplies it.
-The reader compares it with `due_date` and does not read a clock.
+The time of reading is when the reader fetched the case.
+The reader reads the clock once for each case it reads, before its first request to VINCE, and compares that time with `due_date`.
 Before `due_date`, the embargo is still active.
 A vendor added after the embargo ended accepts no embargo.
 A case with no `due_date` has no embargo.
@@ -162,6 +166,8 @@ Each vendor's vendor awareness (V) follows from that vendor's RM state Received.
 Fix ready (F) and fix deployed (D) have no source in the VINCE API.
 They are unobservable.
 
+A published note whose `datefirstpublished` is earlier than the case's `created` is untranslated, with the reason *rule conflict*.
+
 ---
 
 ## Content
@@ -174,6 +180,11 @@ They are unobservable.
 | VINCE-CT-04 | `posts/pinned`, `note/revision`, `note/dateupdated` | None | None | None |
 
 A post whose author's organization matches no participant is untranslated, with the reason *no counterpart*.
+Each participant claims one organization name for its posts: CERT/CC claims `CERT/CC`, each vendor claims its VINCE name, and a Reporter that shared its contact claims its `contact_org`.
+A post whose author's organization two participants claim is untranslated, with the reason *rule conflict*, because the reader cannot tell which of them wrote it.
+For example, a Reporter whose `contact_org` is a vendor's name claims that vendor's organization too.
+A vul listed more than once on the case becomes one vulnerability item, and each further listing is untranslated, with the reason *rule conflict*.
+A vul whose `date_added`, or a post whose `created`, is earlier than the case's `created` is untranslated, with the reason *rule conflict*.
 
 ---
 

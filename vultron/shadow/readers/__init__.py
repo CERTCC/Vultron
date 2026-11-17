@@ -20,9 +20,16 @@
 * :func:`~vultron.shadow.readers.selection.select_case_reader` — the reader a
   run uses: the configured outside-system reader, or the Vultron case reader
   when none is configured.
+* :func:`~vultron.shadow.readers.configured.configured_case_reader` — that
+  choice made from the run's ``shadow:`` settings.
 """
 
+from vultron.shadow.readers.configured import configured_case_reader
 from vultron.shadow.readers.selection import select_case_reader
 from vultron.shadow.readers.vultron_ledger import VultronCaseReader
 
-__all__ = ["VultronCaseReader", "select_case_reader"]
+__all__ = [
+    "VultronCaseReader",
+    "configured_case_reader",
+    "select_case_reader",
+]
