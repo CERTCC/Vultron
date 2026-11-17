@@ -35,10 +35,9 @@ from __future__ import annotations
 
 import io
 import logging
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import PurePosixPath
-from typing import Any
 
 import pytest
 from click.testing import CliRunner
@@ -56,15 +55,18 @@ from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
 from vultron.shadow.dashboard import cli
 from vultron.shadow.log_content import (
+    UNCLEANED,
     WITHHELD,
     WITHHELD_MESSAGE,
     ShadowFormatter,
     case_log_context,
     reading_content,
+    records,
     shadow_logging,
     tracker_references,
     withheld_case_content,
 )
+from vultron.shadow.log_content.render import MAX_CHAIN
 
 MARKER = CONTENT_MARKER
 REFERENCE = TRACKER_REFERENCE
@@ -133,7 +135,7 @@ def _every_record() -> Generator[list[logging.LogRecord]]:
     with withheld_case_content():
         inner = logging.getLogRecordFactory()
 
-        def collect(*args: Any, **kwargs: Any) -> logging.LogRecord:
+        def collect(*args: object, **kwargs: object) -> logging.LogRecord:
             record = inner(*args, **kwargs)
             records.append(record)
             return record
@@ -386,7 +388,9 @@ def test_the_launcher_runs_streamlit_inside_the_shadow_logging(
     assert seen == [(level, True)]
 
 
-def _logged_exception(shadow_log: io.StringIO, raise_it: Any) -> str:
+def _logged_exception(
+    shadow_log: io.StringIO, raise_it: Callable[[], None]
+) -> str:
     try:
         raise_it()
     except Exception:
@@ -450,3 +454,89 @@ def test_an_inner_case_context_names_its_own_case_on_the_exception(shadow_log):
     text = _logged_exception(shadow_log, raise_it)
     assert f"vultron.errors.VultronError: {WITHHELD}" in text
     assert f"case_id={FAKE_CASE} case_reference={REFERENCE}" in text
+
+
+class _Entry:
+    id_ = "urn:uuid:entry-1"
+
+
+def test_an_object_with_an_id_is_named_by_it_and_none_is_kept(shadow_log):
+    logging.getLogger("vultron.test").info("got %s and %s", _Entry(), None)
+    assert "got <_Entry urn:uuid:entry-1> and None" in shadow_log.getvalue()
+
+
+def test_a_stack_and_an_empty_exc_info_are_cleaned(shadow_log):
+    log = logging.getLogger("vultron.test")
+    with case_log_context(FAKE_CASE) as case_log:
+        case_log.withhold(_reading())
+        title = f"Title {MARKER}"
+        log.info("stack for %s", "it", stack_info=True)
+        # A stack frame quoting content, as a source line could.
+        record = logging.getLogger("vultron.test").makeRecord(
+            "vultron.test",
+            logging.INFO,
+            __file__,
+            1,
+            "m",
+            (),
+            None,
+            sinfo=f"Stack (most recent call last):\n  {title}",
+        )
+        log.info("no exception", exc_info=True)
+    assert record.stack_info is not None
+    assert MARKER not in record.stack_info
+    text = shadow_log.getvalue()
+    assert "Stack (most recent call last):" in text
+    assert "no exception" in text
+    assert "Traceback" not in text
+
+
+def test_a_reference_that_is_not_issue_tracking_is_not_named():
+    reading = _reading()
+    payload = reading.ledger[0].payload_snapshot["object"]
+    payload["caseReferences"][0]["url"]["rel"] = ["related"]
+    assert tracker_references(reading) == ()
+
+
+def test_a_very_long_chain_does_not_break_the_log_call(shadow_log):
+    def raise_it() -> None:
+        error: Exception = ValueError(MARKER)
+        for _ in range(1200):
+            newer = VultronError("again")
+            newer.__cause__ = error
+            error = newer
+        raise error
+
+    text = _logged_exception(shadow_log, raise_it)
+    assert f"[exceptions before the last {MAX_CHAIN} not shown]" in text
+    assert text.count("vultron.errors.VultronError: again") == MAX_CHAIN
+    assert MARKER not in text
+
+
+def test_a_record_the_cleaning_fails_on_is_still_written(
+    shadow_log, monkeypatch
+):
+    def fail(*_args: object) -> object:
+        raise TypeError("broken")
+
+    monkeypatch.setattr(records, "safe_arg", fail)
+    logging.getLogger("vultron.test").info("value %s", MARKER)
+    text = shadow_log.getvalue()
+    assert UNCLEANED % "TypeError" in text
+    assert MARKER not in text
+
+
+def test_content_carried_by_an_exception_joins_the_current_case(shadow_log):
+    def raise_it() -> None:
+        with case_log_context(FAKE_CASE) as case_log:
+            case_log.withhold(_reading())
+            raise VultronError(f"Title {MARKER}")
+
+    try:
+        raise_it()
+    except VultronError:
+        with case_log_context("urn:uuid:other"):
+            logging.getLogger("vultron.test").exception("later")
+    text = shadow_log.getvalue()
+    assert "case_id=urn:uuid:other" in text
+    assert f"VultronError: {WITHHELD}" in text

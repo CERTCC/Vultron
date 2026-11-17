@@ -165,8 +165,9 @@ def install_correlation_logging(
     """Put the correlation filter and formatter on each handler.
 
     Adds one :class:`CorrelationFilter` per handler (a second call adds no
-    second filter) and sets a *formatter* built from *fmt* and *datefmt*.  The filter goes on handlers, not loggers, because a
-    logger's filters do not run for records propagated from its children.
+    second filter) and sets a *formatter* built from *fmt* and *datefmt*.
+    The filter goes on handlers, not loggers, because a logger's filters do
+    not run for records propagated from its children.
 
     Args:
         handlers: The handlers the entry point owns, e.g.
