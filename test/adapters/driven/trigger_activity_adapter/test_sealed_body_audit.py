@@ -1150,19 +1150,29 @@ def test_the_answer_embeds_the_recommendation_as_received(
     )
     second = embedded()
 
-    assert first["id"] == recommendation_id
+    sent = read_sealed_body(world.store(_PEER), recommendation_id)
+    assert sent is not None
+    assert first == json.loads(sent.body), (
+        "embedded as the recommender sent it"
+    )
     assert first["published"]
     assert first == second
 
 
 @pytest.mark.spec("DL-06-004")
-def test_an_answer_to_a_recommendation_never_received_is_refused(world):
+@pytest.mark.parametrize(
+    "method",
+    ["emit_accept_actor_recommendation", "emit_reject_actor_recommendation"],
+)
+def test_an_answer_to_a_recommendation_never_received_is_refused(
+    world, method
+):
     """With no recommendation held there is nothing to embed, and nothing
     is rebuilt in its place."""
     from vultron.errors import VultronNotFoundError
 
     with pytest.raises(VultronNotFoundError):
-        world.adapter.emit_accept_actor_recommendation(
+        getattr(world.adapter, method)(
             recommender_id=_PEER,
             recommendation_id="https://example.org/activities/never-held",
             recommended_id=_PEER,

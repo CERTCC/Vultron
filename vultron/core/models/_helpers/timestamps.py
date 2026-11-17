@@ -23,6 +23,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, SerializerFunctionWrapHandler, field_serializer
+from pydantic_core import PydanticUndefined
 
 from vultron.core.models._helpers.clock import _datetime_type
 
@@ -177,6 +178,17 @@ def received_without_published(cls: type[BaseModel]) -> bool:
     )
 
 
+def declares_own_type(cls: type[BaseModel]) -> bool:
+    """Whether *cls* declares a ``type`` of its own, by its field's default.
+
+    A generic class (``as_Object``, ``CoreObject``) declares none: it is what
+    a slot that admits any object validates into, whatever ``type`` the data
+    names.
+    """
+    field = cls.model_fields.get("type_")
+    return field is not None and field.default not in (None, PydanticUndefined)
+
+
 def refuse_absent_published(
     cls: type[BaseModel],
     data: Mapping[str, Any],
@@ -185,15 +197,21 @@ def refuse_absent_published(
     """Raise :class:`MissingClaimedTimeError` when *data* has no ``published``.
 
     Absent, ``None`` and blank are the same omission (CS-08-001).  A class
-    :func:`received_without_published` exempts is never refused, and neither
-    is *data* whose ``type`` names an exempt class (*named*): an actor
-    profile read through a slot that admits any object is still a profile.  For use on
-    the inbound path only, before ``absent_times_as_none`` would read the
-    omission as ``None``: an object this process authors states its time
-    (ADR-0176) and is not validated through here.
+    :func:`received_without_published` exempts is never refused.  Nor is
+    *data* a generic class reads (one that :func:`declares_own_type` says
+    declares no type) when its ``type`` names an exempt class (*named*): an
+    actor profile read through a slot that admits any object is still a
+    profile.  A class that declares its own type is judged by itself, so a
+    ``Note`` slot does not pass an untimed object that calls itself an
+    ``Actor``.  For use on the inbound path only, before
+    ``absent_times_as_none`` would read the omission as ``None``: an object
+    this process authors states its time (ADR-0176) and is not validated
+    through here.
     """
     if received_without_published(cls) or (
-        named is not None and received_without_published(named)
+        named is not None
+        and not declares_own_type(cls)
+        and received_without_published(named)
     ):
         return
     value = data.get("published")

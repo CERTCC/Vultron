@@ -787,3 +787,103 @@ def test_authored_case_without_statuses_is_seeded():
     case = make(VulnerabilityCase, attributed_to=ACTOR, id_=CASE_ID)
 
     assert len(case.case_statuses) == 1
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.spec("CM-23-044")
+def test_a_consent_row_in_a_participant_needs_no_published():
+    """A participant's consent rows carry no time (CM-23-044), so they are
+    exempt, while the participant holding them still carries its own."""
+    participant = dict(KINDS["CaseParticipant"][0])
+    participant["embargoConsents"] = [
+        {
+            "type": "EmbargoConsent",
+            "embargoId": "https://example.org/embargoes/1",
+            "state": "UNINVITED",
+            "attributedTo": ACTOR,
+        }
+    ]
+
+    parsed = _parsed(participant, KINDS["CaseParticipant"][1])
+
+    (row,) = parsed.embargo_consents
+    assert row.published is None
+
+
+def _untimed(type_: object) -> dict[str, Any]:
+    """An object with no ``published`` whose ``type`` is *type_*."""
+    return {"type": type_, "id": "https://example.org/objects/1", "name": "x"}
+
+
+def _inbound(cls: type[Any], data: dict[str, Any]) -> Any:
+    return cls.model_validate(
+        data, context={as_Base.INBOUND_CONTEXT_KEY: True}
+    )
+
+
+def _generic(name: str) -> type[Any]:
+    """The generic class a slot admitting any object validates into."""
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    return {"as_Object": as_Object, "CoreObject": CoreObject}[name]
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    ("generic", "type_"),
+    [
+        *(
+            pytest.param(generic, type_, id=f"{generic}-{type_}")
+            for generic in ("as_Object", "CoreObject")
+            for type_ in ("Person", "Organization", "Service")
+        ),
+        # Core receives the narrowed term, never the list (ADR-0196).
+        pytest.param("as_Object", ["Foo", "Person"], id="as_Object-list"),
+    ],
+)
+def test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt(
+    generic: str, type_: object
+):
+    """A slot that admits any object reads a nested profile through a
+    generic class; the profile its ``type`` names is exempt, so it passes."""
+    parsed = _inbound(_generic(generic), _untimed(type_))
+
+    assert parsed.published is None
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize(
+    "type_",
+    ["Note", "Bogus", ["Note", "Person"], ["Person", "Note"]],
+    ids=[
+        "non-exempt",
+        "unknown",
+        "ambiguous-list",
+        "ambiguous-list-reordered",
+    ],
+)
+@pytest.mark.parametrize("generic", ["as_Object", "CoreObject"])
+def test_a_generic_slot_refuses_an_untimed_object_whose_type_is_not_exempt(
+    generic: str, type_: object
+):
+    """The exemption follows only a ``type`` naming an exempt class: a
+    non-exempt type and an unknown one are refused without ``published``,
+    and a list naming no single class is refused before its time is read."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match=r"CLP-15-011|none is a subtype"):
+        _inbound(_generic(generic), _untimed(type_))
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize("spoof", ["Actor", "Person", "Collection"])
+def test_a_typed_class_is_not_exempted_by_the_type_its_data_names(spoof: str):
+    """A class that declares its own type is judged by itself: a ``Note``
+    whose data calls it an exempt kind is still refused without
+    ``published``, though ``as_Note`` admits that ``type`` value."""
+    from pydantic import ValidationError
+
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    with pytest.raises(ValidationError, match="CLP-15-011"):
+        _inbound(as_Note, _untimed(spoof))

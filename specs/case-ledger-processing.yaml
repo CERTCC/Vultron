@@ -4794,7 +4794,16 @@ groups:
       `test_an_actor_profile_or_collection_without_published_is_accepted` and
       `test_a_reference_uri_or_link_without_published_is_accepted` in
       `test_typed_references.py` assert the exemptions and the forms the rule does
-      not reach. `test_a_fetched_whole_object_without_published_is_refused` in
+      not reach. `test_a_consent_row_in_a_participant_needs_no_published` in
+      `test_nested_timestamps.py` asserts the consent-row exemption, and
+      `test_a_case_preview_carries_no_time_of_its_own` in `test_typed_references.py`
+      the case stub's. In `test_nested_timestamps.py`,
+      `test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt` and
+      `test_a_generic_slot_refuses_an_untimed_object_whose_type_is_not_exempt` assert
+      that a class admitting any object exempts only a `type` naming an exempt kind,
+      and `test_a_typed_class_is_not_exempted_by_the_type_its_data_names` that a class
+      declaring its own type is judged by itself.
+      `test_a_fetched_whole_object_without_published_is_refused` in
       `test/adapters/driven/test_http_object_fetch.py` asserts the same at the fetch
       edge.
     relationships:

@@ -2129,6 +2129,50 @@ class TestActorSuggestionFlowRecordsEachMessageAfterItIsSent:
         )
 
 
+@pytest.mark.spec("CM-16-006")
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize("verb", ["accept", "reject"])
+def test_the_deferred_answer_embeds_the_recommendation_as_received(verb):
+    """After the Case Owner decides, the CASE_MANAGER's answer to the
+    recommender embeds the recommendation exactly as it arrived (CM-16-006
+    step 3, DL-06-004), never a rebuild of it."""
+    import json
+
+    from vultron.adapters.outbox_sealed_body import read_sealed_body
+
+    dl, _ = _seed_dl_for_case_actor()
+    if verb == "accept":
+        use_case_class: Any = AcceptOfferCaseParticipantReceivedUseCase
+        event = TestAcceptOfferCaseParticipantReceivedUseCase()._event_with_stored_offer(
+            dl
+        )
+    else:
+        use_case_class = RejectOfferCaseParticipantReceivedUseCase
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event(at=dl)
+    archived = dl.read(ReceivedActivityRecord.build_id(RECOMMENDATION_ID))
+    assert isinstance(archived, ReceivedActivityRecord)
+
+    result = run_in_act(
+        use_case_class(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
+    assert result.disposition is HandlerDisposition.APPLIED, result
+
+    embedded = [
+        body["object"]
+        for activity_id in dl.outbox_list()
+        if (sealed := read_sealed_body(dl, activity_id)) is not None
+        and isinstance((body := json.loads(sealed.body)).get("object"), dict)
+        and body["object"].get("id") == RECOMMENDATION_ID
+    ]
+    assert embedded == [json.loads(archived.received_body)]
+
+
 class TestActorSuggestionAnswersAreSentOnceOnRetry:
     """A retry after a send whose commit failed sends the answer once.
 

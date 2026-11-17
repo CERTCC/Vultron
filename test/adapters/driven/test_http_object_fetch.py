@@ -36,6 +36,7 @@ from vultron.adapters.driven.http_object_fetch import (
     fetch_url,
     parse_fetched_object,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
@@ -465,6 +466,7 @@ class TestAFetchedObjectsUnknownKeys:
 
         assert isinstance(parsed_note, as_Object)
         assert parsed_note.updated is None
+        assert isinstance(parsed_profile, CoreActor)
         assert parsed_profile.published is None
 
     @pytest.mark.spec("CM-29-004")

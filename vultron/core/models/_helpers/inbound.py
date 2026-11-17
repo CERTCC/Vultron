@@ -222,9 +222,10 @@ def absent_times_as_none(
     an absent key: a sender omits the field on the wire, and a stored snapshot
     drops it because the snapshot dump excludes ``None``.  A required time
     that does not admit ``None`` (the ``published`` of a class every author
-    stamps, a ledger entry's ``received_at``) stays absent, so validation refuses it, as it
-    does when a validator needs the time (a case's genesis hash, CLP-08-002),
-    rather than deciding on a minted value later (ADR-0032, ADR-0103).
+    stamps, a ledger entry's ``received_at``) stays absent, so validation
+    refuses it, as it does when a validator needs the time (a case's genesis
+    hash, CLP-08-002), rather than deciding on a minted value later
+    (ADR-0032, ADR-0103).
     """
     for name, field in cls.model_fields.items():
         if not reads_absent_as_none(field):

@@ -101,4 +101,5 @@ def test_a_blank_published_refuses_the_participant_not_its_status(cls) -> None:
             context={INBOUND_CONTEXT_KEY: True},
         )
     (error,) = caught.value.errors()
+    assert "ctx" in error
     assert isinstance(error["ctx"]["error"], MissingClaimedTimeError)

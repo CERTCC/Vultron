@@ -281,6 +281,60 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         assert len(dl.outbox_list()) == 1, dl.outbox_list()
 
+    @pytest.mark.spec("CM-16-009")
+    @pytest.mark.spec("DL-06-004")
+    def test_an_already_seated_actor_is_accepted_embedding_the_offer_as_received(
+        self, make_payload, seed_case_manager
+    ):
+        """An actor already seated is answered at once with an Accept to the
+        recommender (CM-16-009), which embeds the recommender's Offer exactly
+        as it arrived, never a rebuild of it (DL-06-004)."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
+        dl, _, case_id = self._setup_dl(seed_case_manager)
+        recommended_id = "https://example.org/actors/vendor-seated"
+        case = dl.read_case(case_id)
+        assert case is not None
+        seed_case_participant(dl, case, recommended_id)
+        dl.save(case)
+        activity = recommend_actor_activity(
+            make(as_Actor, id_=recommended_id),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["vendor"],
+            at=authored_at(),
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED, result
+        # Intake held the body that arrived before the answer was built.
+        record = dl.read(ReceivedActivityRecord.build_id(activity.id_))
+        assert isinstance(record, ReceivedActivityRecord)
+        accepts = [
+            body
+            for activity_id in dl.outbox_list()
+            if (sealed := read_sealed_body(dl, activity_id)) is not None
+            and (body := json.loads(sealed.body))["type"] == "Accept"
+        ]
+        assert [body["object"] for body in accepts] == [
+            json.loads(record.received_body)
+        ]
+        assert accepts[0]["to"] == [self._RECOMMENDER_ID]
+
     @pytest.mark.spec("CM-16-020")
     @pytest.mark.spec("CM-16-005")
     @pytest.mark.parametrize(

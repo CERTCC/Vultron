@@ -915,7 +915,11 @@ def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
             "fetched_body": json.dumps(
                 # An Article has no core class; an Image now does
                 # (AttachedImage, CSAF-01-001).
-                {"type": "Article", "id": "urn:uuid:img"}
+                {
+                    "type": "Article",
+                    "id": "urn:uuid:img",
+                    "published": "2026-01-01T00:00:00+00:00",
+                }
             ),
         }
     )
