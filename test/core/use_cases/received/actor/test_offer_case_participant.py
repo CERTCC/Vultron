@@ -1514,7 +1514,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
           EmitInviteActorToCaseNode (roles=None, no blackboard key) →
-          Invite(Actor) stored with roles=None → Accept(Invite) →
+          stub Invite stored with roles=None → Accept(Invite) →
           CaseParticipant.case_roles == [].
 
     AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``

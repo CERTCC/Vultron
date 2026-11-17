@@ -13,7 +13,7 @@
 
 """The sender rules of the last received use cases to declare one (#4522).
 
-``Add(CaseStatus)``, ``Invite(Actor)`` and ``Leave(VulnerabilityCase)`` each
+``Add(CaseStatus)``, the stub ``Invite`` and ``Leave(VulnerabilityCase)`` each
 declare a sender rule that the receive-tree factory composes (HP-01-007,
 HP-01-008).  ``Add(CaseStatus)`` is admitted only from the CASE_MANAGER, at a
 participant replica (RSH-04-005, #4851).  For each:
@@ -633,7 +633,7 @@ def test_a_skipped_repeat_leave_logs_no_sender_refusal(
 
 
 # ---------------------------------------------------------------------------
-# Invite(Actor)
+# The stub Invite
 # ---------------------------------------------------------------------------
 
 
