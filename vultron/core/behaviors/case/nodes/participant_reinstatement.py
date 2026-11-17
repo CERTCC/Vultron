@@ -17,7 +17,8 @@
 
 ``Add(CaseParticipant)[target=VulnerabilityCase]`` is the Case Owner's request
 to the CASE_MANAGER to reinstate a removed participant, and only that
-(ADR-0116), until #6465 replaces it with the CM-31-011 Offer (ADR-0199).  It
+(ADR-0116), until #6465 replaces it with the CM-31-011 ``Add(<Actor>)``
+(ADR-0199).  It
 mirrors the removal pipeline in
 :mod:`~vultron.core.behaviors.case.nodes.case_participant_received`, reusing
 its guard, effect and notice frames:
