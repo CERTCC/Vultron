@@ -222,7 +222,15 @@ def test_a_refuse_of_a_leave_finds_the_case_the_leave_acted_on():
 
 
 def test_the_case_falls_back_to_the_refused_activitys_context():
-    refused = resigned(_refused(), context="https://example.org/cases/7")
+    # The refused activity's status names the same case, as it must for the
+    # refused activity itself to parse (HP-08-015).
+    refused = resigned(
+        _refused(),
+        context="https://example.org/cases/7",
+        alter=lambda b: b["object"].update(
+            context="https://example.org/cases/7"
+        ),
+    )
 
     event = _event(_notice(refused))
 
