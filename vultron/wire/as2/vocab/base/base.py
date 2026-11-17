@@ -59,6 +59,7 @@ from vultron.wire.as2.vocab.base.registry import (
     declared_wire_type,
     declares_registrable_type,
     narrow_type_list,
+    resolve_wire_type,
     wire_type_value,
 )
 from vultron.wire.as2.vocab.base.utils import generate_new_id
@@ -82,6 +83,14 @@ __all__ = [
     "as_Base",
     "vultron_property",
 ]
+
+
+def _named_class(data: dict[str, Any]) -> type[BaseModel] | None:
+    """The class *data*'s ``type`` names, or ``None`` when it names none."""
+    try:
+        return resolve_wire_type(data.get("type"), include_core=True)
+    except KeyError:
+        return None
 
 
 def _own_type(cls: type[BaseModel]) -> object:
@@ -228,7 +237,7 @@ class as_Base(BaseModel):
             is_typed_reference_shape(data)
             and data.get("type") != _own_type(cls)
         ):
-            refuse_absent_published(cls, data)
+            refuse_absent_published(cls, data, _named_class(data))
         return absent_times_as_none(cls, data)
 
     @model_validator(mode="before")

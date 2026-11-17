@@ -178,17 +178,23 @@ def received_without_published(cls: type[BaseModel]) -> bool:
 
 
 def refuse_absent_published(
-    cls: type[BaseModel], data: Mapping[str, Any]
+    cls: type[BaseModel],
+    data: Mapping[str, Any],
+    named: type[BaseModel] | None = None,
 ) -> None:
     """Raise :class:`MissingClaimedTimeError` when *data* has no ``published``.
 
     Absent, ``None`` and blank are the same omission (CS-08-001).  A class
-    :func:`received_without_published` exempts is never refused.  For use on
+    :func:`received_without_published` exempts is never refused, and neither
+    is *data* whose ``type`` names an exempt class (*named*): an actor
+    profile read through a slot that admits any object is still a profile.  For use on
     the inbound path only, before ``absent_times_as_none`` would read the
     omission as ``None``: an object this process authors states its time
     (ADR-0176) and is not validated through here.
     """
-    if received_without_published(cls):
+    if received_without_published(cls) or (
+        named is not None and received_without_published(named)
+    ):
         return
     value = data.get("published")
     if value is None or (isinstance(value, str) and not value.strip()):

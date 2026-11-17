@@ -311,7 +311,9 @@ class CoreObject(CoreRecord):
         # The id first, as the wire twin does: an object with neither is
         # refused for the id it lacks before its time (OID-01-013).
         refuse_absent_id(cls, data)
-        refuse_absent_published(cls, data)
+        type_ = data.get("type", data.get("type_"))
+        named = CORE_TYPE_MAP.get(type_) if isinstance(type_, str) else None
+        refuse_absent_published(cls, data, named)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")

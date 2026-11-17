@@ -38,9 +38,10 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
 A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
-Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile or a collection.
+Every whole object an Activity embeds, at any depth, also carries the `published` timestamp its author stamped on it, except an actor profile, a collection, a case stub or an embargo consent row.
 A receiver refuses a message that embeds one without it, and names where the object sits.
 An actor profile describes an actor and a collection is a container, so neither is an act made at a moment.
+A case stub carries only the keys its preview defines, and a consent row is copied without a time, so neither carries one.
 A typed reference, a URI and a Link are not whole objects, so they carry no time.
 `updated` stays optional, and a receiver carries it as sent.
 
@@ -198,7 +199,7 @@ Once an actor's profile is known, its inbox is the endpoint the profile names.
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
 The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
-Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)), and so does every whole object it embeds other than an actor profile or a collection ([CLP-15-011](requirements/ledger-replication.md#clp-15-011)).
+Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)), and so does every whole object it embeds other than the exempt kinds ([CLP-15-011](requirements/ledger-replication.md#clp-15-011)).
 
 #### Submitting a report
 

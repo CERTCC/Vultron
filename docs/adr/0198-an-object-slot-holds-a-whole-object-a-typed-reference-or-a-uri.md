@@ -1,9 +1,14 @@
 ---
 status: accepted-provisional
+status_override: >-
+  Revision 2 edited in place in epoch 2, not superseded, with the maintainer's explicit
+  approval on 2026-11-17 (Issue #6456, PR #6611). It records the maintainer's ruling that a
+  case stub (until it travels only as a case reference's preview, ADR-0205) and an embargo
+  consent row are exempt from the received-time rule, beside actor profiles and collections.
 date: 2026-11-13
 created: 2026-11-13
-updated: 2026-11-13
-revision: 1
+updated: 2026-11-17
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0103; ADR-0159; ADR-0165; planning interview of
@@ -86,8 +91,10 @@ This codebase's senders keep inlining the object of every outbound activity (AKM
 Which senders move to typed references is later, separate work.
 
 A received whole object carries its `published` time, and one that does not is refused at message validation, as an activity without one already is (CLP-15-008).
-Two kinds of whole object are exempt: an actor profile and a collection.
-They describe an actor or a container, not an act made at a moment, and many ActivityPub servers serve profiles without `published`.
+Four kinds of whole object are exempt: an actor profile, a collection, a case stub and an embargo consent row.
+An actor profile and a collection describe an actor or a container, not an act made at a moment, and many ActivityPub servers serve profiles without `published`.
+A case stub carries exactly the keys CM-17-010 names, none of them a time; its exemption is temporary, until the stub travels only as the `preview` of a case reference (ADR-0205).
+An embargo consent row is a row of the consent table, which each replica copies without reading a clock (CM-23-044), so it carries no time of its own.
 A typed reference, a URI and a `Link` carry no time, so the rule does not reach them.
 `updated` stays optional, and is carried as received when present.
 A ledger entry's `payloadSnapshot` is kept as the received JSON and is not validated into objects (CLP-07-011), so the objects nested in it are untouched by the rule.
@@ -102,12 +109,23 @@ It also widens ADR-0159: the id-and-type form is no longer an exception for acto
 - Good, because a receiver can classify an activity whose object it does not hold, and fetches only when a handler needs the content.
 - Good, because a partial inline object is refused rather than read as a reference or completed with invented state, which is the fix #5265 needs.
 - Good, because a reader of a received object's `published` no longer checks whether its type is one of the refused ones, and the core classes every author stamps can declare `published` as required.
+- Neutral, because the exempt kinds widened from two to four in revision 2: the case stub and the embargo consent row, which the specs already fix without a time.
 - Good, because the case stub can become the `preview` of a typed case reference (#6244) without a second shape rule.
 - Neutral, because the case stub keeps its own type and position rules until #6244 moves it.
 - Bad, because a peer that sends a whole object without `published`, which AS2 allows, is now refused.
   That is the intended trade: a conformant sender stamps every object it authors (CLP-15-006 for activities), and the refusal names the field.
 - Bad, because a typed reference to an object the receiver lacks costs a fetch, and a fetch that fails leaves the activity to be refused by the path that needs the object (AKM-05-015).
   A fetch queue that resolves references ahead of handling may be needed later; nothing here builds one.
+
+## Amendment — 2026-11-17
+
+Corrected in place by instruction of Allen D. Householder (Issue #6456, PR #6611).
+
+Replaced: "Two kinds of whole object are exempt: an actor profile and a collection."
+Two more kinds of whole object carry no time by the specs already: a case stub, whose keys CM-17-010 fixes, and an embargo consent row, which a replica copies without reading a clock (CM-23-044).
+Refusing them would refuse every conformant sender, so both are exempt; the stub only until it travels as a case reference's preview (ADR-0205).
+Idea #6615 would date consent rows and retire their exemption.
+The rest of the decision is unchanged.
 
 ## Validation
 

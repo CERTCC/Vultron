@@ -4761,24 +4761,25 @@ groups:
     statement: >-
       A receiver MUST refuse at message validation an inbound activity that carries, at
       any depth, a whole object with no `published`, naming the object's position. An
-      actor profile and a collection are exempt. A typed reference (MV-10-011), a URI
-      and a `Link` are not whole objects, so the rule does not reach them.
+      actor profile, a collection, an `EmbargoConsent` row and, until a case stub
+      travels only as a case reference's preview (ADR-0205), a case stub are exempt. A
+      typed reference (MV-10-011), a URI and a `Link` are not whole objects, so the rule
+      does not reach them.
     rationale: >-
       A conformant sender states the time of every object it authors, so the rule
       refuses only malformed input. Refusing at the edge spares every reader of a
       received object's time a check of whether its type is one a decision needs, and
       lets core declare the time required (ADR-0032). An actor profile or a collection
       is not an act made at a moment, and many servers serve profiles without one.
+      A case stub and a consent row are kept without a time by CM-17-010 and CM-23-044.
     note: >-
       The objects nested in a ledger entry's `payloadSnapshot` are kept as received
       JSON and are not validated into objects (CLP-07-011), so this rule does not
-      reach them. A case stub is a case's preview, and carries exactly the keys
-      CM-17-010 names, none of them `published`, so the rule does not reach the stub
-      itself; the embargo and status it carries are whole objects and carry theirs.
-      An `EmbargoConsent` row is a row of the consent table, which carries no time
-      because a replica copies it without reading a clock (CM-23-044), so the rule
-      does not reach it either. The vocabulary does not model a collection page
-      (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
+      reach them. A case stub carries exactly the keys CM-17-010 names, none of them
+      `published`; the embargo and status it carries are whole objects and carry
+      theirs. An `EmbargoConsent` row carries no time because a replica copies it
+      without reading a clock (CM-23-044). The vocabulary does not model a collection
+      page (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
       collection, so a page received with content is read as a plain object and
       refused without `published`.
     verification: >-

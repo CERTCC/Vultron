@@ -430,6 +430,22 @@ class TestAFetchedObjectsUnknownKeys:
         ):
             parse_fetched_object(document, _FETCHED_ID, _HOST)
 
+    @pytest.mark.spec("CLP-15-011")
+    def test_a_profile_in_a_slot_admitting_any_object_needs_no_time(self):
+        """A slot that admits any object reads a nested actor profile through
+        a generic class; it is still a profile, so it is not refused."""
+        document = {
+            "type": "Create",
+            "id": _FETCHED_ID,
+            "actor": _HOST,
+            "published": _PUBLISHED,
+            "object": {"type": "Organization", "id": _REQUESTER, "name": "V"},
+        }
+
+        parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+        assert getattr(parsed, "object_", None) is not None
+
     @pytest.mark.spec("CLP-15-007")
     @pytest.mark.spec("CLP-15-011")
     def test_a_fetched_body_that_omits_updated_claims_none(self):
