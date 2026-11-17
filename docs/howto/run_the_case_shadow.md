@@ -62,8 +62,8 @@ Set these environment variables in the shell that starts the tool:
 
 | Variable | Value |
 |---|---|
-| `VULTRON_SHADOW__NODE_URL` | The node's API root, such as `http://case-actor:7999/api/v2`. |
-| `VULTRON_SHADOW__NODE_ACTOR_ID` | The Case Manager on that node whose ledger the tool reads, such as `case-actor`. |
+| `VULTRON_SHADOW__NODE_URL` | The node's API root, such as `http://case-actor:7999/api/v2`. The tool refuses a URL that has a user name, a password, a query, or a fragment. |
+| `VULTRON_SHADOW__NODE_ACTOR_ID` | The Case Manager on that node whose ledger the tool reads, such as `case-actor`. The tool refuses an id that names no actor. |
 
 Set both variables, or neither.
 With both set and no connector set, type the case's id on that node in the **Case** box.
