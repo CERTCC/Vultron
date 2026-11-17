@@ -23,6 +23,7 @@ then disposes, then fails that test by name.
 
 import asyncio
 
+from test.support.orphan_store_connections import close_orphan_connections
 from vultron.adapters.driving.fastapi.sender_sequence_holds import (
     SenderSequenceHoldTimer,
     finish_sender_sequence_hold_timer,
@@ -91,10 +92,16 @@ def dispose_actor_stores_between_tests() -> None:
     A timer that cannot be stopped leaves the stores open: a later test fails
     on their rows, but no store is closed under a read.
 
+    Then closes any connection a disposed in-memory store opened during the
+    test (#6001).
+
     Raises:
         HoldTimerLeakedError: a timer was still running.  When it was stopped,
             the stores are disposed before this is raised, so only the test
             that leaked it fails.
+        OrphanStoreConnectionError: a disposed in-memory store opened a
+            connection during the test.  It is closed before this is raised,
+            so no later test fails on its ``ResourceWarning``.
     """
     from vultron.adapters.driven.datalayer_sqlite import (
         reset_datalayer,
@@ -106,13 +113,16 @@ def dispose_actor_stores_between_tests() -> None:
         stop_hold_timer_from_another_thread(timer)
     reset_datalayer()
     reset_store_claimants()
-    if leaked:
-        raise HoldTimerLeakedError(
-            f"{len(leaked)} sender-sequence hold timer(s) still running at"
-            " store disposal: a fixture or test started the production"
-            " lifespan and did not stop the timer before it ended.  The"
-            " timer was stopped and the stores disposed.  Exit the TestClient"
-            " (its shutdown awaits the timer), or stop it with"
-            " stop_hold_timer_from_another_thread() as test/demo/conftest.py's"
-            " client fixture does (#6148)."
-        )
+    try:
+        close_orphan_connections()
+    finally:
+        if leaked:
+            raise HoldTimerLeakedError(
+                f"{len(leaked)} sender-sequence hold timer(s) still running"
+                " at store disposal: a fixture or test started the production"
+                " lifespan and did not stop the timer before it ended.  The"
+                " timer was stopped and the stores disposed.  Exit the"
+                " TestClient (its shutdown awaits the timer), or stop it with"
+                " stop_hold_timer_from_another_thread() as"
+                " test/demo/conftest.py's client fixture does (#6148)."
+            )

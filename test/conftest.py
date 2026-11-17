@@ -42,6 +42,9 @@ os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 import py_trees
 import pytest
 
+from test.support.orphan_store_connections import (
+    install_orphan_connection_watch,
+)
 from test.support.received import reset_test_sender_numbers
 from test.support.xdist_workers import worker_count
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -197,7 +200,10 @@ def cleanup_test_datalayer():
     """Reset all cached DataLayer instances before and after the session.
 
     Ensures no stale in-memory database state leaks between test modules.
+    Also starts the watch per-test disposal reads: a connection opened on a
+    disposed in-memory store is closed, and fails its test (#6001).
     """
+    install_orphan_connection_watch()
     reset_datalayer()
     yield
     reset_datalayer()
