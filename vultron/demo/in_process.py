@@ -386,8 +386,11 @@ def create_isolated_actor_app(
             override below — but ``dl`` has to name one of them.
         config: This node's own config, passed to :func:`create_app`, so the
             node reads its settings as its container would rather than the
-            process-wide config every other node reads (ADR-0206).  ``None``
-            keeps the process-wide config.
+            process-wide config every other node reads (ADR-0206).  A node
+            given a config also runs its container's background work (the
+            outbox monitor, startup inbox replay, ledger position statements
+            and sender-sequence hold timer) on its own stores.  ``None``
+            keeps the process-wide config and starts none of that work.
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has

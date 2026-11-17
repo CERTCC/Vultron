@@ -46,6 +46,7 @@ import logging
 from typing import cast
 
 from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.actor_hosts import CONFIGURED_NODE, NodeDeployment
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     replay_inbox_queue,
@@ -66,6 +67,7 @@ from vultron.core.services.received_activity import (
     sealed_body_of,
 )
 from vultron.core.services.received_holding import records_left_in_holding
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +172,9 @@ async def rerun_left_in_holding(
                 # At the time its record says it was received (ADR-0176).
                 arrived_at=record.received_at,
             )
+        except VultronWiringError:
+            # A lost config scope is no one record's failure (ADR-0206).
+            raise
         except Exception:
             # One record's failure must not keep the others, or the queue,
             # from running; the record stays in holding (CLP-10-074).
@@ -208,6 +213,9 @@ def _still_left_in_holding(actor_dl: DataLayer, activity_id: str) -> bool:
 
 async def replay_hosted_inbox_queues(
     emitter: ActivityEmitter | None = None,
+    *,
+    dispatcher: ActivityDispatcher | None = None,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> int:
     """Replay the inbox queue of every actor this node hosts.
 
@@ -220,24 +228,30 @@ async def replay_hosted_inbox_queues(
     An actor whose replay raises is logged, and the next actor is still
     replayed; its items stay queued for the next replay (IE-06-005).
 
-    Production-only: it runs only in the single-node production lifespan
-    (``configure_globals=True``), where the configured ``db_url`` and base URL
-    are the node's own.  That is why it calls ``hosted_actor_ids()`` and
-    ``get_datalayer`` unscoped; an app built by ``create_app`` never starts it,
-    so no other deployment in the process is read (DL-07-011).
+    Only *node*'s stores are read (DL-07-011).  The production lifespan
+    passes the configured node; an app holding its own config passes its own
+    deployment (ADR-0206), so no other node's stores in the process are read.
+
+    A ``VultronWiringError`` is not one actor's failure: the replay has lost
+    its app's config scope, so it is raised, not logged (ADR-0206).
 
     Args:
         emitter: The app's ActivityEmitter, for the outbox drain after each
             actor's replay.
+        dispatcher: The app's own dispatcher, or ``None`` for the
+            process-wide one the production lifespan installs.
+        node: The deployment whose hosted actors are replayed.
 
     Returns:
         The number of actors whose queue held an item.
     """
     replayed = 0
-    for actor_id in actor_hosts.hosted_actor_ids():
+    for actor_id in actor_hosts.hosted_actor_ids(node.db_url, node.base_url):
         try:
-            actor_dl = get_datalayer(actor_id)
-            await rerun_left_in_holding(actor_dl, actor_id, None, emitter)
+            actor_dl = get_datalayer(actor_id, db_url=node.db_url)
+            await rerun_left_in_holding(
+                actor_dl, actor_id, dispatcher, emitter
+            )
             queued = len(actor_dl.inbox_list())
             if not queued:
                 continue
@@ -248,7 +262,9 @@ async def replay_hosted_inbox_queues(
                 queued,
                 actor_id,
             )
-            await replay_inbox_queue(actor_dl, actor_id, None, emitter)
+            await replay_inbox_queue(actor_dl, actor_id, dispatcher, emitter)
+        except VultronWiringError:
+            raise
         except Exception:
             # The startup boundary: one actor's failed replay must not stop
             # the others' or the server's start.  The attempt rolled back,
@@ -263,6 +279,9 @@ async def replay_hosted_inbox_queues(
 
 def start_startup_inbox_replay(
     emitter: ActivityEmitter | None,
+    *,
+    dispatcher: ActivityDispatcher | None = None,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> asyncio.Task[int]:
     """Start the startup replay as a task beside the server (IE-06-006).
 
@@ -271,7 +290,11 @@ def start_startup_inbox_replay(
     as long as an unreachable peer takes to time out.  The per-actor inbox
     lock orders it with any delivery that arrives meanwhile.
     """
-    return asyncio.create_task(replay_hosted_inbox_queues(emitter=emitter))
+    return asyncio.create_task(
+        replay_hosted_inbox_queues(
+            emitter=emitter, dispatcher=dispatcher, node=node
+        )
+    )
 
 
 async def finish_startup_inbox_replay(

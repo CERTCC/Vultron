@@ -35,6 +35,7 @@ exist, and resolve an inbound URL segment without consulting any store at all.
 
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -162,6 +163,34 @@ def hosted_actor_ids(
     return sorted(
         canonical_actor_uri(slug, base) for slug in hosted_actor_slugs(url)
     )
+
+
+@dataclass(frozen=True)
+class NodeDeployment:
+    """The storage template and base URL of one node (DL-07-011, DL-07-012).
+
+    Work a node runs outside a request (the startup inbox replay, the ledger
+    position statements, the sender-sequence hold timer, the outbox monitor)
+    enumerates the actors it hosts and opens their stores under these two
+    values, as a route does from its serving app
+    (``deps.node_db_url_template``, ``deps.node_base_url``).  ``None`` for
+    either reads the configured value, which is right where one process is
+    one node; an app that declares its own passes them, so the work reads
+    its own node's stores and no other node's in the same process.
+
+    Attributes:
+        db_url: The node's SQLAlchemy URL template, or ``None`` for
+            ``DatabaseConfig.db_url``.
+        base_url: The node's base URL, or ``None`` for
+            ``ServerConfig.base_url``.
+    """
+
+    db_url: str | None = None
+    base_url: str | None = None
+
+
+#: The node one process is: the configured template and base URL.
+CONFIGURED_NODE = NodeDeployment()
 
 
 def hosted_actor_slugs(db_url: str | None = None) -> set[str]:

@@ -41,7 +41,9 @@ _WAIT_SECONDS = 5.0
 @pytest.fixture
 def no_hosted_actors(monkeypatch):
     """A timer round, if one ran, would read no store."""
-    monkeypatch.setattr(holds.actor_hosts, "hosted_actor_ids", lambda: [])
+    monkeypatch.setattr(
+        holds.actor_hosts, "hosted_actor_ids", lambda *_node: []
+    )
 
 
 @pytest.fixture

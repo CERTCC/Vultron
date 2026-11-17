@@ -37,12 +37,33 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from vultron.adapters.driven.datalayer import get_all_actor_datalayers
+from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.actor_hosts import NodeDeployment
+from vultron.adapters.driven.datalayer import (
+    get_all_actor_datalayers,
+    get_datalayer,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
+
+
+def node_actor_datalayers(node: NodeDeployment) -> dict[str, SqliteDataLayer]:
+    """Return the store of every actor *node* hosts, keyed by actor URI.
+
+    The node-scoped factory for an :class:`OutboxMonitor` in a process that
+    runs several nodes: unlike ``get_all_actor_datalayers()``, it lists only
+    *node*'s own deployment (DL-07-011).
+    """
+    return {
+        actor_id: get_datalayer(actor_id, db_url=node.db_url)
+        for actor_id in actor_hosts.hosted_actor_ids(
+            node.db_url, node.base_url
+        )
+    }
 
 
 class OutboxMonitor:
@@ -62,13 +83,14 @@ class OutboxMonitor:
     The ``actor_datalayers_factory`` and ``emitter`` parameters allow
     injection of test doubles without patching module globals.
 
-    Production-only: the monitor is started only by the single-node
-    production lifespan (``configure_globals=True``), where every store this
-    process opened belongs to the node's own configured ``db_url``.  That is
-    why its default factory, ``get_all_actor_datalayers()``, is unscoped; an
-    app built by ``create_app`` never starts it, so in a process running
-    several in-memory nodes it never drains another node's outbox
-    (DL-07-011).
+    Its default factory, ``get_all_actor_datalayers()``, is unscoped, which
+    is right only in the single-node production lifespan
+    (``configure_globals=True``), where every store this process opened
+    belongs to the node's own configured ``db_url``.  An app built by
+    ``create_app`` with its own config starts it with
+    :func:`node_actor_datalayers` for its own deployment, so in a process
+    running several nodes it never drains another node's outbox (DL-07-011,
+    ADR-0206).  A ``create_app`` app with no config never starts it.
 
     Args:
         poll_interval: Maximum seconds between drain passes (default 1.0).
@@ -116,7 +138,9 @@ class OutboxMonitor:
 
         Skips actors whose outbox is empty.  Delivery errors for a single
         actor are caught, logged at ERROR level, and do not abort processing
-        for other actors.
+        for other actors.  A ``VultronWiringError`` is raised: the drain has
+        lost its app's config scope, which is every actor's failure
+        (ADR-0206).
         """
         factory = (
             self._actor_datalayers_factory
@@ -155,6 +179,9 @@ class OutboxMonitor:
                     dl,
                     emitter=self._emitter,
                 )
+            except VultronWiringError:
+                # A lost config scope is no one actor's failure (ADR-0206).
+                raise
             except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
                 logger.error(  # noqa: TRY400  # ruff-baseline #3353
                     "OutboxMonitor: unhandled error draining outbox"
@@ -244,10 +271,20 @@ class OutboxMonitor:
         """Signal the drain loop to stop and cancel the asyncio task.
 
         Safe to call even if the monitor was never started.
+
+        Raises:
+            VultronWiringError: the drain loop ended because it lost its
+                app's config scope (ADR-0206).  Raised here, at shutdown, so
+                the failure is not left as a task exception nobody reads.
         """
+        task = self._task
         self._running = False
         self._loop = None
-        if self._task is not None and not self._task.done():
-            self._task.cancel()
+        if task is not None and not task.done():
+            task.cancel()
         self._task = None
         self._registered_actors.clear()
+        if task is not None and task.done() and not task.cancelled():
+            error = task.exception()
+            if isinstance(error, VultronWiringError):
+                raise error

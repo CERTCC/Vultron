@@ -292,12 +292,12 @@ def test_the_startup_runs_the_held_records_then_the_queue(monkeypatch):
     monkeypatch.setattr(
         inbox_startup_replay.actor_hosts,
         "hosted_actor_ids",
-        lambda: [MANAGER],
+        lambda *_node: [MANAGER],
     )
     monkeypatch.setattr(
         inbox_startup_replay,
         "get_datalayer",
-        lambda actor_id: net.stores[MANAGER],
+        lambda actor_id, db_url=None: net.stores[MANAGER],
     )
 
     asyncio.run(inbox_startup_replay.replay_hosted_inbox_queues())

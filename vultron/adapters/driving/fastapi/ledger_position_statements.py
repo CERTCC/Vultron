@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.actor_hosts import CONFIGURED_NODE, NodeDeployment
 from vultron.adapters.driven.clock import act_clock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -45,6 +46,7 @@ from vultron.core.ports.emitter import ActivityEmitter
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
 )
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,8 @@ def _state_positions(
 
 async def state_hosted_ledger_positions(
     emitter: ActivityEmitter | None = None,
+    *,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> int:
     """State the ledger positions of every actor this node hosts, once.
 
@@ -71,22 +75,23 @@ async def state_hosted_ledger_positions(
     whose statements raise is logged, and the next actor still states its
     own.
 
-    Production-only: it runs only in the single-node production lifespan
-    (``configure_globals=True``), where the configured ``db_url`` and base URL
-    are the node's own.  That is why it calls ``hosted_actor_ids()`` and
-    ``get_datalayer`` unscoped; an app built by ``create_app`` never starts it,
-    so no other deployment in the process is read (DL-07-011).
+    Only *node*'s stores are read (DL-07-011).  The production lifespan
+    passes the configured node; an app holding its own config passes its own
+    deployment (ADR-0206), so no other node's stores in the process are read.
+    A ``VultronWiringError`` means the work lost its app's config scope, which
+    is no one actor's failure, so it is raised, not logged (ADR-0206).
 
     Args:
         emitter: The app's ActivityEmitter, for the outbox drain.
+        node: The deployment whose hosted actors state their positions.
 
     Returns:
         The number of statements queued across every hosted actor.
     """
     total = 0
-    for actor_id in actor_hosts.hosted_actor_ids():
+    for actor_id in actor_hosts.hosted_actor_ids(node.db_url, node.base_url):
         try:
-            actor_dl = get_datalayer(actor_id)
+            actor_dl = get_datalayer(actor_id, db_url=node.db_url)
             sent: list[int] = []
             await run_serialised_actor_work(
                 actor_dl,
@@ -95,6 +100,8 @@ async def state_hosted_ledger_positions(
                 partial(_state_positions, actor_dl, actor_id, sent),
             )
             total += sum(sent)
+        except VultronWiringError:
+            raise
         except Exception:
             # The statement boundary: one actor's failure must not stop the
             # others' or the server.  Nothing was committed; the next
@@ -115,15 +122,21 @@ class PositionStatements:
     stop: asyncio.Event
 
 
-async def _one_round(emitter: ActivityEmitter | None) -> None:
-    """State every hosted actor's positions once, never raising.
+async def _one_round(
+    emitter: ActivityEmitter | None, node: NodeDeployment
+) -> None:
+    """State every hosted actor's positions once, raising only a wiring error.
 
     A failure outside one actor's statements, such as listing the hosted
     actors, is logged and the round ends; the next round tries again, so an
-    error never ends the interval loop or surfaces at shutdown.
+    error never ends the interval loop.  A ``VultronWiringError`` (the work
+    lost its app's config scope, ADR-0206) ends the task, and surfaces when
+    it is awaited at shutdown.
     """
     try:
-        await state_hosted_ledger_positions(emitter=emitter)
+        await state_hosted_ledger_positions(emitter=emitter, node=node)
+    except VultronWiringError:
+        raise
     except Exception:
         logger.exception(
             "Ledger position statement round raised (SYNC-17-007)."
@@ -135,6 +148,7 @@ async def _state_positions_then_repeat(
     interval_seconds: int | None,
     stop: asyncio.Event,
     after: asyncio.Task[int] | None,
+    node: NodeDeployment,
 ) -> None:
     """State positions after the restart, then on the interval, if set.
 
@@ -148,32 +162,36 @@ async def _state_positions_then_repeat(
         await asyncio.wait({after})
         if stop.is_set():
             return
-    await _one_round(emitter)
+    await _one_round(emitter, node)
     if interval_seconds is None:
         return
     while not stop.is_set():
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval_seconds)
         except TimeoutError:
-            await _one_round(emitter)
+            await _one_round(emitter, node)
 
 
 def start_ledger_position_statements(
     emitter: ActivityEmitter | None,
     after: asyncio.Task[int] | None = None,
+    *,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> PositionStatements:
     """Start the position statements as a task beside the server.
 
     A task, so the statements and their outbox drain never hold back
     readiness.  The first round runs once *after* (the startup inbox replay)
     is done.  The interval is read from
-    ``ledger.position_statement_interval_seconds`` (off by default).
+    ``ledger.position_statement_interval_seconds`` (off by default), in the
+    caller's config scope: an app holding its own config reads its own
+    (ADR-0206).  Only *node*'s hosted actors state positions.
     """
     interval = get_config().ledger.position_statement_interval_seconds
     stop = asyncio.Event()
     return PositionStatements(
         task=asyncio.create_task(
-            _state_positions_then_repeat(emitter, interval, stop, after)
+            _state_positions_then_repeat(emitter, interval, stop, after, node)
         ),
         stop=stop,
     )
