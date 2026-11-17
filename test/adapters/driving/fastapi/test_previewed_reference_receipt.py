@@ -45,7 +45,11 @@ from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_preview import PreviewedCaseReference
-from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.events import (
+    AcceptInviteActorToCaseReceivedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
 
 _CASE_ID = "https://example.org/cases/previewed-1"
 
@@ -183,6 +187,7 @@ def test_a_case_manager_holding_the_case_reads_an_accept_of_the_stub_invite_as_t
     assert event.semantic_type is (
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
     )
+    assert isinstance(event, AcceptInviteActorToCaseReceivedEvent)
     assert event.case_id == case.id_
     assert event.invite_id == _INVITE_ID
     assert isinstance(event.inner_object, PreviewedCaseReference)

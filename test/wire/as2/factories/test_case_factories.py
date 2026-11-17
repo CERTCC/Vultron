@@ -64,7 +64,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case.invite import _preview_embargo
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.typed_reference import case_reference
+from vultron.wire.as2.typed_reference import as_TypedReference, case_reference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -1128,8 +1128,10 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
         at=authored_at(),
     )
 
-    assert invite.object_.id_ == case_id
-    stub = invite.object_.preview
+    reference = invite.object_
+    assert isinstance(reference, as_TypedReference)
+    assert reference.id_ == case_id
+    stub = reference.preview
     assert isinstance(stub, as_CasePreview)
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == embargo.id_
@@ -1247,7 +1249,9 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
         invitee=sample_actor, case=case, actor=_ACTOR_URI, at=authored_at()
     )
 
-    stub = invite.object_.preview
+    reference = invite.object_
+    assert isinstance(reference, as_TypedReference)
+    stub = reference.preview
     assert isinstance(stub, as_CasePreview)
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == in_force.id_
@@ -1298,7 +1302,9 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
         at=authored_at(),
     )
 
-    stub = invite.object_.preview
+    reference = invite.object_
+    assert isinstance(reference, as_TypedReference)
+    stub = reference.preview
     assert isinstance(stub, as_CasePreview)
     assert stub.active_embargo is None
     assert stub.case_status is None

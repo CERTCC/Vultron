@@ -47,6 +47,7 @@ from vultron.wire.as2.typed_reference import (
 from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 _EXAMPLES = Path(__file__).resolve().parents[3] / "docs/reference/examples"
@@ -247,6 +248,7 @@ def test_an_invite_with_an_enriched_preview_parses():
     activity = parse_activity(
         json.loads(json.dumps(_invite(_previewed(_enriched_stub()))))
     )
+    assert isinstance(activity, as_Invite)
     reference = activity.object_
     assert isinstance(reference, as_TypedReference)
     assert reference.id_ == _CASE_ID
@@ -267,6 +269,7 @@ def test_an_invite_whose_object_is_a_sparse_case_parses_it_as_a_case():
             }
         )
     )
+    assert isinstance(activity, as_Invite)
     assert isinstance(activity.object_, VulnerabilityCase)
 
 

@@ -224,7 +224,7 @@ def _idless_case() -> VulnerabilityCase:
         attributed_to="https://example.org/actors/owner",
         stub_summary="A case to join",
     )
-    case.__dict__["id_"] = ""
+    vars(case)["id_"] = ""
     return case
 
 
