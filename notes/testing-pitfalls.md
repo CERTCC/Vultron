@@ -15,7 +15,8 @@ description: >
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
-  blackboard isolation, why a status fixture may not encode a state the CS
+  blackboard isolation, in-memory SQLite stores sharing state per actor_id,
+  why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
   why a lifespan task that outlives its test segfaults a later worker (and
   the guard that fails one draining in the wrong namespace),
@@ -49,6 +50,7 @@ related_specs:
   - specs/outbox.yaml
   - specs/case-ledger-processing.yaml
   - specs/cs-behavior.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -70,6 +72,7 @@ relevant_packages:
   - pytest
   - pytest-xdist
   - py_trees
+  - sqlalchemy
 ---
 
 # Testing Pitfalls and Patterns
@@ -470,6 +473,18 @@ fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
 hosted actors in the configured namespace opens a `testserver` actor's store
 under a second id; `no_store_shared_across_authorities()`
 (`test/support/store_sharing.py`) fails every `client` test that does (#6085).
+
+### In-Memory Stores Share by Actor
+
+A test or throwaway harness that needs an empty in-memory store opens it from
+`fresh_memory_url(purpose)` (`vultron/adapters/driven/datalayer_sqlite`), in a `with`
+block so the store is disposed on exit. The default `sqlite:///:memory:` template
+names each actor's store after the actor's slug, and `get_actor_engine` caches one
+engine per resolved URL, so a second `SqliteDataLayer("sqlite:///:memory:",
+actor_id=X)` reaches the first one's store and returns its rows without raising.
+That sharing is correct for production, where every handle opened for one actor from
+one template reaches its one store; a `fresh_memory_url` template names a store no
+other handle can reach (DL-07-004).
 
 ### Store Scoping
 
