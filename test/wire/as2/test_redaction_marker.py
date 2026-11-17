@@ -6,12 +6,14 @@ the whole of it; the case stub is the only one today.  A sender may put
 field has a value it withholds.  Anywhere else the marker is refused.
 
 The refusal holds for every declared field of a full object, which refuses a
-marker as a malformed value, and for an activity slot given a marker with a
-``summary``, which the slot reads as a ``Redacted`` value it does not admit
-(#6557 registered the type).  A marker of only ``id`` and ``type`` is still read
-as a typed reference, and accepting the marker in a preview, and so refusing a
-marker that carries the withheld value there, need a preview field that admits
-the marker; those rows are strict ``xfail`` until #6372 builds them.
+marker as a malformed value, and for every activity slot, which reads the
+marker as a ``Redacted`` value it does not admit, whether or not the marker
+carries a ``summary`` (a marker is never read as a typed reference).  A field
+that admits any embedded object, such as a full case's ``tag``, holds no
+marker either: the parse edge refuses one there, naming its path.  Accepting
+the marker in a preview, and so refusing a marker that carries the withheld
+value there, need a preview field that admits the marker; those rows are
+strict ``xfail`` until #6372 builds them.
 """
 
 from typing import Any
@@ -32,6 +34,31 @@ CASE_ID = "https://example.org/cases/1"
 INVITEE = {"type": "Person", "id": "https://example.org/actors/bob"}
 MARKER: dict[str, Any] = {"type": "Redacted", "summary": "Embargo pending"}
 TRACKED = "Tracked by #6372."
+MARKER_ID = "https://example.org/redactions/1"
+# Every free-form slot of an activity; each refuses a marker in any form.
+ACTIVITY_SLOTS = [
+    "object",
+    "target",
+    "origin",
+    "instrument",
+    "result",
+    "tag",
+    "attachment",
+    "inReplyTo",
+    "context",
+    "location",
+    "generator",
+    "audience",
+]
+# A full case's fields that hold any embedded object, and so take a marker
+# as a value; the parse edge refuses one there by its position.
+FREE_FORM_CASE_FIELDS = ["tag", "attachment", "inReplyTo", "location"]
+# A marker with a reason, and one that has the typed reference shape.
+MARKER_FORMS = {
+    "with-summary": MARKER,
+    "with-summary-and-id": {**MARKER, "id": MARKER_ID},
+    "only-id-and-type": {"type": "Redacted", "id": MARKER_ID},
+}
 
 
 def _envelope(**slots: Any) -> dict[str, Any]:
@@ -111,63 +138,51 @@ def test_a_marker_in_a_case_stub_identifying_field_is_refused() -> None:
 
 
 @pytest.mark.spec("MV-12-002")
-@pytest.mark.parametrize("slot", ["object", "target"])
-def test_a_marker_in_an_activity_slot_is_refused(slot: str) -> None:
-    """A marker is never an activity's own object or target.
+@pytest.mark.parametrize("form", list(MARKER_FORMS))
+@pytest.mark.parametrize("slot", ACTIVITY_SLOTS)
+def test_a_marker_in_an_activity_slot_is_refused(slot: str, form: str) -> None:
+    """A marker is never an activity's own object, target or other slot.
 
     The registered type reads the body as a marker, which no activity slot
     admits; the slot refuses it as a value of the wrong type, not for its
-    missing ``id`` (OID-01-013).  A marker of only ``id`` and ``type`` is
-    held by a strict ``xfail`` row below.
+    missing ``id`` (OID-01-013).  An ``id`` on the marker is set aside as a
+    key the marker does not hold (MV-11-003), and a marker of only ``id``
+    and ``type`` is not read as a typed reference, so every form is refused
+    the same way.
     """
     with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(_envelope(**{slot: MARKER}))
+        parse_activity(_envelope(**{slot: MARKER_FORMS[form]}))
 
     _assert_refused_as_a_marker(exc_info.value, slot)
 
 
 @pytest.mark.spec("MV-12-002")
-@pytest.mark.parametrize("slot", ["object", "target"])
-def test_a_marker_with_an_id_in_an_activity_slot_is_refused(slot: str) -> None:
-    """An ``id`` on the marker does not let it stand in an activity slot.
-
-    The parse edge sets the ``id`` aside as a key the marker does not hold
-    (MV-11-003), so the slot sees the same marker as the row above and
-    refuses it as a value of the wrong type.  The ``summary`` keeps the body
-    from being read as a typed reference.
-    """
-    marker = {**MARKER, "id": "https://example.org/redactions/1"}
-
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(_envelope(**{slot: marker}))
-
-    _assert_refused_as_a_marker(exc_info.value, slot)
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason=(
-        "MV-12-002: a marker of only id and type is read as a typed "
-        f"reference. {TRACKED}"
-    ),
-)
-@pytest.mark.spec("MV-12-002")
-@pytest.mark.parametrize("slot", ["object", "target"])
-def test_a_marker_of_only_id_and_type_in_an_activity_slot_is_refused(
-    slot: str,
+@pytest.mark.parametrize("form", list(MARKER_FORMS))
+@pytest.mark.parametrize("field", FREE_FORM_CASE_FIELDS)
+def test_a_marker_in_a_full_case_free_form_field_is_refused(
+    field: str, form: str
 ) -> None:
-    """A marker with no ``summary`` has the typed reference shape.
+    """A full case's field that holds any embedded object holds no marker.
 
-    It must still be refused as a marker, not read as a reference to an
-    object of type ``Redacted``.
+    The field's type admits the marker as an object, so the parse edge
+    refuses it by its position, naming the path.
     """
-    marker = {"type": "Redacted", "id": "https://example.org/redactions/1"}
+    body = _envelope(object=_full_case(**{field: [MARKER_FORMS[form]]}))
 
-    with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(_envelope(**{slot: marker}))
+    with pytest.raises(VultronParseValidationError, match="Redacted") as exc:
+        parse_activity(body)
 
-    assert _error_locations(exc_info.value) == {slot}
+    assert f"object.{field}[0]" in str(exc.value)
+
+
+@pytest.mark.spec("MV-12-002")
+def test_a_marker_in_a_case_preview_free_form_field_is_refused() -> None:
+    """The preview opens no field to the marker yet, so one in its ``tag``
+    is refused, naming the path inside the stub Invite's object."""
+    with pytest.raises(VultronParseValidationError, match="Redacted") as exc:
+        parse_activity(_stub_invite(tag=[MARKER]))
+
+    assert "object.preview.tag[0]" in str(exc.value)
 
 
 @pytest.mark.xfail(

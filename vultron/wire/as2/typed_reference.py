@@ -59,6 +59,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.core.models.redacted import Redacted
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -189,7 +190,8 @@ def reads_as_typed_reference(
     its own.  An actor's class is its actor reference (AKM-05-017), a
     collection naming only its ``id`` is an endpoint's address, and a
     ``Link`` is not an object.  A ``CasePreview`` keeps its own rules
-    (MV-10-001).
+    (MV-10-001).  A ``Redacted`` marker is a value, never a reference, so
+    its ``{id, type}`` shape is refused as a marker (MV-12-002).
     A case is read here like any other type: its ``{id, type}`` shape is the
     case reference (ADR-0165).
     """
@@ -203,6 +205,7 @@ def reads_as_typed_reference(
             as_Collection,
             as_Link,
             as_CasePreview,
+            Redacted,
         ),
     )
 

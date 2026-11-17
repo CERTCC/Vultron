@@ -20,6 +20,7 @@ from vultron.wire.as2.case_proposal_envelope import (
 from vultron.wire.as2.case_reference_placement import (
     refuse_misplaced_case_preview,
     refuse_misplaced_case_reference,
+    refuse_misplaced_redaction_marker,
 )
 from vultron.wire.as2.context_agreement import refuse_context_disagreement
 from vultron.wire.as2.errors import (
@@ -397,6 +398,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     refuse_misplaced_case_reference(activity)
     # A case preview stands for the case only in a stub Invite (MV-10-002).
     refuse_misplaced_case_preview(activity)
+    # A marker withholds a value only in a preview's field (MV-12-002).
+    refuse_misplaced_redaction_marker(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)
 

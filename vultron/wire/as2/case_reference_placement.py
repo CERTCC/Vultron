@@ -13,7 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Parse-edge refusal of a case reference or case preview where no act puts one.
+"""Parse-edge refusal of a case reference, case preview or redaction marker
+where no act puts one.
 
 Two inline forms stand for a case without carrying it whole, and each has
 the slots an act may put it in:
@@ -32,6 +33,11 @@ the slots an act may put it in:
   a previewed case reference anywhere but an ``Invite``'s ``object``, is a
   misplaced preview.
 
+A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so its
+one slot is a field its preview type opens to the marker (MV-12-001).  A full
+object holds no marker, and a marker is no activity's ``object`` or ``target``
+(MV-12-002).
+
 The parser refuses either form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
 admits is never read as a less specific type, and its activity is refused as
@@ -44,6 +50,7 @@ from collections.abc import Callable, Iterator
 from pydantic import BaseModel
 
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
+from vultron.core.models.redacted import Redacted, opens_to_redaction
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.typed_reference import (
     is_case_reference,
@@ -125,6 +132,20 @@ def _admits_case_preview(
     )
 
 
+def _is_redaction_marker(value: object) -> bool:
+    """Whether *value* is a ``Redacted`` marker (MV-12-003)."""
+    return isinstance(value, Redacted)
+
+
+def _admits_redaction_marker(
+    parent: BaseModel, field_name: str, child: object
+) -> bool:
+    """A marker in a field its preview type opens to the marker (MV-12-001)."""
+    return isinstance(child, Redacted) and opens_to_redaction(
+        parent, field_name
+    )
+
+
 def refuse_misplaced_case_reference(activity: as_Activity) -> None:
     """Refuse *activity* when a case reference sits where a case is carried.
 
@@ -173,4 +194,32 @@ def refuse_misplaced_case_preview(activity: as_Activity) -> None:
         )
 
 
-__all__ = ["refuse_misplaced_case_reference", "refuse_misplaced_case_preview"]
+def refuse_misplaced_redaction_marker(activity: as_Activity) -> None:
+    """Refuse *activity* when a ``Redacted`` marker sits outside a preview
+    field that admits it (MV-12-002).
+
+    Raises:
+        VultronParseValidationError: Naming the activity and each slot.
+    """
+    misplaced = list(
+        _misplaced(
+            activity,
+            "",
+            _is_redaction_marker,
+            _admits_redaction_marker,
+        )
+    )
+    if misplaced:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r}: a Redacted marker at"
+            f" {', '.join(misplaced)}; a marker is permitted only in a field"
+            " its preview type opens to the marker, never in a full object"
+            " or as an activity's own object (MV-12-002)"
+        )
+
+
+__all__ = [
+    "refuse_misplaced_case_reference",
+    "refuse_misplaced_case_preview",
+    "refuse_misplaced_redaction_marker",
+]

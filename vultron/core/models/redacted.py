@@ -42,6 +42,17 @@ from vultron.primitives import NonEmptyString
 REDACTED_TYPE: Literal["Redacted"] = "Redacted"
 
 
+def opens_to_redaction(model: BaseModel, field_name: str) -> bool:
+    """Whether *model*'s type opens its field *field_name* to the marker.
+
+    A preview type declares the fields that may carry a marker in a
+    ``redactable_fields`` class attribute, a frozenset of field names
+    (ADR-0193).  Every other class, and so every full object, opens none.
+    """
+    opened: object = getattr(type(model), "redactable_fields", frozenset())
+    return isinstance(opened, frozenset) and field_name in opened
+
+
 class Redacted(ValidatedAssignmentMixin, BaseModel):
     """A value withheld from the recipient of a preview (MV-12-003).
 
