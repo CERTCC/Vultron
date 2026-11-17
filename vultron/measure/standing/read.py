@@ -223,9 +223,9 @@ def case_standing(
 
     Returns:
         Each participant's states, the desiderata each vendor's case has met,
-        broken, left open or cannot know, and the moves allowed from here.  A ledger with
-        a hole yields only the :class:`StandingGap` that names it, never a
-        reading that hides it.
+        broken, left open or cannot know, and the moves allowed from here.
+        A ledger with a hole yields only the :class:`StandingGap` that names
+        it, never a reading that hides it.
     """
     history, reached = derive_case(ledger)
     try:

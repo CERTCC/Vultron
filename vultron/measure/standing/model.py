@@ -188,7 +188,7 @@ class ParticipantStanding(BaseModel):
         joined: ``False`` while it is an inert invitee.
         rm: Its report-management state.
         case: The case's EM and public state, which every participant stands
-            in.
+            in, and the case-state events its source cannot observe.
         score: The score of its case-state sequence, for a vendor with one
             (:func:`~vultron.measure.scoring.score_sequence`).  The prefix
             scored is the history an allowed :class:`CSMove` extends.
@@ -319,7 +319,8 @@ class ScoredMove(BaseModel):
             outcome if the move came next, for a move that changes state
             and names a step of the case's joint model.
         unscored: Why a move that changes state carries no number: the case
-            has no vendor, or the move moves no vendor's state.
+            has no vendor, the move moves no vendor's state, or its change
+            rests on an event the source cannot observe (CRD-02-005).
 
     A move that keeps every state, as a second embargo proposal while one is
     open does, is :attr:`advice`: it carries neither a number nor a reason.
