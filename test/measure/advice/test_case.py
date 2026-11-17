@@ -50,9 +50,12 @@ from vultron.measure.advice import (
     CaseAdvice,
     ColourMap,
     Part,
+    ScopeParts,
+    ScopeShift,
     VendorHarm,
     VendorShift,
     case_advice,
+    dominates,
 )
 from vultron.measure.ledger import read_case_ledgers
 from vultron.measure.standing import EMMove, StandingGap, case_standing
@@ -158,22 +161,51 @@ def test_the_case_has_a_move_in_each_band(two_vendors):
         assert two_vendors.band(band).moves
 
 
+def _scope_shift(move: AdvisedMove) -> ScopeShift:
+    return tuple(ScopeParts(s.end, s.embargo) for s in move.shift)
+
+
 def test_layers_follow_dominance(two_vendors):
-    """The fix dominates the owner's proposal; the fix and the second
-    vendor's closure trade off; the fix dominates publication, a trade-off
-    move that is then not top (ADR-0200)."""
+    """The fix dominates the owner's proposal; the proposal and publication
+    trade off; the fix dominates publication, a trade-off move that is then
+    not top (ADR-0200)."""
     fix = _move(two_vendors, VENDOR, "cs.fix_is_deployed")
-    close = _move(two_vendors, VENDOR_2, "rm.close")
     proposal = _move(two_vendors, OWNER, "em.propose")
     publication = _move(two_vendors, VENDOR, "cs.public_becomes_aware")
     assert (fix.layer, fix.top) == (1, True)
-    assert (close.layer, close.top) == (1, True)
+    assert dominates(_scope_shift(fix), _scope_shift(proposal))
     assert proposal.band is Band.HARM_FREE
     assert (proposal.layer, proposal.top) == (2, False)
+    assert not dominates(_scope_shift(proposal), _scope_shift(publication))
+    assert not dominates(_scope_shift(publication), _scope_shift(proposal))
+    assert dominates(_scope_shift(fix), _scope_shift(publication))
     assert publication.band is Band.TRADE_OFF
     assert (publication.layer, publication.top) == (2, False)
     for move in two_vendors.band(Band.UNHELPFUL).moves:
         assert (move.layer, move.top) == (None, False)
+
+
+def test_closing_a_report_gains_nothing_from_the_scopes_it_closes():
+    """Closing from RM Received takes the acceptance-scoped desiderata out
+    of reach, so they add no shift; what is left is ``Ac_i ≺ F_i`` breaking,
+    a harm, so the closure is unhelpful, not top."""
+    record = case_standing(_one_vendor().case_ledger())
+    (scored,) = [
+        m
+        for m in record.moves
+        if m.move.participant == VENDOR and m.move.name == "rm.close"
+    ]
+    assert scored.changes is not None
+    changes = {c.notation: c.change for c in scored.changes}
+    for notation in (
+        r"$\evAc_i \prec \evP$",
+        r"$\evAc_i \prec \evX$",
+        r"$\evAc_i \prec \evA$",
+    ):
+        assert changes[notation] == 0
+    close = _move(case_advice(record), VENDOR, "rm.close")
+    assert close.band is Band.UNHELPFUL and not close.top
+    assert _parts(close, VENDOR).end < 0
 
 
 def test_a_trade_off_move_a_harm_free_move_dominates_says_so(two_vendors):
@@ -500,7 +532,6 @@ def test_a_case_manager_is_a_coordinator_and_its_moves_pool_with_the_owners():
     assert proposal.band is Band.HARM_FREE
     assert fix.leading_among_yours
     assert not proposal.leading_among_yours
-    assert not _move(advice, VENDOR_2, "rm.close").leading_among_yours
 
 
 def test_two_desiderata_that_print_alike_are_refused(monkeypatch):

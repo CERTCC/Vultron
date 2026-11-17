@@ -26,7 +26,8 @@ embargo desiderata.  A scope's chance value is these sums over the expected
 outcomes from where the case stands (:func:`.expected_outcomes`), and a
 move's outcome shift is the same sums over its change in expected outcome
 (:func:`.outcome_change`): each desideratum is taken in its own smallest
-model, and a scope never entered counts as met.
+model, a scope never entered counts as met, and a desideratum whose scope
+the move takes out of reach adds nothing.
 """
 
 from collections.abc import Iterable, Mapping

@@ -294,7 +294,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0196 A Refusal Notice Is a Refuse, a Subtype of Reject](0196-a-refusal-notice-is-a-refuse-a-subtype-of-reject.md) *(provisional)* — partially supersedes 0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md
 - [ADR-0197 A Case Reading Reports Its Inferences and What Its Source Cannot Observe](0197-a-case-reading-reports-its-inferences-and-what-its-source-cannot-observe.md) *(revision 2)*
 - [ADR-0198 An Object Slot Holds a Whole Object, a Typed Reference or a URI, and a Received Whole Object Carries Its Time](0198-an-object-slot-holds-a-whole-object-a-typed-reference-or-a-uri.md) *(provisional)* — partially supersedes 0103-object-time-is-carried-never-minted.md, 0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
-- [ADR-0200 Move Advice Puts Moves in Bands by Outcome Shift, Not by One Case Score](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md) *(revision 2)* *(provisional)*
+- [ADR-0200 Move Advice Puts Moves in Bands by Outcome Shift, Not by One Case Score](0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md) *(revision 3)* *(provisional)*
 
 ## Proposed ADRs
 

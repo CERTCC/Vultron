@@ -267,7 +267,8 @@ class DesideratumChange(BaseModel):
         change: The expected outcome after the move minus before it
             (:func:`~vultron.measure.baselines.outcome_change`): positive
             when the move makes the desideratum likelier to be met than
-            leaving the case to chance.
+            leaving the case to chance, and ``0`` when the move takes the
+            desideratum's scope out of reach.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")

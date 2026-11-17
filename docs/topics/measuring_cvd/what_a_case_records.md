@@ -356,6 +356,7 @@ For embargo times, the measure connects the embargo register and the consent row
     In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
     For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
     A desideratum whose scope the case never enters counts as met.
+    A move that takes a desideratum's scope out of reach changes that desideratum by 0.
     A vendor that the case has not yet notified, at RM Start, is a vendor of the record too, so its notice has a number.
     A move that changes no state is listed as advice, with no number.
     The move advice puts each move that has a number in a band, as [Move Bands Against Pathology Cases](move_bands.md) describes (`vultron/measure/advice/`).
