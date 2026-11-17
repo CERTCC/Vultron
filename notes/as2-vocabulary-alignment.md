@@ -58,6 +58,8 @@ tracks:
   - "#6261"   # concern: stale Offer(EmbargoEvent) payload
   - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
   - "#6487"   # idea: the decider sends the act; owner embargo decisions are Updates
+  - "#6625"   # owner embargo activation and rejection are its own Updates
+  - "#6626"   # idea: proposer's own Invite, announced (case invite, embargo relay)
 description: >
   Decisions from a review of the wire protocol against the full ActivityStreams 2.0
   vocabulary: which AS2 verbs and properties say a CVD sentence more naturally than
@@ -457,7 +459,7 @@ fragments, `docs/howto/activitypub/activities/manage_embargo.md`, and the
 
 ## The Owner Decides an Embargo Proposal With an Update
 
-Issue: #6487. Record: ADR-0199 revision 2 (partially superseding ADR-0180).
+Issues: #6487, #6625. Record: ADR-0199 revision 2 (partially superseding ADR-0180).
 
 **Decision.**
 
@@ -517,7 +519,7 @@ question), and `notes/participant-embargo-consent.md`.
 
 ## The Owner Offers Ownership, and the CASE_MANAGER Announces It
 
-Issue: #6487. Record: ADR-0199 revision 2 (partially superseding ADR-0148).
+Issues: #6487, #6466. Record: ADR-0199 revision 2 (partially superseding ADR-0148).
 
 **Decision.**
 
