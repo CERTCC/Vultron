@@ -8,7 +8,8 @@ description: >
   __init_subclass__, flat dict, VocabNamespace, the rule for declaring a
   Vultron extension term (new type, subtype of an AS2 type, new property,
   retired term) in the generated JSON-LD context, fail-fast lookup, received
-  type lists (resolve_wire_type, _as2_core_supertype), CORE_TYPE_MAP,
+  type lists (resolve_wire_type, _as2_core_supertype, AS2_SUPERTYPES),
+  CORE_TYPE_MAP,
   disjoint registry keys, and one owner per type value (typed references and
   ADR-0099 aliases claim none).
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
@@ -222,6 +223,14 @@ extension class that refines an AS2 core class declares
 `_as2_core_supertype = <AS2 class>` with `_vocab_ns = VocabNamespace.VULTRON`;
 its wire dump writes `[own type, core type]` and its persistence dump keeps one
 string (VM-03-005, ADR-0196).
+
+"Most specific" is the AS2 subtype relation, not the Python one. Where a class
+cannot inherit its AS2 supertype's class, declare the pair by wire `type` value in
+`AS2_SUPERTYPES` in `registry.py`: the core attached-file class owns `Document`,
+so `Page`, `Image`, `Audio` and `Video` are its AS2 subtypes but not its
+subclasses (#6562). Read the AS2 Vocabulary Recommendation's "Extends", not the
+pinned `ontology/activitystreams2.owl`, which puts `Page` under `Object`.
+`Article` extends `Object`, so `["Article", "Document"]` stays ambiguous.
 
 A class that validates a list naming its own declared type reads the list as that
 type, so `as_Reject` can re-read a `Refuse` dump; the semantic coercion of a
