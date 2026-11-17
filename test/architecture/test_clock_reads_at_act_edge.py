@@ -20,8 +20,9 @@ new clock read anywhere fails here, and so does an item a change left behind.
 
 :data:`CLOCK_EDGE_EXEMPTIONS` is a **pinned exemption set**: the reads
 ADR-0176 permits for good — the wall-clock read the act clock is built on,
-the two system clocks behind the clock ports, and the stopwatch reads at
-named sites.  Nothing below an act's edge reads the clock any more (#5676):
+the two system clocks behind the clock ports, the stopwatch reads at
+named sites, and the VINCE case reader's time of reading at its adapter
+edge (#5963).  Nothing below an act's edge reads the clock any more (#5676):
 an act's entry point reads the act clock through its port, a node takes the
 instant with ``read_act_instant()``, and any other code takes it as a
 required argument.  ``test_core_models_read_no_clock_default.py`` keeps the
@@ -49,7 +50,8 @@ from test.architecture._clock_reads import (
 
 # Pinned exemption set: the reads ADR-0176 permits at the act's edge.
 # permanent: ADR-0176 (the act clock's one wall-clock read, the system clocks
-# behind the two clock ports, and stopwatch reads at named sites)
+# behind the two clock ports, stopwatch reads at named sites, and the VINCE
+# case reader's adapter-edge time of reading, #5963)
 CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     (
         "vultron/adapters/driven/clock.py",
@@ -65,6 +67,14 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
         "vultron/core/models/_helpers/clock.py",
         "now_utc",
         "datetime.now",
+    ),
+    # The VINCE case reader's time of reading: one read per case request, at
+    # the adapter edge, which the VINCE translation judges the embargo's end
+    # against (#5963, VINCE-EM-03).  Tests inject a fixed clock.
+    (
+        "vultron/adapters/connectors/vince/reader.py",
+        "VinceCaseReader.__init__",
+        "now_utc",
     ),
     # The system stopwatch: the call-out time budget's named site (#3423).
     (
