@@ -125,8 +125,8 @@ __all__ = [
     "refusal_notice_activity",
     # actor
     "accept_actor_recommendation_activity",
-    "carried_actor",
     "accept_case_participant_offer_activity",
+    "carried_actor",
     "offer_case_participant_activity",
     "recommend_actor_activity",
     "reject_actor_recommendation_activity",

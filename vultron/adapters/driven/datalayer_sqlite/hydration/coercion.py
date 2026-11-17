@@ -60,7 +60,9 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
 logger = logging.getLogger(__name__)
 
 
-def _in_slot_of(owner: PersistableModel, nested: Any) -> Any:
+def _in_slot_of(
+    owner: PersistableModel, nested: PersistableModel
+) -> PersistableModel:
     """*nested*, read from the store, as it fills a slot of *owner*.
 
     An actor filling a slot of an activity fills it as an activity carries
@@ -72,7 +74,7 @@ def _in_slot_of(owner: PersistableModel, nested: Any) -> Any:
     nothing.  Anything else fills the slot as read.
     """
     if isinstance(owner, as_Activity) and isinstance(nested, CoreActor):
-        return carried_actor(nested)
+        return cast(PersistableModel, carried_actor(nested))
     return nested
 
 
