@@ -203,22 +203,22 @@
     },
     {
       "semanticType": "invite_to_embargo_on_case",
-      "wire": "Invite(EmbargoEvent)[context=VulnerabilityCase]",
+      "wire": "Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]",
       "phrase": "{actor} proposed an embargo"
     },
     {
       "semanticType": "accept_invite_to_embargo_on_case",
-      "wire": "Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])",
+      "wire": "Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])",
       "phrase": "{actor} accepted the embargo"
     },
     {
       "semanticType": "reject_invite_to_embargo_on_case",
-      "wire": "Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])",
+      "wire": "Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])",
       "phrase": "{actor} declined the embargo"
     },
     {
       "semanticType": "undo_invite_to_embargo_on_case",
-      "wire": "Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])",
+      "wire": "Undo(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])",
       "phrase": "{actor} withdrew the embargo invitation"
     },
     {

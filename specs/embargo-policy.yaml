@@ -2508,9 +2508,8 @@ groups:
     kind: protocol
     statement: >-
       The invitee of an `Invite(EmbargoEvent)` is the actor its `target` names, which is
-      its sole `to` recipient. An emitter MUST name that recipient in `target`, and a
-      receiving actor MUST resolve the invitee from `target`, not from the receiving
-      actor.
+      also its sole `to` recipient. A receiving actor MUST resolve the invitee from
+      `target`, not from the receiving actor.
     note: >-
       Scope: the invitee is resolved for the relayed Invite a participant receives
       (EP-09-002). A proposal is addressed to the CASE_MANAGER alone (PCR-08-001), so
