@@ -242,10 +242,10 @@ def _stub_invite(stub: dict[str, Any]) -> dict[str, Any]:
 
 
 def _stub(**extra: Any) -> dict[str, Any]:
+    """A case preview (ADR-0205), as a stub Invite's case reference carries it."""
     return {
-        "type": "VulnerabilityCaseStub",
-        "id": f"{CASE_ID}/stub",
-        "caseId": CASE_ID,
+        "type": "CasePreview",
+        "id": "https://example.org/previews/1",
         "summary": "A remote code execution vulnerability in widget.",
         **extra,
     }
@@ -265,8 +265,8 @@ def _stub_embargo(**extra: Any) -> dict[str, Any]:
 @pytest.mark.spec("CLP-15-011")
 @pytest.mark.spec("CM-17-010")
 def test_a_case_preview_carries_no_time_of_its_own() -> None:
-    """A case reference's preview is the stub, whose keys CM-17-010 fixes
-    without a ``published``, so neither the reference nor its preview is
+    """A case reference's preview, whose keys CM-17-010 fixes without a
+    ``published``, is part of the reference, so neither the reference nor it is
     refused for one; the embargo it carries is a whole object and has its
     own."""
     stub = _stub(activeEmbargo=_stub_embargo(published=PUBLISHED))
