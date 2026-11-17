@@ -49,27 +49,35 @@ from vultron.core.models.base import (
 )
 from vultron.core.models.case_status import CASE_STATUS_PROPERTY, CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.wire_keys import input_keys, wire_key
 from vultron.core.states.em import EM
 
-#: The keys a preview's ``caseStatus`` keeps on the wire, in either spelling
+#: The ``CaseStatus`` fields a preview's ``caseStatus`` keeps on the wire
 #: (CM-17-010): what identifies the status object, the time it was made, and
 #: its EM state.  ``published`` stays because every ``CaseStatus`` carries
 #: one and a receiver refuses a status without it (CLP-15-010).  The status a
 #: preview carries is built for the preview, so its other properties are class
 #: defaults (``pxaState``) or derived from them (``name``) and say nothing
 #: true about the case.
+_PREVIEW_CASE_STATUS_FIELDS = (
+    "context_",
+    "id_",
+    "type_",
+    "context",
+    "published",
+    "em",
+)
+
+#: Those fields under every spelling a dump may use: the field name, its AS2
+#: key and each input alias (ARCH-25-002).
 _PREVIEW_CASE_STATUS_KEYS = frozenset(
-    {
-        "@context",
-        "id",
-        "id_",
-        "type",
-        "type_",
-        "context",
-        "published",
-        "emState",
-        "em",
-    }
+    key
+    for name in _PREVIEW_CASE_STATUS_FIELDS
+    for key in (
+        name,
+        wire_key(name, CaseStatus),
+        *input_keys(CaseStatus, name),
+    )
 )
 
 

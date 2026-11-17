@@ -2254,7 +2254,8 @@ groups:
     rationale: >-
       A receiver classifies an activity by its shape. ADR-0205 retires the stub's own
       type, its own id and its `caseId`: the case is named by the reference's own `id`,
-      the preview has a type of its own, and nothing stands in for the case. The reference carrying a preview and the whole case of the full-case
+      the preview has a type of its own, and nothing stands in for the case. The
+      reference carrying a preview and the whole case of the full-case
       Invite differ in form, so a receiver tells the two Invites apart as received
       (SE-01-009).
     verification: >-
