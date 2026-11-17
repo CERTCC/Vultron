@@ -414,6 +414,10 @@ def client():
         # entry the test's own drain was due to replay, and the addressee
         # door refuses it under the wrong id (#6085).  No demo test waits on
         # a hold's expiry; the timer is covered by its own tests.
+        # It must also be stopped before the first test ends: the root
+        # conftest disposes the stores after each test, and a tick reading
+        # one as it closes segfaults the worker, so disposal refuses while a
+        # timer runs (#6148).
         hold_timer = getattr(api_app.state, "sender_sequence_hold_timer", None)
         if hold_timer is not None:
             # The timer's event belongs to the app's event loop.

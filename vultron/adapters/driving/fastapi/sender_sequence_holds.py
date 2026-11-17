@@ -33,6 +33,7 @@ A hold therefore ends at most a quarter of its wait late.
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass
 from functools import partial
 from typing import cast
@@ -138,7 +139,7 @@ async def end_hosted_expired_holds(
     return total
 
 
-@dataclass
+@dataclass(eq=False)
 class SenderSequenceHoldTimer:
     """The running hold timer: its task and its stop signal."""
 
@@ -164,6 +165,30 @@ async def _end_holds_on_interval(
                 )
 
 
+#: Every hold timer started in this process whose task has not ended.  A
+#: timer reads every hosted actor's store from its event loop's thread, so a
+#: caller about to close those stores asks first
+#: (:func:`running_sender_sequence_hold_timers`).  Locked because the timer's
+#: loop thread removes entries while another thread may be reading them.
+_started_timers: set[SenderSequenceHoldTimer] = set()
+_started_timers_lock = threading.Lock()
+
+
+def _forget_timer(timer: SenderSequenceHoldTimer) -> None:
+    with _started_timers_lock:
+        _started_timers.discard(timer)
+
+
+def running_sender_sequence_hold_timers() -> list[SenderSequenceHoldTimer]:
+    """The hold timers started in this process whose task has not ended.
+
+    A timer that has been told to stop but is still finishing a round is
+    running: the round is still reading stores.
+    """
+    with _started_timers_lock:
+        return [timer for timer in _started_timers if not timer.task.done()]
+
+
 def start_sender_sequence_hold_timer(
     emitter: ActivityEmitter | None,
 ) -> SenderSequenceHoldTimer:
@@ -173,12 +198,16 @@ def start_sender_sequence_hold_timer(
     """
     interval = get_config().ledger.sender_sequence_hold_seconds / 4
     stop = asyncio.Event()
-    return SenderSequenceHoldTimer(
+    timer = SenderSequenceHoldTimer(
         task=asyncio.create_task(
             _end_holds_on_interval(emitter, interval, stop)
         ),
         stop=stop,
     )
+    with _started_timers_lock:
+        _started_timers.add(timer)
+    timer.task.add_done_callback(lambda _task: _forget_timer(timer))
+    return timer
 
 
 async def finish_sender_sequence_hold_timer(
@@ -200,5 +229,6 @@ __all__ = [
     "end_expired_holds",
     "end_hosted_expired_holds",
     "finish_sender_sequence_hold_timer",
+    "running_sender_sequence_hold_timers",
     "start_sender_sequence_hold_timer",
 ]

@@ -245,13 +245,21 @@ def _dispose_actor_stores_between_tests():
     slug ``test-actor`` claimed, and a later test using
     ``https://test.example/api/v2/actors/test-actor`` got a cross-authority
     warning it then failed on (#3545).
+
+    No store is disposed while a sender-sequence hold timer still runs: the
+    timer reads the stores from its app's loop thread, and closing a
+    connection under that read segfaults the worker (#6148).  The leaking
+    test fails here with :class:`~test.support.hold_timers.HoldTimerLeakedError`
+    instead.
     """
     yield
+    from test.support.hold_timers import refuse_disposal_under_live_hold_timer
     from vultron.adapters.driven.datalayer_sqlite import (
         reset_datalayer,
         reset_store_claimants,
     )
 
+    refuse_disposal_under_live_hold_timer()
     reset_datalayer()
     reset_store_claimants()
 
