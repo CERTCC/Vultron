@@ -114,9 +114,9 @@ def test_participant_rows_show_report_state_case_state_and_tally():
     vendor = next(r for r in rows if r["Participant"] == "Vendor")
     assert vendor["Report"] == view.RM_BADGES[RM.CLOSED]
     assert vendor["Case state"] == "VFdPxa"
-    assert vendor["Desiderata"].startswith("✅ ")
+    assert str(vendor["Desiderata"]).startswith("✅ ")
     assert vendor["Not scored because"] == ""
-    manager = next(r for r in rows if "CASE_MANAGER" in r["Roles"])
+    manager = next(r for r in rows if "CASE_MANAGER" in str(r["Roles"]))
     assert manager["Case state"] == "—"
     assert manager["Not scored because"]
 
