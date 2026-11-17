@@ -103,8 +103,10 @@ class VultronCaseReader:
             raise CaseLedgerFileError(
                 case_id, [f"it is not a usable path: {exc}"]
             ) from exc
+        # Only a path strictly under the root passes: the root itself is a
+        # directory, never a ledger file.
         inside = self._root.rstrip(os.sep) + os.sep
-        if path != self._root and not path.startswith(inside):
+        if not path.startswith(inside):
             raise CaseLedgerFileError(
                 case_id, [f"it is outside the ledger directory {self._root}"]
             )

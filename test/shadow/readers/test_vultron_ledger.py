@@ -310,3 +310,8 @@ def test_a_model_level_error_is_summarised_without_a_field():
     with pytest.raises(ValidationError) as caught:
         CaseLedgerEntry.model_validate([1])
     assert _summary(caught.value) == caught.value.errors()[0]["msg"]
+
+
+def test_the_root_itself_is_refused_as_a_case(tmp_path):
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        VultronCaseReader(root=tmp_path).read_case(".")
