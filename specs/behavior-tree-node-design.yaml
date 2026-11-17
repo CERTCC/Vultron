@@ -46,28 +46,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-01-001
-  - id: BTND-01-004
-    priority: MUST
-    kind: project
-    verification_debt: '#2574'
-    statement: >-
-      Some values vary by usage site, and every tree that uses the node knows them at
-      build time. A BT node MUST take each such value as a constructor parameter.
-      Such values include an actor identity, a CVD role and a case ID. BTND-01-006
-      covers the other values.
-    rationale: >-
-      A constructor parameter makes each such value an explicit input. The caller that
-      builds the tree then decides the value, so one node class serves every actor and
-      every case. A constructor cannot carry a value that does not exist when the tree
-      is built, such as a case that an earlier node in the same tick creates or
-      resolves from the activity.
-    relationships:
-    - rel_type: implements
-      spec_id: BTND-01-001
-    see_also:
-    - spec_id: BTND-01-006
-      reason: >-
-        scope boundary: BTND-01-006 covers the values a tree finds only at tick time
   - id: BTND-01-005
     priority: MUST
     kind: project
@@ -118,6 +96,50 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BTND-01-006
+  - id: BTND-01-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A BT node MUST read each per-act value it uses from a named blackboard key.
+      A per-act value varies with the act a tree runs for, such as a case, report,
+      embargo or actor id, or a carried object.
+    rationale: >-
+      A tree whose nodes read their data from keys has one shape for every act of its
+      kind. It can then run as a subtree, a work-list loop body or a trigger tree
+      unchanged, and a reader can state its logic as "given these inputs, do this"
+      (ADR-0207).
+    verification: >-
+      An architecture ratchet imports every node class under `vultron/core/behaviors/`
+      and fails on a constructor parameter that names a per-act value. Its list of
+      known sites only shrinks and ends empty.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-01-006
+    adr:
+    - ADR-0207
+  - id: BTND-01-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A BT node constructor, and a tree factory, MUST NOT take a per-act value
+      (BTND-01-008) as a parameter. A constructor takes only configuration, such as
+      a name, a port name, a CVD role, a declared state or a child node.
+    rationale: >-
+      A per-act value baked in at build time makes the tree's shape depend on its
+      data. Such a tree must be rebuilt for each item, which pushed nodes into
+      nested runs (ADR-0207). A value fixed at build time also forces a store read
+      before the tree runs whenever the value is found in the store (ADR-0195).
+    verification: >-
+      The BTND-01-008 ratchet also reads the parameters of every module-level tree
+      factory under `vultron/core/behaviors/` and fails on one that names a per-act
+      value. Its list of known sites only shrinks and ends empty.
+    relationships:
+    - rel_type: implements
+      spec_id: BTND-01-008
+    - rel_type: constrains
+      spec_id: BT-17-011
+    adr:
+    - ADR-0207
 - id: BTND-02
   title: Composability and Reuse
   specs:
@@ -481,6 +503,27 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-011
+  - id: BTND-03-022
+    priority: MUST
+    kind: project
+    statement: >-
+      Every blackboard key that carries a per-act value (BTND-01-008) MUST be named
+      in one key vocabulary module under `vultron/core/behaviors/`, with the type
+      and the meaning of its value.
+    rationale: >-
+      One vocabulary gives every tree the same name for the same input. A node then
+      declares the keys it reads, and a reader can find what each one means without
+      reading the trees that seed it.
+    verification: >-
+      An architecture test reads the input ports of every node class under
+      `vultron/core/behaviors/` and fails on any port key that the vocabulary does
+      not name, unless the key is on the test's explicit list of keys that carry no
+      per-act value, such as handoff and work-list keys (BTND-03-004).
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BTND-01-008
+    adr:
+    - ADR-0207
 - id: BTND-04
   title: Module Ownership
   specs:
@@ -1176,9 +1219,9 @@ groups:
     rationale: >-
       A port is the only way to supply `case_id` that works in all trees. In received
       trees, the tree finds the case at tick time from the report, so the case is not
-      known at build time. Trees that know the case at build time seed `/case_id`
-      through `BTBridge.execute_with_setup(**context_data)`. Thus one mechanism serves
-      both.
+      known at build time. In every other tree the runner seeds `/case_id` from the
+      event or trigger request before the first tick (BT-25-007). Thus one mechanism
+      serves both.
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-004

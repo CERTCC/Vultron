@@ -12,7 +12,8 @@ description: >
   the paths a message type handles and composes the refusal an undeclared path
   gets, why the authority boolean has one source and the two ingredient
   spellings that are forbidden, why a tree's shape is fixed by its act and a
-  node never runs a tree of its own, and how to translate a simulator tree.
+  node never runs a tree of its own, how a tree declares its per-act inputs and
+  where each is seeded or looked up, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -139,8 +140,9 @@ answers "whose consent/state is this about?". That is neither "whose replica am
 I applying it to?" (`resolve_receiving_actor_id()`) nor "who is executing the
 tree?" (blackboard `actor_id`).
 
-Read subject identities **from the message** and thread them into the tree as
-leaf-node constructor data, never derived from the receiving actor (ADR-0022).
+Read subject identities **from the message** and seed each on its own vocabulary
+key (BTND-01-008, BTND-03-022), never derived from the receiving actor
+(ADR-0022).
 They coincide with the receiving actor on direct delivery, so a conflation
 passes tests and breaks only under CLI dispatch, log replay, CASE_MANAGER relay,
 or a multi-recipient activity (ISSUE-2762). Watch for:
@@ -247,10 +249,27 @@ Two shapes look like a second tree and are not:
 ### One Fixed-Shape Tree per Act (ADR-0207)
 
 A tree's shape is fixed by the act; which case, which object and how many
-entries are data, read from the blackboard (BT-25-003 for a work-list subtree; how
-far the rule reaches into other trees is open, #6555). Reason: a tree built from its
-data must be rebuilt for each item, so nodes end up building and running trees
-mid-run, which hides internal errors and leaves subtrees no walk can reach.
+entries are data, read from the blackboard in every tree (BT-25-003, BTND-01-008,
+BTND-01-009). Reason: a tree built from its data must be rebuilt for each item, so
+nodes end up building and running trees mid-run, which hides internal errors and
+leaves subtrees no walk can reach.
+
+- **Per-act values travel on named keys** (BTND-01-008, BTND-03-022). A node
+  constructor and a tree factory take configuration only: a name, a port name, a
+  role, a declared state, a child. A case, report, embargo or actor id, or a
+  carried object, is a key in the one key vocabulary.
+- **A tree declares its inputs** (BT-25-006). The declaration is the tree's
+  behavior contract, "given these values, this logic completes the act", and is
+  what a published behavior spec renders. The runner raises a wiring error rather
+  than tick a tree whose declared key has no source (BT-25-008).
+- **The runner seeds what the message carries; a lookup node finds the rest**
+  (BT-25-007, BT-25-009, BT-25-010). Copying an event's or a trigger request's
+  value reads no store, so it happens before the tick. A value only the store
+  holds (a report's case, a fault's refused entry) is published by a lookup node
+  at the front of the tree, whose miss is a declared refusal; a pre-run read would
+  put a store call back in the use case (ADR-0195).
+- **One source per key per tree** (BT-25-011). A key is seeded or published, never
+  both, so tick order cannot decide which value a node reads.
 
 - **A node never runs a tree** (BT-25-001). Compose the subtree as a child, and
   turn the parent's "branch on the nested result" into a Selector or Sequence.

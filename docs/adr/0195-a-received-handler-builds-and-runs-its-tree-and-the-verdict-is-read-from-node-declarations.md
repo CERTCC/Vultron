@@ -3,7 +3,7 @@ status: proposed
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-16
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
@@ -46,6 +46,9 @@ A received use case only builds its tree and hands it to the runner.
 The runner wires the bridge and the ports, runs the tree once as the receiving actor (BT-17-005), and reads the verdict from node status, declared flags and failure reasons only.
 Nothing in the runner reads or writes the DataLayer before or after the run.
 A verdict that needs a fact the tree did not record gets a node that records it, not code in the runner.
+The runner may seed the blackboard before the tick, but only with values the received event carries (ADR-0207).
+A value only the store holds, such as the case a report belongs to or the ledger entry a fault refuses, is found by a lookup node at the front of the tree.
+A lookup that finds nothing declares a refusal with its reason, so the miss is a verdict the runner reads like any other.
 
 Three node declarations carry the non-default verdicts:
 

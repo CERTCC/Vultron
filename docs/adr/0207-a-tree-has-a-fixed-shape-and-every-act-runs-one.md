@@ -3,11 +3,11 @@ status: proposed
 date: 2026-11-16
 created: 2026-11-16
 updated: 2026-11-16
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0087, ADR-0089, ADR-0135; specs/behavior-tree-integration.yaml
-  BT-05, BT-17; notes/bt-integration.md; issues #5584, #5572
+  BT-05, BT-17; notes/bt-integration.md; issues #5584, #5572, #6514
 informed: []
 stakeholder_type: [project-contributor]
 ---
@@ -51,9 +51,14 @@ How long a tree lives:
 - **Built fresh for each act, its clients released when the run ends.**
 - **Built once per tree type and reused for every act.**
 
+How far "data on the blackboard" reaches (revision 2):
+
+- **Every tree: no node constructor and no tree factory takes a per-act value.**
+- **Only the trees that learn a value while running**, with build-time values left as constructor arguments.
+
 ## Decision Outcome
 
-Chosen: **a loop over a blackboard work list running one fixed subtree**, and **a tree built fresh for each act**.
+Chosen: **a loop over a blackboard work list running one fixed subtree**, **a tree built fresh for each act**, and (revision 2) **every tree, with no per-act value in a node constructor or tree factory**.
 
 ### A tree's shape is fixed by the act
 
@@ -77,18 +82,41 @@ A tree is built for one act and dropped after it.
 When the run ends, on every outcome, the runner releases every blackboard client the tree's nodes and the runner itself registered, without clearing stored keys.
 Restoring stored keys stays the bridge's job (BT-17-007).
 
+### Every per-act value reaches a node through a named key, in every tree
+
+Revision 2 (#6514) widens "data reaches the nodes through the blackboard" from loop subtrees to every tree.
+No node constructor and no tree factory takes a per-act value: a case, report, embargo or actor id, or an object the message carries.
+A constructor takes configuration only, such as a name, a port name, a role, a declared state or a child.
+Each per-act value has one name in one key vocabulary.
+
+A tree factory declares the keys its tree needs.
+That declaration is the tree's behavior contract: given these values, this logic completes the act.
+A published behavior spec renders it with the tree's shape.
+
+Each declared key has one source in the tree.
+The runner seeds a key before the first tick when the act's event or trigger request carries the value, which reads no store.
+A value that only the store holds, such as a report's case or a fault's refused entry, is published by a lookup node at the front of the tree.
+In a received tree the lookup's miss is a declared refusal, because the use case and the runner read no store (ADR-0195).
+The runner raises a wiring error rather than tick a tree whose declared key has no source.
+
+A narrower option kept the rule to the trees that learn a value only while running and left build-time values as constructor arguments.
+It was rejected: two styles of input supply would coexist, and a tree built with its data wired in could not become a subtree or a loop body without the same migration later.
+
 ### Consequences
 
 - Good: a walk over the tree reaches every node, so release, diagnostics and ratchets see the whole act.
 - Good: an internal error in a commit is the act's internal error, with no hop to carry it across.
 - Good: the client registry returns to its size before the act, so a long-running container does not grow and a test sees no client from an earlier one.
 - Bad: nodes that branch on a nested run's result move that branching into composites, and the commit's inputs move from constructor arguments to blackboard keys, which touches many files.
+- Bad: every factory and node that bakes in a per-act value moves to a declared key, which touches most tree modules; a shrink-only ratchet counts what is left.
 - Bad: a loop's per-item inputs are blackboard keys, so each needs its handoff-key name (BTND-03-004) and its restore on every outcome.
 
 ## Validation
 
 An architecture test lists the sites that still start a nested tree run and fails when a new one appears; the list only shrinks, and ends empty.
 A test delivers an activity and asserts the client registry is the size it was before the delivery.
+An architecture ratchet lists every node constructor and tree factory that still takes a per-act value; the list only shrinks, and ends empty.
+An architecture test builds every tree and fails when a node reads a key its tree neither declares nor publishes.
 
 ## Pros and Cons of the Options
 
@@ -108,8 +136,13 @@ A test delivers an activity and asserts the client registry is the size it was b
 - Bad: every node's instance attributes outlive the act, which moves hidden process-wide state into the nodes.
   Each node would need proof that `initialise()` resets everything it reads.
 
+### Only the trees that learn a value while running
+
+- Good: leaves every tree that knows its values at build time as it is, so far fewer files change.
+- Bad: two styles of input supply coexist, and a tree built with its data wired in cannot become a subtree or a loop body without the same migration later.
+
 ## More Information
 
 This extends ADR-0135's one tree per delivery from the use case down into the nodes, and finishes ADR-0089's rule that the participant-status writer is a real tree child.
 It supersedes neither.
-The current rules live in `specs/behavior-tree-integration.yaml` BT-25 and in `notes/bt-integration.md` § "One Fixed-Shape Tree per Act".
+The current rules live in `specs/behavior-tree-integration.yaml` BT-25, in `specs/behavior-tree-node-design.yaml` BTND-01-008, BTND-01-009 and BTND-03-022, and in `notes/bt-integration.md` § "One Fixed-Shape Tree per Act".

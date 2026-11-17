@@ -26,9 +26,10 @@ from the error).  A hand-written ``.warning(..., <x>.feedback_message)`` under
 wrong level, or a fault no reader can tell from one.
 
 ``KNOWN_NODE_FEEDBACK_WARNINGS`` lists the sites that predate the rule, one
-per enclosing function, keyed ``<path>::<qualname>``.  Follow-up Task #6507
-sorts each into a refusal or a fault and empties it.  A new site fails; an
-entry whose site is gone fails until it is removed, so the list only shrinks.
+per enclosing function, keyed ``<path>::<qualname>``.  Follow-up Tasks
+#6590, #6591 and #6592 sort each into a refusal or a fault and empty it.
+A new site fails; an entry whose site is gone fails until it is removed, so
+the list only shrinks.
 The reading can miss a site that logs its reason through another name (a
 local ``reason`` variable); it cannot invent one.
 """
@@ -42,7 +43,7 @@ from test.architecture import _corpus
 
 _BEHAVIORS = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
-# owner: #6507
+# owner: #6592
 KNOWN_NODE_FEEDBACK_WARNINGS: frozenset[str] = frozenset(
     {
         "vultron/core/behaviors/case/nodes/announce.py::SeedAnnouncedCaseNode.update",
@@ -199,7 +200,7 @@ def test_the_known_sites_only_shrink() -> None:
     gone = sorted(KNOWN_NODE_FEEDBACK_WARNINGS - _live_sites())
     assert gone == [], (
         "These sites no longer log their feedback at WARNING; remove them"
-        " from KNOWN_NODE_FEEDBACK_WARNINGS (#6507):\n"
+        " from KNOWN_NODE_FEEDBACK_WARNINGS (#6592):\n"
         + "\n".join(f"  {site}" for site in gone)
     )
 

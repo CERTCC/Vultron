@@ -304,14 +304,14 @@ General information about architectural decision records is available at <https:
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) *(revision 4)*
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
-- [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 3)*
+- [ADR-0195 A Received Handler Builds and Runs Its Tree, and the Verdict Is Read From Node Declarations](0195-a-received-handler-builds-and-runs-its-tree-and-the-verdict-is-read-from-node-declarations.md) *(revision 4)*
 - [ADR-0199 An Owner's Request Is an Offer of the Act, Which the CASE_MANAGER Accepts and Makes](0199-an-owners-request-is-an-offer-of-the-act-which-the-case-manager-accepts-and-makes.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
 - [ADR-0201 An EmbargoEvent Is a Vultron Extension Type and a Subtype of Event](0201-an-embargoevent-is-a-vultron-extension-type-and-a-subtype-of-event.md)
 - [ADR-0202 An Embargo Stores Its Own Status, and the Register Is the Case's Ordered List of Embargoes](0202-an-embargo-stores-its-own-status-and-the-register-is-the-cases-ordered-list-of-embargoes.md) — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0203 An Embargo's End Is an Update of the Embargo, Announced to Every Signatory](0203-an-embargos-end-is-an-update-of-the-embargo-announced-to-every-signatory.md) — partially supersedes 0116-removing-a-participant-withdraws-entitlement-not-membership.md, 0122-per-embargo-participant-consent.md
 - [ADR-0204 The Case Ledger and Status Histories Are Named Ordered Collections](0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md) — partially supersedes 0137-case-records-are-attached-by-one-message-never-created-first.md, 0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 - [ADR-0206 Each App Resolves Its Own Configuration](0206-each-app-resolves-its-own-configuration.md)
-- [ADR-0207 A Tree Has a Fixed Shape, and Every Act Runs One](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md)
+- [ADR-0207 A Tree Has a Fixed Shape, and Every Act Runs One](0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md) *(revision 2)*
 
 ## Rejected ADRs
 
