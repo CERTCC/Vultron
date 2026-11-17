@@ -39,6 +39,7 @@ from vultron.adapters.driving.fastapi.ledger_stream import (
     case_ledger_entries,
     format_close_event,
     format_entry_event,
+    format_keepalive_comment,
     install_shutdown_signal_hook,
     ledger_entry_payload,
     resolve_resume_index,
@@ -209,6 +210,34 @@ class TestStreamCaseLedger:
         frames = asyncio.run(scenario())
         assert [_parse(f).get("id") for f in frames[:2]] == ["0", "1"]
         assert frames[2:] == [format_close_event()]
+
+    def test_a_quiet_stream_sends_a_keepalive_comment(self, dl, case):
+        """A follower reading with a timeout sees a quiet case as live."""
+        save_ledger_entry(dl, case.id_, 0)
+        shutdown = threading.Event()
+
+        async def scenario() -> list[str]:
+            stream = stream_case_ledger(
+                dl,
+                case.id_,
+                actor_id=ACTOR,
+                after_index=None,
+                poll_seconds=POLL,
+                is_disconnected=_never_disconnected,
+                shutdown=shutdown,
+                keepalive_seconds=POLL,
+            )
+            frames = [await anext(stream)]
+            frames.append(await asyncio.wait_for(anext(stream), 5))
+            shutdown.set()
+            frames.extend([f async for f in stream])
+            return frames
+
+        frames = asyncio.run(scenario())
+        assert _parse(frames[0]).get("id") == "0"
+        assert frames[1] == format_keepalive_comment()
+        assert frames[1].startswith(":")
+        assert frames[-1] == format_close_event()
 
     def test_disconnect_ends_the_stream_without_a_close_event(
         self, dl, case, caplog

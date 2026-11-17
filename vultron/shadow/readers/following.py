@@ -58,8 +58,9 @@ class CaseFollower(Protocol):
         Args:
             case_id: The case to follow, as the reader's ``read_case``
                 takes it.
-            heartbeat: Called while the source is quiet, so a caller that
-                is waiting on the follow can stop it.
+            heartbeat: Called from time to time while no new entry
+                arrives, such as at each keepalive the source sends, so a
+                caller that is waiting on the follow can stop it.
         """
         ...
 

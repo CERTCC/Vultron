@@ -47,6 +47,7 @@ import json
 import logging
 import signal
 import threading
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from types import FrameType
 from typing import Any
@@ -66,6 +67,11 @@ EVENT_STREAM_MEDIA_TYPE = "text/event-stream"
 #: of a sub-application mounted under the app whose lifespan ran — which
 #: ``app.state`` does not.
 SHUTDOWN_STATE_KEY = "ledger_stream_shutdown"
+
+#: Seconds a stream may send nothing before it sends a keepalive comment,
+#: so a client reading with a timeout sees a quiet case as live rather than
+#: as a lost connection.
+KEEPALIVE_SECONDS = 5.0
 
 #: Signals a server treats as "exit".  The hook chains onto whichever of these
 #: already has a Python-level handler.
@@ -99,6 +105,11 @@ def format_entry_event(entry: CaseLedgerEntry) -> str:
     """Frame *entry* as one SSE event: ``id:`` is its ``log_index``."""
     data = json.dumps(ledger_entry_payload(entry))
     return f"id: {entry.log_index}\ndata: {data}\n\n"
+
+
+def format_keepalive_comment() -> str:
+    """Frame the comment a quiet stream sends; a client ignores its text."""
+    return ": keepalive\n\n"
 
 
 def format_close_event() -> str:
@@ -143,6 +154,7 @@ async def stream_case_ledger(
     poll_seconds: float,
     is_disconnected: Callable[[], Awaitable[bool]],
     shutdown: threading.Event,
+    keepalive_seconds: float = KEEPALIVE_SECONDS,
 ) -> AsyncIterator[str]:
     """Yield SSE frames for the case's ledger entries, then follow new ones.
 
@@ -152,11 +164,15 @@ async def stream_case_ledger(
     ``log_index`` order, holding an out-of-order one until its predecessor
     lands (SYNC-14), so "above the last one sent" misses nothing.
 
+    A stream that has sent nothing for *keepalive_seconds* sends
+    :func:`format_keepalive_comment`, which a client skips.
+
     Ends when the client disconnects, or yields :func:`format_close_event`
     and ends once *shutdown* is set.  *actor_id* names the actor whose store
     is read, for the lifecycle log lines.
     """
     last_sent = after_index
+    last_frame = time.monotonic()
     # Overwritten on every other way out; a disconnect may arrive as a
     # cancellation or a generator close, which pass through ``finally`` only.
     reason = "client disconnected"
@@ -175,6 +191,10 @@ async def stream_case_ledger(
                 if last_sent is None or entry.log_index > last_sent:
                     yield format_entry_event(entry)
                     last_sent = entry.log_index
+                    last_frame = time.monotonic()
+            if time.monotonic() - last_frame >= keepalive_seconds:
+                yield format_keepalive_comment()
+                last_frame = time.monotonic()
             if shutdown.is_set():
                 reason = "server shutting down"
                 yield format_close_event()

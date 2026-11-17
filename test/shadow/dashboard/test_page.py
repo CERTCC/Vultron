@@ -22,10 +22,14 @@ from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import (
+    HEARTBEAT_KEY,
     LAST_READING_KEY,
     LIVE_NOTE,
+    NO_ENTRY_NOTE,
     NOT_LIVE_NOTE,
+    RECONNECTING_NOTE,
     TITLE,
+    WAITING_NOTE,
 )
 from vultron.shadow.dashboard.view import EM_BADGES, RM_BADGES
 
@@ -87,15 +91,16 @@ render(Empty())
 
 
 #: A page following a case through the live reader over a scripted stream.
-#: ``__ANSWERS__`` is replaced by the script's answers; ``rows`` are the
-#: rv recording's first rows.  The follow is watched: after the page takes
+#: ``__ANSWERS__`` is replaced by one tuple of scripted answers per follow,
+#: the last one repeated; ``rows`` are the rv recording's first rows.  The follow is watched: after the page takes
 #: each item, the size of the reading it kept is recorded in ``seen``.
 _FOLLOW_PAGE = """
 import json
 
 import streamlit as st
 from test.support.ledger_stream import (
-    CLOSE, Dropping, ScriptedStream, recording_rows, sse_event, sse_rows,
+    CLOSE, Dropping, Quiet, ScriptedStream, recording_rows, sse_event,
+    sse_rows,
 )
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.page import LAST_READING_KEY, render
@@ -105,15 +110,23 @@ bad = sse_event({"type": "CaseLedgerEntry"}, 1)
 
 
 class Watched:
-    def __init__(self, reader):
-        self._reader = reader
-        self.unobservable = reader.unobservable
+    # Follows through a fresh scripted reader, one script per follow.
+
+    unobservable = ()
+
+    def __init__(self, answers):
+        self._answers = answers
 
     def read_case(self, case_id):
         raise AssertionError("a followed case is not read once")
 
     def follow_case(self, case_id, *, heartbeat=None):
-        for item in self._reader.follow_case(case_id, heartbeat=heartbeat):
+        follows = st.session_state["follows"] = (
+            st.session_state.get("follows", 0) + 1
+        )
+        script = self._answers[min(follows, len(self._answers)) - 1]
+        reader = ScriptedStream(*script).reader(reconnects=0)
+        for item in reader.follow_case(case_id, heartbeat=heartbeat):
             yield item
             kept = st.session_state.get(LAST_READING_KEY)
             st.session_state.setdefault("seen", []).append(
@@ -121,7 +134,7 @@ class Watched:
             )
 
 
-render(Watched(ScriptedStream(__ANSWERS__).reader(reconnects=0)))
+render(Watched([__ANSWERS__]))
 """
 
 
@@ -356,7 +369,7 @@ def test_a_run_through_a_vultron_node_suggests_no_ledger_file(tmp_path):
 @pytest.mark.spec("SHD-04-005")
 def test_a_followed_case_shows_its_new_standing_after_each_entry():
     """AC-4: each accepted reading is taken and shown as it arrives."""
-    at = _follow_page("sse_rows(rows) + CLOSE")
+    at = _follow_page("(sse_rows(rows) + CLOSE,)")
     assert at.session_state["seen"] == [1, 2, 3]
     case_id, kept = at.session_state[LAST_READING_KEY]
     assert case_id == recording_rows(_RV)[0]["caseId"]
@@ -369,7 +382,7 @@ def test_a_followed_case_shows_its_new_standing_after_each_entry():
 @pytest.mark.spec("SHD-04-005")
 def test_a_refused_entry_then_close_keeps_the_last_reading_marked():
     """The first reading stays, the error shows, then it is not live."""
-    at = _follow_page("sse_rows(rows[:1]) + bad + CLOSE")
+    at = _follow_page("(sse_rows(rows[:1]) + bad + CLOSE,)")
     assert at.session_state["seen"] == [1, 1]
     _, kept = at.session_state[LAST_READING_KEY]
     assert len(kept.ledger) == 1
@@ -383,7 +396,7 @@ def test_a_refused_entry_then_close_keeps_the_last_reading_marked():
 @pytest.mark.spec("SHD-04-005")
 def test_a_dropped_stream_keeps_the_last_reading_marked_not_live():
     """No close event: the node is lost, and the reading is kept."""
-    at = _follow_page("Dropping(sse_rows(rows[:2]))")
+    at = _follow_page("(Dropping(sse_rows(rows[:2])),)")
     assert at.session_state["seen"] == [1, 2, 2]
     _, kept = at.session_state[LAST_READING_KEY]
     assert len(kept.ledger) == 2
@@ -394,10 +407,50 @@ def test_a_dropped_stream_keeps_the_last_reading_marked_not_live():
 
 
 def test_a_follow_refused_before_any_reading_shows_only_why():
-    at = _follow_page('(404, json.dumps({"detail": "Case not found."}))')
+    at = _follow_page('((404, json.dumps({"detail": "Case not found."})),)')
     (error,) = _texts(at.error)
     assert "holds no such case" in error
     assert "Participants" not in _texts(at.subheader)
     assert not at.warning
+    assert not at.info
     assert LIVE_NOTE not in _texts(at.caption)
     assert LAST_READING_KEY not in at.session_state
+
+
+def test_a_stream_that_closes_before_any_entry_says_so():
+    at = _follow_page("(CLOSE,)")
+    assert not at.error
+    assert _texts(at.warning) == [NO_ENTRY_NOTE]
+    assert WAITING_NOTE not in _texts(at.info)
+    assert "Participants" not in _texts(at.subheader)
+
+
+def test_a_quiet_case_beats_the_heartbeat_while_it_waits():
+    """The heartbeat runs at each keepalive and each quiet reconnect."""
+    at = _follow_page(
+        "(Quiet(sse_rows(rows[:1]) + ': keepalive\\n\\n'),"
+        " sse_rows(rows[1:2]) + CLOSE)"
+    )
+    assert at.session_state["seen"] == [1, 2]
+    assert at.session_state[HEARTBEAT_KEY] == 2
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+@pytest.mark.spec("SHD-04-005")
+def test_a_rerun_shows_the_kept_reading_when_the_node_is_gone():
+    """The kept reading is read back: the second run's node refuses."""
+    at = _follow_page(
+        "(sse_rows(rows) + CLOSE,),"
+        " ((404, json.dumps({'detail': 'Case not found.'})),)"
+    )
+    assert at.session_state["seen"] == [1, 2, 3]
+    at.run()
+    assert not at.exception
+    assert at.session_state["follows"] == 2
+    _, kept = at.session_state[LAST_READING_KEY]
+    assert len(kept.ledger) == 3
+    (error,) = _texts(at.error)
+    assert "holds no such case" in error
+    assert "Participants" in _texts(at.subheader)
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]
+    assert RECONNECTING_NOTE not in _texts(at.info)

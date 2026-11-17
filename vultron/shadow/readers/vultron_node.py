@@ -81,7 +81,8 @@ from vultron.shadow.readers.ledger_reading import ledger_reading
 logger = logging.getLogger(__name__)
 
 #: Seconds each network step of a read may take.  A followed stream that
-#: stays quiet this long is reconnected.
+#: sends nothing this long, not even the node's keepalive comment, is
+#: reconnected.
 DEFAULT_READ_TIMEOUT: Final = 10.0
 
 #: How many times in a row a follow tries to reconnect to a node it has
@@ -178,6 +179,16 @@ def _transport_problem(exc: httpx.HTTPError) -> str:
     if isinstance(exc, httpx.TimeoutException):
         return "the node did not answer in time"
     return f"the node cannot be reached ({type(exc).__name__})"
+
+
+def _beating(
+    lines: Iterator[str], heartbeat: Callable[[], None] | None
+) -> Iterator[str]:
+    """*lines*, calling *heartbeat* at each comment, a quiet node's keepalive."""
+    for line in lines:
+        if heartbeat is not None and line.startswith(":"):
+            heartbeat()
+        yield line
 
 
 @dataclass
@@ -362,9 +373,11 @@ class VultronNodeCaseReader:
         entry by its place in the stream, ``… /log/stream line N`` for the
         Nth entry (SHD-04-004).
 
-        A stream that drops, or that stays quiet for the reader's timeout,
-        is reconnected with ``Last-Event-ID`` set to the last event id
-        received, so the node sends only the entries after it (SHD-04-001).
+        A quiet node sends a keepalive comment, so a quiet case keeps its
+        connection.  A stream that drops, or that sends nothing at all for
+        the reader's timeout, is reconnected with ``Last-Event-ID`` set to
+        the last event id received, so the node sends only the entries
+        after it (SHD-04-001).
         The follow ends when the node sends ``event: close``, when it
         answers anything but the stream (no such case, no such endpoint),
         or when it cannot be reached again after the reader's reconnect
@@ -372,8 +385,9 @@ class VultronNodeCaseReader:
 
         Args:
             case_id: The case's id on the node, full or short.
-            heartbeat: Called before each reconnect, a quiet stream's
-                included, so a caller waiting on the follow can stop it.
+            heartbeat: Called at each keepalive comment the node sends
+                and before each reconnect, so a caller waiting on a quiet
+                case can stop the follow.
         """
         try:
             path = self._log_path(case_id) + "/stream"
@@ -387,30 +401,40 @@ class VultronNodeCaseReader:
             self._node_url,
         )
         while True:
-            lost = yield from self._stream(path, follow)
+            lost = yield from self._stream(path, follow, heartbeat)
             if lost is None:
                 return
             if lost:
                 follow.losses += 1
+                if follow.losses > self._reconnects:
+                    logger.warning(
+                        "Stopped following case %s: lost the Vultron node at"
+                        " %s (%s)",
+                        case_id,
+                        self._node_url,
+                        lost,
+                    )
+                    yield self._refused(case_id, [lost])
+                    return
                 logger.warning(
                     "Lost the stream of case %s on the Vultron node at %s"
-                    " (%s); try %d of %d",
+                    " (%s); reconnecting, try %d of %d",
                     case_id,
                     self._node_url,
                     lost,
                     follow.losses,
                     self._reconnects,
                 )
-                if follow.losses > self._reconnects:
-                    yield self._refused(case_id, [lost])
-                    return
             if heartbeat is not None:
                 heartbeat()
             if lost:
                 time.sleep(self._retry_delay)
 
     def _stream(
-        self, path: str, follow: _Follow
+        self,
+        path: str,
+        follow: _Follow,
+        heartbeat: Callable[[], None] | None,
     ) -> Generator[FollowedReading, None, str | None]:
         """Read one connection to the event stream, yielding each reading.
 
@@ -438,7 +462,8 @@ class VultronNodeCaseReader:
                     )
                     return None
                 answered = True
-                for event in server_sent_events(response.iter_lines()):
+                lines = _beating(response.iter_lines(), heartbeat)
+                for event in server_sent_events(lines):
                     follow.losses = 0
                     follow.last_event_id = event.last_event_id
                     if event.type == CLOSE_EVENT:
@@ -452,8 +477,9 @@ class VultronNodeCaseReader:
                     if event.type == MESSAGE:
                         yield self._followed(follow, event.data)
         except httpx.ReadTimeout as exc:
-            # A stream that answered and then went quiet is a live case
-            # with no new entry: it is reconnected, not counted lost.
+            # A stream that answered and then went quiet, from a node that
+            # sends no keepalive, is a live case with no new entry: it is
+            # reconnected, not counted lost.
             return "" if answered else _transport_problem(exc)
         except httpx.HTTPError as exc:
             return _transport_problem(exc)

@@ -188,8 +188,10 @@ The stream is built (#3641): `GET
 (TRIG-09), in
 `vultron/adapters/driving/fastapi/routers/demo_triggers/ledger.py` and
 `vultron/adapters/driving/fastapi/ledger_stream.py`. Each event's `id:` is the
-entry's `log_index`, `?since=` or `Last-Event-ID` resumes, and the stream is
-demo tooling, not a replication channel (SYNC-02-001).
+entry's `log_index`, `?since=` or `Last-Event-ID` resumes, a quiet stream
+sends a `: keepalive` comment so a client reading with a timeout keeps its
+connection (#6531), and the stream is demo tooling, not a replication channel
+(SYNC-02-001).
 
 ---
 

@@ -66,6 +66,18 @@ NOT_LIVE_NOTE = (
     "No longer live: the case's stream has ended. The page shows the case's"
     " last accepted reading."
 )
+WAITING_NOTE = "Live: waiting for the case's first ledger entry."
+RECONNECTING_NOTE = (
+    "Reconnecting: the page shows the case's last accepted reading until"
+    " the case's stream sends it again."
+)
+NO_ENTRY_NOTE = (
+    "No longer live: the case's stream ended before it sent any ledger"
+    " entry, so there is no standing to show."
+)
+
+#: The session-state key counting the follow's heartbeats.
+HEARTBEAT_KEY = "follow_heartbeats"
 
 
 def _table(rows: Sequence[view.Row], empty: str) -> None:
@@ -191,36 +203,62 @@ def _follow(follower: CaseFollower, case_id: str) -> None:
     The script runs for as long as the follow does.  Each accepted reading
     replaces the one shown and is kept in session state; a refusal shows
     above the last accepted reading, which stays; once the follow ends, the
-    reading is marked as no longer live (SHD-04-005).
+    reading is marked as no longer live (SHD-04-005).  A rerun of the page
+    for the same case shows the kept reading until the follow sends a new
+    one.
     """
     notice = st.empty()
     problem = st.empty()
     body = st.empty()
-    st.session_state.pop(LAST_READING_KEY, None)
+    kept = st.session_state.get(LAST_READING_KEY)
+    last: CaseReading | None = None
+    if kept is not None and kept[0] == case_id:
+        last = kept[1]
+        notice.info(RECONNECTING_NOTE)
+        with body.container():
+            _show_reading(last)
+    else:
+        st.session_state.pop(LAST_READING_KEY, None)
+        notice.info(WAITING_NOTE)
 
     def heartbeat() -> None:
-        # Any page call lets Streamlit stop a run whose page was left or
-        # asked to rerun, while the stream is quiet.
-        notice.caption(LIVE_NOTE)
+        # Streamlit checks for a stop or rerun request at each use of
+        # session state, so counting a beat there lets it stop a run whose
+        # page was left or asked to rerun while the case is quiet.
+        st.session_state[HEARTBEAT_KEY] = (
+            st.session_state.get(HEARTBEAT_KEY, 0) + 1
+        )
 
+    refused = False
     for item in follower.follow_case(case_id, heartbeat=heartbeat):
         if isinstance(item, CaseReading):
+            last = item
             st.session_state[LAST_READING_KEY] = (case_id, item)
             notice.caption(LIVE_NOTE)
             problem.empty()
+            refused = False
             with body.container():
                 _show_reading(item)
         else:
+            refused = True
             problem.error(str(item))
-    if LAST_READING_KEY in st.session_state:
+    if last is not None:
         notice.warning(NOT_LIVE_NOTE)
+    elif refused:
+        notice.empty()
+    else:
+        notice.warning(NO_ENTRY_NOTE)
 
 
 __all__ = [
     "CASE_KEY",
+    "HEARTBEAT_KEY",
     "LAST_READING_KEY",
     "LIVE_NOTE",
     "NOT_LIVE_NOTE",
+    "NO_ENTRY_NOTE",
+    "RECONNECTING_NOTE",
     "TITLE",
+    "WAITING_NOTE",
     "render",
 ]

@@ -321,3 +321,56 @@ def test_a_demo_case_followed_on_a_node_grows_to_its_whole_ledger(
     assert isinstance(last, CaseReading)
     assert list(last.ledger) == expected
     assert last == reader.read_case(case_id)
+
+
+def test_a_keepalive_comment_beats_the_heartbeat_and_is_no_entry():
+    beats: list[None] = []
+    body = _entries(0) + ": keepalive\n\n: keepalive\n\n" + _entries(1) + CLOSE
+    items = _follow(ScriptedStream(body), heartbeat=lambda: beats.append(None))
+    assert _sizes(items) == [1, 2]
+    assert len(beats) == 2
+
+
+def test_only_a_try_that_is_made_is_logged_as_one(caplog):
+    with caplog.at_level("WARNING"):
+        _follow(ScriptedStream(Dropping("")), reconnects=1)
+    messages = [r.getMessage() for r in caplog.records]
+    assert sum("reconnecting, try 1 of 1" in m for m in messages) == 1
+    assert not any("try 2" in m for m in messages)
+    assert any(m.startswith("Stopped following case") for m in messages)
+
+
+@pytest.mark.spec("SHD-04-001")
+def test_a_real_node_resumes_a_dropped_stream_after_the_last_entry(
+    node_dl, demo_case
+):
+    """The node itself answers Last-Event-ID with only the later entries."""
+    client = _closing_node_app(node_dl)
+    requests: list[httpx.Request] = []
+    replayed: list[int] = []
+
+    def forward(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        answer = client.request(
+            request.method,
+            request.url.raw_path.decode(),
+            headers=dict(request.headers),
+        )
+        events = [e for e in answer.text.split("\n\n") if e.startswith("id:")]
+        replayed.append(len(events))
+        headers = {"Content-Type": "text/event-stream"}
+        if len(requests) == 1:  # drop after the first two entries
+            body = "".join(f"{e}\n\n" for e in events[:2])
+            return httpx.Response(200, headers=headers, stream=Dropping(body))
+        return httpx.Response(200, headers=headers, content=answer.content)
+
+    reader = VultronNodeCaseReader(
+        NODE, ACTOR, transport=httpx.MockTransport(forward), retry_delay=0
+    )
+    items = list(reader.follow_case(demo_case))
+
+    total = len(recording_rows(RECORDING))
+    assert _sizes(items) == list(range(1, total + 1))
+    assert items[-1] == reader.read_case(demo_case)
+    assert requests[1].headers["last-event-id"] == "1"
+    assert replayed[:2] == [total, total - 2]
