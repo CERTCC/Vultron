@@ -1,0 +1,190 @@
+# Build the case shadow tool's image and start its Compose service (#6604).
+#
+# test/shadow/test_packaging.py checks the Compose service and the Dockerfile
+# as text. This workflow checks the built image and the running container,
+# which the dev container cannot do because it has no Docker:
+#
+# - SHD-02-003: the image is built with a marker credential in the build
+#   environment and in the gitignored `.env` files beside the build, and no
+#   image layer, nor the image config, holds the marker.
+# - SHD-02-001: the image declares no VOLUME and the container has no mount.
+# - SHD-02-002: `docker compose up shadow` publishes the port on 127.0.0.1
+#   only, and the dashboard answers `ok` on /_stcore/health there.
+
+name: Case shadow image
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      # The Dockerfile, the Compose file and .dockerignore decide what the
+      # image holds and how the service starts.
+      - docker/**
+      - .dockerignore
+      # The tool itself, and the dependencies and console script it is
+      # installed with.
+      - vultron/shadow/**
+      - pyproject.toml
+      - uv.lock
+      # This workflow and the code it runs, so the pull request that changes
+      # any of them runs the job it changed.
+      - .github/workflows/shadow-image.yml
+      - .github/actions/build-demo-images/**
+      - .github/scripts/find_in_image.py
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      # The same paths as the push filter; see the comments there.
+      - docker/**
+      - .dockerignore
+      - vultron/shadow/**
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/shadow-image.yml
+      - .github/actions/build-demo-images/**
+      - .github/scripts/find_in_image.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel any in-progress run for the same ref; mirrors python-app.yml.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shadow-image:
+    name: Case shadow image
+    runs-on: ubuntu-latest
+    # A cold build installs every locked dependency, a few minutes; the
+    # service start and the layer search take about a minute more. Cap at
+    # 20 min so a hang fails fast instead of holding a runner until GitHub's
+    # 6-h limit (TB-14-006).
+    timeout-minutes: 20
+    env:
+      # docker/docker-compose.yml names its images ${PROJECT_NAME}-<service>.
+      PROJECT_NAME: vultron
+      IMAGE: vultron-shadow:latest
+      # The marker credential (SHD-02-003). It is in the environment of every
+      # step, so the build runs with it set, as on a host that has exported
+      # the real token. It is not a secret: it only has to be a value no
+      # file in the repository holds.
+      VULTRON_VINCE__API_TOKEN: shadow-marker-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A host that runs the tool may keep its credential in a `.env` file
+      # beside the Compose file or at the repository root. Both are in the
+      # build context, so .dockerignore must keep them out of the image.
+      - name: Write the marker into the .env files beside the build
+        run: |
+          set -euo pipefail
+          cp docker/.env.example docker/.env
+          printf 'VULTRON_VINCE__API_TOKEN=%s\n' "$VULTRON_VINCE__API_TOKEN" \
+            | tee -a docker/.env > .env
+
+      - name: Build the shadow image
+        uses: ./.github/actions/build-demo-images
+        with:
+          compose-file: docker-compose.yml
+          targets: shadow
+
+      - name: Check that no image layer holds the marker credential
+        run: |
+          set -euo pipefail
+          docker image save "$IMAGE" -o "$RUNNER_TEMP/shadow-image.tar"
+          python3 -I .github/scripts/find_in_image.py \
+            --marker-env VULTRON_VINCE__API_TOKEN \
+            "$RUNNER_TEMP/shadow-image.tar"
+
+      - name: Check that the image declares no volume
+        run: |
+          set -euo pipefail
+          volumes=$(docker image inspect "$IMAGE" --format '{{json .Config.Volumes}}')
+          if [ "$volumes" != "null" ] && [ "$volumes" != "{}" ]; then
+            echo "::error::The shadow image declares volumes: $volumes (SHD-02-001)"
+            exit 1
+          fi
+
+      - name: Start the shadow service
+        run: |
+          docker compose -f docker/docker-compose.yml \
+            up --detach --no-build --no-deps shadow
+
+      - name: Check that the service publishes its port on loopback only
+        run: |
+          set -euo pipefail
+          published=$(docker compose -f docker/docker-compose.yml port shadow 8501)
+          if [ "$published" != "127.0.0.1:8501" ]; then
+            echo "::error::Port 8501 is published on $published, not 127.0.0.1:8501 (SHD-02-002)"
+            exit 1
+          fi
+          container=$(docker compose -f docker/docker-compose.yml ps --quiet shadow)
+          mounts=$(docker inspect "$container" --format '{{json .Mounts}}')
+          if [ "$mounts" != "[]" ]; then
+            echo "::error::The shadow container has mounts: $mounts (SHD-02-001)"
+            exit 1
+          fi
+
+      # The step's own bound sits under the job cap, so a page that never
+      # comes up fails here, with time left to collect the service's logs.
+      - name: Wait for the dashboard's health check
+        timeout-minutes: 3
+        env:
+          HEALTH_URL: http://127.0.0.1:8501/_stcore/health
+          DEADLINE_SECONDS: "120"
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + DEADLINE_SECONDS))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if body=$(curl --silent --fail --max-time 5 "$HEALTH_URL"); then
+              if [ "$body" = "ok" ]; then
+                echo "The dashboard answered ok at $HEALTH_URL."
+                exit 0
+              fi
+              echo "The health check answered '$body', not 'ok'."
+            fi
+            sleep 2
+          done
+          echo "::error::The dashboard did not answer ok at $HEALTH_URL within ${DEADLINE_SECONDS}s (SHD-02-002)"
+          exit 1
+
+      - name: Show the service's logs
+        if: failure() || cancelled()
+        run: docker compose -f docker/docker-compose.yml logs shadow
+
+      - name: Stop the shadow service
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down --timeout 30
+
+  # File (or close) a CI-failure issue on push to main, per CISEC-05.
+  # Copied from ui.yml's notify job with this workflow's label.
+  notify:
+    name: Notify CI failure
+    runs-on: ubuntu-latest
+    # Observed in ui.yml's identical job: up to 12 s. Cap at 5 min so a hang
+    # fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
+    needs: [shadow-image]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Notify CI failure
+        if: contains(needs.*.result, 'failure')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-shadow-image
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-shadow-image
+          token: ${{ secrets.GITHUB_TOKEN }}
