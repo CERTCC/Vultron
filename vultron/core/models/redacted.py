@@ -46,11 +46,23 @@ def opens_to_redaction(model: BaseModel, field_name: str) -> bool:
     """Whether *model*'s type opens its field *field_name* to the marker.
 
     A preview type declares the fields that may carry a marker in a
-    ``redactable_fields`` class attribute, a frozenset of field names
-    (ADR-0193).  Every other class, and so every full object, opens none.
+    ``redactable_fields`` class attribute, a frozenset of Python field names
+    (``object_``, not the wire key ``object``; ADR-0193).  Every other class,
+    and so every full object, opens none.
+
+    Raises:
+        TypeError: When the type declares ``redactable_fields`` as anything
+            but a frozenset of strings, a fault in the type, not the data.
     """
     opened: object = getattr(type(model), "redactable_fields", frozenset())
-    return isinstance(opened, frozenset) and field_name in opened
+    if not isinstance(opened, frozenset) or not all(
+        isinstance(name, str) for name in opened
+    ):
+        raise TypeError(
+            f"{type(model).__name__}.redactable_fields must be a frozenset"
+            f" of field names, not {opened!r} (ADR-0193)"
+        )
+    return field_name in opened
 
 
 class Redacted(ValidatedAssignmentMixin, BaseModel):

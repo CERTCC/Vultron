@@ -17,11 +17,7 @@ from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
-from vultron.wire.as2.case_reference_placement import (
-    refuse_misplaced_case_preview,
-    refuse_misplaced_case_reference,
-    refuse_misplaced_redaction_marker,
-)
+from vultron.wire.as2.case_reference_placement import refuse_misplaced_forms
 from vultron.wire.as2.context_agreement import refuse_context_disagreement
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -394,12 +390,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # A schema-valid envelope can still be one this receiver cannot act on;
     # the Create(CaseProposal) checks are the CP-01-010 refusals.
     refuse_malformed_case_proposal_envelope(activity)
-    # A case reference names the case only where an act may (AKM-03-004).
-    refuse_misplaced_case_reference(activity)
-    # A case preview stands for the case only in a stub Invite (MV-10-002).
-    refuse_misplaced_case_preview(activity)
-    # A marker withholds a value only in a preview's field (MV-12-002).
-    refuse_misplaced_redaction_marker(activity)
+    # A case reference names the case only where an act may (AKM-03-004), a
+    # case preview stands for the case only in a stub Invite (MV-10-002), and
+    # a marker withholds a value only in a preview's field (MV-12-002).
+    refuse_misplaced_forms(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)
 

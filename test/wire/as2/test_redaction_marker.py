@@ -16,12 +16,18 @@ value there, need a preview field that admits the marker; those rows are
 strict ``xfail`` until #6372 builds them.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
+from vultron.core.models.redacted import Redacted
+from vultron.wire.as2.case_reference_placement import (
+    _admits_redaction_marker,
+    _is_redaction_marker,
+    _misplaced,
+)
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
 
@@ -183,6 +189,66 @@ def test_a_marker_in_a_case_preview_free_form_field_is_refused() -> None:
         parse_activity(_stub_invite(tag=[MARKER]))
 
     assert "object.preview.tag[0]" in str(exc.value)
+
+
+class _PreviewOpeningNameAndTag(BaseModel):
+    """A stand-in preview type that opens ``name`` and ``tag`` to the marker,
+    as a real preview type will once #6372 decides its fields."""
+
+    redactable_fields: ClassVar[frozenset[str]] = frozenset({"name", "tag"})
+    name: Redacted | str | None = None
+    summary: Redacted | str | None = None
+    tag: list[Redacted | str] | None = None
+
+
+def _misplaced_markers(model: BaseModel) -> list[str]:
+    return list(
+        _misplaced(model, "", _is_redaction_marker, _admits_redaction_marker)
+    )
+
+
+@pytest.mark.spec("MV-12-001")
+def test_the_walk_admits_a_marker_in_an_opened_field() -> None:
+    preview = _PreviewOpeningNameAndTag(name=Redacted(), tag=[Redacted()])
+
+    assert _misplaced_markers(preview) == []
+
+
+@pytest.mark.spec("MV-12-002")
+def test_the_walk_refuses_a_marker_in_a_field_not_opened() -> None:
+    preview = _PreviewOpeningNameAndTag(name=Redacted(), summary=Redacted())
+
+    assert _misplaced_markers(preview) == ["summary"]
+
+
+@pytest.mark.spec("MV-12-002")
+def test_a_marker_mixed_with_other_values_in_an_opened_list_is_refused() -> (
+    None
+):
+    """An opened field takes the marker as its value, not as one item among
+    others, so a mixed list is walked and its marker refused."""
+    preview = _PreviewOpeningNameAndTag(tag=["a tag", Redacted()])
+
+    assert _misplaced_markers(preview) == ["tag[1]"]
+
+
+@pytest.mark.spec("MV-12-002")
+def test_one_refusal_names_every_misplaced_form() -> None:
+    """A misplaced case preview and a misplaced marker are named together
+    (EH-07-001), not the first one alone."""
+    preview = {
+        "type": "CasePreview",
+        "id": "urn:uuid:misplaced-preview",
+        "summary": "a case",
+    }
+    body = _envelope(object=_full_case(tag=[MARKER]), target=preview)
+
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+
+    message = str(exc_info.value)
+    assert "a CasePreview at target" in message
+    assert "a Redacted marker at object.tag[0]" in message
 
 
 @pytest.mark.xfail(

@@ -35,14 +35,18 @@ the slots an act may put it in:
 
 A ``Redacted`` marker stands for a value a preview withholds (ADR-0193), so its
 one slot is a field its preview type opens to the marker (MV-12-001).  A full
-object holds no marker, and a marker is no activity's ``object`` or ``target``
-(MV-12-002).
+object holds no marker, and no activity slot or free-form field of any object
+(``tag``, ``attachment``, ``inReplyTo``, ...) holds one (MV-12-002).
 
-The parser refuses either form where it arrives, as it refused the sparse
+The walk enters every field of a parsed model and every list item; a
+dict-valued field is not entered, because the parser builds every inline
+object as a model and keeps no raw mapping in a reference field.
+
+The parser refuses each form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
 admits is never read as a less specific type, and its activity is refused as
-malformed (MV-04-003; ADR-0032, validate at the edge).  Each rule reports
-every misplaced slot at once (EH-07-001).
+malformed (MV-04-003; ADR-0032, validate at the edge).  The rules report
+every misplaced slot of every form in one refusal (EH-07-001).
 """
 
 from collections.abc import Callable, Iterator
@@ -140,18 +144,24 @@ def _is_redaction_marker(value: object) -> bool:
 def _admits_redaction_marker(
     parent: BaseModel, field_name: str, child: object
 ) -> bool:
-    """A marker in a field its preview type opens to the marker (MV-12-001)."""
-    return isinstance(child, Redacted) and opens_to_redaction(
-        parent, field_name
-    )
+    """A marker, or a list of only markers, in a field its preview type opens
+    to the marker (MV-12-001).
 
-
-def refuse_misplaced_case_reference(activity: as_Activity) -> None:
-    """Refuse *activity* when a case reference sits where a case is carried.
-
-    Raises:
-        VultronParseValidationError: Naming the activity and each slot.
+    A list in an opened field that mixes markers with other values is walked
+    like any other, so each marker in it is refused: a field is opened to the
+    marker as its value, not as one item among objects.
     """
+    if not opens_to_redaction(parent, field_name):
+        return False
+    if isinstance(child, list):
+        return bool(child) and all(
+            isinstance(item, Redacted) for item in child
+        )
+    return isinstance(child, Redacted)
+
+
+def _misplaced_case_reference(activity: as_Activity) -> str | None:
+    """The fault of a case reference where a case is carried (AKM-03-004)."""
     misplaced = list(
         _misplaced(
             activity,
@@ -160,22 +170,18 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
             _names_case_by_reference,
         )
     )
-    if misplaced:
-        raise VultronParseValidationError(
-            f"activity {activity.id_!r}: a VulnerabilityCase carrying only"
-            f" its id and type at {', '.join(misplaced)} names the case;"
-            " only the object of a Join, Ignore, Leave or Offer may name a"
-            " case by reference, and anywhere else the case is carried whole"
-            " (AKM-03-004)"
-        )
+    if not misplaced:
+        return None
+    return (
+        f"a VulnerabilityCase carrying only its id and type at"
+        f" {', '.join(misplaced)} names the case; only the object of a Join,"
+        " Ignore, Leave or Offer may name a case by reference, and anywhere"
+        " else the case is carried whole (AKM-03-004)"
+    )
 
 
-def refuse_misplaced_case_preview(activity: as_Activity) -> None:
-    """Refuse *activity* when a case preview sits outside a stub Invite's object.
-
-    Raises:
-        VultronParseValidationError: Naming the activity and each slot.
-    """
+def _misplaced_case_preview(activity: as_Activity) -> str | None:
+    """The fault of a case preview outside a stub Invite's object (MV-10-002)."""
     misplaced = list(
         _misplaced(
             activity,
@@ -184,23 +190,18 @@ def refuse_misplaced_case_preview(activity: as_Activity) -> None:
             _admits_case_preview,
         )
     )
-    if misplaced:
-        raise VultronParseValidationError(
-            f"activity {activity.id_!r}: a CasePreview at"
-            f" {', '.join(misplaced)}; a case preview is permitted only as the"
-            " preview of a case reference that is an Invite's object,"
-            " wherever that Invite is carried inline; anywhere else name the"
-            " case by its URI (MV-10-002)"
-        )
+    if not misplaced:
+        return None
+    return (
+        f"a CasePreview at {', '.join(misplaced)}; a case preview is"
+        " permitted only as the preview of a case reference that is an"
+        " Invite's object, wherever that Invite is carried inline; anywhere"
+        " else name the case by its URI (MV-10-002)"
+    )
 
 
-def refuse_misplaced_redaction_marker(activity: as_Activity) -> None:
-    """Refuse *activity* when a ``Redacted`` marker sits outside a preview
-    field that admits it (MV-12-002).
-
-    Raises:
-        VultronParseValidationError: Naming the activity and each slot.
-    """
+def _misplaced_redaction_marker(activity: as_Activity) -> str | None:
+    """The fault of a marker outside a preview field opened to it (MV-12-002)."""
     misplaced = list(
         _misplaced(
             activity,
@@ -209,17 +210,38 @@ def refuse_misplaced_redaction_marker(activity: as_Activity) -> None:
             _admits_redaction_marker,
         )
     )
-    if misplaced:
+    if not misplaced:
+        return None
+    return (
+        f"a Redacted marker at {', '.join(misplaced)}; a marker is permitted"
+        " only in a field its preview type opens to the marker, never in a"
+        " full object or an activity slot (MV-12-002)"
+    )
+
+
+_PLACEMENT_RULES = (
+    _misplaced_case_reference,
+    _misplaced_case_preview,
+    _misplaced_redaction_marker,
+)
+
+
+def refuse_misplaced_forms(activity: as_Activity) -> None:
+    """Refuse *activity* when a case reference, case preview or ``Redacted``
+    marker sits where no act puts one.
+
+    Every rule runs, so one refusal names every misplaced slot of every form
+    (EH-07-001).
+
+    Raises:
+        VultronParseValidationError: Naming the activity, each rule's fault
+            and each slot.
+    """
+    faults = [fault for rule in _PLACEMENT_RULES if (fault := rule(activity))]
+    if faults:
         raise VultronParseValidationError(
-            f"activity {activity.id_!r}: a Redacted marker at"
-            f" {', '.join(misplaced)}; a marker is permitted only in a field"
-            " its preview type opens to the marker, never in a full object"
-            " or as an activity's own object (MV-12-002)"
+            f"activity {activity.id_!r}: {'; and '.join(faults)}"
         )
 
 
-__all__ = [
-    "refuse_misplaced_case_reference",
-    "refuse_misplaced_case_preview",
-    "refuse_misplaced_redaction_marker",
-]
+__all__ = ["refuse_misplaced_forms"]

@@ -119,7 +119,8 @@ class CasePreview(CoreObject):
              "summary": "A remote code execution vulnerability in widget."}}
     """
 
-    #: The fields a ``Redacted`` marker may stand in (MV-12-001, ADR-0193).
+    #: The fields a ``Redacted`` marker may stand in (MV-12-001, ADR-0193),
+    #: by Python field name, not wire key.
     #: None yet: which case fields the preview may redact is #6372's to
     #: decide, so a marker anywhere in a preview is refused (MV-12-002).
     redactable_fields: ClassVar[frozenset[str]] = frozenset()

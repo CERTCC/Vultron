@@ -159,12 +159,13 @@ def test_a_preview_type_opens_only_the_fields_it_declares() -> None:
 
 
 @pytest.mark.spec("MV-12-002")
-@pytest.mark.parametrize(
-    "model",
-    [CasePreview(summary="a case"), _PreviewWithAMalformedDeclaration()],
-    ids=["case-preview", "malformed-declaration"],
-)
-def test_a_type_that_declares_no_field_opens_none(model: BaseModel) -> None:
-    """The case preview opens no field yet (#6372), and a declaration that is
-    not a frozenset opens none."""
-    assert not opens_to_redaction(model, "name")
+def test_the_case_preview_opens_no_field_yet() -> None:
+    """Which case fields the preview may redact is #6372's to decide."""
+    assert not opens_to_redaction(CasePreview(summary="a case"), "name")
+
+
+def test_a_malformed_declaration_is_a_fault_in_the_type() -> None:
+    """A declaration that is not a frozenset of names is refused, not read
+    as opening nothing."""
+    with pytest.raises(TypeError, match="redactable_fields"):
+        opens_to_redaction(_PreviewWithAMalformedDeclaration(), "name")

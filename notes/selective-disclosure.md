@@ -85,7 +85,7 @@ every activity slot, because none of their types admits the marker.
 `reads_as_typed_reference` excludes `Redacted`, so a marker of only `id` and
 `type` is a marker, never a reference. A field that admits any embedded object
 (`tag`, `attachment`) refuses one at the parse edge
-(`refuse_misplaced_redaction_marker`), unless its preview type names it in
+(`refuse_misplaced_forms`), unless its preview type names it in
 `redactable_fields` (`opens_to_redaction`). `CasePreview` opens no field yet;
 Issue #6372 decides which.
 
