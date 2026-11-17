@@ -119,10 +119,10 @@ def _genesis_published(data: dict[str, Any]) -> datetime | None:
 
     The time is never minted here: a case this process authors states its
     ``published`` (the act's instant, ADR-0176), and a received case carries
-    the time its sender claimed.  An absent, ``None`` or blank value is a case
-    that claimed no time, and the hash is refused rather than computed from a
-    clock read, which would give each receiver its own genesis for the same
-    case (ISSUE-3257, ADR-0103).
+    the time its sender claimed.  An absent, ``None`` or blank value gives no
+    hash, never one computed from a clock read, which would give each
+    receiver its own genesis for the same case (ISSUE-3257, ADR-0103); the
+    case is then refused for the ``published`` it lacks (CLP-15-011).
     """
     published_val = data.get("published")
     if published_val is None or published_val == "":

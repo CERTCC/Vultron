@@ -95,7 +95,8 @@ already held (MV-10-003) and never creates a new domain record (MV-10-004).
 - The stub's `caseStatus` is built for the stub, not read from the case, and
   serializes only its identity, its `published` and `emState` (CM-17-013). A
   `pxaState` on the wire would state a PXA value nobody observed; `published`
-  stays because a receiver refuses a status without one (CLP-15-010).
+  stays because a receiver refuses a status without one (CLP-15-010,
+  CLP-15-011). The stub itself carries none: CM-17-010 fixes its keys.
 - "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or `REVISE`,
   never the exact EM state alone. Gate on `case.embargo_in_force`, which reads
   `active_embargo_id`, the embargo the consent row and the Accept's signing name

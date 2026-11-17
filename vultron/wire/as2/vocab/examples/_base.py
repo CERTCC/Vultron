@@ -371,9 +371,10 @@ def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     `as_VulnerabilityCase.genesis_hash` is computed from ``published``
     (CLP-08-003), so a stripped case renders a hash the reader cannot recompute.
 
-    A timestamp the class requires is kept: ``CaseStatus.published`` cannot
-    be ``None`` (CLP-15-010), and ``model_copy`` runs no validation, so
-    clearing it would render an example every receiver refuses.
+    A timestamp the class requires is kept: the ``published`` of a class
+    every author stamps cannot be ``None`` (CLP-15-011), and ``model_copy``
+    runs no validation, so clearing it would render an example every
+    receiver refuses.
     """
     fields = type(obj).model_fields
     updates: dict[str, None] = {

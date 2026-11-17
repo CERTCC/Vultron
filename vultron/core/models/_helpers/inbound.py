@@ -211,16 +211,18 @@ def absent_times_as_none(
 
     The author's times (``published``, ``updated``, an embargo's
     ``start_time``) are required with no default (ADR-0176): an object this
-    process authors states the act's instant.  A received object may omit
-    them, because AS2 lets a sender omit them, and the omission is the sender
-    claiming no time, so it reads as ``None``, never as the receiver's clock
-    (ISSUE-3257, CLP-15-007).
+    process authors states the act's instant.  A received whole object must
+    carry its ``published`` (CLP-15-011), which ``refuse_absent_published``
+    refuses first, so what reaches here absent is a time the sender may omit,
+    such as ``updated``, or the ``published`` of an exempt kind.  The
+    omission is the sender claiming no time, so it reads as ``None``, never
+    as the receiver's clock (ISSUE-3257, CLP-15-007).
 
     Absence has two spellings on the two inbound edges and both arrive here as
     an absent key: a sender omits the field on the wire, and a stored snapshot
     drops it because the snapshot dump excludes ``None``.  A required time
-    that does not admit ``None`` (a case status's ``published``, a ledger
-    entry's ``received_at``) stays absent, so validation refuses it, as it
+    that does not admit ``None`` (the ``published`` of a class every author
+    stamps, a ledger entry's ``received_at``) stays absent, so validation refuses it, as it
     does when a validator needs the time (a case's genesis hash, CLP-08-002),
     rather than deciding on a minted value later (ADR-0032, ADR-0103).
     """
@@ -250,13 +252,15 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     ``to_camel`` spellings (``attributedTo`` → ``attributed_to``) back to the
     field name so the core type validates without loosening its guard.
 
-    Projection also reads an absent required timestamp as ``None``
+    Projection also reads an absent optional timestamp as ``None``
     (:func:`absent_times_as_none`).  A snapshot is dumped with
-    ``exclude_none=True``, so an object whose time was carried as absent has no
-    key at all here, and reading it as anything else would invent a time —
-    once, a clock default stamped *this replica's* clock in its place — the
-    same fabrication the wire parser refuses one boundary earlier, and the
-    reason two replicas disagreed about which status was current (ISSUE-3257, CLP-15-007).
+    ``exclude_none=True``, so an optional time carried as absent has no key at
+    all here, and reading it as anything else would invent a time.  Once, a
+    clock default stamped *this replica's* clock in its place, the
+    fabrication the wire parser refuses one boundary earlier, and two
+    replicas disagreed about which status was current (ISSUE-3257,
+    CLP-15-007).  A required ``published`` stays absent, so validation refuses
+    the object rather than any time being supplied (CLP-15-011).
 
     Helper for the handful of core sync/effect nodes that rebuild core
     objects from inline snapshots.  The ``WireParsePort`` ADR-0082 designed to

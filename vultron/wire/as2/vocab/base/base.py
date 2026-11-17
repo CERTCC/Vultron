@@ -84,6 +84,12 @@ __all__ = [
 ]
 
 
+def _own_type(cls: type[BaseModel]) -> object:
+    """The ``type`` value *cls* declares as its own, or ``None``."""
+    field = cls.model_fields.get("type_")
+    return None if field is None else field.default
+
+
 class as_Base(BaseModel):
     """Root of the wire vocabulary for AS2 types that have no core class.
 
@@ -213,10 +219,15 @@ class as_Base(BaseModel):
             # A received Link may omit its id; it keeps none (OID-01-013).
             data["id"] = None
         # A received whole object carries its author's time, unless its kind
-        # is exempt.  A typed reference is no whole object, whatever class
-        # its slot reads it as (MV-10-011), and ``updated`` stays optional
-        # (CLP-15-011, CLP-15-007).
-        if not is_typed_reference_shape(data):
+        # is exempt, and ``updated`` stays optional (CLP-15-011, CLP-15-007).
+        # A typed reference is no whole object (MV-10-011): the parser reads
+        # one of a known type as ``as_TypedReference``, and this skips only
+        # one whose ``type`` the validating class does not hold, such as an
+        # unknown type a generic slot reads.
+        if not (
+            is_typed_reference_shape(data)
+            and data.get("type") != _own_type(cls)
+        ):
             refuse_absent_published(cls, data)
         return absent_times_as_none(cls, data)
 

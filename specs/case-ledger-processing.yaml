@@ -4707,7 +4707,9 @@ groups:
       refuse the message at message validation.
     rationale: >-
       An absent time harms only a decision that needs it, so that decision refuses the
-      message early and clearly. Every other consumer accepts the absence.
+      message early and clearly. A whole object's `published` is required everywhere
+      (CLP-15-011), so this rule covers the other times a sender may omit, such as an
+      embargo's `endTime`.
     verification: >-
       `test_case_needing_its_time_for_genesis_is_refused_at_parse` and
       `test_embargo_without_end_time_is_refused_at_parse` in
@@ -4775,7 +4777,10 @@ groups:
       itself; the embargo and status it carries are whole objects and carry theirs.
       An `EmbargoConsent` row is a row of the consent table, which carries no time
       because a replica copies it without reading a clock (CM-23-044), so the rule
-      does not reach it either.
+      does not reach it either. The vocabulary does not model a collection page
+      (`CollectionPage`, `OrderedCollectionPage`), since Vultron sends no paged
+      collection, so a page received with content is read as a plain object and
+      refused without `published`.
     verification: >-
       `test_a_whole_object_without_published_is_refused` and
       `test_a_nested_whole_object_without_published_is_refused` in

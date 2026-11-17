@@ -215,6 +215,27 @@ def test_a_body_that_is_not_an_actor_is_refused():
     assert "not an actor profile" in str(caught.value)
 
 
+@pytest.mark.spec("CLP-15-011")
+def test_a_profile_carrying_an_untimed_whole_object_is_refused():
+    """A profile needs no ``published``, but a whole object inside it does,
+    and the fetch reports that refusal as its own (CLP-15-011)."""
+    body = {
+        "type": "Organization",
+        "id": AUTHOR,
+        "name": "Author",
+        "embargoPolicy": {
+            "type": "EmbargoPolicy",
+            "id": f"{AUTHOR}/embargo-policy",
+            "actorId": AUTHOR,
+            "inbox": f"{AUTHOR}/inbox",
+            "preferredDuration": "P90D",
+        },
+    }
+
+    with pytest.raises(VultronActorProfileFetchError, match="CLP-15-011"):
+        _fetch(_TableFetcher(_fetched(body)))
+
+
 def test_a_body_of_no_known_type_is_refused():
     body = {"type": "NoSuchType", "id": AUTHOR}
 

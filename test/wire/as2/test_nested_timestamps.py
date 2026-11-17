@@ -517,8 +517,9 @@ def test_a_deeply_nested_whole_object_is_refused_naming_its_position():
     with pytest.raises(
         VultronParseMissingPublishedError,
         match=r"Missing 'published' at 'object\.target'.*CLP-15-011",
-    ):
+    ) as refused:
         parse_activity(invite)
+    assert str(refused.value).count("'object.target'") == 1
 
 
 @pytest.mark.spec("CLP-15-007")
@@ -698,6 +699,36 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
         VultronParseMissingPublishedError, match="case-statuses/1"
     ):
         _build_case_status_object(untimed)
+
+
+@pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize("builder", ["report", "note"])
+def test_extractor_refuses_a_whole_object_that_bypassed_the_parser(
+    builder: str,
+):
+    """No builder mints a time the parser would have refused.
+
+    An object built without validation carries no ``published``; each
+    builder names it rather than letting a stand-in time through.
+    """
+    from types import SimpleNamespace
+
+    from vultron.wire.as2.extractor._builders.objects import (
+        _build_note_object,
+        _build_report_object,
+    )
+
+    untimed = SimpleNamespace(
+        id_="https://example.org/objects/untimed-1",
+        content="x",
+        published=None,
+    )
+    build = {"report": _build_report_object, "note": _build_note_object}
+
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"untimed-1.*CLP-15-011"
+    ):
+        build[builder](untimed)
 
 
 @pytest.mark.spec("CLP-15-010")

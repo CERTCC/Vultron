@@ -164,7 +164,8 @@ def refuse_missing_claimed_time(
             others.append(f"{where or 'the activity'}: {error['msg']}")
     if not missing:
         return
-    named = [repr(where) for where in missing if where]
+    # Each union member a value failed reports the same position; name it once.
+    named = [repr(where) for where in dict.fromkeys(missing) if where]
     location = f" at {', '.join(named)}" if named else ""
     also = f"; also refused: {'; '.join(others)}" if others else ""
     raise VultronParseMissingPublishedError(

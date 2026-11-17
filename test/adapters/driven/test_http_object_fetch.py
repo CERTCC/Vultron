@@ -345,6 +345,10 @@ _BRANCHES = [
 ]
 
 
+#: A fetched object carrying only its ``id`` and ``type``.
+_TYPED_NOTE: dict[str, Any] = {"type": "Note", "id": _FETCHED_ID}
+
+
 def _set_aside_records(
     caplog: pytest.LogCaptureFixture, key: str
 ) -> list[logging.LogRecord]:
@@ -386,19 +390,25 @@ class TestAFetchedObjectsUnknownKeys:
         assert "the fetched object" in message
 
     @pytest.mark.spec("CLP-15-011")
-    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    @pytest.mark.parametrize(
+        "body",
+        [*(branch.values[0] for branch in _BRANCHES), _TYPED_NOTE],
+        ids=["core-class", "wire-class", "id-and-type-only"],
+    )
     def test_a_fetched_whole_object_without_published_is_refused(
-        self, body: dict[str, Any], branch: type
+        self, body: dict[str, Any]
     ):
         """A fetched body is received data: a whole object in it carries its
-        author's time, on a core class and on a wire class (CLP-15-011)."""
+        author's time, on a core class and on a wire class (CLP-15-011).  A
+        fetched object stands in its own slot, so one carrying only its
+        ``id`` and ``type`` is that object, not a reference to it."""
         untimed = {k: v for k, v in body.items() if k != "published"}
 
         with pytest.raises(
             VultronParseMissingPublishedError, match="CLP-15-011"
-        ):
+        ) as refused:
             parse_fetched_object(untimed, _FETCHED_ID, _HOST)
-        assert branch is not None
+        assert str(body["type"]) in str(refused.value)
 
     @pytest.mark.spec("CLP-15-011")
     def test_a_fetched_nested_object_without_published_is_refused(self):
