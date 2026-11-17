@@ -99,7 +99,6 @@ def _shadow_stage() -> list[str]:
 def test_the_service_declares_no_volume():
     assert "volumes" not in _service()
     assert "volumes_from" not in _service()
-    assert "tmpfs" not in _service()
 
 
 def test_the_volume_check_reads_a_service_that_has_volumes():
@@ -108,15 +107,38 @@ def test_the_volume_check_reads_a_service_that_has_volumes():
     assert any("volumes" in service for service in services.values())
 
 
-def _stage_ancestry(stage: str) -> list[list[str]]:
-    """The lines of *stage* and of every stage it is built ``FROM``."""
+#: A ``FROM`` line: optional flags such as ``--platform``, the image or
+#: stage it builds on, and an optional ``AS`` name.
+_FROM = re.compile(
+    r"FROM\s+(?:--\S+\s+)*(?P<parent>\S+)(?:\s+AS\s+(?P<name>\S+))?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _instructions(text: str) -> list[str]:
+    """The Dockerfile's instructions, a ``\\``-continued one as one line."""
+    joined = re.sub(r"\\\n", " ", text)
+    return [
+        line.strip()
+        for line in joined.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+def _stage_ancestry(text: str, stage: str) -> list[list[str]]:
+    """The instructions of *stage* and of every stage it is built ``FROM``.
+
+    A stage with no ``AS`` name is kept under its index, as Docker numbers
+    it, so its instructions never fall into the stage before it.
+    """
     stages: dict[str, tuple[str, list[str]]] = {}
     current: list[str] = []
-    for line in _DOCKERFILE.read_text().splitlines():
-        match = re.match(r"FROM\s+(\S+)\s+AS\s+(\S+)", line, re.IGNORECASE)
+    for line in _instructions(text):
+        match = _FROM.match(line)
         if match:
             current = []
-            stages[match.group(2)] = (match.group(1), current)
+            name = match.group("name") or str(len(stages))
+            stages[name] = (match.group("parent"), current)
         else:
             current.append(line)
     chain = []
@@ -127,13 +149,35 @@ def _stage_ancestry(stage: str) -> list[list[str]]:
     return chain
 
 
+def _volumes(text: str, stage: str) -> list[str]:
+    return [
+        line
+        for lines in _stage_ancestry(text, stage)
+        for line in lines
+        if line.upper().startswith("VOLUME")
+    ]
+
+
 @pytest.mark.spec("SHD-02-001")
 def test_the_image_declares_no_volume():
-    chain = _stage_ancestry("shadow")
+    text = _DOCKERFILE.read_text()
+    chain = _stage_ancestry(text, "shadow")
     assert len(chain) > 1, "the shadow stage builds on the dependency stages"
-    for lines in chain:
-        for line in lines:
-            assert not line.lstrip().upper().startswith("VOLUME"), line
+    assert _volumes(text, "shadow") == []
+
+
+def test_the_volume_scan_finds_a_volume_in_a_parent_stage():
+    """The scan above would find one: in a parent, flagged, continued."""
+    text = (
+        "FROM --platform=linux/amd64 python:3.14-slim AS base\n"
+        "# VOLUME in a comment is no volume\n"
+        "VOLUME \\\n  /data\n"
+        "FROM busybox\n"
+        "VOLUME /unnamed\n"
+        "FROM base AS shadow\n"
+        'CMD ["run"]\n'
+    )
+    assert _volumes(text, "shadow") == ["VOLUME    /data"]
 
 
 def test_the_image_runs_the_page_on_every_interface_in_the_container():

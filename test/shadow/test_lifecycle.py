@@ -11,7 +11,8 @@ The child drives the page with Streamlit's ``AppTest``, so it reads and
 holds the case exactly as a browser session would, without a socket.
 
 The launcher runs Streamlit inside the private directory, and a real
-``vultron-shadow`` server stopped with ``SIGTERM`` removes it.
+``vultron-shadow`` server stopped with ``SIGTERM`` removes it.  A second
+``SIGTERM`` waits while the directory is removed.
 
 Spec: SHD-01-003.
 """
@@ -20,15 +21,18 @@ from __future__ import annotations
 
 import ast
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,7 +42,7 @@ from click.testing import CliRunner
 from test.support.child_env import child_env
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.metadata.base import repo_root
-from vultron.shadow.dashboard import cli
+from vultron.shadow.dashboard import cli, lifecycle
 from vultron.shadow.dashboard.lifecycle import TEMPDIR_PREFIX, private_tempdir
 
 _SHADOW = repo_root() / "vultron" / "shadow"
@@ -49,8 +53,9 @@ _RECORDING = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
 _CASE_NAME = "Remote Code Execution in Network Stack"
 _ROWS = 3
 
-#: Seconds a child may take to start, read a case and exit.
-_CHILD_TIMEOUT = 25
+#: Seconds one test's child may take, from its start to its exit, in all.
+#: Below the 30 s unit tier, so a slow child fails here with its stderr.
+_BUDGET = 25
 
 _DRIVER = """
 import sys, tempfile, time
@@ -104,6 +109,11 @@ class _Host:
             TMPDIR=str(self.tmp),
             VULTRON_SHADOW__LEDGER_DIR=str(self.cases),
         )
+        # Settings that would move a write to a directory the scan does not
+        # read: the XDG base directories and Streamlit's own options.
+        for name in list(env):
+            if name.startswith(("XDG_", "STREAMLIT_")):
+                del env[name]
         env.pop("VULTRON_SHADOW__CONNECTOR", None)
         return env
 
@@ -157,6 +167,7 @@ def _driver(host: _Host, mode: str, case_id: str) -> list[str]:
 
 
 def _run(host: _Host, mode: str, case_id: str) -> None:
+    # On a timeout, subprocess.run kills the child and waits for it.
     result = subprocess.run(
         _driver(host, mode, case_id),
         check=False,
@@ -164,9 +175,35 @@ def _run(host: _Host, mode: str, case_id: str) -> None:
         text=True,
         cwd=host.work,
         env=host.env(),
-        timeout=_CHILD_TIMEOUT,
+        timeout=_BUDGET,
     )
     assert result.returncode == 0, result.stderr
+
+
+@contextmanager
+def _child(host: _Host, argv: list[str]) -> Iterator[subprocess.Popen[str]]:
+    """A child run in *host*, killed and waited for if it outlives the test."""
+    process = subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=host.work,
+        env=host.env(),
+    )
+    try:
+        yield process
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate()
+
+
+def _remaining(deadline: float) -> float:
+    left = deadline - time.monotonic()
+    if left <= 0:
+        pytest.fail(f"the child did not finish within {_BUDGET} s")
+    return left
 
 
 def _assert_nothing_left(host: _Host) -> None:
@@ -186,37 +223,29 @@ def test_a_read_that_fails_partway_leaves_no_copy(host):
     _assert_nothing_left(host)
 
 
-def _wait_for(path: Path, process: subprocess.Popen[str]) -> None:
-    deadline = time.monotonic() + _CHILD_TIMEOUT
-    while not path.exists():
+def _wait_for(
+    ready: Callable[[], bool],
+    process: subprocess.Popen[str],
+    deadline: float,
+) -> None:
+    while not ready():
         if process.poll() is not None:
             _, stderr = process.communicate()
             pytest.fail(f"the run ended before it was ready: {stderr}")
-        if time.monotonic() > deadline:
-            process.kill()
-            pytest.fail("the run was not ready in time")
+        _remaining(deadline)
         time.sleep(0.1)
 
 
 @pytest.mark.spec("SHD-01-003")
 def test_sigterm_while_a_case_is_held_leaves_no_copy(host):
-    process = subprocess.Popen(
-        _driver(host, "sigterm", "held.jsonl"),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=host.work,
-        env=host.env(),
-    )
-    try:
-        _wait_for(host.work / "ready", process)
+    deadline = time.monotonic() + _BUDGET
+    ready = host.work / "ready"
+    with _child(host, _driver(host, "sigterm", "held.jsonl")) as process:
+        _wait_for(ready.exists, process, deadline)
         process.send_signal(signal.SIGTERM)
-        _, stderr = process.communicate(timeout=_CHILD_TIMEOUT)
-    finally:
-        if process.poll() is None:
-            process.kill()
+        _, stderr = process.communicate(timeout=_remaining(deadline))
     assert process.returncode == 128 + signal.SIGTERM, stderr
-    (host.work / "ready").unlink()
+    ready.unlink()
     _assert_nothing_left(host)
 
 
@@ -245,32 +274,22 @@ def _healthy(url: str) -> bool:
 
 @pytest.mark.spec("SHD-01-003")
 def test_sigterm_stops_the_real_server_and_removes_its_tempdir(host):
+    """The launcher's directory goes when Streamlit's own handler stops it.
+
+    No case is read here (a session needs a browser socket); the case
+    tests above run the same directory through the same code.
+    """
+    deadline = time.monotonic() + _BUDGET
     port = _free_port()
-    process = subprocess.Popen(
-        [sys.executable, "-c", _LAUNCHER, "--port", str(port)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=host.work,
-        env=host.env(),
-    )
-    try:
-        deadline = time.monotonic() + _CHILD_TIMEOUT
-        url = f"http://127.0.0.1:{port}/_stcore/health"
-        while not _healthy(url):
-            if process.poll() is not None or time.monotonic() > deadline:
-                process.kill()
-                _, stderr = process.communicate()
-                pytest.fail(f"the server did not start: {stderr}")
-            time.sleep(0.2)
+    url = f"http://127.0.0.1:{port}/_stcore/health"
+    argv = [sys.executable, "-c", _LAUNCHER, "--port", str(port)]
+    with _child(host, argv) as process:
+        _wait_for(lambda: _healthy(url), process, deadline)
         assert len(host.leftover_tempdirs()) == 1
         process.send_signal(signal.SIGTERM)
-        _, stderr = process.communicate(timeout=_CHILD_TIMEOUT)
-    finally:
-        if process.poll() is None:
-            process.kill()
+        _, stderr = process.communicate(timeout=_remaining(deadline))
     assert process.returncode == 0, stderr
-    _assert_nothing_left(host)
+    assert host.leftover_tempdirs() == []
 
 
 @pytest.fixture
@@ -311,6 +330,44 @@ def test_sigterm_handling_is_restored_after_the_run(outer_tmp):
     with private_tempdir():
         assert signal.getsignal(signal.SIGTERM) is not before
     assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_off_the_main_thread_the_directory_is_still_removed(outer_tmp):
+    """A signal handler cannot be set off the main thread, so none is."""
+    before = signal.getsignal(signal.SIGTERM)
+    seen: list[tuple[Path, object]] = []
+
+    def run() -> None:
+        with private_tempdir() as private:
+            seen.append((private, signal.getsignal(signal.SIGTERM)))
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    thread.join(timeout=10)
+    ((private, during),) = seen
+    assert during is before
+    assert not private.exists()
+
+
+def test_sigterm_is_blocked_while_the_directory_is_removed(
+    outer_tmp, monkeypatch
+):
+    """A second SIGTERM cannot stop the removal halfway: it waits."""
+    blocked: list[bool] = []
+    real_rmtree = shutil.rmtree
+
+    def rmtree(path: Path, ignore_errors: bool = False) -> None:
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
+        blocked.append(signal.SIGTERM in mask)
+        real_rmtree(path, ignore_errors=ignore_errors)
+
+    monkeypatch.setattr(lifecycle.shutil, "rmtree", rmtree)
+    with private_tempdir() as private:
+        pass
+    assert blocked == [True]
+    assert not private.exists()
+    mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
+    assert signal.SIGTERM not in mask
 
 
 @pytest.mark.spec("SHD-01-003")

@@ -26,6 +26,7 @@ nowhere persistent to write either (SHD-02-001).
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import tempfile
 import threading
@@ -45,6 +46,11 @@ def _exit_on_sigterm(signal_number: int, frame: FrameType | None) -> None:
     raise SystemExit(128 + signal_number)
 
 
+def _on_main_thread() -> bool:
+    """Whether a signal handler can be set from here: only the main thread."""
+    return threading.current_thread() is threading.main_thread()
+
+
 @contextmanager
 def _sigterm_exits() -> Iterator[None]:
     """Stop the process on ``SIGTERM`` by unwinding it, not by killing it.
@@ -55,7 +61,7 @@ def _sigterm_exits() -> Iterator[None]:
     A handler can only be set from the main thread; elsewhere this does
     nothing.
     """
-    if threading.current_thread() is not threading.main_thread():
+    if not _on_main_thread():
         yield
         return
     previous = signal.signal(signal.SIGTERM, _exit_on_sigterm)
@@ -63,6 +69,22 @@ def _sigterm_exits() -> Iterator[None]:
         yield
     finally:
         signal.signal(signal.SIGTERM, previous)
+
+
+def _remove(path: Path) -> None:
+    """Remove *path* whole: a ``SIGTERM`` meanwhile waits until it is gone.
+
+    The signal is blocked, not dropped, so a second ``SIGTERM`` that
+    arrives during the removal is delivered once the removal is done.
+    """
+    if not _on_main_thread():
+        shutil.rmtree(path, ignore_errors=True)
+        return
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    finally:
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
 
 
 @contextmanager
@@ -77,20 +99,19 @@ def private_tempdir() -> Iterator[Path]:
     """
     saved_env = os.environ.get(_TMPDIR)
     saved_tempdir = tempfile.tempdir
-    with (
-        _sigterm_exits(),
-        tempfile.TemporaryDirectory(prefix=TEMPDIR_PREFIX) as name,
-    ):
-        os.environ[_TMPDIR] = name
-        tempfile.tempdir = name
+    with _sigterm_exits():
+        private = Path(tempfile.mkdtemp(prefix=TEMPDIR_PREFIX))
+        os.environ[_TMPDIR] = str(private)
+        tempfile.tempdir = str(private)
         try:
-            yield Path(name)
+            yield private
         finally:
             tempfile.tempdir = saved_tempdir
             if saved_env is None:
                 os.environ.pop(_TMPDIR, None)
             else:
                 os.environ[_TMPDIR] = saved_env
+            _remove(private)
 
 
 __all__ = ["TEMPDIR_PREFIX", "private_tempdir"]
