@@ -21,7 +21,9 @@ module and removed after it, so the tests do not depend on ``Refuse``.
 
 import copy
 import json
+import re
 from collections.abc import Iterator
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar, Literal
 from unittest.mock import patch
@@ -35,8 +37,15 @@ from vultron.adapters.driven.http_object_fetch import parse_fetched_object
 from vultron.adapters.driving.fastapi.helpers import obj_from_item
 from vultron.adapters.driving.fastapi.outbox_addressing import _format_object
 from vultron.adapters.driving.fastapi.outbox_delivery import _activity_type
+from vultron.core.models.attached_document import (
+    AttachedAudio,
+    AttachedDocument,
+    AttachedImage,
+    AttachedVideo,
+)
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_TYPE_MAP
+from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.errors import VultronParseUnknownTypeError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import as_TypedReference
@@ -52,11 +61,13 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note, as_Page
 from vultron.wire.as2.vocab.base.registry import (
+    AS2_SUPERTYPES,
     VOCABULARY,
     WIRE_TYPE_MAP,
     AmbiguousWireTypeError,
+    is_as2_subtype,
     narrow_type_list,
     resolve_wire_type,
     resolved_wire_type_name,
@@ -420,6 +431,244 @@ class TestInboundTypeList:
             )
             is as_TypedReference
         )
+
+
+_ONTOLOGY = (
+    Path(__file__).resolve().parents[3] / "ontology/activitystreams2.owl"
+)
+
+#: The classes the pinned ontology gives no named supertype: the roots
+#: ``Object`` and ``Link``, and ``OrderedItems``, an ``rdf:List`` shape and
+#: not an AS2 type.
+_ONTOLOGY_ROOTS = frozenset({"Object", "Link", "OrderedItems"})
+
+#: Where the pinned ontology contradicts the AS2 Vocabulary Recommendation
+#: (§ 3.3, "Extends"), the Recommendation wins: ``(subtype, pinned supertype)``
+#: maps to the Recommendation's supertype.  The pinned copy puts ``Page``
+#: under ``Object``; the Recommendation puts it under ``Document``.
+_RECOMMENDATION_OVER_PINNED_ONTOLOGY = {("Page", "Object"): "Document"}
+
+
+def _pinned_ontology_supertypes() -> dict[str, list[str]]:
+    """Each class of the pinned AS2 ontology, with the supertypes it names.
+
+    Reads every name of a ``rdfs:subClassOf`` list and the named class an
+    ``owl:intersectionOf`` restricts, the two forms the ontology uses.
+    """
+    supertypes: dict[str, list[str]] = {}
+    for block in _ONTOLOGY.read_text(encoding="utf-8").split("\n\n"):
+        match = re.match(r"as:(\w+) a owl:Class", block.strip())
+        if not match:
+            continue
+        named = [
+            name
+            for names in re.findall(
+                r"rdfs:subClassOf\s+(as:\w+(?:\s*,\s*as:\w+)*)", block
+            )
+            for name in re.findall(r"as:(\w+)", names)
+        ]
+        named += re.findall(
+            r"rdfs:subClassOf\s*\[\s*a owl:Class;\s*"
+            r"owl:intersectionOf\s*\(\s*as:(\w+)",
+            block,
+        )
+        supertypes[match.group(1)] = named
+    return supertypes
+
+
+def _as2_subclass_pairs() -> list[tuple[str, str]]:
+    """Each ``(subtype, supertype)`` of AS2: the pinned ontology's pairs, with
+    each recorded departure replaced by the Recommendation's pair."""
+    return [
+        (sub, _RECOMMENDATION_OVER_PINNED_ONTOLOGY.get((sub, sup), sup))
+        for sub, supertypes in _pinned_ontology_supertypes().items()
+        for sup in supertypes
+    ]
+
+
+@pytest.mark.spec("VM-03-006")
+class TestAs2SubtypeOutsideTheClassHierarchy:
+    """A list naming a type with its AS2 supertype resolves to the subtype even
+    when its class does not inherit the supertype's class (#6562).
+
+    The core attached-file class owns ``Document``, so ``Page``, ``Image``,
+    ``Audio`` and ``Video`` are AS2 kinds of it without being its subclasses.
+    """
+
+    @pytest.mark.parametrize(
+        ("subtype", "cls"),
+        [
+            ("Page", as_Page),
+            ("Image", AttachedImage),
+            ("Audio", AttachedAudio),
+            ("Video", AttachedVideo),
+        ],
+    )
+    @pytest.mark.parametrize("subtype_first", [True, False])
+    def test_a_document_subtype_with_document_resolves_to_the_subtype(
+        self, subtype, cls, subtype_first
+    ):
+        terms = [subtype, "Document"]
+        type_value = terms if subtype_first else terms[::-1]
+
+        assert resolve_wire_type(type_value) is cls
+        assert resolved_wire_type_name(type_value) == subtype
+
+    @pytest.mark.parametrize(
+        "type_value",
+        [
+            ["Note", "Document"],
+            # AS2 makes Article a kind of Object, not of Document.
+            ["Article", "Document"],
+            ["Image", "Video"],
+            ["Page", "Image"],
+        ],
+    )
+    def test_types_unrelated_in_as2_are_still_refused(self, type_value):
+        with pytest.raises(AmbiguousWireTypeError):
+            resolve_wire_type(type_value)
+
+    def test_an_inline_page_listed_with_document_parses_as_a_page(self):
+        body = _activity_body(
+            "Create",
+            object={
+                "type": ["Document", "Page"],
+                "id": "https://example.org/pages/1",
+                "name": "p",
+                "published": PUBLISHED,
+                "updated": PUBLISHED,
+            },
+        )
+
+        parsed = parse_activity(body)
+
+        assert isinstance(parsed, as_TransitiveActivity)
+        assert type(parsed.object_) is as_Page
+        assert parsed.object_.type_ == "Page"
+
+    def test_a_report_attachment_listed_with_document_is_its_file_class(self):
+        report = {
+            "type": "VulnerabilityReport",
+            "id": "https://example.org/reports/1",
+            "name": "r",
+            "content": "c",
+            "published": PUBLISHED,
+            "updated": PUBLISHED,
+            "attachment": [
+                {
+                    "type": ["Image", "Document"],
+                    "id": "https://example.org/images/1",
+                    "url": "https://example.org/images/1.png",
+                    "mediaType": "image/png",
+                    "published": PUBLISHED,
+                    "updated": PUBLISHED,
+                }
+            ],
+        }
+
+        parsed = parse_activity(_activity_body("Create", object=report))
+
+        assert isinstance(parsed, as_TransitiveActivity)
+        parsed_report = parsed.object_
+        assert isinstance(parsed_report, VulnerabilityReport)
+        assert parsed_report.attachment is not None
+        [attachment] = parsed_report.attachment
+        assert type(attachment) is AttachedImage
+
+    def test_a_subclass_of_a_declared_subtype_is_a_subtype_too(self) -> None:
+        with patch.dict(WIRE_TYPE_MAP), patch.dict(VOCABULARY):
+
+            class as_TestWebPage(as_Page):
+                _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+                _as2_core_supertype = as_Page
+                type_: Literal["TestWebPage"] = Field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
+                    default="TestWebPage",
+                    validation_alias="type",
+                    serialization_alias="type",
+                )
+
+            assert is_as2_subtype(as_TestWebPage, AttachedDocument)
+            assert (
+                resolve_wire_type(["Document", "TestWebPage"])
+                is as_TestWebPage
+            )
+
+    @pytest.mark.parametrize("subtype", sorted(AS2_SUPERTYPES))
+    def test_each_declared_supertype_is_needed(self, subtype):
+        """An entry names two registered types whose classes are unrelated:
+        a pair the class hierarchy already relates needs no entry."""
+        supertype = AS2_SUPERTYPES[subtype]
+        cls = WIRE_TYPE_MAP[subtype]
+        assert supertype in WIRE_TYPE_MAP
+        assert not issubclass(cls, WIRE_TYPE_MAP[supertype])
+
+    def test_the_table_has_no_cycle(self):
+        """Following declared supertypes from any entry ends: a cycle would
+        make :func:`is_as2_subtype` recurse without end."""
+        for subtype in AS2_SUPERTYPES:
+            seen = [subtype]
+            while seen[-1] in AS2_SUPERTYPES:
+                supertype = AS2_SUPERTYPES[seen[-1]]
+                assert supertype not in seen, [*seen, supertype]
+                seen.append(supertype)
+
+    def test_the_ontology_reader_finds_every_named_supertype(self):
+        """Every ontology class but the roots yields a supertype, so a pair
+        written in a form the reader does not know fails here, not silently
+        in the ratchet below."""
+        supertypes = _pinned_ontology_supertypes()
+
+        assert {
+            cls for cls, named in supertypes.items() if not named
+        } == _ONTOLOGY_ROOTS
+        assert supertypes["OrderedCollectionPage"] == [
+            "OrderedCollection",
+            "CollectionPage",
+        ]
+        assert supertypes["OrderedCollection"] == ["Collection"]
+
+    @pytest.mark.parametrize(
+        ("pinned", "recommended"),
+        sorted(_RECOMMENDATION_OVER_PINNED_ONTOLOGY.items()),
+    )
+    def test_each_recorded_ontology_departure_still_departs(
+        self, pinned, recommended
+    ):
+        """A departure stays recorded only while the pinned ontology still
+        states its pair and not the Recommendation's: a refreshed copy that
+        agrees makes the entry stale, and this fails."""
+        subtype, pinned_supertype = pinned
+        named = _pinned_ontology_supertypes()[subtype]
+
+        assert pinned_supertype in named
+        assert recommended not in named
+
+    def test_every_registered_as2_subtype_pair_resolves(self):
+        """Each AS2 subtype pair, beside its supertype, resolves to the
+        subtype when the vocabulary registers both."""
+        pairs = [
+            (sub, sup)
+            for sub, sup in _as2_subclass_pairs()
+            if sub in WIRE_TYPE_MAP and sup in WIRE_TYPE_MAP
+        ]
+        # A pair held only by the table, one only by inheritance, and the
+        # recorded departure: each must reach the check.
+        assert {
+            ("Image", "Document"),
+            ("OrderedCollection", "Collection"),
+            ("Page", "Document"),
+        } <= set(pairs), pairs
+
+        unresolved = []
+        for sub, sup in pairs:
+            try:
+                resolved = resolve_wire_type([sup, sub])
+            except KeyError:
+                resolved = None
+            if resolved is not WIRE_TYPE_MAP[sub]:
+                unresolved.append((sub, sup))
+
+        assert not unresolved, unresolved
 
 
 class TestResolverHelpers:

@@ -142,6 +142,56 @@ def find_in_vocabulary(
     raise KeyError(f"Unknown vocabulary type: {item_name!r}")
 
 
+#: The AS2 supertype of each wire ``type`` whose class does not inherit the
+#: class of that supertype, keyed and valued by wire ``type`` value.  AS2 makes
+#: ``Page``, ``Image``, ``Audio`` and ``Video`` kinds of ``Document``
+#: (Activity Vocabulary § 3.3), but the core attached-file class owns
+#: ``Document`` (CSAF-01-001, ARCH-25-003): ``as_Page`` is a wire class that
+#: cannot extend a core one, and an image is not a document a CSAF reader
+#: reads, so neither inherits ``AttachedDocument``.  The type-list resolver
+#: reads this beside the class hierarchy (VM-03-006).  ``Article`` extends
+#: ``Object``, not ``Document``, so it has no entry.
+AS2_SUPERTYPES: dict[str, str] = {
+    "Page": "Document",
+    "Image": "Document",
+    "Audio": "Document",
+    "Video": "Document",
+}
+
+
+def _declared_supertypes(cls: type) -> list[type[BaseModel]]:
+    """The registered classes *cls*'s AS2 type, or an ancestor's, extends.
+
+    Only what :data:`AS2_SUPERTYPES` declares: the Python bases are not
+    repeated here.  An ancestor counts, so a class refining ``Page`` is a
+    ``Document`` too.
+    """
+    supertypes: list[type[BaseModel]] = []
+    # A supertype missing from WIRE_TYPE_MAP is skipped, not raised: a
+    # KeyError here would read as an unknown type and refuse the message.
+    # test_each_declared_supertype_is_needed holds every entry registered,
+    # and test_the_table_has_no_cycle holds the recursion finite.
+    for base in cls.__mro__:
+        supertype = AS2_SUPERTYPES.get(declared_type_value(base) or "")
+        if supertype is not None and supertype in WIRE_TYPE_MAP:
+            supertypes.append(WIRE_TYPE_MAP[supertype])
+    return supertypes
+
+
+def is_as2_subtype(cls: type, other: type) -> bool:
+    """Return whether *cls* is *other* or an AS2 subtype of it.
+
+    A subclass is one, and so is a class whose type :data:`AS2_SUPERTYPES`
+    declares a subtype of a class that is one.
+    """
+    if issubclass(cls, other):
+        return True
+    return any(
+        is_as2_subtype(supertype, other)
+        for supertype in _declared_supertypes(cls)
+    )
+
+
 class AmbiguousWireTypeError(KeyError):
     """A received ``type`` list names known types none of which is the most specific.
 
@@ -157,15 +207,15 @@ def _resolve_type_term(
     """Return the term of *type_value* that names its most specific known class.
 
     The one rule for a received ``type`` (ADR-0196): a string is looked up as it
-    is; a list is narrowed to the known class that is a subclass of every other
-    known class it names, in any order, and a term the vocabulary does not know
-    is ignored, as AS2 expects of a receiver that meets an extension type.
-    Anything else names no type.
+    is; a list is narrowed to the known class that is an AS2 subtype of every
+    other known class it names (:func:`is_as2_subtype`), in any order, and a
+    term the vocabulary does not know is ignored, as AS2 expects of a receiver
+    that meets an extension type.  Anything else names no type.
 
     Raises:
         KeyError: When *type_value* names no known type.
         AmbiguousWireTypeError: When it names two known classes and neither is
-            a subclass of the other.
+            an AS2 subtype of the other.
     """
     if isinstance(type_value, str):
         return type_value, find_in_vocabulary(
@@ -185,7 +235,7 @@ def _resolve_type_term(
     if not known:
         raise KeyError(f"Unknown vocabulary type: {type_value!r}")
     for cls, term in known.items():
-        if all(issubclass(cls, other) for other in known):
+        if all(is_as2_subtype(cls, other) for other in known):
             return term, cls
     raise AmbiguousWireTypeError(
         f"Type list {type_value!r} names the known types"
@@ -209,7 +259,7 @@ def resolve_wire_type(
         KeyError: When *type_value* is not a string or a list, or names no
             known type.
         AmbiguousWireTypeError: When a list names two known classes and
-            neither is a subclass of the other.
+            neither is an AS2 subtype of the other.
     """
     return _resolve_type_term(type_value, include_core=include_core)[1]
 
