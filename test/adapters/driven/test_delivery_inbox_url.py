@@ -41,6 +41,7 @@ from vultron.adapters.driven.http_delivery import (
     HttpDeliveryAdapter,
     inbox_url_for,
 )
+from vultron.adapters.driving.fastapi import inbox_handler
 from vultron.adapters.driving.fastapi.outbox_addressing import held_inboxes
 from vultron.adapters.driving.fastapi.outbox_handler import (
     drain as outbox_drain,
@@ -122,10 +123,13 @@ def inbox_client(
     """A client on the actors router whose outbox sends nothing over HTTP.
 
     No dispatcher is installed, so every inbox post raises and is answered
-    with a fault to its sender (ASK-07-010).  Both emitter paths record it
-    instead of delivering it (notes/testing-pitfalls.md § "Patch Both Outbox
-    Emitter Paths").
+    with a fault to its sender (ASK-07-010).  The module-level dispatcher is
+    cleared too, so one an earlier app's startup left installed cannot refuse
+    the post instead (#5874).  Both emitter paths record the fault instead of
+    delivering it (notes/testing-pitfalls.md § "Patch Both Outbox Emitter
+    Paths").
     """
+    monkeypatch.setattr(inbox_handler._DISPATCHER_SLOT, "value", None)
     monkeypatch.setattr(
         outbox_drain._DEFAULT_EMITTER_SLOT, "value", recording_emitter
     )
