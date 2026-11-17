@@ -118,7 +118,8 @@ declares its AS2 supertype explicitly; its Python base does not decide it, becau
 a core class never extends a wire class. One declaration feeds three readers,
 all built for a wire class (§ 5a; `as_Refuse` is the first user). A core class
 such as `EmbargoEvent` cannot declare one yet: `_as2_core_supertype` must be an
-ancestor, because the resolver's "most specific" test is `issubclass` (#5155):
+ancestor (#5155). The inbound resolver alone also reads `AS2_SUPERTYPES` (§ 5a);
+the serializer and the context still need the ancestor (#6480):
 
 - the serializer writes `"type": ["X", "T"]`, because AS2 Core § Extensibility
   asks an extension type that overlaps a core type to carry the core type too;
@@ -229,7 +230,9 @@ cannot inherit its AS2 supertype's class, declare the pair by wire `type` value 
 `AS2_SUPERTYPES` in `registry.py`: the core attached-file class owns `Document`,
 so `Page`, `Image`, `Audio` and `Video` are its AS2 subtypes but not its
 subclasses (#6562). Read the AS2 Vocabulary Recommendation's "Extends", not the
-pinned `ontology/activitystreams2.owl`, which puts `Page` under `Object`.
+pinned `ontology/activitystreams2.owl`, which puts `Page` under `Object`; the
+ontology ratchet in `test_type_list.py` names each such departure and fails
+once the pinned copy stops making it.
 `Article` extends `Object`, so `["Article", "Document"]` stays ambiguous.
 
 A class that validates a list naming its own declared type reads the list as that

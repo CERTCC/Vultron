@@ -167,6 +167,10 @@ def _declared_supertypes(cls: type) -> list[type[BaseModel]]:
     ``Document`` too.
     """
     supertypes: list[type[BaseModel]] = []
+    # A supertype missing from WIRE_TYPE_MAP is skipped, not raised: a
+    # KeyError here would read as an unknown type and refuse the message.
+    # test_each_declared_supertype_is_needed holds every entry registered,
+    # and test_the_table_has_no_cycle holds the recursion finite.
     for base in cls.__mro__:
         supertype = AS2_SUPERTYPES.get(declared_type_value(base) or "")
         if supertype is not None and supertype in WIRE_TYPE_MAP:
