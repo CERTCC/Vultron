@@ -273,6 +273,36 @@ def _dispose_actor_stores_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _no_app_config_hold_outlives_its_test() -> Iterator[None]:
+    """Fail a test that leaves an app holding its own config running.
+
+    While an app made by ``create_app(config=...)`` runs, ``get_config()`` in
+    no app scope raises ``VultronWiringError`` for the whole process
+    (ADR-0206).  A ``TestClient`` the test never exits would keep that
+    refusal on for every later test on the worker, failing them far from the
+    cause.  So every hold started during the test and still running is
+    released, and this test fails instead.  Holds running before the test
+    are left alone, so a module-scoped app a test declares (pytest sets it up
+    before this fixture) is not mistaken for a leak.  One the test first
+    starts itself, through ``request.getfixturevalue``, is reported as this
+    test's; releasing it is harmless when its fixture later exits it.
+    """
+    from test.support.app_configs import (
+        held_app_configs,
+        release_leaked_app_config_holds,
+    )
+
+    before = held_app_configs()
+    yield
+    leaked = release_leaked_app_config_holds(before)
+    if leaked:
+        pytest.fail(
+            f"{leaked} app(s) holding their own AppConfig were left running "
+            "(a TestClient never exited); see ADR-0206"
+        )
+
+
+@pytest.fixture(autouse=True)
 def _reset_pending_assertion_stores_between_tests():
     """Drop every per-actor pending-assertion store after each test.
 

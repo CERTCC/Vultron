@@ -65,9 +65,11 @@ from vultron.config.app import (
     RunMode,
     ServerConfig,
     YamlConfigSource,
+    app_config_scope,
     clear_config_cache,
     config_override,
     get_config,
+    holding_app_config,
     load_actor_config,
     reload_config,
 )
@@ -85,9 +87,11 @@ __all__ = [
     "ShadowConfig",
     "VinceConfig",
     "YamlConfigSource",
+    "app_config_scope",
     "clear_config_cache",
     "config_override",
     "get_config",
+    "holding_app_config",
     "load_actor_config",
     "reload_config",
 ]

@@ -158,3 +158,13 @@ stack and imports neither core nor config.
   node that reads its own config for a fact about another actor then fails in
   the suite as it does in Docker, as the CaseActor's read of its own
   `default_case_roles` for a proposer did only in Docker (#1876, ADR-0133).
+- **An app's config is a context scope, so work it starts off-request must
+  carry it.** `create_app(config=...)` enters `app_config_scope()` for each
+  request and for the lifespan; an `asyncio` task inherits it, but a thread
+  does not, so start one with `contextvars.copy_context().run`. While such an
+  app runs, `get_config()` in no scope raises `VultronWiringError`, never the
+  process-wide config (ADR-0206). `reload_config()` and `config_override()` act
+  on the process-wide config only.
+- **Build an app's own config with `AppConfig().model_copy(update=...)`.**
+  `AppConfig(...)` keyword arguments are not a settings source and are dropped
+  without error (`settings_customise_sources`).
