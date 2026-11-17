@@ -7,7 +7,7 @@ Sends the Full-Case Invite, which asks the Participant to judge the case. It car
 === "Details"
 
     - **When…** the CASE_MANAGER has replayed the case ledger to a newly joined Participant
-    - **Send:** `Invite(Actor)[target=VulnerabilityCase]`
+    - **Send:** `Invite(whole VulnerabilityCase)[target=Actor]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)

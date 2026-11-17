@@ -720,7 +720,7 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
 
 
 def _invite_naming_a_peer():
-    """An ``Invite(Actor)[target=VulnerabilityCaseStub]`` as the Case Actor builds it
+    """An ``Invite(VulnerabilityCase preview)[target=Actor]`` as the Case Actor builds it
     for a peer.
 
     Built through the factory, not the internal vocab class, per the

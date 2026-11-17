@@ -78,7 +78,7 @@ class CaseTimelineEvent(BaseModel):
         activity_target_ref: Full id of the ActivityStreams destination/target
             object — the case or participant that is the *destination* of an
             Offer/Invite (e.g. the case in
-            ``Accept(Invite(Actor)[target=VulnerabilityCase])``).
+            ``Accept(Invite(whole VulnerabilityCase)[target=Actor])``).
         activity_target_type: Wire type of the destination/target object.
         received_at: Server-generated receipt timestamp (``receivedAt``).
         rm_state / em_state / vf_state / d_state / pxa_state: Resulting

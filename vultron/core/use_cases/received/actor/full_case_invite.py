@@ -1,7 +1,7 @@
 """Use cases for the full-case Invite and its three replies (ADR-0121).
 
 After a participant joins, the CASE_MANAGER asks it to judge the case with
-``Invite(Actor)[target=VulnerabilityCase]`` (CM-11-010).  The participant
+``Invite(whole VulnerabilityCase)[target=Actor]`` (CM-11-010).  The participant
 answers ``Accept`` (RV), ``TentativeReject`` (RI) or ``Reject`` (RC), each
 carrying its own ledger position (CM-11-034); the CASE_MANAGER refuses a
 reply whose position is behind the Invite's floor, or names an entry its
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 
 class InviteActorToFullCaseReceivedUseCase:
-    """The invitee receives the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
+    """The invitee receives the full-case ``Invite(whole VulnerabilityCase)[target=Actor]``.
 
     Intake records the Invite so the invitee can answer it; the ledger
     position it carries is the floor the reply must reach (CM-11-031).  The

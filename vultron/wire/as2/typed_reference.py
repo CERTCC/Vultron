@@ -250,15 +250,13 @@ class as_TypedReference(as_Object):
     preview: as_VulnerabilityCaseStub | None = None  # type: ignore[assignment]
 
     @model_validator(mode="after")
-    def _preview_names_this_case(self) -> as_TypedReference:
-        """Refuse a preview its type does not define, or one naming another
-        case (MV-10-012).
+    def _preview_is_its_types(self) -> as_TypedReference:
+        """Refuse a preview its type does not define (MV-10-012).
 
         The parser refuses an undefined preview before this runs, but a
         stored row is read without the parser, so the class holds the rule
-        itself.  A stub names its case in ``caseId`` (CM-11-013), so a
-        preview whose ``caseId`` is not the reference's ``id`` previews a
-        different case.
+        itself.  The preview names no object of its own: the reference's
+        ``id`` is the object it previews (ADR-0205).
         """
         if self.preview is None:
             return self
@@ -269,13 +267,6 @@ class as_TypedReference(as_Object):
             raise ValueError(
                 f"a {self.type_} reference's preview is not that type's"
                 " defined preview (MV-10-012, ADR-0205)"
-            )
-        if self.preview.case_id != self.id_:
-            # Pydantic reports a ValueError raised here as a validation error.
-            raise ValueError(
-                f"the preview of case reference {self.id_!r} names case"
-                f" {self.preview.case_id!r}; a case's preview names the case"
-                " it previews (MV-10-012, ADR-0205)"
             )
         return self
 

@@ -867,7 +867,7 @@ class TestInviteActorUseCases:
     ):
         """RejectInviteActorToCaseReceivedUseCase commits a CaseLedgerEntry (AC-3).
 
-        Reject(Invite(Actor)[target=VulnerabilityCaseStub]) carries the case reference
+        Reject(Invite(VulnerabilityCase preview)[target=Actor]) carries the case reference
         in the nested
         Invite's ``target`` field (``inner_target_id``), not the top-level
         ``target`` of the Reject.  CM-11-003: use ``request.case_id`` which

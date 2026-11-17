@@ -8,7 +8,10 @@ minimal :class:`~vultron.core.models.base.CoreObject`.
 from datetime import datetime
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case_stub import CaseStubReference
+from vultron.core.models.case_preview import (
+    CasePreview,
+    PreviewedCaseReference,
+)
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.embargo_register import (
     termination_reason_from_content,
@@ -16,6 +19,8 @@ from vultron.core.states.embargo_register import (
 from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
+from vultron.wire.as2.typed_reference import is_previewed_reference
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
@@ -99,19 +104,21 @@ def termination_of(activity: as_Activity) -> EmbargoTermination:
 def _to_domain_obj(as_obj: object) -> CoreObject | None:
     """Wrap a bare AS2 object reference as a minimal CoreObject.
 
-    A case stub is promoted to a :class:`CaseStubReference` instead, so the
-    case it names reaches core in a field of its own and no consumer reads the
-    case from the stub's ID (CM-11-003, CM-11-013).
+    A typed reference carrying the case's preview is promoted to a
+    :class:`PreviewedCaseReference` instead, so the preview's content reaches
+    core with the case the reference names (ADR-0205).
     """
     if as_obj is None:
         return None
-    if isinstance(as_obj, as_VulnerabilityCaseStub):
-        return CaseStubReference(
+    if is_previewed_reference(as_obj) and isinstance(
+        as_obj.preview, as_VulnerabilityCaseStub
+    ):
+        return PreviewedCaseReference(
             id_=as_obj.id_,
             type_=str(as_obj.type_),
-            case_id=as_obj.case_id,
-            published=as_obj.published,
-            updated=as_obj.updated,
+            published=None,
+            updated=None,
+            preview=_case_preview(as_obj.preview),
         )
     obj_id = _get_id(as_obj)
     if not obj_id:
@@ -122,6 +129,37 @@ def _to_domain_obj(as_obj: object) -> CoreObject | None:
         type_=obj_type,
         published=_get_timestamp(as_obj, "published"),
         updated=_get_timestamp(as_obj, "updated"),
+    )
+
+
+def _case_preview(stub: as_VulnerabilityCaseStub) -> CasePreview:
+    """The core form of the case stub a previewed case reference carries.
+
+    The preview's embargo terms and EM state come through as received
+    (CM-17-002, CM-17-013); an embargo named by ``Link`` is named by its
+    ``href``.
+
+    Raises:
+        VultronParseValidationError: When the stub carries no ``summary``,
+            which a received stub must (MV-10-001).
+    """
+    if stub.summary is None:
+        raise VultronParseValidationError(
+            f"case preview {stub.id_!r} carries no 'summary' (MV-10-001)"
+        )
+    embargo = stub.active_embargo
+    status = stub.case_status
+    em = getattr(status, "em", None)
+    return CasePreview(
+        id_=stub.id_,
+        type_=str(stub.type_),
+        published=stub.published,
+        updated=stub.updated,
+        summary=stub.summary,
+        active_embargo=embargo.href
+        if isinstance(embargo, as_Link)
+        else embargo,
+        em_state=getattr(em, "state", None),
     )
 
 

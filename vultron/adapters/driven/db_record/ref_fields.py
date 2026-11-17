@@ -27,7 +27,6 @@ from pydantic import BaseModel
 from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
-from vultron.enums.object_types import VultronObjectType
 from vultron.semantic_registry import (
     find_matching_semantics,
     semantics_to_activity_class,
@@ -135,15 +134,13 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 #    notes/datalayer-design.md § "Received Activity Artifacts: Inline
 #    Sub-Field Snapshots Are Intentional".
 #
-# ``VulnerabilityCaseStub`` is kept inline for reason 1 alone, and more
-# strictly: a stub never has a record of its own (an invitee holds no case,
-# and the CASE_MANAGER holds the case the stub stands for), and the stub
-# Invite is recognised by its target's ``type`` (CM-11-013), so a target
-# collapsed to the stub's ID would read back as an unrecognisable Invite.
+# A case's preview, the stub (ADR-0205), needs no entry: it travels only
+# inside the typed reference that carries it, which dehydration keeps whole
+# (``is_previewed_reference``).
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
-    | {"CaseLedgerEntry", VultronObjectType.VULNERABILITY_CASE_STUB.value}
+    | {"CaseLedgerEntry"}
 )
 
 

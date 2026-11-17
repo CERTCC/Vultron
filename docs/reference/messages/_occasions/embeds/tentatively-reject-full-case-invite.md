@@ -5,7 +5,7 @@
     Tentatively rejects the Full-Case Invite, which records RM Invalid. It carries the sender's own ledger position.
 
     - **When…** a Participant asked by a Full-Case Invite judges the case invalid
-    - **Send:** `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send:** `TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Reference:** [Tentatively reject Full-Case Invite](../../case_management.md#tentatively-reject-full-case-invite)

@@ -5,7 +5,7 @@
     Sends the Full-Case Invite, which asks the Participant to judge the case. It carries the CASE_MANAGER's ledger position as the floor the reply must reach.
 
     - **When…** the CASE_MANAGER has replayed the case ledger to a newly joined Participant
-    - **Send:** `Invite(Actor)[target=VulnerabilityCase]`
+    - **Send:** `Invite(whole VulnerabilityCase)[target=Actor]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Reference:** [Send Full-Case Invite](../../case_management.md#invite-actor-to-full-case)

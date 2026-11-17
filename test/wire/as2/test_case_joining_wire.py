@@ -68,7 +68,7 @@ def _stub_invite() -> as_Invite:
 
 
 def _full_case_invite() -> as_Invite:
-    """``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite."""
+    """``Invite(whole VulnerabilityCase)[target=Actor]`` — the full-case Invite."""
     return make(
         as_Invite,
         id_=f"{_CASE_ID}/invitations/full-1",
@@ -120,7 +120,7 @@ def test_stub_invite_target_has_its_own_type_and_id() -> None:
 
 @pytest.mark.spec("CM-11-011")
 def test_full_case_invite_replies_have_their_own_semantics() -> None:
-    """RV, RI and RC replies to ``Invite(Actor)[target=VulnerabilityCase]`` route apart.
+    """RV, RI and RC replies to ``Invite(whole VulnerabilityCase)[target=Actor]`` route apart.
 
     The CASE_MANAGER records the three full-case replies as three different
     RM transitions (``R → V``, ``R → I``, ``R → C``), so the receiver must
@@ -155,7 +155,7 @@ def test_full_case_invite_and_stub_invite_match_different_patterns() -> None:
 
 @pytest.mark.spec("VAM-04-012")
 def test_full_case_invite_accept_is_not_the_stub_accept() -> None:
-    """``Accept(Invite(Actor)[target=VulnerabilityCase])`` is RV, not joining."""
+    """``Accept(Invite(whole VulnerabilityCase)[target=Actor])`` is RV, not joining."""
     full = _semantics_of("accept", _full_case_invite())
 
     assert full not in _UNKNOWN
@@ -174,7 +174,7 @@ def test_full_case_invite_tentative_reject_is_ri_and_stub_has_none() -> None:
 
 @pytest.mark.spec("VAM-04-014")
 def test_full_case_invite_reject_is_not_the_stub_reject() -> None:
-    """``Reject(Invite(Actor)[target=VulnerabilityCase])`` is RC on the case."""
+    """``Reject(Invite(whole VulnerabilityCase)[target=Actor])`` is RC on the case."""
     full = _semantics_of("reject", _full_case_invite())
 
     assert full not in _UNKNOWN
@@ -183,7 +183,7 @@ def test_full_case_invite_reject_is_not_the_stub_reject() -> None:
 
 @pytest.mark.spec("VAM-04-006")
 def test_reject_of_stub_invite_is_reject_invite_actor_to_case() -> None:
-    """``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` is the stub Reject.
+    """``Reject(Invite(VulnerabilityCase preview)[target=Actor])`` is the stub Reject.
 
     Passing marker: the stub Invite's target is already the stub object, and
     its ``Reject`` already classifies as ``REJECT_INVITE_ACTOR_TO_CASE``.

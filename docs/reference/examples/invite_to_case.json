@@ -6,7 +6,7 @@
   ],
   "type": "Invite",
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
-  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
+  "name": "https://vultron.example/organizations/vendorco Invite urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to Coordinator LLC",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -14,12 +14,6 @@
   "to": "https://vultron.example/organizations/coordinator",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": {
-    "type": "VulnerabilityCaseStub",
-    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
-    "summary": "A memory-corruption vulnerability in widget — details shared after acceptance.",
-    "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
-  },
-  "object": {
     "type": "Organization",
     "id": "https://vultron.example/organizations/coordinator",
     "name": "Coordinator LLC",
@@ -36,6 +30,15 @@
       "items": []
     }
   },
+  "object": {
+    "type": "VulnerabilityCase",
+    "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+    "preview": {
+      "type": "VulnerabilityCaseStub",
+      "id": "urn:uuid:9e0065c7-3f7e-44ef-ac6b-fcaf9a079572",
+      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
+    }
+  },
   "proof": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
@@ -47,6 +50,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z45XcTrwfpRP7xzMxMdRU63bzxRDet5AmFLg4F2JKpcgb21tsi2d5LiMvVxziiKALsQcuGwaExzeZL9ZQh8xgzfAi"
+    "proofValue": "z5FSrSDurJMrUjFNoyJeU3tiZZQbCWxqMmPPx2Ui192qFBHuigCKJ3XZdSn2mV92yDnfNLE7KYdiSJ6VExzHBMzeV"
   }
 }

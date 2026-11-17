@@ -25,13 +25,12 @@ the slots an act may put it in:
   a malformed case: a ``Create(VulnerabilityCase)`` that carried one would
   reach core naming a case with no owner and no position.
 - A ``VulnerabilityCaseStub`` is what an invitee decides on before it may see
-  the case (ADR-0114), so its one slot is the ``target`` of the ``Invite``
-  whose ``object`` is the inline actor it invites to the case, at any depth:
-  the ``Accept`` and ``Reject`` of that ``Invite`` carry it inline
-  (MV-10-002).  It is also the case's preview (ADR-0205), so its other slot
-  is the ``preview`` of a typed case reference that is an ``Invite``'s
-  ``object``, at any depth.  A previewed case reference anywhere else
-  carries a misplaced stub.
+  the case (ADR-0114).  It is the case's preview (ADR-0205), so its one slot
+  is the ``preview`` of the typed case reference that is the stub
+  ``Invite``'s ``object``, at any depth: the ``Accept`` and ``Reject`` of
+  that ``Invite`` carry it inline (MV-10-002).  A stub anywhere else, and a
+  previewed case reference anywhere but an ``Invite``'s ``object``, is a
+  misplaced stub.
 
 The parser refuses either form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
@@ -44,7 +43,6 @@ from collections.abc import Callable, Iterator
 
 from pydantic import BaseModel
 
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.typed_reference import (
@@ -52,7 +50,6 @@ from vultron.wire.as2.typed_reference import (
     is_previewed_reference,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -108,25 +105,6 @@ def _names_case_by_reference(
     )
 
 
-def _is_case_invitation_target(parent: BaseModel, field_name: str) -> bool:
-    """The ``target`` of an ``Invite`` of an actor (MV-10-002).
-
-    The invitee is the ``Invite``'s ``object``, an inline actor: its profile,
-    or an actor reference carrying exactly its ``id`` and ``type``
-    (AKM-05-017).  An ``Invite`` whose object is anything else is no case
-    invitation.  That includes an embargo invitation's ``EmbargoEvent``, and
-    a bare URI or ``Link``, which may name the terms of an embargo
-    invitation (ADR-0123): rehydration can resolve it to an ``EmbargoEvent``
-    after this check has run, so it never makes a stub's place (#5895).
-    """
-    if field_name != "target" or not isinstance(parent, as_Activity):
-        return False
-    if str(parent.type_) != "Invite":
-        return False
-    invitee = getattr(parent, "object_", None)
-    return isinstance(invitee, as_Actor | CoreActor)
-
-
 def _is_invited_case_preview(parent: BaseModel, field_name: str) -> bool:
     """The ``object`` of an ``Invite``, where a case reference carries the
     case's preview (ADR-0205)."""
@@ -140,10 +118,10 @@ def _is_invited_case_preview(parent: BaseModel, field_name: str) -> bool:
 def _admits_case_stub(
     parent: BaseModel, field_name: str, child: object
 ) -> bool:
-    """A stub in a case invitation's ``target``, or carried as the preview of
-    a case reference an ``Invite`` names in its ``object`` (MV-10-002)."""
-    if isinstance(child, as_VulnerabilityCaseStub):
-        return _is_case_invitation_target(parent, field_name)
+    """A stub carried as the preview of a case reference an ``Invite`` names
+    in its ``object`` (MV-10-002).  A stub met anywhere else is misplaced:
+    the walk does not enter an admitted reference, so it meets a stub only
+    outside one."""
     return is_previewed_reference(child) and _is_invited_case_preview(
         parent, field_name
     )
@@ -174,7 +152,7 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
 
 
 def refuse_misplaced_case_stub(activity: as_Activity) -> None:
-    """Refuse *activity* when a case stub sits outside a case invitation.
+    """Refuse *activity* when a case stub sits outside a stub Invite's object.
 
     Raises:
         VultronParseValidationError: Naming the activity and each slot.
@@ -191,10 +169,9 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
         raise VultronParseValidationError(
             f"activity {activity.id_!r}: a VulnerabilityCaseStub at"
             f" {', '.join(misplaced)}; a case stub is permitted only as the"
-            " target of an Invite whose object is the inline actor it invites"
-            " to the case, or as the preview of a case reference that is an"
-            " Invite's object, wherever that Invite is carried inline;"
-            " anywhere else name the case by its URI (MV-10-002)"
+            " preview of a case reference that is an Invite's object,"
+            " wherever that Invite is carried inline; anywhere else name the"
+            " case by its URI (MV-10-002)"
         )
 
 

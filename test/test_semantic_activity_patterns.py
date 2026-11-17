@@ -447,7 +447,7 @@ def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
 @pytest.mark.spec("SE-01-004")
 @pytest.mark.spec("VAM-04-004")
 def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
-    """InviteActorToCasePattern matches Invite(Actor)[target=VulnerabilityCaseStub].
+    """InviteActorToCasePattern matches Invite(VulnerabilityCase preview)[target=Actor].
 
     It matches for every actor subtype.
 
@@ -484,7 +484,7 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
 def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     """AcceptInviteActorToCasePattern matches the Accept of a stub Invite, any subtype.
 
-    The Accept is ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``.
+    The Accept is ``Accept(Invite(VulnerabilityCase preview)[target=Actor])``.
 
     The nested-pattern check propagates actor subtype-awareness through the
     AcceptInviteActorToCasePattern → InviteActorToCasePattern chain.

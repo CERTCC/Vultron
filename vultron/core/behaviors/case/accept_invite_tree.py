@@ -15,7 +15,7 @@
 
 """BT nodes and factory for AcceptInviteActorToCase received use-case.
 
-When the CASE_MANAGER receives ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``,
+When the CASE_MANAGER receives ``Accept(Invite(VulnerabilityCase preview)[target=Actor])``,
 it runs this
 tree as itself to record the invitee's participation in its own DataLayer —
 without spoofing the invitee's identity (PCR-08-010, PCR-08-009).
@@ -161,7 +161,7 @@ def create_accept_invite_actor_to_case_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Return the BT for handling an inbound ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``.
+    """Return the BT for handling an inbound ``Accept(Invite(VulnerabilityCase preview)[target=Actor])``.
 
     The CASE_MANAGER runs this tree **as itself** (not as the invitee) to
     record the invitee's participation in its own DataLayer (PCR-08-009,
