@@ -136,16 +136,14 @@ _obj = make(CoreObject, id_="https://example.org/objects/o1")
 
 #: The stub Invite's object as core receives it: the case's reference
 #: carrying its preview (ADR-0205).
-_previewed = PreviewedCaseReference(
+_previewed = make(
+    PreviewedCaseReference,
     id_=_CASE_URI,
     type_="VulnerabilityCase",
-    published=None,
-    updated=None,
-    preview=CasePreview(
+    preview=make(
+        CasePreview,
         id_="urn:uuid:case-preview",
         type_="VulnerabilityCaseStub",
-        published=None,
-        updated=None,
         summary="A case to join",
     ),
 )

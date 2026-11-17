@@ -108,7 +108,9 @@ def _joined(name: str) -> tuple[LedgerNetwork, as_Invite]:
         for a in net.queued(MANAGER, to=JOINER, type_="Invite")
         if (read_sealed_body_dict(dl, a.id_) or {}).get("ledgerPosition")
         is not None
-        and (read_sealed_body_dict(dl, a.id_) or {}).get("target")
+        and ((read_sealed_body_dict(dl, a.id_) or {}).get("object") or {}).get(
+            "id"
+        )
         == net.case_id
     ]
     assert len(invites) == 1, invites
