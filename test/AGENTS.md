@@ -99,7 +99,10 @@ isolation" and § "Reentrancy Guard".
 An `actor_id` *is* a store name and a BT's store follows its executing actor —
 both hazards, plus the `@pytest.mark.executes_as` fix for the second:
 [datalayer-design](../notes/datalayer-design.md) § "One Actor Id Is One
-Database".
+Database". In-memory stores built for the same `actor_id` share one engine, so
+a test or harness needs `fresh_memory_url()` for a store that starts empty:
+[testing-pitfalls](../notes/testing-pitfalls.md) § "In-Memory Stores Built for
+One `actor_id` Share One Engine".
 
 CI failures: [demo-ci-diagnostics](../notes/demo-ci-diagnostics.md). The
 invariant harness is a separate job from the demo run, read separately:
