@@ -20,6 +20,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
+    class_named_by,
     is_case_reference,
     is_of_kind,
     is_previewed_reference,
@@ -31,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.base.registry import resolve_wire_type
 
 
 class ObjectForm(StrEnum):
@@ -272,18 +272,6 @@ class LedgerPositionReadPattern(ActivityPattern):
         return super().match(activity)
 
 
-def _class_named_by(type_value: object) -> type | None:
-    """The class a generic object's ``type`` names, core classes included.
-
-    A stored record rehydrated into a plain slot keeps its own ``type``,
-    which may name a core class (``CoreActor``) rather than a wire one.
-    """
-    try:
-        return resolve_wire_type(type_value, include_core=True)
-    except KeyError:
-        return None
-
-
 def _match_activity_field(
     pattern_field: AOtype | VOtype | ActivityPattern | None,
     activity_field: object,
@@ -317,7 +305,7 @@ def _match_activity_field(
     if isinstance(activity_field, as_TypedReference):
         kind = referenced_class(activity_field)
     elif type(activity_field) is as_Object:
-        kind = _class_named_by(activity_field.type_)
+        kind = class_named_by(activity_field.type_)
     else:
         kind = type(activity_field)
     if (

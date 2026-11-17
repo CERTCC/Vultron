@@ -1845,18 +1845,41 @@ def test_an_actor_target_held_as_a_generic_object_routes_as_an_actor() -> None:
     generic = as_Object.model_construct(
         id_=str(invite.target), type_="Organization"
     )
-    # A stored record rehydrated into the slot keeps a core type name.
-    stored = as_Object.model_construct(
-        id_=str(invite.target), type_="CoreActor"
+    assert InviteToEmbargoOnCasePattern.match(
+        invite.model_copy(update={"target": generic})
     )
-    not_an_actor = as_Object.model_construct(
-        id_=str(invite.target), type_="Note"
-    )
-
-    for target in (generic, stored):
-        assert InviteToEmbargoOnCasePattern.match(
-            invite.model_copy(update={"target": target})
+    # A core class name is not an AS2 type, so a received one names no
+    # actor (VM-06-013); nor does a non-actor type or an unknown one.
+    for type_ in ("CoreActor", "VultronPerson", "Note", "NoSuchType"):
+        not_an_actor = as_Object.model_construct(
+            id_=str(invite.target), type_=type_
         )
-    assert not InviteToEmbargoOnCasePattern.match(
-        invite.model_copy(update={"target": not_an_actor})
-    )
+        assert not InviteToEmbargoOnCasePattern.match(
+            invite.model_copy(update={"target": not_an_actor})
+        ), type_
+
+
+@pytest.mark.spec("VM-06-013")
+@pytest.mark.parametrize("type_", ["CoreActor", "VultronPerson"])
+def test_a_received_core_class_name_in_target_routes_as_no_actor(
+    type_: str,
+) -> None:
+    """A received ``target`` typed with a core class name is not an actor.
+
+    ``CoreActor`` and ``VultronPerson`` name core classes, not AS2 types, so
+    the parse keeps the target a generic object and the wire-only matcher
+    finds no actor in it: the embargo Invite does not route (VM-06-013).
+    The same body with an AS2 actor type routes.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = examples.relay_embargo_proposal()
+    body = invite.model_dump(by_alias=True, mode="json", exclude_none=True)
+    invitee = body["target"]
+
+    def routed(target_type: str) -> MessageSemantics:
+        received = {**body, "target": {"id": invitee, "type": target_type}}
+        return find_matching_semantics(parse_activity(received))
+
+    assert routed("Organization") == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    assert routed(type_) == MessageSemantics.UNKNOWN

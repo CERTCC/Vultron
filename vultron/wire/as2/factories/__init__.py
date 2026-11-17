@@ -23,6 +23,7 @@ See ``specs/activity-factories.yaml`` AF-01-001, AF-02-001 through
 AF-02-003 and AF-04-002.
 """
 
+from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._held import embedded_as_received
 from vultron.wire.as2.factories._ledger_position import (
     ledger_position_case_ids,
@@ -124,6 +125,7 @@ __all__ = [
     "refusal_notice_activity",
     # actor
     "accept_actor_recommendation_activity",
+    "carried_actor",
     "accept_case_participant_offer_activity",
     "offer_case_participant_activity",
     "recommend_actor_activity",

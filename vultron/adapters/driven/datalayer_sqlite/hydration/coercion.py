@@ -37,6 +37,7 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.adapters.driven.db_record.ref_fields import _AS_LIST_REF_FIELDS
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.protocols import PersistableModel
 from vultron.errors import VultronValidationError
@@ -44,6 +45,7 @@ from vultron.semantic_registry import (
     find_matching_semantics,
     semantics_to_activity_class as _semantics_to_activity_class,
 )
+from vultron.wire.as2.factories import carried_actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import (
     find_in_vocabulary,
@@ -56,6 +58,22 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
 
 
 logger = logging.getLogger(__name__)
+
+
+def _in_slot_of(owner: PersistableModel, nested: Any) -> Any:
+    """*nested*, read from the store, as it fills a slot of *owner*.
+
+    An actor filling a slot of an activity fills it as an activity carries
+    it (:func:`carried_actor`, AKM-05-017): a profile as held, and the
+    minimal peer, a record of the abstract ``CoreActor`` class kept when only
+    the URI is known (ADR-0159), as its actor reference.  Its own ``type`` is
+    a core class name, which the wire-only pattern matcher reads as no actor
+    (VM-06-013), so a stored peer in an Invite's ``target`` would route as
+    nothing.  Anything else fills the slot as read.
+    """
+    if isinstance(owner, as_Activity) and isinstance(nested, CoreActor):
+        return carried_actor(nested)
+    return nested
 
 
 def rehydrate_fields(
@@ -88,6 +106,8 @@ def rehydrate_fields(
     proposal could not be re-hydrated, the recipient saw a dehydrated object,
     matched no semantics, and never sent its ``Accept``. Nothing raised at the
     point of damage.
+
+    An actor fills an activity's slot as :func:`_in_slot_of` gives it.
     """
     updates: dict[str, object] = {}
     for field_name in object_ref_fields(type(obj)):
@@ -115,7 +135,7 @@ def rehydrate_fields(
                     type(obj).__name__,
                 )
                 continue
-            updates[field_name] = nested
+            updates[field_name] = _in_slot_of(obj, nested)
         elif isinstance(value, BaseModel):
             rehydrated = rehydrate_fields(dl, cast(PersistableModel, value))
             if rehydrated is not value:
