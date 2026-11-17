@@ -54,7 +54,7 @@ def test_inbox_items_can_be_strings():
     # We need to handle this gracefully
     item = inbox.items[0]
     # A string IS the ID; an object carries it as id_.
-    item_id = item if isinstance(item, str) else item.id_
+    item_id = item if isinstance(item, str) else getattr(item, "id_", None)
 
     assert item_id == activity_uri
 

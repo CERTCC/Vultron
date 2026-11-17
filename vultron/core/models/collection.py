@@ -63,10 +63,10 @@ class Collection(CoreObject):
         """How many items the collection holds (AS2 ``totalItems``)."""
         return len(self.items)
 
-    def append(self, item: CoreObjectOrIri) -> None:
+    def append(self, item: CoreObjectOrIri | None) -> None:
         """Add *item*, unless an object with its id is already held."""
         item_id = ""
-        if not isinstance(item, str):
+        if item is not None and not isinstance(item, str):
             raw_id = getattr(item, "id_", None)
             item_id = str(raw_id) if raw_id else ""
             if item_id and item_id in self._ids:
