@@ -222,6 +222,76 @@ def test_a_layer_it_cannot_read_stops_the_search(
     assert "cannot read this layer" in capsys.readouterr().out
 
 
+def _with_damaged_second_header(files: dict[str, bytes]) -> bytes:
+    """A tar archive of *files* whose second member's header is damaged.
+
+    The first member is under one block, so the second header is at byte
+    1024.  Overwriting its mode field breaks the header's checksum.
+    """
+    archive = bytearray(_tar(files))
+    archive[1024 + 100 : 1024 + 108] = b"garbage!"
+    return bytes(archive)
+
+
+def test_a_damaged_header_in_a_layer_stops_the_search(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``tarfile`` stops at a damaged header with no error; the files after it,
+    one of them holding the marker, must not pass unsearched."""
+    layer = _with_damaged_second_header(
+        {"a": b"x", "b": b"y", "c": MARKER.encode()}
+    )
+    image = tmp_path / "image.tar"
+    image.write_bytes(_tar({"blobs/sha256/aaaa": gzip.compress(layer)}))
+    assert _run(image, monkeypatch) == 2
+    out = capsys.readouterr().out
+    assert "blobs/sha256/aaaa: cannot read this layer" in out
+    assert "were not searched" in out
+
+
+def test_a_damaged_header_in_the_image_stops_the_search(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The same holds for the saved image: the layer after the damaged header,
+    which holds the marker, would go unsearched."""
+    image = tmp_path / "image.tar"
+    image.write_bytes(
+        _with_damaged_second_header(
+            {
+                "manifest.json": b"[]",
+                "blobs/sha256/cccc": b"{}",
+                "blobs/sha256/aaaa": gzip.compress(
+                    _tar({"secret": MARKER.encode()})
+                ),
+            }
+        )
+    )
+    assert _run(image, monkeypatch) == 2
+    out = capsys.readouterr().out
+    assert "cannot read the image" in out
+    assert "were not searched" in out
+
+
+def test_a_truncated_layer_stops_the_search(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A compressed layer cut short raises while it is read; that is a layer
+    the search cannot read (exit 2), not a found marker (exit 1)."""
+    layer = gzip.compress(
+        _tar({"usr/big": bytes(range(256)) * 400, "c": MARKER.encode()})
+    )
+    image = tmp_path / "image.tar"
+    image.write_bytes(_tar({"blobs/sha256/aaaa": layer[:-200]}))
+    assert _run(image, monkeypatch) == 2
+    assert "cannot read this layer" in capsys.readouterr().out
+
+
 def test_a_file_that_is_not_an_image_cannot_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -273,3 +343,21 @@ def test_the_job_runs_on_a_change_to_what_it_checks() -> None:
             ".github/actions/build-demo-images/**",
             ".github/scripts/find_in_image.py",
         }, event
+
+
+def test_the_job_reads_volumes_from_the_built_image() -> None:
+    """SHD-02-001: the volume check inspects the built image's config, which
+    holds every VOLUME the base image declares too, after the build."""
+    steps = _job()["steps"]
+    assert isinstance(steps, list)
+    names = [str(s.get("name", "")) for s in steps]
+    build = names.index("Build the shadow image")
+    check = names.index("Check that the image declares no volume")
+    assert build < check
+    run = str(steps[check]["run"])
+    assert (
+        "docker image inspect \"$IMAGE\" --format '{{json .Config.Volumes}}'"
+        in run
+    )
+    assert '"$volumes" != "null"' in run
+    assert '"$volumes" != "{}"' in run

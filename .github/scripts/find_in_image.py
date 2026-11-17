@@ -17,8 +17,8 @@ this script to prove that no layer holds it (SHD-02-003).
 
 Exit status: 0 when the image has at least one layer and the marker is in none
 of them; 1 when the marker is found, with every place named on stdout; 2 when
-the search cannot run (no marker, no layer, or a layer this script cannot
-read), so a search that checked nothing never passes.
+the search cannot run (no marker, no layer, or an archive this script cannot
+read to its end), so a search that checked nothing never passes.
 
 Usage: find_in_image.py --marker-env NAME IMAGE_TAR
 """
@@ -26,12 +26,13 @@ Usage: find_in_image.py --marker-env NAME IMAGE_TAR
 from __future__ import annotations
 
 import argparse
+import lzma
 import os
 import shutil
 import sys
 import tarfile
 import tempfile
-from collections.abc import Iterator
+import zlib
 from pathlib import Path
 from typing import IO
 
@@ -51,6 +52,17 @@ _COMPRESSED_MAGIC = (
 #: Offset and value of the ``ustar`` magic in an uncompressed tar header.
 _USTAR_OFFSET = 257
 _USTAR_MAGIC = b"ustar"
+
+#: What reading a damaged archive, plain or compressed, can raise.  A
+#: truncated gzip stream raises ``EOFError``; a short member raises
+#: ``tarfile.ReadError``.
+_READ_ERRORS = (
+    tarfile.TarError,
+    EOFError,
+    OSError,
+    zlib.error,
+    lzma.LZMAError,
+)
 
 
 class SearchError(Exception):
@@ -94,20 +106,46 @@ def _open_archive(path: Path, failure: str) -> tarfile.TarFile:
         raise SearchError(f"{failure}: {err}") from err
 
 
-def _layer_hits(path: Path, label: str, needle: bytes) -> Iterator[str]:
+def _check_read_to_end(archive: tarfile.TarFile, failure: str) -> None:
+    """Raise :class:`SearchError` unless *archive* was read to its end.
+
+    ``tarfile`` stops iterating, with no error, at a damaged header after the
+    first member.  Every member after it would go unsearched.  What follows the
+    last member read must therefore be the archive's end: zero bytes only.
+    """
+    stream = archive.fileobj
+    if stream is None:
+        raise SearchError(f"{failure}: the archive has no stream to check")
+    stream.seek(archive.offset)
+    while chunk := stream.read(CHUNK_SIZE):
+        if chunk.strip(b"\0"):
+            raise SearchError(
+                f"{failure}: a header at byte {archive.offset} cannot be read,"
+                " so the members after it were not searched"
+            )
+
+
+def _layer_hits(path: Path, label: str, needle: bytes) -> list[str]:
     """Every place in the layer archive at *path* that holds *needle*."""
-    with _open_archive(path, f"{label}: cannot read this layer") as layer:
-        for member in layer:
-            where = f"{label}:{member.name}"
-            if needle in os.fsencode(member.name) or needle in os.fsencode(
-                member.linkname
-            ):
-                yield f"{where} (in its path or link target)"
-            if not member.isfile():
-                continue
-            extracted = layer.extractfile(member)
-            if extracted is not None and contains(extracted, needle):
-                yield where
+    failure = f"{label}: cannot read this layer"
+    hits: list[str] = []
+    with _open_archive(path, failure) as layer:
+        try:
+            for member in layer:
+                where = f"{label}:{member.name}"
+                if needle in os.fsencode(member.name) or needle in os.fsencode(
+                    member.linkname
+                ):
+                    hits.append(f"{where} (in its path or link target)")
+                if not member.isfile():
+                    continue
+                extracted = layer.extractfile(member)
+                if extracted is not None and contains(extracted, needle):
+                    hits.append(where)
+            _check_read_to_end(layer, failure)
+        except _READ_ERRORS as err:
+            raise SearchError(f"{failure}: {err}") from err
+    return hits
 
 
 def search(image_tar: Path, needle: bytes) -> tuple[int, list[str]]:
@@ -121,29 +159,32 @@ def search(image_tar: Path, needle: bytes) -> tuple[int, list[str]]:
         raise SearchError("the marker is empty, so every search would pass")
     hits: list[str] = []
     layers = 0
+    failure = f"{image_tar}: cannot read the image"
     with (
-        _open_archive(
-            image_tar, f"{image_tar}: cannot read the image"
-        ) as image,
+        _open_archive(image_tar, failure) as image,
         tempfile.TemporaryDirectory() as scratch,
     ):
         member_copy = Path(scratch) / "member"
-        for member in image:
-            if needle in os.fsencode(member.name):
-                hits.append(f"{member.name} (in its path)")
-            if not member.isfile():
-                continue
-            extracted = image.extractfile(member)
-            if extracted is None:
-                continue
-            with member_copy.open("wb") as out:
-                shutil.copyfileobj(extracted, out)
-            with member_copy.open("rb") as raw:
-                if contains(raw, needle):
-                    hits.append(member.name)
-            if _looks_like_archive(member_copy):
-                layers += 1
-                hits.extend(_layer_hits(member_copy, member.name, needle))
+        try:
+            for member in image:
+                if needle in os.fsencode(member.name):
+                    hits.append(f"{member.name} (in its path)")
+                if not member.isfile():
+                    continue
+                extracted = image.extractfile(member)
+                if extracted is None:
+                    continue
+                with member_copy.open("wb") as out:
+                    shutil.copyfileobj(extracted, out)
+                with member_copy.open("rb") as raw:
+                    if contains(raw, needle):
+                        hits.append(member.name)
+                if _looks_like_archive(member_copy):
+                    layers += 1
+                    hits.extend(_layer_hits(member_copy, member.name, needle))
+            _check_read_to_end(image, failure)
+        except _READ_ERRORS as err:
+            raise SearchError(f"{failure}: {err}") from err
     if layers == 0:
         raise SearchError(
             f"{image_tar}: holds no layer, so nothing was searched"
