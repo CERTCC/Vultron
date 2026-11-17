@@ -24,8 +24,14 @@ The watch records every connection opened on an in-memory engine that is no
 longer cached.  Per-test disposal closes each one, then fails the test it was
 opened in, naming the stack that opened it.  A file-backed store is not
 watched: its pool closes each connection when its session ends.
+
+A connection whose opening thread is still running is not closed: that thread
+may be reading through it, and closing a connection under a read segfaults the
+worker (#6148).  It is kept referenced instead, so the garbage collector never
+finalizes it and no later test sees its warning; the test still fails.
 """
 
+import sqlite3
 import sysconfig
 import threading
 import traceback
@@ -55,12 +61,16 @@ class OrphanConnection:
     """One connection opened on an engine the cache no longer holds."""
 
     dbapi_connection: Any
-    thread_name: str
+    thread: threading.Thread
     stack: str
 
 
 _orphans: list[OrphanConnection] = []
 _orphans_lock = threading.Lock()
+
+#: Orphans left open because their thread was still running: held here so no
+#: garbage-collector pass finalizes them under a later test.
+_kept_open: list[OrphanConnection] = []
 
 
 def _is_cached(pool: Pool) -> bool:
@@ -85,7 +95,7 @@ def _record_orphan(dbapi_connection: Any, record: Any) -> None:
         _orphans.append(
             OrphanConnection(
                 dbapi_connection=dbapi_connection,
-                thread_name=threading.current_thread().name,
+                thread=threading.current_thread(),
                 stack=stack,
             )
         )
@@ -103,27 +113,44 @@ def install_orphan_connection_watch() -> None:
 def close_orphan_connections() -> None:
     """Close every recorded orphan connection, then fail if there was one.
 
+    A connection whose opening thread is another, still-running thread is
+    kept open and referenced instead of closed (see the module docstring).
+
     Raises:
         OrphanStoreConnectionError: a connection was opened on a disposed
-            in-memory store since the last call.  Each is closed first, so
-            no later test fails on its ``ResourceWarning``.
+            in-memory store since the last call.  Each is closed (or kept)
+            first, so no later test fails on its ``ResourceWarning``.
     """
     with _orphans_lock:
         found = list(_orphans)
         _orphans.clear()
     if not found:
         return
-    for orphan in found:
-        orphan.dbapi_connection.close()
-    sites = "\n".join(
-        f"--- opened in thread {orphan.thread_name!r}:\n{orphan.stack}"
-        for orphan in found
-    )
+    sites = [_settle(orphan) for orphan in found]
     raise OrphanStoreConnectionError(
         f"{len(found)} SQLite connection(s) were opened on an in-memory store"
-        " whose engine was already disposed: something kept a DataLayer past"
+        " whose engine is no longer cached: something kept a DataLayer past"
         " a reset_datalayer(), close() or per-test disposal and used it"
-        " again.  The connections were closed.  Use a fresh store after a"
-        " reset, or stop the background work that holds the old one before"
-        f" the stores are disposed (#6001).\n{sites}"
+        " again.  Use a fresh store after a reset, or stop the background"
+        " work that holds the old one before the stores are disposed"
+        " (#6001).\n" + "\n".join(sites)
     )
+
+
+def _settle(orphan: OrphanConnection) -> str:
+    """Close *orphan*, or keep it if its thread may still read it.
+
+    Returns:
+        The orphan's report line: its thread, what was done, and its stack.
+    """
+    thread = orphan.thread
+    if thread is not threading.current_thread() and thread.is_alive():
+        _kept_open.append(orphan)
+        action = "kept open: its thread is still running"
+    else:
+        try:
+            orphan.dbapi_connection.close()
+            action = "closed"
+        except sqlite3.Error as error:  # report it; the rest still close
+            action = f"close failed: {error!r}"
+    return f"--- opened in thread {thread.name!r} ({action}):\n{orphan.stack}"

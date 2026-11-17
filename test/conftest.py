@@ -200,8 +200,8 @@ def cleanup_test_datalayer():
     """Reset all cached DataLayer instances before and after the session.
 
     Ensures no stale in-memory database state leaks between test modules.
-    Also starts the watch per-test disposal reads: a connection opened on a
-    disposed in-memory store is closed, and fails its test (#6001).
+    Also installs, once per process, the connection watch that
+    ``_dispose_actor_stores_between_tests`` reads (#6001).
     """
     install_orphan_connection_watch()
     reset_datalayer()
@@ -259,6 +259,12 @@ def _dispose_actor_stores_between_tests():
     first, and the test fails with
     :class:`~test.support.hold_timers.HoldTimerLeakedError` once the stores
     are disposed.
+
+    A connection that a disposed in-memory store opened during the test is
+    then closed, and the test fails with
+    :class:`~test.support.orphan_store_connections.OrphanStoreConnectionError`
+    naming the stack that opened it: left to the garbage collector, its
+    ``ResourceWarning`` would fail whichever later test was running (#6001).
     """
     yield
     from test.support.hold_timers import dispose_actor_stores_between_tests

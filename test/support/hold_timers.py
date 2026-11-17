@@ -19,6 +19,10 @@ SQLite connection under a read on another thread segfaults the interpreter,
 which kills the xdist worker and fails the run with no assertion behind it
 (#6148).  So per-test disposal first stops any timer a test left running,
 then disposes, then fails that test by name.
+
+After disposal it also closes any connection a disposed in-memory store opened
+during the test, and fails that test too
+(``test.support.orphan_store_connections``, #6001).
 """
 
 import asyncio
