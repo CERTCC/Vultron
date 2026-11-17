@@ -55,8 +55,8 @@ property. A fractal subtree:
   report");
 - can be triggered independently through a use-case entry point;
 - can be composed as a child of a larger tree;
-- takes **identity and role as constructor parameters**, never hard-coded
-  constants.
+- takes its role as a constructor parameter and reads each identity from a
+  named blackboard key (BTND-01-008, BTND-01-009), never hard-coded constants.
 
 ---
 
@@ -121,8 +121,9 @@ with structure:
 
 ## Reusability Anti-Patterns
 
-1. **Hard-coded actor roles or identities** — pass `actor_id`/role as
-   constructor parameters so one node serves coordinator, vendor, and reporter.
+1. **Hard-coded actor roles or identities** — pass the role as a constructor
+   parameter and read `actor_id` from its key, so one node serves coordinator,
+   vendor, and reporter (BTND-01-008, BTND-01-009).
    A factory such as `create_vendor_participant_node()` with the role in its
    name and body is the smell.
 2. **Demo-specific logic in reusable nodes** — BT nodes MUST NOT import from
@@ -135,8 +136,9 @@ with structure:
 
 ### Node Design Rules
 
-- **Parameterization**: nodes take required values as constructor parameters,
-  never from global state, environment variables, or implicit context.
+- **Parameterization**: nodes take configuration as constructor parameters and
+  per-act values from named blackboard keys (BTND-01-008, BTND-01-009), never
+  from global state, environment variables, or implicit context.
 - **Blackboard keys**: `{noun}_{id_segment}`, no slashes (see
   `notes/bt-integration.md` § "Design Rules for New Trees").
 - **ActorConfig-driven roles**: the local actor's default CVD roles come from

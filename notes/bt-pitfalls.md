@@ -474,9 +474,12 @@ enforced by `test/architecture/test_participant_status_validation.py`.
 A node that declares a `case_id` input port reads it from that port in every
 tree, never also from a constructor argument (BTND-01-006, BTND-01-007): a
 constructor value with a port fallback is the dual channel that let a stale
-`/case_id` decide a later delivery above. A value every tree knows at build time
-stays a constructor argument, and then the node declares no port (BTND-01-004).
-Ratchet: `test/architecture/test_case_id_one_channel.py`.
+`/case_id` decide a later delivery above. Ratchet:
+`test/architecture/test_case_id_one_channel.py`. A per-act value is never a
+constructor argument, even one every tree knows at build time (BTND-01-008,
+BTND-01-009): the migration to named keys is planned in
+[bt-integration](bt-integration.md) § "One Fixed-Shape Tree per Act", and
+`with_case_id` below is the interim seeding it removes.
 
 A tree that knows the case at build time seeds the port, two ways:
 
@@ -501,10 +504,11 @@ shape sees through the scope with `unscoped(node)`, and reads the seeded case
 with `seeded_case_id(node)`; never re-add a `_case_id` attribute for it.
 
 `CreateParticipantStatusNode` is the worked case: `case_id` comes only through
-`CaseIdInputPortMixin`, and the subject actor is an explicit constructor argument,
-never a fallback to the blackboard `actor_id`, which is the executing actor
-(BTND-10-005, ADR-0089). Both are enforced by
-`test/architecture/test_participant_status_validation.py`.
+`CaseIdInputPortMixin`, and the subject actor is today an explicit constructor
+argument, never a fallback to the blackboard `actor_id`, which is the executing
+actor (BTND-10-005, ADR-0089). The constructor argument is interim: under
+BTND-01-009 the subject actor moves to its own key, never `/actor_id`. Both
+rules are enforced by `test/architecture/test_participant_status_validation.py`.
 
 ## `_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node
 
