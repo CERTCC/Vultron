@@ -15,7 +15,7 @@
 
 """Reading and stamping the lifetime of a stub Invite (CM-11-014..016).
 
-A stub ``Invite(Actor)[target=VulnerabilityCaseStub]`` is an ask with a deadline
+A stub ``Invite(VulnerabilityCase preview)[target=Actor]`` is an ask with a deadline
 (ASK-03-004).  The
 CASE_MANAGER stamps ``Invite.end_time`` the way it stamps an embargo Invite's
 (CM-28-012, :func:`~vultron.core.behaviors.embargo.rsvp_stamp.stamp_rsvp_deadline`),
@@ -45,6 +45,7 @@ from typing import Any
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview import previewed_case_id
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
@@ -62,7 +63,7 @@ class RecordedStubInvite:
 
     Attributes:
         invite_id: The Invite's id.
-        invitee_id: The invited actor (the Invite's ``object``).
+        invitee_id: The invited actor (the Invite's ``target``).
         case_id: The case the stub names.
         published: When the Invite was sent.
         end_time: The reply deadline, or ``None`` for an Invite sent before
@@ -97,20 +98,21 @@ def stub_invite_expired(invite: RecordedStubInvite, now: datetime) -> bool:
 def record_of(obj: Any) -> RecordedStubInvite | None:
     """Read *obj* as a stub Invite record, or ``None`` when it is not one.
 
-    A stub Invite is told apart by its target: a stub names its case in
-    ``case_id`` (CM-11-013).  Any other Invite, including the full-case Invite
-    and an embargo Invite, is not one.
+    A stub Invite is told apart by its ``object``: the case's typed reference
+    carrying the case's preview, which names the case by its own ``id``
+    (ADR-0205).  Any other Invite, including the full-case Invite and an
+    embargo Invite, is not one.
     """
-    target: Any = getattr(obj, "target", None)
-    case_id = getattr(target, "case_id", None)
-    invitee_id = _as_id(getattr(obj, "object_", None))
+    reference: Any = getattr(obj, "object_", None)
+    case_id = previewed_case_id(reference)
+    invitee_id = _as_id(getattr(obj, "target", None))
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
     # Plain attribute access, not ``getattr`` with a string: no core string
     # constant names a retired key (MV-11-012).
     try:
-        embargo = target.active_embargo
+        embargo = reference.preview.active_embargo
     except AttributeError:
         embargo = None
     return RecordedStubInvite(
@@ -205,7 +207,7 @@ def superseded_reason(
     )
 
 
-def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
+def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
     A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
@@ -215,11 +217,11 @@ def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
     return case.active_embargo_id
 
 
-def current_stub_embargo_end(
+def current_preview_embargo_end(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> datetime | None:
     """The end of the embargo a stub sent now would carry; caps its deadline."""
-    embargo_id = current_stub_embargo_id(case)
+    embargo_id = current_preview_embargo_id(case)
     if embargo_id is None:
         return None
     embargo = dl.read(embargo_id)
@@ -272,7 +274,7 @@ def outstanding_stale_stubs(
         # changes no active embargo, so it re-issues nothing; the answer that
         # activates or ends it does (CM-11-016).
         return []
-    wanted = current_stub_embargo_id(case)
+    wanted = current_preview_embargo_id(case)
     stale: list[RecordedStubInvite] = []
     by_invitee: dict[str, list[RecordedStubInvite]] = {}
     for stub in recorded_stub_invites(dl, case.id_, issuer_id):

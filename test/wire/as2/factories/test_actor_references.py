@@ -48,7 +48,6 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -58,6 +57,18 @@ _CASE = "https://example.org/cases/c1"
 #: Fields an actor reference may not carry: each would be a value the sender
 #: invented rather than one the actor asserted (AKM-02-006).
 _INVENTED = ("published", "updated", "inbox", "outbox")
+
+
+def _invited_case() -> as_VulnerabilityCase:
+    """The case an Invite names, with the summary its preview carries."""
+    return make(
+        as_VulnerabilityCase,
+        id_=_CASE,
+        attributed_to=_ACTOR,
+        name="Case c1",
+        stub_summary="An issue in widget",
+    )
+
 
 #: Each factory that takes an actor, built around *peer*, paired with the
 #: activity field the actor lands in.
@@ -74,26 +85,23 @@ _BUILDERS: dict[
     "rm_invite_to_case_activity": (
         lambda peer: rm_invite_to_case_activity(
             peer,
-            target=as_VulnerabilityCaseStub(
-                case_id=_CASE,
-                summary="An issue in widget",
-            ),
+            case=_invited_case(),
             actor=_ACTOR,
             to=[_PEER],
             at=authored_at(),
         ),
-        "object",
+        "target",
     ),
     "rm_invite_to_full_case_activity": (
         lambda peer: rm_invite_to_full_case_activity(
             peer,
-            _CASE,
+            _invited_case(),
             LedgerPosition(log_index=0, entry_hash="0" * 64),
             actor=_ACTOR,
             to=[_PEER],
             at=authored_at(),
         ),
-        "object",
+        "target",
     ),
     "offer_case_ownership_transfer_activity": (
         lambda peer: offer_case_ownership_transfer_activity(

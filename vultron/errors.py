@@ -822,6 +822,34 @@ class CaseLedgerFileError(CarriesViolations, VultronError):
         super().__init__(f"Cannot read a case from {path}")
 
 
+class VultronNodeCaseReadError(CarriesViolations, VultronError):
+    """Raised when the live Vultron case reader cannot read a case.
+
+    Raised by the case shadow tool's live Vultron case reader
+    (:mod:`vultron.shadow.readers.vultron_node`) when the node cannot be
+    reached, does not serve the demo case-ledger endpoint (it serves it only
+    in prototype run mode), holds no such case, or sends a row that is not a
+    valid ledger entry.  The reading is refused whole, so the reader never
+    returns a partial ledger (SHD-04-002, SHD-04-004).
+
+    Attributes:
+        node_url: The node's API root the reader was configured with.
+        case_id: The case the reader was asked for, as it was named.
+        violations: Every reason the case could not be read, each naming its
+            row where it has one (EH-07-001, EH-07-003).
+    """
+
+    def __init__(
+        self, node_url: str, case_id: str, problems: Iterable[str]
+    ) -> None:
+        self.node_url = node_url
+        self.case_id = case_id
+        self.violations = tuple(Violation(problem) for problem in problems)
+        super().__init__(
+            f"Cannot read case {case_id} from the Vultron node at {node_url}"
+        )
+
+
 class VinceCaseRecordsError(CarriesViolations, VultronError):
     """Raised when the VINCE translation cannot read a case at all.
 

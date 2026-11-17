@@ -83,7 +83,7 @@ it, so a fabricated case naming the sender as CASE_MANAGER
 passes (#3274). Do not reintroduce the retired `Service`-hosting scan
 (ARCH-24-004). Whether the named CaseActor is genuine awaits signatures (#2841).
 
-## Late Joiners: Cascade from `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
+## Late Joiners: Cascade from `Accept(Invite(VulnerabilityCase preview)[target=Actor])`
 
 The invitee's record already exists, inert, from when the stub Invite was sent
 (`CreateInertInviteeParticipantNode`, CM-11-006). On the stub Accept the

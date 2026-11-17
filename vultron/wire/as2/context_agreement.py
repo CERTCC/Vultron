@@ -44,9 +44,6 @@ from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.extension_activities import as_Refuse
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
 
 
 def _is_activity(value: object) -> bool:
@@ -79,13 +76,12 @@ def object_chain(activity: as_Activity) -> Iterator[tuple[str, object]]:
 def case_uri_of(case_ref: object) -> str | None:
     """Return the URI a case reference names.
 
-    That is the string itself, the case a stub stands for (its ``case_id``,
-    never its own ``<case-id>/stub`` id — CM-11-003), or the object's id.
+    That is the string itself or the object's id: a typed case reference,
+    the one that carries the case's preview included, names the case by its
+    own ``id`` (ADR-0205).
     """
     if isinstance(case_ref, str):
         return case_ref or None
-    if isinstance(case_ref, as_VulnerabilityCaseStub):
-        return case_ref.case_id
     case_id = getattr(case_ref, "id_", None)
     return case_id if isinstance(case_id, str) and case_id else None
 

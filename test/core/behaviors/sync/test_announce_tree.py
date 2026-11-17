@@ -1264,7 +1264,16 @@ def _reply_entry(
             "type": "Invite",
             "published": "2026-01-01T00:00:00+00:00",
             "id": "https://example.org/invites/1",
-            "target": {"type": "VulnerabilityCaseStub", "caseId": CASE_ID},
+            "object": {
+                "type": "VulnerabilityCase",
+                "id": CASE_ID,
+                "preview": {
+                    "type": "CasePreview",
+                    "id": "https://example.org/previews/1",
+                    "summary": "A case to join",
+                },
+            },
+            "target": {"type": "Organization", "id": INVITEE_ACTOR_ID},
         },
         "context": CASE_ID,
     }

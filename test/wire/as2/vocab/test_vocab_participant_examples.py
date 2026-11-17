@@ -18,6 +18,7 @@ import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.activities.actor import _RecommendActorActivity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -31,12 +32,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
 )
 
 
@@ -131,10 +130,11 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Invite")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, coordinator)
-        stub = activity.target
-        assert isinstance(stub, as_VulnerabilityCaseStub)
-        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.target, coordinator)
+        reference = activity.object_
+        assert isinstance(reference, as_TypedReference)
+        self.assertEqual(reference.id_, case.id_)
+        assert isinstance(reference.preview, as_CasePreview)
         self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
@@ -179,10 +179,11 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Invite")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, coordinator)
-        stub = activity.target
-        assert isinstance(stub, as_VulnerabilityCaseStub)
-        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.target, coordinator)
+        reference = activity.object_
+        assert isinstance(reference, as_TypedReference)
+        self.assertEqual(reference.id_, case.id_)
+        assert isinstance(reference.preview, as_CasePreview)
         self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 

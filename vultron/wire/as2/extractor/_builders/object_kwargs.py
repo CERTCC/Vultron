@@ -101,7 +101,7 @@ def _build_activity_snapshot(
         updated=_get_timestamp(activity, "updated"),
         object_=obj,
         # A typed reference names its target and is never the object
-        # (MV-10-011), so core gets it as a minimal reference, as a stub is.
+        # (MV-10-011), so core gets it as a minimal reference.
         target=(
             _to_domain_obj(target)
             if isinstance(target, as_TypedReference)
@@ -192,8 +192,9 @@ def _build_object_kwargs(
     elif is_case_reference(obj) or is_previewed_reference(obj):
         # A case named by typed reference reaches core as its id and type
         # only (ADR-0165); the receiver reads the case from its own store.
-        # A reference carrying a preview stays one too: a preview is not
-        # the object, so no case is built from it (MV-10-011, ADR-0205).
+        # A reference carrying a preview stays one too, with the preview's
+        # content beside it: a preview is not the object, so no case is
+        # built from it (MV-10-011, ADR-0205).
         kw["object_"] = _to_domain_obj(obj)
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))

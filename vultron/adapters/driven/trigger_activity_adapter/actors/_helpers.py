@@ -67,17 +67,17 @@ def _held_actor(
 def _stored_case_invite(
     dl: CaseOutboxPersistence, invite_id: str
 ) -> as_Invite:
-    """Read the received Invite as this invitee holds it, stub and all.
+    """Read the received Invite as this invitee holds it, preview and all.
 
     The Invite is parsed from the body intake recorded on arrival
     (:func:`read_received_as_received`), since the inbox never holds a stub
-    Invite back for its case (PCR-06-005).  The parse resolves the inline
-    stub to its own class, and the reply factory checks that it is a case
-    Invite.  The Accept or Reject embeds the Invite as received, so its
-    ``target`` stays the case stub (VAM-04-005, VAM-04-006): the CASE_MANAGER
-    reads the case from the stub's ``caseId`` (CM-11-003), and the stub's
-    ``type`` is what tells the reply apart from a reply to a full-case Invite
-    (CM-11-013).
+    Invite back for its case (PCR-06-005).  The parse reads the inline case
+    reference and its preview as received (MV-10-013), and the reply factory
+    checks that it is a case Invite.  The Accept or Reject embeds the Invite
+    as received, so its ``object`` stays the previewed case reference
+    (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the
+    reference's ``id`` (CM-11-003), and its form is what tells the reply
+    apart from a reply to a full-case Invite (ADR-0205).
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.

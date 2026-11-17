@@ -27,8 +27,8 @@ ACTIVITY_ID = "https://example.org/activities/1"
 SENDER = "https://example.org/actors/alice"
 PUBLISHED = "2026-03-04T05:06:07+00:00"
 CASE_ID = "https://example.org/cases/1"
-# A case invitation carries its invitee inline (AKM-05-017); only then may its
-# target be a case stub (MV-10-002).
+# A stub Invite carries its invitee in ``target`` and the case stub as the
+# preview of the case reference in its ``object`` (MV-10-002, ADR-0205).
 INVITEE = {"type": "Person", "id": "https://example.org/actors/bob"}
 MARKER: dict[str, Any] = {"type": "Redacted", "summary": "Embargo pending"}
 TRACKED = "Tracked by #6372."
@@ -80,13 +80,13 @@ def _full_case(**fields: Any) -> dict[str, Any]:
 
 def _stub_invite(**stub_fields: Any) -> dict[str, Any]:
     stub = {
-        "type": "VulnerabilityCaseStub",
-        "id": f"{CASE_ID}/stub",
-        "caseId": CASE_ID,
+        "type": "CasePreview",
+        "id": "urn:uuid:case-1-preview",
         "summary": "Security issue — details after acceptance",
         **stub_fields,
     }
-    return _envelope(type="Invite", object=INVITEE, target=stub)
+    reference = {"type": "VulnerabilityCase", "id": CASE_ID, "preview": stub}
+    return _envelope(type="Invite", object=reference, target=INVITEE)
 
 
 @pytest.mark.spec("MV-12-002")
@@ -106,9 +106,9 @@ def test_a_marker_in_a_full_case_field_is_refused(field: str) -> None:
 def test_a_marker_in_a_case_stub_identifying_field_is_refused() -> None:
     """A preview field its type does not open to the marker refuses one."""
     with pytest.raises(VultronParseValidationError) as exc_info:
-        parse_activity(_stub_invite(caseId=MARKER))
+        parse_activity(_stub_invite(id=MARKER))
 
-    assert _error_locations(exc_info.value) == {"caseId"}
+    assert _error_locations(exc_info.value) == {"id"}
 
 
 @pytest.mark.spec("MV-12-002")
@@ -181,7 +181,11 @@ def test_a_marker_in_a_case_preview_field_parses_as_the_marker() -> None:
     """A preview field holding a marker reads as withheld, never as absent."""
     activity = parse_activity(_stub_invite(name=MARKER))
 
-    name = getattr(activity.target, "name", None)
+    name = getattr(
+        getattr(getattr(activity, "object_", None), "preview", None),
+        "name",
+        None,
+    )
     assert getattr(name, "type_", None) == "Redacted"
     assert getattr(name, "summary", None) == MARKER["summary"]
 

@@ -77,7 +77,7 @@ references included, so what a sender inlines is what the hash chain covers
 
 - Pass the domain object, not its `.id_`, as `object_` and as `target` (e.g. the
   full `VulnerabilityCase` as the `target` of an `Add`); the factory reduces a
-  case in `target` to its URI, or keeps a case stub (AKM-02-003, AKM-02-005).
+  case in `target` to its URI (AKM-02-003, AKM-02-005).
 - `actor` is an ID reference, and must be the sender's own ID.
 - When in doubt, include the full object. Tracking what a peer has already seen,
   to skip redundant transmission, is a `PROD_ONLY` MAY, not prototype work.

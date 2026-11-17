@@ -439,14 +439,14 @@ def test_stage_inline_object_stages_nothing_for_a_case_reference(
 def test_a_case_stub_never_reaches_staging_as_an_object():
     """A case stub as an activity's ``object`` is refused before staging.
 
-    A stub sits only in a case invitation's ``target`` (MV-10-002), and
-    staging reads only ``object``, so no stub is ever staged (#5770).
+    A stub sits only as the preview of a stub Invite's case reference
+    (MV-10-002, ADR-0205), so no stub is ever staged (#5770).
     """
     with pytest.raises(VultronParseValidationError, match="MV-10-002"):
         _parsed_announce(
             {
-                "type": "VulnerabilityCaseStub",
-                "caseId": "urn:uuid:case-stub-001",
+                "type": "CasePreview",
+                "id": "urn:uuid:case-stub-001",
                 "summary": "Security issue — details shared after acceptance",
             }
         )

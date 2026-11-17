@@ -15,8 +15,11 @@ description: >
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
-  blackboard isolation, why a status fixture may not encode a state the CS
+  blackboard isolation, in-memory SQLite stores sharing state per actor_id,
+  why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
+  why a lifespan task that outlives its test segfaults a later worker (and
+  the guard that fails one draining in the wrong namespace),
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -47,6 +50,7 @@ related_specs:
   - specs/outbox.yaml
   - specs/case-ledger-processing.yaml
   - specs/cs-behavior.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -68,6 +72,7 @@ relevant_packages:
   - pytest
   - pytest-xdist
   - py_trees
+  - sqlalchemy
 ---
 
 # Testing Pitfalls and Patterns
@@ -451,6 +456,35 @@ read past red, so the next real failure is read past too. Two shapes of it:
   `*.sh` for the constructs that have bitten;
   [ci-workflow-authoring](ci-workflow-authoring.md) § "A Script Runs On The
   Host's bash, Which May Be 3.2" carries the portable spellings.
+
+### A Lifespan Task That Outlives Its Test Segfaults a Later Worker
+
+A fixture that keeps the production lifespan open past one test MUST stop its
+background work on the app's loop, and wait for it, before the test ends. The
+root conftest closes the actor stores after every test, and closing a SQLite
+connection while another thread reads it segfaults the xdist worker: the run
+reports `node down` with an innocent test as the victim (#6148). Stop by
+signal and await, never by cancel from another thread: a cancelled task reads
+as ended while its `asyncio.to_thread` worker may still be reading. For the
+hold timer, `stop_hold_timer_from_another_thread()` in
+`test/support/hold_timers.py` does this; `test/demo/conftest.py`'s `client`
+fixture is the worked case. A leaked hold timer is stopped at disposal and
+fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
+hosted actors in the configured namespace opens a `testserver` actor's store
+under a second id; `no_store_shared_across_authorities()`
+(`test/support/store_sharing.py`) fails every `client` test that does (#6085).
+
+### In-Memory Stores Share by Actor
+
+A test or throwaway harness that needs an empty in-memory store opens it from
+`fresh_memory_url(purpose)` (`vultron/adapters/driven/datalayer_sqlite`), in a `with`
+block so the store is disposed on exit. The default `sqlite:///:memory:` template
+names each actor's store after the actor's slug, and `get_actor_engine` caches one
+engine per resolved URL, so a second `SqliteDataLayer("sqlite:///:memory:",
+actor_id=X)` reaches the first one's store and returns its rows without raising.
+That sharing is correct for production, where every handle opened for one actor from
+one template reaches its one store; a `fresh_memory_url` template names a store no
+other handle can reach (DL-07-004).
 
 ### Store Scoping
 

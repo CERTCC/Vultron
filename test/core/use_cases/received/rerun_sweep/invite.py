@@ -69,7 +69,7 @@ def _invited(name: str) -> tuple[LedgerNetwork, as_Invite]:
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=JOINER),
         to=[JOINER],
-        target=case_stub(net.case_id),
+        case=case_stub(net.case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",
@@ -108,7 +108,9 @@ def _joined(name: str) -> tuple[LedgerNetwork, as_Invite]:
         for a in net.queued(MANAGER, to=JOINER, type_="Invite")
         if (read_sealed_body_dict(dl, a.id_) or {}).get("ledgerPosition")
         is not None
-        and (read_sealed_body_dict(dl, a.id_) or {}).get("target")
+        and ((read_sealed_body_dict(dl, a.id_) or {}).get("object") or {}).get(
+            "id"
+        )
         == net.case_id
     ]
     assert len(invites) == 1, invites
@@ -148,7 +150,7 @@ def accept_invite_actor_to_case_with_no_record() -> Scenario:
     stub = rm_invite_to_case_activity(
         make(as_Actor, id_=JOINER),
         to=[JOINER],
-        target=case_stub(net.case_id),
+        case=case_stub(net.case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{net.case_id}/invitations/joiner",

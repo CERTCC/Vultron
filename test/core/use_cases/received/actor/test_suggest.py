@@ -951,7 +951,7 @@ class TestOwnerDirectInviteAtCaseManager:
 
         self._deliver(dl, make_payload, roles=["vendor"])
 
-        target = self._sealed_invite(dl)["target"]
+        target = self._sealed_invite(dl)["object"]["preview"]
         assert isinstance(target.get("activeEmbargo"), dict)
         assert "endTime" in target["activeEmbargo"]
         assert target.get("caseStatus", {}).get("emState") in (

@@ -13,6 +13,7 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+import asyncio
 import logging
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,12 +26,20 @@ import vultron.demo.utils as demo_utils
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
+from test.support.hold_timers import stop_hold_timer_from_another_thread
+from test.support.store_sharing import no_store_shared_across_authorities
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driven.http_actor_profile_fetch import (
     HttpActorProfileFetchAdapter,
 )
 from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
+from vultron.adapters.driving.fastapi.inbox_startup_replay import (
+    finish_startup_inbox_replay,
+)
+from vultron.adapters.driving.fastapi.ledger_position_statements import (
+    finish_ledger_position_statements,
+)
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
@@ -394,7 +403,12 @@ def client():
         configure_default_emitter,
     )
 
-    with TestClient(api_app) as test_client:
+    # The guard spans the lifespan's startup and shutdown and the gaps
+    # between tests, which the per-test guard below cannot see (#6085).
+    with (
+        no_store_shared_across_authorities(),
+        TestClient(api_app) as test_client,
+    ):
         # The root lifespan now starts the production OutboxMonitor
         # (OX-09-002).  These tests assert on the effect of a trigger right
         # after its 202 and rely on the TestClient running the inline drain
@@ -403,9 +417,20 @@ def client():
         # that immediate read into a race.  The monitor's own behaviour is
         # covered by test_outbox_monitor.py, the root-lifespan test and the
         # Docker demo matrix.
+        # The app's background work runs on the portal's event loop, so it
+        # is stopped there, and waited for: the root conftest disposes the
+        # stores after each test, and closing a store while any of this work
+        # reads it segfaults the worker (#6148).
+        portal = test_client.portal
+        assert portal is not None, "TestClient entered without a portal"
         monitor = getattr(api_app.state, "outbox_monitor", None)
         if monitor is not None:
-            monitor.stop()
+            # stop() cancels the drain task; asyncio's cancel is safe only on
+            # the task's own loop.  The task ends at the drain's next await.
+            monitor_task = monitor._task
+            portal.call(monitor.stop)
+            if monitor_task is not None:
+                portal.call(asyncio.wait, {monitor_task})
         # The sender-sequence hold timer drains every hosted actor's inbox
         # queue each quarter of the hold wait (SYNC-21-011), under the
         # *configured* node's actor ids (``localhost:7999``), while these
@@ -416,15 +441,18 @@ def client():
         # a hold's expiry; the timer is covered by its own tests.
         hold_timer = getattr(api_app.state, "sender_sequence_hold_timer", None)
         if hold_timer is not None:
-            # The timer's event belongs to the app's event loop.
-            portal = test_client.portal
-            assert portal is not None, "TestClient entered without a portal"
-            portal.call(hold_timer.stop.set)
-
-            async def _timer_ended() -> None:
-                await hold_timer.task
-
-            portal.call(_timer_ended)
+            stop_hold_timer_from_another_thread(hold_timer)
+        # The startup replay and the position statements are one-shot at
+        # startup (no position interval is configured here); end both the
+        # way the lifespan's shutdown does.
+        portal.call(
+            finish_startup_inbox_replay,
+            getattr(api_app.state, "startup_inbox_replay", None),
+        )
+        portal.call(
+            finish_ledger_position_statements,
+            getattr(api_app.state, "ledger_position_statements", None),
+        )
         # Build a router that routes deliveries back to the single app and
         # drops anything sent to external fictional URLs.
         router = InProcessRouter()
@@ -477,6 +505,32 @@ def client():
             setattr(
                 app_v2.state, ACTOR_PROFILE_FETCHER_STATE, previous_fetcher
             )
+
+
+@pytest.fixture(autouse=True)
+def single_node_opens_no_store_under_a_second_authority(
+    request: pytest.FixtureRequest,
+) -> Iterator[None]:
+    """A test on the shared ``client`` node opens each store under one id.
+
+    That app serves every actor under ``http://testserver`` (DL-07-012), so
+    a store opened under another authority means some work resolved an
+    actor in the configured namespace.  The hold timer's drain did, and the
+    addressee door refused the entry it popped (#6085).  Tests that build
+    their own apps (``create_isolated_actor_app``) run several nodes that may
+    share a slug, so only tests using ``client`` are checked.
+
+    The check keys on the fixture *name*, so a module that overrides
+    ``client`` with another fixture is checked too.  ``client`` itself is
+    module-scoped and set up before this guard, so it runs its own guard
+    over the app's whole life: startup, the gaps between tests, and
+    shutdown.  This one names the test whose body opened the store.
+    """
+    if "client" not in request.fixturenames:
+        yield
+        return
+    with no_store_shared_across_authorities():
+        yield
 
 
 @pytest.fixture(autouse=True)

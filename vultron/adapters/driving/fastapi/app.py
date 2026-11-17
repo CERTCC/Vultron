@@ -263,6 +263,11 @@ def _make_lifespan(*, configure_globals: bool = True):
         # actors under another base URL than the configured one can stop
         # it: the timer works on the configured node's actor ids.
         application.state.sender_sequence_hold_timer = hold_timer
+        # Exposed so a harness that keeps this lifespan open across tests can
+        # wait for the startup work to end before it closes the stores that
+        # work reads (#6148).
+        application.state.startup_inbox_replay = startup_replay
+        application.state.ledger_position_statements = position_statements
 
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
@@ -271,7 +276,9 @@ def _make_lifespan(*, configure_globals: bool = True):
         await finish_sender_sequence_hold_timer(hold_timer)
         application.state.sender_sequence_hold_timer = None
         await finish_ledger_position_statements(position_statements)
+        application.state.ledger_position_statements = None
         await finish_startup_inbox_replay(startup_replay)
+        application.state.startup_inbox_replay = None
 
         if monitor is not None:
             monitor.stop()

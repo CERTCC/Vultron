@@ -212,31 +212,24 @@ class TestDynamicDiscovery:
         assert "as_VulnerabilityReport" not in VOCABULARY
         assert "as_VulnerabilityCase" not in VOCABULARY
 
-    def test_case_stub_owns_its_own_wire_type_key(self):
-        """VM-01-008, CM-11-013: the stub is its own type.
+    def test_case_preview_owns_its_own_wire_type_key(self):
+        """VM-01-008, MV-10-012: the case's preview is its own type.
 
-        ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCaseStub"``
-        and owns that ``WIRE_TYPE_MAP`` key (ADR-0114, #4045); the full case
-        keeps ``VulnerabilityCase``.
+        ``CasePreview`` emits ``type: "CasePreview"`` and owns that
+        ``WIRE_TYPE_MAP`` key (ADR-0205); the full case keeps
+        ``VulnerabilityCase``.
         """
         import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
         from vultron.wire.as2.vocab.base.registry import wire_type_value
+        from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
-            as_VulnerabilityCaseStub,
         )
 
-        assert (
-            wire_type_value(as_VulnerabilityCaseStub)
-            == "VulnerabilityCaseStub"
-        )
-        assert (
-            WIRE_TYPE_MAP["VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
-        )
+        assert wire_type_value(as_CasePreview) == "CasePreview"
+        assert WIRE_TYPE_MAP["CasePreview"] is as_CasePreview
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
-        assert (
-            VOCABULARY["as_VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
-        )
+        assert "VulnerabilityCaseStub" not in WIRE_TYPE_MAP
 
 
 class TestCoreTypeMapFallback:

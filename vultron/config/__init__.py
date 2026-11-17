@@ -52,6 +52,10 @@ Environment variables
     Override :attr:`ShadowConfig.connector`.
 ``VULTRON_SHADOW__LEDGER_DIR``
     Override :attr:`ShadowConfig.ledger_dir`.
+``VULTRON_SHADOW__NODE_URL``
+    Override :attr:`ShadowConfig.node_url`.
+``VULTRON_SHADOW__NODE_ACTOR_ID``
+    Override :attr:`ShadowConfig.node_actor_id`.
 """
 
 from vultron.config.actor import ActorConfig

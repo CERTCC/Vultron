@@ -9,6 +9,7 @@ consulted: >-
   Claude Opus 5.5; Concern #5648, Bug #5641, Concern #6041; ADR-0122, ADR-0152;
   specs/message-semantics-mapping.yaml MSM-07; specs/vultron-as2-mapping.yaml VAM-05
 informed: []
+partially_superseded_by: 0199-an-actor-sends-the-decision-it-makes-and-offers-only-what-another-decides.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0122-per-embargo-participant-consent.md

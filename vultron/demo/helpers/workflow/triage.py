@@ -92,7 +92,8 @@ def run_invite_path_rm_triage(
 ) -> None:
     """Run the RM triage cycle for an invite-path participant (CM-11-011).
 
-    An invited actor joins via ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``
+    An invited actor joins via ``Accept(Invite(VulnerabilityCase
+    preview)[target=Actor])``
     and receives the case, then the ledger replay, then the CASE_MANAGER's
     full-case Invite.  It never answers the reporter's
     ``Offer(VulnerabilityReport)``: it was not sent that Offer (CM-11-020,

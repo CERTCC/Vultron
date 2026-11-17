@@ -179,7 +179,9 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/proposal_case_resolution.py",
             "LoadExistingCaseNode._find_case",
         ),
-        # R3 — optional addressing / stub enrichment; factory tolerates None.
+        # Module-level resolver — a bare ``def``: a case it does not hold
+        # gets no stub Invite, so it raises ``VultronNotFoundError`` and the
+        # emitting node fails (CM-17-010, ADR-0205).
         (f"{_NODES}/invite_actor_emit.py", "build_stub_invite"),
         # R3 — addressing: a ``{case}/participants`` address names a case the
         # receiver may not hold; then it does not belong to it, so the

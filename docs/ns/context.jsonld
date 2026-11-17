@@ -6,6 +6,7 @@
       "CaseLedgerEntry": "vultron:CaseLedgerEntry",
       "CaseParticipant": "vultron:CaseParticipant",
       "CaseParticipantRole": "vultron:CaseParticipantRole",
+      "CasePreview": "vultron:CasePreview",
       "CaseProposal": "vultron:CaseProposal",
       "CaseReference": "vultron:CaseReference",
       "CaseStatus": "vultron:CaseStatus",
@@ -17,7 +18,6 @@
       "Redacted": "vultron:Redacted",
       "Refuse": "vultron:Refuse",
       "VulnerabilityCase": "vultron:VulnerabilityCase",
-      "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityItem": "vultron:VulnerabilityItem",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
       "activeEmbargo": {

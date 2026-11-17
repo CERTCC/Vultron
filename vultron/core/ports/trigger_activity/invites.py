@@ -38,13 +38,13 @@ class TriggerInvitesPort(Protocol):
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: VulnerabilityCase | None = None,
+        case: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
         in_reply_to: str | None = None,
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
+        """Create and persist the stub ``Invite(<case>)[target=<invitee>]``.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  There is no ``cc``:
@@ -52,11 +52,11 @@ class TriggerInvitesPort(Protocol):
         never addresses a copy to itself (CM-17-015, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
-        ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
-        to an enriched stub carrying the embargo in force, EM ``ACTIVE`` or
-        ``REVISE``),
-        a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
-        the case from the DataLayer by ``case_id`` (CM-17-002).
+        ``case`` is the core ``VulnerabilityCase`` the adapter builds the
+        Invite's preview from, the stub carrying the embargo in force (EM
+        ``ACTIVE`` or ``REVISE``, CM-17-002).  When ``None``, the adapter
+        reads the case from the DataLayer by ``case_id``, and refuses to
+        build the Invite when it holds none (CM-17-010, ADR-0205).
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
         the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
         CM-28-012, ASK-03-004), measured from *at*, the act's instant and the
@@ -80,10 +80,11 @@ class TriggerInvitesPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
+        """Create and persist the full-case ``Invite(<case>)[target=<invitee>]``.
 
-        ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
-        case by ID and carries the CASE_MANAGER's ledger tail
+        ``actor`` MUST be the CASE_MANAGER's ID.  The Invite carries the
+        case whole, read by ``case_id`` (ADR-0205), and carries the CASE_MANAGER's
+        ledger tail
         (``ledger_log_index``, ``ledger_entry_hash``) as the floor the
         invitee's reply must reach (CM-11-010, VAM-04-011).
         Returns ``(activity_id, activity_blob)``.

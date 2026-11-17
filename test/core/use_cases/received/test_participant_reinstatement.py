@@ -61,6 +61,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import terminate
 from test.support.ledger import with_genesis
 from test.support.objects import authored_at, make
+from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -722,7 +723,7 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
     """No full-case Invite, case seed or backfill reaches it (CLP-13-001)."""
     stub_invite = rm_invite_to_case_activity(
         VENDOR,
-        target=CASE_ID,
+        case=case_stub(CASE_ID),
         actor=MANAGER,
         to=[VENDOR],
         roles=[CVDRole.VENDOR],
@@ -768,7 +769,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     case.dl.create(make(as_Organization, id_=NEWBIE))
     stub_invite = rm_invite_to_case_activity(
         NEWBIE,
-        target=CASE_ID,
+        case=case_stub(CASE_ID),
         actor=MANAGER,
         to=[NEWBIE],
         roles=[CVDRole.VENDOR],

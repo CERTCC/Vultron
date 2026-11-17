@@ -31,8 +31,8 @@ A typed reference shares the ``type`` of the object it names, so it claims no
 object of that type (VM-01-017).  An actor reference keeps the form it had
 before this rule generalized it: the actor's own class carrying only its
 ``id`` (AKM-05-017, ADR-0159).  A collection carrying only its ``id`` is the
-address of an actor's endpoint (AKM-02-006), and a case stub keeps its own
-shape and position rules (MV-10-001, MV-10-002).  A case reference names a
+address of an actor's endpoint (AKM-02-006), and a ``CasePreview`` keeps its
+own shape and position rules (MV-10-001, MV-10-002).  A case reference names a
 case by exactly its ``id`` and ``type`` (ADR-0165); one that also carries the
 case's preview is a previewed reference, read by the preview's rules
 (ADR-0205), and is not a case reference.
@@ -76,21 +76,20 @@ from vultron.wire.as2.vocab.base.registry import (
     resolve_wire_type,
     resolved_wire_type_name,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 #: The key a typed reference carries its preview under.
 PREVIEW_KEY = "preview"
 
 #: The preview the protocol defines for each type, by the type's wire name
-#: (MV-10-012, ADR-0198).  A case's preview is the case stub, carrying what
+#: (MV-10-012, ADR-0198).  A case's preview is ``CasePreview``, carrying what
 #: an invitee decides on before it may see the case (CM-17-010, ADR-0205).
 #: A typed reference of any other type that carries a ``preview`` is
-#: refused, as is a case reference whose preview is not an inline stub.
+#: refused, as is a case reference whose preview is not an inline
+#: ``CasePreview``.
 #: Previews beyond the case's are #6257.
 DEFINED_PREVIEWS: Mapping[str, type[BaseModel]] = MappingProxyType(
-    {"VulnerabilityCase": as_VulnerabilityCaseStub}
+    {"VulnerabilityCase": as_CasePreview}
 )
 
 #: The types whose preview the protocol defines (MV-10-012, ADR-0198).
@@ -175,7 +174,8 @@ def reads_as_typed_reference(
     True for a typed reference shape whose class has no reference form of
     its own.  An actor's class is its actor reference (AKM-05-017), a
     collection naming only its ``id`` is an endpoint's address, and a
-    ``Link`` is not an object.  A case stub keeps its own rules (MV-10-001).
+    ``Link`` is not an object.  A ``CasePreview`` keeps its own rules
+    (MV-10-001).
     A case is read here like any other type: its ``{id, type}`` shape is the
     case reference (ADR-0165).
     """
@@ -188,7 +188,7 @@ def reads_as_typed_reference(
             CoreActor,
             as_Collection,
             as_Link,
-            as_VulnerabilityCaseStub,
+            as_CasePreview,
         ),
     )
 
@@ -235,18 +235,16 @@ class as_TypedReference(as_Object):
     # The one defined preview (DEFINED_PREVIEWS, which a test holds to this
     # annotation); the parser refuses any other before this class reads it
     # (MV-10-012).
-    preview: as_VulnerabilityCaseStub | None = None  # type: ignore[assignment]
+    preview: as_CasePreview | None = None  # type: ignore[assignment]
 
     @model_validator(mode="after")
-    def _preview_names_this_case(self) -> as_TypedReference:
-        """Refuse a preview its type does not define, or one naming another
-        case (MV-10-012).
+    def _preview_is_its_types(self) -> as_TypedReference:
+        """Refuse a preview its type does not define (MV-10-012).
 
         The parser refuses an undefined preview before this runs, but a
         stored row is read without the parser, so the class holds the rule
-        itself.  A stub names its case in ``caseId`` (CM-11-013), so a
-        preview whose ``caseId`` is not the reference's ``id`` previews a
-        different case.
+        itself.  The preview names no object of its own: the reference's
+        ``id`` is the object it previews (ADR-0205).
         """
         if self.preview is None:
             return self
@@ -257,13 +255,6 @@ class as_TypedReference(as_Object):
             raise ValueError(
                 f"a {self.type_} reference's preview is not that type's"
                 " defined preview (MV-10-012, ADR-0205)"
-            )
-        if self.preview.case_id != self.id_:
-            # Pydantic reports a ValueError raised here as a validation error.
-            raise ValueError(
-                f"the preview of case reference {self.id_!r} names case"
-                f" {self.preview.case_id!r}; a case's preview names the case"
-                " it previews (MV-10-012, ADR-0205)"
             )
         return self
 

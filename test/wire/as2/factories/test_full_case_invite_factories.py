@@ -30,6 +30,9 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE = "https://example.org/cases/full-factories"
 _MANAGER = "https://example.org/actors/manager"
@@ -38,10 +41,20 @@ _FLOOR = LedgerPosition(log_index=2, entry_hash="cd" * 32)
 _OWN = LedgerPosition(log_index=5, entry_hash="ef" * 32)
 
 
+def _case() -> as_VulnerabilityCase:
+    return make(
+        as_VulnerabilityCase,
+        id_=_CASE,
+        name="Full factories",
+        attributed_to=_MANAGER,
+        stub_summary="a case",
+    )
+
+
 def _invite():
     return rm_invite_to_full_case_activity(
         make(as_Organization, id_=_INVITEE),
-        _CASE,
+        _case(),
         _FLOOR,
         actor=_MANAGER,
         to=[_INVITEE],
@@ -51,13 +64,15 @@ def _invite():
 
 @pytest.mark.spec("VAM-04-011")
 @pytest.mark.spec("SYNC-18-001")
-def test_invite_targets_the_plain_case_uri_and_carries_the_floor_as_position():
+def test_invite_carries_the_whole_case_and_the_floor_as_position():
     invite = _invite()
 
     dumped = json.loads(
         invite.model_dump_json(by_alias=True, exclude_none=True)
     )
-    assert dumped["target"] == _CASE
+    assert dumped["object"]["type"] == "VulnerabilityCase"
+    assert dumped["object"]["id"] == _CASE
+    assert dumped["target"]["id"] == _INVITEE
     assert dumped["context"] == _CASE
     assert dumped["ledgerPosition"] == {
         "logIndex": 2,
@@ -95,15 +110,26 @@ def test_replies_carry_the_repliers_position_as_position(build, kind):
 
 
 @pytest.mark.spec("VAM-04-011")
+@pytest.mark.spec("AF-04-001")
+def test_the_full_case_invite_refuses_a_bare_case_uri():
+    """The Invite carries the case whole, so a URI is refused (ADR-0205)."""
+    with pytest.raises(VultronActivityConstructionError, match="ADR-0205"):
+        rm_invite_to_full_case_activity(
+            make(as_Organization, id_=_INVITEE),
+            _CASE,  # type: ignore[arg-type]
+            _FLOOR,
+            actor=_MANAGER,
+            at=authored_at(),
+        )
+
+
+@pytest.mark.spec("VAM-04-011")
 def test_a_non_full_case_invite_cannot_be_answered():
     from vultron.wire.as2.factories import rm_invite_to_case_activity
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseStub,
-    )
 
     stub_invite = rm_invite_to_case_activity(
         make(as_Organization, id_=_INVITEE),
-        target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
+        case=_case(),
         actor=_MANAGER,
         at=authored_at(),
     )

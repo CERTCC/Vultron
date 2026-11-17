@@ -175,7 +175,7 @@ def rm_invite_to_case() -> as_Invite:
         _coordinator,
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        target=_case,
+        case=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
         at=EXAMPLE_TIMESTAMP,

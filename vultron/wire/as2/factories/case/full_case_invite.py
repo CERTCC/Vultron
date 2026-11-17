@@ -33,6 +33,7 @@ from vultron.wire.as2.factories._context import (
 )
 from vultron.wire.as2.factories._held import (
     answered_fields,
+    embedded_as_received,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.invite import (
@@ -51,46 +52,52 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 def rm_invite_to_full_case_activity(
     invitee: as_Actor | CoreActor | str,
-    case: VulnerabilityCase | str,
+    case: VulnerabilityCase,
     ledger_tail: LedgerPosition,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor)[target=VulnerabilityCase] — the full-case Invite.
+    """Build an Invite(<case>)[target=<invitee>] — the full-case Invite.
 
     The CASE_MANAGER asks a joined participant to judge the case (CM-11-010,
-    VAM-04-011, ADR-0121).  The participant already holds the case from the
-    Announce, so the target is the plain case URI (AKM-02-003).  The
-    CASE_MANAGER's *ledger_tail*, the floor the participant's reply must
-    reach, is the Invite's ``ledgerPosition`` (SYNC-18-001, VAM-04-011).
+    VAM-04-011, ADR-0121).  The ``object`` is the whole case and the
+    invitee is the ``target`` (ADR-0205).  The CASE_MANAGER's *ledger_tail*,
+    the floor the participant's reply must reach, is the Invite's
+    ``ledgerPosition`` (SYNC-18-001, VAM-04-011).
 
     Args:
         invitee: The actor being asked: its profile as the sender holds it,
             or its URI, which travels as an actor reference (AKM-05-017).
-        case: The case, or its URI.
+        case: The case.  A case named by URI alone is refused: the Invite
+            carries the case whole (ADR-0205).
         ledger_tail: The CASE_MANAGER's ledger position when it issues the
             Invite.
         **kwargs: Optional AS2 fields forwarded to the constructor (``actor``,
             ``to``, ``id_``, ...).  ``context`` defaults to the case URI.
 
     Returns:
-        An ``as_Invite`` whose ``object_`` is the invited actor, whose
-        ``target`` is the case URI and whose ``ledgerPosition`` is the position.
+        An ``as_Invite`` whose ``object_`` is the case, whose ``target`` is
+        the invited actor and whose ``ledgerPosition`` is the position.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            *case* is not a ``VulnerabilityCase``.
     """
-    case_id = case if isinstance(case, str) else case.id_
+    if not isinstance(case, VulnerabilityCase):
+        raise VultronActivityConstructionError(
+            "rm_invite_to_full_case_activity: the full-case Invite carries"
+            f" the case whole, not {type(case).__name__} {case!r} (ADR-0205)"
+        )
     return build_activity(
         "rm_invite_to_full_case_activity",
         _RmInviteToFullCaseActivity,
         at,
         lambda: {
-            "object_": carried_actor(invitee),
-            "target": case_id,
+            "object_": case,
+            "target": carried_actor(invitee),
             "ledger_position": ledger_tail,
-            **with_case_context(kwargs, case_id),
+            **with_case_context(kwargs, case.id_),
         },
     )
 
@@ -100,27 +107,24 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
 
     The counterpart of :func:`_as_case_invite`: an Invite the participant
     holds came through intake as the generic ``as_Invite``, and is validated
-    on from its JSON form.
-
-    A read-back rehydrates the Invite's ``target`` into the stored case; the
-    reply addresses the case by URI, as the Invite did (AKM-02-003).
+    on from its JSON form.  The reply embeds the Invite as its sender sent it
+    (DL-06-004, :func:`embedded_as_received`).
 
     Raises:
         VultronActivityConstructionError: when *invite* is not a full-case
-            Invite (no case URI target, or no ``ledgerPosition``).
+            Invite (no whole case as its object, no invitee as its target,
+            or no ``ledgerPosition``).
     """
     if isinstance(invite, _RmInviteToFullCaseActivity):
-        return invite
+        return embedded_as_received(invite, invite)
     data = answered_fields(invite)
-    target = data.get("target")
-    if isinstance(target, dict):
-        data["target"] = target.get("id")
     try:
-        return _RmInviteToFullCaseActivity.model_validate(data)
+        full_case_invite = _RmInviteToFullCaseActivity.model_validate(data)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             f"activity '{data.get('id')}' is not a full-case Invite"
         ) from exc
+    return embedded_as_received(full_case_invite, invite)
 
 
 _Reply = TypeVar("_Reply")

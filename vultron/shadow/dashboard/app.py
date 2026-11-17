@@ -43,10 +43,15 @@ def ledger_suggestions(config: ShadowConfig) -> list[str]:
 
     Each is a ``*.jsonl`` file under ``ledger_dir``, named by its path
     relative to it, which is the case id the reader takes.  A run through a
-    connector, or with no ``ledger_dir``, offers none.
+    connector or a Vultron node, or with no ``ledger_dir``, offers none.
     """
     root = config.ledger_dir
-    if config.connector is not None or root is None or not root.is_dir():
+    if (
+        config.connector is not None
+        or config.node_url is not None
+        or root is None
+        or not root.is_dir()
+    ):
         return []
     return sorted(
         path.relative_to(root).as_posix() for path in root.rglob("*.jsonl")

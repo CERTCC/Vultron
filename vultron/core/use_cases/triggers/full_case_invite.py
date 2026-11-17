@@ -77,7 +77,7 @@ class _SvcFullCaseInviteReplyBase(SvcActivityTriggerBase):
             self._received_activities, request.invite_id, "full-case Invite"
         )
         floor = stored_invite_floor(held)
-        case_id = _as_id(getattr(held, "target", None))
+        case_id = _as_id(getattr(held, "object_", None))
         if floor is None or case_id is None:
             raise VultronValidationError(
                 f"'{request.invite_id}' is not a full-case Invite: it names"

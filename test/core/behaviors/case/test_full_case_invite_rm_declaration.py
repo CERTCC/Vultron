@@ -15,9 +15,9 @@
 
 """Full-case Invite reply handlers apply the shared received-side RM rule.
 
-``Accept(Invite(Actor)[target=VulnerabilityCase])`` (RV, RECEIVED → VALID),
-``TentativeReject(Invite(Actor)[target=VulnerabilityCase])`` (RI, RECEIVED → INVALID),
-and ``Reject(Invite(Actor)[target=VulnerabilityCase])`` (RC, RECEIVED → CLOSED) each
+``Accept(Invite(whole VulnerabilityCase)[target=Actor])`` (RV, RECEIVED → VALID),
+``TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])`` (RI, RECEIVED → INVALID),
+and ``Reject(Invite(whole VulnerabilityCase)[target=Actor])`` (RC, RECEIVED → CLOSED) each
 declare one RM state for their sender.  The CASE_MANAGER adjudicates every
 declaration exactly as it adjudicates an ``Add(ParticipantStatus)``: a forward
 move is recorded, a non-adjacent one included; a backward move is refused and
@@ -41,7 +41,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.objects import authored_at, make
-from test.support.received import received_event
+from test.support.received import case_stub, received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -109,7 +109,7 @@ def _seed_with_invite(dl: SqliteDataLayer, current: RM) -> tuple[Any, Any]:
     tail = ledger_tail_position(CASE_ID, dl)
     invite = rm_invite_to_full_case_activity(
         make(as_Organization, id_=ACTOR_ID),
-        CASE_ID,
+        case_stub(CASE_ID),
         tail,
         id_=_INVITE_ID,
         actor=CASE_MANAGER_ID,

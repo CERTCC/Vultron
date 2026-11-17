@@ -41,14 +41,14 @@ sequenceDiagram
     activate O
     O ->> CA: Offer(Actor)[target=VulnerabilityCase]
     activate CA
-    CA ->>+ A: Invite(Actor)[target=VulnerabilityCaseStub]
+    CA ->>+ A: Invite(VulnerabilityCase preview)[target=Actor]
     note over CA: Records inert CaseParticipant (RM Received)
     note over A: Consider invitation
     alt Accept Invitation
-        A -->> CA: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+        A -->> CA: Accept(Invite(VulnerabilityCase preview)[target=Actor])
         note over CA: Participant becomes active (RM stays Received)<br/>then sends case, ledger replay and full-case Invite
     else Reject Invitation
-        A -->> CA: Reject(Invite(Actor)[target=VulnerabilityCaseStub])
+        A -->> CA: Reject(Invite(VulnerabilityCase preview)[target=Actor])
         note over CA: Closes inert record (RM Closed); kept as history
     end
     deactivate A
@@ -71,8 +71,9 @@ sequenceDiagram
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
 
-2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox.
-   The `Invite` has a case stub as its `target`, not the case itself (CM-11-013, CM-17-001).
+2. The CASE_MANAGER commits and sends `Invite(VulnerabilityCase preview)[target=Actor]` to the actor's inbox.
+   The `Invite` names the invited actor in its `target`.
+   Its `object` is a reference to the case that carries the case stub as its `preview`, not the case itself (CM-11-013, CM-17-001).
    The CASE_MANAGER is the ActivityStreams `actor`, and your identity is in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued.
    Watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
@@ -97,11 +98,11 @@ sequenceDiagram
 
 Send your reply to the CASE_MANAGER, never to the Case Owner.
 
-- If you are joining the case, send `Accept(Invite(Actor))` with the `Invite` activity as its `object`.
+- If you are joining the case, send `Accept(Invite(VulnerabilityCase preview))` with the `Invite` activity as its `object`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/accept-invite-to-case.md" %}
 
-- If you are not joining, send `Reject(Invite(Actor))` with the `Invite` as its `object`.
+- If you are not joining, send `Reject(Invite(VulnerabilityCase preview))` with the `Invite` as its `object`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-invite-to-case.md" %}
 
@@ -150,9 +151,9 @@ See [How to Suggest an Actor for a Case](suggest_actor.md).
 
 | What you sent | What to confirm |
 |---|---|
-| `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
-| `Accept(Invite(Actor))` | The case roster holds you, and you have a local case replica. |
-| `Reject(Invite(Actor))` | The CASE_MANAGER's ledger records your `Reject`; your participant entry is closed (RM Closed) and kept as history, but you are not an active participant. |
+| `Invite(VulnerabilityCase preview)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `Accept(Invite(VulnerabilityCase preview))` | The case roster holds you, and you have a local case replica. |
+| `Reject(Invite(VulnerabilityCase preview))` | The CASE_MANAGER's ledger records your `Reject`; your participant entry is closed (RM Closed) and kept as history, but you are not an active participant. |
 
 ---
 

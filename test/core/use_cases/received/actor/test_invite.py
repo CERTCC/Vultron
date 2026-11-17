@@ -175,7 +175,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     invite = rm_invite_to_case_activity(
         invitee,
         to=[invitee.id_],
-        target=case_stub(case.id_),
+        case=case_stub(case.id_),
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/1",
@@ -219,7 +219,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     def _store_full_case_invite(**kwargs):
         activity = rm_invite_to_full_case_activity(
             invitee=kwargs["invitee_id"],
-            case=kwargs["case_id"],
+            case=case_stub(kwargs["case_id"]),
             ledger_tail=LedgerPosition(
                 log_index=kwargs["ledger_log_index"],
                 entry_hash=kwargs["ledger_entry_hash"],
@@ -267,7 +267,7 @@ def _deliver_invite_to_invitee(
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=_INVITEE_ID),
         to=[_INVITEE_ID],
-        target=target,
+        case=target,
         actor=sender,
         id_=invite_id,
         at=authored_at(),
@@ -316,7 +316,7 @@ def _seed_pcr708_exchange(*, receiver_id: str) -> tuple[SqliteDataLayer, Any]:
     invite = rm_invite_to_case_activity(
         invitee,
         to=[invitee.id_],
-        target=case.id_,
+        case=case_stub(case.id_),
         actor=_PCR708_MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{_PCR708_CASE_ID}/invitations/1",
@@ -370,7 +370,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target="https://example.org/cases/case1",
+            case=case_stub("https://example.org/cases/case1"),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/1",
             at=authored_at(),
@@ -415,7 +415,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target=case_id,
+            case=case_stub(case_id),
             actor=sender_id,
             id_=f"{case_id}/invitations/narrative-1",
             at=authored_at(),
@@ -460,7 +460,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target="https://example.org/cases/case1",
+            case=case_stub("https://example.org/cases/case1"),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/narrative-2",
             at=authored_at(),
@@ -503,7 +503,7 @@ class TestInviteActorUseCases:
         case_manager_id = "https://example.org/actors/case-actor"
         dl = _deliver_invite_to_invitee(
             make_payload,
-            target=case_id,
+            target=case_stub(case_id),
             sender=case_manager_id,
             invite_id=f"{case_id}/invitations/trust-anchor-1",
         )
@@ -575,7 +575,7 @@ class TestInviteActorUseCases:
         invite1 = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target=case_stub(case_id),
+            case=case_stub(case_id),
             actor=first_sender,
             id_=f"{case_id}/invitations/a",
             at=authored_at(),
@@ -583,7 +583,7 @@ class TestInviteActorUseCases:
         invite2 = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target=case_stub(case_id),
+            case=case_stub(case_id),
             actor=second_sender,
             id_=f"{case_id}/invitations/b",
             at=authored_at(),
@@ -656,7 +656,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target=case_id,
+            case=case_stub(case_id),
             actor="https://example.org/users/owner",
             id_=f"{case_id}/invitations/2",
             at=authored_at(),
@@ -713,7 +713,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=named_invitee_id),  # object ≠ receiving actor
             to=[named_invitee_id],
-            target=case_id,
+            case=case_stub(case_id),
             actor=case_manager_id,
             id_=f"{case_id}/invitations/misaddressed-1",
             at=authored_at(),
@@ -749,7 +749,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=owner_id),
             to=[owner_id],
-            target="https://example.org/cases/case1",
+            case=case_stub("https://example.org/cases/case1"),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/one-tree",
             at=authored_at(),
@@ -824,7 +824,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_="https://example.org/users/coordinator"),
             to=["https://example.org/users/coordinator"],
-            target=case_id,
+            case=case_stub(case_id),
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
             at=authored_at(),
@@ -867,7 +867,7 @@ class TestInviteActorUseCases:
     ):
         """RejectInviteActorToCaseReceivedUseCase commits a CaseLedgerEntry (AC-3).
 
-        Reject(Invite(Actor)[target=VulnerabilityCaseStub]) carries the case reference
+        Reject(Invite(VulnerabilityCase preview)[target=Actor]) carries the case reference
         in the nested
         Invite's ``target`` field (``inner_target_id``), not the top-level
         ``target`` of the Reject.  CM-11-003: use ``request.case_id`` which
@@ -919,7 +919,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
             to=[invitee_id],
-            target=case_id,
+            case=case_stub(case_id),
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
             at=authored_at(),
@@ -1016,7 +1016,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA1/invitations/1",
@@ -1089,7 +1089,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA2/invitations/1",
@@ -1162,7 +1162,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM001/invitations/1",
@@ -1300,7 +1300,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM002/invitations/1",
@@ -1424,7 +1424,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor=case_actor_id,
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA3/invitations/1",
@@ -1860,7 +1860,7 @@ class TestInviteActorUseCases:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor=case_actor_id,
             roles=[CVDRole.VENDOR],
             id_=f"{case.id_}/invitations/1",
@@ -2124,7 +2124,7 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee_id],
-            target=case_id,
+            case=case_stub(case_id),
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
             at=authored_at(),
@@ -2204,7 +2204,7 @@ class TestAcceptInviteRolesAC4:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
@@ -2269,7 +2269,7 @@ class TestAcceptInviteRolesAC4:
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
-            target=case.id_,
+            case=case_stub(case.id_),
             actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-neg/invitations/1",
             at=authored_at(),
@@ -2320,7 +2320,7 @@ class TestInviteDispositions:
         return rm_invite_to_case_activity(
             make(as_Actor, id_=self._INVITEE),
             to=[self._INVITEE],
-            target=case_id,
+            case=case_stub(case_id),
             actor=issuer or self._OWNER,
             id_=f"{case_id}/invitations/1",
             roles=[CVDRole.VENDOR],

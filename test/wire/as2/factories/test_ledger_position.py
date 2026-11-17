@@ -41,7 +41,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _CASE = "https://example.org/cases/stamp"
@@ -101,12 +100,18 @@ def test_a_participant_status_names_its_case_on_the_status() -> None:
 
 
 @pytest.mark.spec("SYNC-18-001")
-def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
+def test_a_stub_invite_and_its_reply_name_the_case_their_object_names() -> (
     None
 ):
     invite = rm_invite_to_case_activity(
         make(as_Organization, id_="https://example.org/users/invitee"),
-        target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
+        case=make(
+            as_VulnerabilityCase,
+            id_=_CASE,
+            name="a case",
+            attributed_to="https://example.org/actors/owner",
+            stub_summary="a case",
+        ),
         actor=_ACTOR,
         at=authored_at(),
     )

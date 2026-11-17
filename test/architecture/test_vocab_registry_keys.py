@@ -11,10 +11,10 @@ unreachable from the wire, and it lets a caller holding a *class* name resolve a
 wire class by name coincidence, which ARCH-23-002 forbids. Both were true of six
 keys before #2982: the five ``as_Vultron*`` actor classes registered under their
 stripped class names (``VultronPerson`` — also the name of a core type) as well as
-their ``type`` values (``Person``), and ``as_VulnerabilityCaseStub`` registered
-under ``VulnerabilityCaseStub`` while emitting ``type: "VulnerabilityCase"``.
-Since #4045 the stub emits ``type: "VulnerabilityCaseStub"`` and owns that key
-(CM-11-013, ADR-0114).
+their ``type`` values (``Person``), and the case stub class registered under
+its stub type name while emitting ``type: "VulnerabilityCase"``.  The stub later
+owned its own key (#4045) and is now the case's preview, ``CasePreview``, which
+owns that key (ADR-0205).
 
 ``_SANCTIONED_SHADOWS`` is a pinned exemption set, not a ratchet (ARCH-18-005): the
 ``as_Vultron*`` actor exception is enumerated by design and has no empty end state.

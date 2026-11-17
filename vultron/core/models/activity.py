@@ -94,7 +94,7 @@ class VultronActivity(CoreObject):
     actor: NonEmptyString  # non-optional because every activity must have an actor
     # The AS2 Activity slots hold one embedded object or one non-blank IRI,
     # as their wire declarations on ``as_Activity`` do: a core object, an
-    # object core does not model (a Link, a case stub) as the wire layer
+    # object core does not model (a Link) as the wire layer
     # built it, or the id a stored row collapsed it to.  A blank IRI is
     # refused when the activity is built (CS-08-001, #6305).
     object_: CoreObjectOrIri | None = Field(

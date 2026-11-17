@@ -146,7 +146,7 @@ class CoreObject(CoreRecord):
     media_type: NonEmptyString | None = None
     # The AS2 reference properties hold an embedded object or a non-blank IRI,
     # one or many (``replies`` one only), as on the wire base.  Core names only
-    # its own objects; a wire ``Link`` or case stub is held as the wire layer
+    # its own objects; a wire ``Link`` is held as the wire layer
     # built it (``UnmodelledObject``, ARCH-01-001).  A blank IRI is refused
     # when the object is built (CS-08-001, #3894).  The aliases are declared
     # below the class they name.
@@ -166,7 +166,7 @@ class CoreObject(CoreRecord):
     # one without it (CLP-15-011).  A class every author stamps narrows it to
     # ``datetime``.  The base admits ``None`` for the classes that keep it:
     # an actor profile (exempt, ``_received_without_published``), the bare
-    # reference the extractor wraps an unmodelled object in and a case stub's
+    # reference the extractor wraps an unmodelled object in and a case preview's
     # projection (neither is a whole object), an embargo consent row (copied,
     # never stamped, CM-23-044), and an attachment read before the act that
     # authors it opens.

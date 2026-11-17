@@ -54,15 +54,14 @@ def case_target_ref(target: _Target) -> _Target | str:
     """Reduce a full case in a ``target`` slot to its URI (MV-10-009, AKM-02-002).
 
     A recipient addressed about a case already holds it, so the case travels as
-    its URI; only the selective-disclosure stub an ``Invite`` builds
-    (``as_VulnerabilityCaseStub``, which carries no participants or reports) is
-    kept as an object.  Nothing downstream collapses a reference any more —
+    its URI; any other object (no case at all) is kept as it is.  Nothing downstream
+    collapses a reference any more —
     the sealed body is delivered as built (VM-08-003) — so the factory is the
     one place a full case can be stopped from going on the wire whole.
     """
     if target is None or isinstance(target, str):
         return target
     if not hasattr(target, "case_participants"):
-        return target  # a stub, or not a case at all
+        return target  # not a case at all
     case_uri = case_uri_of(target)
     return case_uri if case_uri is not None else target

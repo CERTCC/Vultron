@@ -7,7 +7,7 @@ Sends a Stub Invite carrying the case stub and the embargo terms the invitee wou
 === "Details"
 
     - **When…** the CASE_MANAGER invites an actor to join the case
-    - **Send:** `Invite(Actor)[target=VulnerabilityCaseStub]`
+    - **Send:** `Invite(VulnerabilityCase preview)[target=Actor]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Seen in:** [How to Seat a Participant on an Existing Case](../../../../howto/activitypub/activities/initialize_participant.md), [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)

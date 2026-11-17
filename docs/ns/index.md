@@ -24,6 +24,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `CaseLedgerEntry` | — | Entry in the canonical append-only case ledger |
 | `CaseParticipant` | — | Actor-in-role binding within a specific case |
 | `CaseParticipantRole` | — | A CVD role being offered to an actor in a case context |
+| `CasePreview` | — | The case's preview, sent as the `preview` of the case reference a stub Invite carries as its `object`, so the invitee can give informed consent before it holds the case |
 | `CaseProposal` | — | Request to a Case Actor Service to initialize a new case |
 | `CaseReference` | — | Typed external URL reference attached to a case |
 | `CaseStatus` | — | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
@@ -35,13 +36,12 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `Redacted` | — | Marker in a preview's field: the field has a value the sender withholds from the recipient, with an optional `summary` giving the reason |
 | `Refuse` | `as:Reject` | The CASE_MANAGER's refusal of an activity a precondition did not admit, sent as `"type": ["Refuse", "Reject"]`; a participant's decline of a request stays a `Reject` |
 | `VulnerabilityCase` | — | Coordination container for a vulnerability disclosure case |
-| `VulnerabilityCaseStub` | — | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
 | `VulnerabilityItem` | — | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
 | `VulnerabilityReport` | — | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.
 Those terms come from the wire `type` value each class emits, never from its class name, so a class that emits another class's `type` value gets no term of its own.
-The stub form of a case is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
+The case's preview is its own type: it is transmitted as `"type": "CasePreview"` and gets its own term.
 A type with a "Subtype of" entry refines that ActivityStreams type: it is transmitted as a list of its own type and that type, so a receiver that knows only ActivityStreams still reads the message.
 `context.jsonld` states each such pair in its `@graph`, as `rdfs:subClassOf`.
 
@@ -51,7 +51,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 
 | Property name | Value kind | Description |
 |---------------|------------|-------------|
-| `activeEmbargo` | iri | The embargo active on a case, as its case stub carries it: an EmbargoEvent or its id |
+| `activeEmbargo` | iri | The embargo active on a case, as its case preview carries it: an EmbargoEvent or its id |
 | `activeParticipants` | set of iri | The ids of the participants a case finds active |
 | `actorParticipantIndex` | index of iri | A map from the id of each actor in a case to the id of its CaseParticipant |
 | `caseActivity` | set of iri | The ids of activities about a case |
@@ -59,7 +59,7 @@ A type with a "Subtype of" entry refines that ActivityStreams type: it is transm
 | `caseParticipants` | set of iri | The participants of a case, each a CaseParticipant or its id |
 | `caseReferences` | set of iri | The external references of a case, each a CaseReference or its id |
 | `caseRoles` | set | The CVD roles a participant holds in a case |
-| `caseStatus` | iri | The case status a participant status or a case stub reports: a CaseStatus object or its id |
+| `caseStatus` | iri | The case status a participant status or a case preview reports: a CaseStatus object or its id |
 | `caseStatuses` | list of iri | The statuses of a case, oldest first, each a CaseStatus or its id; the last is its current status |
 | `category` | plain | The CSAF category of a vulnerability note, such as description or summary |
 | `cause` | plain | Why an embargo ended early: an object whose kind names the cause |

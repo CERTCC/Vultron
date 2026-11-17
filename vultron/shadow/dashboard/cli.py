@@ -27,6 +27,11 @@ only address the page is published on.
 The page listens on ``127.0.0.1`` unless told otherwise.  The Compose
 service listens on every interface inside its container and publishes the
 port on the host's loopback only (SHD-02-002).
+
+The run holds what it reads in memory, and its transient files in a
+private temporary directory removed when the run ends
+(:func:`~vultron.shadow.dashboard.lifecycle.private_tempdir`), so a case
+it read is left nowhere on the host after it exits (SHD-01-003).
 """
 
 from __future__ import annotations
@@ -35,6 +40,7 @@ import click
 from streamlit.web import cli as streamlit_cli
 
 from vultron.shadow.dashboard.app import APP_PATH
+from vultron.shadow.dashboard.lifecycle import private_tempdir
 
 #: The port the page listens on by default.
 DEFAULT_PORT = 8501
@@ -80,9 +86,12 @@ def streamlit_args(address: str, port: int) -> list[str]:
 )
 def main(address: str, port: int) -> None:
     """Start the case shadow tool's dashboard."""
-    streamlit_cli.main(
-        args=streamlit_args(address, port), prog_name="streamlit"
-    )
+    # Any transient file the run writes goes in a directory removed when
+    # the run ends, by return, error or SIGTERM (SHD-01-003).
+    with private_tempdir():
+        streamlit_cli.main(
+            args=streamlit_args(address, port), prog_name="streamlit"
+        )
 
 
 __all__ = ["DEFAULT_PORT", "main", "streamlit_args"]

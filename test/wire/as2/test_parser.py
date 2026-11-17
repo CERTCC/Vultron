@@ -288,15 +288,20 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
             "id": "urn:uuid:invite-1",
             "actor": "https://example.org/actors/vendor",
             "object": {
+                "type": "VulnerabilityCase",
+                "id": "https://example.org/cases/case-1",
+                "preview": {
+                    "type": "CasePreview",
+                    "id": "urn:uuid:case-1-preview",
+                    "summary": (
+                        "Security issue — details shared after acceptance"
+                    ),
+                },
+            },
+            "target": {
                 "type": "Organization",
                 "id": "https://example.org/actors/coordinator",
                 "name": "Coordinator",
-            },
-            "target": {
-                "type": "VulnerabilityCaseStub",
-                "id": "https://example.org/cases/case-1/stub",
-                "caseId": "https://example.org/cases/case-1",
-                "summary": "Security issue — details shared after acceptance",
             },
             "to": ["https://example.org/actors/coordinator"],
         },
@@ -676,7 +681,7 @@ def test_parse_activity_processes_the_vultron_context_without_fetching_it():
     invite = body["object"]
     assert isinstance(invite, dict)
     invite["@context"] = VULTRON_CONTEXT_URI
-    invite["target"]["@context"] = VULTRON_CONTEXT_URI
+    invite["object"]["preview"]["@context"] = VULTRON_CONTEXT_URI
 
     event = extract_event(parse_activity(body))
 

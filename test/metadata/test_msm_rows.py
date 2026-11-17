@@ -85,6 +85,38 @@ def test_format_pattern_writes_the_embargo_type_the_sender_emits(
     assert format_pattern(entry.pattern) == expected
 
 
+@pytest.mark.spec("SE-01-009")
+@pytest.mark.parametrize(
+    ("semantics", "expected"),
+    [
+        (
+            MessageSemantics.INVITE_ACTOR_TO_CASE,
+            "Invite(VulnerabilityCase preview)[target=Actor]",
+        ),
+        (
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+            "Accept(Invite(VulnerabilityCase preview)[target=Actor])",
+        ),
+        (
+            MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
+            "Invite(whole VulnerabilityCase)[target=Actor]",
+        ),
+        (
+            MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE,
+            "TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])",
+        ),
+    ],
+)
+def test_format_pattern_writes_the_object_form(
+    semantics: MessageSemantics, expected: str
+):
+    """Two Invite patterns that differ only in the form they require of
+    their object render apart (SE-01-009, ADR-0205)."""
+    entry = lookup_entry(semantics)
+    assert entry is not None and entry.pattern is not None
+    assert format_pattern(entry.pattern) == expected
+
+
 def test_emitted_type_passes_other_types_through():
     assert emitted_type("Event") == "EmbargoEvent"
     assert emitted_type("VulnerabilityCase") == "VulnerabilityCase"
