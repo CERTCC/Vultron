@@ -427,6 +427,10 @@ def config_override(**env_updates: str) -> Generator[AppConfig]:
     original environment values and reloads again in a ``finally`` block so
     that the restore always happens even when the body raises (CFG-06-006).
 
+    It acts on the process-wide config only: the yielded config is the
+    process-wide one, and an app holding its own config (ADR-0206) keeps
+    reading that config inside its scope, unaffected by the override.
+
     This makes the incorrect ``monkeypatch.undo()``-after-``reload_config()``
     ordering impossible by construction (CONCERN-2323).
 

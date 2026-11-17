@@ -27,10 +27,15 @@ from collections.abc import Callable
 
 import pytest
 
+from test.support.app_configs import (
+    held_app_config_count,
+    own_app_config,
+    release_leaked_app_config_holds,
+)
 from vultron.config import (
     AppConfig,
+    app as app_config_module,
     app_config_scope,
-    clear_config_cache,
     config_override,
     get_config,
     holding_app_config,
@@ -42,21 +47,10 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
 
-@pytest.fixture(autouse=True)
-def _fresh_process_config():
-    clear_config_cache()
-    yield
-    clear_config_cache()
-
-
 def _own_config(retries: int) -> AppConfig:
-    # ``AppConfig(...)`` keyword arguments are not a settings source, so an
-    # app's own config is a copy of the loaded one with its values changed.
-    return AppConfig().model_copy(
-        update={
-            "max_inbox_retry_attempts": retries,
-            "actor": ActorConfig(default_case_roles=[CVDRole.VENDOR]),
-        }
+    return own_app_config(
+        max_inbox_retry_attempts=retries,
+        actor=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
     )
 
 
@@ -178,3 +172,24 @@ def test_process_wide_reload_and_override_work_while_an_app_holds() -> None:
             assert cfg.max_inbox_retry_attempts == 9
         # The app's own config is untouched by the process-wide override.
         assert get_config().max_inbox_retry_attempts == 5
+
+
+def test_leak_guard_puts_back_a_hold_the_test_left_running() -> None:
+    """The autouse guard's helper undoes a hold a test never released."""
+    before = held_app_config_count()
+    # The count a hold leaves when it is never exited, as a TestClient left
+    # open would leave it.
+    app_config_module._HELD_APP_CONFIGS.add(1)
+    with pytest.raises(VultronWiringError):
+        _in_no_scope(get_config)
+
+    assert release_leaked_app_config_holds(before) == 1
+    assert held_app_config_count() == before
+    assert _in_no_scope(get_config) is get_config()
+
+
+def test_leak_guard_reports_none_when_every_hold_was_released() -> None:
+    before = held_app_config_count()
+    with holding_app_config(_own_config(5)):
+        pass
+    assert release_leaked_app_config_holds(before) == 0

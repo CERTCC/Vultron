@@ -22,17 +22,20 @@ an app holding its own config runs, a read that lost its app's scope raises
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import asyncio
 import contextvars
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.app_configs import own_app_config
+from vultron.adapters.driving.fastapi import app as app_module
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.config import (
     AppConfig,
     RunMode,
-    clear_config_cache,
+    config_override,
     get_config,
     load_actor_config,
 )
@@ -41,22 +44,18 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
 
-@pytest.fixture(autouse=True)
-def _fresh_process_config():
-    clear_config_cache()
-    yield
-    clear_config_cache()
-
-
 def _own_config(retries: int, role: CVDRole) -> AppConfig:
-    # ``AppConfig(...)`` keyword arguments are not a settings source, so an
-    # app's own config is a copy of the loaded one with its values changed.
-    return AppConfig().model_copy(
-        update={
-            "max_inbox_retry_attempts": retries,
-            "actor": ActorConfig(default_case_roles=[role]),
-        }
+    return own_app_config(
+        max_inbox_retry_attempts=retries,
+        actor=ActorConfig(default_case_roles=[role]),
     )
+
+
+def _config_read() -> dict[str, object]:
+    return {
+        "retries": get_config().max_inbox_retry_attempts,
+        "roles": [str(r) for r in load_actor_config().default_case_roles],
+    }
 
 
 def _with_config_probes(app: FastAPI) -> FastAPI:
@@ -64,18 +63,12 @@ def _with_config_probes(app: FastAPI) -> FastAPI:
 
     @app.get("/probe/async")
     async def _async_probe() -> dict[str, object]:
-        return {
-            "retries": get_config().max_inbox_retry_attempts,
-            "roles": [str(r) for r in load_actor_config().default_case_roles],
-        }
+        return _config_read()
 
     @app.get("/probe/sync")
     def _sync_probe() -> dict[str, object]:
         # A sync endpoint runs in a worker thread; the scope must reach it.
-        return {
-            "retries": get_config().max_inbox_retry_attempts,
-            "roles": [str(r) for r in load_actor_config().default_case_roles],
-        }
+        return _config_read()
 
     return app
 
@@ -89,9 +82,9 @@ def _app(config: AppConfig | None) -> FastAPI:
 @pytest.mark.parametrize("path", ["/probe/async", "/probe/sync"])
 def test_two_apps_in_one_process_each_read_their_own_config(path: str) -> None:
     vendor = _own_config(3, CVDRole.VENDOR)
-    finder = _own_config(8, CVDRole.REPORTER)
+    reporter = _own_config(8, CVDRole.REPORTER)
 
-    with TestClient(_app(vendor)) as a, TestClient(_app(finder)) as b:
+    with TestClient(_app(vendor)) as a, TestClient(_app(reporter)) as b:
         # Interleaved, so neither app's answer is left over from the other.
         first_a = a.get(path).json()
         first_b = b.get(path).json()
@@ -102,23 +95,54 @@ def test_two_apps_in_one_process_each_read_their_own_config(path: str) -> None:
     assert first_b == {"retries": 8, "roles": [str(CVDRole.REPORTER)]}
 
 
+def test_lifespan_reads_the_apps_own_config(monkeypatch) -> None:
+    """Startup, a task the lifespan starts, and shutdown read the app's config.
+
+    The probes hook the per-app dispatcher factory (startup) and the per-app
+    teardown (shutdown) that the real lifespan calls.
+    """
+    own = _own_config(6, CVDRole.VENDOR)
+    reads: dict[str, AppConfig] = {}
+    tasks: list[asyncio.Task[None]] = []
+    make_dispatcher = app_module.make_dispatcher
+    teardown = app_module._teardown_per_app_state
+
+    async def _task_read() -> None:
+        reads["task"] = get_config()
+
+    def _startup_probe():
+        reads["startup"] = get_config()
+        tasks.append(asyncio.get_running_loop().create_task(_task_read()))
+        return make_dispatcher()
+
+    def _shutdown_probe(application: FastAPI) -> None:
+        reads["shutdown"] = get_config()
+        teardown(application)
+
+    monkeypatch.setattr(app_module, "make_dispatcher", _startup_probe)
+    monkeypatch.setattr(app_module, "_teardown_per_app_state", _shutdown_probe)
+
+    with TestClient(_app(own)) as client:
+        client.get("/probe/async")
+
+    assert tasks and tasks[0].done()
+    assert reads == {"startup": own, "task": own, "shutdown": own}
+
+
 def test_app_with_no_config_reads_the_process_wide_config() -> None:
-    process_wide = get_config()
-    with TestClient(_app(None)) as client:
-        body = client.get("/probe/async").json()
-    assert body["retries"] == process_wide.max_inbox_retry_attempts
+    with config_override(VULTRON_MAX_INBOX_RETRY_ATTEMPTS="13"):
+        with TestClient(_app(None)) as client:
+            body = client.get("/probe/async").json()
+    assert body["retries"] == 13
 
 
 def test_app_with_no_config_beside_one_holding_its_own() -> None:
     """A config-less app keeps reading the process-wide config, refused not."""
-    process_wide = get_config()
     own = _own_config(4, CVDRole.VENDOR)
-    with TestClient(_app(own)) as held, TestClient(_app(None)) as plain:
-        assert held.get("/probe/sync").json()["retries"] == 4
-        assert (
-            plain.get("/probe/sync").json()["retries"]
-            == process_wide.max_inbox_retry_attempts
-        )
+    with config_override(VULTRON_MAX_INBOX_RETRY_ATTEMPTS="13"):
+        with TestClient(_app(own)) as held, TestClient(_app(None)) as plain:
+            assert held.get("/probe/sync").json()["retries"] == 4
+            assert plain.get("/probe/sync").json()["retries"] == 13
 
 
 def test_read_that_lost_its_scope_raises_while_the_app_runs() -> None:
@@ -131,14 +155,22 @@ def test_read_that_lost_its_scope_raises_while_the_app_runs() -> None:
     assert contextvars.Context().run(get_config) is get_config()
 
 
-def test_create_app_reads_its_mode_from_its_own_config() -> None:
-    """The factory's own read uses the app's config, not the process one."""
+def _demo_trigger_paths(app: FastAPI) -> list[str]:
+    return [p for p in app.openapi()["paths"] if "/demo/" in p]
 
-    def _demo_trigger_paths(app: FastAPI) -> list[str]:
-        return [p for p in app.openapi()["paths"] if "/demo/" in p]
 
-    assert get_config().mode == RunMode.PROTOTYPE
-    prod = AppConfig().model_copy(update={"mode": RunMode.PROD})
+@pytest.mark.parametrize("process_mode", [RunMode.PROTOTYPE, RunMode.PROD])
+def test_create_app_reads_its_mode_from_its_own_config(
+    process_mode: RunMode,
+) -> None:
+    """The factory's mode read (TRIG-09-002) uses the app's own config."""
+    with config_override(VULTRON_MODE=process_mode.value):
+        proto = _app(own_app_config(mode=RunMode.PROTOTYPE))
+        prod = _app(own_app_config(mode=RunMode.PROD))
+        plain = _app(None)
 
-    assert _demo_trigger_paths(_app(None))
-    assert not _demo_trigger_paths(_app(prod))
+    assert _demo_trigger_paths(proto)
+    assert not _demo_trigger_paths(prod)
+    assert bool(_demo_trigger_paths(plain)) is (
+        process_mode == RunMode.PROTOTYPE
+    )

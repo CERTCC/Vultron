@@ -780,10 +780,12 @@ so it cannot drift out of the branch. See
   two-node Announce). A green in-process suite does not count as coverage.
 - **Why.** In-process topologies share what Docker keeps apart. They seed the case,
   its participants and its embargo into every node's store before one protocol
-  step runs, so a receiver never depends on what the wire carried. Every node also
-  reads one process-global `get_config()`, so a CaseActor that reads its own
-  configuration for another actor's facts gets the right answer. Only the Docker
-  demos bootstrap from delivered activities, with one configuration per container.
+  step runs, so a receiver never depends on what the wire carried. A node built
+  without its own config (`create_app(config=None)`, still every demo node)
+  reads the process-global `get_config()`, so a CaseActor that reads its own
+  configuration for another actor's facts gets the right answer; give the node
+  its own config to close that gap (ADR-0206). Only the Docker demos bootstrap
+  from delivered activities, with one configuration per container.
 - **Symptom.** The suite is green, and the Docker demo fails with a "missing
   object" error on the receiving side (`no VulnerabilityCase for report`, `Invalid
   RM transition START → …`, `no routable recipients`) or a role error from a

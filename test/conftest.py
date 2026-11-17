@@ -261,6 +261,33 @@ def _dispose_actor_stores_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _no_app_config_hold_outlives_its_test() -> Iterator[None]:
+    """Fail a test that leaves an app holding its own config running.
+
+    While an app made by ``create_app(config=...)`` runs, ``get_config()`` in
+    no app scope raises ``VultronWiringError`` for the whole process
+    (ADR-0206).  A ``TestClient`` the test never exits would keep that
+    refusal on for every later test on the worker, failing them far from the
+    cause.  So the count is put back and this test fails instead.  The check
+    compares with the count before the test, so a module-scoped app that
+    holds its config across tests is not mistaken for a leak.
+    """
+    from test.support.app_configs import (
+        held_app_config_count,
+        release_leaked_app_config_holds,
+    )
+
+    before = held_app_config_count()
+    yield
+    leaked = release_leaked_app_config_holds(before)
+    if leaked:
+        pytest.fail(
+            f"{leaked} app(s) holding their own AppConfig were left running "
+            "(a TestClient never exited); see ADR-0206"
+        )
+
+
+@pytest.fixture(autouse=True)
 def _reset_pending_assertion_stores_between_tests():
     """Drop every per-actor pending-assertion store after each test.
 
