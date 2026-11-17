@@ -50,7 +50,7 @@ uv run pytest test/test_config.py --tb=short
 - **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007).
   Read the inventory from the factory's `result` dict, not a count quoted here.
   Diagnostic guidance per invariant lives in `notes/demo-ci-diagnostics.md`, which `test/ci/invariants/test_diagnostic_map_sync.py` ratchets against the factory (ISSUE-3337).
-- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox, `signatures.py` for reading a callable's signature without evaluating `TYPE_CHECKING`-only annotations (PEP 649), `case_reader.py` for an in-memory fake `CaseReader`, `sender_guard.py` for composing a sender guard as the receive-tree factory does, and `pool_kind_stores.py` for one store per SQLite pool kind)
+- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox, `signatures.py` for reading a callable's signature without evaluating `TYPE_CHECKING`-only annotations (PEP 649), `case_reader.py` for an in-memory fake `CaseReader`, `sender_guard.py` for composing a sender guard as the receive-tree factory does, `pool_kind_stores.py` for one store per SQLite pool kind, and `store_sharing.py` for failing a run that opens one actor's store under two authorities)
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before any `vultron` import, registers the `spec` marker, applies the integration timeout tier, warns on unknown spec IDs, and provides `reset_datalayer()`-based isolation and the `isolated_core_registries` fixture.
   `test/core/behaviors/conftest.py` clears the py_trees blackboard before every BT test.
 
@@ -78,6 +78,7 @@ uv run pytest test/test_config.py --tb=short
 - **Isolation guarantee**: per-actor in-memory stores are named shared-cache SQLite URLs, so the root conftest's autouse `_dispose_actor_stores_between_tests` fixture calls `reset_datalayer()` and `reset_store_claimants()` after every test (ADR-0073); without it, two tests using the same actor id would share rows.
   It never disposes under a running sender-sequence hold timer, because closing a store under the timer's read segfaults the worker (#6148).
   A timer the test left running is stopped first, and the test then fails with `HoldTimerLeakedError`.
+  Every test that uses the demo `client` fixture also fails if it opens an actor's store under a second authority, the engine's "shared by two distinct actor ids" warning (`test/support/store_sharing.py`, #6085).
 - **Common failure mode**: tests that import `vultron.*` before `os.environ["VULTRON_DATABASE__DB_URL"]` is set will bind to the on-disk default — prevented by conftest import ordering
 
 ### 5) Coverage and Quality Signals
