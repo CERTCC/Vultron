@@ -1,8 +1,9 @@
 ---
 status: accepted-provisional
 status_override: >-
-  Edited in place at the maintainer's direction on #6369 on 2026-11-17: a move
-  that takes a desideratum's scope out of reach adds no shift for it.
+  Edited in place at the maintainer's direction while working #6369 on
+  2026-11-17: a move that takes a desideratum's scope out of reach adds no
+  shift for it.
 date: 2026-11-13
 created: 2026-11-13
 updated: 2026-11-17
@@ -161,7 +162,7 @@ A result that overturns a rule above changes this record.
 
 ## More Information
 
-Decided by the maintainer in the planning interview for #6450 on 2026-11-13 and 2026-11-16; the rule for a scope out of reach was decided on #6369 on 2026-11-17.
+Decided by the maintainer in the planning interview for #6450 on 2026-11-13 and 2026-11-16; the rule for a scope out of reach was decided by the maintainer while working #6369 on 2026-11-17.
 Case scoring for each scope is #6457, the path-preference counts are #6459, chance values for path preferences are Epic #6461, an embargo's protection in the chance model is #6492, the objections to `V_i ≺ F_j` are #6502, and dependencies between participants are #6501.
 The chance model and the desiderata are [ADR-0182](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md).
 The shadow that shows the bands is [ADR-0190](0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md).
