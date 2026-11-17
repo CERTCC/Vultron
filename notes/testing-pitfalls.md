@@ -19,8 +19,9 @@ description: >
   blackboard isolation, in-memory SQLite stores sharing state per actor_id,
   why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
-  why a lifespan task that outlives its test segfaults a later worker (and
-  the guard that fails one draining in the wrong namespace),
+  why a lifespan task that outlives its test segfaults a later worker or
+  leaks a connection (and the guards that fail one draining in the wrong
+  namespace or reusing a disposed store),
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -484,6 +485,15 @@ fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
 hosted actors in the configured namespace opens a `testserver` actor's store
 under a second id; `no_store_shared_across_authorities()`
 (`test/support/store_sharing.py`) fails every `client` test that does (#6085).
+
+The same work, left running, also leaks connections. A `SqliteDataLayer` held
+across a disposal and used again opens a fresh connection on the disposed
+engine, which nothing closes; its `ResourceWarning` later fails whichever test
+the garbage collector lands in (#6001). Per-test disposal closes every such
+connection on an in-memory store and fails the test it opened in with
+`OrphanStoreConnectionError`, naming the opening stack
+(`test/support/orphan_store_connections.py`). Fix the holder, not the guard:
+take a fresh store after a reset, or stop the work before the test ends.
 
 ### In-Memory Stores Share by Actor
 
