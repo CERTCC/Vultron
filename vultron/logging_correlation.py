@@ -42,6 +42,7 @@ import logging
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from typing import ClassVar
 
 from vultron.primitives import require_non_empty
 
@@ -135,13 +136,19 @@ class CorrelationFormatter(logging.Formatter):
     naming only the ids the record carries.  A record without either id
     renders exactly as the base format would.  The ids go on the message line,
     before any traceback the base class appends.
+
+    An entry point with record attributes of its own to print, such as the
+    case shadow's case id, subclasses this and extends :attr:`fields`.
     """
+
+    #: The record attributes printed after the message, in print order.
+    fields: ClassVar[tuple[str, ...]] = CORRELATION_FIELDS
 
     def formatMessage(self, record: logging.LogRecord) -> str:
         line = super().formatMessage(record)
         present = [
             f"{name}={getattr(record, name)}"
-            for name in CORRELATION_FIELDS
+            for name in self.fields
             if hasattr(record, name)
         ]
         if not present:
@@ -153,12 +160,12 @@ def install_correlation_logging(
     handlers: Iterable[logging.Handler],
     fmt: str = DEFAULT_LOG_FORMAT,
     datefmt: str | None = None,
+    formatter: type[CorrelationFormatter] = CorrelationFormatter,
 ) -> None:
     """Put the correlation filter and formatter on each handler.
 
     Adds one :class:`CorrelationFilter` per handler (a second call adds no
-    second filter) and sets a :class:`CorrelationFormatter` built from *fmt*
-    and *datefmt*.  The filter goes on handlers, not loggers, because a
+    second filter) and sets a *formatter* built from *fmt* and *datefmt*.  The filter goes on handlers, not loggers, because a
     logger's filters do not run for records propagated from its children.
 
     Args:
@@ -166,8 +173,10 @@ def install_correlation_logging(
             ``logging.getLogger().handlers``.
         fmt: The base line format; defaults to :data:`DEFAULT_LOG_FORMAT`.
         datefmt: The ``asctime`` format, or ``None`` for the logging default.
+        formatter: The formatter class; :class:`CorrelationFormatter` or a
+            subclass that prints more fields.
     """
     for handler in handlers:
         if not any(isinstance(f, CorrelationFilter) for f in handler.filters):
             handler.addFilter(CorrelationFilter())
-        handler.setFormatter(CorrelationFormatter(fmt, datefmt))
+        handler.setFormatter(formatter(fmt, datefmt))
