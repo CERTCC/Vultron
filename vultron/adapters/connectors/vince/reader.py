@@ -51,7 +51,6 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-import math
 import re
 from collections.abc import Callable
 from datetime import datetime
@@ -88,6 +87,9 @@ DEFAULT_READ_TIMEOUT: float = 30.0
 #: A VINCE case id: its number, as VINCE's API names it, or ``VU#`` and
 #: its number, as VINCE shows it to a person.
 _CASE_ID = re.compile(r"(?:VU#)?([0-9]+)")
+
+#: A ``Retry-After`` value in its delay-seconds form: ASCII digits only.
+_DELAY_SECONDS = re.compile(r"[0-9]+")
 
 #: The setting the VINCE API base URL is read from.
 _BASE_URL_ENV_VAR = env_var_name(("vince", "base_url"))
@@ -163,15 +165,14 @@ def _path(vuid: str, read: str) -> str:
 def _retry_after(response: httpx.Response) -> float | None:
     """The seconds a 429 answer's ``Retry-After`` header asks for.
 
-    ``None`` when the header is missing or is not a finite, non-negative
-    number of seconds, such as the HTTP-date form, which would need a clock
-    read to turn into a wait.
+    ``None`` when the header is missing or is not HTTP's delay-seconds
+    form, a whole number of seconds in ASCII digits: the HTTP-date form
+    would need a clock read to turn into a wait.
     """
-    try:
-        seconds = float(response.headers["Retry-After"])
-    except KeyError, ValueError:
+    value = response.headers.get("Retry-After")
+    if value is None or not _DELAY_SECONDS.fullmatch(value.strip()):
         return None
-    return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    return float(value.strip())
 
 
 def _answer(vuid: str, read: str, response: httpx.Response) -> JsonValue:
@@ -234,7 +235,7 @@ class VinceCaseReader:
             network.  A test passes one that serves recorded answers.
         clock: Returns the time of reading, an aware datetime; read once
             per request.  By default the current UTC time.
-        timeout: Seconds one read may take.
+        timeout: Seconds each network step of a read may take.
     """
 
     name = "vince"
@@ -263,8 +264,9 @@ class VinceCaseReader:
 
         Raises:
             VultronValidationError: *case_id* is not a VINCE case id.
-            VultronConfigError: The VINCE base URL is not set or does not
-                end in ``/api``.
+            VultronConfigError: The VINCE base URL is not set, is
+                ``http`` to a host that is not loopback, or does not end in
+                ``/api``.
             VultronMissingCredentialError: The VINCE API credential is not
                 set.
             VinceReadError: A read failed; its subclass names why.
@@ -284,6 +286,9 @@ class VinceCaseReader:
             transport=self._transport,
             timeout=self._timeout,
             follow_redirects=False,
+            # A proxy named in the environment would carry a plain-http
+            # loopback read, credential included, across the network.
+            trust_env=not api_url.startswith("http://"),
             headers={
                 "Accept": "application/json",
                 "Authorization": f"Token {token.get_secret_value()}",

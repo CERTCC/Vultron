@@ -879,7 +879,7 @@ class VinceRateLimitedError(VinceReadError):
         retry_after: The seconds VINCE asked the client to wait, from its
             ``Retry-After`` header, or ``None`` when it named no number of
             seconds (no header, an HTTP-date, or a value that is not a
-            finite, non-negative number).
+            whole number in ASCII digits).
     """
 
     def __init__(

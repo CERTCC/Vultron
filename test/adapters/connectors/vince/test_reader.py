@@ -359,6 +359,10 @@ def test_a_failed_read_raises_its_named_error_after_one_attempt(
         ({"Retry-After": "nan"}, None),
         ({"Retry-After": "inf"}, None),
         ({"Retry-After": "-5"}, None),
+        ({"Retry-After": "1e2"}, None),
+        ({"Retry-After": "+5"}, None),
+        ({"Retry-After": "12.5"}, None),
+        ({"Retry-After": "1_000"}, None),
     ],
 )
 def test_a_rate_limit_carries_the_wait_vince_asked_for(headers, retry_after):
@@ -458,6 +462,10 @@ def test_a_missing_or_unusable_setting_refuses_the_read_unsent(
         "http://vince.example.org/vince/comm/api",
         "http://10.0.0.5/vince/comm/api",
         "http://localhost.example.org/vince/comm/api",
+        "http://localhost@evil.example/vince/comm/api",
+        "http://localhost:80@evil.example/vince/comm/api",
+        "http://localhost./vince/comm/api",
+        "http:///vince/comm/api",
     ],
 )
 def test_an_http_url_to_a_host_that_is_not_loopback_is_refused_unsent(
@@ -482,11 +490,19 @@ def test_an_http_url_to_a_host_that_is_not_loopback_is_refused_unsent(
 
 
 @pytest.mark.parametrize(
-    "host", ["localhost", "LOCALHOST", "127.0.0.1", "127.8.9.10", "[::1]"]
+    "host",
+    [
+        "localhost",
+        "LOCALHOST",
+        "127.0.0.1",
+        "127.8.9.10",
+        "[::1]",
+        "[::ffff:127.0.0.1]",
+    ],
 )
 def test_an_http_url_to_a_loopback_host_is_read(host):
-    base_url = f"http://{host}:8000/vince/comm/api"
-    vince = FakeVince(reads(ACTIVE), prefix="/vince/comm/api")
+    base_url = f"http://{host}:8000/api"
+    vince = FakeVince(reads(ACTIVE), prefix="/api")
 
     reading = _reader(
         vince, AS_OF[ACTIVE], _config(base_url=base_url)
@@ -499,6 +515,39 @@ def test_an_http_url_to_a_loopback_host_is_read(host):
         comm_url=base_url.removesuffix("/api"),
         as_of=AS_OF[ACTIVE],
     )
+
+
+@pytest.mark.parametrize(
+    ("base_url", "trusts_env"),
+    [
+        ("http://127.0.0.1:8000/vince/comm/api", False),
+        (API_URL, True),
+    ],
+)
+def test_a_plain_http_read_ignores_environment_proxies(
+    base_url, trusts_env, monkeypatch: pytest.MonkeyPatch
+):
+    """An environment proxy would carry a loopback ``http`` read, and its
+    credential, across the network in cleartext; ``https`` keeps them."""
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example.net:3128")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example.net:3128")
+    clients: list[httpx.Client] = []
+    real_client = httpx.Client
+
+    def spy(*args: Any, **kwargs: Any) -> httpx.Client:
+        client = real_client(*args, **kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(httpx, "Client", spy)
+    prefix = httpx.URL(base_url).path
+    vince = FakeVince(reads(ACTIVE), prefix=prefix)
+
+    _reader(vince, AS_OF[ACTIVE], _config(base_url=base_url)).read_case(
+        vince.vuid
+    )
+
+    assert [client.trust_env for client in clients] == [trusts_env]
 
 
 @pytest.mark.spec("VSD-01-004")
