@@ -31,4 +31,7 @@ Layout:
   default when no outside-system reader is configured.  An outside system's
   reader, such as the VINCE case reader, is a connector plugin under
   ``vultron/adapters/connectors/`` (ARCH-05-004), handed in from there.
+* :mod:`vultron.shadow.analysis` — a case reading's standing record.
+* :mod:`vultron.shadow.dashboard` — the Streamlit page that shows it, and
+  ``vultron-shadow``, which starts it.
 """

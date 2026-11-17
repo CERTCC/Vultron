@@ -19,9 +19,10 @@ The dashboard reads one case through one
 :class:`~vultron.core.ports.case_reader.CaseReader`.  An outside system's
 reader is used when one is configured; otherwise the run reads Vultron
 case-ledger files through the Vultron case reader, the source with nothing
-left untranslated.  How an outside-system reader is found and configured is
-the connector loader's job (``vultron/adapters/connectors/loader.py``) and
-the dashboard's; this function only makes the choice.
+left untranslated.  How an outside-system reader is found is the connector
+loader's job (``vultron/adapters/connectors/loader.py``), and which one a run
+uses is its settings' (:mod:`~vultron.shadow.readers.configured`); this
+function only makes the choice.
 """
 
 from __future__ import annotations
@@ -41,7 +42,8 @@ def select_case_reader(
         outside: The outside-system case reader the run is configured with,
             or ``None`` when no outside system is configured.
         ledger_root: The directory the Vultron case reader confines its
-            ledger files to, when one is set.
+            ledger files to; when it is ``None``, the reader confines them
+            to the working directory at construction.
     """
     if outside is None:
         return VultronCaseReader(root=ledger_root)

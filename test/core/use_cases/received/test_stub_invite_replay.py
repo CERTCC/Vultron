@@ -314,6 +314,29 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     assert "update_case_participant" not in new
 
 
+@pytest.mark.spec("CM-11-023", "CM-11-024", "CM-11-025", "CLP-07-021")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-11-023: the stub Invite's participant entry is still "
+        "create_case_participant, not add_case_participant_to_case. "
+        "Tracked by #6295 (the CASE_MANAGER seats a participant with Add)."
+    ),
+)
+def test_the_stub_invite_adds_the_participant_record_to_the_case() -> None:
+    """The CASE_MANAGER's entry for the invitee's new record is an ``Add``."""
+    net = _net(EM.ACTIVE)
+    before = len(_entry_types(net))
+    _the_owner_invites_the_joiner(net)
+
+    new = _entry_types(net)[before:]
+    assert new[:3] == [
+        "offer_actor_to_case",
+        "invite_actor_to_case",
+        "add_case_participant_to_case",
+    ], new
+
+
 @pytest.mark.spec("CM-11-027")
 @pytest.mark.parametrize(("roles", "em_state"), SCENARIOS)
 def test_replicas_hold_the_managers_whole_record_after_a_reject(

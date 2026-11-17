@@ -155,6 +155,7 @@ nav:
       - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
       - Running the Other Demos: 'tutorials/other_demos.md'
       - rv Demo Protocol Trace: 'reference/rv-demo-protocol.md'
+    - Run the Case Shadow Tool: 'howto/run_the_case_shadow.md'
     - Demo Scenarios:
       - 'topics/scenarios/index.md'
       - rv: 'topics/scenarios/rv.md'

@@ -166,10 +166,13 @@ Two replicas at the same ledger position hold identical case files only if the
 replica decides nothing:
 
 - **One act can commit several entries.** The act's entry comes first, then one
-  CASE_MANAGER-authored entry per further change, in write order: `Create(Object)`
-  for a new record, `Update(Object)` for a changed one, each carrying the object
-  in full. A stub Invite is the Invite's entry plus a `Create(CaseParticipant)`
-  for the inert invitee.
+  CASE_MANAGER-authored entry per further change, in write order, each carrying
+  the object in full (CLP-07-021): `Add(Object)` with the case as `target` for a
+  record that joins one of the case's lists (participants, reports, notes,
+  statuses, vulnerability items, case references), `Create(Object)` for any other
+  new record, `Update(Object)` for a changed one. Reason: a `Create` names no list,
+  so the replica would have to pick one (CM-23-044). A stub Invite is the Invite's
+  entry plus an `Add(CaseParticipant)` for the inert invitee.
 - **An act whose activity states the change is that change's entry.**
   `Add(Note)[target=VulnerabilityCase]` is applied by copying the note; an invitee's `Accept`
   of the stub Invite is the entry for its consent row and `joined` mark
@@ -394,8 +397,9 @@ second copy (CLP-07-013). Order:
    without it a replica rebuilt from the ledger lacks the end time (#5122,
    VAM-05-016)
 3. `add_report_to_case` — actor CASE_MANAGER
-4. per seated record, `create_case_participant` — `Create(CaseParticipant)`
-   carrying the record as created (roles, consent rows, its first status), then
+4. per seated record, `add_case_participant_to_case` —
+   `Add(CaseParticipant)[target=VulnerabilityCase]` carrying the record as
+   created (roles, consent rows, its first status), then
    `add_participant_status_to_participant` for each later status (the
    CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
 5. `add_case_status_to_case` — actor CASE_MANAGER; the vendor that set the
