@@ -51,7 +51,6 @@ from vultron.core.models._helpers import (
     absent_times_as_none,
     as_utc,
     blank_times_as_none,
-    declares_own_type,
     format_timestamp,
     own_annotations,
     refuse_absent_id,
@@ -77,13 +76,6 @@ from vultron.core.models.base.record import (
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString
-
-#: The AS2 collection types (CLP-15-011 exempts a collection).  They have no
-#: core class, so a generic core slot (``CoreObjectOrIri``) knows them by
-#: name; a wire test holds the set to the wire's collection classes.
-AS2_COLLECTION_TYPES: frozenset[str] = frozenset(
-    {"Collection", "OrderedCollection"}
-)
 
 
 class CoreObject(CoreRecord):
@@ -319,14 +311,9 @@ class CoreObject(CoreRecord):
         # The id first, as the wire twin does: an object with neither is
         # refused for the id it lacks before its time (OID-01-013).
         refuse_absent_id(cls, data)
-        # Core's ``type`` is one term: the wire edge narrows a type list
-        # before core reads it (ADR-0196), so a list names no class here.
         type_ = data.get("type", data.get("type_"))
-        if not isinstance(type_, str):
-            type_ = None
-        if declares_own_type(cls) or type_ not in AS2_COLLECTION_TYPES:
-            named = CORE_TYPE_MAP.get(type_) if type_ is not None else None
-            refuse_absent_published(cls, data, named)
+        named = CORE_TYPE_MAP.get(type_) if isinstance(type_, str) else None
+        refuse_absent_published(cls, data, named)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")
