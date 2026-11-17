@@ -57,6 +57,7 @@ from vultron.measure.ledger.jsonl import (
     LedgerFile,
     LedgerRow,
     UnusableRow,
+    parse_ledger_text,
     read_ledger_file,
 )
 from vultron.measure.ledger.names import (
@@ -115,6 +116,7 @@ __all__ = [
     "friendly_target_noun",
     "label_names",
     "log_index_of",
+    "parse_ledger_text",
     "payload_of",
     "read_case_ledgers",
     "read_dimension_state",

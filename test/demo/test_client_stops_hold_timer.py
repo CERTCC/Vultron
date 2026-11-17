@@ -18,12 +18,17 @@ Background work left running (the hold timer, the outbox monitor, the
 startup replay or position statements) reads those stores, on the app's
 loop and in worker threads, while they are closed, which segfaults the
 worker (#6148).
+
+The same tests check that a test using the fixture runs inside the
+store-sharing guard (#6085).
 """
 
 import asyncio
 
 from fastapi.testclient import TestClient
 
+from test.support import store_sharing
+from vultron.adapters.driven.datalayer_sqlite import engine as sqlite_engine
 from vultron.adapters.driving.fastapi.sender_sequence_holds import (
     running_sender_sequence_hold_timers,
 )
@@ -63,3 +68,16 @@ def test_the_demo_client_has_ended_all_lifespan_background_work(
     running = portal.call(_running_task_coroutines)
 
     assert not running & _LIFESPAN_BACKGROUND_WORK
+
+
+def test_a_demo_client_test_runs_inside_the_store_sharing_guard(
+    client: TestClient,
+):
+    """Both the fixture's guard and the per-test autouse guard are attached."""
+    guards = [
+        handler
+        for handler in sqlite_engine.logger.handlers
+        if isinstance(handler, store_sharing._SharedStoreRecords)
+    ]
+
+    assert len(guards) == 2

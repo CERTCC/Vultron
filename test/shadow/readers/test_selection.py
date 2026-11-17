@@ -13,14 +13,25 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case shadow's reader choice: Vultron's unless an outside one is set (#6441)."""
+"""The case shadow's reader choice (#6441, #6530).
+
+An outside-system reader when one is set, else the live Vultron case reader
+when a node is set, else the Vultron case reader over ledger files.
+"""
 
 import pytest
 
 from test.support.case_reader import FakeCaseReader
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import CaseLedgerFileError
-from vultron.shadow.readers import VultronCaseReader, select_case_reader
+from vultron.shadow.readers import (
+    VultronCaseReader,
+    VultronNode,
+    VultronNodeCaseReader,
+    select_case_reader,
+)
+
+_NODE = VultronNode("http://case-actor:7999/api/v2", "case-actor")
 
 
 def test_with_no_outside_reader_the_run_reads_vultron_ledger_files():
@@ -40,3 +51,14 @@ def test_the_default_reader_keeps_to_the_ledger_root(tmp_path):
     reader = select_case_reader(ledger_root=tmp_path)
     with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
         reader.read_case(str(tmp_path.parent / "other.jsonl"))
+
+
+def test_a_configured_node_is_read_through_the_live_reader():
+    reader = select_case_reader(node=_NODE)
+    assert isinstance(reader, VultronNodeCaseReader)
+    assert reader.node_url == _NODE.url
+
+
+def test_an_outside_reader_is_used_even_when_a_node_is_set():
+    outside = FakeCaseReader({})
+    assert select_case_reader(outside, node=_NODE) is outside

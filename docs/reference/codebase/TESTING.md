@@ -50,7 +50,7 @@ uv run pytest test/test_config.py --tb=short
 - **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007).
   Read the inventory from the factory's `result` dict, not a count quoted here.
   Diagnostic guidance per invariant lives in `notes/demo-ci-diagnostics.md`, which `test/ci/invariants/test_diagnostic_map_sync.py` ratchets against the factory (ISSUE-3337).
-- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox, `signatures.py` for reading a callable's signature without evaluating `TYPE_CHECKING`-only annotations (PEP 649), `case_reader.py` for an in-memory fake `CaseReader`, `sender_guard.py` for composing a sender guard as the receive-tree factory does, and `pool_kind_stores.py` for one store per SQLite pool kind)
+- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox, `signatures.py` for reading a callable's signature without evaluating `TYPE_CHECKING`-only annotations (PEP 649), `case_reader.py` for an in-memory fake `CaseReader`, `sender_guard.py` for composing a sender guard as the receive-tree factory does, `pool_kind_stores.py` for one store per SQLite pool kind, and `store_sharing.py` for failing a run that opens one actor's store under two authorities)
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before any `vultron` import, registers the `spec` marker, applies the integration timeout tier, warns on unknown spec IDs, and provides `reset_datalayer()`-based isolation and the `isolated_core_registries` fixture.
   `test/core/behaviors/conftest.py` clears the py_trees blackboard before every BT test.
 
@@ -67,6 +67,7 @@ uv run pytest test/test_config.py --tb=short
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo verdict (base vs. head) | Yes | What a composed scenario records and checks, between a pull request's merge base and its head | `.github/workflows/demo-verdict.yml` records every registered scenario in-process at both commits and runs `compare-demo-runs`, which compares each scenario's verdict (an allow-list of ledger fields plus the check tree), not ids, times or signatures; a difference fails the job unless the pull request carries `demo-verdict-change` (DEMOCI-11-054 to DEMOCI-11-064, DEMOCI-11-070 to DEMOCI-11-072), and `test/ci/test_demo_verdict_workflow.py` pins the job |
 | Demo UI (`ui/`) | Lint, unit tests of pure modules, and build | ESLint, Vitest (`npm test`, `src/**/*.test.ts`) and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/vite.config.ts` |
+| Case shadow image | Yes | The built `shadow` image and its running Compose service | `.github/workflows/shadow-image.yml` builds the image with a marker credential in the build environment and fails if any layer holds it (`.github/scripts/find_in_image.py`, SHD-02-003), checks that the image declares no volume and the container has no mount (SHD-02-001), then starts `docker compose up shadow` and waits for `ok` from `/_stcore/health` on `127.0.0.1:8501` (SHD-02-002); `test/ci/test_find_in_image.py` tests the search |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
 
 ### 4) Mocking and Isolation Strategy
@@ -78,6 +79,7 @@ uv run pytest test/test_config.py --tb=short
 - **Isolation guarantee**: per-actor in-memory stores are named shared-cache SQLite URLs, so the root conftest's autouse `_dispose_actor_stores_between_tests` fixture calls `reset_datalayer()` and `reset_store_claimants()` after every test (ADR-0073); without it, two tests using the same actor id would share rows.
   It never disposes under a running sender-sequence hold timer, because closing a store under the timer's read segfaults the worker (#6148).
   A timer the test left running is stopped first, and the test then fails with `HoldTimerLeakedError`.
+  Every test that uses the demo `client` fixture also fails if it opens an actor's store under a second authority, the engine's "shared by two distinct actor ids" warning (`test/support/store_sharing.py`, #6085).
 - **Common failure mode**: tests that import `vultron.*` before `os.environ["VULTRON_DATABASE__DB_URL"]` is set will bind to the on-disk default — prevented by conftest import ordering
 
 ### 5) Coverage and Quality Signals
@@ -134,5 +136,6 @@ uv run pytest test/test_config.py --tb=short
 - `.github/workflows/demo-verdict.yml`
 - `test/ci/test_demo_verdict_workflow.py`
 - `.github/workflows/ui.yml`
+- `.github/workflows/shadow-image.yml`
 - `test/metadata/test_gate_ceiling.py`
 - `test/demo_recordings/test_recorder_smoke.py`

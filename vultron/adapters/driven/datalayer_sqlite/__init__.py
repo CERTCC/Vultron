@@ -31,7 +31,11 @@ import logging
 from vultron.config import get_config
 
 from .datalayer import SqliteDataLayer
-from .engine import dispose_actor_engines, reset_store_claimants
+from .engine import (
+    dispose_actor_engines,
+    fresh_memory_url,
+    reset_store_claimants,
+)
 from .schema import QueueEntry, VultronObjectRecord
 
 __all__ = [
@@ -39,6 +43,7 @@ __all__ = [
     "VultronObjectRecord",
     "QueueEntry",
     "dispose_actor_engines",
+    "fresh_memory_url",
     "get_datalayer",
     "get_all_actor_datalayers",
     "reset_datalayer",
