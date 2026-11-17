@@ -31,7 +31,7 @@ import threading
 import time
 import urllib.request
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -181,7 +181,7 @@ def _run(host: _Host, mode: str, case_id: str) -> None:
 
 
 @contextmanager
-def _child(host: _Host, argv: list[str]) -> Iterator[subprocess.Popen[str]]:
+def _child(host: _Host, argv: list[str]) -> Generator[subprocess.Popen[str]]:
     """A child run in *host*, killed and waited for if it outlives the test."""
     process = subprocess.Popen(
         argv,
@@ -311,28 +311,32 @@ def test_the_private_tempdir_takes_the_runs_temporary_files(outer_tmp):
     assert os.environ["TMPDIR"] == str(outer_tmp)
 
 
-def test_the_private_tempdir_is_removed_when_the_run_raises(outer_tmp):
+@pytest.mark.usefixtures("outer_tmp")
+def test_the_private_tempdir_is_removed_when_the_run_raises():
     with pytest.raises(RuntimeError), private_tempdir() as private:
         (private / "work.txt").write_text("transient")
         raise RuntimeError("a read failed")
     assert not private.exists()
 
 
-def test_with_no_tmpdir_set_none_is_left_set(outer_tmp, monkeypatch):
+@pytest.mark.usefixtures("outer_tmp")
+def test_with_no_tmpdir_set_none_is_left_set(monkeypatch):
     monkeypatch.delenv("TMPDIR")
     with private_tempdir():
         assert "TMPDIR" in os.environ
     assert "TMPDIR" not in os.environ
 
 
-def test_sigterm_handling_is_restored_after_the_run(outer_tmp):
+@pytest.mark.usefixtures("outer_tmp")
+def test_sigterm_handling_is_restored_after_the_run():
     before = signal.getsignal(signal.SIGTERM)
     with private_tempdir():
         assert signal.getsignal(signal.SIGTERM) is not before
     assert signal.getsignal(signal.SIGTERM) is before
 
 
-def test_off_the_main_thread_the_directory_is_still_removed(outer_tmp):
+@pytest.mark.usefixtures("outer_tmp")
+def test_off_the_main_thread_the_directory_is_still_removed():
     """A signal handler cannot be set off the main thread, so none is."""
     before = signal.getsignal(signal.SIGTERM)
     seen: list[tuple[Path, object]] = []
@@ -349,9 +353,8 @@ def test_off_the_main_thread_the_directory_is_still_removed(outer_tmp):
     assert not private.exists()
 
 
-def test_sigterm_is_blocked_while_the_directory_is_removed(
-    outer_tmp, monkeypatch
-):
+@pytest.mark.usefixtures("outer_tmp")
+def test_sigterm_is_blocked_while_the_directory_is_removed(monkeypatch):
     """A second SIGTERM cannot stop the removal halfway: it waits."""
     blocked: list[bool] = []
     real_rmtree = shutil.rmtree
@@ -377,6 +380,7 @@ def test_the_launcher_runs_streamlit_in_a_private_tempdir(
     seen: list[Path] = []
 
     def fake_main(*, args: list[str], prog_name: str) -> None:
+        del args, prog_name  # the command line is test_packaging's
         private = Path(tempfile.gettempdir())
         (private / "work.txt").write_text("transient")
         seen.append(private)

@@ -30,7 +30,7 @@ import shutil
 import signal
 import tempfile
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from types import FrameType
@@ -41,7 +41,7 @@ TEMPDIR_PREFIX = "vultron-shadow-"
 _TMPDIR = "TMPDIR"
 
 
-def _exit_on_sigterm(signal_number: int, frame: FrameType | None) -> None:
+def _exit_on_sigterm(signal_number: int, _frame: FrameType | None) -> None:
     """Turn ``SIGTERM`` into ``SystemExit``, so cleanup code runs."""
     raise SystemExit(128 + signal_number)
 
@@ -52,7 +52,7 @@ def _on_main_thread() -> bool:
 
 
 @contextmanager
-def _sigterm_exits() -> Iterator[None]:
+def _sigterm_exits() -> Generator[None]:
     """Stop the process on ``SIGTERM`` by unwinding it, not by killing it.
 
     Python's default ``SIGTERM`` ends the process with no ``finally``
@@ -88,7 +88,7 @@ def _remove(path: Path) -> None:
 
 
 @contextmanager
-def private_tempdir() -> Iterator[Path]:
+def private_tempdir() -> Generator[Path]:
     """A temporary directory for the run's transient files, removed after.
 
     For the length of the ``with`` block, :mod:`tempfile` and any child
