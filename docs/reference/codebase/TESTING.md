@@ -75,7 +75,8 @@ uv run pytest test/test_config.py --tb=short
 - **HTTP**: outbound delivery tests patch `httpx2.AsyncClient.post` with `unittest.mock.AsyncMock` (`test/adapters/driven/test_delivery_backoff.py`); outbox-handler tests `monkeypatch` `handle_outbox_item` (`test/adapters/driving/fastapi/test_outbox_handler.py`)
 - **BT blackboard**: the py_trees blackboard is process-global; the autouse fixture in `test/core/behaviors/conftest.py` clears `Blackboard.storage` before each BT test, and several other BT test modules clear it themselves
 - **Registries**: tests that define local `CoreObject`/`CoreRecord` subclasses request `isolated_core_registries`, so `CORE_TYPE_MAP` is restored afterwards
-- **Isolation guarantee**: per-actor in-memory stores are named shared-cache SQLite URLs, so the root conftest's autouse `_dispose_actor_stores_between_tests` fixture calls `reset_datalayer()` and `reset_store_claimants()` after every test (ADR-0073); without it, two tests using the same actor id would share rows
+- **Isolation guarantee**: per-actor in-memory stores are named shared-cache SQLite URLs, so the root conftest's autouse `_dispose_actor_stores_between_tests` fixture calls `reset_datalayer()` and `reset_store_claimants()` after every test (ADR-0073); without it, two tests using the same actor id would share rows.
+  It raises `HoldTimerLeakedError` instead of disposing while a sender-sequence hold timer still runs, because closing a store under the timer's read segfaults the worker (#6148).
 - **Common failure mode**: tests that import `vultron.*` before `os.environ["VULTRON_DATABASE__DB_URL"]` is set will bind to the on-disk default — prevented by conftest import ordering
 
 ### 5) Coverage and Quality Signals
