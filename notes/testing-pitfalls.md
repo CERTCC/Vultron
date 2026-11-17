@@ -13,7 +13,8 @@ description: >
   annotations on Python 3.14 (`signature_of`, `own_annotations`), an
   in-process pass that hides what each node holds on its own,
   measuring effective markers rather than declarations,
-  `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
+  `filterwarnings` precedence and the thread-unsafe `catch_warnings` that
+  drops a library's own `ignore`, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
@@ -279,6 +280,16 @@ A test asserting the list position cannot catch this, because `pytest.warns` and
 `pytester` sub-session fed the project's real filter list, as
 `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated` does
 (SR-05-016).
+
+### A Library's `catch_warnings` Is Not Thread-Safe Under `"error"`
+
+Without context-aware warnings (`sys.flags.context_aware_warnings == 0`),
+`warnings.catch_warnings()` saves and restores the process-global filter list.
+A library that hides a warning that way on a `TestClient` portal thread can
+lose its `ignore` to another portal thread's restore, and `"error"` then fails
+a request at random. Ignore that one message in the ini list, after `"error"`,
+and test it by making the library's suppression a no-op rather than by racing
+threads: `test/demo/test_actor_dl_override_warning.py` does both (#6039).
 
 ### `caplog` Captures Fixture-Setup-Phase Records
 

@@ -399,8 +399,12 @@ filterwarnings = [
     # context-aware warnings, catch_warnings edits the process-global filter
     # list, so two TestClient portal threads building routes at once can drop
     # each other's "ignore" and fail an in-process delivery (#6039). This entry
-    # ignores only that alias message; test_actor_dl_override_warning.py pins
-    # it. Upstream report draft, not yet filed: "Upstream FastAPI report" in
+    # ignores only the 'alias' message of that category, but anywhere in the
+    # process: an alias misuse in our own code is hidden too. pydantic warns
+    # with no stacklevel, so the module is its own and cannot scope the entry
+    # to FastAPI. test_actor_dl_override_warning.py pins both the entry and
+    # its narrowness. Upstream report draft, not yet filed: "Upstream FastAPI
+    # report" in
     # https://github.com/CERTCC/Vultron/pull/6629#upstream-fastapi-report
     "ignore:The 'alias' attribute with value:pydantic.warnings.UnsupportedFieldAttributeWarning",
 ]
