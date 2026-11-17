@@ -157,13 +157,13 @@ def create_invite_actor_to_case_received_tree(
     The factory composes the sender guard from the use case's declared rule
     (HP-01-008): the sender must be the case's CASE_MANAGER, which alone
     issues the Invite (CM-17-006, PCR-03-001).  An invitee holding only the
-    stub has no CASE_MANAGER to compare against, so the guard passes there
+    case's preview has no CASE_MANAGER to compare against, so the guard passes there
     (the bootstrap window) and the trust-anchor rules of PCR-03-004 decide
     what the Invite may record.
 
     Args:
-        case_id: ID of the case the Invite's stub names (its ``target``).
-        invitee_id: The invited actor (the Invite's ``object``).
+        case_id: ID of the case the Invite's ``object`` names (ADR-0205).
+        invitee_id: The invited actor (the Invite's ``target``).
         inviter_id: The Invite's sender, recorded as the case's expected
             CASE_MANAGER.
         invite_id: The Invite's id, recorded so the invitee's Accept of it

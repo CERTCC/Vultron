@@ -82,7 +82,7 @@ Its receiver trusts no CASE_MANAGER until it accepts that message, so it has no 
 The report is not among those objects: the receiver offered it and already holds it, so the bootstrap may name it by reference.
 The reference implementation still carries the report inline when its sender holds it, a choice of the prototype rather than a protocol rule.
 
-The `target` field carries a case by reference only: the case URI when the recipient already holds the case, or a case stub for an actor that does not yet hold it (AKM-02-003).
+The `target` field carries a case by reference only, as the case URI (AKM-02-003); an actor that does not yet hold the case gets the case stub as the preview of the stub Invite's `object` (MV-10-002).
 The [protocol specification §12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n) defines what a case stub carries.
 
 A case ledger entry's payload snapshot records the asserted activity exactly as it was sent, so its nested objects are inline where the sender inlined them and by URI where the sender named them (CLP-07-006).
@@ -166,7 +166,7 @@ A receiver cannot tell an invented value from an asserted one.
 | Private data store | Each actor's data store is private. No other actor can access it. |
 | Bounded knowledge | What an actor knows is limited to what it has received. |
 | Obtainable objects | An object the recipient cannot hold already travels inline, or by a reference it can dereference. |
-| Case in `target` | A case in `target` is its URI or a case stub, never the full case. |
+| Case in `target` | A case in `target` is its URI, never the full case or a stub. |
 | Ledger snapshots | A ledger entry's payload snapshot carries its nested objects in full. |
 | Reference implementation | Inlines every outbound object, because it dereferences only a few references. |
 | Co-located actors | Co-location does not relax the isolation rule. Use the wire protocol. |

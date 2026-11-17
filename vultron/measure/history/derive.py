@@ -365,13 +365,13 @@ class _Deriver:
         self.events.append(context.event(EventKind.CASE_CLOSED))
 
     def _on_stub_accept(self, context: _Entry, invite: object) -> None:
-        invitee = _invitee(invite) or context.actor
+        invitee = _case_invitee(invite) or context.actor
         if invitee is not None:
             self._join(context, invitee, invite)
 
     def _on_stub_reject(self, context: _Entry, invite: object) -> None:
         """A refused stub Invite declines the embargo in force (CM-11-007)."""
-        invitee = _invitee(invite) or context.actor
+        invitee = _case_invitee(invite) or context.actor
         embargo_id = self._embargo_of_stub(invite)
         if invitee is not None and embargo_id is not None:
             self._answer(
@@ -401,15 +401,21 @@ class _Deriver:
         The history's own record of the register wins, since the embargo the
         Invite named may have ended before the answer; the Invite's
         ``activeEmbargo`` is read only when the history has seen no embargo
-        start or end, as in a merge missing the genesis entry.
+        start or end, as in a merge missing the genesis entry.  The terms are
+        in the preview the Invite's case reference carries (ADR-0205).
         """
         if self.started or self.exited:
             return self.active_embargo
         if isinstance(invite, dict):
-            target = invite.get("target")
-            if isinstance(target, dict):
+            reference = invite.get("object")
+            preview = (
+                reference.get("preview")
+                if isinstance(reference, dict)
+                else None
+            )
+            if isinstance(preview, dict):
                 return actor_uri(
-                    first_present(target, "activeEmbargo", "active_embargo")
+                    first_present(preview, "activeEmbargo", "active_embargo")
                 )
         return None
 
@@ -843,8 +849,15 @@ def _reached(deriver: _Deriver) -> ReachedState:
     )
 
 
+def _case_invitee(invite: object) -> str | None:
+    """The actor a case ``Invite`` invites: its ``target`` (ADR-0205)."""
+    return (
+        actor_uri(invite.get("target")) if isinstance(invite, dict) else None
+    )
+
+
 def _invitee(invite: object) -> str | None:
-    """The id of what an ``Invite`` invites: an actor, or an embargo."""
+    """The id of what an embargo ``Invite`` invites to: its ``object``."""
     return (
         actor_uri(invite.get("object")) if isinstance(invite, dict) else None
     )

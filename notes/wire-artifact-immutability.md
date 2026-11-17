@@ -153,8 +153,8 @@ Consequences for core:
 
 - An emit node records `json.loads(activity_blob)` as its `payloadSnapshot`,
   unpatched. The factory sets `context` to the case URI and reduces a full case
-  `target` to its URI (`factories/_context.py`); only the Invite's stub stays an
-  object (MV-10-001).
+  `target` to its URI (`factories/_context.py`); the stub travels only as the
+  preview of the stub Invite's `object` (MV-10-002, ADR-0205).
 - An activity core would build itself (the CaseProposal `Accept`, the prepared
   `Create(VulnerabilityCase)`, the CM-06-001 update broadcast) goes through the
   trigger port, because only the adapter can seal it.

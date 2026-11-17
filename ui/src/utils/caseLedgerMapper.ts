@@ -910,18 +910,19 @@ function handleOfferActorToCase(ctx: ReplayContext, entry: CaseLedgerEntry): Map
  *   - EMPTY (`actor` absent) — older logs, and a leading placeholder entry that
  *     precedes the populated one. Carries no attribution, so it's log-only; the
  *     join is shown by the later accept-invite.
- *   - POPULATED — carries the invitee (`object`), the target case, and the real
- *     inviter in `target.attributedTo` (the case owner — NOT the `actor`, which
- *     is the CASE_MANAGER relaying it). The node goes in the INVITER's lane so the
- *     pair reads "Owner invited X" → "X accepted".
+ *   - POPULATED — carries the case (`object`), the invitee (`target`, ADR-0205),
+ *     and the real inviter in `attributedTo` when the CASE_MANAGER sends it on
+ *     the case owner's behalf (the `actor` is the CASE_MANAGER relaying it). The
+ *     node goes in the INVITER's lane so the pair reads "Owner invited X" →
+ *     "X accepted".
  */
 function handleInvite(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult {
   const snapshot = entry.payloadSnapshot
   if (!snapshot?.actor) return logOnly(ctx, entry)
-  const inviterLane = laneOf(ctx, snapshot.target?.attributedTo) ?? laneOf(ctx, snapshot.actor)
+  const inviterLane = laneOf(ctx, snapshot.attributedTo) ?? laneOf(ctx, snapshot.actor)
   if (inviterLane === undefined) return logOnly(ctx, entry)
-  const invitee = referentLabel(ctx, snapshot.object) ?? snapshot.object?.name ?? undefined
-  const nodes = phrasedCluster(ctx, entry, inviterLane, { actor: nameOf(ctx, inviterLane), object: invitee })
+  const invitee = referentLabel(ctx, snapshot.target) ?? snapshot.target?.name ?? undefined
+  const nodes = phrasedCluster(ctx, entry, inviterLane, { actor: nameOf(ctx, inviterLane), target: invitee })
   return { nodes, logLines: [] }
 }
 

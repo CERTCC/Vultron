@@ -35,9 +35,8 @@ _IN_REPLY_TO = wire_key("in_reply_to")
 
 
 def invitee(snapshot: dict[str, Any]) -> str | None:
-    """The actor an ``Invite(whole VulnerabilityCase)[target=Actor]`` snapshot
-    invites."""
-    return _as_id(snapshot.get("object"))
+    """The actor a stub Invite snapshot invites: its ``target`` (ADR-0205)."""
+    return _as_id(snapshot.get("target"))
 
 
 def offered_participant_actor(snapshot: dict[str, Any]) -> str | None:

@@ -33,6 +33,7 @@ from vultron.wire.as2.factories._context import (
 )
 from vultron.wire.as2.factories._held import (
     answered_fields,
+    embedded_as_received,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.invite import (
@@ -106,7 +107,8 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
 
     The counterpart of :func:`_as_case_invite`: an Invite the participant
     holds came through intake as the generic ``as_Invite``, and is validated
-    on from its JSON form.
+    on from its JSON form.  The reply embeds the Invite as its sender sent it
+    (DL-06-004, :func:`embedded_as_received`).
 
     Raises:
         VultronActivityConstructionError: when *invite* is not a full-case
@@ -114,14 +116,15 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
             or no ``ledgerPosition``).
     """
     if isinstance(invite, _RmInviteToFullCaseActivity):
-        return invite
+        return embedded_as_received(invite, invite)
     data = answered_fields(invite)
     try:
-        return _RmInviteToFullCaseActivity.model_validate(data)
+        full_case_invite = _RmInviteToFullCaseActivity.model_validate(data)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             f"activity '{data.get('id')}' is not a full-case Invite"
         ) from exc
+    return embedded_as_received(full_case_invite, invite)
 
 
 _Reply = TypeVar("_Reply")
