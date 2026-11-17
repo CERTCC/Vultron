@@ -80,6 +80,7 @@ from vultron.core.states.cs_invariants.events import (
     CSEvent,
     cs_dimensions,
     cs_from_dimensions,
+    cs_happened_events,
 )
 from vultron.core.states.cs_invariants.history import (
     apply_cs_event,
@@ -107,6 +108,7 @@ __all__ = [
     "apply_cs_event",
     "cs_dimensions",
     "cs_from_dimensions",
+    "cs_happened_events",
     "cs_transition_event",
     "ensure_valid_cs_history",
     "ensure_valid_cs_transition",
