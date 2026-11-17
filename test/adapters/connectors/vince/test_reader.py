@@ -87,6 +87,7 @@ class FakeVince:
 
     case_reads: Mapping[str, Any]
     respond: Respond | None = None
+    prefix: str = "/vince/comm/api"
     requests: list[httpx.Request] = field(default_factory=list)
 
     @property
@@ -95,7 +96,7 @@ class FakeVince:
         return vuid
 
     def _read(self, request: httpx.Request) -> str:
-        prefix = f"/vince/comm/api/case/{self.vuid}/"
+        prefix = f"{self.prefix}/case/{self.vuid}/"
         path = request.url.path
         assert path.startswith(prefix), path
         return path.removeprefix(prefix).removesuffix("/") or "case"
@@ -449,6 +450,55 @@ def test_a_missing_or_unusable_setting_refuses_the_read_unsent(
         _reader(vince, AS_OF[ACTIVE], config).read_case(vince.vuid)
 
     assert vince.requests == []
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://vince.example.org/vince/comm/api",
+        "http://10.0.0.5/vince/comm/api",
+        "http://localhost.example.org/vince/comm/api",
+    ],
+)
+def test_an_http_url_to_a_host_that_is_not_loopback_is_refused_unsent(
+    base_url, caplog: pytest.LogCaptureFixture
+):
+    """The credential never crosses a network in cleartext (maintainer
+    decision, Epic run #5954)."""
+    vince = FakeVince(reads(ACTIVE))
+
+    with (
+        caplog.at_level(logging.DEBUG),
+        pytest.raises(VultronConfigError, match="http scheme") as excinfo,
+    ):
+        _reader(vince, AS_OF[ACTIVE], _config(base_url=base_url)).read_case(
+            vince.vuid
+        )
+
+    assert vince.requests == []
+    assert "VULTRON_VINCE__BASE_URL" in str(excinfo.value)
+    rendered = [str(excinfo.value)] + [r.getMessage() for r in caplog.records]
+    assert not [text for text in rendered if TOKEN in text]
+
+
+@pytest.mark.parametrize(
+    "host", ["localhost", "LOCALHOST", "127.0.0.1", "127.8.9.10", "[::1]"]
+)
+def test_an_http_url_to_a_loopback_host_is_read(host):
+    base_url = f"http://{host}:8000/vince/comm/api"
+    vince = FakeVince(reads(ACTIVE), prefix="/vince/comm/api")
+
+    reading = _reader(
+        vince, AS_OF[ACTIVE], _config(base_url=base_url)
+    ).read_case(vince.vuid)
+
+    assert len(vince.requests) == len(READS)
+    assert {r.url.scheme for r in vince.requests} == {"http"}
+    assert reading == translate_case(
+        reads(ACTIVE),
+        comm_url=base_url.removesuffix("/api"),
+        as_of=AS_OF[ACTIVE],
+    )
 
 
 @pytest.mark.spec("VSD-01-004")

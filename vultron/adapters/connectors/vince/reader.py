@@ -33,8 +33,8 @@ section (:class:`~vultron.config.vince.VinceConfig`), read when a case is
 requested, never when the reader is built: the connector loader builds
 every installed plugin with no arguments (ARCH-05-003), and a node with no
 VINCE settings must still load.  The credential travels only in the
-``Authorization`` header and appears in no log, error or repr
-(VSD-01-005).
+``Authorization`` header, only over ``https`` or to a loopback host, and
+appears in no log, error or repr (VSD-01-005).
 
 Each read gets one attempt, with a timeout, and no retry.  A refused
 credential, a rate limit, an unreachable or failing VINCE and an unknown
@@ -49,11 +49,13 @@ status, and counts, never case content (VSD-01-003).
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import math
 import re
 from collections.abc import Callable
 from datetime import datetime
+from urllib.parse import urlsplit
 
 import httpx2 as httpx
 from pydantic import JsonValue
@@ -107,12 +109,29 @@ def _vuid(case_id: str) -> str:
     return match.group(1)
 
 
+def _is_loopback(host: str | None) -> bool:
+    """Whether *host* is ``localhost`` or a loopback address."""
+    if host is None:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def _api_url(config: VinceConfig) -> str:
     """The VINCE Comm API base URL, without a trailing slash.
 
+    A plain ``http`` URL is accepted only for a loopback host, so the
+    credential never crosses a network in cleartext (maintainer decision,
+    Epic run #5954).
+
     Raises:
-        VultronConfigError: No base URL is set, or it does not end in
-            ``/api``, so the VINCE Comm root cannot be derived from it.
+        VultronConfigError: No base URL is set; it is ``http`` to a host
+            that is not loopback; or it does not end in ``/api``, so the
+            VINCE Comm root cannot be derived from it.
     """
     if config.base_url is None:
         raise VultronConfigError(
@@ -120,6 +139,14 @@ def _api_url(config: VinceConfig) -> str:
             f" read; set {_BASE_URL_ENV_VAR}"
         )
     api_url = config.base_url.rstrip("/")
+    parts = urlsplit(api_url)
+    if parts.scheme.lower() == "http" and not _is_loopback(parts.hostname):
+        raise VultronConfigError(
+            f"{_BASE_URL_ENV_VAR} uses the http scheme for the host"
+            f" {parts.hostname!r}, which is not loopback; the VINCE API"
+            " credential is sent only over https, or over http to"
+            " localhost, 127.0.0.0/8 or ::1"
+        )
     if not api_url.endswith("/api"):
         raise VultronConfigError(
             f"{_BASE_URL_ENV_VAR} must be the VINCE Comm API root, ending in"
