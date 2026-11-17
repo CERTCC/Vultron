@@ -37,6 +37,7 @@ docker compose up shadow
 Then open <http://127.0.0.1:8501> in a browser on the same machine.
 The service publishes its port on the loopback interface only, so no other machine on your network can open the page.
 The container has no volume, so nothing it reads outlives it.
+The tool holds a case only in memory, and it removes its temporary files when it stops, so it leaves no copy of a case on the host.
 
 To run the tool without Docker, run `uv run vultron-shadow` from the repository root.
 It listens on `127.0.0.1:8501`; `--port` changes the port.

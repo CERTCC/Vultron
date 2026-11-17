@@ -22,7 +22,8 @@ shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
 The page only reads: it holds the reader and nothing that can send or write
-(SHD-01-001, SHD-01-002).  A case lives in the page's run for one request.
+(SHD-01-001, SHD-01-002).  A case it reads lives in the process's memory
+only, and nothing of it is written to disk (SHD-01-003).
 """
 
 from __future__ import annotations
