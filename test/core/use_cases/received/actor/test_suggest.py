@@ -281,19 +281,9 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         assert len(dl.outbox_list()) == 1, dl.outbox_list()
 
-    @pytest.mark.spec("CM-16-009")
-    @pytest.mark.spec("DL-06-004")
-    def test_an_already_seated_actor_is_accepted_embedding_the_offer_as_received(
-        self, make_payload, seed_case_manager
-    ):
-        """An actor already seated is answered at once with an Accept to the
-        recommender (CM-16-009), which embeds the recommender's Offer exactly
-        as it arrived, never a rebuild of it (DL-06-004)."""
-        from vultron.adapters.outbox_sealed_body import read_sealed_body
-        from vultron.core.models.received_activity_record import (
-            ReceivedActivityRecord,
-        )
-
+    def _seated_recommendation(self, seed_case_manager, make_payload):
+        """A store whose case seats the recommended actor, and the
+        recommender's ``Offer(Actor)`` for it as received."""
         dl, _, case_id = self._setup_dl(seed_case_manager)
         recommended_id = "https://example.org/actors/vendor-seated"
         case = dl.read_case(case_id)
@@ -309,8 +299,11 @@ class TestOfferActorToCaseReceivedUseCase:
             at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+        return dl, activity, event
 
-        result = run_in_act(
+    @staticmethod
+    def _run(dl, event):
+        return run_in_act(
             OfferActorToCaseReceivedUseCase(
                 dl,
                 event,
@@ -319,6 +312,25 @@ class TestOfferActorToCaseReceivedUseCase:
                 sync_port=SyncActivityAdapter(dl),
             )
         )
+
+    @pytest.mark.spec("CM-16-009")
+    @pytest.mark.spec("DL-06-004")
+    def test_an_already_seated_actor_is_accepted_embedding_the_offer_as_received(
+        self, make_payload, seed_case_manager
+    ):
+        """An actor already seated is answered at once with an Accept to the
+        recommender (CM-16-009), which embeds the recommender's Offer exactly
+        as it arrived, never a rebuild of it (DL-06-004)."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
+        dl, activity, event = self._seated_recommendation(
+            seed_case_manager, make_payload
+        )
+
+        result = self._run(dl, event)
 
         assert result.disposition is HandlerDisposition.APPLIED, result
         # Intake held the body that arrived before the answer was built.
@@ -334,6 +346,36 @@ class TestOfferActorToCaseReceivedUseCase:
             json.loads(record.received_body)
         ]
         assert accepts[0]["to"] == [self._RECOMMENDER_ID]
+
+    @pytest.mark.spec("CM-16-009")
+    @pytest.mark.spec("BT-14-001")
+    def test_an_unheld_recommendation_escapes_rather_than_trying_another_arm(
+        self, make_payload, seed_case_manager, monkeypatch
+    ):
+        """With the recommendation not held, the already-seated answer has
+        nothing to embed.  That escapes as an internal error, so the selector
+        does not fall through to an arm that forwards the recommendation to
+        the Case Owner or invites the actor (a contradictory answer)."""
+        from vultron.core.behaviors.case.nodes.suggest_actor import (
+            emit_response,
+        )
+        from vultron.errors import VultronBTInternalError
+
+        dl, _, event = self._seated_recommendation(
+            seed_case_manager, make_payload
+        )
+        monkeypatch.setattr(
+            emit_response, "held_received_record", lambda *_: None
+        )
+
+        with pytest.raises(VultronBTInternalError, match="not held"):
+            self._run(dl, event)
+
+        sent_types = {
+            str(getattr(dl.read(activity_id), "type_", ""))
+            for activity_id in dl.outbox_list()
+        }
+        assert not sent_types & {"Offer", "Invite", "Accept"}, sent_types
 
     @pytest.mark.spec("CM-16-020")
     @pytest.mark.spec("CM-16-005")

@@ -31,6 +31,7 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
+    own_type,
     refuse_absent_id,
     refuse_absent_published,
 )
@@ -91,12 +92,6 @@ def _named_class(data: dict[str, Any]) -> type[BaseModel] | None:
         return resolve_wire_type(data.get("type"), include_core=True)
     except KeyError:
         return None
-
-
-def _own_type(cls: type[BaseModel]) -> object:
-    """The ``type`` value *cls* declares as its own, or ``None``."""
-    field = cls.model_fields.get("type_")
-    return None if field is None else field.default
 
 
 class as_Base(BaseModel):
@@ -235,7 +230,7 @@ class as_Base(BaseModel):
         # unknown type a generic slot reads.
         if not (
             is_typed_reference_shape(data)
-            and data.get("type") != _own_type(cls)
+            and data.get("type") != own_type(cls)
         ):
             refuse_absent_published(cls, data, _named_class(data))
         return absent_times_as_none(cls, data)

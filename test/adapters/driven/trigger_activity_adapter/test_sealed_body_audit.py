@@ -1181,3 +1181,53 @@ def test_an_answer_to_a_recommendation_never_received_is_refused(
             to=[_PEER],
             at=authored_at(),
         )
+
+
+def _answer_held(world, activity_id: str) -> None:
+    world.adapter.emit_accept_actor_recommendation(
+        recommender_id=_PEER,
+        recommendation_id=activity_id,
+        recommended_id=_PEER,
+        case_id=world.case_id,
+        actor=_ACTOR,
+        to=[_PEER],
+        at=authored_at(),
+    )
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_answer_to_a_held_activity_that_is_no_offer_is_refused(world):
+    """An activity held under the recommendation's id that is not an Offer
+    is no recommendation, so there is nothing to embed."""
+    from vultron.errors import VultronValidationError
+
+    announce_id = world.adapter_as(_PEER).announce_vulnerability_case(
+        case_id=world.case_id,
+        actor=_PEER,
+        context_id=world.case_id,
+        to=[_ACTOR],
+        at=authored_at(),
+    )
+    world.deliver(_PEER, announce_id, _ACTOR)
+
+    with pytest.raises(VultronValidationError, match="not as an Offer"):
+        _answer_held(world, announce_id)
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_answer_to_a_held_offer_that_recommends_no_actor_is_refused(world):
+    """An Offer of another kind (an Invite) is no recommendation either: the
+    factory refuses to embed it as one."""
+    from vultron.errors import VultronActivityConstructionError
+
+    invite_id, _ = world.adapter_as(_PEER).invite_actor_to_case(
+        invitee_id=_ACTOR,
+        case_id=world.case_id,
+        actor=_PEER,
+        to=[_ACTOR],
+        at=authored_at(),
+    )
+    world.deliver(_PEER, invite_id, _ACTOR)
+
+    with pytest.raises(VultronActivityConstructionError):
+        _answer_held(world, invite_id)

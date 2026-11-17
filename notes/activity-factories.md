@@ -46,8 +46,9 @@ Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
 - **The act's instant is a required `at`**: every factory, and every port
   method that builds an activity, takes it, and `build_activity` alone writes it
   as `published` and `updated`, so the signer's `authored_time` always has one
-  (ADR-0176). A rebuilt embed that must not carry a time drops it with
-  `model_copy` after the build (`_rebuilt_recommendation`).
+  (ADR-0176). A reply embeds the activity it answers as received
+  (`read_received_as_received` + `as_answered`, DL-06-004), never a rebuild:
+  a rebuild cannot carry the sender's `published`, which CLP-15-011 requires.
 - **Factories build from primitives**, never from a dump of a domain object.
 - **Tests import from `vultron.wire.as2.factories`**, as all external code does.
   Examples: `test/wire/as2/factories/`.

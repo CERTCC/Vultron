@@ -178,15 +178,24 @@ def received_without_published(cls: type[BaseModel]) -> bool:
     )
 
 
+def own_type(cls: type[BaseModel]) -> object:
+    """The ``type`` value *cls* declares as its own: its field's default.
+
+    ``None`` when *cls* has no ``type_`` field or defaults it to ``None``,
+    and ``PydanticUndefined`` when the field is required.
+    """
+    field = cls.model_fields.get("type_")
+    return None if field is None else field.default
+
+
 def declares_own_type(cls: type[BaseModel]) -> bool:
-    """Whether *cls* declares a ``type`` of its own, by its field's default.
+    """Whether *cls* declares a ``type`` of its own (:func:`own_type`).
 
     A generic class (``as_Object``, ``CoreObject``) declares none: it is what
     a slot that admits any object validates into, whatever ``type`` the data
     names.
     """
-    field = cls.model_fields.get("type_")
-    return field is not None and field.default not in (None, PydanticUndefined)
+    return own_type(cls) not in (None, PydanticUndefined)
 
 
 def refuse_absent_published(

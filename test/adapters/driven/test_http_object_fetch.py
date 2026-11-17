@@ -445,7 +445,10 @@ class TestAFetchedObjectsUnknownKeys:
 
         parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
 
-        assert getattr(parsed, "object_", None) is not None
+        profile = getattr(parsed, "object_", None)
+        assert profile is not None
+        assert profile.type_ == "Organization"
+        assert profile.published is None
 
     @pytest.mark.spec("CLP-15-007")
     @pytest.mark.spec("CLP-15-011")

@@ -852,6 +852,33 @@ def test_a_generic_slot_passes_an_untimed_object_whose_type_is_exempt(
 
 
 @pytest.mark.spec("CLP-15-011")
+@pytest.mark.parametrize("type_", ["Collection", "OrderedCollection"])
+@pytest.mark.parametrize("generic", ["as_Object", "CoreObject"])
+def test_a_generic_slot_passes_an_untimed_collection(generic: str, type_: str):
+    """A collection is exempt in a generic slot on both sides, though core
+    has no collection class and knows the type only by name."""
+    parsed = _inbound(_generic(generic), _untimed(type_))
+
+    assert parsed.published is None
+
+
+def test_core_names_the_collection_types_the_wire_models():
+    """Core's collection names are exactly the wire's collection classes'."""
+    from vultron.core.models._helpers import own_type
+    from vultron.core.models.base.core_object import AS2_COLLECTION_TYPES
+    from vultron.wire.as2.vocab.base.objects.collections import as_Collection
+    from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+
+    wire = {
+        own_type(cls)
+        for cls in WIRE_TYPE_MAP.values()
+        if issubclass(cls, as_Collection)
+    }
+
+    assert wire == AS2_COLLECTION_TYPES
+
+
+@pytest.mark.spec("CLP-15-011")
 @pytest.mark.parametrize(
     "type_",
     ["Note", "Bogus", ["Note", "Person"], ["Person", "Note"]],
