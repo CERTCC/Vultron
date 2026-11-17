@@ -5,8 +5,8 @@ holds a marker string, inside the launcher's private temporary directory,
 and writes one transient working file that holds the marker too.  After
 the child exits, the marker is in no file under its working directory, its
 temporary directory or its home (which holds ``~/.streamlit``): when it
-exits normally (AC-1), when the read fails partway through translation,
-and when it is stopped with ``SIGTERM`` while it holds the case (AC-2).
+exits normally (AC-1), when the read fails partway through the ledger
+(a row that does not parse), and when it is stopped with ``SIGTERM`` while it holds the case (AC-2).
 The child drives the page with Streamlit's ``AppTest``, so it reads and
 holds the case exactly as a browser session would, without a socket.
 
@@ -35,6 +35,7 @@ from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 from click.testing import CliRunner
@@ -166,17 +167,30 @@ def _driver(host: _Host, mode: str, case_id: str) -> list[str]:
     ]
 
 
+def _timed_out(error: subprocess.TimeoutExpired) -> NoReturn:
+    stderr = error.stderr
+    text = (
+        stderr.decode(errors="replace")
+        if isinstance(stderr, bytes)
+        else stderr
+    )
+    pytest.fail(f"the child did not finish within {_BUDGET} s: {text}")
+
+
 def _run(host: _Host, mode: str, case_id: str) -> None:
     # On a timeout, subprocess.run kills the child and waits for it.
-    result = subprocess.run(
-        _driver(host, mode, case_id),
-        check=False,
-        capture_output=True,
-        text=True,
-        cwd=host.work,
-        env=host.env(),
-        timeout=_BUDGET,
-    )
+    try:
+        result = subprocess.run(
+            _driver(host, mode, case_id),
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=host.work,
+            env=host.env(),
+            timeout=_BUDGET,
+        )
+    except subprocess.TimeoutExpired as error:
+        _timed_out(error)
     assert result.returncode == 0, result.stderr
 
 
@@ -199,11 +213,17 @@ def _child(host: _Host, argv: list[str]) -> Generator[subprocess.Popen[str]]:
         process.communicate()
 
 
-def _remaining(deadline: float) -> float:
-    left = deadline - time.monotonic()
-    if left <= 0:
-        pytest.fail(f"the child did not finish within {_BUDGET} s")
-    return left
+def _stop(process: subprocess.Popen[str], deadline: float) -> str:
+    """Send ``SIGTERM`` and wait for the exit; return the child's stderr."""
+    process.send_signal(signal.SIGTERM)
+    try:
+        left = max(deadline - time.monotonic(), 0.1)
+        _, stderr = process.communicate(timeout=left)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        _, stderr = process.communicate()
+        pytest.fail(f"SIGTERM did not stop it within {_BUDGET} s: {stderr}")
+    return stderr
 
 
 def _assert_nothing_left(host: _Host) -> None:
@@ -232,7 +252,10 @@ def _wait_for(
         if process.poll() is not None:
             _, stderr = process.communicate()
             pytest.fail(f"the run ended before it was ready: {stderr}")
-        _remaining(deadline)
+        if time.monotonic() >= deadline:
+            process.kill()
+            _, stderr = process.communicate()
+            pytest.fail(f"the run was not ready within {_BUDGET} s: {stderr}")
         time.sleep(0.1)
 
 
@@ -242,8 +265,7 @@ def test_sigterm_while_a_case_is_held_leaves_no_copy(host):
     ready = host.work / "ready"
     with _child(host, _driver(host, "sigterm", "held.jsonl")) as process:
         _wait_for(ready.exists, process, deadline)
-        process.send_signal(signal.SIGTERM)
-        _, stderr = process.communicate(timeout=_remaining(deadline))
+        stderr = _stop(process, deadline)
     assert process.returncode == 128 + signal.SIGTERM, stderr
     ready.unlink()
     _assert_nothing_left(host)
@@ -286,8 +308,7 @@ def test_sigterm_stops_the_real_server_and_removes_its_tempdir(host):
     with _child(host, argv) as process:
         _wait_for(lambda: _healthy(url), process, deadline)
         assert len(host.leftover_tempdirs()) == 1
-        process.send_signal(signal.SIGTERM)
-        _, stderr = process.communicate(timeout=_remaining(deadline))
+        stderr = _stop(process, deadline)
     assert process.returncode == 0, stderr
     assert host.leftover_tempdirs() == []
 
@@ -353,24 +374,68 @@ def test_off_the_main_thread_the_directory_is_still_removed():
     assert not private.exists()
 
 
+def _sigterm_held() -> bool:
+    return signal.SIGTERM in signal.pthread_sigmask(signal.SIG_BLOCK, set())
+
+
 @pytest.mark.usefixtures("outer_tmp")
-def test_sigterm_is_blocked_while_the_directory_is_removed(monkeypatch):
-    """A second SIGTERM cannot stop the removal halfway: it waits."""
-    blocked: list[bool] = []
+def test_sigterm_is_held_while_the_directory_is_made_and_removed(
+    monkeypatch,
+):
+    """A SIGTERM cannot stop the run between making and removing it: it waits.
+
+    It is let through while the block runs, so the run can still be stopped.
+    """
+    held: dict[str, bool] = {}
+    real_mkdtemp = tempfile.mkdtemp
     real_rmtree = shutil.rmtree
 
-    def rmtree(path: Path, ignore_errors: bool = False) -> None:
-        mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
-        blocked.append(signal.SIGTERM in mask)
-        real_rmtree(path, ignore_errors=ignore_errors)
+    def mkdtemp(**kwargs: str) -> str:
+        held["make"] = _sigterm_held()
+        return str(real_mkdtemp(**kwargs))
 
+    def rmtree(path: Path, **kwargs: object) -> None:
+        held["remove"] = _sigterm_held()
+        real_rmtree(path, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(lifecycle.tempfile, "mkdtemp", mkdtemp)
     monkeypatch.setattr(lifecycle.shutil, "rmtree", rmtree)
     with private_tempdir() as private:
-        pass
-    assert blocked == [True]
+        held["block"] = _sigterm_held()
+    assert held == {"make": True, "block": False, "remove": True}
     assert not private.exists()
-    mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
-    assert signal.SIGTERM not in mask
+    assert not _sigterm_held()
+
+
+@pytest.mark.usefixtures("outer_tmp")
+def test_a_sigterm_already_held_by_the_caller_stays_held():
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        with private_tempdir():
+            assert _sigterm_held()
+        assert _sigterm_held()
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+@pytest.mark.usefixtures("outer_tmp")
+def test_a_part_that_cannot_be_removed_is_logged(monkeypatch, caplog):
+    """A copy the removal leaves behind is reported, not passed over."""
+
+    def refuse(path: str | os.PathLike[str], *_: object, **__: object) -> None:
+        raise PermissionError(f"refused: {path}")
+
+    monkeypatch.setattr(lifecycle.os, "unlink", refuse)
+    with (
+        caplog.at_level("WARNING", logger=lifecycle.__name__),
+        private_tempdir() as private,
+    ):
+        (private / "work.txt").write_text("transient")
+    monkeypatch.undo()
+    assert (private / "work.txt").exists()
+    shutil.rmtree(private)
+    (record,) = [r for r in caplog.records if "work.txt" in r.getMessage()]
+    assert record.levelname == "WARNING"
 
 
 @pytest.mark.spec("SHD-01-003")

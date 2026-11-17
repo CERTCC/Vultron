@@ -25,12 +25,13 @@ nowhere persistent to write either (SHD-02-001).
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import signal
 import tempfile
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from types import FrameType
@@ -39,6 +40,11 @@ from types import FrameType
 TEMPDIR_PREFIX = "vultron-shadow-"
 
 _TMPDIR = "TMPDIR"
+
+logger = logging.getLogger(__name__)
+
+#: A thread's set of blocked signals, as :func:`signal.pthread_sigmask` gives it.
+_Mask = set[int | signal.Signals]
 
 
 def _exit_on_sigterm(signal_number: int, _frame: FrameType | None) -> None:
@@ -71,20 +77,48 @@ def _sigterm_exits() -> Generator[None]:
         signal.signal(signal.SIGTERM, previous)
 
 
-def _remove(path: Path) -> None:
-    """Remove *path* whole: a ``SIGTERM`` meanwhile waits until it is gone.
+def _hold_sigterm() -> _Mask | None:
+    """Block ``SIGTERM`` and return the mask it replaced.
 
-    The signal is blocked, not dropped, so a second ``SIGTERM`` that
-    arrives during the removal is delivered once the removal is done.
+    A blocked signal is not lost: it is delivered once the mask is set
+    back.  Off the main thread no handler is set, so nothing is blocked
+    and ``None`` is returned.
     """
     if not _on_main_thread():
-        shutil.rmtree(path, ignore_errors=True)
-        return
-    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+        return None
+    return signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+
+
+def _set_mask(mask: _Mask | None) -> None:
+    """Put back a mask :func:`_hold_sigterm` returned."""
+    if mask is not None:
+        signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+
+
+@contextmanager
+def _sigterm_delivered(mask: _Mask | None) -> Generator[None]:
+    """Let ``SIGTERM`` through for the block, then hold it again."""
+    _set_mask(mask)
     try:
-        shutil.rmtree(path, ignore_errors=True)
+        yield
     finally:
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        _hold_sigterm()
+
+
+def _log_unremoved(
+    _function: Callable[..., object], path: str, error: BaseException
+) -> None:
+    logger.warning(
+        "Could not remove %s from the case shadow tool's temporary"
+        " directory: %s",
+        path,
+        error,
+    )
+
+
+def _remove(path: Path) -> None:
+    """Remove *path* and all it holds; log each part that stays."""
+    shutil.rmtree(path, onexc=_log_unremoved)
 
 
 @contextmanager
@@ -96,22 +130,34 @@ def private_tempdir() -> Generator[Path]:
     When the block ends, by return, exception or ``SIGTERM``, the
     directory and everything in it is removed, and the previous temporary
     directory is restored.
+
+    ``SIGTERM`` is held from before the directory is made until it is
+    removed, except while the block runs.  So a ``SIGTERM`` that comes
+    while the directory is set up or removed waits, and cannot stop the
+    run between making the directory and removing it.
     """
     saved_env = os.environ.get(_TMPDIR)
     saved_tempdir = tempfile.tempdir
     with _sigterm_exits():
-        private = Path(tempfile.mkdtemp(prefix=TEMPDIR_PREFIX))
-        os.environ[_TMPDIR] = str(private)
-        tempfile.tempdir = str(private)
+        mask = _hold_sigterm()
         try:
-            yield private
+            private = Path(tempfile.mkdtemp(prefix=TEMPDIR_PREFIX))
+            try:
+                os.environ[_TMPDIR] = str(private)
+                tempfile.tempdir = str(private)
+                with _sigterm_delivered(mask):
+                    yield private
+            finally:
+                # A SIGTERM delivered as the block began finds it unheld.
+                _hold_sigterm()
+                tempfile.tempdir = saved_tempdir
+                if saved_env is None:
+                    os.environ.pop(_TMPDIR, None)
+                else:
+                    os.environ[_TMPDIR] = saved_env
+                _remove(private)
         finally:
-            tempfile.tempdir = saved_tempdir
-            if saved_env is None:
-                os.environ.pop(_TMPDIR, None)
-            else:
-                os.environ[_TMPDIR] = saved_env
-            _remove(private)
+            _set_mask(mask)
 
 
 __all__ = ["TEMPDIR_PREFIX", "private_tempdir"]
