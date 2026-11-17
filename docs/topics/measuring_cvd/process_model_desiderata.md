@@ -488,7 +488,7 @@ The table below shows how each group of desiderata changes in a two-party case.
 |---|---|
 | Embargo | $\evE \prec \evP, \evX, \evA$; $\evExOwn \prec \evP, \evX, \evA$; $\evF_i \prec \evExOwn$ for every vendor |
 | Report handling | For vendors whose reports reach Valid: $\evAc_i \prec \evP, \evX, \evA$; $\evVa_i \prec \evP$. For every vendor: $\evAc_i \prec \evF_i$ |
-| Multi-party | $\evV_i \prec \evF_j$ for vendors $i$ whose reports reach Valid; $\evF_i \prec \evP$ for every vendor |
+| Multi-party | $\evV_i \prec \evF_j$ for vendors $i$ whose reports reach Valid ([contested](#every-vendor-aware-before-any-fix-is-ready-is-contested)); $\evF_i \prec \evP$ for every vendor |
 | Path shape | Answered invitations, few revisions, short embargoes, accurate validation |
 
 ## Further reading
