@@ -126,6 +126,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
 - Deployment/runtime constraints: Python 3.14+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
 - Containerized multi-actor demo: `docker/docker-compose.yml` and `docker/docker-compose-multi-actor.yml` (single Dockerfile at `docker/Dockerfile`, entrypoint `docker/demo-entrypoint.sh`, seed configs under `docker/seed-configs/`), used by the `demo-integration.yml` CI workflow.
   The codebase scan's "No containerization configs detected" is a false negative, because it does not scan the `docker/` subdirectory.
+- Case shadow tool image: the `shadow` stage of `docker/Dockerfile` and the `shadow` service of `docker/docker-compose.yml`; the `shadow-image.yml` CI workflow builds it, searches every layer for a marker credential and starts the service.
 
 ### 6) Evidence
 

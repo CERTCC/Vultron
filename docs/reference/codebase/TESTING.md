@@ -67,6 +67,7 @@ uv run pytest test/test_config.py --tb=short
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo verdict (base vs. head) | Yes | What a composed scenario records and checks, between a pull request's merge base and its head | `.github/workflows/demo-verdict.yml` records every registered scenario in-process at both commits and runs `compare-demo-runs`, which compares each scenario's verdict (an allow-list of ledger fields plus the check tree), not ids, times or signatures; a difference fails the job unless the pull request carries `demo-verdict-change` (DEMOCI-11-054 to DEMOCI-11-064, DEMOCI-11-070 to DEMOCI-11-072), and `test/ci/test_demo_verdict_workflow.py` pins the job |
 | Demo UI (`ui/`) | Lint, unit tests of pure modules, and build | ESLint, Vitest (`npm test`, `src/**/*.test.ts`) and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/vite.config.ts` |
+| Case shadow image | Yes | The built `shadow` image and its running Compose service | `.github/workflows/shadow-image.yml` builds the image with a marker credential in the build environment and fails if any layer holds it (`.github/scripts/find_in_image.py`, SHD-02-003), checks that the image declares no volume and the container has no mount (SHD-02-001), then starts `docker compose up shadow` and waits for `ok` from `/_stcore/health` on `127.0.0.1:8501` (SHD-02-002); `test/ci/test_find_in_image.py` tests the search |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
 
 ### 4) Mocking and Isolation Strategy
@@ -135,5 +136,6 @@ uv run pytest test/test_config.py --tb=short
 - `.github/workflows/demo-verdict.yml`
 - `test/ci/test_demo_verdict_workflow.py`
 - `.github/workflows/ui.yml`
+- `.github/workflows/shadow-image.yml`
 - `test/metadata/test_gate_ceiling.py`
 - `test/demo_recordings/test_recorder_smoke.py`

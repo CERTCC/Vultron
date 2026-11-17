@@ -1,9 +1,22 @@
 name: Build demo images
 description: >
-  Builds the demo-integration Docker images via `docker buildx bake`.
-  Used by demo-integration.yml for PR and push-to-main builds.
+  Builds Docker images from one of the Compose files under docker/ via
+  `docker buildx bake`, pulling Docker Hub images through a mirror.
+  Used by demo-integration.yml for the demo images and by shadow-image.yml
+  for the case shadow tool's image.
 
 inputs:
+  compose-file:
+    description: >
+      The Compose file under docker/ whose services are the bake targets.
+    required: false
+    default: docker-compose-multi-actor.yml
+  targets:
+    description: >
+      Space-separated services to build. Empty builds every service the
+      Compose file can build.
+    required: false
+    default: ""
   load:
     description: >
       Whether to pass --load so built images are available to the Docker
@@ -38,12 +51,16 @@ runs:
       shell: bash
       env:
         LOAD: ${{ inputs.load }}
+        COMPOSE_FILE_NAME: ${{ inputs.compose-file }}
+        TARGETS: ${{ inputs.targets }}
       run: |
         args=(
           --allow=fs.read=..
-          -f docker-compose-multi-actor.yml
+          -f "$COMPOSE_FILE_NAME"
         )
         if [[ "$LOAD" == "true" ]]; then
           args+=(--load)
         fi
-        docker buildx bake "${args[@]}"
+        # Word splitting is intended: TARGETS is a space-separated list.
+        # shellcheck disable=SC2086
+        docker buildx bake "${args[@]}" $TARGETS
