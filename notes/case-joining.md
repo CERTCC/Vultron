@@ -201,7 +201,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 | 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it `Offer(Add(<Actor>, target=<case>))`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it the Owner's own `Add(<Actor>, target=<case>)`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
 
 - **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
   itself or the Case Owner; it never removes on its own. Self-removal is

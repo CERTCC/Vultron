@@ -114,7 +114,7 @@ An embargo's terms change only through a revision proposal.
 
 An admitted act reaches the participants by ledger fan-out.
 An actor that must answer the act, or that the act concerns and the fan-out does not reach, receives `Announce(<the admitted act>)` from the CASE_MANAGER.
-The transferee of an ownership Offer and a removed participant receive one.
+The transferee of an ownership Offer, a removed participant and a reinstated participant receive one.
 The `Announce`'s `actor` is the CASE_MANAGER, so the receiver's trust check reads the CASE_MANAGER, and the announced act keeps its own author and id.
 An end of an embargo is announced the same way (ADR-0203).
 
@@ -137,6 +137,7 @@ It sets both exactly when the asker is an actor other than the `actor`.
 ## Validation
 
 - A test sends the Owner's `Remove(<Actor>, origin=<case>)` and asserts that the ledger holds one entry carrying the Owner's act, and that the removed actor receives an `Announce` of that act.
+- A test sends the Owner's `Add(<Actor>, target=<case>)` reinstating a removed participant and asserts that the ledger holds one entry carrying the Owner's act, and that the reinstated actor receives an `Announce` of that act and applies the change only from the entry.
 - A test sends the Owner's `Update(EmbargoEvent)` setting `status` active, and asserts that the ledger entry carries the Owner's act and that the embargo is in force.
   Another asserts that the same act from an Owner that declined the proposal is refused with nothing committed.
 - A test sends the Owner's `Update(EmbargoEvent)` setting `status` rejected, and asserts that the embargo is rejected and no consent row changes.

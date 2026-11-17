@@ -10491,8 +10491,10 @@ groups:
     rationale: >-
       The Case Owner's act is its decision, and the entry is the CASE_MANAGER's
       admission of it, so the CASE_MANAGER sends no `Accept` and makes no `Add` of
-      its own (ADR-0199). The reinstated actor may be outside the fan-out, so the
-      `Announce` tells it, and its `actor` is the CASE_MANAGER the receiver trusts. A
+      its own (ADR-0199). The reinstated actor's replica is paused when the entry is
+      made, so the `Announce` tells it, and its `actor` is the CASE_MANAGER the
+      receiver trusts; the entry reaches it with the backfill of what it missed
+      (CM-10-006), and it applies the change from there (CM-31-045). A
       derived id makes a retry resend the same notice (SYNC-09-002).
     verification: >-
       A strict-xfail probe in

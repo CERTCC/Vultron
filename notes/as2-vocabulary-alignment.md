@@ -32,7 +32,7 @@ tracks:
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
-  - "#6482"   # embargo end is Update; owner Offers it (slice of #6246)
+  - "#6482"   # embargo end is Update; owner's early end its own (#6246)
   - "#6483"   # end announced as Announce(<the Update>) (slice of #6246)
   - "#6247"   # ledger and status histories as ordered collections
   - "#6484"   # ledger commit is an Add that acknowledges (slice of #6247)
@@ -546,8 +546,8 @@ would not be the sender and the CASE_MANAGER would keep its record under the Own
 id. The `Announce` answers the first; the second no longer applies, because the
 Offer is the Owner's own act.
 
-**Today.** `Offer(Offer(VulnerabilityCase))`, `notes/ownership-transfer.md`. #6466
-(an `Accept` to the Owner) is retired with it.
+**Today.** `Offer(Offer(VulnerabilityCase))`, `notes/ownership-transfer.md`. #6466's
+first scope (an `Accept` to the Owner) is retired; #6466 now builds this section.
 
 **Touches.** CM-21 (014 to 021, 028), CM-24-002, the ownership-transfer trigger,
 received trees, patterns and examples, `notes/ownership-transfer.md`, the glossary's
