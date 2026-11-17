@@ -217,6 +217,7 @@ adr/0204-the-case-ledger-and-status-histories-are-named-ordered-collections.md
 adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md
 adr/0206-each-app-resolves-its-own-configuration.md
 adr/0207-a-tree-has-a-fixed-shape-and-every-act-runs-one.md
+adr/0208-a-received-delivery-is-one-tree-in-fixed-stages-and-its-outcome-decides-what-is-kept.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -226,6 +227,10 @@ adr/archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
 adr/archived/0070-invited-actor-rm-triage-via-ledger-backfill.md
 adr/archived/0082-wire-core-boundary-pairing-registry.md
 adr/archived/0084-participant-assertion-authority.md
+adr/archived/0111-intake-is-the-first-received-side-stage.md
+adr/archived/0135-compose-received-trees-never-chain-them.md
+adr/archived/0151-a-received-act-commits-its-own-entry-with-its-consequences.md
+adr/archived/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 adr/archived/README.md
 adr/index.md
 agents/domain.md
