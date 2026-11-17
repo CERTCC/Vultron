@@ -27,6 +27,7 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
 from test.support.hold_timers import stop_hold_timer_from_another_thread
+from test.support.store_sharing import no_store_shared_across_authorities
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driven.http_actor_profile_fetch import (
     HttpActorProfileFetchAdapter,
@@ -499,6 +500,26 @@ def client():
             setattr(
                 app_v2.state, ACTOR_PROFILE_FETCHER_STATE, previous_fetcher
             )
+
+
+@pytest.fixture(autouse=True)
+def single_node_opens_no_store_under_a_second_authority(
+    request: pytest.FixtureRequest,
+) -> Iterator[None]:
+    """A test on the shared ``client`` node opens each store under one id.
+
+    That app serves every actor under ``http://testserver`` (DL-07-012), so
+    a store opened under another authority means some work resolved an
+    actor in the configured namespace.  The hold timer's drain did, and the
+    addressee door refused the entry it popped (#6085).  Tests that build
+    their own apps (``create_isolated_actor_app``) run several nodes that may
+    share a slug, so only tests using ``client`` are checked.
+    """
+    if "client" not in request.fixturenames:
+        yield
+        return
+    with no_store_shared_across_authorities():
+        yield
 
 
 @pytest.fixture(autouse=True)
