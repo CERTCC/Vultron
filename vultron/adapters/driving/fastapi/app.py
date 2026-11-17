@@ -19,7 +19,11 @@ Vultron API v2 Application
 import logging
 import threading
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    asynccontextmanager,
+)
 from typing import Any
 from uuid import uuid4
 
@@ -28,6 +32,9 @@ from fastapi import FastAPI, Path, Request
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
+from vultron.adapters.driving.fastapi.app_config_scope import (
+    AppConfigScopeMiddleware,
+)
 from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
 from vultron.adapters.driving.fastapi.inbox_handler import (
     init_dispatcher,
@@ -56,7 +63,13 @@ from vultron.adapters.driving.fastapi.sender_sequence_holds import (
     finish_sender_sequence_hold_timer,
     start_sender_sequence_hold_timer,
 )
-from vultron.config import RunMode, get_config
+from vultron.config import (
+    AppConfig,
+    RunMode,
+    app_config_scope,
+    get_config,
+    holding_app_config,
+)
 from vultron.logging_setup import (
     restore_third_party_log_levels,
     suppress_third_party_info_noise,
@@ -181,7 +194,39 @@ def _teardown_per_app_state(application: FastAPI) -> None:
         actor_dl.close()
 
 
-def _make_lifespan(*, configure_globals: bool = True):
+def _lifespan_config_scope(
+    config: AppConfig | None,
+) -> AbstractContextManager[None]:
+    """Return the config scope an app's lifespan runs in (ADR-0206).
+
+    An app holding its own *config* is counted as running for the lifespan's
+    duration (``holding_app_config``); one with none reads the process-wide
+    config.  Either way the scope is a context variable set in the lifespan's
+    task, so an ``asyncio`` task the lifespan starts inherits it.
+    """
+    if config is None:
+        return app_config_scope(None)
+    return holding_app_config(config)
+
+
+def _in_config_scope(
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[dict[str, Any]]],
+    config: AppConfig | None,
+) -> Callable[[FastAPI], AbstractAsyncContextManager[dict[str, Any]]]:
+    """Wrap *lifespan* so all of it runs in the app's config scope."""
+
+    @asynccontextmanager
+    async def _scoped(application: FastAPI) -> AsyncIterator[dict[str, Any]]:
+        with _lifespan_config_scope(config):
+            async with lifespan(application) as state:
+                yield state
+
+    return _scoped
+
+
+def _make_lifespan(
+    *, configure_globals: bool = True, config: AppConfig | None = None
+):
     """Return a lifespan context manager for a FastAPI Vultron application.
 
     Args:
@@ -197,6 +242,8 @@ def _make_lifespan(*, configure_globals: bool = True):
             these global side-effects are skipped, the startup replay
             included, so that multiple apps
             running in the same process do not contaminate each other's state.
+        config: The app's own config, read by ``get_config()`` throughout the
+            lifespan (ADR-0206).  ``None`` reads the process-wide config.
     """
 
     @asynccontextmanager
@@ -300,7 +347,7 @@ def _make_lifespan(*, configure_globals: bool = True):
         if not configure_globals:
             _teardown_per_app_state(application)
 
-    return _lifespan
+    return _in_config_scope(_lifespan, config)
 
 
 tags_metadata = [
@@ -335,6 +382,9 @@ app_v2 = FastAPI(
     openapi_tags=tags_metadata,
     lifespan=_make_lifespan(configure_globals=True),
 )
+# The production app holds no config of its own: its requests read the
+# process-wide config, as one node per process does (ADR-0206).
+app_v2.add_middleware(AppConfigScopeMiddleware, config=None)
 
 
 def create_app(
@@ -343,6 +393,7 @@ def create_app(
     docs_url: str | None = "/docs",
     openapi_url: str | None = "/openapi/v2.json",
     node_base_url: str | None = None,
+    config: AppConfig | None = None,
 ) -> FastAPI:
     """Factory that creates a fresh, isolated FastAPI application instance.
 
@@ -384,6 +435,14 @@ def create_app(
             resolve segments into its own namespace — otherwise an actor created
             under one app's base URL is looked up under another's and reported
             missing.  See ``deps.node_base_url``.
+        config: This app's own config (ADR-0206).  Inside the app — its
+            requests and its lifespan — ``get_config()`` and
+            ``load_actor_config()`` return it, so several apps in one process
+            each read their own node's settings, as separate containers do.
+            While the app's lifespan runs, a ``get_config()`` call in no app
+            scope raises ``VultronWiringError`` rather than read the
+            process-wide config.  Leave ``None`` to read the process-wide
+            config, as one node per process does.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
@@ -393,10 +452,13 @@ def create_app(
         version=version,
         docs_url=docs_url,
         openapi_url=openapi_url,
-        lifespan=_make_lifespan(configure_globals=False),
+        lifespan=_make_lifespan(configure_globals=False, config=config),
     )
+    application.add_middleware(AppConfigScopeMiddleware, config=config)
     application.state.node_base_url = node_base_url
-    if get_config().mode == RunMode.PROTOTYPE:
+    with app_config_scope(config):
+        mode = get_config().mode
+    if mode == RunMode.PROTOTYPE:
         application.include_router(demo_triggers.router, prefix="/api/v2")
     application.include_router(router, prefix="/api/v2")
     return application

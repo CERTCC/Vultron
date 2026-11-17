@@ -144,7 +144,8 @@ changeset, or pytest collects 0 tests (exit code 5). Verification commands:
 
 ## Config in Fixtures
 
-`vultron/config/app.py` caches `get_config()` process-wide. Prefer
+`vultron/config/app.py` caches `get_config()` process-wide; an app built with
+`create_app(config=...)` reads its own config instead (ADR-0206). Prefer
 `config_override()`; where you cannot, `monkeypatch.undo()` MUST precede
 `reload_config()` in teardown, or the patched value is pinned into the cache for
 the rest of the session. A module that depends on a `VULTRON_*` setting MUST set
