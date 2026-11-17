@@ -400,8 +400,8 @@ filterwarnings = [
     # list, so two TestClient portal threads building routes at once can drop
     # each other's "ignore" and fail an in-process delivery (#6039). This entry
     # ignores only that alias message; test_actor_dl_override_warning.py pins
-    # it. Upstream report draft: see the "Upstream FastAPI report" section of
-    # the PR that closed #6039.
+    # it. Upstream report draft, not yet filed: "Upstream FastAPI report" in
+    # https://github.com/CERTCC/Vultron/pull/6629#upstream-fastapi-report
     "ignore:The 'alias' attribute with value:pydantic.warnings.UnsupportedFieldAttributeWarning",
 ]
 # An `xfail` that omits `strict` is strict anyway (TB-17-001).  This is the
