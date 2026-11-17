@@ -44,6 +44,7 @@ from click.testing import CliRunner
 from pydantic import BaseModel, ValidationError
 from streamlit.testing.v1 import AppTest
 
+from test.shadow._marked_vince import VINCE_CASE, marked_vince_reader
 from test.support.case_reader import (
     CONTENT_MARKER,
     FAKE_CASE,
@@ -66,7 +67,8 @@ from vultron.shadow.log_content import (
     tracker_references,
     withheld_case_content,
 )
-from vultron.shadow.log_content.render import MAX_CHAIN
+from vultron.shadow.log_content.context import current_case
+from vultron.shadow.log_content.render import MAX_CHAIN, MAX_GROUP_DEPTH
 
 MARKER = CONTENT_MARKER
 REFERENCE = TRACKER_REFERENCE
@@ -84,9 +86,18 @@ from vultron.shadow.dashboard.page import render
 render(FakeCaseReader({FAKE_CASE: marked_case_records()}))
 """
 
+# The case comes through the VINCE case reader, from a fake VINCE API.
+_VINCE_PAGE = """
+from test.shadow._marked_vince import marked_vince_reader
+from vultron.shadow.dashboard.page import render
+
+render(marked_vince_reader())
+"""
+
 # The analysis fails after the case is read.  The Vultron error quotes the
 # case's title, and the exception that caused it quotes the marker.
 _FAILING_PAGE = """
+from test.shadow._marked_vince import VINCE_CASE, marked_vince_reader
 from test.support.case_reader import (
     CONTENT_MARKER, FAKE_CASE, FakeCaseReader, marked_case_records,
 )
@@ -540,3 +551,107 @@ def test_content_carried_by_an_exception_joins_the_current_case(shadow_log):
     text = shadow_log.getvalue()
     assert "case_id=urn:uuid:other" in text
     assert f"VultronError: {WITHHELD}" in text
+
+
+@pytest.mark.spec("VSD-01-003")
+@pytest.mark.usefixtures("debug_logs")
+def test_a_vince_case_read_through_the_reader_logs_no_content():
+    """A synthetic VINCE case, read through the VINCE case reader, whose
+    content holds the marker: no record carries it, and the run logged the
+    case, its source records and its VINCE case URL."""
+    reading = marked_vince_reader().read_case(VINCE_CASE)
+    # The marker reaches the reading, so the check below is not vacuous.
+    assert any(MARKER in piece for piece in reading_content(reading))
+    (reference,) = tracker_references(reading)
+    records = _run(_VINCE_PAGE, case_id=VINCE_CASE)
+    _assert_marker_nowhere(records)
+    texts = [_text(record) for record in records]
+    assert any(f"Read case {VINCE_CASE}" in text for text in texts)
+    assert any("translates source record" in text for text in texts)
+    naming = [r for r in records if getattr(r, "case_id", None) == VINCE_CASE]
+    read = next(
+        i
+        for i, r in enumerate(naming)
+        if f"Read case {VINCE_CASE}" in _text(r)
+    )
+    # The reader's own records, made during the read, name the case by its
+    # VINCE id: its tracker reference is known only once the read returns.
+    assert naming[:read], "the reader logged nothing during the read"
+    assert all(not hasattr(r, "case_reference") for r in naming[:read])
+    assert all(
+        getattr(r, "case_reference", None) == reference for r in naming[read:]
+    )
+
+
+def test_a_lone_mapping_argument_formats_as_the_message_asks(shadow_log):
+    log = logging.getLogger("vultron.test")
+    # Third-party code makes such calls; the stdlib formats them silently.
+    log.info("no conversion", {"title": MARKER})  # noqa: PLE1205
+    log.info("100%% done", {"title": MARKER})  # noqa: PLE1205
+    log.info("repr %r", {"title": MARKER})
+    lines = shadow_log.getvalue().splitlines()
+    assert lines[0].endswith("no conversion")
+    assert lines[1].endswith("100% done")
+    assert lines[2].endswith("repr <dict>")
+    assert MARKER not in shadow_log.getvalue()
+    assert "Logging error" not in shadow_log.getvalue()
+
+
+def test_a_link_that_is_not_a_tracker_reference_is_content():
+    reading = _reading()
+    url = reading.ledger[0].payload_snapshot["object"]["caseReferences"][0][
+        "url"
+    ]
+    url["rel"] = ["patch"]
+    url["href"] = f"https://patches.example.org/{MARKER}"
+    assert url["href"] in reading_content(reading)
+    assert tracker_references(reading) == ()
+
+
+def test_the_tracker_reference_is_named_not_withheld():
+    assert REFERENCE not in reading_content(_reading())
+
+
+def test_withhold_after_the_context_has_ended_is_refused():
+    with case_log_context(FAKE_CASE) as case_log:
+        pass
+    with pytest.raises(VultronError, match="has ended"):
+        case_log.withhold(_reading())
+    assert current_case() is None
+
+
+def test_a_deeply_nested_exception_group_is_cut(shadow_log):
+    def raise_it() -> None:
+        error: Exception = ValueError(MARKER)
+        for _ in range(MAX_GROUP_DEPTH + 2):
+            error = ExceptionGroup[Exception]("nested", [error])
+        raise error
+
+    text = _logged_exception(shadow_log, raise_it)
+    assert "[nested exception group not shown]" in text
+    assert MARKER not in text
+
+
+def test_an_exception_argument_carries_its_case_out(shadow_log):
+    def raise_it() -> None:
+        with case_log_context(FAKE_CASE) as case_log:
+            case_log.withhold(_reading())
+            raise VultronError(f"Title {MARKER}")
+
+    try:
+        raise_it()
+    except VultronError as exc:
+        caught = exc
+    logging.getLogger("vultron.test").warning("failed: %s", caught)
+    text = shadow_log.getvalue()
+    assert f"failed: vultron.errors.VultronError: {WITHHELD}" in text
+    assert f"case_id={FAKE_CASE} case_reference={REFERENCE}" in text
+    assert MARKER not in text
+
+
+def test_an_exception_never_raised_is_logged_without_a_traceback(shadow_log):
+    logging.getLogger("vultron.test").error("bad", exc_info=ValueError(MARKER))
+    text = shadow_log.getvalue()
+    assert f"ValueError: {WITHHELD_MESSAGE}" in text
+    assert "Traceback" not in text
+    assert MARKER not in text

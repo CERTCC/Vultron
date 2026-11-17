@@ -18,7 +18,11 @@
 ``activity_id`` and ``actor_id`` reach a record as attributes copied from
 ambient context by :class:`vultron.logging_correlation.CorrelationFilter`,
 never per call: a per-call ``extra=`` repeats the value at every site, and a
-site that omits it writes a record with no correlation.
+site that omits it writes a record with no correlation.  The case shadow's
+``case_id`` and ``case_reference`` come from its case context the same way
+(:mod:`vultron.shadow.log_content`).  Its record factory sets them before
+``makeRecord`` applies ``extra=``, so a per-call key would also raise
+``KeyError`` out of the log call.
 
 The scan walks ``vultron/`` with ``ast`` and flags a log call (as
 ``test/architecture/_log_calls.py`` recognises one) whose ``extra=`` names a
@@ -32,6 +36,10 @@ import ast
 from test.architecture import _corpus
 from test.architecture._log_calls import is_log_call
 from vultron.logging_correlation import CORRELATION_FIELDS
+from vultron.shadow.log_content import CASE_FIELDS
+
+#: The record attributes that come from ambient context, never ``extra=``.
+_CONTEXT_FIELDS = (*CORRELATION_FIELDS, *CASE_FIELDS)
 
 _PACKAGE_ROOT = _corpus.REPO_ROOT / "vultron"
 
@@ -60,7 +68,7 @@ def _correlation_fields_in_extra(node: ast.Call) -> set[str]:
     fields: set[str] = set()
     for keyword in node.keywords:
         if keyword.arg == "extra":
-            fields |= _extra_keys(keyword.value) & set(CORRELATION_FIELDS)
+            fields |= _extra_keys(keyword.value) & set(_CONTEXT_FIELDS)
     return fields
 
 
@@ -74,17 +82,18 @@ def _violations_in(path_label: str, tree: ast.AST) -> list[str]:
 
 
 def test_no_log_call_passes_correlation_ids_through_extra() -> None:
-    """No log call in vultron/ sets activity_id or actor_id via extra= (SL-02-003)."""
+    """No log call in vultron/ sets a context field via extra= (SL-02-003)."""
     violations: list[str] = []
     for path, tree in _corpus.files_mentioning(
-        *CORRELATION_FIELDS, under=_PACKAGE_ROOT
+        *_CONTEXT_FIELDS, under=_PACKAGE_ROOT
     ):
         rel = str(path.relative_to(_corpus.REPO_ROOT))
         violations.extend(_violations_in(rel, tree))
     assert not violations, (
         "Correlation ids MUST come from vultron.logging_correlation's ambient "
         "context, not per-call extra= (SL-02-003). Enter "
-        "correlation_context(...) at the processing boundary instead, at:\n  "
+        "correlation_context(...) at the processing boundary instead (or "
+        "case_log_context(...) for a shadow case field), at:\n  "
         + "\n  ".join(violations)
     )
 
@@ -100,19 +109,22 @@ def test_detector_flags_dict_literal_and_dict_call() -> None:
         'self.logger.warning("x", extra=dict(actor_id=b))\n'
         'logging.getLogger(__name__).log(10, "x", extra={"actor_id": b, '
         '"activity_id": a})\n'
+        'logger.debug("x", extra={"case_id": c, "case_reference": r})\n'
     )
     assert _violations_in("<inline>", _corpus.parse_inline(source)) == [
         "<inline>:1: activity_id",
         "<inline>:2: actor_id",
         "<inline>:3: activity_id",
         "<inline>:3: actor_id",
+        "<inline>:4: case_id",
+        "<inline>:4: case_reference",
     ]
 
 
 def test_detector_ignores_other_extra_keys_and_non_log_calls() -> None:
     """Unrelated ``extra=`` keys and non-logger calls are not flagged."""
     source = (
-        'logger.info("x", extra={"case_id": c})\n'
+        'logger.info("x", extra={"request_id": c})\n'
         'logger.info("actor %s", actor_id)\n'
         'build(extra={"actor_id": b})\n'
     )

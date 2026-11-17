@@ -59,8 +59,14 @@ _VOCABULARY_KEYS = frozenset(
     }
 )
 
-#: An IRI names an object, actor or link: an identifier, not content.
+#: An IRI names an object or actor: an identifier, not content.
 _IRI = re.compile(r"(?:urn|https?):\S+\Z")
+
+#: Payload keys whose string values are where a link points.  An IRI under
+#: one of them is content, not an id: a patch, advisory or exploit URL is a
+#: vul detail.  Only an outside tracker reference (:func:`tracker_references`)
+#: is named instead.
+_LINK_KEYS = frozenset({"href", "url"})
 
 #: A string shorter than this carries no case content worth withholding,
 #: and replacing it would cut through every word that holds it.
@@ -78,14 +84,19 @@ def _names_no_content(key: str | None) -> bool:
     return key is not None and (key in _VOCABULARY_KEYS or key.endswith("Id"))
 
 
-def _payload_strings(value: object, key: str | None, found: set[str]) -> None:
-    """Add each content string in *value*, found under *key*, to *found*."""
+def _payload_strings(
+    value: object, key: str | None, found: set[str], links: set[str]
+) -> None:
+    """Add each content string in *value*, found under *key*, to *found*,
+    and each link target to *links*."""
     if isinstance(value, Mapping):
         for name, item in value.items():
-            _payload_strings(item, str(name), found)
+            _payload_strings(item, str(name), found, links)
     elif isinstance(value, (list, tuple)):
         for item in value:
-            _payload_strings(item, key, found)
+            _payload_strings(item, key, found, links)
+    elif isinstance(value, str) and key in _LINK_KEYS:
+        links.add(value.strip())
     elif isinstance(value, str) and not _names_no_content(key):
         found.add(value)
 
@@ -142,27 +153,37 @@ def reading_content(reading: CaseReading) -> tuple[str, ...]:
     """The strings of *reading* that are case content, longest first.
 
     Content is every string in an entry's payload except vocabulary, times
-    and IRIs, every untranslated fact (which names its field and value) and
-    every inference caveat.  The reading's ids are not content.  Each line
-    of a multi-line string is content too, so a traceback line that quotes
-    one line of a description still loses it.
+    and IRIs, every link target except a tracker reference, every
+    untranslated fact (which names its field and value) and every inference
+    caveat.  The reading's ids are not content.  Each line of a multi-line
+    string is content too, so a traceback line that quotes one line of a
+    description still loses it.
     """
     found: set[str] = set()
+    links: set[str] = set()
     for entry in reading.ledger:
-        _payload_strings(entry.payload_snapshot, None, found)
+        _payload_strings(entry.payload_snapshot, None, found, links)
     found.update(fact.fact for fact in reading.untranslated)
     found.update(inference.caveat for inference in reading.inferences)
     pieces: set[str] = set()
     for text in found:
         pieces.add(text.strip())
         pieces.update(line.strip() for line in text.splitlines())
+    # The ids hold the tracker references, so neither is withheld.
     ids = _identifiers(reading)
     return longest_first(
-        piece
-        for piece in pieces
-        if len(piece) >= _SHORTEST_CONTENT
-        and piece not in ids
-        and not _IRI.match(piece)
+        [
+            piece
+            for piece in pieces
+            if len(piece) >= _SHORTEST_CONTENT
+            and piece not in ids
+            and not _IRI.match(piece)
+        ]
+        + [
+            link
+            for link in links
+            if len(link) >= _SHORTEST_CONTENT and link not in ids
+        ]
     )
 
 

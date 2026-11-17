@@ -194,6 +194,26 @@ def safe_arg(value: object, scrub: Scrub) -> object:
     return placeholder(value)
 
 
+class _MappingPlaceholder(dict[str, object]):
+    """A mapping that holds only, and prints as, a placeholder.
+
+    It stands in for a lone mapping argument the message does not index by
+    name.  Being a mapping, it formats exactly as the original would: a
+    ``%s`` prints the placeholder, and a message with no conversion takes
+    it without error, as ``"text" % {...}`` does.  It is not empty, because
+    a record formats its message only when its arguments are truthy.
+    """
+
+    def __init__(self, text: str) -> None:
+        super().__init__(placeholder=text)
+        self._text = text
+
+    def __str__(self) -> str:
+        return self._text
+
+    __repr__ = __str__
+
+
 def safe_args(msg: object, args: LogArgs, scrub: Scrub) -> LogArgs:
     """A record's *args*, each made safe."""
     if isinstance(args, Mapping):
@@ -201,7 +221,7 @@ def safe_args(msg: object, args: LogArgs, scrub: Scrub) -> LogArgs:
             return {key: safe_arg(item, scrub) for key, item in args.items()}
         # A lone mapping argument that the message does not index by name
         # is rendered whole: it is an object, not named arguments.
-        return (placeholder(args),)
+        return _MappingPlaceholder(placeholder(args))
     return tuple(safe_arg(item, scrub) for item in args)
 
 

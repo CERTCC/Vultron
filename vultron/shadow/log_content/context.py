@@ -31,6 +31,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 
 from vultron.core.models.case_reading import CaseReading
+from vultron.errors import VultronError
 from vultron.shadow.log_content.content import (
     longest_first,
     reading_content,
@@ -111,12 +112,26 @@ class CaseLog:
 
     def __init__(self, case_id: str) -> None:
         self._case_id = case_id
+        self._active = True
+
+    def close(self) -> None:
+        """End the handle: its block has ended."""
+        self._active = False
 
     def withhold(self, reading: CaseReading) -> None:
         """Withhold *reading*'s content from the rest of the block's records.
 
         Also names the reading's tracker references on those records.
+
+        Raises:
+            VultronError: The handle's block has ended, so a context
+                set now would never be reset.
         """
+        if not self._active:
+            raise VultronError(
+                f"case log context for {self._case_id} has ended;"
+                " withhold() must run inside its block"
+            )
         _CASE.set(
             CaseLogContext(
                 case_id=self._case_id,
@@ -135,8 +150,9 @@ def case_log_context(case_id: str) -> Generator[CaseLog]:
     An exception that leaves the block carries the case context with it.
     """
     token = _CASE.set(CaseLogContext(case_id=case_id))
+    handle = CaseLog(case_id)
     try:
-        yield CaseLog(case_id)
+        yield handle
     except BaseException as exc:
         context = _CASE.get()
         # The innermost context is the most specific; an outer one leaves
@@ -145,6 +161,7 @@ def case_log_context(case_id: str) -> Generator[CaseLog]:
             setattr(exc, _CARRIED, context)
         raise
     finally:
+        handle.close()
         _CASE.reset(token)
 
 

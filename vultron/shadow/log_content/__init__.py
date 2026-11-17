@@ -29,9 +29,12 @@ handler later writes it, is cleaned when it is made:
   those messages to name ids and problems, not values.  Any other exception's
   message is withheld: a validation error, for one, quotes the input it
   refused.
-* Inside :func:`case_log_context`, every string of the case reading's content
+* Inside :func:`case_log_context`, each string of the case reading's content
   (:func:`reading_content`) is replaced in each argument and traceback by
-  :data:`WITHHELD`.  An exception raised inside the context carries the
+  :data:`WITHHELD`.  A string is found only where a record quotes it whole,
+  or quotes one whole line of it: a word, a truncation or a changed case of
+  a value is not found, nor is a value under four characters.  So code
+  logs ids and counts, never a piece of a value.  An exception raised inside the context carries the
   context out with it, so a record made after the context has exited, such as
   Streamlit's log of an uncaught page exception, is cleaned too and carries
   the case's ids as attributes.  Streamlit writes that record with its own
@@ -40,7 +43,9 @@ handler later writes it, is cleaned when it is made:
 The ids stay: inside :func:`case_log_context` each record carries
 ``case_id``, and ``case_reference`` when the case's ledger holds an outside
 tracker reference (an ``issue-tracking`` ``CaseReference``, such as a VINCE
-case URL).  The shadow keeps no copy of a case (SHD-01-003), so that reference
+case URL).  The reference is known once the case is read
+(:meth:`CaseLog.withhold`), so a record the reader makes during the read
+names the case by ``case_id`` alone.  The shadow keeps no copy of a case (SHD-01-003), so that reference
 is how a log read after the run finds the case again.  The correlation ids
 (``activity_id``, ``actor_id``) come from
 :func:`~vultron.logging_correlation.correlation_context`, and
@@ -52,6 +57,10 @@ it replaces when it reads its configuration.  A factory sees each record when
 it is made, before any handler.  :func:`shadow_logging` installs the factory
 and the shadow's one root handler; ``vultron-shadow`` enters it around the
 whole run.  A record the cleaning fails on is written as :data:`UNCLEANED`.
+``Logger.makeRecord`` applies ``extra=`` after the factory, so an ``extra=``
+value is not cleaned, and an ``extra=`` key the factory has set
+(:data:`CASE_FIELDS`, a correlation id) raises ``KeyError``.  Neither may be
+passed per call (``test/architecture/test_no_correlation_ids_in_log_extra.py``).
 
 Modules:
 
