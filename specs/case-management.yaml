@@ -10441,8 +10441,8 @@ groups:
     kind: protocol
     statement: >-
       The Case Owner MUST reinstate a removed participant by sending
-      `Add(<Actor>, target=VulnerabilityCase)` to the CASE_MANAGER only, naming the
-      participant's actor as a typed reference, not its `CaseParticipant`.
+      `Add(<Actor>, target=VulnerabilityCase)` to the CASE_MANAGER only. The `Add`
+      names the participant's actor as a typed reference, not its `CaseParticipant`.
     rationale: >-
       Owners make mistakes and disputes resolve, so removal is reversible. The
       reinstatement is the Case Owner's decision, so it sends the act itself, and the
@@ -10485,9 +10485,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For an admitted CM-31-011 reinstatement, the CASE_MANAGER MUST commit the Case
-      Owner's `Add(<Actor>)` as the reinstatement's one ledger entry and send the
-      reinstated actor `Announce(<that Add>)`, with an id derived from the `Add`.
+      The CASE_MANAGER MUST commit an admitted CM-31-011 reinstatement as one ledger
+      entry carrying the Case Owner's `Add(<Actor>)`, and announce that `Add` to the
+      reinstated actor. The `Announce`'s id is derived from the `Add`.
     rationale: >-
       The Case Owner's act is its decision, and the entry is the CASE_MANAGER's
       admission of it, so the CASE_MANAGER sends no `Accept` and makes no `Add` of
@@ -10575,10 +10575,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST refuse an `Add(<Actor>, target=VulnerabilityCase)` from
-      the Case Owner naming an actor whose participant is not removed, that never
-      joined, or that is no participant of the case. It sends the Case Owner a
-      refusal notice and commits nothing.
+      The CASE_MANAGER MUST refuse a CM-31-011 reinstatement naming an actor whose
+      participant is not removed or never joined, or that is not in the case. It
+      sends the Case Owner a refusal notice and commits nothing.
     rationale: >-
       Joining requires accepting a stub Invite (ADR-0114), and a reinstatement must
       not become a way around that. An actor whose participant is not removed has

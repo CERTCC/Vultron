@@ -21,9 +21,9 @@ A CM-31-043 to CM-31-045 probe passes once a test module elsewhere under
 ``test/`` carries its requirement's ID in a ``@pytest.mark.spec`` marker. CM-31-011
 and CM-31-036 already carry markers on tests of today's ``Add(CaseParticipant)``
 request, so their probe checks the behavior instead: it passes once the Case
-Owner's ``Add(<Actor>)`` naming the actor is recognized. #6465 writes those tests and the pattern, so only
-it flips the probes. When a probe XPASSes, ``strict=True`` fails the build and the
-builder deletes the probe.
+Owner's ``Add(<Actor>)`` naming the actor is recognized. #6465 writes those tests
+and the pattern, so only it flips the probes. When a probe XPASSes, ``strict=True``
+fails the build and the builder deletes the probe.
 """
 
 from pathlib import Path
