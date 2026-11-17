@@ -169,7 +169,9 @@ def test_a_moves_effect_is_each_vendors_own_count():
             DesideratumChange(
                 vendor=VENDOR, notation="b", change=Fraction(-1, 8)
             ),
-            DesideratumChange(vendor=VENDOR_2, notation="a", change=0),
+            DesideratumChange(
+                vendor=VENDOR_2, notation="a", change=Fraction(0)
+            ),
         ),
     )
     assert view.move_effect(move, NAMES) == "Vendor: ▲1 ▼1; Vendor2: no change"

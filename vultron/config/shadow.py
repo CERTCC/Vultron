@@ -23,7 +23,8 @@ reads it at start (ADR-0190, ADR-0192):
   reads an outside system's cases through.  When it is unset, the run reads
   Vultron case-ledger files through the Vultron case reader.
 * ``ledger_dir`` confines the Vultron case reader to one directory, so an
-  analyst's input cannot open the host's other files.
+  analyst's input cannot open the host's other files.  Unset, the directory
+  the tool starts in confines it.
 
 An outside system's endpoint and credential are that connector's own
 settings, such as the ``vince:`` section (SHD-02-003).
@@ -49,7 +50,8 @@ class ShadowConfig(BaseModel):
         ledger_dir: The directory the Vultron case reader reads case-ledger
             files from.  A case is then named by its file's path relative to
             this directory, and a path outside it is refused.  When it is
-            ``None`` a case is named by any file path.  Default ``None``.
+            ``None`` the directory the tool starts in takes its place.
+            Default ``None``.
     """
 
     connector: NonEmptyString | None = None

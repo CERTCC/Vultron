@@ -38,6 +38,18 @@ def test_no_connector_reads_vultron_ledgers_without_the_loader(tmp_path):
         reader.read_case("../elsewhere.jsonl")
 
 
+def test_no_ledger_dir_confines_reads_to_the_start_directory(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "inside").mkdir()
+    monkeypatch.chdir(tmp_path / "inside")
+    reader = configured_case_reader(ShadowConfig(), connectors=_never)
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        reader.read_case("../outside.jsonl")
+    with pytest.raises(CaseLedgerFileError, match="outside the ledger"):
+        reader.read_case("/etc/passwd")
+
+
 @pytest.mark.spec("ARCH-05-003")
 def test_a_named_connector_is_the_installed_plugin_of_that_name():
     fake = FakeCaseReader({})

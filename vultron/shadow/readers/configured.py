@@ -21,7 +21,8 @@
 found among the installed connector plugins
 (:func:`~vultron.adapters.connectors.loader.load_connectors`, ARCH-05-003);
 with none named, the run reads Vultron case-ledger files
-(:func:`~vultron.shadow.readers.selection.select_case_reader`).
+(:func:`~vultron.shadow.readers.selection.select_case_reader`), confined to
+``ledger_dir`` or, when it is unset, to the directory the run starts in.
 
 The loader runs only when a connector is named, so a run over Vultron
 ledgers is not stopped by a bad third-party package it does not use.
@@ -30,6 +31,7 @@ ledgers is not stopped by a bad third-party package it does not use.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from pathlib import Path
 
 from vultron.adapters.connectors.base import ConnectorPlugin
 from vultron.adapters.connectors.loader import load_connectors
@@ -56,7 +58,12 @@ def configured_case_reader(
         ConnectorRefusedError: The loader refused an installed entry point.
     """
     if config.connector is None:
-        return select_case_reader(ledger_root=config.ledger_dir)
+        # A case id is typed into a page, so the reader always keeps it to
+        # one directory: the configured one, or the one the run starts in.
+        root = (
+            config.ledger_dir if config.ledger_dir is not None else Path.cwd()
+        )
+        return select_case_reader(ledger_root=root)
     installed = connectors()
     plugin = installed.get(config.connector)
     if plugin is None:

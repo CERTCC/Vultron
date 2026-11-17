@@ -51,7 +51,7 @@ Pick one, such as `rcvv-embargo/case-actor.jsonl`.
 
 To read your own ledger files, set `VULTRON_SHADOW__LEDGER_DIR` to the directory that holds them, and name a case by its file's path relative to that directory.
 The tool opens no file outside that directory.
-With `VULTRON_SHADOW__LEDGER_DIR` unset, as in a `uv run vultron-shadow` run, the **Case** box takes any file path.
+With `VULTRON_SHADOW__LEDGER_DIR` unset, as in a `uv run vultron-shadow` run, the tool reads only files under the directory you start it in, named by their path relative to it.
 
 A Vultron ledger needs no translation, so its **Not translated**, **Inferred**, and **Not observable** panels are empty.
 
