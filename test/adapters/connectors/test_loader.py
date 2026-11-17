@@ -39,16 +39,16 @@ from uuid import uuid4
 import pytest
 
 from vultron.adapters.connectors.base import ports_implemented_by
-from vultron.adapters.connectors.example.vince import VinceCaseReader
 from vultron.adapters.connectors.loader import (
     ENTRY_POINT_GROUP,
     ConnectorRefusedError,
     load_connectors,
 )
+from vultron.adapters.connectors.vince import VinceCaseReader
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronConfigError
 
-_VINCE = "vultron.adapters.connectors.example.vince:VinceCaseReader"
+_VINCE = "vultron.adapters.connectors.vince.reader:VinceCaseReader"
 
 #: The plugins the fake distribution's module holds, good and bad.
 _PLUGIN_SOURCE = textwrap.dedent(
@@ -156,28 +156,29 @@ def _refused(
 
 @pytest.mark.spec("ARCH-05-003")
 def test_the_loader_discovers_an_installed_entry_point(install: Install):
-    install({"installed": ":Reader", "vince": _VINCE})
+    install({"installed": ":Reader", "vince-again": _VINCE})
 
     plugins = load_connectors()
 
     assert plugins["installed"].name == "installed-reader"
     assert ports_implemented_by(plugins["installed"]) == (CaseReader,)
-    assert isinstance(plugins["vince"], VinceCaseReader)
+    assert isinstance(plugins["vince-again"], VinceCaseReader)
 
 
 @pytest.mark.spec("ARCH-05-003")
-def test_the_example_connectors_declare_no_entry_point():
+def test_vultron_declares_the_vince_case_reader_as_a_connector():
+    """``pyproject.toml`` declares one connector, the VINCE case reader,
+    and the loader finds it among the installed entry points."""
     pyproject = tomllib.loads(
         (Path(__file__).parents[3] / "pyproject.toml").read_text()
     )
-    declared = pyproject["project"].get("entry-points", {})
-    assert ENTRY_POINT_GROUP not in declared
-    example = "vultron.adapters.connectors.example"
-    assert not [
-        ep.name
-        for ep in entry_points(group=ENTRY_POINT_GROUP)
-        if ep.module == example or ep.module.startswith(example + ".")
-    ]
+    declared = pyproject["project"]["entry-points"][ENTRY_POINT_GROUP]
+    assert declared == {"vince": _VINCE}
+
+    plugins = load_connectors()
+
+    assert isinstance(plugins["vince"], VinceCaseReader)
+    assert ports_implemented_by(plugins["vince"]) == (CaseReader,)
 
 
 def test_no_entry_points_load_no_connectors():

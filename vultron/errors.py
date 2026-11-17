@@ -825,6 +825,78 @@ class VinceCaseRecordsError(CarriesViolations, VultronError):
         super().__init__(f"Cannot translate {named}")
 
 
+class VinceReadError(VultronError):
+    """Raised when the VINCE case reader cannot fetch a case from VINCE.
+
+    Raised by :class:`~vultron.adapters.connectors.vince.reader.\
+VinceCaseReader` when a read of the VINCE API fails.  The reader makes one
+    attempt per read and never retries, so a failure reaches the analyst at
+    once rather than after an unbounded wait.  A subclass names the cause an
+    operator acts on.  The message names the case, the read and the HTTP
+    status, never a response body or the credential (VSD-01-003,
+    VSD-01-005).
+
+    Attributes:
+        vuid: The VINCE id of the case being read.
+        read: The read that failed, as its path below ``case/<vuid>/``
+            (``case`` for the case itself).
+        status: The HTTP status VINCE answered with, or ``None`` when no
+            answer came.
+    """
+
+    def __init__(
+        self, vuid: str, read: str, reason: str, status: int | None = None
+    ) -> None:
+        self.vuid = vuid
+        self.read = read
+        self.status = status
+        answered = f" (HTTP {status})" if status is not None else ""
+        super().__init__(
+            f"Cannot read VINCE case {vuid}: the {read!r} read {reason}"
+            f"{answered}"
+        )
+
+
+class VinceCaseNotFoundError(VinceReadError):
+    """Raised when VINCE holds no case by the id the reader was given, or
+    does not show it to the credential's account (HTTP 404 on the case)."""
+
+
+class VinceAuthError(VinceReadError):
+    """Raised when VINCE refuses the API credential (HTTP 401 or 403).
+
+    The operator replaces ``VULTRON_VINCE__API_TOKEN`` or asks for the
+    account's access; repeating the read changes nothing.
+    """
+
+
+class VinceRateLimitedError(VinceReadError):
+    """Raised when VINCE answers a read with HTTP 429 (too many requests).
+
+    The reader does not wait and retry: the analyst asks again later.
+
+    Attributes:
+        retry_after: The seconds VINCE asked the client to wait, from its
+            ``Retry-After`` header, or ``None`` when it named none.
+    """
+
+    def __init__(
+        self,
+        vuid: str,
+        read: str,
+        reason: str,
+        status: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        self.retry_after = retry_after
+        super().__init__(vuid, read, reason, status)
+
+
+class VinceUnavailableError(VinceReadError):
+    """Raised when VINCE cannot be reached, times out, or answers a read
+    with a server error (HTTP 5xx)."""
+
+
 class CaseHistoryInputError(VultronError):
     """Raised when the case event history command is handed input it cannot dump.
 

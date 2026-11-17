@@ -141,9 +141,12 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
   one that cannot be loaded or built, has no non-empty `name`, implements no
   core port, or shares its name (ARCH-05-006). A partly loaded set hides a
   packaging mistake until a case needs the missing connector.
-- The connectors under `adapters/connectors/example/` are examples only: they
-  declare no entry point, so the loader never finds them. A real connector
-  lives in its own package or module and declares its entry point.
+- Vultron's own connector, the VINCE case reader, is installed the same way:
+  `pyproject.toml` declares it as the `vince` entry point. Never add a stub or
+  example plugin to that group: the loader builds every entry point it finds.
+- A connector reads its own settings when a request needs them, never in its
+  constructor: the loader builds every plugin with no arguments, and a node
+  without that connector's settings must still load (#5963).
 
 ---
 
