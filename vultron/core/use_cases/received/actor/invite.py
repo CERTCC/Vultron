@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class InviteActorToCaseReceivedUseCase:
-    """Handle an incoming ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
+    """Handle an incoming ``Invite(VulnerabilityCase preview)[target=Actor]`` activity.
 
     One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
     ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.
@@ -107,7 +107,7 @@ class InviteActorToCaseReceivedUseCase:
 
 class AcceptInviteActorToCaseReceivedUseCase:
     """The CASE_MANAGER processes
-    ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` from the invitee.
+    ``Accept(Invite(VulnerabilityCase preview)[target=Actor])`` from the invitee.
 
     Delegates all protocol-significant work to
     ``AcceptInviteActorToCaseBT`` via BTBridge.  The BT runs as the
@@ -177,7 +177,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
 class RejectInviteActorToCaseReceivedUseCase:
     """The CASE_MANAGER processes
-    ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` from an invitee.
+    ``Reject(Invite(VulnerabilityCase preview)[target=Actor])`` from an invitee.
 
     Commits a canonical ``CaseLedgerEntry`` for the received rejection
     (``("Reject", "Invite")`` in ``_CANONICAL_PAYLOAD_SIGNATURES``) via BTBridge.

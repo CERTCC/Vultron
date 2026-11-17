@@ -468,7 +468,13 @@ class TestCoerceByReferenceFields:
             result = dl.read(invite.id_)
 
         assert type(result).__name__ == "_RmInviteToFullCaseActivity"
-        assert result.target == case.id_  # type: ignore[union-attr]
+        # The case rides whole in ``object`` and the invitee in ``target``
+        # (ADR-0205).
+        assert result.object_.id_ == case.id_  # type: ignore[union-attr]
+        assert (
+            result.target.id_  # type: ignore[union-attr]
+            == "https://example.org/actors/vendor"
+        )
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     def test_full_case_invite_reply_round_trips_without_warning(
@@ -476,9 +482,9 @@ class TestCoerceByReferenceFields:
     ):
         """A stored Accept(full-case Invite) coerces its embedded Invite too.
 
-        The Invite rides inline in the reply, so rehydration expands the
-        Invite's ``target`` into the stored case; the reply's class embeds
-        the full-case Invite class, which takes the case by URI (#5513).
+        The Invite rides inline in the reply, carrying the case whole in its
+        ``object`` (ADR-0205); the reply's class embeds the full-case Invite
+        class, which the read-back still validates as (#5513).
         """
         import logging
 
@@ -514,24 +520,28 @@ class TestCoerceByReferenceFields:
             result = dl.read(accept.id_)
 
         assert type(result).__name__ == "_RmAcceptFullCaseInviteActivity"
-        assert result.object_.target == case.id_  # type: ignore[union-attr]
+        assert result.object_.object_.id_ == case.id_  # type: ignore[union-attr]
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 class TestCollapseByReferenceFields:
-    """Each branch of ``_collapse_by_reference_fields`` (#5513)."""
+    """Each branch of ``_collapse_by_reference_fields`` (#5513).
+
+    ``_ReadLogEntryActivity.object_`` is a by-reference field: the class
+    declares it a plain URI (SYNC-17-001).
+    """
 
     @staticmethod
-    def _invite(target: object) -> object:
+    def _read(obj: object) -> object:
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Invite,
+            as_Read,
         )
 
-        return as_Invite.model_construct(
-            id_="https://example.org/activities/invite-5513",
-            actor="https://example.org/actors/case-actor",
-            object_="https://example.org/actors/vendor",
-            target=target,
+        return as_Read.model_construct(
+            id_="https://example.org/activities/read-5513",
+            actor="https://example.org/actors/reporter",
+            object_=obj,
+            context="https://example.org/cases/case-5513",
         )
 
     @staticmethod
@@ -547,37 +557,46 @@ class TestCollapseByReferenceFields:
             semantics_to_activity_class()[MessageSemantics[semantics]],
         )
 
+    @staticmethod
+    def _entry() -> object:
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        return as_Object.model_construct(
+            id_="https://example.org/ledger/entry-5513",
+            type_="CaseLedgerEntry",
+        )
+
     def test_object_collapses_to_its_id(self):
+        entry = self._entry()
+        result = self._collapse(self._read(entry), "READ_CASE_LEDGER_ENTRY")
+        assert result.object_ == entry.id_  # type: ignore[attr-defined]
+
+    def test_bare_id_is_left_alone(self):
+        read = self._read("https://example.org/ledger/entry-5513")
+        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+
+    def test_object_without_an_id_is_left_alone(self):
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        nameless = as_Object.model_construct(id_=None)
+        read = self._read(nameless)
+        assert self._collapse(read, "READ_CASE_LEDGER_ENTRY") is read
+
+    def test_field_that_admits_an_object_keeps_it(self):
+        """The full-case Invite carries the case whole in ``object``
+        (ADR-0205), so a case there is kept."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
         )
 
         case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
-        result = self._collapse(
-            self._invite(case), "INVITE_ACTOR_TO_FULL_CASE"
+        invite = as_Invite.model_construct(
+            id_="https://example.org/activities/invite-5513",
+            actor="https://example.org/actors/case-actor",
+            object_=case,
+            target="https://example.org/actors/vendor",
         )
-        assert result.target == case.id_  # type: ignore[attr-defined]
-
-    def test_bare_id_is_left_alone(self):
-        invite = self._invite("https://example.org/cases/case-5513")
         assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
-
-    def test_object_without_an_id_is_left_alone(self):
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        nameless = as_VulnerabilityCase.model_construct(id_=None)
-        invite = self._invite(nameless)
-        assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
-
-    def test_field_that_admits_an_object_keeps_it(self):
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCaseStub,
-        )
-
-        stub = as_VulnerabilityCaseStub.model_construct(
-            id_="https://example.org/cases/case-5513/stub"
-        )
-        invite = self._invite(stub)
-        assert self._collapse(invite, "INVITE_ACTOR_TO_CASE") is invite

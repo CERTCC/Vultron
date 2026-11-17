@@ -1638,7 +1638,7 @@ class TestFindCaseInviteForActor:
     """The helper that locates the CaseActor's Invite for the invitee.
 
     In the ADR-0026 flow the CaseActor delivers an
-    ``Invite(Actor)[target=VulnerabilityCaseStub]``
+    ``Invite(VulnerabilityCase preview)[target=Actor]``
     to the suggested actor on the owner's approval, and the invite chain finds
     it so it can puppeteer Vendor2's accept (MV-10-004 seeds the replica only
     after the Accept).  Imported from :mod:`vultron.demo.helpers.polling`,
@@ -1648,8 +1648,21 @@ class TestFindCaseInviteForActor:
     CASE_ID = "urn:uuid:case-1"
     INVITEE_ID = "http://vendor2:7999/api/v2/actors/v2"
 
-    def _invite(self, target, obj):
-        return {"type": "Invite", "target": target, "object": obj}
+    def _invite(self, case_id: str, invitee):
+        """``Invite(<case preview>)[target=<invitee>]`` (ADR-0205)."""
+        return {
+            "type": "Invite",
+            "object": {
+                "id": case_id,
+                "type": "VulnerabilityCase",
+                "preview": {
+                    "id": "urn:uuid:preview-1",
+                    "type": "CasePreview",
+                    "summary": "A case to join",
+                },
+            },
+            "target": invitee,
+        }
 
     def _find(self, rows: dict[str, dict], **kwargs):
         client = MagicMock()
@@ -1661,20 +1674,20 @@ class TestFindCaseInviteForActor:
             **kwargs,
         )
 
-    def test_matches_invite_with_dict_target_and_object(self):
+    def test_matches_invite_with_an_inline_invitee(self):
         """The shape the wire format normally arrives in."""
         result = self._find(
             {
                 "urn:uuid:invite-1": self._invite(
-                    {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
+                    self.CASE_ID, {"id": self.INVITEE_ID, "type": "Service"}
                 )
             },
             timeout_seconds=1.0,
         )
         assert result == "urn:uuid:invite-1"
 
-    def test_matches_invite_with_bare_string_target_and_object(self):
-        """Target and object may arrive as bare URIs after a round-trip."""
+    def test_matches_invite_naming_its_invitee_by_uri(self):
+        """The invitee may be named by its bare URI."""
         result = self._find(
             {"urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)},
             timeout_seconds=1.0,
@@ -1695,15 +1708,14 @@ class TestFindCaseInviteForActor:
         """Accepting a near miss would accept into the wrong case."""
         rows = {
             "other case": self._invite(
-                {"id": "urn:uuid:other-case"}, {"id": self.INVITEE_ID}
+                "urn:uuid:other-case", {"id": self.INVITEE_ID}
             ),
             "other actor": self._invite(
-                {"id": self.CASE_ID}, {"id": "http://elsewhere/actors/x"}
+                self.CASE_ID, {"id": "http://elsewhere/actors/x"}
             ),
             "not an Invite": {
+                **self._invite(self.CASE_ID, {"id": self.INVITEE_ID}),
                 "type": "Offer",
-                "target": {"id": self.CASE_ID},
-                "object": {"id": self.INVITEE_ID},
             },
         }
 

@@ -144,7 +144,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         case.actor_participant_index[actor_id] = participant.id_
     stub_invite = rm_invite_to_case_activity(
         INVITEE_ID,
-        target=case,
+        case=case,
         actor=MANAGER_ID,
         roles=[CVDRole.VENDOR],
         embargo_obj=embargo,

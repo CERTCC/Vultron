@@ -7,7 +7,7 @@ Rejects the Stub Invite, which closes the invitee's participant record.
 === "Details"
 
     - **When…** an invited actor declines to join the case
-    - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
+    - **Send:** `Reject(Invite(VulnerabilityCase preview)[target=Actor])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Seen in:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)

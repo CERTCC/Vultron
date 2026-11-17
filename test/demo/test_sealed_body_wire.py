@@ -196,7 +196,9 @@ class TestTheWireCarriesTheSealedBody:
         for body in bodies:
             signing.verify(body, _served_key(topo, body))
 
-    def test_the_wire_carries_the_enriched_case_stub(self, recorded_topology):
+    def test_the_wire_carries_the_enriched_case_preview(
+        self, recorded_topology
+    ):
         """CM-17-002 reaches the wire: the collapsed-stub defect (#2624) is gone."""
         topo, router = recorded_topology
         case_id = "urn:uuid:sealed-body-stub-arrives"
@@ -210,19 +212,20 @@ class TestTheWireCarriesTheSealedBody:
             if to == topo.invitee_actor_id
         ]
         (invite,) = [d for d in delivered if d.get("type") == "Invite"]
-        target = invite.get("target")
-        assert isinstance(target, dict), (
-            "Invite.target crossed the wire as a bare URI: the enriched stub was"
-            f" collapsed before delivery. target={target!r}"
+        reference = invite.get("object")
+        assert isinstance(reference, dict), (
+            "Invite.object crossed the wire as a bare URI: the case preview was"
+            f" collapsed before delivery. object={reference!r}"
         )
-        assert target["type"] == "VulnerabilityCaseStub"
-        assert target["caseId"] == case_id
-        assert target["id"] == f"{case_id}/stub"
-        assert "activeEmbargo" in target, (
+        assert reference["id"] == case_id
+        preview = reference["preview"]
+        assert preview["type"] == "CasePreview"
+        assert "caseId" not in preview
+        assert "activeEmbargo" in preview, (
             "the invitee was not sent the embargo terms it is asked to consent"
-            f" to (CM-17-002). target={target!r}"
+            f" to (CM-17-002). preview={preview!r}"
         )
-        assert "caseStatus" in target
+        assert "caseStatus" in preview
 
 
 #: The ActivityStreams actor types an inline actor carries.

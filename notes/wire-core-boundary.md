@@ -258,7 +258,7 @@ after the received evidence is sealed and before anything validates:
   is judged against `as_Object`, `as_Link` and `CoreObject`; on a core class's slot
   only `CoreObject` decides, since `UnmodelledObject` strips to a bare `BaseModel`
   that names no fields (#3894).
-- **The case stub** is chosen by its `type`, `VulnerabilityCaseStub` (CM-11-038),
+- **The case stub** is chosen by its `type`, `CasePreview` (CM-11-038),
   never by key-set guessing.
 - **One refusal names every near miss** at every depth, with dotted paths
   (EH-07-001).

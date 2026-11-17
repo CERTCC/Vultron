@@ -5,7 +5,7 @@
     Sends a Stub Invite carrying the case stub and the embargo terms the invitee would agree to.
 
     - **When…** the CASE_MANAGER invites an actor to join the case
-    - **Send:** `Invite(Actor)[target=VulnerabilityCaseStub]`
+    - **Send:** `Invite(VulnerabilityCase preview)[target=Actor]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Reference:** [Invite actor to case](../../case_management.md#invite-actor-to-case)

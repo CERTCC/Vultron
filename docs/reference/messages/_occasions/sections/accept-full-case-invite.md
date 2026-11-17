@@ -7,7 +7,7 @@ Accepts the Full-Case Invite, which records RM Valid. It carries the sender's ow
 === "Details"
 
     - **When…** a Participant asked by a Full-Case Invite judges the case valid
-    - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send:** `Accept(Invite(whole VulnerabilityCase)[target=Actor])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)

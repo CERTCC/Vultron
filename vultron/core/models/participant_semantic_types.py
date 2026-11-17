@@ -15,9 +15,9 @@
 
 The ledger holds the wire messages exchanged (ADR-0114).  Most changes to a
 participant record are the effect of a message that already has its entry: the
-invitee's ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` is the entry
+invitee's ``Accept(Invite(VulnerabilityCase preview)[target=Actor])`` is the entry
 for the consent it signs and the ``joined`` mark, and its
-``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` the entry for
+``Reject(Invite(VulnerabilityCase preview)[target=Actor])`` the entry for
 ``DECLINED``.
 Creating the inert record is the CASE_MANAGER's own act, with no wire message
 of its own, so it is the one new entry on the stub path:

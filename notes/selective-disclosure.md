@@ -52,7 +52,7 @@ A field can be absent (unknown or not applicable), `null` (no value), or
 **redacted**: it has a value the sender withholds from this recipient. Only a
 preview can say the last one. A preview is a limited view of an object for a
 recipient not yet entitled to it, never the object itself. The case stub is the
-first, and #6244 makes it the case's AS2 `preview`; wider previews (report,
+first, and is the case's AS2 `preview` (ADR-0205); wider previews (report,
 reserved vul record, draft advisory) are #6257.
 
 - **Built from the full object, one choice per field** (MV-12-004): show the

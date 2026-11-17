@@ -124,6 +124,8 @@ export interface As2Activity {
   id?: string
   type?: string
   actor?: string
+  /** Who asked for an act the CASE_MANAGER sends on another's behalf (CM-24-002). */
+  attributedTo?: string
   object?: As2Object
   target?: As2Object
   context?: string

@@ -31,10 +31,10 @@ Named constants for known request/reply pairs:
 - :data:`OFFER_CASE_PARTICIPANT_REPLY_TYPES` — closes when Case Owner sends
   ``Accept`` or ``Reject`` of ``Offer(CaseParticipant)``.
 - :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES` — closes when invited actor sends
-  ``Accept`` or ``Reject`` of ``Invite(Actor)[target=VulnerabilityCaseStub]``.
+  ``Accept`` or ``Reject`` of ``Invite(VulnerabilityCase preview)[target=Actor]``.
 - :data:`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES` — closes when the joined
   participant sends ``Accept``, ``TentativeReject`` or ``Reject`` of the
-  full-case ``Invite(Actor)[target=VulnerabilityCase]``.
+  full-case ``Invite(whole VulnerabilityCase)[target=Actor]``.
 - :data:`CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES` — closes when the target's
   ``Accept`` or ``Reject`` of a role ``Offer(CaseParticipantRole)`` is
   ledgered (CM-33-005).
@@ -60,7 +60,8 @@ OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply semantic types that close an ``Invite(Actor)[target=VulnerabilityCaseStub]``
+#: Reply semantic types that close an ``Invite(VulnerabilityCase
+# preview)[target=Actor]``
 #: protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
@@ -70,7 +71,7 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 )
 
 #: Reply semantic types that close a full-case
-#: ``Invite(Actor)[target=VulnerabilityCase]`` protocol pair — the ask the
+#: ``Invite(whole VulnerabilityCase)[target=Actor]`` protocol pair — the ask the
 #: CASE_MANAGER puts to a joined participant (CM-11-010, CM-11-011, ADR-0121).
 INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
@@ -148,7 +149,7 @@ class AskExpiry(StrEnum):
     """A late reply authorizes nothing; the asker must ask again."""
 
 
-#: Expiry consequence of an ``Invite(Actor)[target=VulnerabilityCaseStub]``
+#: Expiry consequence of an ``Invite(VulnerabilityCase preview)[target=Actor]``
 #: (ASK-03-002): stale.
 #: Expiry only means the CASE_MANAGER stops waiting; a late ``Accept`` still
 #: joins and a late ``Reject`` still closes the record.  The hazard of stale

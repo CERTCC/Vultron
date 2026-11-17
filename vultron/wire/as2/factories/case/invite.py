@@ -27,6 +27,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     EmDimension,
 )
+from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._construct import build_activity
@@ -38,6 +39,7 @@ from vultron.wire.as2.factories._held import (
     validated_as,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.activities.case.invite import (
     _RmAcceptInviteToCaseActivity,
     _RmInviteToCaseActivity,
@@ -49,22 +51,22 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
-)
 
 
-def _project_case_to_stub(
+def _project_case_to_preview(
     case: VulnerabilityCase,
     embargo_obj: Any,
     at: datetime,
-) -> as_VulnerabilityCaseStub:
-    """Project a ``VulnerabilityCase`` to a ``as_VulnerabilityCaseStub``.
+) -> as_CasePreview:
+    """Project a ``VulnerabilityCase`` to its preview, the case stub.
+
+    The stub names no case of its own: the typed reference that carries it
+    names the case by its ``id`` (CM-17-010, ADR-0205).
 
     While an embargo is in force (``case.embargo_in_force``: EM ``ACTIVE`` or
     ``REVISE``) the stub carries ``case_status`` (with ``em_state``) and
@@ -92,12 +94,12 @@ def _project_case_to_stub(
             ``stub_summary``.  Set ``VulnerabilityCase.stub_summary`` before
             emitting a stub Invite (CM-17-010).  Also when the active
             embargo cannot be embedded whole (CM-17-011); see
-            :func:`_stub_embargo`.
+            :func:`_preview_embargo`.
     """
     stub_summary = case.stub_summary
     if stub_summary is None:
         raise VultronActivityConstructionError(
-            f"_project_case_to_stub: case {case.id_!r} has no "
+            f"_project_case_to_preview: case {case.id_!r} has no "
             "'stub_summary' — set VulnerabilityCase.stub_summary before "
             "emitting a stub Invite (CM-17-010, MV-10-001)"
         )
@@ -106,25 +108,24 @@ def _project_case_to_stub(
     # "In force" is the register's ACTIVE entry, so it holds through a
     # revision (EM REVISE), not only while EM is exactly ACTIVE (CM-17-002).
     if not case.embargo_in_force:
-        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
+        return as_CasePreview(summary=stub_summary)
     em_state = case.em_state
     active_embargo = case.active_embargo
-    embargo = _stub_embargo(active_embargo, embargo_obj, case_id)
+    embargo = _preview_embargo(active_embargo, embargo_obj, case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
     wire_status = as_CaseStatus(
         context=case_id, em=EmDimension(state=em_state), published=at
     )
-    return as_VulnerabilityCaseStub(
-        case_id=case_id,
+    return as_CasePreview(
         summary=stub_summary,
         active_embargo=embargo,
         case_status=wire_status,
     )
 
 
-def _stub_embargo(
+def _preview_embargo(
     active_embargo: str | WireEmbargoEvent | None,
     embargo_obj: object,
     case_id: str,
@@ -147,7 +148,7 @@ def _stub_embargo(
     """
     if active_embargo is None:
         raise VultronActivityConstructionError(
-            f"_stub_embargo: case {case_id!r} has an embargo in force but"
+            f"_preview_embargo: case {case_id!r} has an embargo in force but"
             " names no active embargo, so the stub has no terms to embed"
             " (CM-17-002, CM-17-011)"
         )
@@ -159,14 +160,14 @@ def _stub_embargo(
             embargo_obj = active_embargo
     if not isinstance(embargo_obj, WireEmbargoEvent):
         raise VultronActivityConstructionError(
-            f"_stub_embargo: case {case_id!r} has active embargo"
+            f"_preview_embargo: case {case_id!r} has active embargo"
             f" {active_id!r} but no EmbargoEvent object to embed in the stub"
             " — the stub carries the full embargo, not its ID (CM-17-002,"
             " CM-17-011)"
         )
     if embargo_obj.id_ != active_id:
         raise VultronActivityConstructionError(
-            f"_stub_embargo: embargo {embargo_obj.id_!r} is not case"
+            f"_preview_embargo: embargo {embargo_obj.id_!r} is not case"
             f" {case_id!r}'s active embargo {active_id!r} (CM-17-011)"
         )
     return embargo_obj
@@ -174,77 +175,75 @@ def _stub_embargo(
 
 def rm_invite_to_case_activity(
     invitee: as_Actor | CoreActor | str,
-    target: Any,
+    case: VulnerabilityCase,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
     *,
     at: datetime,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor)[target=VulnerabilityCaseStub] — the stub Invite.
+    """Build an Invite(<case>)[target=<invitee>] — the stub Invite.
 
     Invites an actor to join a case that already exists.  It is not an RM
     message: it records no RM transition (CM-11-001, ADR-0114).  See
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
     for the scenario where a case does not yet exist.
 
+    The ``object`` is the typed reference naming the case, carrying the
+    case's preview, the case stub projected from *case* by
+    :func:`_project_case_to_preview` (CM-17-010, ADR-0205).  The invitee is the
+    ``target``.
+
     Args:
         invitee: The actor being invited: its profile as the sender holds
             it, or its URI, which travels as an actor reference (AKM-05-017).
-        target: The case to join — either a ``VulnerabilityCase`` (projected
-            to an enriched ``as_VulnerabilityCaseStub`` via
-            :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
-            or the case URI (wrapped in a bare stub).  The Invite's
-            ``context`` defaults to the case URI, never the stub's ID.
+        case: The case to join.  A case named by URI alone is refused: the
+            preview is built from the case, and an Invite without one would
+            leave the invitee nothing to decide on (CM-17-010).  The Invite's
+            ``context`` defaults to the case URI.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so ``CreateInertInviteeParticipantNode``
             can set them on the new inert ``CaseParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
-            *target* is a ``as_VulnerabilityCase`` with an embargo in force
-            (EM ``ACTIVE`` or ``REVISE``) to embed the full embargo in the
-            stub (CM-17-002, CM-17-011).
+            *case* has an embargo in force (EM ``ACTIVE`` or ``REVISE``) to
+            embed the full embargo in the preview (CM-17-002, CM-17-011).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
     Returns:
-        An ``as_Invite`` whose ``object_`` is the invited actor.
+        An ``as_Invite`` whose ``object_`` is the previewed case reference
+        and whose ``target`` is the invited actor.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails, the
-            case carries no ``stub_summary`` (CM-17-010), or its active
-            embargo cannot be embedded whole (CM-17-011).
+        VultronActivityConstructionError: If Pydantic validation fails,
+            *case* is not a ``VulnerabilityCase``, the case carries no
+            ``stub_summary`` (CM-17-010), or its active embargo cannot be
+            embedded whole (CM-17-011).
     """
+    if not isinstance(case, VulnerabilityCase):
+        raise VultronActivityConstructionError(
+            "rm_invite_to_case_activity: the stub Invite needs the case to"
+            f" build its preview from, not {type(case).__name__}"
+            f" {case!r} (CM-17-010, ADR-0205)"
+        )
     if roles is not None:
         kwargs["roles"] = roles
 
     def fields() -> dict[str, Any]:
-        stub = _stub_target(target, embargo_obj, at)
         return {
-            "object_": carried_actor(invitee),
-            "target": stub,
-            **with_case_context(kwargs, stub),
+            "object_": as_TypedReference(
+                type_=VO_type.VULNERABILITY_CASE.value,
+                id_=case.id_,
+                preview=_project_case_to_preview(case, embargo_obj, at),
+            ),
+            "target": carried_actor(invitee),
+            **with_case_context(kwargs, case.id_),
         }
 
     return build_activity(
         "rm_invite_to_case_activity", _RmInviteToCaseActivity, at, fields
     )
-
-
-def _stub_target(target: Any, embargo_obj: Any, at: datetime) -> Any:
-    """The stub an Invite carries for *target*.
-
-    A case is projected to its enriched stub.  A case named by URI alone
-    still travels as a stub: the invitee does not hold the case, and the stub
-    Invite is told apart by its target's ``type`` (CM-11-013, VAM-04-004).
-    Run inside the factory's guarded scope, so a stub that fails validation
-    is a construction error.
-    """
-    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
-        return _project_case_to_stub(target, embargo_obj, at)
-    if isinstance(target, str):
-        return as_VulnerabilityCaseStub(case_id=target)
-    return target
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:

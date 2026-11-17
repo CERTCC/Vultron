@@ -107,7 +107,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.parser import parse_activity, parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
+    as_VulnerabilityCase,
 )
 
 #: The ledger position a test's in-process sender states when the test names
@@ -464,14 +464,20 @@ def received_event(
     return event.model_copy(update=update) if update else event
 
 
-def case_stub(case_id: str) -> as_VulnerabilityCaseStub:
-    """The case stub a deliverable stub Invite for *case_id* carries.
+def case_stub(case_id: str) -> as_VulnerabilityCase:
+    """The case a deliverable stub Invite for *case_id* is built from.
 
-    A receiver refuses a stub with no ``summary`` at parse (MV-10-001), and
-    every received body is parsed again when it is loaded (ADR-0149), so a
-    test that delivers a stub Invite gives its stub one.
+    The factory builds the Invite's preview, the case stub, from the case
+    (ADR-0205).  A receiver refuses a stub with no ``summary`` at parse
+    (MV-10-001), so the case carries the ``stub_summary`` it is built from.
     """
-    return as_VulnerabilityCaseStub(case_id=case_id, summary="A case to join")
+    return make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name="A case to join",
+        attributed_to="https://example.org/actors/case-owner",
+        stub_summary="A case to join",
+    )
 
 
 def body_of(activity: Any) -> str:

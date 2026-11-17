@@ -13,14 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A case stub is accepted only as the target of a case invitation (MV-10-002).
+"""A case stub is accepted only as the case's preview in a stub Invite (MV-10-002).
 
 The stub exists so an invitee can decide whether to join a case before it is
-entitled to the case (ADR-0114).  Its one place is the ``target`` of the
-``Invite`` whose ``object`` is the inline actor it invites, wherever that
-``Invite`` is carried inline: in its ``Accept`` or ``Reject``, or in a refusal
-notice quoting such a reply.  Anywhere else the parser refuses the activity
-and names the slot (#5770).
+entitled to the case (ADR-0114).  It is the case's preview (ADR-0205), so its
+one place is the ``preview`` of the case reference that is an ``Invite``'s
+``object``, wherever that ``Invite`` is carried inline: in its ``Accept`` or
+``Reject``, or in a refusal notice quoting such a reply.  Anywhere else,
+including the ``target`` it held before ADR-0205, the parser refuses the
+activity and names the slot (#5770).
 """
 
 import copy
@@ -42,9 +43,8 @@ _PUBLISHED = "2026-01-01T00:00:00+00:00"
 
 def _stub() -> dict[str, Any]:
     return {
-        "type": "VulnerabilityCaseStub",
-        "id": f"{_CASE_ID}/stub",
-        "caseId": _CASE_ID,
+        "type": "CasePreview",
+        "id": "urn:uuid:abc-preview",
         "summary": "A vul in widget; details shared after acceptance.",
     }
 
@@ -72,7 +72,7 @@ def _activity(type_: str, **slots: Any) -> dict[str, Any]:
     "name",
     ["invite_to_case", "accept_invite_to_case", "reject_invite_to_case"],
 )
-def test_a_stub_as_the_target_of_a_case_invitation_is_accepted(
+def test_a_stub_as_the_preview_of_a_stub_invite_is_accepted(
     name: str,
 ) -> None:
     """The case invitation and its two replies, as the examples send them."""
@@ -87,10 +87,11 @@ def test_a_stub_as_the_target_of_a_case_invitation_is_accepted(
 def test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted(
     name: str,
 ) -> None:
-    """The stub stays the target of its Invite however deep it is quoted.
+    """The stub stays the preview of its Invite's object however deep it
+    is quoted.
 
     A refusal notice carries the refused reply inline, and the reply carries
-    its Invite inline, so the stub is three levels down (MV-10-002).
+    its Invite inline, so the stub is four levels down (MV-10-002).
     """
     notice = refusal_notice_activity(
         _example(name),
@@ -100,20 +101,19 @@ def test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted(
         at=authored_at(),
     )
     body = json.loads(notice.to_json())
-    assert (
-        body["object"]["object"]["target"]["type"] == "VulnerabilityCaseStub"
-    )
+    invite = body["object"]["object"]
+    assert invite["object"]["preview"]["type"] == "CasePreview"
 
     received = cast(Any, parse_activity(body))
 
-    assert received.object_.object_.target.type_ == "VulnerabilityCaseStub"
+    preview = received.object_.object_.object_.preview
+    assert preview.type_ == "CasePreview"
 
 
 _REFUSED_SLOTS = [
     "object",
     "origin",
     "instrument",
-    "result",
     "context",
     "inReplyTo",
     "attributedTo",
@@ -144,7 +144,7 @@ def test_a_stub_as_the_target_of_another_activity_is_refused(
 ) -> None:
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(_activity(type_, target=_stub()))
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+    assert "CasePreview at target;" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
@@ -157,15 +157,15 @@ def test_a_stub_in_an_embargo_invitation_is_refused() -> None:
             VultronParseValidationError, match="MV-10-002"
         ) as exc:
             parse_activity(body)
-        assert f"VulnerabilityCaseStub at {slot};" in str(exc.value)
+        assert f"CasePreview at {slot};" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
-def test_a_stub_nested_outside_the_invite_target_is_refused() -> None:
-    """A reply whose inline Invite carries the stub in the wrong slot."""
+def test_a_stub_nested_outside_the_invite_object_is_refused() -> None:
+    """A reply whose inline Invite carries a stub in another slot too."""
     body = _example("accept_invite_to_case")
     invite = body["object"]
-    invite["context"] = invite.pop("target")
+    invite["context"] = invite["object"]["preview"]
     with pytest.raises(VultronParseValidationError, match=r"object\.context"):
         parse_activity(body)
 
@@ -187,12 +187,23 @@ def test_a_stub_inside_an_inline_domain_object_is_refused(
 
 
 @pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.parametrize("type_", ["Invite", "Announce", "Accept", "Offer"])
+def test_a_preview_as_a_result_is_refused_naming_the_slot(type_: str) -> None:
+    """``result`` admits no core object at all, so a ``CasePreview`` there is
+    refused when the slot validates, before the placement rule runs; the
+    refusal still names the slot."""
+    with pytest.raises(VultronParseValidationError) as exc:
+        parse_activity(_activity(type_, result=_stub()))
+    assert "result" in str(exc.value)
+
+
 def test_every_misplaced_stub_is_named() -> None:
-    body = _activity("Announce", context=_stub(), result=_stub())
+    body = _activity("Announce", context=_stub(), origin=_stub())
     with pytest.raises(VultronParseValidationError) as exc:
         parse_activity(body)
     assert "context" in str(exc.value)
-    assert "result" in str(exc.value)
+    assert "origin" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-009")
@@ -209,35 +220,33 @@ def test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused(
 
 
 @pytest.mark.spec("MV-10-002")
-@pytest.mark.spec("AKM-05-017")
 @pytest.mark.parametrize(
-    "invitee",
+    "case_object",
     [
-        "https://example.org/actors/bob",
-        {"type": "Link", "href": "https://example.org/actors/bob"},
+        {"type": "Person", "id": "https://example.org/actors/bob"},
+        {
+            "type": "VulnerabilityCase",
+            "id": _CASE_ID,
+            "preview": {
+                "type": "CasePreview",
+                "id": "urn:uuid:abc-preview-2",
+                "summary": "A vul in widget.",
+            },
+        },
     ],
+    ids=["actor-object", "previewed-case-object"],
 )
-def test_an_invite_naming_its_object_by_uri_or_link_loses_its_stub(
-    invitee: Any,
+def test_a_stub_in_an_invite_target_is_refused(
+    case_object: dict[str, Any],
 ) -> None:
-    """An Invite whose object is a bare URI or ``Link`` is no case invitation.
+    """The stub's old place, an Invite's ``target``, is refused, naming it.
 
-    An invitee travels inline, as its profile or an actor reference
-    (AKM-05-017); a bare object may be an embargo's terms (#5895).
+    The target is the invitee (ADR-0205), so a stub there is misplaced
+    whatever the Invite's ``object`` is.
     """
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
-        parse_activity(_activity("Invite", object=invitee, target=_stub()))
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
-
-
-@pytest.mark.spec("MV-10-002")
-@pytest.mark.spec("AKM-05-017")
-def test_a_case_invitation_naming_its_invitee_by_actor_reference_keeps_its_stub() -> (
-    None
-):
-    """An actor reference is an inline actor, so its Invite keeps the stub."""
-    invitee = {"type": "Person", "id": "https://example.org/actors/bob"}
-    parse_activity(_activity("Invite", object=invitee, target=_stub()))
+        parse_activity(_activity("Invite", object=case_object, target=_stub()))
+    assert "CasePreview at target;" in str(exc.value)
 
 
 def _embargo_invite_naming_its_terms(form: str) -> dict[str, Any]:
@@ -266,7 +275,7 @@ def test_an_embargo_invitation_naming_its_terms_by_reference_keeps_no_stub(
     body["target"] = _stub()
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(body)
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+    assert "CasePreview at target;" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")

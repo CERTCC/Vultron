@@ -103,8 +103,7 @@ def answered_fields(activity: BaseModel) -> dict[str, Any]:
     """*activity*'s declared fields in their AS2 form, ready to validate.
 
     The dump :func:`validated_as` validates; a factory that must adjust a
-    field before validating (``_as_full_case_invite`` collapses a rehydrated
-    ``target`` to its id) starts from it too.
+    field before validating starts from it too.
     """
     return cast(
         dict[str, Any],

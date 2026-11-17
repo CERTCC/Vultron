@@ -85,6 +85,16 @@
     "type": "CaseParticipant",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
+  "CasePreview": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:casepreview:golden",
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "CasePreview",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
   "CaseReference": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",

@@ -398,7 +398,7 @@ def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
     )
     activity = rm_invite_to_case_activity(
         RECEIVER_ID,
-        target=case,
+        case=case,
         actor=SENDER_ID,
         to=[RECEIVER_ID],
         at=authored_at(),

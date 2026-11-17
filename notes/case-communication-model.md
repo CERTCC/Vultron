@@ -166,11 +166,11 @@ Case Owner triggers SvcInviteActorToCaseUseCase
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
+  → CASE_MANAGER sends Invite(VulnerabilityCase preview)[target=Actor]
     (sent by case_actor_id, attributedTo case_owner_id), commits it in the
     emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
-Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+Invitee sends Accept(Invite(VulnerabilityCase preview)[target=Actor])
   (sent by invitee_id, addressed to case_actor_id)
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
@@ -183,14 +183,14 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
      (CM-11-001)
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
-  5. Queues the full-case Invite(Actor)[target=VulnerabilityCase] after the last
+  5. Queues the full-case Invite(whole VulnerabilityCase)[target=Actor] after the last
      replayed entry, carrying its ledger tail position (CM-11-031)
 
 Participant replies to the full-case Invite, carrying its own ledger position:
   Accept (RV) → RM.VALID · TentativeReject (RI) → RM.INVALID ·
   Reject (RC) → RM.CLOSED (CM-11-011)
 
-Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLOSED on the kept, inert record
+Reject(Invite(VulnerabilityCase preview)[target=Actor]) instead of Accept → RM.CLOSED on the kept, inert record
 (CM-11-007)
 ```
 

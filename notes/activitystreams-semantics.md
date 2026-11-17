@@ -102,11 +102,12 @@ The changes these rules imply for today's code are tracked in
 - **A request for an approval of a concrete act is `Offer(<the act>)`**, answered by
   `Accept` or `Reject`; `Question` is for choices and open inquiries (VOC Offer,
   Question).
-- **A request for another actor to act is `Offer(<the act>)` too, not the act
-  itself.** The actor that holds the record answers with a refusal notice and
-  changes nothing, or answers `Accept` and makes the act with `inReplyTo` = the
-  Offer; the Accept and the act are written in one atomic act (ADR-0146, ADR-0199).
-  Sending the bare act would state that the asker did it.
+- **The decider sends the act; an `Offer` asks another actor to decide.** An
+  actor sends a decision it has the authority to make as the act itself, and the
+  CASE_MANAGER admits it as the ledger entry or refuses it with a refusal notice,
+  never re-making it (ADR-0199). Only when another actor decides is the act sent as
+  `Offer(<the act>)`. An admitted act that someone outside the fan-out must see or
+  answer is delivered as the CASE_MANAGER's `Announce(<the act>)`.
 
 ## Responses Reference the Request Twice
 
@@ -194,13 +195,13 @@ separate activity or `Undo(Ignore)`. `Undo` means retracting a prior action's
 effects, whereas `DEFERRED → ACCEPTED` is a forward RM transition. See
 `docs/howto/activitypub/activities/manage_case.md`.
 
-## `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` Carries the Stub in `inner_target`
+## A Reply to a Case Invite Reads the Case From `inner_object`
 
 `extract_event` does not populate `request.target` for the Reject (or Accept) of
-an Invite: the stub is the nested Invite's `target`, exposed as
-`request.inner_target_id`. Resolve `case_id` from the case the stub names
-(a typed `case_id` property on the event class), never by parsing the stub's ID
-(CM-11-003).
+an Invite: the nested Invite's `object` names the case and its `target` the
+invitee, exposed as `request.inner_object_id` and `request.inner_target_id`
+(ADR-0205). Read `case_id` through the event class's typed `case_id` property,
+never from the stub the stub Invite's reference carries as its preview (CM-11-003).
 
 ## `SemanticEntry` Phrases Use Only `{actor}`, `{object}`, `{target}`
 
