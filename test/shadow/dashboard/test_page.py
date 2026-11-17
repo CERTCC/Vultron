@@ -16,15 +16,23 @@ from collections.abc import Iterator
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from test.support.ledger_stream import recording_rows
 from vultron.config import clear_config_cache, config_override
 from vultron.config.shadow import ShadowConfig
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
-from vultron.shadow.dashboard.page import TITLE
+from vultron.shadow.dashboard.page import (
+    LAST_READING_KEY,
+    LIVE_NOTE,
+    NOT_LIVE_NOTE,
+    TITLE,
+)
 from vultron.shadow.dashboard.view import EM_BADGES, RM_BADGES
 
 #: Seconds one script run may take; the first run imports the measures.
 _TIMEOUT = 60
+
+_RV = RECORDINGS_DIR / "rv" / "case-actor.jsonl"
 
 _FAKE_PAGE = """
 from test.support.case_reader import FAKE_CASE, FakeCaseReader, fake_case_records
@@ -76,6 +84,55 @@ class Empty:
 
 render(Empty())
 """
+
+
+#: A page following a case through the live reader over a scripted stream.
+#: ``__ANSWERS__`` is replaced by the script's answers; ``rows`` are the
+#: rv recording's first rows.  The follow is watched: after the page takes
+#: each item, the size of the reading it kept is recorded in ``seen``.
+_FOLLOW_PAGE = """
+import json
+
+import streamlit as st
+from test.support.ledger_stream import (
+    CLOSE, Dropping, ScriptedStream, recording_rows, sse_event, sse_rows,
+)
+from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.shadow.dashboard.page import LAST_READING_KEY, render
+
+rows = recording_rows(RECORDINGS_DIR / "rv" / "case-actor.jsonl")[:3]
+bad = sse_event({"type": "CaseLedgerEntry"}, 1)
+
+
+class Watched:
+    def __init__(self, reader):
+        self._reader = reader
+        self.unobservable = reader.unobservable
+
+    def read_case(self, case_id):
+        raise AssertionError("a followed case is not read once")
+
+    def follow_case(self, case_id, *, heartbeat=None):
+        for item in self._reader.follow_case(case_id, heartbeat=heartbeat):
+            yield item
+            kept = st.session_state.get(LAST_READING_KEY)
+            st.session_state.setdefault("seen", []).append(
+                len(kept[1].ledger) if kept else 0
+            )
+
+
+render(Watched(ScriptedStream(__ANSWERS__).reader(reconnects=0)))
+"""
+
+
+def _follow_page(answers: str) -> AppTest:
+    """The follow page over *answers*, its case entered and followed."""
+    case_id = recording_rows(_RV)[0]["caseId"]
+    script = _FOLLOW_PAGE.replace("__ANSWERS__", answers)
+    at = AppTest.from_string(script, default_timeout=_TIMEOUT).run()
+    at.text_input[0].input(case_id).run()
+    assert not at.exception
+    return at
 
 
 def _texts(elements) -> list[str]:
@@ -294,3 +351,53 @@ def test_a_run_through_a_vultron_node_suggests_no_ledger_file(tmp_path):
         node_actor_id="case-actor",
     )
     assert ledger_suggestions(config) == []
+
+
+@pytest.mark.spec("SHD-04-005")
+def test_a_followed_case_shows_its_new_standing_after_each_entry():
+    """AC-4: each accepted reading is taken and shown as it arrives."""
+    at = _follow_page("sse_rows(rows) + CLOSE")
+    assert at.session_state["seen"] == [1, 2, 3]
+    case_id, kept = at.session_state[LAST_READING_KEY]
+    assert case_id == recording_rows(_RV)[0]["caseId"]
+    assert len(kept.ledger) == 3
+    assert "Participants" in _texts(at.subheader)
+    assert not at.error
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+@pytest.mark.spec("SHD-04-005")
+def test_a_refused_entry_then_close_keeps_the_last_reading_marked():
+    """The first reading stays, the error shows, then it is not live."""
+    at = _follow_page("sse_rows(rows[:1]) + bad + CLOSE")
+    assert at.session_state["seen"] == [1, 1]
+    _, kept = at.session_state[LAST_READING_KEY]
+    assert len(kept.ledger) == 1
+    (error,) = _texts(at.error)
+    assert "Cannot read case" in error
+    assert "log/stream line 2: not a case ledger entry" in error
+    assert "Participants" in _texts(at.subheader)
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+@pytest.mark.spec("SHD-04-005")
+def test_a_dropped_stream_keeps_the_last_reading_marked_not_live():
+    """No close event: the node is lost, and the reading is kept."""
+    at = _follow_page("Dropping(sse_rows(rows[:2]))")
+    assert at.session_state["seen"] == [1, 2, 2]
+    _, kept = at.session_state[LAST_READING_KEY]
+    assert len(kept.ledger) == 2
+    (error,) = _texts(at.error)
+    assert "cannot be reached" in error
+    assert "Participants" in _texts(at.subheader)
+    assert _texts(at.warning) == [NOT_LIVE_NOTE]
+
+
+def test_a_follow_refused_before_any_reading_shows_only_why():
+    at = _follow_page('(404, json.dumps({"detail": "Case not found."}))')
+    (error,) = _texts(at.error)
+    assert "holds no such case" in error
+    assert "Participants" not in _texts(at.subheader)
+    assert not at.warning
+    assert LIVE_NOTE not in _texts(at.caption)
+    assert LAST_READING_KEY not in at.session_state

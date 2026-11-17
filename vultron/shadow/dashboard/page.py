@@ -21,6 +21,14 @@ the case's level 1 standing as a scoreboard.  Beside the analysis it always
 shows the facts the reader could not translate, the states it inferred, and
 what its source never records (SHD-01-004, CRD-02-005).
 
+A reader that can follow a case
+(:class:`~vultron.shadow.readers.following.CaseFollower`), the live Vultron
+case reader, is followed instead of read once: the page shows the case's new
+standing after each ledger entry arrives (#6531).  The last accepted reading
+is kept in session state.  A reading the reader refuses shows its error
+above that reading, and a follow that ends marks it as no longer live; the
+reading stays on the page either way (SHD-04-005).
+
 The page only reads: it holds the reader and nothing that can send or write
 (SHD-01-001, SHD-01-002).  A case it reads lives in the process's memory
 only, and nothing of it is written to disk (SHD-01-003).
@@ -37,12 +45,27 @@ from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
+from vultron.shadow.readers.following import CaseFollower
 
 #: The page's title, also the browser tab's.
 TITLE = "Case shadow"
 
 #: The widget key of the case the analyst enters.
 CASE_KEY = "case_id"
+
+#: The session-state key of a followed case's last accepted reading, kept
+#: with the case id it is a reading of.
+LAST_READING_KEY = "last_accepted_reading"
+
+#: What the page says of a followed case while it is live, and once not.
+LIVE_NOTE = (
+    "Live: the page follows the case and shows its new standing as each"
+    " ledger entry arrives."
+)
+NOT_LIVE_NOTE = (
+    "No longer live: the case's stream has ended. The page shows the case's"
+    " last accepted reading."
+)
 
 
 def _table(rows: Sequence[view.Row], empty: str) -> None:
@@ -144,6 +167,9 @@ def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
     if case_id is None:
         st.info("Enter a case to see where it stands.")
         return
+    if isinstance(reader, CaseFollower):
+        _follow(reader, case_id)
+        return
     try:
         reading = reader.read_case(case_id)
     except VultronError as exc:
@@ -151,8 +177,50 @@ def render(reader: CaseReader, suggestions: Sequence[str] = ()) -> None:
         # (EH-07-003), so the analyst sees every reason at once.
         st.error(str(exc))
         return
+    _show_reading(reading)
+
+
+def _show_reading(reading: CaseReading) -> None:
     _show_standing(analyse(reading))
     _show_reader_report(reading)
 
 
-__all__ = ["CASE_KEY", "TITLE", "render"]
+def _follow(follower: CaseFollower, case_id: str) -> None:
+    """Show *case_id*'s standing anew after each reading the follow yields.
+
+    The script runs for as long as the follow does.  Each accepted reading
+    replaces the one shown and is kept in session state; a refusal shows
+    above the last accepted reading, which stays; once the follow ends, the
+    reading is marked as no longer live (SHD-04-005).
+    """
+    notice = st.empty()
+    problem = st.empty()
+    body = st.empty()
+    st.session_state.pop(LAST_READING_KEY, None)
+
+    def heartbeat() -> None:
+        # Any page call lets Streamlit stop a run whose page was left or
+        # asked to rerun, while the stream is quiet.
+        notice.caption(LIVE_NOTE)
+
+    for item in follower.follow_case(case_id, heartbeat=heartbeat):
+        if isinstance(item, CaseReading):
+            st.session_state[LAST_READING_KEY] = (case_id, item)
+            notice.caption(LIVE_NOTE)
+            problem.empty()
+            with body.container():
+                _show_reading(item)
+        else:
+            problem.error(str(item))
+    if LAST_READING_KEY in st.session_state:
+        notice.warning(NOT_LIVE_NOTE)
+
+
+__all__ = [
+    "CASE_KEY",
+    "LAST_READING_KEY",
+    "LIVE_NOTE",
+    "NOT_LIVE_NOTE",
+    "TITLE",
+    "render",
+]
