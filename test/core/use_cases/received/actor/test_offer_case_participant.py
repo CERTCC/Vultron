@@ -39,7 +39,11 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import received_event, settle_as_the_inbox
+from test.support.received import (
+    archive_received,
+    received_event,
+    settle_as_the_inbox,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -77,6 +81,7 @@ from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
     offer_case_participant_activity,
+    recommend_actor_activity,
     reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
 )
@@ -187,6 +192,20 @@ def _record_recommendation(
             recommender_id=recommender_id,
         )
     )
+    # The recommendation as it arrived, which the answer embeds (DL-06-004);
+    # a second recording of the same recommendation keeps the first.
+    if dl.read(ReceivedActivityRecord.build_id(RECOMMENDATION_ID)) is None:
+        archive_received(
+            dl,
+            recommend_actor_activity(
+                RECOMMENDED_ID,
+                target=case_id,
+                id_=RECOMMENDATION_ID,
+                actor=recommender_id,
+                to=[CASE_ACTOR_ID],
+                at=authored_at(),
+            ),
+        )
 
 
 def _record_offer(dl: SqliteDataLayer) -> None:

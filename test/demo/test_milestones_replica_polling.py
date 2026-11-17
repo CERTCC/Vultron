@@ -724,7 +724,11 @@ _IC_INITIALIZED_CASE = {
     "published": CASE_PUBLISHED.isoformat(),
     "vulnerabilityReports": [_IC_REPORT_ID],
     "caseParticipants": [
-        {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
+        {
+            "id": _IC_PARTICIPANT_ID,
+            "type": "CaseParticipant",
+            "published": CASE_PUBLISHED.isoformat(),
+        }
     ],
 }
 _IC_EMPTY_CASE = {
