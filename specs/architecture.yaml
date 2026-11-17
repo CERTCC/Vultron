@@ -2847,8 +2847,8 @@ groups:
     statement: >-
       Each AS2 base data class that core holds (an AS2 base type such as `Object` or
       `Collection`) MUST be defined in `vultron/core/models/` and registered in
-      `AS2_BASE_CLASSES`, and the wire's name for it MUST be an alias of the core class or
-      a thin subclass of it.
+      `AS2_BASE_CLASSES`; the wire's name for it is an alias of the core class or a thin
+      subclass of it.
     rationale: >-
       Core owns the AS2 base vocabulary, so a core rule about an AS2 type reads that type's
       own class, and no copy of its names or fields is kept elsewhere. Core still never

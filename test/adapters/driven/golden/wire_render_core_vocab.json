@@ -114,6 +114,17 @@
     "type": "CaseStatus",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
+  "Collection": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:collection:golden",
+    "items": [],
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "Collection",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
   "EmbargoConsent": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
@@ -151,6 +162,17 @@
     "preferredDuration": "P90D",
     "published": "2026-01-02T03:04:05.000000+00:00",
     "type": "EmbargoPolicy",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
+  "OrderedCollection": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:orderedcollection:golden",
+    "items": [],
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "OrderedCollection",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
   "ParticipantStatus": {
