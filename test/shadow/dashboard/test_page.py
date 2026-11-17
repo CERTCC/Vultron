@@ -25,10 +25,12 @@ from vultron.measure.advice import (
     DOMINATED_BY_HARM_FREE,
     HARM_NOTE,
     HELP_TEXT,
+    Band,
 )
 from vultron.shadow.dashboard.app import APP_PATH, ledger_suggestions
 from vultron.shadow.dashboard.page import TITLE
 from vultron.shadow.dashboard.view import (
+    BAND_EMPTY,
     EM_BADGES,
     LEADING_MARK,
     RM_BADGES,
@@ -212,6 +214,8 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
         "CS",
         "EM",
     }
+    # No move of this recording trades off: its band says so.
+    assert BAND_EMPTY[Band.TRADE_OFF] in _texts(at.caption)
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
 
