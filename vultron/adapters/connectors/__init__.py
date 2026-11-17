@@ -16,7 +16,6 @@ Modules:
 
 Sub-packages:
 
-- ``example/`` — A reference implementation (a VINCE case reader) showing
-  how to implement a connector plugin.  It declares no entry point, so the
-  loader never finds it.
+- ``vince/`` — The VINCE connector: the VINCE translation and the VINCE case
+  reader, installed as the ``vince`` entry point.
 """

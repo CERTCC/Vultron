@@ -40,8 +40,8 @@ Example ``pyproject.toml`` entry for a third-party plugin::
     [project.entry-points."vultron.connectors"]
     my_tracker = "my_package.connectors:MyTrackerCaseReader"
 
-The example connectors under ``example/`` declare no entry point, so this
-loader never finds them.
+Vultron's own VINCE case reader is installed this way too: ``pyproject.toml``
+declares it as the ``vince`` entry point.
 """
 
 from __future__ import annotations

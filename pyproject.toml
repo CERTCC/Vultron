@@ -130,6 +130,11 @@ csaf-corpus="vultron.metadata.csaf.corpus:main"
 csaf-draft-watch="vultron.metadata.csaf.draft_watch:main"
 vince-data="vultron.metadata.vince_data.check:main"
 
+# Connector plugins, found by vultron/adapters/connectors/loader.py
+# (ARCH-05-003).
+[project.entry-points."vultron.connectors"]
+vince = "vultron.adapters.connectors.vince.reader:VinceCaseReader"
+
 
 [project.urls]
 "Homepage" = "https://certcc.github.io/Vultron"
