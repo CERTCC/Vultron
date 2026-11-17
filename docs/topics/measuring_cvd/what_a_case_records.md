@@ -356,7 +356,13 @@ For embargo times, the measure connects the embargo register and the consent row
     In the record, any participant can propose an embargo, and only the Case Owner can accept, reject or end one.
     For each move that changes a state, the record gives each vendor's change in the expected outcome of each desideratum if that move came next (`vultron/measure/baselines/values.py`).
     A desideratum whose scope the case never enters counts as met.
+    A move that takes a desideratum's scope out of reach changes that desideratum by 0.
+    A vendor that the case has not yet notified, at RM Start, is a vendor of the record too, so its notice has a number.
     A move that changes no state is listed as advice, with no number.
+    The record also lists the CVD actions that each vendor's case state makes possible (`vultron/core/states/cs_actions.py`).
+    For example, before attacks are observed, the record lists monitoring for attacks.
+    These actions change no state, so each one is advice, with no number.
+    The move advice puts each move that has a number in a band, as [Move Bands Against Pathology Cases](move_bands.md) describes (`vultron/measure/advice/`).
     The record also gives the path-preference counts of [Reward Functions](reward_functions.md#the-path-preferences) (`vultron/measure/preferences/`).
     For each participant, the counts give the embargo Invites answered before their RSVP deadline, the Invites that timed out at the deadline, and the Invites that the case's close timed out before the deadline.
     For the case, the counts give the embargo revisions, and whether a negotiated embargo replaced the default embargo.

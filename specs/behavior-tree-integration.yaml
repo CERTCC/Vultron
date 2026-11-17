@@ -3428,3 +3428,134 @@ groups:
       the act that runs it.
     adr:
     - ADR-0207
+  - id: BT-25-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A tree factory MUST declare the per-act keys (BTND-01-008) its tree needs
+      before any of its nodes runs.
+    rationale: >-
+      The declaration is the tree's input contract: given these values, the tree's
+      logic completes its act. A reader, a test or a published behavior spec can
+      then state what a tree needs without reading its nodes.
+    verification: >-
+      An architecture test builds every received and trigger tree and fails when a
+      node reads a per-act key that the tree neither declares nor publishes from an
+      earlier node.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BTND-01-008
+    adr:
+    - ADR-0207
+  - id: BT-25-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Before the first tick, the received-tree runner and the trigger-tree runner
+      MUST seed each declared key (BT-25-006) whose value the act's event or trigger
+      request carries.
+    rationale: >-
+      Copying a value the message or request carries reads no store, so the runner
+      stays free of DataLayer reads (ADR-0195), and no factory has to bake the value
+      into a node.
+    verification: >-
+      Runner tests run a tree that declares keys and assert each node reads the
+      value its event or request carried, for a received and a trigger tree.
+    relationships:
+    - rel_type: depends_on
+      spec_id: BT-25-006
+    adr:
+    - ADR-0207
+    - ADR-0195
+  - id: BT-25-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A runner MUST NOT tick a tree when a key the tree declares (BT-25-006) has no
+      value and no node of the tree publishes it. The runner raises a wiring error
+      instead.
+    rationale: >-
+      A missing input is a programming error in the seeding or the declaration, not
+      a protocol condition. Ticking anyway would let a node read an absent value and
+      report a refusal that no message caused.
+    verification: >-
+      Runner tests omit one declared value and assert the run raises a
+      `VultronWiringError` naming the key, with no node ticked.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-007
+    - rel_type: uses_definition
+      spec_id: BT-25-006
+    adr:
+    - ADR-0207
+  - id: BT-25-009
+    priority: MUST
+    kind: project
+    statement: >-
+      A per-act value that only a DataLayer read can find MUST be published by a
+      lookup node in the tree that needs it, never read before the tree runs.
+    rationale: >-
+      A use case and its runner read no DataLayer before the run, in a received tree
+      (ADR-0195) and in a trigger tree alike (ADR-0207). The lookup can also fail,
+      and only a node can turn that failure into a declared verdict with its reason.
+      In a trigger tree, a lookup that finds nothing keeps the trigger's current
+      not-found or refused result; BT-25-010 covers received trees only.
+    verification: >-
+      Two architecture tests under `test/architecture/` check that no store read
+      happens before a run. The test #6499 adds fails on any DataLayer or `BTBridge`
+      call in a received use case. The test #6605 adds lists the trigger use cases
+      that still read the store before their tree runs; it fails on a new one, and
+      its list only shrinks and ends empty (#6606 empties it). Lookup-node tests
+      assert that each lookup node publishes the key it found.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-007
+    adr:
+    - ADR-0207
+    - ADR-0195
+  - id: BT-25-010
+    priority: MUST
+    kind: project
+    statement: >-
+      In a received tree, a lookup node (BT-25-009) that finds no value MUST declare
+      a refusal whose reason names the missing object and the requirement it cites.
+    rationale: >-
+      The runner reads a refusal only from a node's declaration (ADR-0195). A lookup
+      that fails without one would be read as an unexplained failure.
+    verification: >-
+      Lookup-node tests run each received lookup against a store without the object
+      and assert a `REFUSED` verdict whose reason names it.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-25-009
+    adr:
+    - ADR-0207
+    - ADR-0195
+  - id: BT-25-011
+    priority: MUST
+    kind: project
+    statement: >-
+      Each per-act key a tree declares (BT-25-006) MUST have one source in that tree:
+      the runner's seed (BT-25-007) or one publishing node (BT-25-009), never both.
+    rationale: >-
+      A key with two sources is the dual channel BTND-01-007 forbids at one node,
+      raised to the tree. A seeded value would hide the value a lookup node found, or
+      the reverse, depending on tick order.
+    verification: >-
+      The BT-25-006 architecture test fails on a tree in which a node publishes a key
+      that the tree's declaration marks as seeded by the runner, and on a tree in
+      which two nodes publish the same declared key.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-01-007
+    - rel_type: uses_definition
+      spec_id: BT-25-006
+    see_also:
+    - spec_id: BT-25-007
+      reason: >-
+        names the runner's seed, one of the two sources this rule keeps apart
+    - spec_id: BT-25-009
+      reason: >-
+        names the publishing lookup node, the other source this rule keeps apart
+    adr:
+    - ADR-0207

@@ -37,6 +37,10 @@ The walk takes it in the smallest model that holds the desideratum, with the cas
 A desideratum whose scope the case never enters counts as met.
 
 A move's **outcome shift** is the expected outcome after the move, minus the chance value.
+A move can take a desideratum's scope out of reach, for example when a vendor closes a report that it has not accepted.
+Then that desideratum adds nothing to the move's shift, neither a gain nor a harm.
+Without this rule, the move would get credit for the desideratum that now counts as met.
+The case score of a history does not change: in a score, a scope that the case never enters still counts as met.
 Each scope has two parts:
 
 - the end part, which adds the shifts of every desideratum except the embargo desiderata;
@@ -183,7 +187,7 @@ The largest deciding parts are near 2.
 | Publication now, no ready vendor | unhelpful | end, −0.042 |
 | End the embargo on its own terms, a vendor with no fix | trade-off | embargo, +0.79 and −0.009 |
 | End the embargo on its own terms, no vendor with a fix | unhelpful | embargo, −0.009 |
-| End the embargo early | unhelpful | embargo, −0.007 to −0.20 |
+| End the embargo early | unhelpful | embargo, about −0.20 |
 | Propose an embargo revision | unhelpful | none: all zero |
 | Defer or close a report | unhelpful | none: all zero |
 
@@ -256,5 +260,6 @@ The moves with a shift of zero share one layer, because they do not dominate eac
 ## How to run the spike
 
 The bands are in `vultron/measure/advice/`.
+`case_advice` reads a real case's standing record into the advice record that the case shadow shows (#6369).
 The cases, the pathologies, and the aggregates are in `test/measure/advice/`.
 Run `uv run pytest test/measure/advice` to run the spike.

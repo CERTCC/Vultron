@@ -22,6 +22,7 @@ related_adrs:
   - docs/adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
   - docs/adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
   - docs/adr/0190-shadow-mode-is-a-standalone-read-only-advisor-that-translates-a-case-on-request.md
+  - docs/adr/0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md
   - docs/adr/0075-split-vfd-state-machine.md
   - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
@@ -137,6 +138,14 @@ lose points for not taking a worse path that had more points available, such as 
 report never validated (user decision on #6457/#6490, recorded in #6488). The
 conditional values stay as they are, `None` when the scope is unreachable, so a
 value from the start is still the baseline.
+
+A step that takes a desideratum's scope out of reach (the chance it is entered is
+above 0 before the step and 0 after it) changes that desideratum by 0 in
+`outcome_change`; the rule lives there and nowhere else, so every move-advice reader
+gets it. Reason: counting the closed scope as met would credit the move for leaving
+it, so closing a report from RM Received came out harm-free and top (user decision
+on #6369; ADR-0200). Case scoring of a history is unchanged: a scope never entered
+still counts as met there.
 
 Score a complete history with `vultron.measure.scoring.history_score`, never
 `CVDmodel.score_hist`: it is the same `Σ (1 − f_d)` over the twelve original

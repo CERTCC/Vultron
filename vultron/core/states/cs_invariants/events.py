@@ -68,6 +68,24 @@ CS_EVENT_TO_PXA_TRIGGER: dict[CSEvent, PXA_Trigger] = {
 """Maps each PXA-dimension CS event to the `PxaDimension.transition()` trigger."""
 
 
+def cs_happened_events(state: CS) -> frozenset[CSEvent]:
+    """Return the CS events that have occurred in compound state *state*.
+
+    An event has occurred when its dimension holds the happened
+    (upper-case) value.
+
+    Examples::
+
+        cs_happened_events(CS.vfdpxa)  # frozenset()
+        cs_happened_events(CS.VfdPxa)  # frozenset({CSEvent.V, CSEvent.P})
+    """
+    return frozenset(
+        event
+        for event, letter in zip(CS_EVENTS, state.name, strict=True)
+        if letter.isupper()
+    )
+
+
 def cs_dimensions(state: CS) -> tuple[CS_vf, CS_d, CS_pxa]:
     """Return the (VF, D, PXA) dimension states of a compound CS state.
 
