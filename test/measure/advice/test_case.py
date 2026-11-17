@@ -35,6 +35,7 @@ from test.measure.history.builders import (
     seat_unnotified_vendor,
     seat_vendor,
     status,
+    two_vendors_ledger,
 )
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.measure.advice import (
@@ -74,29 +75,9 @@ def _one_vendor() -> Ledger:
     return ledger
 
 
-def _two_vendors() -> Ledger:
-    """No embargo; a vendor with its fix ready and the report accepted, and
-    a second vendor aware at RM Received with no fix."""
-    ledger = Ledger()
-    ledger.genesis(
-        [
-            participant(
-                OWNER,
-                [status("owner-r", OWNER, "RECEIVED")],
-                roles=("CASE_OWNER",),
-            )
-        ],
-        with_embargo=False,
-    )
-    seat_vendor(ledger, VENDOR, "VF")
-    ledger.add_status(VENDOR, status("vendor-a", VENDOR, "ACCEPTED", vf="VF"))
-    seat_vendor(ledger, VENDOR_2, "Vf")
-    return ledger
-
-
 @pytest.fixture(scope="module")
 def two_vendors() -> CaseAdvice:
-    return case_advice(case_standing(_two_vendors().case_ledger()))
+    return case_advice(case_standing(two_vendors_ledger().case_ledger()))
 
 
 def _move(advice: CaseAdvice, participant: str, name: str) -> AdvisedMove:
