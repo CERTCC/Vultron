@@ -5,7 +5,7 @@
     Rejects the Full-Case Invite, which records RM Closed. It carries the sender's own ledger position.
 
     - **When…** a Participant asked by a Full-Case Invite closes the case
-    - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send:** `Reject(Invite(whole VulnerabilityCase)[target=Actor])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Reference:** [Reject Full-Case Invite](../../case_management.md#reject-full-case-invite)

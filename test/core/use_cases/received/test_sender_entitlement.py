@@ -71,7 +71,7 @@ from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
 )
-from test.support.received import received_event
+from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -158,7 +158,6 @@ from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 #: The receiving store's owner, seeded as the case's CASE_MANAGER, so every
@@ -364,7 +363,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     cm_store.create(owned_case)
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=_IMPOSTOR_ID),
-        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        case=case_stub(owned_case.id_),
         roles=[CVDRole.VENDOR],
         actor=_OWNER_ID,
         id_=f"{owned_case.id_}/invitations/forged",
@@ -407,7 +406,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     cm_store.create(
         rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
-            target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+            case=case_stub(owned_case.id_),
             roles=[CVDRole.VENDOR],
             to=[invitee_id],
             actor=_CASE_MANAGER_ID,
@@ -417,7 +416,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     )
     forged = rm_invite_to_case_activity(
         make(as_Actor, id_=invitee_id),
-        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        case=case_stub(owned_case.id_),
         roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
         actor=_OWNER_ID,
         id_=invite_id,
@@ -454,7 +453,7 @@ def _record_stub_invite(cm_store, case, invitee_id=_INVITEE_ID, suffix="rec"):
     """The stub Invite the CASE_MANAGER sent and recorded, addressed to the invitee."""
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=invitee_id),
-        target=as_VulnerabilityCaseStub(case_id=case.id_),
+        case=case_stub(case.id_),
         roles=[CVDRole.VENDOR],
         to=[invitee_id],
         actor=_CASE_MANAGER_ID,
@@ -511,7 +510,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     other_case_id = "https://example.org/cases/another-case"
     other_invite = rm_invite_to_case_activity(
         make(as_Actor, id_=_INVITEE_ID),
-        target=as_VulnerabilityCaseStub(case_id=other_case_id),
+        case=case_stub(other_case_id),
         roles=[CVDRole.VENDOR],
         to=[_INVITEE_ID],
         actor=_CASE_MANAGER_ID,
@@ -521,7 +520,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
     cm_store.create(other_invite)
     forged = rm_invite_to_case_activity(
         make(as_Actor, id_=_INVITEE_ID),
-        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        case=case_stub(owned_case.id_),
         roles=[CVDRole.VENDOR],
         to=[_INVITEE_ID],
         actor=_OWNER_ID,
@@ -561,7 +560,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
     cm_store.create(owned_case)
     invite = rm_invite_to_case_activity(
         make(as_Actor, id_=_IMPOSTOR_ID),
-        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        case=case_stub(owned_case.id_),
         roles=[CVDRole.VENDOR],
         to=[_IMPOSTOR_ID],
         actor=_IMPOSTOR_ID,
@@ -602,7 +601,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     cm_store, owned_case, make_payload, recorded
 ):
     """The same sender check applies to
-    Reject(Invite(Actor)[target=VulnerabilityCaseStub]).
+    Reject(Invite(VulnerabilityCase preview)[target=Actor]).
     """
     cm_store.create(owned_case)
     if recorded:
@@ -610,7 +609,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     else:
         invite = rm_invite_to_case_activity(
             make(as_Actor, id_=_IMPOSTOR_ID),
-            target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+            case=case_stub(owned_case.id_),
             roles=[CVDRole.VENDOR],
             to=[_IMPOSTOR_ID],
             actor=_OWNER_ID,

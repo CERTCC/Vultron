@@ -409,7 +409,8 @@ groups:
       A CASE_MANAGER or Case Owner MAY assert ``v→V`` (``Vf``) on behalf of a
       Vendor-role participant when the notification or invite is evidenced. Any vendor
       acknowledgement, including
-      ``Read(Invite(Actor)[target=VulnerabilityCaseStub])``, is evidence. The target is
+      ``Read(Invite(VulnerabilityCase preview)[target=Actor])``, is evidence. The target
+      is
       typically an inert invitee that has not yet replied, and it must already be a
       participant (PRM-06-006). This move is the whole of what the status asserts: it
       cannot be asserted in the same status as the ``d→D`` of PRM-06-004.

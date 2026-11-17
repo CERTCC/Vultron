@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's ``Invite(Actor)[target=VulnerabilityCaseStub]`` emit node.
+"""The CASE_MANAGER's ``stub Invite(<case>)[target=<invitee>]`` emit node.
 
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
 reply deadline (CM-11-014); a replacement issued after an embargo change names
@@ -30,7 +30,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
-    current_stub_embargo_end,
+    current_preview_embargo_end,
     recorded_stub_invites,
 )
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
@@ -44,6 +44,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import serialize_roles
+from vultron.errors import VultronNotFoundError
 
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
@@ -79,26 +80,24 @@ def build_stub_invite(
     is the earlier attempt's Invite: the factory hands back the body sealed
     then, and the outbox and the commit each record it once (OX-06-002).
     Returns ``(activity_id, activity_blob)``.
+
+    Raises:
+        VultronNotFoundError: When *datalayer* holds no case under
+            *case_id*: the preview is built from the case.
     """
     # CM-17-002: pass the full case object so the adapter+factory can
-    # project it to an enriched stub (embedding the full active embargo,
-    # CM-17-011) while an embargo is in force (EM ACTIVE or REVISE).
-    # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
-    # coordination state — the Invite is fully specified by invitee/case_id/
-    # actor/roles, and the factory tolerates target=None (CM-17-002 only
-    # enriches the stub when the case is present with an embargo in force). A
-    # missing local case therefore emits a bare stub rather than failing;
-    # this read is deliberately unguarded (conformance allowlist).
+    # project it to the case's preview (embedding the full active embargo,
+    # CM-17-011, while an embargo is in force: EM ACTIVE or REVISE).  The
+    # preview is built from the case, so a case this actor does not hold
+    # gets no stub Invite (CM-17-010, ADR-0205).
     case = datalayer.read_case(case_id)
+    if case is None:
+        raise VultronNotFoundError("VulnerabilityCase", case_id)
     # The CASE_MANAGER states the reply deadline once, the way it does on an
     # embargo Invite (CM-11-014, CM-28-012, ASK-03-004); the cap is the end of
     # the embargo the stub carries, when it carries one.
     stamp = stamp_rsvp_deadline(
-        current_stub_embargo_end(datalayer, case)
-        if case is not None
-        else None,
-        at,
-        actor_config,
+        current_preview_embargo_end(datalayer, case), at, actor_config
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
     # asked for it is the attributed author (PCR-08-007, CM-24-005).
@@ -117,7 +116,7 @@ def build_stub_invite(
         id_=activity_id,
         attributed_to=authorship.attributed_to if authorship else None,
         roles=roles,
-        target=case,
+        case=case,
         rsvp_deadline=stamp.rsvp_deadline,
         in_reply_to=in_reply_to,
         at=at,
@@ -151,7 +150,7 @@ def commit_stub_invite(
 
 
 class _StubInviteEmitBase(_EmitSingleActivityBase):
-    """Create Invite(Actor)[target=VulnerabilityCaseStub], queue it in this actor's
+    """Create stub Invite(<case>)[target=<invitee>], queue it in this actor's
     outbox, and commit it.
 
     The shared build of :class:`EmitInviteActorToCaseNode`.  A subclass names
@@ -206,12 +205,12 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
         return earlier[-1].invite_id if earlier else None
 
     def _call_factory(self) -> tuple[str, str]:
-        """Build the Invite(Actor)[target=VulnerabilityCaseStub] activity."""
+        """Build the stub Invite(<case>)[target=<invitee>] activity."""
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
             raise ValueError(
                 f"suggested_roles for actor '{self._invitee()}' is empty"
-                " — cannot emit Invite(Actor)[target=VulnerabilityCaseStub]"
+                " — cannot emit stub Invite(<case>)[target=<invitee>]"
                 " without at least one role"
             )
         assert self.datalayer is not None and self.actor_id is not None
@@ -252,7 +251,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' emitted Invite(Actor)[target=VulnerabilityCaseStub]"
+            "Actor '%s' emitted stub Invite(<case>)[target=<invitee>]"
             " to '%s' for case '%s'",
             self.actor_id,
             self._invitee(),
@@ -261,7 +260,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
 
 
 class EmitInviteActorToCaseNode(_StubInviteEmitBase):
-    """Create Invite(Actor)[target=VulnerabilityCaseStub], queue it in this actor's
+    """Create stub Invite(<case>)[target=<invitee>], queue it in this actor's
     outbox, and commit it.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
@@ -293,8 +292,8 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
        (BTND-03-004, CM-16-003, CM-17-007).
 
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
-    ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to an enriched ``as_VulnerabilityCaseStub`` — embedding
+    ``case`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
+    and factory project it to the case's preview, the case stub — embedding
     the full embargo in force (EM ``ACTIVE`` or ``REVISE``, CM-17-011) —
     without violating the core→wire import boundary (ARCH-01-001, CM-17-002).
     """

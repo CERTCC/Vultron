@@ -25,6 +25,7 @@ the clock past a minute boundary between consecutive reads.
 from collections.abc import Callable
 
 import pytest
+from pydantic import BaseModel
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -66,7 +67,25 @@ def test_embargo_examples_equal_across_minute_boundary(
 def test_examples_equal_across_second_boundary(
     straddling_clock: type, builder: Callable[[], object]
 ) -> None:
-    assert builder() == builder()
+    assert _clock_free(builder()) == _clock_free(builder())
+
+
+def _clock_free(example: object) -> object:
+    """*example*'s dump, the minted id of a stub Invite's preview dropped.
+
+    The case's preview takes a fresh id from the installed id source
+    (OID-01-011, ADR-0205), which differs between two calls outside the
+    generator's scoped source; that source pins it in the committed
+    examples (``test_docs_vocab_examples_pinned``).  Nothing here depends on
+    the clock.
+    """
+    if not isinstance(example, BaseModel):
+        return example
+    dumped = example.model_dump(mode="json", by_alias=True)
+    obj = dumped.get("object")
+    if isinstance(obj, dict) and isinstance(obj.get("preview"), dict):
+        obj["preview"].pop("id", None)
+    return dumped
 
 
 def test_add_note_carries_an_equal_note_across_second_boundary(

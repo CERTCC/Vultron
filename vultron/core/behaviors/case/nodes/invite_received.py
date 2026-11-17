@@ -13,7 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Invitee-side effect nodes for a received ``Invite(Actor)[target=VulnerabilityCaseStub]``.
+"""Invitee-side effect nodes for a received ``Invite(VulnerabilityCase
+preview)[target=Actor]``.
 
 The invitee holds only the Invite's case stub until the CASE_MANAGER announces
 the case (MV-10-003, MV-10-004), so it records two things and creates no case:
@@ -79,7 +80,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
 
     Trust rules (PCR-03-004, issue #4185):
 
-    - **AC-1**: Refuses when the Invite's ``object`` (``invitee_id``) is not
+    - **AC-1**: Refuses when the Invite's ``target`` (``invitee_id``) is not
       the receiving actor (``self.actor_id``); no record is written.
     - **AC-2**: The anchor is bound to the Invite's ``actor`` id
       (``case_actor_id``); the transport-level delivering sender is never
@@ -126,11 +127,11 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        # AC-1: The Invite's object must be the receiving actor.
+        # AC-1: The Invite's target must be the receiving actor.
         if not same_actor_id(self.invitee_id, self.actor_id or ""):
             return fail_with_reason(
                 self,
-                f"Invite object '{self.invitee_id}' is not the receiving"
+                f"Invite target '{self.invitee_id}' is not the receiving"
                 f" actor '{self.actor_id}' — refusing trust anchor"
                 f" (PCR-03-007)",
             )

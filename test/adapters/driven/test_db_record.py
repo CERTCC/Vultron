@@ -341,15 +341,16 @@ def test_keep_inline_nested_types_contains_case_ledger_entry():
 
 
 def test_keep_inline_nested_types_matches_enum_union_exactly():
-    """_KEEP_INLINE_NESTED_TYPES is both activity enums plus two record-less types.
+    """_KEEP_INLINE_NESTED_TYPES is both activity enums plus ``CaseLedgerEntry``.
 
-    ``CaseLedgerEntry`` and ``VulnerabilityCaseStub`` (CM-11-013) have no record
-    of their own to be read back from.
+    ``CaseLedgerEntry`` has no record of its own to be read back from.  The
+    case's preview needs no entry: it travels only inside the typed reference
+    that carries it, which dehydration keeps whole (ADR-0205).
     """
     expected = (
         frozenset(e.value for e in as_TransitiveActivityType)
         | frozenset(e.value for e in as_IntransitiveActivityType)
-        | {"CaseLedgerEntry", "VulnerabilityCaseStub"}
+        | {"CaseLedgerEntry"}
     )
     assert expected == _KEEP_INLINE_NESTED_TYPES
 
@@ -720,17 +721,25 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
 
 
 def _invite_naming_a_peer():
-    """An ``Invite(Actor)[target=VulnerabilityCaseStub]`` as the Case Actor builds it
+    """An ``Invite(VulnerabilityCase preview)[target=Actor]`` as the Case Actor builds it
     for a peer.
 
     Built through the factory, not the internal vocab class, per the
     AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).
     """
     from vultron.wire.as2.factories import rm_invite_to_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
 
     return rm_invite_to_case_activity(
         invitee=_PEER_ACTOR_ID,
-        target="urn:uuid:case-dl08003-0000-0000-000000000001",
+        case=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_="urn:uuid:case-dl08003-0000-0000-000000000001",
+            stub_summary="A case for a peer to join",
+        ),
         id_="urn:uuid:inv-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
         to=[_PEER_ACTOR_ID],
@@ -766,7 +775,7 @@ def test_invite_keeps_the_invited_peer_inline():
     invite = _invite_naming_a_peer()
 
     record = object_to_record(cast(Any, invite))
-    stored = record.data_.get("object_")
+    stored = record.data_.get("target")
 
     assert isinstance(stored, dict), (
         f"the invitee collapsed to {stored!r}; nothing in this store can expand"
@@ -781,7 +790,7 @@ def test_invited_peer_round_trips_as_an_object():
     back = record_to_object(
         object_to_record(cast(Any, _invite_naming_a_peer()))
     )
-    restored = getattr(back, "object_", None)
+    restored = getattr(back, "target", None)
 
     assert not isinstance(restored, str), (
         "a bare string object_ is exactly what the AKM-03-003 gate rejects"
@@ -854,7 +863,7 @@ def _ownership_offer_naming_a_peer():
 @pytest.mark.parametrize(
     "builder, fields",
     [
-        (_invite_naming_a_peer, {"object_"}),
+        (_invite_naming_a_peer, {"target"}),
         (_recommendation_naming_a_peer, {"object_"}),
         (_role_offer_naming_a_peer, {"object_", "target"}),
         (_ownership_offer_naming_a_peer, {"target"}),
@@ -864,9 +873,10 @@ def _ownership_offer_naming_a_peer():
 def test_peer_actor_ref_is_declared_inline_required(builder, fields):
     """Every activity naming a *peer actor* in a ref field declares that field.
 
-    These are the only four; the role offer and the ownership offer name their
-    peer in ``target``.  Every other required-and-typed ``object_`` in the
-    vocabulary is either an activity (kept inline by
+    These are the only four; the invite, the role offer and the ownership
+    offer name their peer in ``target`` (the invite since ADR-0205).  Every
+    other required-and-typed ``object_`` in the vocabulary is either an
+    activity (kept inline by
     ``_KEEP_INLINE_NESTED_TYPES``) or a case/report/status/participant/embargo,
     all of which do have a record in the sending actor's own store.  An actor
     object is the one that never does — and the role offer's ``object_`` is the

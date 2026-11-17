@@ -144,7 +144,7 @@ class CoreObject(CoreRecord):
     media_type: NonEmptyString | None = None
     # The AS2 reference properties hold an embedded object or a non-blank IRI,
     # one or many (``replies`` one only), as on the wire base.  Core names only
-    # its own objects; a wire ``Link`` or case stub is held as the wire layer
+    # its own objects; a wire ``Link`` is held as the wire layer
     # built it (``UnmodelledObject``, ARCH-01-001).  A blank IRI is refused
     # when the object is built (CS-08-001, #3894).  The aliases are declared
     # below the class they name.

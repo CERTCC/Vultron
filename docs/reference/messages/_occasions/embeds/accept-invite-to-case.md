@@ -5,7 +5,7 @@
     Accepts the Stub Invite. The actor joins the case at RM Received.
 
     - **When…** an invited actor agrees to join the case
-    - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
+    - **Send:** `Accept(Invite(VulnerabilityCase preview)[target=Actor])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Reference:** [Accept invite to case](../../case_management.md#accept-invite-to-case)

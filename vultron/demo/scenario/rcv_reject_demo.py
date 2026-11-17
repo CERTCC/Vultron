@@ -23,7 +23,7 @@ as a participant.  Reporter and Coordinator continue to close out the case throu
 publication and closure.
 
 Key difference from the RCV scenario: Vendor rejects the case invitation
-(RM-layer rejection via ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])``) so
+(RM-layer rejection via ``Reject(Invite(VulnerabilityCase preview)[target=Actor])``) so
 Vendor never
 becomes a case participant and has no case ledger replica.  That difference is
 now where the two stories part: both start from the same

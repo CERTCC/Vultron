@@ -335,9 +335,9 @@ groups:
       reads structure into it depends on how one sender mints its identifiers.
       ActivityStreams 2.0 and ActivityPub require an `id` to be an IRI (MV-05-001) but
       say nothing about opacity, so the rule is not inherited: it is Vultron's own,
-      binding every implementation that receives another's identifiers. A case stub's
-      `id` is the case's ID with `/stub` appended, and still no receiver derives the
-      case from it (CM-11-003).
+      binding every implementation that receives another's identifiers. A stub
+      Invite names its case by the `id` of the case reference that is its `object`,
+      which is the case's own ID, not an ID a receiver parses (CM-11-003, ADR-0205).
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
@@ -428,14 +428,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A stub object MUST carry at minimum an `id` field (full URI), a `type` field and
-      a non-empty `summary` field that gives human-readable context.
+      A stub object, the case's preview (MV-10-012), MUST carry at minimum an `id`
+      field (full URI), a `type` field and a non-empty `summary` field that gives
+      human-readable context.
     rationale: >-
       The stub form has one narrow purpose. It is not a replacement for a full object.
       An invitee must decide whether to join a case before it can receive the case
-      (MV-10-005). The stub represents the case until the participant is active
-      (CM-10-004). The summary tells the invitee which case it is asked to join. The
-      sender decides what the summary says (CM-17-020).
+      (MV-10-005). The stub previews the case until the participant is active
+      (CM-10-004): it is the `preview` of the case reference the stub Invite carries
+      as its `object` (ADR-0205). The summary tells the invitee which case it is asked
+      to join. The sender decides what the summary says (CM-17-020).
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -444,7 +446,7 @@ groups:
       URI in another actor's message into the resolved object. Design discussion:
       `notes/selective-disclosure.md`. The actor reference of AKM-05-017 is not a stub:
       it claims no field beyond the two the sender knows, and keeps the `type` a
-      receiver routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
+      receiver routes `Offer(Actor)` by (ADR-0159).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
       asserts that a stub without a non-empty `summary` is refused, and
@@ -454,8 +456,12 @@ groups:
     - ADR-0090
     - ADR-0114
     - ADR-0159
+    - ADR-0205
     stories:
     - story_2022_039
+    see_also:
+    - spec_id: MV-10-012
+      reason: the case reference whose preview the stub is
   - id: MV-10-007
     priority: MUST
     kind: protocol
@@ -481,7 +487,8 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST classify a stub by its `type`. The stub form is permitted only
-      for a case, as the distinct `VulnerabilityCaseStub` type of CM-11-013.
+      for a case, as the case's preview of the distinct `CasePreview` type of
+      CM-11-013.
     rationale: >-
       No other type needs the stub form, and no other stub type is implemented. A
       classification by the fields present would read a sparse case as a stub, or a
@@ -490,7 +497,7 @@ groups:
       `test_the_type_alone_selects_the_stub_or_the_case` and
       `test_a_sparse_case_carrying_stub_keys_is_still_a_case` in
       `test/wire/as2/test_unknown_key_disposition.py` confirm that an inline object
-      with `type: VulnerabilityCaseStub` resolves to the stub class, and that a sparse
+      with `type: CasePreview` resolves to the preview class, and that a sparse
       inline object with `type: VulnerabilityCase` is validated as a case.
     relationships:
     - rel_type: extends
@@ -589,7 +596,7 @@ groups:
       A receiver MUST refuse a typed reference (MV-10-011) that carries a `preview`,
       naming its position, unless the protocol defines a preview for the reference's
       type and the `preview` is that preview, carried inline. The case is the one
-      type with a defined preview: a case reference's `preview` is the case stub
+      type with a defined preview: a case reference's `preview` is a `CasePreview`
       (CM-17-010).
     rationale: >-
       A preview is a limited view of an object for a recipient that may not hold it
@@ -666,39 +673,32 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `VulnerabilityCaseStub` object is ONLY permitted as the `target` of an `Invite`
-      whose `object` is the actor invited to the case, or as the `preview` of a case
+      A `CasePreview` object is ONLY permitted as the `preview` of a case
       reference (MV-10-012) that is an `Invite`'s `object`, wherever that `Invite` is
       carried inline: for example inside its `Accept` or `Reject`, or inside a refusal
       notice that quotes such a reply. A receiver MUST refuse an activity that carries a
       stub in any other position, naming each position.
     rationale: >-
       The stub exists so that an invitee can decide whether to join a case before it is
-      entitled to the case (MV-10-001, ADR-0114). The case invitation is the one message
-      that asks that question, so it is the stub's one position. Anywhere else the
-      sender names the case by its URI or a `Link`, or carries it whole. A stub there
-      would stand in for a case the activity needs whole, or show case context to a
-      party that was not asked to join. An embargo invitation names its case by URI as
-      well.
-    note: >-
-      The invited actor travels inline, as its profile or an actor reference
-      (AKM-05-017). An `Invite` whose `object` is a bare URI or `Link` is no case
-      invitation: it may name an embargo invitation's terms (ADR-0123), which
-      rehydration resolves only after the parser has checked the stub.
+      entitled to the case (MV-10-001, ADR-0114). The stub Invite is the one message
+      that asks that question, and the stub is the case's preview there (ADR-0205), so
+      that is the stub's one position. Anywhere else the sender names the case by its
+      URI or a `Link`, or carries it whole. A stub there would stand in for a case the
+      activity needs whole, or show case context to a party that was not asked to join.
+      The stub's former position, an `Invite`'s `target`, now names the invitee, so a
+      stub there is refused too.
     verification: >-
       `test/wire/as2/test_case_stub_placement.py`:
-      `test_a_stub_as_the_target_of_a_case_invitation_is_accepted` parses the case
-      invitation and its `Accept` and `Reject`, and
-      `test_a_case_invitation_naming_its_invitee_by_actor_reference_keeps_its_stub` one
-      that names its invitee by an actor reference, and
+      `test_a_stub_as_the_preview_of_a_stub_invite_is_accepted` parses the stub
+      Invite and its `Accept` and `Reject`, and
       `test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted` a
       refusal notice that quotes the `Accept` or `Reject`;
+      `test_a_stub_in_an_invite_target_is_refused`,
       `test_a_stub_outside_a_case_invitation_target_is_refused`,
       `test_a_stub_as_the_target_of_another_activity_is_refused`,
       `test_a_stub_in_an_embargo_invitation_is_refused`,
-      `test_an_invite_naming_its_object_by_uri_or_link_loses_its_stub`,
       `test_an_embargo_invitation_naming_its_terms_by_reference_keeps_no_stub`,
-      `test_a_stub_nested_outside_the_invite_target_is_refused` and
+      `test_a_stub_nested_outside_the_invite_object_is_refused` and
       `test_a_stub_inside_an_inline_domain_object_is_refused` assert that a stub in
       every other position is refused with the position named; and
       `test_every_misplaced_stub_is_named` asserts that each misplaced stub is reported.
@@ -1122,7 +1122,7 @@ groups:
       requires a marker in each of several declared fields of an inline case to be
       refused, the reason naming the field;
       `test_a_marker_in_a_case_stub_identifying_field_is_refused` requires the same of
-      the stub's `caseId`; and `test_a_marker_in_an_activity_slot_is_refused` and
+      the stub's `id`; and `test_a_marker_in_an_activity_slot_is_refused` and
       `test_a_marker_with_an_id_in_an_activity_slot_is_refused` in the same file
       require a marker as an activity's `object` or `target` to be refused, with and
       without an `id`.

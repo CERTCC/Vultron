@@ -174,11 +174,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   A participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
   See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
-- **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
-  The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
-  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
-  This `target` is the only place a stub may appear, wherever the Invite travels inline: in its `Accept` or `Reject`, or in a refusal notice that quotes such a reply ([MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002)).
-  The receiver refuses an activity that carries a stub anywhere else, an embargo Invite included.
+- **Object and target:** the `object` is the case, and the `target` is the actor being invited, as ActivityStreams 2.0 puts them ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
+  The invitee may not see the case yet, so the `object` is a typed reference to the case: its `id` is the case's identifier, its `type` is `VulnerabilityCase`, and its `preview` is the case stub.
+  The stub, of type `CasePreview`, carries a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
+  The stub names no case of its own: the reference's `id` names the case.
+  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, or when it is given a bare case URI instead of the case, and the receiver refuses a stub with an absent or blank `summary`.
+  The receiver reads the reference as it arrived: it does not fetch the case, put its own copy of the case in the reference's place, or seed a replica from the preview ([MV-10-013](../vultron-spec/requirements/messages.md#mv-10-013)).
+  The `preview` of that reference is the only place a stub may appear, wherever the Invite travels inline: in its `Accept` or `Reject`, or in a refusal notice that quotes such a reply ([MV-10-002](../vultron-spec/requirements/messages.md#mv-10-002)).
+  The receiver refuses an activity that carries a stub anywhere else, an Invite's `target` and an embargo Invite included.
   The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019), [CM-11-048](../vultron-spec/requirements/case-management.md#cm-11-048)).
   The Invite carries its reply deadline in `endTime`.
   The CASE_MANAGER sets that deadline the same way it sets an embargo Invite's deadline.
@@ -220,9 +223,10 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/invite-actor-to-full-case.md" %}
 
 - **Sequence:** after a participant joins, the CASE_MANAGER sends `Announce(VulnerabilityCase)`, starts the ledger replay, and then asks the participant to judge the case with the full-case Invite ([CM-11-010](../vultron-spec/requirements/case-management.md#cm-11-010), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
-  The participant already holds the case, so the Invite names it by URI and asks one question: is this case valid?
+  The Invite asks one question: is this case valid?
 - **Triggering transition:** none — the Invite asks, and the reply moves RM.
-- **Object and target:** the `object` is the participant, and the `target` is the plain case URI ([AKM-02-003](../vultron-spec/requirements/messages.md#akm-02-003)).
+- **Object and target:** the `object` is the whole case, and the `target` is the participant ([ADR-0205](../../adr/0205-invites-use-as2s-slots-and-the-stub-is-the-cases-preview.md)).
+  The participant has joined, so it may see the whole case; the receiver tells this Invite from the stub Invite by that form of its `object`, a whole case rather than a reference carrying a preview ([SE-01-009](../specs/project.md#se-01-009)).
   The CASE_MANAGER's ledger position when it issued the Invite travels as the Invite's `ledgerPosition`, the property every case activity carries, for example `"ledgerPosition": {"logIndex": 3, "entryHash": "<hash>"}` ([SYNC-18-001](../vultron-spec/requirements/ledger-replication.md#sync-18-001)).
   It is a floor: the participant's reply must reach at least this point in the ledger ([VAM-04-011](../vultron-spec/requirements/messages.md#vam-04-011)).
   An empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash` ([CLP-08-004](../vultron-spec/requirements/ledger-replication.md#clp-08-004)).

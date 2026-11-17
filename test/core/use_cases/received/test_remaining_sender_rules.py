@@ -13,7 +13,7 @@
 
 """The sender rules of the last received use cases to declare one (#4522).
 
-``Add(CaseStatus)``, ``Invite(Actor)`` and ``Leave(VulnerabilityCase)`` each
+``Add(CaseStatus)``, the stub ``Invite`` and ``Leave(VulnerabilityCase)`` each
 declare a sender rule that the receive-tree factory composes (HP-01-007,
 HP-01-008).  ``Add(CaseStatus)`` is admitted only from the CASE_MANAGER, at a
 participant replica (RSH-04-005, #4851).  For each:
@@ -41,7 +41,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
 from test.support.objects import authored_at, make
-from test.support.received import received_event
+from test.support.received import case_stub, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -294,7 +294,7 @@ class _World:
         )
         activity = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee),
-            target=self.case_id,
+            case=case_stub(self.case_id),
             actor=sender_id,
             to=[invitee],
             id_=f"{self.case_id}/invitations/1",
@@ -633,7 +633,7 @@ def test_a_skipped_repeat_leave_logs_no_sender_refusal(
 
 
 # ---------------------------------------------------------------------------
-# Invite(Actor)
+# The stub Invite
 # ---------------------------------------------------------------------------
 
 

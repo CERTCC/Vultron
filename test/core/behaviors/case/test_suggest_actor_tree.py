@@ -876,7 +876,14 @@ class TestActorAlreadyParticipantNode:
 
 
 _ZERO_HASH = "0" * 64
-_INVITE_SNAPSHOT = {"type": "Invite", "object": {"id": _RECOMMENDED}}
+_INVITE_SNAPSHOT = {
+    "type": "Invite",
+    "object": {
+        "id": "https://example.org/cases/c",
+        "type": "VulnerabilityCase",
+    },
+    "target": {"id": _RECOMMENDED},
+}
 _OFFER_SNAPSHOT = {
     "type": "Offer",
     "object": {"type": "CaseParticipant", "attributedTo": _RECOMMENDED},

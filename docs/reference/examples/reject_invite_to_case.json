@@ -5,8 +5,8 @@
     "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Reject",
-  "id": "urn:uuid:b1aecde4-77e5-4d60-a1b8-eb5c0b992ecd",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
+  "id": "urn:uuid:ce545c4b-657d-476d-85a9-5ced86b59ebd",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Invite urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to Coordinator LLC",
   "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
   "published": "2026-06-01T19:12:00.000000+00:00",
   "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -16,7 +16,7 @@
   "object": {
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
-    "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
+    "name": "https://vultron.example/organizations/vendorco Invite urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to Coordinator LLC",
     "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
@@ -24,12 +24,6 @@
     "to": "https://vultron.example/organizations/coordinator",
     "actor": "https://vultron.example/organizations/vendorco",
     "target": {
-      "type": "VulnerabilityCaseStub",
-      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
-      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance.",
-      "caseId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
-    },
-    "object": {
       "type": "Organization",
       "id": "https://vultron.example/organizations/coordinator",
       "name": "Coordinator LLC",
@@ -45,6 +39,15 @@
         "id": "https://vultron.example/organizations/coordinator/outbox",
         "items": []
       }
+    },
+    "object": {
+      "type": "VulnerabilityCase",
+      "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+      "preview": {
+        "id": "urn:uuid:b1aecde4-77e5-4d60-a1b8-eb5c0b992ecd",
+        "type": "CasePreview",
+        "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
+      }
     }
   },
   "proof": {
@@ -58,6 +61,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2wbGfkgCvHiEwbPbCoMfxCCZqDYABaJYuQpsLCo165XeXoHAERSKtWQV2PoxrbUJXcEzx9jUEvz4Dp9JwwLra5Nd"
+    "proofValue": "z2eVssZzB5URVddniadGvtbc4fRJ8HGBLpCFqGRd88YWzsLbqHHBBa1fckQXcGSMQSp9A1cgW7eSyK8Ej988AnD87"
   }
 }

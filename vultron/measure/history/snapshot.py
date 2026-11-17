@@ -26,6 +26,10 @@ records it, except two kinds of copy that are not the record's own state:
 * anything inside an ``Offer``.  A recommendation or a proposed transfer
   carries a participant object for an actor not yet in the case, at
   ``RM.START`` (CEH-04-014), and an ownership offer carries a copy of the case.
+* anything inside an ``Invite``.  A full-case Invite carries a copy of the
+  case its invitee is asked to judge, and a stub Invite the case's preview,
+  whose status says nothing true about the case (ADR-0205); neither records
+  a change.
 * a case status nested in a participant status.  That is the participant's
   report of the case's public state; the case's own public state changes only
   when the CASE_MANAGER adopts it in its own case status (CEH-03-012).
@@ -47,9 +51,14 @@ from vultron.measure.ledger import actor_uri, first_present
 #: The activity type whose whole subtree is a recommendation or an offer.
 _OFFER = "Offer"
 
-#: Activity fields that name where the act lands, not what it records: an
-#: Invite's ``target`` is a case stub whose status says nothing true about the
-#: case (``VulnerabilityCaseStub``).
+#: The activity type whose whole subtree is an invitation: a copy of the case
+#: or its preview (ADR-0205), never a record of a change.
+_INVITE = "Invite"
+
+#: The activity types whose subtree records nothing.
+_UNRECORDED = frozenset({_OFFER, _INVITE})
+
+#: Activity fields that name where the act lands, not what it records.
 _PLACE_KEYS = frozenset({"target", "origin"})
 
 
@@ -144,7 +153,8 @@ def _dicts(value: object) -> list[dict[str, Any]]:
 def _walk(
     node: object, parents: tuple[str, ...]
 ) -> Iterator[tuple[dict[str, Any], tuple[str, ...]]]:
-    """Yield every dict under *node* outside an offer, with its ancestor types."""
+    """Yield every dict under *node* outside an offer or invitation, with its
+    ancestor types."""
     if isinstance(node, list):
         for item in node:
             yield from _walk(item, parents)
@@ -152,7 +162,7 @@ def _walk(
     if not isinstance(node, dict):
         return
     node_type = _node_type(node)
-    if node_type == _OFFER:
+    if node_type in _UNRECORDED:
         return
     yield node, parents
     here = (*parents, node_type)
@@ -165,6 +175,7 @@ def _walk(
 _READ_TYPES: frozenset[str] = frozenset(
     {
         _OFFER,
+        _INVITE,
         "CaseParticipant",
         "ParticipantStatus",
         "CaseStatus",
@@ -207,7 +218,8 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
     """Collect the state-bearing records *snapshot*'s activity carries.
 
     Only the activity's ``object`` is read, and nothing under an ``Offer``
-    (module docstring).  A snapshot that is itself an ``Offer`` records none.
+    or ``Invite`` (module docstring).  A snapshot that is itself one records
+    none.
     """
     participants: list[ParticipantRecord] = []
     loose: list[dict[str, Any]] = []
@@ -215,7 +227,7 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
     consents: list[dict[str, Any]] = []
     register: list[dict[str, Any]] = []
     nameless = 0
-    if _node_type(snapshot) == _OFFER:
+    if _node_type(snapshot) in _UNRECORDED:
         return SnapshotRecords()
     for node, parents in _walk(snapshot.get("object"), ()):
         node_type = _node_type(node)

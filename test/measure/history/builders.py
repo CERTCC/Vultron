@@ -260,8 +260,17 @@ class Ledger:
             "id": f"urn:uuid:invite-{invitee}",
             "type": "Invite",
             "actor": CM,
-            "object": {"id": invitee, "type": "Organization"},
-            "target": {"id": CASE, "activeEmbargo": embargo()},
+            "object": {
+                "id": CASE,
+                "type": "VulnerabilityCase",
+                "preview": {
+                    "id": f"urn:uuid:preview-{invitee}",
+                    "type": "CasePreview",
+                    "summary": "A case to join",
+                    "activeEmbargo": embargo(),
+                },
+            },
+            "target": {"id": invitee, "type": "Organization"},
         }
 
     def invite(self, actor: str, embargo_id: str, rsvp_deadline: str) -> int:

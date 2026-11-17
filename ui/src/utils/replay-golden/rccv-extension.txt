@@ -33,11 +33,11 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
 05  Coordinator    Coordinator suggested Coordinator 2 for the case
       Offer(Actor)[target=VulnerabilityCase]
       → Reporter, Case Manager
-06  Case Manager   Case Manager invited Coordinator 2 to the case
-      Invite(Actor)[target=VulnerabilityCaseStub]
-      → Reporter, Coordinator
+06  Coordinator    Coordinator invited Coordinator 2 to the case
+      Invite(VulnerabilityCase preview)[target=Actor]
+      → Reporter, Case Manager
 07  Coordinator 2  Coordinator 2 accepted the case invitation
-      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED
+      Accept(Invite(VulnerabilityCase preview)[target=Actor]) · RM → RECEIVED
       → Reporter, Coordinator, Case Manager
 08  Coordinator 2  Case Manager updated Coordinator 2's participant status
       Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
@@ -46,10 +46,10 @@ Case           EM ACTIVE → EXITED; PXA pxa → Pxa
       Offer(Actor)[target=VulnerabilityCase]
       → Reporter, Coordinator, Case Manager
 10  Case Manager   Case Manager invited Vendor to the case
-      Invite(Actor)[target=VulnerabilityCaseStub]
+      Invite(VulnerabilityCase preview)[target=Actor]
       → Reporter, Coordinator, Coordinator 2
 11  Vendor         Vendor accepted the case invitation
-      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED · VFD → vfd
+      Accept(Invite(VulnerabilityCase preview)[target=Actor]) · RM → RECEIVED · VFD → vfd
       → Reporter, Coordinator, Coordinator 2, Case Manager
 12  Vendor         Case Manager updated Vendor's participant status
       Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)

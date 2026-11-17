@@ -708,7 +708,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        target = wire.get("target", {})
+        target = wire.get("object", {}).get("preview", {})
         active_embargo = target.get("activeEmbargo")
         assert isinstance(active_embargo, dict), (
             "activeEmbargo must be a full embargo object (CM-17-002)"
@@ -733,7 +733,7 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        target = wire.get("target", {})
+        target = wire.get("object", {}).get("preview", {})
         active_embargo = target.get("activeEmbargo")
         assert isinstance(active_embargo, dict), (
             "activeEmbargo must be a full embargo object (CM-17-002)"
@@ -1214,7 +1214,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
             at=authored_at(),
@@ -1258,7 +1258,7 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=case_manager.id_,
             to=[invitee.id_],
             at=authored_at(),
@@ -1332,7 +1332,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
             at=authored_at(),
@@ -1375,7 +1375,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
             at=authored_at(),
@@ -1420,7 +1420,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
             at=authored_at(),
@@ -1486,7 +1486,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case_stub(case.id_),
+            case=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
             at=authored_at(),

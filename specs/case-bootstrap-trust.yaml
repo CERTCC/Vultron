@@ -697,7 +697,8 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT send a late joiner a `Create(VulnerabilityCase)`.
       After the joiner accepts the stub Invite
-      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`), the CASE_MANAGER seeds
+      (`Accept(Invite(VulnerabilityCase preview)[target=Actor])`), the CASE_MANAGER
+      seeds
       the joiner's replica with `Announce(VulnerabilityCase)`.
     rationale: >-
       A late joiner is told what the case already is, which is an `Announce`. It did
