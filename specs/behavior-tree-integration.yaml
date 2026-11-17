@@ -3495,13 +3495,18 @@ groups:
       A per-act value that only a DataLayer read can find MUST be published by a
       lookup node in the tree that needs it, never read before the tree runs.
     rationale: >-
-      A received use case and the runner read no DataLayer (ADR-0195). The lookup
-      can also fail, and only a node can turn that failure into a declared verdict
-      with its reason.
+      A use case and its runner read no DataLayer before the run, in a received tree
+      (ADR-0195) and in a trigger tree alike (ADR-0207). The lookup can also fail,
+      and only a node can turn that failure into a declared verdict with its reason.
+      In a trigger tree, a lookup that finds nothing keeps the trigger's current
+      not-found or refused result; BT-25-010 covers received trees only.
     verification: >-
-      The architecture test that keeps received use cases off the DataLayer and
-      `BTBridge` finds no store read before a run, and lookup-node tests assert the
-      node publishes the key it found.
+      Two architecture tests under `test/architecture/` check that no store read
+      happens before a run. The test #6499 adds fails on any DataLayer or `BTBridge`
+      call in a received use case. The test #6605 adds lists the trigger use cases
+      that still read the store before their tree runs; it fails on a new one, and
+      its list only shrinks and ends empty (#6606 empties it). Lookup-node tests
+      assert that each lookup node publishes the key it found.
     relationships:
     - rel_type: refines
       spec_id: BT-25-007
@@ -3538,7 +3543,8 @@ groups:
       the reverse, depending on tick order.
     verification: >-
       The BT-25-006 architecture test fails on a tree in which a node publishes a key
-      that the tree's declaration marks as seeded by the runner.
+      that the tree's declaration marks as seeded by the runner, and on a tree in
+      which two nodes publish the same declared key.
     relationships:
     - rel_type: extends
       spec_id: BTND-01-007

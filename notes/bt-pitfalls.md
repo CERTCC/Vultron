@@ -504,10 +504,11 @@ shape sees through the scope with `unscoped(node)`, and reads the seeded case
 with `seeded_case_id(node)`; never re-add a `_case_id` attribute for it.
 
 `CreateParticipantStatusNode` is the worked case: `case_id` comes only through
-`CaseIdInputPortMixin`, and the subject actor is an explicit constructor argument,
-never a fallback to the blackboard `actor_id`, which is the executing actor
-(BTND-10-005, ADR-0089). Both are enforced by
-`test/architecture/test_participant_status_validation.py`.
+`CaseIdInputPortMixin`, and the subject actor is today an explicit constructor
+argument, never a fallback to the blackboard `actor_id`, which is the executing
+actor (BTND-10-005, ADR-0089). The constructor argument is interim: under
+BTND-01-009 the subject actor moves to its own key, never `/actor_id`. Both
+rules are enforced by `test/architecture/test_participant_status_validation.py`.
 
 ## `_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node
 

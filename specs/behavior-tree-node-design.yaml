@@ -136,6 +136,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: BTND-01-008
+    - rel_type: constrains
+      spec_id: BT-17-011
     adr:
     - ADR-0207
 - id: BTND-02
@@ -514,8 +516,9 @@ groups:
       reading the trees that seed it.
     verification: >-
       An architecture test reads the input ports of every node class under
-      `vultron/core/behaviors/` and fails on a port remapped to a per-act key that
-      the vocabulary does not name.
+      `vultron/core/behaviors/` and fails on any port key that the vocabulary does
+      not name, unless the key is on the test's explicit list of keys that carry no
+      per-act value, such as handoff and work-list keys (BTND-03-004).
     relationships:
     - rel_type: uses_definition
       spec_id: BTND-01-008
@@ -1216,9 +1219,9 @@ groups:
     rationale: >-
       A port is the only way to supply `case_id` that works in all trees. In received
       trees, the tree finds the case at tick time from the report, so the case is not
-      known at build time. Trees that know the case at build time seed `/case_id`
-      through `BTBridge.execute_with_setup(**context_data)`. Thus one mechanism serves
-      both.
+      known at build time. In every other tree the runner seeds `/case_id` from the
+      event or trigger request before the first tick (BT-25-007). Thus one mechanism
+      serves both.
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-004

@@ -51,9 +51,14 @@ How long a tree lives:
 - **Built fresh for each act, its clients released when the run ends.**
 - **Built once per tree type and reused for every act.**
 
+How far "data on the blackboard" reaches (revision 2):
+
+- **Every tree: no node constructor and no tree factory takes a per-act value.**
+- **Only the trees that learn a value while running**, with build-time values left as constructor arguments.
+
 ## Decision Outcome
 
-Chosen: **a loop over a blackboard work list running one fixed subtree**, and **a tree built fresh for each act**.
+Chosen: **a loop over a blackboard work list running one fixed subtree**, **a tree built fresh for each act**, and (revision 2) **every tree, with no per-act value in a node constructor or tree factory**.
 
 ### A tree's shape is fixed by the act
 
@@ -131,8 +136,13 @@ An architecture test builds every tree and fails when a node reads a key its tre
 - Bad: every node's instance attributes outlive the act, which moves hidden process-wide state into the nodes.
   Each node would need proof that `initialise()` resets everything it reads.
 
+### Only the trees that learn a value while running
+
+- Good: leaves every tree that knows its values at build time as it is, so far fewer files change.
+- Bad: two styles of input supply coexist, and a tree built with its data wired in cannot become a subtree or a loop body without the same migration later.
+
 ## More Information
 
 This extends ADR-0135's one tree per delivery from the use case down into the nodes, and finishes ADR-0089's rule that the participant-status writer is a real tree child.
 It supersedes neither.
-The current rules live in `specs/behavior-tree-integration.yaml` BT-25 and in `notes/bt-integration.md` § "One Fixed-Shape Tree per Act".
+The current rules live in `specs/behavior-tree-integration.yaml` BT-25, in `specs/behavior-tree-node-design.yaml` BTND-01-008, BTND-01-009 and BTND-03-022, and in `notes/bt-integration.md` § "One Fixed-Shape Tree per Act".

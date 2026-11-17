@@ -140,8 +140,9 @@ answers "whose consent/state is this about?". That is neither "whose replica am
 I applying it to?" (`resolve_receiving_actor_id()`) nor "who is executing the
 tree?" (blackboard `actor_id`).
 
-Read subject identities **from the message** and thread them into the tree as
-leaf-node constructor data, never derived from the receiving actor (ADR-0022).
+Read subject identities **from the message** and seed each on its own vocabulary
+key (BTND-01-008, BTND-03-022), never derived from the receiving actor
+(ADR-0022).
 They coincide with the receiving actor on direct delivery, so a conflation
 passes tests and breaks only under CLI dispatch, log replay, CASE_MANAGER relay,
 or a multi-recipient activity (ISSUE-2762). Watch for:
