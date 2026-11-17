@@ -44,7 +44,7 @@ VINCE has nothing for, which the translation reads as absent.
 
 The answers are held in memory for the one request and dropped once
 translated (ADR-0190).  The reader logs the case's VINCE id, each read's
-status and time, and counts, never case content (VSD-01-003).
+status, and counts, never case content (VSD-01-003).
 """
 
 from __future__ import annotations
@@ -54,7 +54,6 @@ import math
 import re
 from collections.abc import Callable
 from datetime import datetime
-from time import perf_counter
 
 import httpx2 as httpx
 from pydantic import JsonValue
@@ -253,7 +252,6 @@ class VinceCaseReader:
         token = config.require_api_token()
         as_of = self._clock()
 
-        started = perf_counter()
         with httpx.Client(
             base_url=api_url,
             transport=self._transport,
@@ -265,18 +263,14 @@ class VinceCaseReader:
             },
         ) as client:
             reads = {read: self._fetch(client, vuid, read) for read in READS}
-        fetched = perf_counter()
         reading = translate_case(
             reads, comm_url=api_url.removesuffix("/api"), as_of=as_of
         )
-        translated = perf_counter()
         logger.info(
-            "Read VINCE case %s: %d reads in %.3fs, translated in %.3fs"
-            " into %d entries and %d untranslated facts",
+            "Read VINCE case %s: %d reads translated into %d entries and %d"
+            " untranslated facts",
             vuid,
             len(reads),
-            fetched - started,
-            translated - fetched,
             len(reading.ledger),
             len(reading.untranslated),
         )
@@ -285,7 +279,6 @@ class VinceCaseReader:
     @staticmethod
     def _fetch(client: httpx.Client, vuid: str, read: str) -> JsonValue:
         """Send the one ``GET`` for *read* and return its answer."""
-        started = perf_counter()
         try:
             response = client.get(_path(vuid, read))
         except httpx.TimeoutException as exc:
@@ -295,11 +288,10 @@ class VinceCaseReader:
                 vuid, read, f"could not reach VINCE ({type(exc).__name__})"
             ) from exc
         logger.debug(
-            "VINCE case %s: %r read answered %d in %.3fs",
+            "VINCE case %s: %r read answered %d",
             vuid,
             read,
             response.status_code,
-            perf_counter() - started,
         )
         return _answer(vuid, read, response)
 

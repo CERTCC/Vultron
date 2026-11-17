@@ -66,6 +66,14 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
         "now_utc",
         "datetime.now",
     ),
+    # The VINCE case reader's time of reading: one read per case request, at
+    # the adapter edge, which the VINCE translation judges the embargo's end
+    # against (#5963, VINCE-EM-03).  Tests inject a fixed clock.
+    (
+        "vultron/adapters/connectors/vince/reader.py",
+        "VinceCaseReader.__init__",
+        "now_utc",
+    ),
     # The system stopwatch: the call-out time budget's named site (#3423).
     (
         "vultron/core/behaviors/stopwatch.py",
