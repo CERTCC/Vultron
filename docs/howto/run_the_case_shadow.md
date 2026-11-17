@@ -80,8 +80,19 @@ The page shows the case as it stands at its last ledger entry.
 - The top row shows the case's embargo state and its public state: whether the public is aware, whether an exploit is public, and whether attacks are observed.
 - **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
-- **Open moves** lists each move a participant can make from here, and its effect for each Vendor: how many desiderata it makes likelier (▲) or less likely (▼) to be met than leaving the case to chance.
-  The tool never adds the Vendors' effects into one score.
+- **Move advice** puts each open move in one of three bands.
+  A **Harm-free** move leaves every Vendor at or above the chance value, and helps at least one.
+  A **Trade-off** move helps one Vendor at another's cost.
+  An **Unhelpful** move helps no Vendor; its band is closed until you open it.
+- In the harm-free and trade-off bands, each move's row is shaded by its layer, with layer 1 the darkest.
+  Layer 1 holds the moves that no other open move beats, and each move in a lighter layer is beaten by a move in a darker one.
+  A ⭐ marks a top move, and 👉 marks a coordinator's move that none of the coordinator's other moves beats.
+  Choose the darkest move in the highest band that has one.
+- **Harms by vendor** lists each Vendor that a move leaves below the chance value, with how far below.
+  A negative value means worse than the chance value, not a broken desideratum.
+  A trade-off move that a harm-free move beats says so under **Dominated by**.
+- **Moves with no band** lists each other move a participant can make, with the reason it has no band.
+  The tool never adds the Vendors' values into one score, and never ranks the moves by one.
 
 A ledger with a missing entry shows the missing entry instead of a standing, because a measure over a history with a gap is wrong.
 

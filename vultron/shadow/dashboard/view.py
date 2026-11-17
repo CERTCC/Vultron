@@ -21,15 +21,20 @@ reads is tested without a browser.  :mod:`~vultron.shadow.dashboard.page`
 lays the rows out.
 
 A state reads as an icon and a short label, so the page reads at a glance
-(ADR-0192).  The moves keep the standing record's order and each vendor's
-own change: no column combines the vendors' numbers into one score
-(SHD-03-002).
+(ADR-0192).  The open moves are read from the case's
+:class:`~vultron.measure.advice.CaseAdvice` (ADR-0200): each band in its
+order, each move shaded by its layer and marked as the advice marks it, and
+each vendor's harm on its own.  No column combines the vendors' numbers into
+one score, and nothing here reorders a move (SHD-03-002).
 """
 
 from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from fractions import Fraction
+
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.states.cs import (
@@ -40,13 +45,20 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.measure.advice import (
+    AdvisedMove,
+    Band,
+    BandAdvice,
+    CaseAdvice,
+    ColourMap,
+)
+from vultron.measure.advice.case import AllowedMove
 from vultron.measure.history import PxaName
 from vultron.measure.ledger import friendly_actor_name
 from vultron.measure.standing import (
     DesideratumStanding,
     DesideratumStatus,
     ParticipantStanding,
-    ScoredMove,
     StandingGap,
 )
 
@@ -210,57 +222,249 @@ def desiderata_rows(
     return rows
 
 
-def _move_label(move: ScoredMove) -> tuple[str, str]:
-    machine, _, trigger = move.move.name.partition(".")
+def _move_label(move: AllowedMove) -> tuple[str, str]:
+    machine, _, trigger = move.name.partition(".")
     return machine.upper(), trigger.replace("_", " ").capitalize()
 
 
-def move_effect(move: ScoredMove, names: Mapping[str, str]) -> str:
-    """Each vendor's change from *move*, never one combined number.
+def _move_cells(move: AllowedMove, names: Mapping[str, str]) -> Row:
+    """Who makes *move*, in which machine, and from which state to which."""
+    machine, label = _move_label(move)
+    return {
+        "Who": friendly_actor_name(move.participant, names),
+        "Machine": machine,
+        "Move": label,
+        "From → to": f"{move.source.name} → {move.destination.name}",
+    }
 
-    A vendor's part reads as how many desiderata the move makes likelier
-    (▲) and unlikelier (▼) to be met than leaving the case to chance.
+
+#: Each band's heading on the page.
+BAND_TITLES: Mapping[Band, str] = {
+    Band.HARM_FREE: "Harm-free",
+    Band.TRADE_OFF: "Trade-off",
+    Band.UNHELPFUL: "Unhelpful",
+}
+
+#: Each band's caption when no open move falls in it.
+BAND_EMPTY: Mapping[Band, str] = {
+    Band.HARM_FREE: "No open move leaves every vendor at or above chance.",
+    Band.TRADE_OFF: "No open move helps one vendor at another's cost.",
+    Band.UNHELPFUL: "No open move is unhelpful.",
+}
+
+#: The icon a top move carries: a harm-free or trade-off move in layer 1.
+TOP_MARK = "⭐ top"
+
+#: The mark on a coordinator's move none of its other moves dominates.
+LEADING_MARK = "👉 leading among yours"
+
+#: Nine evenly spaced stops of each colour map, dark end first, as
+#: matplotlib draws them, so the page shades without matplotlib.
+COLOUR_STOPS: Mapping[ColourMap, tuple[str, ...]] = {
+    ColourMap.VIRIDIS: (
+        "#440154",
+        "#472d7b",
+        "#3b528b",
+        "#2c728e",
+        "#21918c",
+        "#28ae80",
+        "#5ec962",
+        "#addc30",
+        "#fde725",
+    ),
+    ColourMap.CIVIDIS: (
+        "#00224e",
+        "#1a386f",
+        "#434e6c",
+        "#61656f",
+        "#7d7c78",
+        "#9b9476",
+        "#bcae6c",
+        "#dec958",
+        "#fee838",
+    ),
+}
+
+#: The relative luminance at which black and white text have the same
+#: WCAG contrast ratio: above it, black text reads better.
+_LIGHT_BACKGROUND = 0.179
+
+
+class Shade(BaseModel):
+    """The colours of one shaded move's row.
+
+    Fields:
+        background: The row's fill, from its band's colour map.
+        text: Black or white, whichever reads on *background*.
     """
-    if move.advice:
-        return "advice: changes no state"
-    if move.unscored is not None:
-        return f"not scored: {move.unscored}"
-    changes = move.changes or ()
-    vendors: dict[str, tuple[int, int]] = {}
-    for change in changes:
-        up, down = vendors.get(change.vendor, (0, 0))
-        vendors[change.vendor] = (
-            up + (change.change > 0),
-            down + (change.change < 0),
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    background: str
+    text: str
+
+    @property
+    def css(self) -> str:
+        """The row's style, as a table cell's CSS."""
+        return f"background-color: {self.background}; color: {self.text}"
+
+
+type _RGB = tuple[float, float, float]
+
+
+def _rgb(hex_colour: str) -> _RGB:
+    return (
+        int(hex_colour[1:3], 16),
+        int(hex_colour[3:5], 16),
+        int(hex_colour[5:7], 16),
+    )
+
+
+def _luminance(rgb: _RGB) -> float:
+    """WCAG relative luminance of an sRGB colour, 0 (black) to 1 (white)."""
+
+    def linear(channel: float) -> float:
+        c = channel / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (linear(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def shade(colour_map: ColourMap, layer: int, deepest: int) -> Shade:
+    """*layer*'s shade in *colour_map*: layer 1 at the dark end, *deepest*
+    at the light end, and every layer between spaced evenly.
+
+    Raises:
+        ValueError: *layer* is not from 1 to *deepest*.
+    """
+    if not 1 <= layer <= deepest:
+        raise ValueError(f"layer {layer} is not from 1 to {deepest}")
+    stops = COLOUR_STOPS[colour_map]
+    at = 0.0 if deepest == 1 else (layer - 1) / (deepest - 1)
+    position = at * (len(stops) - 1)
+    low = min(int(position), len(stops) - 2)
+    within = position - low
+    lo, hi = _rgb(stops[low]), _rgb(stops[low + 1])
+    rgb: _RGB = (
+        lo[0] + (hi[0] - lo[0]) * within,
+        lo[1] + (hi[1] - lo[1]) * within,
+        lo[2] + (hi[2] - lo[2]) * within,
+    )
+    return Shade(
+        background="#" + "".join(f"{round(c):02x}" for c in rgb),
+        text="#000000" if _luminance(rgb) > _LIGHT_BACKGROUND else "#ffffff",
+    )
+
+
+def _size(size: Fraction) -> str:
+    return f"{float(size):.3g}".replace("-", "−")
+
+
+def harm_text(move: AdvisedMove, names: Mapping[str, str]) -> str:
+    """Each negative part of *move*'s shift, by vendor, with its size."""
+    return (
+        "; ".join(
+            f"{friendly_actor_name(h.vendor, names)}: {h.part} {_size(h.size)}"
+            for h in move.harms
         )
-    parts = [
-        f"{friendly_actor_name(vendor, names)}: ▲{up} ▼{down}"
-        if up or down
-        else f"{friendly_actor_name(vendor, names)}: no change"
-        for vendor, (up, down) in vendors.items()
-    ]
-    return "; ".join(parts) or "no change"
+        or "none"
+    )
 
 
-def move_rows(
-    moves: Sequence[ScoredMove], names: Mapping[str, str]
-) -> list[Row]:
-    """One row per allowed move, in the standing record's order."""
-    rows = []
-    for move in moves:
-        machine, label = _move_label(move)
-        rows.append(
-            {
-                "Who": friendly_actor_name(move.move.participant, names),
-                "Machine": machine,
-                "Move": label,
-                "From → to": (
-                    f"{move.move.source.name} → {move.move.destination.name}"
+class BandView(BaseModel):
+    """One band of the move advice, as the page lays it out.
+
+    Fields:
+        band: The band.
+        title: Its heading.
+        collapsed: Whether the page shows it as a closed group.
+        rows: One row per move, in the advice's order.
+        shades: Each row's shade, in row order; empty for a band that is not
+            shaded.
+        empty: What the page says when *rows* is empty.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    band: Band
+    title: str
+    collapsed: bool
+    rows: tuple[Row, ...]
+    shades: tuple[Shade, ...] = ()
+    empty: str
+
+    @model_validator(mode="after")
+    def _a_shade_for_every_row_or_none(self) -> BandView:
+        if self.shades and len(self.shades) != len(self.rows):
+            raise ValueError(
+                f"{len(self.shades)} shades for {len(self.rows)} rows"
+            )
+        return self
+
+
+def _layer(move: AdvisedMove) -> int:
+    assert move.layer is not None, "a move in a shaded band has a layer"
+    return move.layer
+
+
+def _deepest(advice: CaseAdvice) -> int:
+    return max(
+        (m.layer for m in advice.moves if m.layer is not None), default=1
+    )
+
+
+def _advised_row(
+    move: AdvisedMove, band: BandAdvice, names: Mapping[str, str]
+) -> Row:
+    shaded = band.colour_map is not None
+    row: Row = {"Layer": str(move.layer)} if shaded else {}
+    if shaded:
+        row["Mark"] = TOP_MARK if move.top else ""
+    row.update(_move_cells(move.move, names))
+    if shaded:
+        row["Yours"] = LEADING_MARK if move.leading_among_yours else ""
+    row["Harms by vendor"] = harm_text(move, names)
+    if band.band is Band.TRADE_OFF:
+        row["Dominated by"] = move.dominated_by_harm_free or ""
+    return row
+
+
+def band_views(advice: CaseAdvice, names: Mapping[str, str]) -> list[BandView]:
+    """Each band of *advice*, in its order: harm-free, trade-off, unhelpful.
+
+    A harm-free or trade-off move is shaded by its layer in its band's
+    colour map, with a mark when it is top or leading among yours; an
+    unhelpful move has neither.  Nothing here orders or scores a move: the
+    moves keep the advice's order (SHD-03-002).
+    """
+    deepest = _deepest(advice)
+    views = []
+    for band in advice.bands:
+        colour_map = band.colour_map
+        views.append(
+            BandView(
+                band=band.band,
+                title=BAND_TITLES[band.band],
+                collapsed=band.collapsed,
+                rows=tuple(_advised_row(m, band, names) for m in band.moves),
+                shades=()
+                if colour_map is None
+                else tuple(
+                    shade(colour_map, _layer(m), deepest) for m in band.moves
                 ),
-                "Effect by vendor": move_effect(move, names),
-            }
+                empty=BAND_EMPTY[band.band],
+            )
         )
-    return rows
+    return views
+
+
+def unbanded_rows(advice: CaseAdvice, names: Mapping[str, str]) -> list[Row]:
+    """One row per allowed move with no band, with the reason it has none."""
+    return [
+        {**_move_cells(u.move, names), "Why no band": u.reason}
+        for u in advice.unbanded
+    ]
 
 
 def gap_lines(gap: StandingGap) -> list[str]:
@@ -312,7 +516,14 @@ def unobservable_rows(reading: CaseReading) -> list[Row]:
 
 
 __all__ = [
+    "BAND_EMPTY",
+    "BAND_TITLES",
+    "COLOUR_STOPS",
     "DESIDERATUM_BADGES",
+    "LEADING_MARK",
+    "TOP_MARK",
+    "BandView",
+    "Shade",
     "EM_BADGES",
     "EVENT_LABELS",
     "NOT_TRANSLATED_NOTE",
@@ -324,8 +535,10 @@ __all__ = [
     "desideratum_label",
     "gap_lines",
     "inference_rows",
-    "move_effect",
-    "move_rows",
+    "band_views",
+    "harm_text",
+    "shade",
+    "unbanded_rows",
     "participant_rows",
     "public_badges",
     "unobservable_rows",

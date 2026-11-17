@@ -1,16 +1,20 @@
 """What the dashboard shows, as words, icons and rows (#6366).
 
-Every state has a badge, every desideratum reads in words, a move's effect
-is each vendor's own, and a gap or a reader's report reads as lines and
-rows.
+Every state has a badge, every desideratum reads in words, the move advice
+reads band by band with each vendor's harm on its own (#6603), and a gap or
+a reader's report reads as lines and rows.
 
 Spec: SHD-01-004, SHD-03-002.
 """
 
-from fractions import Fraction
-
 import pytest
+from pydantic import ValidationError
 
+from test.measure.history.builders import (
+    VENDOR as BUILT_VENDOR,
+    VENDOR_2 as BUILT_VENDOR_2,
+    two_vendors_ledger,
+)
 from vultron.core.models.case_reading import (
     CaseReading,
     UnobservableFact,
@@ -19,9 +23,18 @@ from vultron.core.models.case_reading import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.cs_invariants import CSEvent
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.demo.recordings.layout import RECORDINGS_DIR
+from vultron.measure.advice import (
+    CHANCE_EVENT,
+    DOMINATED_BY_HARM_FREE,
+    Band,
+    CaseAdvice,
+    ColourMap,
+    UnbandedMove,
+    case_advice,
+)
 from vultron.measure.history import UnreadableEntry
 from vultron.measure.ledger import UnusableRow
 from vultron.measure.sequences import (
@@ -30,13 +43,10 @@ from vultron.measure.sequences import (
 )
 from vultron.measure.standing import (
     CaseStanding,
-    DesideratumChange,
     DesideratumStatus,
-    EMMove,
     ParticipantStanding,
-    RMMove,
-    ScoredMove,
     StandingGap,
+    case_standing,
 )
 from vultron.shadow.analysis import analyse
 from vultron.shadow.dashboard import view
@@ -151,77 +161,197 @@ def test_no_scored_vendor_gives_no_desiderata_rows():
     assert view.desiderata_rows([], {}) == []
 
 
-def _cs_move() -> ScoredMove:
-    analysis = _analysis()
-    assert analysis.standing is not None
-    move: ScoredMove = analysis.standing.moves[0]
-    return move
+@pytest.fixture(scope="module")
+def advice() -> CaseAdvice:
+    """Advice whose open moves fall in every band (#6603)."""
+    return case_advice(case_standing(two_vendors_ledger().case_ledger()))
+
+
+def _views(advice: CaseAdvice) -> dict[Band, view.BandView]:
+    return {b.band: b for b in view.band_views(advice, {})}
+
+
+def test_the_bands_read_in_order_with_the_unhelpful_band_collapsed(advice):
+    """AC-1: harm-free, then trade-off, then the collapsed unhelpful band."""
+    views = view.band_views(advice, {})
+    assert [v.band for v in views] == [
+        Band.HARM_FREE,
+        Band.TRADE_OFF,
+        Band.UNHELPFUL,
+    ]
+    assert [v.collapsed for v in views] == [b.collapsed for b in advice.bands]
+    assert [v.collapsed for v in views] == [False, False, True]
+    assert [v.title for v in views] == ["Harm-free", "Trade-off", "Unhelpful"]
 
 
 @pytest.mark.spec("SHD-03-002")
-def test_a_moves_effect_is_each_vendors_own_count():
-    move = ScoredMove(
-        move=_cs_move().move,
-        changes=(
-            DesideratumChange(
-                vendor=VENDOR, notation="a", change=Fraction(1, 4)
-            ),
-            DesideratumChange(
-                vendor=VENDOR, notation="b", change=Fraction(-1, 8)
-            ),
-            DesideratumChange(
-                vendor=VENDOR_2, notation="a", change=Fraction(0)
-            ),
-        ),
-    )
-    assert view.move_effect(move, NAMES) == "Vendor: ▲1 ▼1; Vendor2: no change"
+def test_each_band_keeps_the_advices_order_and_no_score_column(advice):
+    """The page reorders no move, and no column combines vendors."""
+    for band, band_view in zip(
+        advice.bands, view.band_views(advice, {}), strict=True
+    ):
+        assert band.moves
+        assert [r["Move"] for r in band_view.rows] == [
+            m.move.name.partition(".")[2].replace("_", " ").capitalize()
+            for m in band.moves
+        ]
+        for row in band_view.rows:
+            assert not any("score" in column.lower() for column in row)
 
 
-def test_a_move_with_no_change_entries_reads_no_change():
-    move = ScoredMove(move=_cs_move().move, changes=())
-    assert view.move_effect(move, NAMES) == "no change"
-
-
-def test_an_unscored_move_says_why():
-    move = ScoredMove(
-        move=RMMove(
-            participant=VENDOR, source=RM.RECEIVED, destination=RM.VALID
-        ),
-        unscored="the case has no vendor to score a move for",
-    )
-    assert view.move_effect(move, NAMES) == (
-        "not scored: the case has no vendor to score a move for"
-    )
-
-
-def test_a_move_that_keeps_every_state_is_advice():
-    move = ScoredMove(
-        move=EMMove(
-            participant=VENDOR,
-            trigger=EM_Trigger.PROPOSE,
-            source=EM.PROPOSED,
-            destination=EM.PROPOSED,
+def test_each_shaded_move_takes_its_layers_shade_in_its_bands_map(advice):
+    """AC-2: layer 1 at the dark end of viridis or cividis."""
+    deepest = max(m.layer or 1 for m in advice.moves)
+    assert deepest > 1
+    views = _views(advice)
+    for band in advice.bands[:2]:
+        assert band.colour_map is not None
+        shades = views[band.band].shades
+        assert shades == tuple(
+            view.shade(band.colour_map, m.layer or 0, deepest)
+            for m in band.moves
         )
-    )
-    assert view.move_effect(move, NAMES) == "advice: changes no state"
-    (row,) = view.move_rows([move], NAMES)
-    assert row == {
-        "Who": "Vendor",
-        "Machine": "EM",
-        "Move": "Propose",
-        "From → to": "PROPOSED → PROPOSED",
-        "Effect by vendor": "advice: changes no state",
-    }
-
-
-def test_move_rows_keep_the_standing_records_order():
-    analysis = _analysis()
-    assert analysis.standing is not None
-    rows = view.move_rows(analysis.standing.moves, analysis.actor_names)
-    assert [r["Move"] for r in rows] == [
-        m.move.name.partition(".")[2].replace("_", " ").capitalize()
-        for m in analysis.standing.moves
+        for move, row in zip(band.moves, views[band.band].rows, strict=True):
+            assert row["Layer"] == str(move.layer)
+    harm_free = views[Band.HARM_FREE]
+    (top,) = [
+        s
+        for s, r in zip(harm_free.shades, harm_free.rows, strict=True)
+        if r["Layer"] == "1"
     ]
+    assert top.background == view.COLOUR_STOPS[ColourMap.VIRIDIS][0]
+
+
+def test_only_a_top_move_carries_the_top_icon(advice):
+    """AC-2: each top move is marked; no other move is."""
+    for band, band_view in zip(
+        advice.bands[:2], view.band_views(advice, {})[:2], strict=True
+    ):
+        assert [r["Mark"] for r in band_view.rows] == [
+            view.TOP_MARK if m.top else "" for m in band.moves
+        ]
+    assert any(m.top for m in advice.moves)
+
+
+def test_the_unhelpful_band_has_no_shade_and_no_mark(advice):
+    """AC-2: no layer, top icon or leading mark in the unhelpful band."""
+    unhelpful = _views(advice)[Band.UNHELPFUL]
+    assert unhelpful.rows and not unhelpful.shades
+    for row in unhelpful.rows:
+        assert not {"Layer", "Mark", "Yours"} & set(row)
+        assert view.TOP_MARK not in row.values()
+        assert view.LEADING_MARK not in row.values()
+
+
+def test_a_move_leading_among_yours_is_marked(advice):
+    """AC-3: the coordinator's undominated move says so; no other does."""
+    marked = [
+        row["Who"]
+        for band_view in view.band_views(advice, {})
+        for row in band_view.rows
+        if row.get("Yours") == view.LEADING_MARK
+    ]
+    leading = [m for m in advice.moves if m.leading_among_yours]
+    assert len(marked) == len(leading) == 1
+    assert marked == ["Owner"]
+
+
+@pytest.mark.spec("SHD-03-002")
+def test_each_move_shows_each_vendors_harm_with_its_size(advice):
+    """AC-4: each negative part by vendor and size, never summed."""
+    publication = next(m for m in advice.band(Band.TRADE_OFF).moves if m.harms)
+    names = {BUILT_VENDOR: "Vendor", BUILT_VENDOR_2: "Second"}
+    text = view.harm_text(publication, names)
+    parts = text.split("; ")
+    assert len(parts) == len(publication.harms) > 1
+    for part, harm in zip(parts, publication.harms, strict=True):
+        assert part == (
+            f"{names[harm.vendor]}: {harm.part} −{float(-harm.size):.3g}"
+        )
+    harmless = next(m for m in advice.band(Band.HARM_FREE).moves)
+    assert view.harm_text(harmless, names) == "none"
+    for band_view in view.band_views(advice, {}):
+        assert all("Harms by vendor" in row for row in band_view.rows)
+
+
+def test_a_trade_off_move_a_harm_free_move_dominates_says_so(advice):
+    """AC-5: the trade-off band names the domination, row by row."""
+    trade_off = _views(advice)[Band.TRADE_OFF]
+    assert [r["Dominated by"] for r in trade_off.rows] == [
+        m.dominated_by_harm_free or ""
+        for m in advice.band(Band.TRADE_OFF).moves
+    ]
+    assert DOMINATED_BY_HARM_FREE in {
+        r["Dominated by"] for r in trade_off.rows
+    }
+    for band in (Band.HARM_FREE, Band.UNHELPFUL):
+        assert all("Dominated by" not in r for r in _views(advice)[band].rows)
+
+
+def test_every_move_with_no_band_is_listed_with_its_reason(advice):
+    """AC-6: each unbanded move and the reason it has none."""
+    rows = view.unbanded_rows(advice, {})
+    assert [r["Why no band"] for r in rows] == [
+        u.reason for u in advice.unbanded
+    ]
+    assert CHANCE_EVENT in {r["Why no band"] for r in rows}
+
+
+def test_an_unbanded_move_reads_its_own_reason_whatever_it_is(advice):
+    """A reason the page has never seen reads as it is given (#6563)."""
+    move = advice.unbanded[0].move
+    with_reason = advice.model_copy(
+        update={
+            "unbanded": (
+                UnbandedMove(move=move, reason="it waits on an unseen event"),
+            )
+        }
+    )
+    (row,) = view.unbanded_rows(with_reason, NAMES)
+    assert row["Why no band"] == "it waits on an unseen event"
+    assert set(row) == {"Who", "Machine", "Move", "From → to", "Why no band"}
+
+
+def test_a_shade_runs_from_the_dark_end_to_the_light_end():
+    for colour_map, stops in view.COLOUR_STOPS.items():
+        assert view.shade(colour_map, 1, 1).background == stops[0]
+        assert view.shade(colour_map, 1, 3).background == stops[0]
+        assert view.shade(colour_map, 2, 3).background == stops[4]
+        assert view.shade(colour_map, 3, 3).background == stops[-1]
+        assert view.shade(colour_map, 1, 3).text == "#ffffff"
+        assert view.shade(colour_map, 3, 3).text == "#000000"
+    assert view.shade(ColourMap.VIRIDIS, 2, 9).background == "#472d7b"
+
+
+def test_a_shade_between_two_stops_mixes_them():
+    """Layer 2 of 33 sits a quarter of the way from viridis's first stop,
+    ``#440154``, to its second, ``#472d7b``."""
+    assert view.shade(ColourMap.VIRIDIS, 2, 33).background == "#450c5e"
+
+
+@pytest.mark.parametrize("layer, deepest", [(0, 2), (3, 2), (-1, 1)])
+def test_a_layer_outside_the_advice_has_no_shade(layer, deepest):
+    with pytest.raises(ValueError, match=f"layer {layer} is not from 1"):
+        view.shade(ColourMap.CIVIDIS, layer, deepest)
+
+
+def test_a_shade_reads_as_a_cells_css():
+    assert view.Shade(background="#440154", text="#ffffff").css == (
+        "background-color: #440154; color: #ffffff"
+    )
+
+
+def test_a_band_view_refuses_a_shade_count_that_misses_its_rows():
+    shade = view.Shade(background="#440154", text="#ffffff")
+    with pytest.raises(ValidationError, match="2 shades for 1 rows"):
+        view.BandView(
+            band=Band.HARM_FREE,
+            title="Harm-free",
+            collapsed=False,
+            rows=({"Move": "x"},),
+            shades=(shade, shade),
+            empty="none",
+        )
 
 
 def test_every_kind_of_hole_reads_as_a_line(tmp_path):
