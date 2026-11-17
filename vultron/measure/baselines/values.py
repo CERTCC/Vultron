@@ -40,7 +40,8 @@ A value is conditional on the desideratum's scope, such as a report reaching
 Valid, and is ``None`` once no walk can enter it.  :func:`scope_chances`
 gives the chance the scope is entered, and :func:`expected_outcomes` combines
 the two, counting a scope never entered as met; :func:`outcome_change` is a
-step's change in it.  Move advice reads the expected outcome.
+step's change in it, ``0`` for a desideratum whose scope the step takes out
+of reach.  Move advice reads that change.
 
 At the model's start, every value equals the desideratum's :func:`.baseline`.
 The solved tables are kept for the life of the process, so repeated lookups
@@ -299,13 +300,24 @@ def outcome_change(
     """Each vendor's change in expected outcome from the step *move* names.
 
     The :func:`expected_outcomes` after the step minus those before it,
-    never ``None``: a step that takes a scope out of reach moves that
-    desideratum toward ``1``.
+    never ``None``.  A step that takes a desideratum's scope out of reach,
+    so the chance it is entered is above ``0`` before the step and ``0``
+    after it, changes that desideratum by ``0``: the move neither gains by
+    leaving the scope nor harms by it.  Move advice reads this change; a
+    case's score still counts a scope never entered as met.
 
     Raises:
         ValueError: ``prefix.state`` holds no vendor.
         VultronInvalidStateTransitionError: as for :func:`expected_change`.
     """
-    after = expected_outcomes(_after(prefix, move))
-    before = expected_outcomes(prefix)
-    return {key: after[key] - before[key] for key in before}
+    after = _readings(_after(prefix, move))
+    before = _readings(prefix)
+    return {key: _change(before[key], after[key]) for key in before}
+
+
+def _change(before: ChanceReading, after: ChanceReading) -> Fraction:
+    """One desideratum's change in expected outcome across one step; ``0``
+    when the step is what takes its scope out of reach."""
+    if before.entered > 0 and after.entered == 0:
+        return Fraction(0)
+    return after.outcome - before.outcome

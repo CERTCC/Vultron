@@ -320,7 +320,8 @@ public.
 
 **Outcome shift**:
 A move's expected outcome minus the chance value, for each scope, in an end part and
-an embargo part. The embargo parts decide a band only when every end part is zero,
+an embargo part. A desideratum whose scope the move takes out of reach adds nothing.
+The embargo parts decide a band only when every end part is zero,
 and dominance only when the end parts are equal.
 *Avoid*: lift, gain, score delta
 
@@ -329,6 +330,13 @@ Move X dominates move Y when X's end parts are at least as good as Y's in every 
 and better in one, or, with equal end parts, when its embargo parts are. Two moves
 that trade off against each other do not dominate each other.
 *Avoid*: beats, outranks
+
+**Open move**:
+An allowed move that is a step a participant chooses in the case's joint model, so it
+has an outcome shift for each scope. A move that keeps every state, a move that moves
+no vendor's state, and an event no participant chooses, such as a public exploit, are
+allowed moves but not open moves.
+*Avoid*: candidate move, option
 
 **Move band**:
 The band an open move falls in, set only by its own outcome shifts, end parts first:

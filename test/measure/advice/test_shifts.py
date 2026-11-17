@@ -34,6 +34,9 @@ from vultron.measure.baselines import (
     EventKind,
     Group,
     baseline,
+    expected_outcomes,
+    outcome_change,
+    scope_chances,
 )
 
 _K = EventKind
@@ -79,14 +82,47 @@ def test_no_open_move_is_a_chance_event():
 
 
 def test_a_shift_is_the_chance_value_after_the_move_less_the_one_before():
+    """The unready vendor's fix keeps every scope in reach, so its shift is
+    the plain difference of chance values."""
     case = _case("ready-unready embargo")
-    move = case.move(_K.P)
+    move = case.move(_K.F, 2)
     before = chance_values(case.prefix)
     after = chance_values(case.prefix.then(move))
     assert outcome_shift(case.prefix, move) == tuple(
         ScopeParts(a.end - b.end, a.embargo - b.embargo)
         for a, b in zip(after, before, strict=True)
     )
+
+
+def test_a_scope_the_move_takes_out_of_reach_adds_no_shift():
+    """Publication rules out an embargo exit on its own terms, which takes
+    each vendor's ``F_i ≺ Ex_own`` scope out of reach: that desideratum
+    then reads as met, but adds nothing to the move's shift."""
+    case = _case("ready-unready embargo")
+    move = case.move(_K.P)
+    after = case.prefix.then(move)
+    change = outcome_change(case.prefix, move)
+    before_out, after_out = (
+        expected_outcomes(case.prefix),
+        expected_outcomes(after),
+    )
+    entered_before, entered_after = (
+        scope_chances(case.prefix),
+        scope_chances(after),
+    )
+    closed = [
+        k for k in change if entered_before[k] > 0 and entered_after[k] == 0
+    ]
+    assert {k.desideratum for k in closed} == {
+        _named(r"$\evF_i \prec \evExOwn$")
+    }
+    for key in closed:
+        assert after_out[key] == 1
+        assert change[key] == 0
+    # The unready vendor's reading rises to met, which the shift leaves out.
+    assert any(before_out[key] < 1 for key in closed)
+    shift = outcome_shift(case.prefix, move)
+    assert all(parts.embargo < 0 for parts in shift)
 
 
 def test_a_part_weighs_each_desideratum_by_one_less_its_baseline():

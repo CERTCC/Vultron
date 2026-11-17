@@ -330,12 +330,36 @@ def test_a_scope_no_walk_can_enter_counts_as_met() -> None:
     )
 
 
-def test_closing_an_invalid_report_moves_its_scoped_outcome_to_one() -> None:
+def test_closing_an_invalid_report_adds_no_change_for_the_scope_it_closes() -> (
+    None
+):
+    """From RM Invalid the validation scope is entered with chance 1/2 (the
+    coin toss above).  Closing takes it to 0, so ``Va_i ≺ P`` reads as met
+    after the step, as a case score counts it; but the step is what took the
+    scope out of reach, so its change is 0, not ``1 − before``."""
     prefix = replay(ONE_VENDOR_MODEL, _INVALID)
     key = VendorDesideratum(_VA_BEFORE_P, 1)
-    before = expected_outcomes(prefix)[key]
+    after = replay(ONE_VENDOR_MODEL, [*_INVALID, Event(_K.CLOSED, 1)])
+    assert scope_chances(prefix)[key] == Fraction(1, 2)
+    assert scope_chances(after)[key] == 0
+    assert expected_outcomes(after)[key] == 1
+    assert expected_outcomes(prefix)[key] < 1
     change = outcome_change(prefix, Event(_K.CLOSED, 1))
-    assert change[key] == 1 - before
+    assert change[key] == 0
     assert set(change) == set(expected_outcomes(prefix))
     # The conditional change is undefined there: the scope is now unreachable.
     assert expected_change(prefix, Event(_K.CLOSED, 1))[key] is None
+
+
+def test_a_step_that_keeps_a_scope_in_reach_changes_by_its_outcomes() -> None:
+    """Validating keeps the scope in reach (it enters it), so the change is
+    the plain difference of expected outcomes."""
+    prefix = replay(ONE_VENDOR_MODEL, _INVALID)
+    key = VendorDesideratum(_VA_BEFORE_P, 1)
+    move = Event(_K.VALIDATED, 1)
+    after = replay(ONE_VENDOR_MODEL, [*_INVALID, move])
+    assert scope_chances(after)[key] == 1
+    assert (
+        outcome_change(prefix, move)[key]
+        == expected_outcomes(after)[key] - expected_outcomes(prefix)[key]
+    )
