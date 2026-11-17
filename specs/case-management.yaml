@@ -10470,7 +10470,7 @@ groups:
       Reinstatement is the Case Owner's decision, as removal is (CM-31-004).
     verification: >-
       A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      `test/architecture/test_participant_reinstatement_planned.py` holds the
       place of a test, which #6465
       adds, asserting that a non-owner's reinstatement is refused with a refusal
       notice and no ledger entry.
@@ -10496,7 +10496,7 @@ groups:
       derived id makes a retry resend the same notice (SYNC-09-002).
     verification: >-
       A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      `test/architecture/test_participant_reinstatement_planned.py` holds the
       place of a test, which #6465
       adds, asserting one ledger entry carrying the Case Owner's `Add(<Actor>)`, an
       `Announce` of that `Add` to the reinstated actor, and no `Accept`.
@@ -10519,7 +10519,7 @@ groups:
       (CM-31-007).
     verification: >-
       A strict-xfail probe in
-      `test/architecture/test_participant_reinstatement_offer_planned.py` holds the
+      `test/architecture/test_participant_reinstatement_planned.py` holds the
       place of a test, which #6465
       adds, asserting that a replica receiving the `Announce` and then the entry
       applies the reinstatement once, from the entry.
