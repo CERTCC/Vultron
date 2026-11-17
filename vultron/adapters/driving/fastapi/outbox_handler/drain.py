@@ -21,6 +21,7 @@ emitter it delivers with is configured here too.
 import asyncio
 import logging
 import random
+from collections.abc import Callable
 from typing import cast
 
 from vultron.adapters.driven.http_delivery import (
@@ -68,13 +69,17 @@ logger = logging.getLogger(__name__)
 _DEFAULT_EMITTER_SLOT: StartupSlot[ActivityEmitter] = StartupSlot()
 
 
-def configure_default_emitter(emitter: ActivityEmitter) -> None:
+def configure_default_emitter(emitter: ActivityEmitter) -> Callable[[], None]:
     """Set the default ``ActivityEmitter`` for ``outbox_handler``.
 
     Called once during app lifespan to install the ``HttpDeliveryAdapter``
     (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
+
+    Returns:
+        A callable that puts back the emitter held before this call; the
+        application lifespan calls it at shutdown (#5874).
     """
-    _DEFAULT_EMITTER_SLOT.install(emitter)
+    return _DEFAULT_EMITTER_SLOT.install(emitter)
 
 
 def get_default_emitter() -> ActivityEmitter:

@@ -153,37 +153,37 @@
     },
     {
       "semanticType": "invite_actor_to_case",
-      "wire": "Invite(Actor)[target=VulnerabilityCaseStub]",
-      "phrase": "{actor} invited {object} to the case"
+      "wire": "Invite(VulnerabilityCase preview)[target=Actor]",
+      "phrase": "{actor} invited {target} to the case"
     },
     {
       "semanticType": "accept_invite_actor_to_case",
-      "wire": "Accept(Invite(Actor)[target=VulnerabilityCaseStub])",
+      "wire": "Accept(Invite(VulnerabilityCase preview)[target=Actor])",
       "phrase": "{actor} accepted the case invitation"
     },
     {
       "semanticType": "reject_invite_actor_to_case",
-      "wire": "Reject(Invite(Actor)[target=VulnerabilityCaseStub])",
+      "wire": "Reject(Invite(VulnerabilityCase preview)[target=Actor])",
       "phrase": "{actor} declined the case invitation"
     },
     {
       "semanticType": "invite_actor_to_full_case",
-      "wire": "Invite(Actor)[target=VulnerabilityCase]",
-      "phrase": "{actor} invited {object} to judge the case"
+      "wire": "Invite(whole VulnerabilityCase)[target=Actor]",
+      "phrase": "{actor} invited {target} to judge the case"
     },
     {
       "semanticType": "accept_invite_actor_to_full_case",
-      "wire": "Accept(Invite(Actor)[target=VulnerabilityCase])",
+      "wire": "Accept(Invite(whole VulnerabilityCase)[target=Actor])",
       "phrase": "{actor} judged the case valid"
     },
     {
       "semanticType": "tentative_reject_invite_actor_to_full_case",
-      "wire": "TentativeReject(Invite(Actor)[target=VulnerabilityCase])",
+      "wire": "TentativeReject(Invite(whole VulnerabilityCase)[target=Actor])",
       "phrase": "{actor} judged the case invalid"
     },
     {
       "semanticType": "reject_invite_actor_to_full_case",
-      "wire": "Reject(Invite(Actor)[target=VulnerabilityCase])",
+      "wire": "Reject(Invite(whole VulnerabilityCase)[target=Actor])",
       "phrase": "{actor} closed the case"
     },
     {

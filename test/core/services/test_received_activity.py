@@ -68,7 +68,7 @@ def loader(dl: SqliteDataLayer) -> TriggerActivityAdapter:
 def _invite(actor: str, invitee: str):
     return rm_invite_to_case_activity(
         invitee,
-        target=case_stub(_CASE),
+        case=case_stub(_CASE),
         actor=actor,
         to=[invitee],
         at=authored_at(),
@@ -99,7 +99,7 @@ def test_a_received_activity_is_loaded_from_its_archived_body(
     assert isinstance(held, ReceivedActivityView)
     assert held.id_ == invite.id_
     assert held.type_ == "Invite"
-    assert getattr(held.target, "case_id", None) == _CASE
+    assert getattr(held.object_, "id_", None) == _CASE
 
 
 @pytest.mark.spec("DL-06-006")
@@ -198,7 +198,7 @@ def test_the_loaded_view_is_read_only_and_the_next_load_is_unchanged(
     with pytest.raises(VultronReadOnlyViewError):
         view.type_ = "Accept"
     with pytest.raises(VultronReadOnlyViewError):
-        view.target.case_id = "https://example.org/cases/elsewhere"
+        view.object_.id_ = "https://example.org/cases/elsewhere"
     with pytest.raises(VultronReadOnlyViewError):
         del view.to
     with pytest.raises(AttributeError):
@@ -207,7 +207,7 @@ def test_the_loaded_view_is_read_only_and_the_next_load_is_unchanged(
     again = read_received_activity(loader, invite.id_)
     assert again == view
     assert again.type_ == "Invite"
-    assert again.target.case_id == _CASE
+    assert again.object_.id_ == _CASE
     assert list(again.to) == [_ME]
 
 

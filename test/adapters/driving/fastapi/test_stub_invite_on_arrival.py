@@ -151,7 +151,7 @@ def test_accept_reads_the_invite_from_the_receiver_keyed_record(
     accept = read_sealed_body_dict(invitee_dl, accept_id)
     assert accept is not None
     assert accept["object"]["id"] == invite_id
-    assert accept["object"]["target"]["type"] == "VulnerabilityCaseStub"
+    assert accept["object"]["object"]["preview"]["type"] == "CasePreview"
 
 
 @pytest.mark.spec("PCR-06-002", "PCR-06-005")
@@ -468,7 +468,7 @@ def test_an_actor_reference_does_not_replace_the_receiver_fuller_record(
     invitee_dl.create(profile)
     held_before = invitee_dl.read(INVITEE_ID)
     _, body = stub_invite_body(case_actor_dl)
-    reference = dict(body["object"])
+    reference = dict(body["target"])
     reference.pop("@context", None)
     assert reference == {"id": INVITEE_ID, "type": "Actor"}
 

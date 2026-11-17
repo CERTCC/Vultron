@@ -30,7 +30,7 @@ from test.support import stub_invite_arrival
 from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import authored_at, make
-from test.support.received import delivered_body, stamped
+from test.support.received import case_stub, delivered_body, stamped
 from test.support.stub_invite_arrival import (
     CASE_ACTOR_ID,
     CASE_ID as INVITED_CASE_ID,
@@ -1121,7 +1121,7 @@ def _fci_full_case_invite_body() -> dict[str, Any]:
     return delivered_body(
         rm_invite_to_full_case_activity(
             make(as_Organization, id_=INVITEE_ID),
-            INVITED_CASE_ID,
+            case_stub(INVITED_CASE_ID),
             LedgerPosition(log_index=0, entry_hash="ab" * 32),
             id_=_FCI_INVITE_ID,
             actor=CASE_ACTOR_ID,

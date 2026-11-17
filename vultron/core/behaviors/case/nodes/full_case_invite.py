@@ -14,7 +14,7 @@
 """Leaf nodes for the full-case Invite and its three replies (ADR-0121).
 
 After a participant joins, the CASE_MANAGER asks it to judge the case with
-``Invite(Actor)[target=VulnerabilityCase]`` carrying the CASE_MANAGER's ledger
+``Invite(whole VulnerabilityCase)[target=Actor]`` carrying the CASE_MANAGER's ledger
 tail (CM-11-031).  The participant answers ``Accept`` (RV, ``RECEIVED →
 VALID``), ``TentativeReject`` (RI, ``RECEIVED → INVALID``) or ``Reject`` (RC,
 ``RECEIVED → CLOSED``), each carrying its own ledger position (CM-11-034).
@@ -40,6 +40,7 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_preview import previewed_case_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -48,7 +49,6 @@ from vultron.core.sync_helpers import (
     ledger_tail_position,
     recorded_entries_for_case,
 )
-from vultron.enums.object_types import VultronObjectType as VOtype
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +69,10 @@ def stored_invite_floor(invite: object) -> LedgerPosition | None:
     Invite states none (the wire layer refused such an Invite at the edge,
     so a stored one only lacks it if it is not a full-case Invite), or when
     it is a stub Invite: that one states the CASE_MANAGER's tail too, as
-    every case activity does, but its target is the case stub and it sets no
-    floor (CM-11-003).
+    every case activity does, but its object is the case's previewed
+    reference and it sets no floor (CM-11-003, ADR-0205).
     """
-    target_type = getattr(getattr(invite, "target", None), "type_", None)
-    if target_type == VOtype.VULNERABILITY_CASE_STUB:
+    if previewed_case_id(getattr(invite, "object_", None)) is not None:
         return None
     position = getattr(invite, "ledger_position", None)
     if position is None:

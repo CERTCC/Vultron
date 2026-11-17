@@ -17,9 +17,11 @@
 
 The parser used to recognise a stub as a ``VulnerabilityCase`` whose keys all
 fell in a list derived from the stub class (#2624), so a sparse full case and
-a stub had the same shape.  The stub now names itself
-``VulnerabilityCaseStub``, carries the case in ``caseId`` and has the ID
-``<case-id>/stub``; a ``VulnerabilityCase`` is a case however few keys it has.
+a stub had the same shape.  The stub names itself ``CasePreview``
+and is the case's preview: the case reference that carries it names the case
+by its own ``id``, so the stub carries no case id and no ID derived from the
+case's (ADR-0205).  A ``VulnerabilityCase`` is a case however few keys it
+has.
 """
 
 import json
@@ -45,14 +47,12 @@ from vultron.wire.as2.typed_reference import (
 from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-    case_stub_id,
-)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 _EXAMPLES = Path(__file__).resolve().parents[3] / "docs/reference/examples"
 _CASE_ID = "https://example.org/cases/case-stub"
-_STUB_ID = f"{_CASE_ID}/stub"
+_PREVIEW_ID = "urn:uuid:case-stub-preview"
 _ACTOR = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/vendor"
 
@@ -60,9 +60,8 @@ _INVITEE = "https://example.org/actors/vendor"
 def _enriched_stub() -> dict:
     return {
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-        "type": "VulnerabilityCaseStub",
-        "id": _STUB_ID,
-        "caseId": _CASE_ID,
+        "type": "CasePreview",
+        "id": _PREVIEW_ID,
         "summary": "Security issue — embargo active, details shared after acceptance",
         "activeEmbargo": {
             "type": "EmbargoEvent",
@@ -83,16 +82,14 @@ def _enriched_stub() -> dict:
 @pytest.mark.spec("CM-11-038")
 def test_a_stub_is_recognised_by_its_type():
     assert (
-        _inline_vocab_class(
-            {"type": "VulnerabilityCaseStub", "caseId": _CASE_ID}
-        )
-        is as_VulnerabilityCaseStub
+        _inline_vocab_class({"type": "CasePreview", "summary": "A case"})
+        is as_CasePreview
     )
 
 
 @pytest.mark.spec("CM-11-038")
 def test_an_enriched_stub_is_a_stub():
-    assert _inline_vocab_class(_enriched_stub()) is as_VulnerabilityCaseStub
+    assert _inline_vocab_class(_enriched_stub()) is as_CasePreview
 
 
 @pytest.mark.spec("CM-11-038")
@@ -208,81 +205,26 @@ def test_a_sparse_case_validates_as_a_case():
     assert case.id_ == _CASE_ID
 
 
+@pytest.mark.spec("CM-17-010")
 @pytest.mark.spec("CM-11-013")
-def test_the_stub_id_is_derived_from_the_case_it_names():
-    stub = as_VulnerabilityCaseStub(case_id=_CASE_ID)
-    assert stub.id_ == _STUB_ID == case_stub_id(_CASE_ID)
-    assert stub.case_id == _CASE_ID
-    assert stub.type_ == "VulnerabilityCaseStub"
+def test_the_preview_carries_exactly_its_id_type_and_summary():
+    """The stub names no case of its own (ADR-0205).
+
+    It carries no ``caseId``, and its ``id`` is minted like any object's,
+    never derived from the case's: the reference that carries it names the
+    case.
+    """
+    first = as_CasePreview(summary="A case to join")
+    second = as_CasePreview(summary="A case to join")
+    wire = json.loads(first.model_dump_json(by_alias=True, exclude_none=True))
+    assert set(wire) - {"@context"} == {"id", "type", "summary"}
+    assert wire["type"] == "CasePreview"
+    assert not wire["id"].endswith("/stub")
+    assert first.id_ != second.id_
+    assert "case_id" not in as_CasePreview.model_fields
 
 
-@pytest.mark.spec("CM-11-037")
-@pytest.mark.spec("CM-11-013")
-def test_the_stub_serialises_its_type_id_and_case():
-    wire = json.loads(
-        as_VulnerabilityCaseStub(case_id=_CASE_ID).model_dump_json(
-            by_alias=True, exclude_none=True
-        )
-    )
-    assert wire["type"] == "VulnerabilityCaseStub"
-    assert wire["id"] == _STUB_ID
-    assert wire["caseId"] == _CASE_ID
-
-
-@pytest.mark.spec("CM-11-013")
-@pytest.mark.parametrize(
-    "data",
-    [
-        {"caseId": _CASE_ID, "id": _STUB_ID},
-        {"case_id": _CASE_ID, "id_": _STUB_ID},
-        {"case_id": _CASE_ID},
-        {"case_id": _CASE_ID, "id": None},
-        {"caseId": _CASE_ID, "id_": None},
-        {"caseId": _CASE_ID, "id": None, "id_": None},
-    ],
-    ids=[
-        "wire",
-        "field-names",
-        "derived",
-        "derived-over-null-alias",
-        "derived-over-null-field-name",
-        "derived-over-both-nulls",
-    ],
-)
-def test_a_stub_validates_from_either_spelling(data):
-    assert (
-        as_VulnerabilityCaseStub.model_validate(
-            with_times(as_VulnerabilityCaseStub, data)
-        ).id_
-        == _STUB_ID
-    )
-
-
-@pytest.mark.spec("CM-11-037")
-@pytest.mark.spec("CM-11-013")
-@pytest.mark.parametrize(
-    "stub_id",
-    [_CASE_ID, "https://example.org/cases/other/stub"],
-    ids=["the-case-id", "another-cases-stub"],
-)
-def test_a_stub_whose_id_disagrees_with_its_case_is_refused(stub_id):
-    with pytest.raises(ValidationError, match="CM-11-013"):
-        as_VulnerabilityCaseStub.model_validate(
-            with_times(
-                as_VulnerabilityCaseStub, {"caseId": _CASE_ID, "id": stub_id}
-            )
-        )
-
-
-@pytest.mark.spec("CM-11-037")
-def test_a_stub_without_its_case_is_refused():
-    with pytest.raises(ValidationError, match="caseId"):
-        as_VulnerabilityCaseStub.model_validate(
-            with_times(as_VulnerabilityCaseStub, {"id": _STUB_ID})
-        )
-
-
-def _invite(target: object) -> dict:
+def _invite(case_object: object) -> dict:
     return {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "Invite",
@@ -290,26 +232,34 @@ def _invite(target: object) -> dict:
         "actor": _ACTOR,
         "to": [_INVITEE],
         "published": days_from_now(0).isoformat(),
-        "object": {"type": "Organization", "id": _INVITEE},
-        "target": target,
+        "object": case_object,
+        "target": {"type": "Organization", "id": _INVITEE},
         "context": _CASE_ID,
     }
 
 
-def test_an_invite_with_an_enriched_stub_target_parses():
+def _previewed(preview: dict) -> dict:
+    """The case reference carrying *preview* (ADR-0205)."""
+    return {"type": "VulnerabilityCase", "id": _CASE_ID, "preview": preview}
+
+
+def test_an_invite_with_an_enriched_preview_parses():
     """The invitee receives the embargo terms it is asked to consent to."""
     activity = parse_activity(
-        json.loads(json.dumps(_invite(_enriched_stub())))
+        json.loads(json.dumps(_invite(_previewed(_enriched_stub()))))
     )
-    target = activity.target
-    assert isinstance(target, as_VulnerabilityCaseStub)
-    assert target.case_id == _CASE_ID
-    assert target.active_embargo is not None
-    assert target.case_status is not None
+    assert isinstance(activity, as_Invite)
+    reference = activity.object_
+    assert isinstance(reference, as_TypedReference)
+    assert reference.id_ == _CASE_ID
+    preview = reference.preview
+    assert isinstance(preview, as_CasePreview)
+    assert preview.active_embargo is not None
+    assert preview.case_status is not None
 
 
 @pytest.mark.spec("CM-11-038")
-def test_an_invite_whose_target_is_a_sparse_case_parses_it_as_a_case():
+def test_an_invite_whose_object_is_a_sparse_case_parses_it_as_a_case():
     activity = parse_activity(
         _invite(
             {
@@ -319,8 +269,8 @@ def test_an_invite_whose_target_is_a_sparse_case_parses_it_as_a_case():
             }
         )
     )
-    assert isinstance(activity.target, VulnerabilityCase)
-    assert not isinstance(activity.target, as_VulnerabilityCaseStub)
+    assert isinstance(activity, as_Invite)
+    assert isinstance(activity.object_, VulnerabilityCase)
 
 
 def _stub_with_untyped_status_without_published() -> dict:
@@ -333,14 +283,15 @@ def _stub_with_untyped_status_without_published() -> dict:
 @pytest.mark.spec("MV-04-005")
 @pytest.mark.spec("CM-17-013")
 def test_an_invite_whose_stub_status_is_no_case_status_is_refused():
-    """An untyped ``caseStatus`` that fails ``CaseStatus`` is not a bare Link.
+    """An untyped ``caseStatus`` that fails ``CaseStatus`` is refused.
 
-    Read as a Link, the stub would lose its EM state without a trace.  A Link
-    needs an ``href``, so the parse is refused instead (#5715).
+    The preview's ``caseStatus`` is a ``CaseStatus`` or its id, never a bare
+    Link, so the preview cannot lose its EM state without a trace (#5715).
     """
-    with pytest.raises(VultronParseError, match="caseStatus") as exc_info:
-        parse_activity(_invite(_stub_with_untyped_status_without_published()))
-    assert "href" in str(exc_info.value)
+    with pytest.raises(VultronParseError, match="caseStatus"):
+        parse_activity(
+            _invite(_previewed(_stub_with_untyped_status_without_published()))
+        )
 
 
 @pytest.mark.spec("MV-04-005")
@@ -349,6 +300,6 @@ def test_a_stub_built_here_with_no_case_status_is_refused():
     stub = _stub_with_untyped_status_without_published()
     del stub["activeEmbargo"]  # inbound-shaped: it carries no times
     with pytest.raises(ValidationError) as exc_info:
-        as_VulnerabilityCaseStub.model_validate(stub)
+        as_CasePreview.model_validate(stub)
     locs = {error["loc"][0] for error in exc_info.value.errors()}
     assert locs == {"caseStatus"}

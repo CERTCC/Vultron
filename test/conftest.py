@@ -42,6 +42,9 @@ os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 import py_trees
 import pytest
 
+from test.support.orphan_store_connections import (
+    install_orphan_connection_watch,
+)
 from test.support.received import reset_test_sender_numbers
 from test.support.xdist_workers import worker_count
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -197,7 +200,10 @@ def cleanup_test_datalayer():
     """Reset all cached DataLayer instances before and after the session.
 
     Ensures no stale in-memory database state leaks between test modules.
+    Also installs, once per process, the connection watch that
+    ``_dispose_actor_stores_between_tests`` reads (#6001).
     """
+    install_orphan_connection_watch()
     reset_datalayer()
     yield
     reset_datalayer()
@@ -253,6 +259,12 @@ def _dispose_actor_stores_between_tests():
     first, and the test fails with
     :class:`~test.support.hold_timers.HoldTimerLeakedError` once the stores
     are disposed.
+
+    A connection that a disposed in-memory store opened during the test is
+    then closed, and the test fails with
+    :class:`~test.support.orphan_store_connections.OrphanStoreConnectionError`
+    naming the stack that opened it: left to the garbage collector, its
+    ``ResourceWarning`` would fail whichever later test was running (#6001).
     """
     yield
     from test.support.hold_timers import dispose_actor_stores_between_tests

@@ -223,7 +223,7 @@ def test_a_received_stub_invite_whose_actor_names_the_receiver_is_not_one_sent(
     """
     activity = rm_invite_to_case_activity(
         _INVITEE_URI,
-        target=make(
+        case=make(
             as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_CASE_ID,

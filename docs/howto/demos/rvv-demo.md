@@ -84,13 +84,13 @@ sequenceDiagram
     F->>V1: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     note right of V1: case created by the Case Actor,<br/>participants seated,<br/>embargo activated (EM.ACTIVE),<br/>report validated, case engaged
     V1-->>F: case replica delivered<br/>Create(VulnerabilityCase)
-    V1->>V2: Invite Actor to Case<br/>Invite(Actor)[target=VulnerabilityCaseStub]
+    V1->>V2: Invite Actor to Case<br/>Invite(VulnerabilityCase preview)[target=Actor]
     note right of V1: inert participant recorded for Vendor2
-    V2->>V1: Accept Invite to Case<br/>Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+    V2->>V1: Accept Invite to Case<br/>Accept(Invite(VulnerabilityCase preview)[target=Actor])
     note right of V1: 4 participants: Reporter, Vendor1, Vendor2, CaseActor
     V1-->>V2: case replica delivered and ledger replayed<br/>Announce(VulnerabilityCase)
-    V1->>V2: Invite Actor to Full Case<br/>Invite(Actor)[target=VulnerabilityCase]
-    V2->>V1: Accept Full-Case Invite (RV)<br/>Accept(Invite(Actor)[target=VulnerabilityCase])
+    V1->>V2: Invite Actor to Full Case<br/>Invite(whole VulnerabilityCase)[target=Actor]
+    V2->>V1: Accept Full-Case Invite (RV)<br/>Accept(Invite(whole VulnerabilityCase)[target=Actor])
 
     note over F,V2: ✅ M1 — ≥4 participants · EM.ACTIVE · F and V2 have replicas
 

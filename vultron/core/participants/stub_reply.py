@@ -14,8 +14,8 @@
 """The effects of an invitee's reply to the stub Invite, on its participant record.
 
 The ledger holds the wire messages exchanged (ADR-0114).  The invitee sends
-``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` or
-``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` to the CASE_MANAGER, and
+``Accept(Invite(VulnerabilityCase preview)[target=Actor])`` or
+``Reject(Invite(VulnerabilityCase preview)[target=Actor])`` to the CASE_MANAGER, and
 the entry for that message (``accept_invite_actor_to_case`` or
 ``reject_invite_actor_to_case``) carries it verbatim: the replying actor, the
 stub Invite and the reply's ``published``.  The CASE_MANAGER applies the reply's

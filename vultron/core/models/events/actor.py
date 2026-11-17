@@ -10,7 +10,7 @@ from pydantic import field_validator
 
 from vultron.core.models._helpers import _as_id, timestamp_serializer
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_stub import stub_case_id
+from vultron.core.models.case_preview import CasePreview, case_preview_of
 from vultron.core.models.events.base import (
     LedgerPositionedEvent,
     MessageSemantics,
@@ -268,23 +268,39 @@ class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
 
 
 class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
-    """Actor invited another actor to join a VulnerabilityCase."""
+    """The CASE_MANAGER invited an actor to join a VulnerabilityCase.
+
+    The stub Invite, ``Invite(VulnerabilityCase preview)[target=Actor]``
+    (VAM-04-004, ADR-0205): its ``object`` names the case and carries the
+    case's preview, and its ``target`` is the invitee.
+    """
 
     semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    required_slots: ClassVar[tuple[str, ...]] = ("case_id", "invitee_id")
+    required_slots: ClassVar[tuple[str, ...]] = (
+        "case_id",
+        "invitee_id",
+        "preview",
+    )
 
     @property
     def case_id(self) -> str:
-        """The case the Invite's stub names (CM-11-003), not the stub's ID."""
-        return self._required("case_id", stub_case_id(self.target))
+        """The case the Invite's ``object`` names by its own id (CM-11-003)."""
+        return self._required("case_id", self.object_id)
 
     @property
     def invitee_id(self) -> str:
-        """The actor invited: the Invite's ``object``."""
-        return self._required("invitee_id", self.object_id)
+        """The actor invited: the Invite's ``target``."""
+        return self._required("invitee_id", self.target_id)
+
+    @property
+    def preview(self) -> CasePreview:
+        """The case's preview the Invite carries, what the invitee decides
+        on (CM-17-010); the stub Invite's pattern matches only an object
+        that carries one (SE-01-009)."""
+        return self._required("preview", case_preview_of(self.object_))
 
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
@@ -301,8 +317,8 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str:
-        """The case the nested Invite's stub names (CM-11-003)."""
-        return self._required("case_id", stub_case_id(self.inner_target))
+        """The case the nested Invite's ``object`` names (CM-11-003)."""
+        return self._required("case_id", self.inner_object_id)
 
     @property
     def invite_id(self) -> str:
@@ -312,13 +328,14 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def invitee_id(self) -> str:
-        """The invitee the embedded Invite names.  The participant is the
-        reply's sender (CM-11-047); this only has to be present."""
-        return self._required("invitee_id", self.inner_object_id)
+        """The invitee the embedded Invite names in its ``target``.  The
+        participant is the reply's sender (CM-11-047); this only has to be
+        present."""
+        return self._required("invitee_id", self.inner_target_id)
 
     @property
     def invitee(self) -> CoreObject | None:
-        return cast("CoreObject | None", self.inner_object)
+        return cast("CoreObject | None", self.inner_target)
 
 
 class RejectInviteActorToCaseReceivedEvent(VultronEvent):
@@ -340,16 +357,17 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str:
-        """The case the nested Invite's stub names (CM-11-003)."""
-        return self._required("case_id", stub_case_id(self.inner_target))
+        """The case the nested Invite's ``object`` names (CM-11-003)."""
+        return self._required("case_id", self.inner_object_id)
 
 
 class InviteActorToFullCaseReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER invited a joined participant to judge the case.
 
-    ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
-    (CM-11-010, VAM-04-011).  The invitee already holds the case from the
-    Announce, so the Invite names it by ID; ``ledger_position`` is the
+    ``Invite(whole VulnerabilityCase)[target=Actor]`` — the full-case Invite
+    (CM-11-010, VAM-04-011, ADR-0205).  The invitee already holds the case
+    from the Announce and reads it from its own replica, so only the case's
+    id is read from the Invite's ``object``; ``ledger_position`` is the
     CASE_MANAGER's ledger tail when it issued the Invite, the floor the
     invitee's reply must reach (SYNC-18-001).
     """
@@ -362,18 +380,18 @@ class InviteActorToFullCaseReceivedEvent(LedgerPositionedEvent):
 
     @property
     def case_id(self) -> str:
-        return self._required("case_id", self.target_id)
+        return self._required("case_id", self.object_id)
 
     @property
     def invitee_id(self) -> str:
-        return self._required("invitee_id", self.object_id)
+        return self._required("invitee_id", self.target_id)
 
 
 class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
     """Shared shape of the three replies to the full-case Invite (CM-11-011).
 
     The reply's ``object`` is the Invite, so the case and the invited actor
-    are the Invite's ``target`` and ``object``.  ``ledger_position`` is the
+    are the Invite's ``object`` and ``target`` (ADR-0205).  ``ledger_position`` is the
     replier's own ledger position when it decided (CM-11-034, SYNC-18-001).
     """
 
@@ -386,11 +404,11 @@ class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
 
     @property
     def case_id(self) -> str:
-        return self._required("case_id", self.inner_target_id)
+        return self._required("case_id", self.inner_object_id)
 
     @property
     def invitee_id(self) -> str | None:
-        return self.inner_object_id
+        return self.inner_target_id
 
 
 class AcceptInviteActorToFullCaseReceivedEvent(_FullCaseInviteReplyEvent):

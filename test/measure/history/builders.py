@@ -260,8 +260,17 @@ class Ledger:
             "id": f"urn:uuid:invite-{invitee}",
             "type": "Invite",
             "actor": CM,
-            "object": {"id": invitee, "type": "Organization"},
-            "target": {"id": CASE, "activeEmbargo": embargo()},
+            "object": {
+                "id": CASE,
+                "type": "VulnerabilityCase",
+                "preview": {
+                    "id": f"urn:uuid:preview-{invitee}",
+                    "type": "CasePreview",
+                    "summary": "A case to join",
+                    "activeEmbargo": embargo(),
+                },
+            },
+            "target": {"id": invitee, "type": "Organization"},
         }
 
     def invite(self, actor: str, embargo_id: str, rsvp_deadline: str) -> int:
@@ -353,6 +362,31 @@ def seat_unnotified_vendor(ledger: Ledger, actor: str) -> int:
             actor, [status(f"{actor}-s", actor, "START")], roles=("VENDOR",)
         )
     )
+
+
+def two_vendors_ledger() -> Ledger:
+    """No embargo; a vendor with its fix ready and the report accepted, and
+    a second vendor aware at RM Received with no fix.
+
+    Its open moves fall in every advice band: the fix is harm-free, the
+    publication a trade-off a harm-free move dominates, and the second
+    vendor's validation unhelpful (``test/measure/advice/test_case.py``).
+    """
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                OWNER,
+                [status("owner-r", OWNER, "RECEIVED")],
+                roles=("CASE_OWNER",),
+            )
+        ],
+        with_embargo=False,
+    )
+    seat_vendor(ledger, VENDOR, "VF")
+    ledger.add_status(VENDOR, status("vendor-a", VENDOR, "ACCEPTED", vf="VF"))
+    seat_vendor(ledger, VENDOR_2, "Vf")
+    return ledger
 
 
 def publish(ledger: Ledger, pxa: str) -> int:

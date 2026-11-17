@@ -102,7 +102,7 @@ See [How to Seat a Participant on an Existing Case](../howto/activitypub/activit
 This demo shows two invitation outcomes.
 The Case Owner invites a coordinator, who **accepts** and is added to the case.
 Then the Case Owner invites a second coordinator, who **rejects** and is not added.
-Notice the log lines showing the Invite Actor to Case, `Invite(Actor)`, and the answering `Accept(Invite)` or `Reject(Invite)`.
+Notice the log lines showing the Invite Actor to Case, `Invite(VulnerabilityCase preview)`, and the answering `Accept(Invite)` or `Reject(Invite)`.
 Both answers are case events, so the case ledger records the `Reject` just as it records the `Accept`.
 
 ```mermaid
@@ -114,11 +114,11 @@ sequenceDiagram
     participant C1 as Coordinator 1
     participant C2 as Coordinator 2
 
-    O->>+C1: Invite Actor to Case<br/>Invite(Actor)
+    O->>+C1: Invite Actor to Case<br/>Invite(VulnerabilityCase preview)
     C1-->>-O: Accept Invite to Case<br/>Accept(Invite)
     Note over O: Coordinator 1 added as participant
 
-    O->>+C2: Invite Actor to Case<br/>Invite(Actor)
+    O->>+C2: Invite Actor to Case<br/>Invite(VulnerabilityCase preview)
     C2-->>-O: Reject Invite to Case<br/>Reject(Invite)
     Note over O: Reject ledgered<br/>Coordinator 2 not added
 ```
@@ -153,7 +153,7 @@ sequenceDiagram
     CA->>V: Offer Case Participant Role<br/>Offer(CaseParticipant)[target=VulnerabilityCase]
     alt Vendor accepts suggestion
         V->>CA: Accept(Offer(CaseParticipant))
-        CA->>C: Invite Actor to Case<br/>Invite(Actor)
+        CA->>C: Invite Actor to Case<br/>Invite(VulnerabilityCase preview)
         Note over CA,C: Coordinator invited to case
     else Vendor rejects suggestion
         V->>CA: Reject(Offer(CaseParticipant))
@@ -184,7 +184,7 @@ sequenceDiagram
     participant O as Case Owner
     participant P as Participant
 
-    O->>P: Invite Actor to Case<br/>Invite(Actor)
+    O->>P: Invite Actor to Case<br/>Invite(VulnerabilityCase preview)
     alt Participant accepts
         P-->>O: Accept Invite to Case<br/>Accept(Invite)
         Note over O: Accept ledgered<br/>participant seated

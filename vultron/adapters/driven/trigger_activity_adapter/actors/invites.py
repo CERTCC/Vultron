@@ -43,6 +43,7 @@ from vultron.wire.as2.factories.case import (
 
 from .._base import (
     _addressing,
+    _case_for_wire,
     _create_and_seal,
     _seal,
     _stamped,
@@ -70,24 +71,28 @@ class _InvitesMixin:
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: VulnerabilityCase | None = None,
+        case: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
         in_reply_to: str | None = None,
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
+        """Create and persist the stub ``Invite(<case>)[target=<invitee>]``.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
         ``cc`` (CM-17-015, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
-        ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
-        stub by the factory), a pre-built ``as_VulnerabilityCaseStub``, or a bare
-        URI string.  When ``None``, the case is read from the DataLayer by
-        ``case_id`` and passed to the factory with any active embargo entity for
-        CM-17-002 enrichment.
+        ``case`` is the case the factory builds the Invite's preview from,
+        with any active embargo entity for CM-17-002 enrichment; when
+        ``None`` it is read from the DataLayer by ``case_id``.
+
+        Raises:
+            VultronValidationError: When no case is given and the DataLayer
+                holds none under ``case_id``: the preview is built from the
+                case, so no stub Invite can be built without it (CM-17-010,
+                ADR-0205).
         """
         extra = _addressing(actor, to, id_)
         if attributed_to is not None:
@@ -98,23 +103,18 @@ class _InvitesMixin:
             extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
-        resolved: Any = target
-        if resolved is None:
-            resolved = self._dl.read(case_id)
-            if not isinstance(resolved, VulnerabilityCase):
-                resolved = case_id
-
-        embargo_obj = (
-            _active_embargo_of(self._dl, resolved)
-            if isinstance(resolved, VulnerabilityCase)
-            else None
-        )
+        resolved = case if case is not None else self._dl.read(case_id)
+        if not isinstance(resolved, VulnerabilityCase):
+            raise VultronValidationError(
+                f"invite_actor_to_case: no case '{case_id}' to build the"
+                " stub Invite's preview from (CM-17-010, ADR-0205)"
+            )
 
         activity = rm_invite_to_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
-            target=resolved,
+            case=resolved,
             roles=roles,
-            embargo_obj=embargo_obj,
+            embargo_obj=_active_embargo_of(self._dl, resolved),
             **extra,
             at=at,
         )
@@ -201,13 +201,22 @@ class _InvitesMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist the full-case
-        ``Invite(Actor)[target=VulnerabilityCase]``.
+        """Create and persist the full-case ``Invite(<case>)[target=<invitee>]``.
+
+        The Invite carries the case whole, read from the DataLayer by
+        ``case_id`` with its references carried inline, as every activity
+        that puts a case on the wire does (``_case_for_wire``, AKM-02-004,
+        ADR-0205).
+
+        Raises:
+            VultronNotFoundError: When the DataLayer holds no case under
+                ``case_id``.
         """
         extra = _addressing(actor, to, id_)
+        case = _case_for_wire(self._dl, case_id)
         activity = rm_invite_to_full_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
-            case=case_id,
+            case=case,
             ledger_tail=LedgerPosition(
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
             ),

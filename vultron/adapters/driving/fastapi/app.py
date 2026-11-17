@@ -18,7 +18,7 @@ Vultron API v2 Application
 
 import logging
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
@@ -212,8 +212,11 @@ def _make_lifespan(*, configure_globals: bool = True):
             ledger_stream_shutdown
         )
 
+        # Startup's process-wide installs, undone at shutdown so they do not
+        # outlive this lifespan (#5874).
+        undo_global_installs: list[Callable[[], None]] = []
         if configure_globals:
-            init_dispatcher()
+            undo_global_installs.append(init_dispatcher())
         else:
             application.state.dispatcher = make_dispatcher()
 
@@ -224,7 +227,7 @@ def _make_lifespan(*, configure_globals: bool = True):
         if configure_globals:
             emitter = HttpDeliveryAdapter()
             application.state.emitter = emitter
-            configure_default_emitter(emitter)
+            undo_global_installs.append(configure_default_emitter(emitter))
             monitor = OutboxMonitor()
             monitor.start()
             # Exposed so a host (or a test) can see that the safety-net
@@ -291,6 +294,8 @@ def _make_lifespan(*, configure_globals: bool = True):
             # undo it so a TestClient lifetime does not reconfigure logging
             # for everything that runs after it.
             restore_third_party_log_levels()
+        for undo in reversed(undo_global_installs):
+            undo()
 
         if not configure_globals:
             _teardown_per_app_state(application)

@@ -13,13 +13,15 @@ description: >
   annotations on Python 3.14 (`signature_of`, `own_annotations`), an
   in-process pass that hides what each node holds on its own,
   measuring effective markers rather than declarations,
-  `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
+  `filterwarnings` precedence and the thread-unsafe `catch_warnings` that
+  drops a library's own `ignore`, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, in-memory SQLite stores sharing state per actor_id,
   why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
-  why a lifespan task that outlives its test segfaults a later worker (and
-  the guard that fails one draining in the wrong namespace),
+  why a lifespan task that outlives its test segfaults a later worker or
+  leaks a connection (and the guards that fail one draining in the wrong
+  namespace or reusing a disposed store),
   py_trees test patterns, running each use case and tree as one act through
   the test act runner, CoreObject subclass isolation, a signal test's ready
   marker,
@@ -283,6 +285,16 @@ A test asserting the list position cannot catch this, because `pytest.warns` and
 `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated` does
 (SR-05-016).
 
+### A Library's `catch_warnings` Is Not Thread-Safe Under `"error"`
+
+Without context-aware warnings (`sys.flags.context_aware_warnings == 0`),
+`warnings.catch_warnings()` saves and restores the process-global filter list.
+A library that hides a warning that way on a `TestClient` portal thread can
+lose its `ignore` to another portal thread's restore, and `"error"` then fails
+a request at random. Ignore that one message in the ini list, after `"error"`,
+and test it by making the library's suppression a no-op rather than by racing
+threads: `test/demo/test_actor_dl_override_warning.py` does both (#6039).
+
 ### `caplog` Captures Fixture-Setup-Phase Records
 
 `caplog.set_level()` in a fixture also captures records other fixtures emit
@@ -473,6 +485,15 @@ fails its own test with `HoldTimerLeakedError`. A lifespan task that resolves
 hosted actors in the configured namespace opens a `testserver` actor's store
 under a second id; `no_store_shared_across_authorities()`
 (`test/support/store_sharing.py`) fails every `client` test that does (#6085).
+
+The same work, left running, also leaks connections. A `SqliteDataLayer` held
+across a disposal and used again opens a fresh connection on the disposed
+engine, which nothing closes; its `ResourceWarning` later fails whichever test
+the garbage collector lands in (#6001). Per-test disposal closes every such
+connection on an in-memory store and fails the test it opened in with
+`OrphanStoreConnectionError`, naming the opening stack
+(`test/support/orphan_store_connections.py`). Fix the holder, not the guard:
+take a fresh store after a reset, or stop the work before the test ends.
 
 ### In-Memory Stores Share by Actor
 

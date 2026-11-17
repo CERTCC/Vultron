@@ -1455,7 +1455,8 @@ groups:
       with an inert one. A participant is active when three conditions hold. First,
       the case initialization sequence seated it (CM-14-001: the Case Owner, the
       CASE_MANAGER and the reporter), or it accepted the stub Invite
-      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`). Second, it has not been
+      (`Accept(Invite(VulnerabilityCase preview)[target=Actor])`). Second, it has not
+      been
       removed (CM-31-001). Third, while an embargo is active, its consent row for that
       embargo is `AGREED` (CM-18-001). Every other participant is inert. Case content
       includes `CaseLedgerEntry` announcements, `Announce(VulnerabilityCase)`, status
@@ -1638,7 +1639,7 @@ groups:
     kind: protocol
     statement: >-
       When a participant accepts the stub Invite
-      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`), the CASE_MANAGER MUST
+      (`Accept(Invite(VulnerabilityCase preview)[target=Actor])`), the CASE_MANAGER MUST
       leave the participant's RM state at `RM.RECEIVED`, set its VF state to
       `V` when it holds the VENDOR role, and, when an embargo is active, mark
       its consent row for that embargo `AGREED`, making it a signatory. A
@@ -1653,7 +1654,8 @@ groups:
       active embargo is to take part under it. Thus no participant becomes active
       without a recorded answer to the embargo, and the delivery gate of MV-10-005
       relies on this.
-    verification: Tests confirm that `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
+    verification: Tests confirm that `Accept(Invite(VulnerabilityCase
+      preview)[target=Actor])`
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
       marks its consent row for the active embargo `AGREED` when an embargo is active,
       and that it leaves a `DECLINED` row for that embargo unchanged.
@@ -1741,20 +1743,18 @@ groups:
     kind: protocol
     statement: >-
       A receiver processing a reply to a stub Invite (`Accept` or `Reject` of
-      `Invite(Actor)[target=VulnerabilityCaseStub]`) MUST identify the case from the
-      case the nested Invite's stub
-      names, never by deriving it from the stub's ID; the top-level `target` of the reply is
-      not populated.
+      `Invite(VulnerabilityCase preview)[target=Actor]`) MUST identify the case from
+      the `id` of the case reference that is the nested Invite's `object`; the
+      top-level `target` of the reply is not populated.
     rationale: >-
-      The reply wraps the Invite as its `object_`, so the stub is on
-      `object_.target`, which `extract_event` maps to `inner_target`. The stub
-      has its own ID (`<case-id>/stub`) and names the case explicitly
-      (CM-11-013, CM-11-037); parsing one ID out of the other would couple every
-      receiver
-      to the ID scheme.
+      The reply wraps the Invite as its `object_`, so the case reference is on
+      `object_.object`, which `extract_event` maps to `inner_object`. The reference
+      names the case by the case's own ID (CM-11-013, ADR-0205), and its preview
+      carries no case ID of its own, so no receiver parses one ID out of another.
     verification: A unit test confirms the reply use case resolves `case_id` from
-      the case named by the stub on the nested Invite.
+      the case reference that is the nested Invite's `object`.
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2026_016
@@ -1763,7 +1763,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER sends a stub Invite
-      (`Invite(Actor)[target=VulnerabilityCaseStub]`), it MUST create the invitee's
+      (`Invite(VulnerabilityCase preview)[target=Actor]`), it MUST create the invitee's
       `CaseParticipant` in the same step. The participant is inert (CM-10-004).
     rationale: >-
       The CASE_MANAGER needs to track every invitee from the moment it is
@@ -1889,7 +1889,7 @@ groups:
     kind: protocol
     statement: >-
       A stub Invite has exactly two valid replies, `Accept` (CM-11-001) and
-      `Reject`. On `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, the
+      `Reject`. On `Reject(Invite(VulnerabilityCase preview)[target=Actor])`, the
       CASE_MANAGER MUST close the participant and keep its record, which stays
       inert. Closing it moves its RM state to `RM.CLOSED`, sets VF `V` for a
       VENDOR, and records consent `DECLINED` when an embargo is active.
@@ -1941,7 +1941,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse
-      `TentativeReject(Invite(Actor)[target=VulnerabilityCaseStub])`.
+      `TentativeReject(Invite(VulnerabilityCase preview)[target=Actor])`.
     rationale: >-
       Accepting the stub is not a judgement of the case, so there is nothing for a
       tentative reject to say. Only the full-case Invite asks for a judgement
@@ -1962,7 +1962,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER processes
-      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` and the participant is
+      `Accept(Invite(VulnerabilityCase preview)[target=Actor])` and the participant is
       active (CM-10-004), it
       MUST send the participant `Announce(VulnerabilityCase)` and begin
       replaying the case ledger to it without waiting for any further signal
@@ -2022,11 +2022,14 @@ groups:
     kind: protocol
     statement: >-
       After CM-11-008, the CASE_MANAGER MUST send the participant the full-case
-      Invite, `Invite(Actor)[target=VulnerabilityCase]`, queued after the last replayed
+      Invite, `Invite(whole VulnerabilityCase)[target=Actor]`, queued after the last
+      replayed
       ledger entry.
     rationale: >-
-      The participant already holds the case from the Announce, so the Invite
-      only asks the question and carries no copy of the case. Delivery to each
+      AS2 puts what one is invited to in `object`, so the Invite carries the whole
+      case it asks the participant to judge (ADR-0205); the participant is active, so
+      it is entitled to it (CM-10-004), and reads the case from its own replica.
+      Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
       means it usually arrives once the participant can answer it. The protocol
       does not rely on that order (ADR-0161): CM-11-033 covers an Invite that
@@ -2245,39 +2248,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A case stub MUST carry its own wire `type`, `VulnerabilityCaseStub`, and
-      its own ID, the case's ID with `/stub` appended.
+      The stub Invite's `object` MUST be a typed reference to the case, naming the
+      case by its own `id`, whose `preview` is the case's preview, of its own wire
+      `type` `CasePreview`.
     rationale: >-
-      A receiver classifies an activity by its shape. Sharing the case's type
-      and ID made the stub Invite and the full-case Invite indistinguishable
-      (ADR-0114).
+      A receiver classifies an activity by its shape. ADR-0205 retires the stub's own
+      type, its own id and its `caseId`: the case is named by the reference's own `id`,
+      the preview has a type of its own, and nothing stands in for the case. The
+      reference carrying a preview and the whole case of the full-case
+      Invite differ in form, so a receiver tells the two Invites apart as received
+      (SE-01-009).
     verification: >-
-      `test_stub_invite_target_has_its_own_type_and_id` in
-      `test/wire/as2/test_case_joining_wire.py` and
-      `test_the_stub_id_is_derived_from_the_case_it_names` in
-      `test/wire/as2/test_parser_case_stub.py` confirm a stub serializes with
-      `type` `VulnerabilityCaseStub` and ID `<case-id>/stub`.
+      `test_stub_invite_names_the_case_in_object_and_the_invitee_in_target` in
+      `test/wire/as2/test_case_joining_wire.py` confirms the stub Invite's `object` is
+      a `VulnerabilityCase` reference naming the case by its `id` and carrying a
+      `CasePreview` preview.
     adr:
-    - ADR-0114
-    stories:
-    - story_2022_052
-  - id: CM-11-037
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A case stub MUST name the case it stands for in a field of its own.
-    rationale: >-
-      A receiver must find the case without parsing the stub's ID (CM-11-003).
-      Parsing one ID out of the other would couple every receiver to the ID scheme.
-    verification: >-
-      `test_the_stub_serialises_its_type_id_and_case` and
-      `test_a_stub_without_its_case_is_refused` in
-      `test/wire/as2/test_parser_case_stub.py` confirm the stub carries its case in
-      `caseId` and is refused without it.
-    relationships:
-    - rel_type: extends
-      spec_id: CM-11-013
-    adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_052
@@ -2608,7 +2595,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER receives
-      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
+      `Reject(Invite(VulnerabilityCase preview)[target=Actor])`
       for an invitee with no participant record, it MUST refuse it with a
       reported reason, not as a silent no-op.
     rationale: >-
@@ -2635,7 +2622,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER receives
-      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` and holds no participant
+      `Accept(Invite(VulnerabilityCase preview)[target=Actor])` and holds no participant
       record for the invitee,
       it MUST refuse the Accept with a reported reason.
     rationale: >-
@@ -3594,7 +3581,7 @@ groups:
       recommender an `Accept` of its `Offer(Actor)[target=VulnerabilityCase]`, with
       `in_reply_to` set
       to that Offer's ID. (4) It sends the suggested actor the stub Invite
-      (`Invite(Actor)[target=VulnerabilityCaseStub]`, CM-11-013) per CM-17.
+      (`Invite(VulnerabilityCase preview)[target=Actor]`, CM-11-013) per CM-17.
     rationale: >-
       The ledger records the Case Owner's decision before any step acts on it
       (CLP-10-006). Thus every replica sees the cause before its effects. The
@@ -3895,21 +3882,23 @@ groups:
     kind: protocol
     statement: >-
       The stub Invite sent by the CASE_MANAGER to a new actor MUST be
-      `Invite(Actor)[target=VulnerabilityCaseStub]`, with the stub shaped as
+      `Invite(VulnerabilityCase preview)[target=Actor]`, with the stub shaped as
       CM-11-013 requires. This requirement is extended by CM-17-002 and CM-17-003.
     rationale: >-
-      An AS2 `Invite` names the invited party as its `object`, and the thing it is
-      invited to as its `target`. When the target is a stub, no case content goes to an
-      invitee that is not yet entitled to it (CM-10-004, CM-17-022). The stub's own type
-      lets a receiver tell this Invite from the full-case Invite (CM-11-013).
+      An AS2 `Invite` names what one is invited to as its `object`, and the invited
+      party as its `target` (ADR-0205). When the object carries only the case's
+      preview, no case content goes to an invitee that is not yet entitled to it
+      (CM-10-004, CM-17-022). The object's form lets a receiver tell this Invite from
+      the full-case Invite (CM-11-013).
     verification: >-
       Integration tests in `test/demo/` confirm that the stub Invite emitted by the
-      CASE_MANAGER names the invitee as its `object` and carries a
-      `VulnerabilityCaseStub` as its `target`.
+      CASE_MANAGER names the invitee as its `target` and carries the case's previewed
+      reference as its `object`.
     relationships:
     - rel_type: uses_definition
       spec_id: CM-11-013
     adr:
+    - ADR-0205
     - ADR-0114
     stories:
     - story_2022_053
@@ -4013,7 +4002,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER receives
-      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` from
+      `Accept(Invite(VulnerabilityCase preview)[target=Actor])` from
       an invitee, it MUST, in this order: (1) commit a ledger entry for the Accept and
       fan it out to every active participant (CM-10-004); (2) record the Accept's effect
       on the participant (CM-11-001); (3) when the participant is now active, send it
@@ -4029,7 +4018,8 @@ groups:
       (CM-11-010).
     verification: >-
       Integration tests in `test/demo/` confirm that
-      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` triggers the CASE_MANAGER's
+      `Accept(Invite(VulnerabilityCase preview)[target=Actor])` triggers the
+      CASE_MANAGER's
       sequence in order: ledger
       commit and fan-out, the CM-11-001 record update, full case snapshot and ledger
       replay, and the full-case Invite.
@@ -4292,21 +4282,26 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A sender's case stub MUST carry exactly `id`, `type`, `caseId` (CM-11-013),
-      a non-empty `summary` (MV-10-001) and, with an embargo in force, the
-      CM-17-002 embargo terms. The JSON-LD `@context` is not content.
+      A sender's case preview (`CasePreview`) MUST carry exactly `id`, `type`, a
+      non-empty `summary` (MV-10-001) and, with an embargo in force, the CM-17-002
+      embargo terms. The JSON-LD `@context` is not content.
     rationale: >-
       An invitee is not yet entitled to case content (CM-10-004, CM-17-005). For
       informed consent, the invitee needs the case's identity, a summary that a person
-      can read of what it is asked to join, and the embargo terms (CM-17-002).
+      can read of what it is asked to join, and the embargo terms (CM-17-002). The
+      case's identity is the `id` of the case reference the stub is the preview of
+      (CM-11-013, ADR-0205), so the stub names no case of its own.
     note: >-
       Open question: whether a stub relayed by a third party should name the
       coordinator and Case Owner is tracked in #4184.
     verification: >-
       `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
-      asserts a stub projected from a full case serialises with only `id`, `type`,
-      `caseId` and a non-empty `summary`; #4165 removed the strict-xfail marker when the
-      factory was implemented. `test_enriched_stub_carries_only_the_embargo_terms` in
+      asserts a stub projected from a full case serialises with only `id`, `type`
+      and a non-empty `summary`; #4165 removed the strict-xfail marker when the
+      factory was implemented.
+      `test_the_preview_carries_exactly_its_id_type_and_summary`
+      in `test/wire/as2/test_parser_case_stub.py` asserts the stub carries no case ID.
+      `test_enriched_stub_carries_only_the_embargo_terms` in
       the same file asserts that a stub sent with an embargo in force adds only
       `activeEmbargo` and `caseStatus`.
     relationships:
@@ -4320,6 +4315,7 @@ groups:
     - story_2022_023
     - story_2026_097
     adr:
+    - ADR-0205
     - ADR-0114
   - id: CM-17-020
     priority: MAY
@@ -4435,7 +4431,7 @@ groups:
     verification: >-
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
-      `test_stub_embargo_refuses_when_no_active_embargo_is_named` in
+      `test_preview_embargo_refuses_when_no_active_embargo_is_named` in
       `test/wire/as2/factories/test_case_factories.py` confirm the Invite is refused
       when the active embargo cannot be embedded;
       `test_invite_is_refused_when_the_embargo_is_not_in_the_store` in
@@ -4448,7 +4444,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When the CASE_MANAGER receives `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
+      When the CASE_MANAGER receives `Accept(Invite(VulnerabilityCase
+      preview)[target=Actor])`
       from an invitee whose participant record is already joined, or removed,
       it MUST treat the Accept as a duplicate: it commits no ledger entry,
       changes no participant record or consent row, and sends no case snapshot,
@@ -4640,7 +4637,8 @@ groups:
       choice to record a lapsed invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
-      (`Invite(Actor)[target=VulnerabilityCaseStub]`) carries embargo terms but changes
+      (`Invite(VulnerabilityCase preview)[target=Actor]`) carries embargo terms but
+      changes
       no participant state, consent included (CM-11-040): an unanswered stub is
       not a refusal to join, and the CASE_MANAGER may re-invite on the same
       record (CM-11-015, ADR-0114).

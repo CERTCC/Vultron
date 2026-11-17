@@ -34,10 +34,12 @@ from test.support.future_dates import days_from_now
 from test.support.objects import make
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -45,7 +47,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -65,7 +66,7 @@ def _make_activity(cls, object_, **fields):
     """Attempt to construct *cls* with the given object_, return the instance.
 
     *fields* carries any other field the class requires (for example the
-    case Invite's stub ``target``), so a refusal is about ``object_`` alone.
+    case Invite's invitee ``target``), so a refusal is about ``object_`` alone.
     """
     return make(cls, actor=ACTOR_ID, object_=object_, **fields)
 
@@ -306,16 +307,43 @@ class TestRmInviteToCaseActivity:
     )
 
     cls = _RmInviteToCaseActivity
-    stub = {"target": as_VulnerabilityCaseStub(case_id="urn:uuid:case-1")}
+    invitee = {"target": make(as_Actor)}
+
+    @staticmethod
+    def _previewed_case() -> as_TypedReference:
+        return as_TypedReference(
+            type_="VulnerabilityCase",
+            id_="urn:uuid:case-1",
+            preview=as_CasePreview(summary="A case to join"),
+        )
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls, **self.stub)
+        _assert_rejects_string(self.cls, **self.invitee)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls, **self.stub)
+        _assert_rejects_link(self.cls, **self.invitee)
 
-    def test_accepts_inline_actor(self):
-        _assert_accepts_inline(self.cls, make(as_Actor), **self.stub)
+    @pytest.mark.spec("VAM-04-004")
+    def test_accepts_a_previewed_case_reference(self):
+        _assert_accepts_inline(
+            self.cls, self._previewed_case(), **self.invitee
+        )
+
+    @pytest.mark.spec("VAM-04-004")
+    @pytest.mark.parametrize(
+        "case_object",
+        [
+            as_TypedReference(
+                type_="VulnerabilityCase", id_="urn:uuid:case-1"
+            ),
+            make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID),
+        ],
+        ids=["case-reference", "whole-case"],
+    )
+    def test_requires_the_previewed_case_reference(self, case_object):
+        """The preview is what makes the Invite a stub Invite (ADR-0205)."""
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, case_object, **self.invitee)
 
     @pytest.mark.spec("SE-08-002")
     @pytest.mark.parametrize(
@@ -323,11 +351,11 @@ class TestRmInviteToCaseActivity:
         [None, "urn:uuid:case-1"],
         ids=["no-target", "uri-target"],
     )
-    def test_requires_a_stub_target(self, target):
-        """The stub is this Invite's discriminator, so the class requires it."""
+    def test_requires_an_invitee_target(self, target):
+        """The invitee is the Invite's ``target``, an inline actor."""
         fields = {} if target is None else {"target": target}
         with pytest.raises(ValidationError):
-            _make_activity(self.cls, make(as_Actor), **fields)
+            _make_activity(self.cls, self._previewed_case(), **fields)
 
 
 # ---------------------------------------------------------------------------

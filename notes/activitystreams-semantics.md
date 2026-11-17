@@ -195,13 +195,13 @@ separate activity or `Undo(Ignore)`. `Undo` means retracting a prior action's
 effects, whereas `DEFERRED → ACCEPTED` is a forward RM transition. See
 `docs/howto/activitypub/activities/manage_case.md`.
 
-## `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` Carries the Stub in `inner_target`
+## A Reply to a Case Invite Reads the Case From `inner_object`
 
 `extract_event` does not populate `request.target` for the Reject (or Accept) of
-an Invite: the stub is the nested Invite's `target`, exposed as
-`request.inner_target_id`. Resolve `case_id` from the case the stub names
-(a typed `case_id` property on the event class), never by parsing the stub's ID
-(CM-11-003).
+an Invite: the nested Invite's `object` names the case and its `target` the
+invitee, exposed as `request.inner_object_id` and `request.inner_target_id`
+(ADR-0205). Read `case_id` through the event class's typed `case_id` property,
+never from the stub the stub Invite's reference carries as its preview (CM-11-003).
 
 ## `SemanticEntry` Phrases Use Only `{actor}`, `{object}`, `{target}`
 

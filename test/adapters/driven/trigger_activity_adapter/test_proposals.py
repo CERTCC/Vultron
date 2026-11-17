@@ -231,7 +231,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         dl.save(_vendor_profile(timedelta(days=30)))
         other = rm_invite_to_case_activity(
             _VENDOR,
-            target=case_stub("https://example.org/cases/other"),
+            case=case_stub("https://example.org/cases/other"),
             actor=self._FINDER,
             at=authored_at(),
         )

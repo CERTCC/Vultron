@@ -29,6 +29,32 @@ def test_install_replaces_the_held_value():
     assert slot.value == "second"
 
 
+def test_undo_puts_back_the_value_held_before_the_install():
+    """The undo restores the previous value, not a cleared slot (#5874)."""
+    slot: StartupSlot[str] = StartupSlot()
+    slot.install("first")
+    undo = slot.install("second")
+    undo()
+    assert slot.value == "first"
+
+
+def test_undo_of_a_first_install_leaves_the_slot_empty():
+    slot: StartupSlot[str] = StartupSlot()
+    undo = slot.install("only")
+    undo()
+    assert slot.value is None
+
+
+def test_nested_undos_unwind_in_reverse_order():
+    slot: StartupSlot[str] = StartupSlot()
+    undo_outer = slot.install("outer")
+    undo_inner = slot.install("inner")
+    undo_inner()
+    assert slot.value == "outer"
+    undo_outer()
+    assert slot.value is None
+
+
 def test_monkeypatch_restores_the_held_value(monkeypatch):
     """Tests swap a slot's value with ``monkeypatch``; undo restores it."""
     slot: StartupSlot[str] = StartupSlot()

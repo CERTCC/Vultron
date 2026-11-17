@@ -37,6 +37,7 @@ from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.typed_reference import as_TypedReference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -763,40 +764,45 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
 ) -> None:
     """The informed-consent stub keeps its ``caseStatus`` (CM-17-013).
 
-    An embargoed Invite's target stub carries ``activeEmbargo`` and
-    ``caseStatus``.  Judged against the full case, which has no ``caseStatus``,
+    An embargoed Invite's stub, the preview its case reference carries
+    (ADR-0205), carries ``activeEmbargo`` and ``caseStatus``.  Judged
+    against the full case, which has no ``caseStatus``,
     the key would be set aside and the invitee would lose the embargo state it
     consents on; the stub is selected on its own key set (#2624) even when a
     foreign key rides along, which the partition sets aside.
     """
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.states.em import EM
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseStub,
-    )
+    from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
     case_id = "https://example.org/cases/1"
-    stub = as_VulnerabilityCaseStub(
-        case_id=case_id,
+    stub = as_CasePreview(
         summary="Security issue — embargo active, details after acceptance",
         active_embargo="https://example.org/embargoes/1",
         case_status=make(
             CaseStatus, context=case_id, em=EmDimension(state=EM.ACTIVE)
         ),
     )
-    target = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
-    target[FOREIGN_KEY] = 1
-    body = _envelope(type="Invite", object=INVITEE, target=target)
+    preview = stub.model_dump(by_alias=True, mode="json", exclude_none=True)
+    preview[FOREIGN_KEY] = 1
+    reference = {
+        "type": "VulnerabilityCase",
+        "id": case_id,
+        "preview": preview,
+    }
+    body = _envelope(type="Invite", object=reference, target=INVITEE)
     caplog.set_level(logging.INFO)
 
     activity = parse_activity(body)
 
-    parsed = activity.target
-    assert type(parsed) is as_VulnerabilityCaseStub
+    invited = getattr(activity, "object_", None)
+    assert isinstance(invited, as_TypedReference)
+    parsed = invited.preview
+    assert type(parsed) is as_CasePreview
     assert isinstance(parsed.case_status, CaseStatus)
     assert parsed.case_status.em.state == EM.ACTIVE
     records = _info_records_naming(caplog, FOREIGN_KEY)
-    assert len(records) == 1 and "'target'" in records[0].getMessage()
+    assert len(records) == 1 and "'object.preview'" in records[0].getMessage()
     assert not _info_records_naming(caplog, "caseStatus")
 
 
@@ -811,12 +817,17 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
     """
     body = _envelope(
         type="Invite",
-        object=INVITEE,
-        target={
-            "type": "VulnerabilityCaseStub",
-            "caseId": "https://example.org/cases/1",
-            misspelled: {"type": "CaseStatus", "context": "x"},
+        object={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "preview": {
+                "type": "CasePreview",
+                "id": "https://example.org/previews/1",
+                "summary": "A case to join",
+                misspelled: {"type": "CaseStatus", "context": "x"},
+            },
         },
+        target=INVITEE,
     )
     with pytest.raises(VultronParseValidationError) as exc_info:
         parse_activity(body)
@@ -928,14 +939,18 @@ def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     the ``NonEmptyString`` type; an absent value is refused by the inbound
     validator added by #4165.
     """
-    target: dict[str, Any] = {
-        "type": "VulnerabilityCaseStub",
-        "id": "https://example.org/cases/1/stub",
-        "caseId": "https://example.org/cases/1",
+    preview: dict[str, Any] = {
+        "type": "CasePreview",
+        "id": "https://example.org/previews/1",
     }
     if summary is not None:
-        target["summary"] = summary
-    body = _envelope(type="Invite", object=INVITEE, target=target)
+        preview["summary"] = summary
+    reference = {
+        "type": "VulnerabilityCase",
+        "id": "https://example.org/cases/1",
+        "preview": preview,
+    }
+    body = _envelope(type="Invite", object=reference, target=INVITEE)
     with pytest.raises(VultronParseValidationError, match="summary"):
         parse_activity(body)
 
@@ -961,7 +976,7 @@ def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
 @pytest.mark.parametrize(
     ("wire_type", "expected"),
     [
-        ("VulnerabilityCaseStub", "as_VulnerabilityCaseStub"),
+        ("CasePreview", "CasePreview"),
         ("VulnerabilityCase", "VulnerabilityCase"),
     ],
 )
@@ -976,7 +991,7 @@ def test_the_type_alone_selects_the_stub_or_the_case(
     """The ``type`` decides the class, whatever keys ride along (CM-11-013).
 
     No key set turns a ``VulnerabilityCase`` into a stub, and no key set turns
-    a ``VulnerabilityCaseStub`` into a case, in either input spelling
+    a ``CasePreview`` into a case, in either input spelling
     (CS-14-001, CS-14-002).
     """
     from vultron.wire.as2.unknown_keys import resolve_inline_class

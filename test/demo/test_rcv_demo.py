@@ -148,10 +148,25 @@ class TestFindCaseInviteForActor:
     CASE_ID = "urn:uuid:case-1"
     INVITEE_ID = "http://vendor:7999/api/v2/actors/vendor"
 
-    def _invite(self, target, obj):
-        return {"type": "Invite", "target": target, "object": obj}
+    def _invite(self, case, invitee):
+        """``Invite(<case preview>)[target=<invitee>]`` (ADR-0205); *case*
+        is the case's id, or a mapping carrying it."""
+        case_id = case["id"] if isinstance(case, dict) else case
+        return {
+            "type": "Invite",
+            "object": {
+                "id": case_id,
+                "type": "VulnerabilityCase",
+                "preview": {
+                    "id": "urn:uuid:preview-1",
+                    "type": "CasePreview",
+                    "summary": "A case to join",
+                },
+            },
+            "target": invitee,
+        }
 
-    def test_matches_invite_with_dict_target_and_object(self):
+    def test_matches_invite_with_an_inline_invitee(self):
         client = MagicMock()
         client.get.return_value = _archived(
             {
@@ -168,7 +183,7 @@ class TestFindCaseInviteForActor:
         )
         assert result == "urn:uuid:invite-1"
 
-    def test_matches_invite_with_bare_string_target_and_object(self):
+    def test_matches_invite_naming_its_invitee_by_uri(self):
         client = MagicMock()
         client.get.return_value = _archived(
             {"urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)}

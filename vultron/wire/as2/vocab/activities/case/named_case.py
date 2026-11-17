@@ -12,15 +12,18 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The typed case reference a participant's act on a case names."""
+"""The typed case references a participant's act on a case, and a stub
+Invite, name the case by."""
 
 from typing import Annotated
 
 from pydantic import AfterValidator
 
+from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.typed_reference import (
     as_TypedReference,
     is_case_reference,
+    is_previewed_reference,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -46,3 +49,25 @@ NamedCase = (
     Annotated[as_TypedReference, AfterValidator(_names_a_case)]
     | as_VulnerabilityCase
 )
+
+
+def _previews_a_case(reference: as_TypedReference) -> as_TypedReference:
+    """Refuse a typed reference that is not a case reference carrying the
+    case's preview."""
+    if not (
+        is_previewed_reference(reference)
+        and reference.type_ == VO_type.VULNERABILITY_CASE
+    ):
+        raise ValueError(
+            f"a typed reference of type {reference.type_!r} carrying no"
+            " preview is not a previewed case reference; a stub Invite's"
+            " object is the case's reference carrying its preview (ADR-0205)"
+        )
+    return reference
+
+
+#: The case a stub Invite invites its invitee to: the typed reference that
+#: names the case by its ``id`` and carries the case's preview, the case stub
+#: (CM-17-010, ADR-0205).  The invitee may not see the case yet, so the
+#: Invite never carries it whole.
+PreviewedCase = Annotated[as_TypedReference, AfterValidator(_previews_a_case)]

@@ -137,7 +137,7 @@ def _ingress_only(activity: Any) -> SqliteDataLayer:
 def _full_case_invite():
     return rm_invite_to_full_case_activity(
         INVITEE,
-        CASE_ID,
+        make(as_VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER),
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=MANAGER,
         id_="http://example.com/activities/full-invite-1",
@@ -158,7 +158,7 @@ def _ownership_offer():
 def _stub_invite():
     return rm_invite_to_case_activity(
         make(as_Service, id_=INVITEE),
-        target=make(
+        case=make(
             as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,

@@ -42,10 +42,10 @@ flowchart LR
         AddNoteToCase["Post a note to the case<br/>Add(Note)"]
     end
     subgraph as:Invite
-        RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
+        RmInviteToCase["Invite Actor to Case<br/>Invite(VulnerabilityCase preview)"]
     end
     subgraph as:Accept
-        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(Actor))"]
+        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(VulnerabilityCase preview))"]
     end
     CreateCase --> AddReportToCase
     CreateCase --> RmInviteToCase
@@ -96,7 +96,7 @@ If a participant becomes known later, invite it the same way — see [How to Inv
 |---|---|
 | `Create(VulnerabilityCase)` | The case exists and names you as Case Owner. |
 | `Add(VulnerabilityReport)` | The case lists the report. |
-| `Accept(Invite(Actor))` | The case roster holds the participant with its roles. |
+| `Accept(Invite(VulnerabilityCase preview))` | The case roster holds the participant with its roles. |
 | `Add(Note)` | The note appears on the case. |
 
 The CASE_MANAGER commits every one of these to the case ledger and sends each one to every participant.

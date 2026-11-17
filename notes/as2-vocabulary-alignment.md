@@ -13,6 +13,7 @@ tracks:
   - "#6243"   # consent as an agreed end date (provisional)
   - "#3701"   # merge spec; wire form recorded as a comment
   - "#6244"   # Invite slots; stub as preview
+  - "#6498"   # embargo Invite names its invitee in target (slice of #6244)
   - "#6245"   # origin and inReplyTo
   - "#6246"   # embargo end as Update
   - "#6253"   # JSON-LD terms and check
@@ -28,7 +29,6 @@ tracks:
   - "#6417"   # one roles field on Invite and Offer
   - "#6418"   # profile cites Controlled Identifiers context
   - "#6419"   # offerId/offerActorId -> inReplyTo (slice of #6245)
-  - "#6420"   # stub caseId dropped (slice of #6244)
   - "#6421"   # termination reason enum folded into cause (slice of #6246)
   - "#6480"   # EmbargoEvent subtype of Event (slice of #6246)
   - "#6481"   # embargo stores its status; register is a list (slice of #6246)
@@ -88,6 +88,7 @@ related_notes:
   - notes/vocabulary-registry.md
   - notes/call-out-configuration.md
   - notes/selective-disclosure.md
+  - notes/stub-objects.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/semantic_registry
@@ -231,57 +232,19 @@ Not Processed").
 
 Issue: #6244. Record: ADR-0205.
 
-**Decision.**
+**Built (case Invites).** Both case Invites name the case in `object` and the
+invitee in `target`: the stub Invite's object is the case's typed reference carrying
+the stub as its `preview`, the full-case Invite's the whole case, and patterns tell
+them apart by `object_form` (SE-01-009). The stub has no `caseId` and no `/stub` id.
+See `vultron/wire/as2/extractor/_instances.py` and
+[stub-objects.md](stub-objects.md).
 
-1. Both Invites follow AS2: `object` is what the invitee is invited to, `target` is
-   the invitee.
-   - Case Invites: `Invite(VulnerabilityCase or reference)[target=Actor]`, replacing
-     `Invite(Actor)[target=Case|Stub]`.
-   - Embargo Invite: `Invite(EmbargoEvent)[target=Actor]`, adding the `target` it
-     lacks (the invitee is only in `to` today).
-2. The stub becomes the case's `preview`. The stub Invite's object is a typed case
-   reference (ADR-0165 form: `id` and `type` only) carrying
-   `preview: VulnerabilityCaseStub{summary, activeEmbargo, …}`. The stub's Vultron
-   `caseId` is dropped: the case is named by the reference's own `id`. The full-case
-   Invite carries the full case.
-3. **A preview is not the case.** Only a full case is a case: no receiver seeds or
-   updates a replica from a reference that carries a preview.
-4. **A receiver tells the two case Invites apart by the object's form**, as received:
-   a typed reference carrying a preview, or the whole case. A pattern can require
-   either form. Lookup of held objects does not expand a previewed reference, and a
-   receiver does not fetch the case such a reference names, so an invitee answers
-   from the preview alone and a CASE_MANAGER holding the case still reads an Accept
-   of the stub Invite as the stub answer (ADR-0205). Keeping a stub type, or a
-   Vultron Invite subtype, was considered and rejected there.
+**To build (embargo Invite).** `Invite(EmbargoEvent)[target=Actor]`, adding the
+`target` it lacks (the invitee is only in `to` today). Owner: #6498.
 
 **AS2 basis.** VOC Invite: object is the event, target the invitees ("Sally invited
 John and Lisa to a party"); issue #619 confirms Invite is the one verb whose `target`
-is the person, kept for compatibility. VOC `preview`: "Identifies an entity that
-provides a preview of this object." Primer chess example: `Accept(Invite)` whose
-`result` is the new game.
-
-**Today.** `vultron/wire/as2/extractor/_instances.py` tells the stub Invite from the
-full-case Invite only by the type in `target`, which needs `strict=True`
-(`notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and Object Need
-a Strict Discriminator"). The stub class is
-`vultron/wire/as2/vocab/objects/vulnerability_case.py` (`as_VulnerabilityCaseStub`).
-About eight message semantics in the CM-11 join flow and the embargo Invite family.
-
-**Term-check owner.** #6420 owns the stub's `caseId` in the #6253 term-check
-ratchet, so the entry keeps an open owner. Planning this section adopts #6420
-for that field rather than filing a second Task.
-
-**Touches.** CM-11 (CM-11-003, CM-11-013), CM-17, MV-10-001, VAM-04, ADR-0114 ("the
-stub is its own type and its own object" part), ADR-0165,
-`vultron/wire/as2/case_reference_placement.py`, the examples under
-`vultron/wire/as2/vocab/examples/`, `docs/reference/messages/`.
-
-**Parse-edge rule.** A case reference `{id, type, preview}` whose `preview` is an
-inline stub parses as an `as_TypedReference` (MV-10-012), only as an `Invite`'s
-`object` (MV-10-002), and is read as received (MV-10-013). A pattern tells it from
-the whole case with `object_form` (`ObjectForm`, SE-01-009); a pattern without one
-never matches it. The stub Invite patterns that set it, and the preview type that
-replaces the stub's own `type`, `/stub` id and `caseId`, are #6497.
+is the person, kept for compatibility.
 
 ---
 
@@ -625,7 +588,6 @@ acceptance criteria track them.
 | `notes` (item vs case), `text` (note vs identifier), `audience` (`VulnerabilityItemNote`) | name clash, AS2 clash | renamed apart | #6416 |
 | `roles` (`as_Invite`), `suggestedRoles` (`as_Offer`) | two names, one meaning | one name | #6417 |
 | `offerId`, `offerActorId` | decided in § "One Meaning for origin…" | `inReplyTo` | #6419 |
-| stub `caseId` | decided in § "Invites Use the Spec's Slots…" | dropped | #6420 |
 | termination `reason` enum | decided in § "Embargo End Is an Update…" | folded into the cause | #6421 |
 
 Every other field is a Vultron term. `title` is a clash only until #6413 renames the

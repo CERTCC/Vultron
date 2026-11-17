@@ -49,8 +49,9 @@ collapses, or patches it. So:
 - A case-scoped factory MUST complete `context` with the case URI —
   `**with_case_context(kwargs, target)` (`_context.py`) — never an emit node.
 - A case handed in as `target` MUST go out as its URI (the recipient holds the
-  case, AKM-02-002/003) or as the `Invite`'s selective-disclosure stub — never
-  the full object. Pass `target=case_target_ref(target)`.
+  case, AKM-02-002/003) — never the full object. Pass
+  `target=case_target_ref(target)`. The stub Invite names the case in `object`,
+  as a reference carrying the stub as its `preview` (ADR-0205).
 - An initiating activity's `object` MUST be the full inline object
   (AKM-03-001); the outbox refuses a bare reference, it no longer repairs one.
 - An activity that introduces an object (a `Create` or `Add` of a new object, or
