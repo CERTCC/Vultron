@@ -47,7 +47,6 @@ import json
 import logging
 import signal
 import threading
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from types import FrameType
 from typing import Any
@@ -164,15 +163,15 @@ async def stream_case_ledger(
     ``log_index`` order, holding an out-of-order one until its predecessor
     lands (SYNC-14), so "above the last one sent" misses nothing.
 
-    A stream that has sent nothing for *keepalive_seconds* sends
-    :func:`format_keepalive_comment`, which a client skips.
+    A stream that has sent nothing for *keepalive_seconds*, counted in
+    polls, sends :func:`format_keepalive_comment`, which a client skips.
 
     Ends when the client disconnects, or yields :func:`format_close_event`
     and ends once *shutdown* is set.  *actor_id* names the actor whose store
     is read, for the lifecycle log lines.
     """
     last_sent = after_index
-    last_frame = time.monotonic()
+    quiet_polls = 0
     # Overwritten on every other way out; a disconnect may arrive as a
     # cancellation or a generator close, which pass through ``finally`` only.
     reason = "client disconnected"
@@ -191,10 +190,11 @@ async def stream_case_ledger(
                 if last_sent is None or entry.log_index > last_sent:
                     yield format_entry_event(entry)
                     last_sent = entry.log_index
-                    last_frame = time.monotonic()
-            if time.monotonic() - last_frame >= keepalive_seconds:
+                    quiet_polls = 0
+            # Quiet time is counted in polls, not read from a clock.
+            if quiet_polls * poll_seconds >= keepalive_seconds:
                 yield format_keepalive_comment()
-                last_frame = time.monotonic()
+                quiet_polls = 0
             if shutdown.is_set():
                 reason = "server shutting down"
                 yield format_close_event()
@@ -202,6 +202,7 @@ async def stream_case_ledger(
             if await is_disconnected():
                 return
             await asyncio.sleep(poll_seconds)
+            quiet_polls += 1
     except Exception:
         # Re-raised for the server to report; recorded here so the close
         # line does not blame the client.

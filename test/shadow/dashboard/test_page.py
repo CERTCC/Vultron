@@ -92,8 +92,9 @@ render(Empty())
 
 #: A page following a case through the live reader over a scripted stream.
 #: ``__ANSWERS__`` is replaced by one tuple of scripted answers per follow,
-#: the last one repeated; ``rows`` are the rv recording's first rows.  The follow is watched: after the page takes
-#: each item, the size of the reading it kept is recorded in ``seen``.
+#: the last one repeated; ``rows`` are the rv recording's first rows.  The
+#: follow is watched: after the page takes each item, the size of the
+#: reading it kept is recorded in ``seen``.
 _FOLLOW_PAGE = """
 import json
 
