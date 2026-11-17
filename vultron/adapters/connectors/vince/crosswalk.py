@@ -25,8 +25,7 @@ from __future__ import annotations
 
 from types import MappingProxyType
 
-from vultron.core.models.case_reading import UnobservableFact
-from vultron.core.states.cs_invariants import CSEvent
+from vultron.core.models.case_reading import CSEvent, UnobservableFact
 
 #: The rows whose result VINCE implies but does not state, each with the
 #: caveat the crosswalk gives for it (CRD-02-002).

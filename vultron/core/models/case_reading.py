@@ -263,6 +263,9 @@ def citation_problems(
 
 
 __all__ = [
+    # The type of UnobservableFact.events, re-exported so a connector names
+    # the events it cannot observe without importing core states (ARCH-05-002).
+    "CSEvent",
     "CaseReading",
     "case_reading_problems",
     "citation_problems",
