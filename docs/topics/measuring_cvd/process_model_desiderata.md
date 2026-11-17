@@ -262,6 +262,24 @@ The desideratum $\evF_i \prec \evP$ for every vendor states one choice for how t
 Benchmarking MPCVD does not choose how to combine these results, and gives a majority rule and a risk-weighted rule as options.
 The rule "every vendor" is the strictest rule, and the embargo desiderata above already use this rule.
 
+### Every vendor aware before any fix is ready is contested
+
+The desideratum $\evV_i \prec \evF_j$ for every vendor $i$ whose report reaches Valid and every vendor $j$ is contested.
+The planning interview for issue [#6450](https://github.com/CERTCC/Vultron/issues/6450) found three objections:
+
+- It is a proxy for an interest the per-vendor desiderata already measure.
+  The trailing vendor's own $\evF_i \prec \evP$ and $\evD_i \prec \evP$ measure what matters to that vendor.
+  A fix that is ready but not released costs the trailing vendor nothing in itself.
+- It is backwards in supply-chain cases.
+  A downstream vendor often cannot fix until the upstream fix exists.
+  The downstream vendor often learns of the vul because of the upstream fix.
+- Its chance baseline is 393/400, so it holds almost always by chance.
+  Its skill coefficient tells little.
+
+The desideratum remains in the baseline table because the research may still use it.
+Issue [#6501](https://github.com/CERTCC/Vultron/issues/6501) proposes an optional dependency graph between participants, which could replace it.
+Move advice does not use $\evV_i \prec \evF_j$ ([ADR-0200](../../adr/0200-move-advice-puts-moves-in-bands-by-outcome-shift-not-by-one-case-score.md)).
+
 ### Deployers
 
 This page does not propose a desideratum about when deployers join the case.
