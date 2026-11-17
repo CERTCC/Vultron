@@ -88,7 +88,7 @@ class _EmbargoMixin:
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+        """Create and persist an ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
 
         ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
         it is forwarded only when given so a participant's own proposal keeps

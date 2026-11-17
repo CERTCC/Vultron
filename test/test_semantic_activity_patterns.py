@@ -1777,3 +1777,49 @@ def test_bare_case_uri_in_target_or_context_satisfies_the_pattern(
     qualifiers = [activity.target, activity.context]
     assert any(isinstance(q, str) for q in qualifiers)
     assert find_matching_semantics(activity) == expected
+
+
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.parametrize(
+    "example", ["propose_embargo", "relay_embargo_proposal"]
+)
+def test_an_embargo_invite_names_its_invitee_in_target(example: str) -> None:
+    """An embargo Invite's ``target`` is the one actor it is sent to (ADR-0205)."""
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = getattr(examples, example)()
+
+    assert invite.target is not None
+    assert invite.to == [invite.target]
+    assert (
+        find_matching_semantics(invite)
+        == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
+
+
+@pytest.mark.spec("VAM-05-005")
+def test_an_embargo_invite_without_a_target_is_not_an_embargo_invite() -> None:
+    """The old form, the invitee only in ``to``, matches no embargo pattern.
+
+    Pre-1.0 the form is replaced outright (ADR-0205): a receiver reads the
+    invitee from ``target``, so an Invite without one is not recognized.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    invite = examples.propose_embargo().model_copy(update={"target": None})
+    accept = examples.accept_embargo()
+    accepted = accept.object_
+    assert isinstance(accepted, as_Activity)
+    old_accept = accept.model_copy(
+        update={"object_": accepted.model_copy(update={"target": None})}
+    )
+
+    assert (
+        find_matching_semantics(invite)
+        != MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    )
+    assert (
+        find_matching_semantics(old_accept)
+        != MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+    )

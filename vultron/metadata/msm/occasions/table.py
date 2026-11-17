@@ -145,7 +145,7 @@ def format_pattern(pattern: ActivityPattern) -> str:
     Examples::
 
         Offer(VulnerabilityReport)
-        Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
+        Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
         Add(CaseStatus)[target=VulnerabilityCase]
     """
     parts: list[str] = []

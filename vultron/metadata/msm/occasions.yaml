@@ -604,7 +604,7 @@ groups:
   - anchor: embargo-proposal
     heading: Embargo Proposal (EP)
     when: a Participant proposes embargo terms for a case with no active embargo
-    send: Invite(EmbargoEvent)[context=VulnerabilityCase]
+    send: Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the CASE_MANAGER or an active participant
     distinguished_by: EM state `NONE` or `PROPOSED`
@@ -619,7 +619,7 @@ groups:
   - anchor: embargo-revision-proposal
     heading: Embargo Revision Proposal (EV)
     when: a Participant proposes revised terms for the active embargo
-    send: Invite(EmbargoEvent)[context=VulnerabilityCase]
+    send: Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]
     send_to: the CASE_MANAGER
     sent_by: the CASE_MANAGER or an active participant
     distinguished_by: EM state `ACTIVE` or `REVISE`
@@ -636,7 +636,7 @@ groups:
     heading: Ask a participant about proposed embargo terms
     when: the CASE_MANAGER asks a Participant to answer embargo terms another Participant
       proposed
-    send: Invite(EmbargoEvent)[context=VulnerabilityCase]
+    send: Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]
     send_to: a participant
     sent_by: the CASE_MANAGER
     semantics: invite_to_embargo_on_case
@@ -653,7 +653,7 @@ groups:
   - anchor: agree-to-embargo-proposal
     heading: Agree to proposed embargo terms
     when: a Participant agrees to proposed embargo terms
-    send: Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
@@ -668,7 +668,7 @@ groups:
   - anchor: agree-to-embargo-revision
     heading: Agree to an embargo revision
     when: a Participant agrees to a proposed embargo revision
-    send: Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
@@ -683,7 +683,7 @@ groups:
   - anchor: refuse-embargo-proposal
     heading: Refuse proposed embargo terms
     when: a Participant refuses proposed embargo terms
-    send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
@@ -698,7 +698,7 @@ groups:
   - anchor: refuse-embargo-revision
     heading: Refuse an embargo revision
     when: a Participant refuses a proposed embargo revision
-    send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: the CASE_MANAGER
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
@@ -714,7 +714,7 @@ groups:
     heading: Abandon embargo proposal
     when: the CASE_MANAGER abandons an open embargo proposal it received once the case is
       public, an exploit is public or attacks are observed
-    send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Reject(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: a participant
     sent_by: the CASE_MANAGER
     semantics: reject_invite_to_embargo_on_case
@@ -729,7 +729,7 @@ groups:
     heading: Withdraw an embargo invitation
     when: the CASE_MANAGER abandons an open embargo proposal once the case is public, an exploit
       is public or attacks are observed
-    send: Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send: Undo(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])
     send_to: a participant
     sent_by: internal to the CASE_MANAGER
     semantics: undo_invite_to_embargo_on_case

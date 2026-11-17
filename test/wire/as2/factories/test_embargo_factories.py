@@ -115,6 +115,68 @@ def test_em_propose_embargo_context_is_set(sample_embargo):
     assert result.context == _CASE_URI
 
 
+_INVITEE_URI = "https://example.org/actors/bob"
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("VAM-05-005")
+def test_an_embargo_invite_names_its_invitee_in_target(sample_embargo):
+    """The Invite's ``target`` is the one actor it is addressed to (ADR-0205)."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        context=_CASE_URI,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI],
+        at=authored_at(),
+    )
+    assert result.target == _INVITEE_URI
+    assert result.to == [_INVITEE_URI]
+    wire = result.model_dump(by_alias=True, exclude_none=True)
+    assert wire["target"] == _INVITEE_URI
+
+
+@pytest.mark.spec("EP-09-010")
+def test_two_spellings_of_one_invitee_are_one_target(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        to=[_INVITEE_URI, _INVITEE_URI + "/"],
+        at=authored_at(),
+    )
+    assert result.target == _INVITEE_URI
+
+
+def test_an_unaddressed_embargo_invite_has_no_target(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI, at=authored_at()
+    )
+    assert result.target is None
+
+
+@pytest.mark.spec("EP-09-010")
+def test_an_embargo_invite_to_several_actors_is_refused(sample_embargo):
+    """An embargo Invite names one invitee, so it has one recipient."""
+    with pytest.raises(VultronActivityConstructionError, match="names 2"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            actor=_ACTOR_URI,
+            to=[_INVITEE_URI, "https://example.org/actors/carol"],
+            at=authored_at(),
+        )
+
+
+def test_an_embargo_invite_target_is_not_the_callers_to_give(sample_embargo):
+    """``target`` is derived from ``to``, so the two cannot disagree."""
+    with pytest.raises(VultronActivityConstructionError, match="target"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            actor=_ACTOR_URI,
+            to=[_INVITEE_URI],
+            target="https://example.org/actors/carol",
+            at=authored_at(),
+        )
+
+
 @pytest.mark.spec("AF-04-001")
 def test_em_propose_embargo_invalid_raises(sample_embargo):
     # No actor: the wire class's ValidationError is wrapped.

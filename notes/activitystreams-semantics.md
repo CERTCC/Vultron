@@ -174,7 +174,8 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
 ## Accepting an Embargo Accepts the Invite
 
 Embargo negotiation works like a calendar invitation: the proposer sends
-`Invite(EmbargoEvent)[context=VulnerabilityCase]`, invitees answer `Accept(Invite)` or
+`Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`, invitees answer
+`Accept(Invite)` or
 `Reject(Invite)`, and a counter-proposal is a new `Invite` with `inReplyTo` the
 original. The `object` of the Accept is the proposal `Invite`, not the
 `EmbargoEvent`. Background: `docs/topics/process_models/em/`.

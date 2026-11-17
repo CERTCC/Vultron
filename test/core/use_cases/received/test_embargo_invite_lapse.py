@@ -40,6 +40,7 @@ from test.support.ledger import (
     fail_commits,
     is_consent_row_update,
 )
+from test.support.misrouted_invite import readdressed
 from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.refusal_notice import (
@@ -797,9 +798,13 @@ class TestInviteeIsTheAddressee:
             embargo=embargo,
             context=case.id_,
             actor=_COORD,
+            to=[_INVITEE],
             rsvp_deadline=_FUTURE,
             at=_published_now(),
         )
+        # Its target names the invitee, so it is an embargo Invite
+        # (VAM-05-005) with no recipient; no factory builds one.
+        invite = readdressed(invite, [])
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
 
@@ -900,10 +905,12 @@ class TestInviteeIsTheAddressee:
             embargo=embargo,
             context=case.id_,
             actor=_COORD,
-            to=[_OTHER, _INVITEE],
+            to=[_INVITEE],
             rsvp_deadline=_FUTURE,
             at=_published_now(),
         )
+        # No factory builds an Invite to several actors (EP-09-010).
+        invite = readdressed(invite, [_OTHER, _INVITEE])
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
         assert event.to_recipients == [_OTHER, _INVITEE]
@@ -930,6 +937,61 @@ class TestInviteeIsTheAddressee:
             )
             assert all(
                 r.rsvp_deadline is None for r in participant.embargo_consents
+            )
+
+    @pytest.mark.spec("EP-09-026")
+    def test_invite_whose_target_is_not_its_recipient_is_refused(
+        self, make_payload
+    ):
+        """An Invite delivered to an actor it does not invite is a misrouting.
+
+        Its ``target`` names the invitee (ADR-0205), which is its sole
+        recipient (EP-09-010); one delivered to another actor is refused and
+        answered with a fault, and no replica records an invitation.
+        """
+        dl = _make_dl(actor_id=_INVITEE)
+        case_id = "https://example.org/cases/addressee-target"
+        embargo_id = "https://example.org/cases/addressee-target/embargos/e"
+        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id, extra_actors=(_OTHER,)
+        )
+        other_p_id = self.extra_participant_ids[_OTHER]
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_OTHER],
+            rsvp_deadline=_FUTURE,
+            at=_published_now(),
+        )
+        invite = readdressed(invite, [_INVITEE])
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
+
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert f"names '{_OTHER}' in 'target'" in (result.reason or "")
+        assert answers_in_outbox(dl, _INVITEE) == []
+        (queued,) = dl.outbox_list()
+        sealed = read_sealed_body_dict(dl, queued)
+        assert sealed is not None
+        assert sealed["object"]["failureClass"].endswith(
+            "MisroutedEmbargoInvite"
+        )
+        for participant_id in (invitee_p_id, other_p_id, coord_p_id):
+            participant = self._read_participant(dl, participant_id)
+            assert (
+                participant.consent_for(embargo_id)
+                == EmbargoConsentState.UNINVITED
             )
 
     def test_trailing_slash_recipient_is_this_replica(self, make_payload):
@@ -996,10 +1058,12 @@ class TestInviteeIsTheAddressee:
             embargo=embargo,
             context=case.id_,
             actor=_COORD,
-            to=[_INVITEE, _OTHER],
+            to=[_INVITEE],
             rsvp_deadline=_FUTURE,
             at=_published_now(),
         )
+        # No factory builds an Invite to several actors (EP-09-010).
+        invite = readdressed(invite, [_INVITEE, _OTHER])
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
         result = run_in_act(
@@ -1632,9 +1696,15 @@ class TestInviteeIsTheAddressee:
 
 @pytest.mark.spec("CLP-10-015")
 class TestInviteeIdProperty:
-    """Unit tests for the ``to:``-derived invitee accessors."""
+    """Unit tests for the invitee accessors: ``target``, checked against ``to``."""
 
-    def _event(self, make_payload, to):
+    def _event(self, make_payload, to, *, built_to=None):
+        """The received Invite delivered to *to*.
+
+        It is built addressed to *built_to* (default: *to*), so its
+        ``target`` names that invitee, and then readdressed to *to*: no
+        factory builds a misrouted Invite (EP-09-010).
+        """
         embargo = make(
             as_EmbargoEvent,
             id_="https://example.org/cases/prop/embargos/e1",
@@ -1645,10 +1715,33 @@ class TestInviteeIdProperty:
             embargo=embargo,
             context="https://example.org/cases/prop",
             actor=_COORD,
-            to=to,
+            to=built_to if built_to is not None else to,
             at=authored_at(),
         )
+        if built_to is not None:
+            invite = readdressed(invite, to or [])
         return make_payload(invite)
+
+    @pytest.mark.spec("EP-09-010")
+    def test_the_invitee_is_the_target(self, make_payload):
+        """The invitee is the actor the Invite's ``target`` names (ADR-0205)."""
+        event = self._event(make_payload, [_INVITEE])
+        assert event.target_invitee_id == _INVITEE
+        assert event.invitee_id == _INVITEE
+
+    @pytest.mark.spec("EP-09-026")
+    def test_a_target_that_is_not_the_recipient_is_a_misrouting(
+        self, make_payload
+    ):
+        event = self._event(make_payload, [_OTHER], built_to=[_INVITEE])
+        assert event.target_invitee_id == _INVITEE
+        assert event.to_recipients == [_OTHER]
+        assert event.invitee_id is None
+        with pytest.raises(
+            VultronProtocolViolationError,
+            match=f"names '{_INVITEE}' in 'target' but is addressed to",
+        ):
+            resolve_invitee_id(event, "invite")
 
     @pytest.mark.spec("EP-09-010")
     def test_sole_recipient_is_the_invitee(self, make_payload):
@@ -1658,13 +1751,15 @@ class TestInviteeIdProperty:
         assert event.invitee_id == _INVITEE
 
     def test_multiple_recipients_are_a_misrouting(self, make_payload):
-        event = self._event(make_payload, [_INVITEE, _OTHER])
+        event = self._event(
+            make_payload, [_INVITEE, _OTHER], built_to=[_INVITEE]
+        )
         assert event.to_recipients == [_INVITEE, _OTHER]
         # A misrouting (EP-09-026): no invitee, never a guess.
         assert event.invitee_id is None
 
     def test_no_recipient_yields_none(self, make_payload):
-        event = self._event(make_payload, None)
+        event = self._event(make_payload, None, built_to=[_INVITEE])
         assert event.to_recipients == []
         assert event.invitee_id is None
 
@@ -1703,7 +1798,7 @@ class TestInviteeIdProperty:
     def test_resolver_raises_naming_the_recipient_count(
         self, make_payload, to, count
     ):
-        event = self._event(make_payload, to)
+        event = self._event(make_payload, to, built_to=[_INVITEE])
         with pytest.raises(
             VultronProtocolViolationError,
             match=f"names {count} 'to' recipients",

@@ -7,7 +7,7 @@ Records the sender's own consent to the proposed terms. The embargo becomes acti
 === "Details"
 
     - **When…** a Participant agrees to proposed embargo terms
-    - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **Send:** `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `PROPOSED`

@@ -43,7 +43,7 @@ class TriggerEmbargoPort(Protocol):
         *,
         at: datetime,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+        """Create and persist an ``Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]``.
 
         The Invite is the embargo proposal.
 
