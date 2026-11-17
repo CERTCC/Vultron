@@ -47,7 +47,9 @@ class VinceConfig(BaseModel):
 
     Attributes:
         base_url: Base URL of the VINCE API the shadow reads cases from. It
-            starts with ``http://`` or ``https://``.  When it is ``None`` the
+            starts with ``http://`` or ``https://``, and the VINCE case
+            reader needs the VINCE Comm API root, which ends in ``/api``,
+            such as ``https://kb.cert.org/vince/comm/api``.  When it is ``None`` the
             node has no VINCE endpoint.  Default ``None``.
         api_token: The VINCE API credential.  It is a secret, read only from
             the environment: a configuration file that names this key is

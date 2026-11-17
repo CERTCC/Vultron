@@ -50,6 +50,7 @@ status and time, and counts, never case content (VSD-01-003).
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections.abc import Callable
 from datetime import datetime
@@ -78,12 +79,14 @@ from vultron.errors import (
 
 logger = logging.getLogger(__name__)
 
-#: Seconds one read may take, each network step and the whole read.
+#: Seconds each network step of a read may take: connecting, sending, the
+#: wait for each chunk of the answer, and taking a pooled connection.  It
+#: bounds no read as a whole.
 DEFAULT_READ_TIMEOUT: float = 30.0
 
 #: A VINCE case id: its number, as VINCE's API names it, or ``VU#`` and
 #: its number, as VINCE shows it to a person.
-_CASE_ID = re.compile(r"(?:VU#)?(\d+)")
+_CASE_ID = re.compile(r"(?:VU#)?([0-9]+)")
 
 #: The setting the VINCE API base URL is read from.
 _BASE_URL_ENV_VAR = env_var_name(("vince", "base_url"))
@@ -132,11 +135,17 @@ def _path(vuid: str, read: str) -> str:
 
 
 def _retry_after(response: httpx.Response) -> float | None:
-    """The seconds a 429 answer's ``Retry-After`` header asks for."""
+    """The seconds a 429 answer's ``Retry-After`` header asks for.
+
+    ``None`` when the header is missing or is not a finite, non-negative
+    number of seconds, such as the HTTP-date form, which would need a clock
+    read to turn into a wait.
+    """
     try:
-        return float(response.headers["Retry-After"])
+        seconds = float(response.headers["Retry-After"])
     except KeyError, ValueError:
         return None
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
 
 
 def _answer(vuid: str, read: str, response: httpx.Response) -> JsonValue:

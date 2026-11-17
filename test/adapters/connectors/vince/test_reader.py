@@ -55,6 +55,7 @@ from vultron.adapters.connectors.vince import (
     VinceCaseReader,
     translate_case,
 )
+from vultron.adapters.connectors.vince.reader import DEFAULT_READ_TIMEOUT
 from vultron.config.app import config_override
 from vultron.config.vince import VinceConfig
 from vultron.core.models.case_reading import CaseReading
@@ -286,6 +287,7 @@ def test_the_reader_exposes_no_member_beyond_its_name_and_the_port():
         "VU#",
         "",
         "abc",
+        "\u0661\u0662\u0663",
     ],
 )
 def test_a_case_id_that_is_not_a_vince_number_is_refused_unsent(case_id):
@@ -317,7 +319,16 @@ def _failing_at(read: str, response: httpx.Response) -> Respond:
         ("vuls", httpx.Response(429), VinceRateLimitedError),
         ("note", httpx.Response(500), VinceUnavailableError),
         ("vendors", httpx.Response(503), VinceUnavailableError),
-        ("report", httpx.Response(302), VinceReadError),
+        (
+            "report",
+            httpx.Response(
+                302,
+                headers={
+                    "Location": f"{API_URL}/case/999901/vendor/statement/"
+                },
+            ),
+            VinceReadError,
+        ),
         ("report", httpx.Response(400), VinceReadError),
         ("vendors/vuls", httpx.Response(200, text="<html>"), VinceReadError),
     ],
@@ -330,27 +341,67 @@ def test_a_failed_read_raises_its_named_error_after_one_attempt(
     with pytest.raises(error) as excinfo:
         _reader(vince, AS_OF[ACTIVE]).read_case(vince.vuid)
 
+    # A redirect is not followed: its target is never requested.
     assert vince.reads_requested == list(READS[: READS.index(read) + 1])
     assert excinfo.value.vuid == vince.vuid
     assert excinfo.value.read == read
     assert excinfo.value.status == response.status_code
 
 
-def test_a_rate_limit_carries_the_wait_vince_asked_for():
-    response = httpx.Response(429, headers={"Retry-After": "120"})
+@pytest.mark.parametrize(
+    ("headers", "retry_after"),
+    [
+        ({"Retry-After": "120"}, 120.0),
+        ({"Retry-After": "0"}, 0.0),
+        ({}, None),
+        ({"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}, None),
+        ({"Retry-After": "nan"}, None),
+        ({"Retry-After": "inf"}, None),
+        ({"Retry-After": "-5"}, None),
+    ],
+)
+def test_a_rate_limit_carries_the_wait_vince_asked_for(headers, retry_after):
+    response = httpx.Response(429, headers=headers)
     vince = FakeVince(reads(ACTIVE), respond=_failing_at("case", response))
 
     with pytest.raises(VinceRateLimitedError) as excinfo:
         _reader(vince, AS_OF[ACTIVE]).read_case(vince.vuid)
 
-    assert excinfo.value.retry_after == 120.0
+    assert excinfo.value.retry_after == retry_after
     assert len(vince.requests) == 1
 
 
+@pytest.mark.parametrize("timeout", [None, 4.5])
+def test_every_read_carries_the_readers_timeout(timeout):
+    vince = FakeVince(reads(ACTIVE))
+    kwargs = {} if timeout is None else {"timeout": timeout}
+    reader = VinceCaseReader(
+        _config(),
+        transport=vince.transport,
+        clock=Clock(AS_OF[ACTIVE]),
+        **kwargs,
+    )
+
+    reader.read_case(vince.vuid)
+
+    expected = DEFAULT_READ_TIMEOUT if timeout is None else timeout
+    for request in vince.requests:
+        assert request.extensions["timeout"] == dict.fromkeys(
+            ("connect", "read", "write", "pool"), expected
+        )
+
+
 @pytest.mark.parametrize(
-    "raised", [httpx.ConnectError("refused"), httpx.ReadTimeout("slow")]
+    ("raised", "reason"),
+    [
+        (
+            httpx.ConnectError("refused"),
+            r"could not reach VINCE \(ConnectError\)",
+        ),
+        (httpx.ReadTimeout("slow"), "timed out"),
+    ],
 )
-def test_an_unreachable_vince_is_named_after_one_attempt(raised):
+def test_an_unreachable_vince_is_named_after_one_attempt(raised, reason):
     calls: list[httpx.Request] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -363,7 +414,7 @@ def test_an_unreachable_vince_is_named_after_one_attempt(raised):
         clock=Clock(AS_OF[ACTIVE]),
     )
 
-    with pytest.raises(VinceUnavailableError) as excinfo:
+    with pytest.raises(VinceUnavailableError, match=reason) as excinfo:
         reader.read_case("999901")
 
     assert len(calls) == 1

@@ -116,6 +116,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
   - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-011, SYNC-20-005).
   - `VULTRON_VINCE__BASE_URL`, `VULTRON_VINCE__API_TOKEN` — the VINCE API endpoint and credential the shadow's VINCE connector reads (`vultron/config/vince.py`).
+    The VINCE case reader needs the base URL to be the VINCE Comm API root, ending in `/api`, and refuses a read otherwise.
     The credential is a `SecretStr` read only from the environment: a config file that names it is refused at load, and pydantic does not append the input to a config validation error (`hide_input_in_errors`; VSD-01-004, VSD-01-005).
 - Secret settings are declared by type alone: any field typed `SecretStr`, `SecretBytes` or `Secret[...]` is found by `secret_setting_paths()` in `vultron/config/secrets.py`, and the YAML source refuses a file that names one (SHD-02-003).
   `vultron/config/env_names.py` derives each setting's `VULTRON_` variable name from its key path (CFG-03-001, CFG-03-002), and `vultron/config/model_walk.py` walks a settings model's sections and leaf fields for both.
