@@ -1,7 +1,6 @@
 # AGENTS.md — test/
 
-This directory contains all pytest tests for the Vultron project. Test
-structure mirrors the source layout under `vultron/`.
+This directory holds the Vultron pytest tests; its layout mirrors `vultron/`.
 
 See the root `AGENTS.md` for project-wide guidance. This file holds the rules you
 need on *every* run; the longer pitfall write-ups live in
@@ -96,13 +95,11 @@ Each actor MUST use a **distinct `DataLayer` instance**; mark tests
 [`driven/AGENTS.md`](../vultron/adapters/driven/AGENTS.md) § "Co-located actor
 isolation" and § "Reentrancy Guard".
 
-An `actor_id` *is* a store name and a BT's store follows its executing actor —
-both hazards, plus the `@pytest.mark.executes_as` fix for the second:
-[datalayer-design](../notes/datalayer-design.md) § "One Actor Id Is One
-Database". In-memory stores built for the same `actor_id` share one engine, so
-a test or harness needs `fresh_memory_url()` for a store that starts empty:
-[testing-pitfalls](../notes/testing-pitfalls.md) § "In-Memory Stores Built for
-One `actor_id` Share One Engine".
+An `actor_id` *is* a store name and a BT's store follows its executing actor; both
+hazards and the `@pytest.mark.executes_as` fix for the second are in
+[datalayer-design](../notes/datalayer-design.md) § "One Actor Id Is One Database".
+A store that must start empty takes `fresh_memory_url(purpose)`:
+[testing-pitfalls](../notes/testing-pitfalls.md) § "In-Memory Stores Share by Actor".
 
 CI failures: [demo-ci-diagnostics](../notes/demo-ci-diagnostics.md). The
 invariant harness is a separate job from the demo run, read separately:

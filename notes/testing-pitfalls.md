@@ -474,22 +474,17 @@ hosted actors in the configured namespace opens a `testserver` actor's store
 under a second id; `no_store_shared_across_authorities()`
 (`test/support/store_sharing.py`) fails every `client` test that does (#6085).
 
-### In-Memory Stores Built for One `actor_id` Share One Engine
+### In-Memory Stores Share by Actor
 
-In-memory stores built for the same `actor_id` in one process share state
-(`get_actor_engine`, `vultron/adapters/driven/datalayer_sqlite/engine.py`), so a
-second `SqliteDataLayer("sqlite:///:memory:", actor_id=X)` returns the first
-one's rows (outbox entries, cases, activities) and nothing raises.
-`test/adapters/driven/trigger_activity_adapter/conftest.py` works around it with
-`clear_all()`, but a test or throwaway harness needs either a distinct
-`actor_id` or an empty template from `fresh_memory_url(purpose)`
-(`vultron/adapters/driven/datalayer_sqlite` package) before trusting reads.
-Every handle for one actor opened from one template reaches that actor's one
-store (DL-07-004), which is correct for production (`clone_for_actor` and
-`get_datalayer` must reach the same rows), but a fresh scenario sharing an
-`actor_id` with an earlier one gets the earlier one's data back. A template
-from `fresh_memory_url` names a store no other handle can reach; open it in a
-`with` block so the store is disposed on exit (#3430, #6525).
+A test or throwaway harness that needs an empty in-memory store opens it from
+`fresh_memory_url(purpose)` (`vultron/adapters/driven/datalayer_sqlite`), in a `with`
+block so the store is disposed on exit. The default `sqlite:///:memory:` template
+names each actor's store after the actor's slug, and `get_actor_engine` caches one
+engine per resolved URL, so a second `SqliteDataLayer("sqlite:///:memory:",
+actor_id=X)` reaches the first one's store and returns its rows without raising.
+That sharing is correct for production, where every handle opened for one actor from
+one template reaches its one store; a `fresh_memory_url` template names a store no
+other handle can reach (DL-07-004).
 
 ### Store Scoping
 
