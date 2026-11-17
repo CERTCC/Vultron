@@ -81,14 +81,16 @@ The page shows the case as it stands at its last ledger entry.
 - **Participants** lists each participant with its roles, its report state, and, for a Vendor, its case state and a count of the desiderata met (✅), broken (❌), and still open (⏳).
 - **Desiderata** lists each of the twelve desiderata in words, with one column for each Vendor.
 - **Move advice** puts each open move in one of three bands.
-  A **Harm-free** move leaves every Vendor at or above the chance value, and helps at least one.
-  A **Trade-off** move helps one Vendor at another's cost.
-  An **Unhelpful** move helps no Vendor; its band is closed until you open it.
+  A move's band is set by its end desiderata, or by its embargo desiderata when it changes no end desideratum.
+  A **Harm-free** move raises at least one Vendor above the chance value and lowers none.
+  A **Trade-off** move raises one Vendor at another's cost.
+  An **Unhelpful** move raises no Vendor; its band is closed until you open it.
 - In the harm-free and trade-off bands, each move's row is shaded by its layer, with layer 1 the darkest.
   Layer 1 holds the moves that no other open move beats, and each move in a lighter layer is beaten by a move in a darker one.
   A ⭐ marks a top move, and 👉 marks a coordinator's move that none of the coordinator's other moves beats.
   Choose the darkest move in the highest band that has one.
-- **Harms by vendor** lists each Vendor that a move leaves below the chance value, with how far below.
+- **Harms by vendor** lists each Vendor that a move leaves below the chance value, in its end or its embargo desiderata, with how far below.
+  A harm-free move can still harm a Vendor's embargo desiderata when its end desiderata decide its band.
   A negative value means worse than the chance value, not a broken desideratum.
   A trade-off move that a harm-free move beats says so under **Dominated by**.
 - **Moves with no band** lists each other move a participant can make, with the reason it has no band.

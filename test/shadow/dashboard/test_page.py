@@ -2,8 +2,9 @@
 
 The real script over a committed recording shows the case's states,
 desiderata and open moves (AC-1); the move advice reads band by band, with
-its shades, marks, harms and unbanded moves (#6603); a fake reader's untranslated facts,
-inferences and unobservable facts are shown beside the analysis (AC-2); a
+its shades, marks, harms and unbanded moves (#6603); a fake reader's
+untranslated facts, inferences and unobservable facts are shown beside the
+analysis (AC-2); a
 read the reader refuses, a ledger with a hole, a reading with no entry and
 a setting the reader cannot use each say so on the page.
 
@@ -214,8 +215,11 @@ def test_a_recorded_case_shows_its_states_desiderata_and_moves(
         "CS",
         "EM",
     }
-    # No move of this recording trades off: its band says so.
+    # No move of this recording trades off or is unhelpful: each band says
+    # so, the unhelpful one inside its closed group.
     assert BAND_EMPTY[Band.TRADE_OFF] in _texts(at.caption)
+    (unhelpful,) = at.expander
+    assert _texts(unhelpful.caption) == [BAND_EMPTY[Band.UNHELPFUL]]
     # The recording ends on the CASE_MANAGER's closure: nothing follows.
     assert not any("moved on" in c for c in _texts(at.caption))
 

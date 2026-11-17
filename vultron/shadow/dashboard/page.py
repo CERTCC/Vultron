@@ -37,7 +37,7 @@ import streamlit as st
 from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
-from vultron.measure.advice import CaseAdvice, case_advice
+from vultron.measure.advice import Band, CaseAdvice, case_advice
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
 
@@ -123,7 +123,7 @@ def _shaded_table(band: view.BandView) -> None:
 def _show_band(band: view.BandView) -> None:
     if not band.rows:
         st.caption(band.empty)
-    elif band.shades:
+    elif band.band is not Band.UNHELPFUL:
         _shaded_table(band)
     else:
         _table(band.rows, band.empty)

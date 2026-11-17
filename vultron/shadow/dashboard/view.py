@@ -62,8 +62,9 @@ from vultron.measure.standing import (
     StandingGap,
 )
 
-#: A row of a table the page shows, column name to cell text.
-Row = dict[str, str]
+#: A row of a table the page shows, column name to cell: text, or a number
+#: that sorts as one, such as a move's layer.
+Row = dict[str, str | int]
 
 #: Each case-state event's name, as the CS model pages spell it.
 EVENT_LABELS: Mapping[CSEvent, str] = {
@@ -154,7 +155,7 @@ def participant_rows(
     participants: Sequence[ParticipantStanding], names: Mapping[str, str]
 ) -> list[Row]:
     """One row per participant: roles, report state, case state, tally."""
-    rows = []
+    rows: list[Row] = []
     for p in participants:
         rows.append(
             {
@@ -247,7 +248,7 @@ BAND_TITLES: Mapping[Band, str] = {
 
 #: Each band's caption when no open move falls in it.
 BAND_EMPTY: Mapping[Band, str] = {
-    Band.HARM_FREE: "No open move leaves every vendor at or above chance.",
+    Band.HARM_FREE: "No open move helps a vendor and harms none.",
     Band.TRADE_OFF: "No open move helps one vendor at another's cost.",
     Band.UNHELPFUL: "No open move is unhelpful.",
 }
@@ -380,8 +381,8 @@ class BandView(BaseModel):
         title: Its heading.
         collapsed: Whether the page shows it as a closed group.
         rows: One row per move, in the advice's order.
-        shades: Each row's shade, in row order; empty for a band that is not
-            shaded.
+        shades: Each row's shade, in row order: one per row in the
+            harm-free and trade-off bands, none in the unhelpful band.
         empty: What the page says when *rows* is empty.
     """
 
@@ -396,7 +397,11 @@ class BandView(BaseModel):
 
     @model_validator(mode="after")
     def _a_shade_for_every_row_or_none(self) -> BandView:
-        if self.shades and len(self.shades) != len(self.rows):
+        """A shaded band has one shade per row; the unhelpful band none."""
+        if self.band is Band.UNHELPFUL:
+            if self.shades:
+                raise ValueError("the unhelpful band is not shaded")
+        elif len(self.shades) != len(self.rows):
             raise ValueError(
                 f"{len(self.shades)} shades for {len(self.rows)} rows"
             )
@@ -418,7 +423,7 @@ def _advised_row(
     move: AdvisedMove, band: BandAdvice, names: Mapping[str, str]
 ) -> Row:
     shaded = band.colour_map is not None
-    row: Row = {"Layer": str(move.layer)} if shaded else {}
+    row: Row = {"Layer": _layer(move)} if shaded else {}
     if shaded:
         row["Mark"] = TOP_MARK if move.top else ""
     row.update(_move_cells(move.move, names))

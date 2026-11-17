@@ -7,6 +7,8 @@ a reader's report reads as lines and rows.
 Spec: SHD-01-004, SHD-03-002.
 """
 
+from fractions import Fraction
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,12 +29,18 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.demo.recordings.layout import RECORDINGS_DIR
 from vultron.measure.advice import (
+    BAND_ORDER,
     CHANCE_EVENT,
     DOMINATED_BY_HARM_FREE,
+    AdvisedMove,
     Band,
+    BandAdvice,
     CaseAdvice,
     ColourMap,
+    Part,
     UnbandedMove,
+    VendorHarm,
+    VendorShift,
     case_advice,
 )
 from vultron.measure.history import UnreadableEntry
@@ -45,6 +53,7 @@ from vultron.measure.standing import (
     CaseStanding,
     DesideratumStatus,
     ParticipantStanding,
+    RMMove,
     StandingGap,
     case_standing,
 )
@@ -212,12 +221,12 @@ def test_each_shaded_move_takes_its_layers_shade_in_its_bands_map(advice):
             for m in band.moves
         )
         for move, row in zip(band.moves, views[band.band].rows, strict=True):
-            assert row["Layer"] == str(move.layer)
+            assert row["Layer"] == move.layer
     harm_free = views[Band.HARM_FREE]
     (top,) = [
         s
         for s, r in zip(harm_free.shades, harm_free.rows, strict=True)
-        if r["Layer"] == "1"
+        if r["Layer"] == 1
     ]
     assert top.background == view.COLOUR_STOPS[ColourMap.VIRIDIS][0]
 
@@ -341,17 +350,57 @@ def test_a_shade_reads_as_a_cells_css():
     )
 
 
-def test_a_band_view_refuses_a_shade_count_that_misses_its_rows():
-    shade = view.Shade(background="#440154", text="#ffffff")
-    with pytest.raises(ValidationError, match="2 shades for 1 rows"):
+_SHADE = view.Shade(background="#440154", text="#ffffff")
+
+
+@pytest.mark.parametrize(
+    "band, shades, message",
+    [
+        (Band.HARM_FREE, (_SHADE, _SHADE), "2 shades for 1 rows"),
+        (Band.TRADE_OFF, (), "0 shades for 1 rows"),
+        (Band.UNHELPFUL, (_SHADE,), "the unhelpful band is not shaded"),
+    ],
+)
+def test_a_band_view_refuses_shades_that_miss_its_rows(band, shades, message):
+    with pytest.raises(ValidationError, match=message):
         view.BandView(
-            band=Band.HARM_FREE,
-            title="Harm-free",
-            collapsed=False,
+            band=band,
+            title="x",
+            collapsed=band is Band.UNHELPFUL,
             rows=({"Move": "x"},),
-            shades=(shade, shade),
+            shades=shades,
             empty="none",
         )
+
+
+def test_a_harm_free_move_shows_its_embargo_harm():
+    """End parts decide the band, so a harm-free move can lower a vendor's
+    embargo part, and the page shows that harm (ADR-0200)."""
+    move = RMMove(participant=VENDOR, source=RM.RECEIVED, destination=RM.VALID)
+    advised = AdvisedMove(
+        move=move,
+        shift=(
+            VendorShift(
+                vendor=VENDOR, end=Fraction(1, 4), embargo=Fraction(-1, 8)
+            ),
+        ),
+        band=Band.HARM_FREE,
+        layer=1,
+        top=True,
+        leading_among_yours=False,
+        harms=(
+            VendorHarm(vendor=VENDOR, part=Part.EMBARGO, size=Fraction(-1, 8)),
+        ),
+    )
+    advice = CaseAdvice(
+        case_id="urn:uuid:case-1",
+        end_confirmed=True,
+        vendors=(VENDOR,),
+        bands=tuple(BandAdvice.of(b, [advised]) for b in BAND_ORDER),
+    )
+    (row,) = _views(advice)[Band.HARM_FREE].rows
+    assert row["Harms by vendor"] == "Vendor: embargo −0.125"
+    assert row["Mark"] == view.TOP_MARK
 
 
 def test_every_kind_of_hole_reads_as_a_line(tmp_path):
