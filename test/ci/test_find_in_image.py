@@ -127,6 +127,61 @@ def test_the_marker_in_a_plain_layer_is_named_inside_the_layer(
     assert hits == ["layer.tar", "layer.tar:etc/token"]
 
 
+def _symlink_layer(target: str) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        info = tarfile.TarInfo("etc/link")
+        info.type = tarfile.SYMTYPE
+        info.linkname = target
+        archive.addfile(info)
+    return buffer.getvalue()
+
+
+def test_the_marker_in_a_link_target_is_named(tmp_path: Path) -> None:
+    image = tmp_path / "image.tar"
+    image.write_bytes(
+        _tar({"blobs/sha256/eeee": gzip.compress(_symlink_layer(MARKER))})
+    )
+    _, hits = _find.search(image, MARKER.encode())
+    assert hits == ["blobs/sha256/eeee:etc/link (in its path or link target)"]
+
+
+def test_the_marker_in_a_path_of_the_saved_image_is_named(
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "image.tar"
+    image.write_bytes(
+        _tar(
+            {
+                "layer.tar": _tar({"app/README": b"hi\n"}),
+                f"{MARKER}.json": b"{}",
+            }
+        )
+    )
+    _, hits = _find.search(image, MARKER.encode())
+    assert hits == [f"{MARKER}.json (in its path)"]
+
+
+def test_a_member_name_that_is_not_utf8_is_searched_and_printed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """tarfile decodes such a name with surrogate escapes; the search reads
+    its bytes, and the report prints it escaped instead of crashing."""
+    layer = io.BytesIO()
+    with tarfile.open(
+        fileobj=layer, mode="w", format=tarfile.GNU_FORMAT
+    ) as archive:
+        name = b"tmp/\xff-" + MARKER.encode()
+        info = tarfile.TarInfo(name.decode("utf-8", "surrogateescape"))
+        archive.addfile(info, io.BytesIO(b""))
+    image = tmp_path / "image.tar"
+    image.write_bytes(_tar({"layer.tar": layer.getvalue()}))
+    assert _run(image, monkeypatch) == 1
+    assert f"layer.tar:tmp/\\udcff-{MARKER}" in capsys.readouterr().out
+
+
 def test_a_marker_split_across_two_chunks_is_found() -> None:
     data = b"x" * 7 + MARKER.encode() + b"y" * 7
     assert _find.contains(io.BytesIO(data), MARKER.encode(), chunk_size=8)
@@ -208,11 +263,13 @@ def test_the_job_runs_on_a_change_to_what_it_checks() -> None:
     """AC-3: the image, the service, the tool, the lockfile and the job."""
     on = triggers(load_workflow(WORKFLOW))
     for event in ("push", "pull_request"):
-        paths = set(on[event]["paths"])
-        assert {
+        assert set(on[event]["paths"]) == {
             "docker/**",
+            ".dockerignore",
             "vultron/shadow/**",
+            "pyproject.toml",
             "uv.lock",
             ".github/workflows/shadow-image.yml",
+            ".github/actions/build-demo-images/**",
             ".github/scripts/find_in_image.py",
-        } <= paths, event
+        }, event

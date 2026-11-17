@@ -99,9 +99,8 @@ def _layer_hits(path: Path, label: str, needle: bytes) -> Iterator[str]:
     with _open_archive(path, f"{label}: cannot read this layer") as layer:
         for member in layer:
             where = f"{label}:{member.name}"
-            if (
-                needle in member.name.encode()
-                or needle in member.linkname.encode()
+            if needle in os.fsencode(member.name) or needle in os.fsencode(
+                member.linkname
             ):
                 yield f"{where} (in its path or link target)"
             if not member.isfile():
@@ -130,7 +129,7 @@ def search(image_tar: Path, needle: bytes) -> tuple[int, list[str]]:
     ):
         member_copy = Path(scratch) / "member"
         for member in image:
-            if needle in member.name.encode():
+            if needle in os.fsencode(member.name):
                 hits.append(f"{member.name} (in its path)")
             if not member.isfile():
                 continue
@@ -178,7 +177,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if hits:
         for hit in hits:
-            print(f"::error::The marker from {args.marker_env} is in {hit}")
+            # A member name that is not UTF-8 holds surrogate escapes, which
+            # cannot be printed as they are.
+            shown = hit.encode("utf-8", "backslashreplace").decode("utf-8")
+            print(f"::error::The marker from {args.marker_env} is in {shown}")
         return 1
     print(
         f"Searched {layers} layer(s) and the image metadata: "

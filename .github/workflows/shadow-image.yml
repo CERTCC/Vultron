@@ -22,7 +22,12 @@ on:
       - docker/**
       - .dockerignore
       # The tool itself, and the dependencies and console script it is
-      # installed with.
+      # installed with. The tool also imports much of the rest of `vultron/`
+      # (config, core, wire, adapters); those paths are left out on purpose,
+      # because this job checks what the image holds and how the container is
+      # wired, not whether the code imports. An import that breaks the start is
+      # caught by test/shadow/, which runs the real script and the
+      # `vultron-shadow` command in python-app.yml on every `vultron/**` change.
       - vultron/shadow/**
       - pyproject.toml
       - uv.lock
@@ -121,6 +126,14 @@ jobs:
             exit 1
           fi
           container=$(docker compose -f docker/docker-compose.yml ps --quiet shadow)
+          # `docker compose port` reports one binding; read every one.
+          ports=$(docker inspect "$container" --format '{{json .NetworkSettings.Ports}}')
+          bindings=$(jq -r '[.[] // [] | .[] | .HostIp] | length' <<<"$ports")
+          off_loopback=$(jq -r '[.[] // [] | .[] | .HostIp | select(. != "127.0.0.1")] | join(" ")' <<<"$ports")
+          if [ "$bindings" -eq 0 ] || [ -n "$off_loopback" ]; then
+            echo "::error::The shadow container publishes $ports, not only on 127.0.0.1 (SHD-02-002)"
+            exit 1
+          fi
           mounts=$(docker inspect "$container" --format '{{json .Mounts}}')
           if [ "$mounts" != "[]" ]; then
             echo "::error::The shadow container has mounts: $mounts (SHD-02-001)"
