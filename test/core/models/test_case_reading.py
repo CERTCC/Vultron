@@ -33,6 +33,7 @@ from vultron.core.models.case_reading import (
     UntranslatedReason,
     case_reading_problems,
 )
+from vultron.core.states.cs_invariants import CSEvent
 
 _AT = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -173,6 +174,30 @@ def test_an_untranslated_fact_needs_one_of_the_four_reasons():
 def test_a_blank_string_part_is_refused(model, fields):
     with pytest.raises(ValidationError):
         model(**fields)
+
+
+@pytest.mark.spec("CRD-02-005")
+def test_an_unobservable_fact_names_the_events_it_covers():
+    no_fix = UnobservableFact(
+        fact="Fix ready (F), fix deployed (D)",
+        why="no field",
+        events=frozenset({CSEvent.F, CSEvent.D}),
+    )
+    log = UnobservableFact(fact="The activity log", why="not exposed")
+    assert log.events == frozenset()
+    reading = CaseReading(ledger=(), citations=(), unobservable=(no_fix, log))
+    assert reading.unobservable_events == {CSEvent.F, CSEvent.D}
+
+
+def test_a_reading_that_names_no_event_has_no_unobservable_event():
+    log = UnobservableFact(fact="The activity log", why="not exposed")
+    reading = CaseReading(ledger=(), citations=(), unobservable=(log,))
+    assert reading.unobservable_events == frozenset()
+
+
+def test_an_unobservable_fact_refuses_a_name_that_is_no_case_state_event():
+    with pytest.raises(ValidationError):
+        UnobservableFact(fact="f", why="w", events=frozenset({"Q"}))  # type: ignore[arg-type]
 
 
 def test_an_unknown_key_is_refused():

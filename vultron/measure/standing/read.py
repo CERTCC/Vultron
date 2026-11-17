@@ -24,15 +24,15 @@ from __future__ import annotations
 
 import logging
 
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.measure.baselines import (
-    Event,
-    JointState,
-    Step,
+    ordered_cs_events,
     outcome_change,
 )
+from vultron.measure.baselines.values import Outcomes
 from vultron.measure.history import (
     CaseEventHistory,
     ReachedParticipant,
@@ -114,11 +114,9 @@ def _participant(
 
 
 def _changes(
-    prefix: CasePrefix,
-    step: Step[JointState, Event],
-    vendors: dict[int, str],
+    outcomes: Outcomes, vendors: dict[int, str]
 ) -> tuple[DesideratumChange, ...]:
-    """Each vendor's change in expected outcome from *step*
+    """Each vendor's change in expected outcome, as *outcomes* holds it
     (:func:`~vultron.measure.baselines.outcome_change`)."""
     return tuple(
         DesideratumChange(
@@ -127,7 +125,39 @@ def _changes(
             notation=key.desideratum.notation,
             change=change,
         )
-        for key, change in outcome_change(prefix, step).items()
+        for key, change in outcomes.items()
+    )
+
+
+def _unobservable_reason(
+    move: RMMove | CSMove | EMMove,
+    outcomes: Outcomes,
+    unobservable: frozenset[CSEvent],
+) -> str | None:
+    """Why *move*'s change in expected outcome rests on an event the source
+    cannot observe; ``None`` when it does not (CRD-02-005).
+
+    It does when the move is such an event, which may already have happened,
+    or when it changes the expected outcome of a desideratum that orders
+    one, whose status the case cannot say.
+    """
+    if isinstance(move, CSMove) and move.event in unobservable:
+        return (
+            f"the source cannot observe {move.event.value} events, so this"
+            " one may already have happened"
+        )
+    changed = {
+        event
+        for key, change in outcomes.items()
+        if change
+        for event in ordered_cs_events(key.desideratum) & unobservable
+    }
+    if not changed:
+        return None
+    names = ", ".join(event.value for event in CSEvent if event in changed)
+    return (
+        f"the move changes the expected outcome of desiderata over {names},"
+        " which the source cannot observe"
     )
 
 
@@ -135,8 +165,13 @@ def _scored(
     prefix: CasePrefix | None,
     numbers: dict[str, int],
     move: RMMove | CSMove | EMMove,
+    unobservable: frozenset[CSEvent] = frozenset(),
 ) -> ScoredMove:
-    """*move* with each vendor's change in expected outcome, if it has one."""
+    """*move* with each vendor's change in expected outcome, if it has one.
+
+    A move whose change rests on an event in *unobservable* carries the
+    reason instead of a number (:func:`_unobservable_reason`).
+    """
     if move.source == move.destination:
         return ScoredMove(move=move)
     if prefix is None:
@@ -147,8 +182,12 @@ def _scored(
         step = joint_step(prefix, numbers, move)
     except NoJointStep as exc:
         return ScoredMove(move=move, unscored=str(exc))
+    outcomes = outcome_change(prefix, step)
+    reason = _unobservable_reason(move, outcomes, unobservable)
+    if reason is not None:
+        return ScoredMove(move=move, unscored=reason)
     vendors = {n: participant for participant, n in numbers.items()}
-    return ScoredMove(move=move, changes=_changes(prefix, step, vendors))
+    return ScoredMove(move=move, changes=_changes(outcomes, vendors))
 
 
 def _moves_of(
@@ -169,18 +208,24 @@ def _unaware_vendors(participants: list[ParticipantStanding]) -> list[str]:
     ]
 
 
-def case_standing(ledger: CaseLedger) -> StandingRecord:
+def case_standing(
+    ledger: CaseLedger, unobservable: frozenset[CSEvent] = frozenset()
+) -> StandingRecord:
     """Where the case *ledger* records stands at its last entry.
 
     Args:
         ledger: One case's entries from the source a measure should trust,
             as :func:`vultron.measure.ledger.read_case_ledgers` selects it.
+        unobservable: The case-state events the ledger's source cannot
+            observe.  Each desideratum that orders one is unknown, and each
+            move whose change in expected outcome rests on one carries the
+            reason instead of a number (CRD-02-005).
 
     Returns:
         Each participant's states, the desiderata each vendor's case has met,
-        broken or left open, and the moves allowed from here.  A ledger with
-        a hole yields only the :class:`StandingGap` that names it, never a
-        reading that hides it.
+        broken, left open or cannot know, and the moves allowed from here.
+        A ledger with a hole yields only the :class:`StandingGap` that names
+        it, never a reading that hides it.
     """
     history, reached = derive_case(ledger)
     try:
@@ -194,7 +239,7 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
         return _gapped(history, gap)
     sequences = case_state_sequences(history)
     scores = score_case(history)
-    case = CaseStanding(em=em, pxa=reached.pxa)
+    case = CaseStanding(em=em, pxa=reached.pxa, unobservable=unobservable)
     participants = [
         _participant(p, case, scores) for p in reached.participants
     ]
@@ -211,7 +256,7 @@ def case_standing(ledger: CaseLedger) -> StandingRecord:
         participants=participants,
         vendors=list(numbers),
         moves=[
-            _scored(prefix, numbers, move)
+            _scored(prefix, numbers, move, unobservable)
             for p in participants
             for move in _moves_of(p)
         ],

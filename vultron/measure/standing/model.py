@@ -55,7 +55,12 @@ from vultron.core.states.cs_invariants import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.measure.baselines import ORIGINAL, case_state_query
+from vultron.measure.baselines import (
+    ORIGINAL,
+    Desideratum,
+    case_state_query,
+    ordered_cs_events,
+)
 from vultron.measure.history import (
     BY_NAME,
     CaseEventHistory,
@@ -89,6 +94,9 @@ class DesideratumStatus(StrEnum):
     #: Some completions meet it and some do not: the moves still to come
     #: decide it.
     OPEN = "open"
+    #: It orders an event the case's source cannot observe, so the case
+    #: cannot say whether it is met (CRD-02-005).
+    UNKNOWN = "unknown"
 
 
 class DesideratumStanding(BaseModel):
@@ -98,7 +106,8 @@ class DesideratumStanding(BaseModel):
         notation: The desideratum as the Measuring CVD pages print it.
         before: The case-state event the desideratum wants first.
         after: The case-state event it wants after *before*.
-        status: Met, broken or still open.
+        status: Met, broken, still open, or unknown when it orders an
+            event the source cannot observe.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -109,25 +118,35 @@ class DesideratumStanding(BaseModel):
     status: DesideratumStatus
 
 
+def _status(meeting: int, met_by: list[set[Desideratum]]) -> DesideratumStatus:
+    """Met when every completion meets it, broken when none does, else
+    open."""
+    if meeting == len(met_by):
+        return DesideratumStatus.MET
+    if meeting == 0:
+        return DesideratumStatus.BROKEN
+    return DesideratumStatus.OPEN
+
+
 def desiderata_standing(
-    score: SequenceScore,
+    score: SequenceScore, unobservable: frozenset[CSEvent] = frozenset()
 ) -> tuple[DesideratumStanding, ...]:
     """Each original desideratum's status, read from *score*'s completions.
 
-    A desideratum every completion meets is met, one none meets is broken,
-    and any other is open, so the status agrees with the score it is read
-    from.  In the catalog order of :data:`~vultron.measure.baselines.ORIGINAL`.
+    A desideratum that orders an event in *unobservable* is unknown: the
+    sequence reads that event as not yet happened, which the source cannot
+    say (CRD-02-005).  Of the rest, one every completion meets is met, one
+    none meets is broken, and any other is open, so the status agrees with
+    the score it is read from.  In the catalog order of
+    :data:`~vultron.measure.baselines.ORIGINAL`.
     """
     met_by = [set(met_desiderata(c.history)) for c in score.completions]
     standings = []
     for desideratum in ORIGINAL:
-        meeting = sum(desideratum in met for met in met_by)
-        if meeting == len(met_by):
-            status = DesideratumStatus.MET
-        elif meeting == 0:
-            status = DesideratumStatus.BROKEN
+        if ordered_cs_events(desideratum) & unobservable:
+            status = DesideratumStatus.UNKNOWN
         else:
-            status = DesideratumStatus.OPEN
+            status = _status(sum(desideratum in met for met in met_by), met_by)
         (ordering,) = case_state_query(desideratum.query).orderings
         standings.append(
             DesideratumStanding(
@@ -147,12 +166,17 @@ class CaseStanding(BaseModel):
         em: The case's EM state, derived from its embargo register
             (ADR-0122).  Every participant stands in this one state.
         pxa: The case's public state, as the CASE_MANAGER adopted it.
+        unobservable: The case-state events the case's source cannot
+            observe, which every reading of the case takes as unknown, never
+            as not happened (CRD-02-005).  Empty for a source that observes
+            every event, as the Vultron ledger does.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     em: EM
     pxa: PxaName
+    unobservable: frozenset[CSEvent] = frozenset()
 
 
 class ParticipantStanding(BaseModel):
@@ -164,7 +188,7 @@ class ParticipantStanding(BaseModel):
         joined: ``False`` while it is an inert invitee.
         rm: Its report-management state.
         case: The case's EM and public state, which every participant stands
-            in.
+            in, and the case-state events its source cannot observe.
         score: The score of its case-state sequence, for a vendor with one
             (:func:`~vultron.measure.scoring.score_sequence`).  The prefix
             scored is the history an allowed :class:`CSMove` extends.
@@ -214,10 +238,11 @@ class ParticipantStanding(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def desiderata(self) -> tuple[DesideratumStanding, ...]:
-        """Each original desideratum met, broken or open; none unscored."""
+        """Each original desideratum met, broken, open or unknown; none
+        unscored."""
         if self.score is None:
             return ()
-        return desiderata_standing(self.score)
+        return desiderata_standing(self.score, self.case.unobservable)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -294,7 +319,8 @@ class ScoredMove(BaseModel):
             outcome if the move came next, for a move that changes state
             and names a step of the case's joint model.
         unscored: Why a move that changes state carries no number: the case
-            has no vendor, or the move moves no vendor's state.
+            has no vendor, the move moves no vendor's state, or its change
+            rests on an event the source cannot observe (CRD-02-005).
 
     A move that keeps every state, as a second embargo proposal while one is
     open does, is :attr:`advice`: it carries neither a number nor a reason.

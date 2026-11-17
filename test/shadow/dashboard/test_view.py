@@ -166,6 +166,51 @@ def test_vendors_that_share_a_label_keep_their_own_columns():
     assert rows[0]["Events"] == view.desideratum_code(vendors[0].desiderata[0])
 
 
+@pytest.mark.spec("CRD-02-005")
+def test_an_unknown_desideratum_shows_its_own_badge_and_count():
+    analysis = analyse(_reading_with_d_unobservable())
+    unseen, names = analysis.standing, analysis.actor_names
+    assert unseen is not None
+    rows = view.desiderata_rows(unseen.participants, names)
+    by_code = {row["Events"]: row for row in rows}
+    for code in ("D ≺ P", "D ≺ X", "D ≺ A"):
+        assert by_code[code]["Vendor"] == "❔ unknown"
+    assert by_code["F ≺ P"]["Vendor"] != "❔ unknown"
+    vendor = next(
+        r
+        for r in view.participant_rows(unseen.participants, names)
+        if r["Participant"] == "Vendor"
+    )
+    assert "❔ 3" in str(vendor["Desiderata"])
+
+
+def test_a_tally_with_no_unknown_desideratum_shows_no_unknown_count():
+    analysis = _analysis()
+    assert analysis.standing is not None
+    rows = view.participant_rows(
+        analysis.standing.participants, analysis.actor_names
+    )
+    assert rows
+    for row in rows:
+        assert "❔" not in str(row["Desiderata"])
+
+
+def _reading_with_d_unobservable() -> CaseReading:
+    path = RECORDINGS_DIR / "rcvv-embargo" / "case-actor.jsonl"
+    recorded = VultronCaseReader(root=RECORDINGS_DIR).read_case(str(path))
+    return CaseReading(
+        ledger=recorded.ledger,
+        citations=recorded.citations,
+        unobservable=(
+            UnobservableFact(
+                fact="Fix Deployed (D)",
+                why="no field",
+                events=frozenset({CSEvent.D}),
+            ),
+        ),
+    )
+
+
 def test_no_scored_vendor_gives_no_desiderata_rows():
     assert view.desiderata_rows([], {}) == []
 
@@ -433,7 +478,14 @@ def test_the_readers_report_reads_as_rows():
                 reason=Reason.NO_COUNTERPART,
             ),
         ),
-        unobservable=(UnobservableFact(fact="Fix Deployed", why="no field"),),
+        unobservable=(
+            UnobservableFact(
+                fact="Fix Deployed",
+                why="no field",
+                events=frozenset({CSEvent.D}),
+            ),
+            UnobservableFact(fact="Activity log", why="not in the API"),
+        ),
     )
     assert view.untranslated_rows(reading) == [
         {
@@ -443,6 +495,15 @@ def test_the_readers_report_reads_as_rows():
         }
     ]
     assert view.unobservable_rows(reading) == [
-        {"Fact": "Fix Deployed", "Why": "no field"}
+        {
+            "Fact": "Fix Deployed",
+            "Why": "no field",
+            "Reads as unknown": "Fix Deployed",
+        },
+        {
+            "Fact": "Activity log",
+            "Why": "not in the API",
+            "Reads as unknown": "—",
+        },
     ]
     assert view.inference_rows(reading) == []

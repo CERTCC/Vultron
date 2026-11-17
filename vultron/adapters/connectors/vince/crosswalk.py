@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from types import MappingProxyType
 
-from vultron.core.models.case_reading import UnobservableFact
+from vultron.core.models.case_reading import CSEvent, UnobservableFact
 
 #: The rows whose result VINCE implies but does not state, each with the
 #: caveat the crosswalk gives for it (CRD-02-002).
@@ -80,6 +80,7 @@ VINCE_UNOBSERVABLE: tuple[UnobservableFact, ...] = (
     UnobservableFact(
         fact="Fix ready (F), fix deployed (D)",
         why="No VINCE field records them.",
+        events=frozenset({CSEvent.F, CSEvent.D}),
     ),
     UnobservableFact(
         fact="A vendor was notified, a vendor viewed the case",
