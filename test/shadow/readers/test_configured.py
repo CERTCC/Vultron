@@ -174,8 +174,16 @@ def test_an_actor_id_that_names_no_actor_is_refused_as_configuration(actor_id):
         "http://user:secret@case-actor:7999/api/v2",
         "http://case-actor:7999/api/v2?token=x",
         "http://case-actor:7999/api/v2#frag",
+        "http://case-actor:7999/api/v2?",
+        "http://case-actor:7999/api/v2#",
     ],
-    ids=["userinfo", "query", "fragment"],
+    ids=[
+        "userinfo",
+        "query",
+        "fragment",
+        "bare-query-mark",
+        "bare-fragment-mark",
+    ],
 )
 def test_a_node_url_with_more_than_its_api_root_is_refused_at_load(url):
     with pytest.raises(ValueError, match="only the node's API root") as caught:

@@ -99,7 +99,7 @@ class ShadowConfig(BaseModel):
         if not v.startswith(("http://", "https://")):
             raise ValueError("node_url must start with http:// or https://")
         parts = urlsplit(v)
-        if "@" in parts.netloc or parts.query or parts.fragment:
+        if "@" in parts.netloc or "?" in v or "#" in v:
             raise ValueError(
                 "node_url must name only the node's API root: no user name,"
                 " password, query or fragment"

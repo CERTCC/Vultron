@@ -58,7 +58,7 @@ def _rows(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
-def _ndjson(rows: list[dict[str, Any]] | list[str]) -> str:
+def _ndjson(rows: list[dict[str, Any] | str]) -> str:
     return "\n".join(
         row if isinstance(row, str) else json.dumps(row) for row in rows
     )
@@ -371,8 +371,8 @@ def test_a_case_with_no_entry_is_refused_rather_than_shown_empty(
 
 @pytest.mark.parametrize(
     "case_id",
-    ["urn:uuid:case-2", "https://other.example/api/v2/cases/case-1"],
-    ids=["other-case", "other-node"],
+    ["urn:uuid:case-2", "https://other.example/api/v2/cases/case-1", "case-2"],
+    ids=["other-case", "other-node", "short-other-case"],
 )
 def test_a_ledger_of_another_case_than_the_one_asked_for_is_refused(case_id):
     """A full id must match whole; the node's answer must be that case."""
@@ -381,6 +381,27 @@ def test_a_ledger_of_another_case_than_the_one_asked_for_is_refused(case_id):
         _reader(_answering(body=body)).read_case(case_id)
     assert [v.message for v in caught.value.violations] == [
         f"the node answered with the ledger of case {_CASE}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "served",
+    [
+        "https://n/cases/case-1?v=1",
+        "https://n/cases/case-1#f",
+        "urn:uuid:",
+        "https://n/",
+    ],
+    ids=["query", "fragment", "bare-urn", "no-segment"],
+)
+def test_a_served_case_id_that_names_no_case_refuses_a_short_id(served):
+    body = _ndjson([_entry_row(served, 0)])
+    with pytest.raises(VultronNodeCaseReadError) as caught:
+        _reader(_answering(body=body)).read_case("case-1")
+    assert caught.value.case_id == "case-1"
+    assert _NODE in str(caught.value)
+    assert [v.message for v in caught.value.violations] == [
+        f"the node answered with the ledger of case {served}"
     ]
 
 

@@ -102,12 +102,19 @@ def _names(requested: str, served: str) -> bool:
 
     A full id must match whole, apart from a trailing slash, so a case of
     another node with the same last segment is not read as this one; a
-    short id matches the served id's last segment.
+    short id matches the served id's last segment, and a served id that
+    names no case matches nothing.
     """
     asked = requested.strip().rstrip("/")
     if asked.startswith(_URN_UUID) or urlsplit(asked).scheme:
         return served.rstrip("/") == asked
-    return path_segment(served) == path_segment(asked)
+    try:
+        served_segment = path_segment(served)
+    except ValueError:
+        # A served id with no segment, or with a query or a fragment, names
+        # no case, so it cannot be the one asked for.
+        return False
+    return served_segment == path_segment(asked)
 
 
 def _not_found(response: httpx.Response) -> str:
