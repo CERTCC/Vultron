@@ -18,8 +18,8 @@ from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
 from vultron.wire.as2.case_reference_placement import (
+    refuse_misplaced_case_preview,
     refuse_misplaced_case_reference,
-    refuse_misplaced_case_stub,
 )
 from vultron.wire.as2.context_agreement import refuse_context_disagreement
 from vultron.wire.as2.errors import (
@@ -396,7 +396,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # A case reference names the case only where an act may (AKM-03-004).
     refuse_misplaced_case_reference(activity)
     # A case stub stands for the case only in a case invitation (MV-10-002).
-    refuse_misplaced_case_stub(activity)
+    refuse_misplaced_case_preview(activity)
     # An activity and the objects it carries name one case (HP-08-015).
     refuse_context_disagreement(activity)
 

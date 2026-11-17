@@ -39,9 +39,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _CASE_ID = "https://example.org/cases/joining-wire-1"
@@ -122,7 +122,7 @@ def test_stub_invite_names_the_case_in_object_and_the_invitee_in_target() -> (
     assert reference["type"] == "VulnerabilityCase"
     assert reference["id"] == _CASE_ID
     preview = reference["preview"]
-    assert preview["type"] == "VulnerabilityCaseStub"
+    assert preview["type"] == "CasePreview"
     assert "caseId" not in preview
     assert preview["id"] != f"{_CASE_ID}/stub"
     assert dumped["target"]["id"] == _INVITEE_ID
@@ -240,7 +240,7 @@ def test_reject_of_stub_invite_is_reject_invite_actor_to_case() -> None:
     stub_invite = _stub_invite()
 
     assert isinstance(stub_invite.object_, as_TypedReference)
-    assert isinstance(stub_invite.object_.preview, as_VulnerabilityCaseStub)
+    assert isinstance(stub_invite.object_.preview, as_CasePreview)
     assert (
         _semantics_of("reject", stub_invite)
         is MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE

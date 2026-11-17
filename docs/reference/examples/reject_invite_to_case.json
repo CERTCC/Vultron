@@ -44,8 +44,8 @@
       "type": "VulnerabilityCase",
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
       "preview": {
-        "type": "VulnerabilityCaseStub",
         "id": "urn:uuid:b1aecde4-77e5-4d60-a1b8-eb5c0b992ecd",
+        "type": "CasePreview",
         "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
       }
     }
@@ -61,6 +61,6 @@
     "verificationMethod": "https://vultron.example/organizations/coordinator#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z3kZi8eCcvVSmMD7Sn5VRPpaGWpogaj9KmJx4TEibQZ4cD2cmWtBnquNywvMFmwGDSaHo8Wo4mMqaFn4vVih7HEK4"
+    "proofValue": "z2eVssZzB5URVddniadGvtbc4fRJ8HGBLpCFqGRd88YWzsLbqHHBBa1fckQXcGSMQSp9A1cgW7eSyK8Ej988AnD87"
   }
 }

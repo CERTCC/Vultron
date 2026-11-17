@@ -102,7 +102,7 @@ classDiagram
 | Object | What it is |
 |---|---|
 | `VulnerabilityCase` | The case itself: the container for everything below |
-| `VulnerabilityCaseStub` | The case's preview: a minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail, sent as the `preview` of the case reference a stub Invite carries as its `object` |
+| `CasePreview` | The case's preview: a minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail, sent as the `preview` of the case reference a stub Invite carries as its `object` |
 | `VulnerabilityReport` | A report of the vulnerability, such as the one that started the case |
 | `CaseParticipant` | An actor's membership in a case, carrying the roles it holds and the state it owns |
 | `CaseParticipantRole` | A role offered to an actor in the context of a case. It is a distinct type so that offering a role is structurally different from offering ownership of the case |

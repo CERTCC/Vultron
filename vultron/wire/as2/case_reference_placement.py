@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Parse-edge refusal of a case reference or case stub where no act puts one.
+"""Parse-edge refusal of a case reference or case preview where no act puts one.
 
 Two inline forms stand for a case without carrying it whole, and each has
 the slots an act may put it in:
@@ -24,13 +24,13 @@ the slots an act may put it in:
   ADR-0165).  Anywhere else a case is carried whole, so a reference there is
   a malformed case: a ``Create(VulnerabilityCase)`` that carried one would
   reach core naming a case with no owner and no position.
-- A ``VulnerabilityCaseStub`` is what an invitee decides on before it may see
-  the case (ADR-0114).  It is the case's preview (ADR-0205), so its one slot
+- A ``CasePreview`` is what an invitee decides on before it may see
+  the case (ADR-0114, ADR-0205), so its one slot
   is the ``preview`` of the typed case reference that is the stub
   ``Invite``'s ``object``, at any depth: the ``Accept`` and ``Reject`` of
-  that ``Invite`` carry it inline (MV-10-002).  A stub anywhere else, and a
-  previewed case reference anywhere but an ``Invite``'s ``object``, is a
-  misplaced stub.
+  that ``Invite`` carry it inline (MV-10-002).  A preview anywhere else, and
+  a previewed case reference anywhere but an ``Invite``'s ``object``, is a
+  misplaced preview.
 
 The parser refuses either form where it arrives, as it refused the sparse
 case before references existed: an inline object that is not what its slot
@@ -50,9 +50,7 @@ from vultron.wire.as2.typed_reference import (
     is_previewed_reference,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 #: Whether *child*, held in *parent*'s field *field_name*, sits where it may.
 #: An admitted child is not walked further.
@@ -62,9 +60,9 @@ _SlotPredicate = Callable[[BaseModel, str, object], bool]
 _FormPredicate = Callable[[object], bool]
 
 
-def _is_case_stub(value: object) -> bool:
-    """Whether *value* is a case stub (MV-10-002)."""
-    return isinstance(value, as_VulnerabilityCaseStub)
+def _is_case_preview(value: object) -> bool:
+    """Whether *value* is a case preview (MV-10-002)."""
+    return isinstance(value, as_CasePreview)
 
 
 def _misplaced(
@@ -115,12 +113,12 @@ def _is_invited_case_preview(parent: BaseModel, field_name: str) -> bool:
     )
 
 
-def _admits_case_stub(
+def _admits_case_preview(
     parent: BaseModel, field_name: str, child: object
 ) -> bool:
-    """A stub carried as the preview of a case reference an ``Invite`` names
-    in its ``object`` (MV-10-002).  A stub met anywhere else is misplaced:
-    the walk does not enter an admitted reference, so it meets a stub only
+    """A case preview carried as the preview of a case reference an ``Invite`` names
+    in its ``object`` (MV-10-002).  A preview met anywhere else is misplaced:
+    the walk does not enter an admitted reference, so it meets a preview only
     outside one."""
     return is_previewed_reference(child) and _is_invited_case_preview(
         parent, field_name
@@ -151,8 +149,8 @@ def refuse_misplaced_case_reference(activity: as_Activity) -> None:
         )
 
 
-def refuse_misplaced_case_stub(activity: as_Activity) -> None:
-    """Refuse *activity* when a case stub sits outside a stub Invite's object.
+def refuse_misplaced_case_preview(activity: as_Activity) -> None:
+    """Refuse *activity* when a case preview sits outside a stub Invite's object.
 
     Raises:
         VultronParseValidationError: Naming the activity and each slot.
@@ -161,18 +159,18 @@ def refuse_misplaced_case_stub(activity: as_Activity) -> None:
         _misplaced(
             activity,
             "",
-            _is_case_stub,
-            _admits_case_stub,
+            _is_case_preview,
+            _admits_case_preview,
         )
     )
     if misplaced:
         raise VultronParseValidationError(
-            f"activity {activity.id_!r}: a VulnerabilityCaseStub at"
-            f" {', '.join(misplaced)}; a case stub is permitted only as the"
+            f"activity {activity.id_!r}: a CasePreview at"
+            f" {', '.join(misplaced)}; a case preview is permitted only as the"
             " preview of a case reference that is an Invite's object,"
             " wherever that Invite is carried inline; anywhere else name the"
             " case by its URI (MV-10-002)"
         )
 
 
-__all__ = ["refuse_misplaced_case_reference", "refuse_misplaced_case_stub"]
+__all__ = ["refuse_misplaced_case_reference", "refuse_misplaced_case_preview"]

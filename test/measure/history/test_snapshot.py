@@ -45,7 +45,7 @@ _PREVIEWED_CASE = {
     "type": "VulnerabilityCase",
     "preview": {
         "id": "urn:uuid:preview",
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "summary": "A case to join",
         "caseStatus": _STATUS,
     },

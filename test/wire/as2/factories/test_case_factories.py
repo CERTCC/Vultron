@@ -62,7 +62,7 @@ from vultron.wire.as2.factories import (
     undo_case_ownership_transfer_activity,
     update_case_activity,
 )
-from vultron.wire.as2.factories.case.invite import _stub_embargo
+from vultron.wire.as2.factories.case.invite import _preview_embargo
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.typed_reference import case_reference
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -81,10 +81,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -685,7 +685,7 @@ def test_rm_invite_to_case_object_is_the_previewed_case_reference(
     wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
     assert wire["object"]["type"] == "VulnerabilityCase"
     assert wire["object"]["id"] == _CASE_URI
-    assert wire["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+    assert wire["object"]["preview"]["type"] == "CasePreview"
     assert "caseId" not in wire["object"]["preview"]
     assert wire["context"] == _CASE_URI
 
@@ -1130,7 +1130,7 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
 
     assert invite.object_.id_ == case_id
     stub = invite.object_.preview
-    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert isinstance(stub, as_CasePreview)
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == embargo.id_
     assert stub.active_embargo.end_time is not None
@@ -1248,7 +1248,7 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     )
 
     stub = invite.object_.preview
-    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert isinstance(stub, as_CasePreview)
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == in_force.id_
     assert stub.active_embargo.id_ != revision.id_
@@ -1299,7 +1299,7 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
     )
 
     stub = invite.object_.preview
-    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert isinstance(stub, as_CasePreview)
     assert stub.active_embargo is None
     assert stub.case_status is None
 
@@ -1450,7 +1450,7 @@ def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
 
 
 @pytest.mark.spec("CM-17-024")
-def test_stub_embargo_refuses_when_no_active_embargo_is_named():
+def test_preview_embargo_refuses_when_no_active_embargo_is_named():
     """An EM-active case that names no active embargo is refused, not sent bare.
 
     A case whose EM is derived ``ACTIVE`` always has an active register entry,
@@ -1458,7 +1458,7 @@ def test_stub_embargo_refuses_when_no_active_embargo_is_named():
     to embed, and the stub is not built (CM-17-011).
     """
     with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
-        _stub_embargo(None, None, "https://example.org/cases/no-embargo")
+        _preview_embargo(None, None, "https://example.org/cases/no-embargo")
 
 
 @pytest.mark.spec("CM-11-001")

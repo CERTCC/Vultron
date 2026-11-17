@@ -629,7 +629,7 @@ class TestLateJoinerSequence:
             invite
             for invite in received_of_type(lj_dl, "Invite")
             if getattr(getattr(invite.object_, "preview", None), "type_", None)
-            == "VulnerabilityCaseStub"
+            == "CasePreview"
         ]
         assert _as_id(invite.context) == case_id
         # The Invite's actor is the replica's CASE_MANAGER role-holder.

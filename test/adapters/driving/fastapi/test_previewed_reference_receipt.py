@@ -65,7 +65,7 @@ def _stub_invite_fields(case_id: str) -> dict[str, Any]:
             "id": case_id,
             "type": "VulnerabilityCase",
             "preview": {
-                "type": "VulnerabilityCaseStub",
+                "type": "CasePreview",
                 "id": "https://example.org/previews/stub-invite-1",
                 "summary": _SUMMARY,
             },

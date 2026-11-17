@@ -53,9 +53,7 @@ from vultron.wire.as2.typed_reference import (
     is_previewed_reference,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 _PUBLISHED = "2026-11-16T12:00:00Z"
 _INVITEE = "https://example.org/actors/bob"
@@ -65,7 +63,7 @@ _RECEIVER = CASE_MANAGER_ID
 def _stub(case_id: str) -> dict[str, Any]:
     """The case's preview: its own id, which names nothing (ADR-0205)."""
     return {
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "id": f"urn:uuid:preview-of-{case_id.rsplit('/', 1)[-1]}",
         "summary": "A remote code execution vulnerability in widget.",
     }
@@ -139,7 +137,7 @@ def test_a_case_reference_carrying_the_stub_parses_as_a_previewed_reference(
     assert isinstance(reference, as_TypedReference)
     assert is_previewed_reference(reference)
     assert reference.id_ == case_id
-    assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+    assert isinstance(reference.preview, as_CasePreview)
     assert reference.preview.summary
 
 
@@ -371,7 +369,7 @@ def test_a_stored_previewed_reference_reads_back_as_received(
         reference = _object_chain_end(read_back)
         assert is_previewed_reference(reference), type(reference)
         assert isinstance(reference, as_TypedReference)
-        assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+        assert isinstance(reference.preview, as_CasePreview)
         assert reference.id_ == case.id_
 
 

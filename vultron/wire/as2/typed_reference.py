@@ -70,9 +70,7 @@ from vultron.wire.as2.vocab.base.registry import (
     resolve_wire_type,
     resolved_wire_type_name,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
 #: The keys a typed reference may carry: its ``id`` and ``type``, the JSON-LD
 #: ``@context`` any object may cite, and an AS2 ``preview`` (MV-10-011).
@@ -90,7 +88,7 @@ PREVIEW_KEY = "preview"
 #: refused, as is a case reference whose preview is not an inline stub.
 #: Previews beyond the case's are #6257.
 DEFINED_PREVIEWS: Mapping[str, type[BaseModel]] = MappingProxyType(
-    {"VulnerabilityCase": as_VulnerabilityCaseStub}
+    {"VulnerabilityCase": as_CasePreview}
 )
 
 #: The types whose preview the protocol defines (MV-10-012, ADR-0198).
@@ -202,7 +200,7 @@ def reads_as_typed_reference(
             CoreActor,
             as_Collection,
             as_Link,
-            as_VulnerabilityCaseStub,
+            as_CasePreview,
         ),
     )
 
@@ -247,7 +245,7 @@ class as_TypedReference(as_Object):
     # The one defined preview (DEFINED_PREVIEWS, which a test holds to this
     # annotation); the parser refuses any other before this class reads it
     # (MV-10-012).
-    preview: as_VulnerabilityCaseStub | None = None  # type: ignore[assignment]
+    preview: as_CasePreview | None = None  # type: ignore[assignment]
 
     @model_validator(mode="after")
     def _preview_is_its_types(self) -> as_TypedReference:

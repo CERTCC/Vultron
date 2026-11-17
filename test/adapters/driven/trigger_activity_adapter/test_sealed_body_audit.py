@@ -974,7 +974,7 @@ def _carried_case_copies(value: Any, path: str = "body") -> list[str]:
 def _full_case_paths(value: Any, path: str = "body") -> list[str]:
     """Paths of every case dict in a ``target``/``context`` slot, any depth.
 
-    A stub names itself ``VulnerabilityCaseStub`` (CM-11-013), so any inline
+    A stub names itself ``CasePreview`` (CM-11-013), so any inline
     ``VulnerabilityCase`` in a reference slot is the case itself.
     """
     found: list[str] = []

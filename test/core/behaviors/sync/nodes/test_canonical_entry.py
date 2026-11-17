@@ -477,7 +477,7 @@ def test_a_stub_invite_resolves_to_the_invite_of_a_case_signature():
             "type": "VulnerabilityCase",
             "id": CASE_ID,
             "preview": {
-                "type": "VulnerabilityCaseStub",
+                "type": "CasePreview",
                 "id": "https://example.org/previews/1",
                 "summary": "A case to join",
             },

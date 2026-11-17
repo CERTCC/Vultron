@@ -51,20 +51,18 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
 
 
-def _project_case_to_stub(
+def _project_case_to_preview(
     case: VulnerabilityCase,
     embargo_obj: Any,
     at: datetime,
-) -> as_VulnerabilityCaseStub:
+) -> as_CasePreview:
     """Project a ``VulnerabilityCase`` to its preview, the case stub.
 
     The stub names no case of its own: the typed reference that carries it
@@ -96,12 +94,12 @@ def _project_case_to_stub(
             ``stub_summary``.  Set ``VulnerabilityCase.stub_summary`` before
             emitting a stub Invite (CM-17-010).  Also when the active
             embargo cannot be embedded whole (CM-17-011); see
-            :func:`_stub_embargo`.
+            :func:`_preview_embargo`.
     """
     stub_summary = case.stub_summary
     if stub_summary is None:
         raise VultronActivityConstructionError(
-            f"_project_case_to_stub: case {case.id_!r} has no "
+            f"_project_case_to_preview: case {case.id_!r} has no "
             "'stub_summary' — set VulnerabilityCase.stub_summary before "
             "emitting a stub Invite (CM-17-010, MV-10-001)"
         )
@@ -110,24 +108,24 @@ def _project_case_to_stub(
     # "In force" is the register's ACTIVE entry, so it holds through a
     # revision (EM REVISE), not only while EM is exactly ACTIVE (CM-17-002).
     if not case.embargo_in_force:
-        return as_VulnerabilityCaseStub(summary=stub_summary)
+        return as_CasePreview(summary=stub_summary)
     em_state = case.em_state
     active_embargo = case.active_embargo
-    embargo = _stub_embargo(active_embargo, embargo_obj, case_id)
+    embargo = _preview_embargo(active_embargo, embargo_obj, case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
     wire_status = as_CaseStatus(
         context=case_id, em=EmDimension(state=em_state), published=at
     )
-    return as_VulnerabilityCaseStub(
+    return as_CasePreview(
         summary=stub_summary,
         active_embargo=embargo,
         case_status=wire_status,
     )
 
 
-def _stub_embargo(
+def _preview_embargo(
     active_embargo: str | WireEmbargoEvent | None,
     embargo_obj: object,
     case_id: str,
@@ -150,7 +148,7 @@ def _stub_embargo(
     """
     if active_embargo is None:
         raise VultronActivityConstructionError(
-            f"_stub_embargo: case {case_id!r} has an embargo in force but"
+            f"_preview_embargo: case {case_id!r} has an embargo in force but"
             " names no active embargo, so the stub has no terms to embed"
             " (CM-17-002, CM-17-011)"
         )
@@ -162,14 +160,14 @@ def _stub_embargo(
             embargo_obj = active_embargo
     if not isinstance(embargo_obj, WireEmbargoEvent):
         raise VultronActivityConstructionError(
-            f"_stub_embargo: case {case_id!r} has active embargo"
+            f"_preview_embargo: case {case_id!r} has active embargo"
             f" {active_id!r} but no EmbargoEvent object to embed in the stub"
             " — the stub carries the full embargo, not its ID (CM-17-002,"
             " CM-17-011)"
         )
     if embargo_obj.id_ != active_id:
         raise VultronActivityConstructionError(
-            f"_stub_embargo: embargo {embargo_obj.id_!r} is not case"
+            f"_preview_embargo: embargo {embargo_obj.id_!r} is not case"
             f" {case_id!r}'s active embargo {active_id!r} (CM-17-011)"
         )
     return embargo_obj
@@ -193,7 +191,7 @@ def rm_invite_to_case_activity(
 
     The ``object`` is the typed reference naming the case, carrying the
     case's preview, the case stub projected from *case* by
-    :func:`_project_case_to_stub` (CM-17-010, ADR-0205).  The invitee is the
+    :func:`_project_case_to_preview` (CM-17-010, ADR-0205).  The invitee is the
     ``target``.
 
     Args:
@@ -237,7 +235,7 @@ def rm_invite_to_case_activity(
             "object_": as_TypedReference(
                 type_=VO_type.VULNERABILITY_CASE.value,
                 id_=case.id_,
-                preview=_project_case_to_stub(case, embargo_obj, at),
+                preview=_project_case_to_preview(case, embargo_obj, at),
             ),
             "target": carried_actor(invitee),
             **with_case_context(kwargs, case.id_),

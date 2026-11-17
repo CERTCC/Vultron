@@ -96,15 +96,15 @@ groups:
     kind: project
     statement: >-
       A caller MUST NOT hand a factory a hand-built partial stub in place of the domain
-      object, such as an `as_VulnerabilityCaseStub` assembled field by field.
+      object, such as a `CasePreview` assembled field by field.
     rationale: >-
       A partial stub that a caller builds field by field can omit a field the object
       supplies, for example `end_time` on an embargo event. The recipient then gets less
       than the sender knows.
     verification: >-
-      `test_no_production_module_outside_the_wire_layer_builds_a_case_stub` in
+      `test_no_production_module_outside_the_wire_layer_builds_a_case_preview` in
       `test/architecture/test_factory_wire_spelling_and_stubs.py` asserts that no module
-      under `vultron/` outside `vultron/wire/as2/` names `as_VulnerabilityCaseStub`.
+      under `vultron/` outside `vultron/wire/as2/` builds a `CasePreview`.
     adr:
     - ADR-0099
   - id: AF-01-008

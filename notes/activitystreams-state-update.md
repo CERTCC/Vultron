@@ -96,7 +96,7 @@ delivery boundary: a DataLayer round trip alone misses loss in the outbox.
 
 `Accept(Invite(...))` nests an `Invite` whose own `actor` and `object_` must also
 be parsed to typed objects, or `ActivityPattern` matching on subtypes fails. A
-case stub is recognized by its `type` (`VulnerabilityCaseStub`, CM-11-038),
+case stub is recognized by its `type` (`CasePreview`, CM-11-038),
 never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
 ## Bootstrap Embeds Participant Records Inline

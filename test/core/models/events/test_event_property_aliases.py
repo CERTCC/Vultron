@@ -27,6 +27,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_preview import (
     CasePreview,
     PreviewedCaseReference,
+    preview_em_state,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -143,7 +144,7 @@ _previewed = make(
     preview=make(
         CasePreview,
         id_="urn:uuid:case-preview",
-        type_="VulnerabilityCaseStub",
+        type_="CasePreview",
         summary="A case to join",
     ),
 )
@@ -613,7 +614,7 @@ def test_the_stub_invite_event_carries_the_case_preview():
     assert event.preview is not None
     assert event.preview.summary == "A case to join"
     assert event.preview.active_embargo is None
-    assert event.preview.em_state is None
+    assert preview_em_state(event.preview) is None
 
     embargo = make(EmbargoEvent, context=_CASE_URI, end_time=days_from_now(30))
     embargoed = make(
@@ -636,7 +637,7 @@ def test_the_stub_invite_event_carries_the_case_preview():
     assert preview is not None
     assert isinstance(preview.active_embargo, EmbargoEvent)
     assert preview.active_embargo.id_ == embargo.id_
-    assert preview.em_state is EM.ACTIVE
+    assert preview_em_state(preview) is EM.ACTIVE
 
 
 @pytest.mark.spec("SYNC-18-007")

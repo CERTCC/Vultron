@@ -2244,19 +2244,19 @@ groups:
     kind: protocol
     statement: >-
       The stub Invite's `object` MUST be a typed reference to the case, naming the
-      case by its own `id`, whose `preview` is the case stub, of its own wire `type`
-      `VulnerabilityCaseStub`.
+      case by its own `id`, whose `preview` is the case's preview, of its own wire
+      `type` `CasePreview`.
     rationale: >-
-      A receiver classifies an activity by its shape. The stub is the case's preview
-      (ADR-0205), so the case is named by the reference's own `id` and nothing stands
-      in for it. The reference carrying a preview and the whole case of the full-case
+      A receiver classifies an activity by its shape. ADR-0205 retires the stub's own
+      type, its own id and its `caseId`: the case is named by the reference's own `id`,
+      the preview has a type of its own, and nothing stands in for the case. The reference carrying a preview and the whole case of the full-case
       Invite differ in form, so a receiver tells the two Invites apart as received
       (SE-01-009).
     verification: >-
       `test_stub_invite_names_the_case_in_object_and_the_invitee_in_target` in
       `test/wire/as2/test_case_joining_wire.py` confirms the stub Invite's `object` is
       a `VulnerabilityCase` reference naming the case by its `id` and carrying a
-      `VulnerabilityCaseStub` preview.
+      `CasePreview` preview.
     adr:
     - ADR-0205
     - ADR-0114
@@ -4276,9 +4276,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A sender's case stub MUST carry exactly `id`, `type`, a non-empty `summary`
-      (MV-10-001) and, with an embargo in force, the CM-17-002 embargo terms. The
-      JSON-LD `@context` is not content.
+      A sender's case preview (`CasePreview`) MUST carry exactly `id`, `type`, a
+      non-empty `summary` (MV-10-001) and, with an embargo in force, the CM-17-002
+      embargo terms. The JSON-LD `@context` is not content.
     rationale: >-
       An invitee is not yet entitled to case content (CM-10-004, CM-17-005). For
       informed consent, the invitee needs the case's identity, a summary that a person
@@ -4425,7 +4425,7 @@ groups:
     verification: >-
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
-      `test_stub_embargo_refuses_when_no_active_embargo_is_named` in
+      `test_preview_embargo_refuses_when_no_active_embargo_is_named` in
       `test/wire/as2/factories/test_case_factories.py` confirm the Invite is refused
       when the active embargo cannot be embedded;
       `test_invite_is_refused_when_the_embargo_is_not_in_the_store` in

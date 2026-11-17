@@ -264,7 +264,7 @@ def test_sealed_body_keeps_the_case_preview_inline(dl):
     invite = _invite()
     body = json.loads(seal_outbound_body(dl, invite))
     assert isinstance(body["object"], dict)
-    assert body["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+    assert body["object"]["preview"]["type"] == "CasePreview"
     assert body["context"] == body["object"]["id"]
 
 

@@ -32,12 +32,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
 )
 
 
@@ -136,7 +134,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         reference = activity.object_
         assert isinstance(reference, as_TypedReference)
         self.assertEqual(reference.id_, case.id_)
-        assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+        assert isinstance(reference.preview, as_CasePreview)
         self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
@@ -185,7 +183,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         reference = activity.object_
         assert isinstance(reference, as_TypedReference)
         self.assertEqual(reference.id_, case.id_)
-        assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+        assert isinstance(reference.preview, as_CasePreview)
         self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 

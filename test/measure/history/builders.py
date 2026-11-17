@@ -265,7 +265,7 @@ class Ledger:
                 "type": "VulnerabilityCase",
                 "preview": {
                     "id": f"urn:uuid:preview-{invitee}",
-                    "type": "VulnerabilityCaseStub",
+                    "type": "CasePreview",
                     "summary": "A case to join",
                     "activeEmbargo": embargo(),
                 },

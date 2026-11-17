@@ -1657,7 +1657,7 @@ class TestFindCaseInviteForActor:
                 "type": "VulnerabilityCase",
                 "preview": {
                     "id": "urn:uuid:preview-1",
-                    "type": "VulnerabilityCaseStub",
+                    "type": "CasePreview",
                     "summary": "A case to join",
                 },
             },

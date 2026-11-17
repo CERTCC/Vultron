@@ -290,7 +290,7 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
                 "type": "VulnerabilityCase",
                 "id": "https://example.org/cases/case-1",
                 "preview": {
-                    "type": "VulnerabilityCaseStub",
+                    "type": "CasePreview",
                     "id": "urn:uuid:case-1-preview",
                     "summary": (
                         "Security issue — details shared after acceptance"

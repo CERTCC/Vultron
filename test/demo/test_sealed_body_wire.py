@@ -219,7 +219,7 @@ class TestTheWireCarriesTheSealedBody:
         )
         assert reference["id"] == case_id
         preview = reference["preview"]
-        assert preview["type"] == "VulnerabilityCaseStub"
+        assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
         assert "activeEmbargo" in preview, (
             "the invitee was not sent the embargo terms it is asked to consent"

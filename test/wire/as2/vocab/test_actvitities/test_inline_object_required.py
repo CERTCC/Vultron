@@ -118,6 +118,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -125,7 +126,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -166,7 +166,7 @@ _SUBMIT = make(_RmSubmitReportActivity, actor=_ACTOR, object_=_REPORT)
 _PREVIEWED_CASE = as_TypedReference(
     type_=_CASE.type_,
     id_=_CASE.id_,
-    preview=as_VulnerabilityCaseStub(summary="A case to join"),
+    preview=as_CasePreview(summary="A case to join"),
 )
 _INVITE = make(
     _RmInviteToCaseActivity,

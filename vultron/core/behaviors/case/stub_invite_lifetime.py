@@ -207,7 +207,7 @@ def superseded_reason(
     )
 
 
-def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
+def current_preview_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
     A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
@@ -217,11 +217,11 @@ def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
     return case.active_embargo_id
 
 
-def current_stub_embargo_end(
+def current_preview_embargo_end(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> datetime | None:
     """The end of the embargo a stub sent now would carry; caps its deadline."""
-    embargo_id = current_stub_embargo_id(case)
+    embargo_id = current_preview_embargo_id(case)
     if embargo_id is None:
         return None
     embargo = dl.read(embargo_id)
@@ -274,7 +274,7 @@ def outstanding_stale_stubs(
         # changes no active embargo, so it re-issues nothing; the answer that
         # activates or ends it does (CM-11-016).
         return []
-    wanted = current_stub_embargo_id(case)
+    wanted = current_preview_embargo_id(case)
     stale: list[RecordedStubInvite] = []
     by_invitee: dict[str, list[RecordedStubInvite]] = {}
     for stub in recorded_stub_invites(dl, case.id_, issuer_id):

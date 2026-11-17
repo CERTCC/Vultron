@@ -289,7 +289,7 @@ def test_an_activity_is_served_with_its_full_inline_object(
     assert invite["target"]["id"] == (
         "https://vultron.example/organizations/coordinator"
     )
-    assert invite["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+    assert invite["object"]["preview"]["type"] == "CasePreview"
 
 
 def test_camel_case_participant_dump_revalidates_without_minting() -> None:

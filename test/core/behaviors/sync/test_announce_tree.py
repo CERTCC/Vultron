@@ -1264,7 +1264,7 @@ def _reply_entry(
                 "type": "VulnerabilityCase",
                 "id": CASE_ID,
                 "preview": {
-                    "type": "VulnerabilityCaseStub",
+                    "type": "CasePreview",
                     "id": "https://example.org/previews/1",
                     "summary": "A case to join",
                 },

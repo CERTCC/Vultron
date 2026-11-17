@@ -151,10 +151,7 @@ def test_accept_reads_the_invite_from_the_receiver_keyed_record(
     accept = read_sealed_body_dict(invitee_dl, accept_id)
     assert accept is not None
     assert accept["object"]["id"] == invite_id
-    assert (
-        accept["object"]["object"]["preview"]["type"]
-        == "VulnerabilityCaseStub"
-    )
+    assert accept["object"]["object"]["preview"]["type"] == "CasePreview"
 
 
 @pytest.mark.spec("PCR-06-002", "PCR-06-005")

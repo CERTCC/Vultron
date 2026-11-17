@@ -441,7 +441,7 @@ def test_a_case_stub_never_reaches_staging_as_an_object():
     with pytest.raises(VultronParseValidationError, match="MV-10-002"):
         _parsed_announce(
             {
-                "type": "VulnerabilityCaseStub",
+                "type": "CasePreview",
                 "id": "urn:uuid:case-stub-001",
                 "summary": "Security issue — details shared after acceptance",
             }

@@ -79,7 +79,7 @@ def _full_case(**fields: Any) -> dict[str, Any]:
 
 def _stub_invite(**stub_fields: Any) -> dict[str, Any]:
     stub = {
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "id": "urn:uuid:case-1-preview",
         "summary": "Security issue — details after acceptance",
         **stub_fields,

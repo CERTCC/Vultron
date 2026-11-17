@@ -30,7 +30,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
-    current_stub_embargo_end,
+    current_preview_embargo_end,
     recorded_stub_invites,
 )
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
@@ -91,7 +91,7 @@ def build_stub_invite(
     # embargo Invite (CM-11-014, CM-28-012, ASK-03-004); the cap is the end of
     # the embargo the stub carries, when it carries one.
     stamp = stamp_rsvp_deadline(
-        current_stub_embargo_end(datalayer, case)
+        current_preview_embargo_end(datalayer, case)
         if case is not None
         else None,
         at,

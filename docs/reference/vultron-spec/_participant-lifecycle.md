@@ -55,14 +55,14 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The protocol solves this with a **case stub**: the case's preview, which carries enough for the invitee to decide, and no vulnerability detail.
 The invitation names the case by a typed reference: an object with the case's `id`, the `type` `VulnerabilityCase`, and the stub as its `preview`.
-The stub is an object of its own type, `VulnerabilityCaseStub`, and is not the case.
+The stub is an object of its own type, `CasePreview`, and is not the case.
 A sender's stub carries exactly the required fields and, while an embargo is in force, the embargo fields.
 
 Every stub carries these required fields:
 
 - `id`: the stub's own identifier.
   It names only the stub; the reference that carries the stub names the case.
-- `type`: `VulnerabilityCaseStub`.
+- `type`: `CasePreview`.
   A receiver tells a stub from a case by its `type` alone.
 - `summary`: required human-readable context saying what the invitee is being asked to join.
   The sender chooses it.

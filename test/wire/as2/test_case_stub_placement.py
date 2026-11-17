@@ -43,7 +43,7 @@ _PUBLISHED = "2026-01-01T00:00:00+00:00"
 
 def _stub() -> dict[str, Any]:
     return {
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "id": "urn:uuid:abc-preview",
         "summary": "A vul in widget; details shared after acceptance.",
     }
@@ -102,19 +102,18 @@ def test_a_refusal_notice_quoting_a_reply_to_a_case_invitation_is_accepted(
     )
     body = json.loads(notice.to_json())
     invite = body["object"]["object"]
-    assert invite["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+    assert invite["object"]["preview"]["type"] == "CasePreview"
 
     received = cast(Any, parse_activity(body))
 
     preview = received.object_.object_.object_.preview
-    assert preview.type_ == "VulnerabilityCaseStub"
+    assert preview.type_ == "CasePreview"
 
 
 _REFUSED_SLOTS = [
     "object",
     "origin",
     "instrument",
-    "result",
     "context",
     "inReplyTo",
     "attributedTo",
@@ -145,7 +144,7 @@ def test_a_stub_as_the_target_of_another_activity_is_refused(
 ) -> None:
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(_activity(type_, target=_stub()))
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+    assert "CasePreview at target;" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
@@ -158,7 +157,7 @@ def test_a_stub_in_an_embargo_invitation_is_refused() -> None:
             VultronParseValidationError, match="MV-10-002"
         ) as exc:
             parse_activity(body)
-        assert f"VulnerabilityCaseStub at {slot};" in str(exc.value)
+        assert f"CasePreview at {slot};" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")
@@ -188,12 +187,23 @@ def test_a_stub_inside_an_inline_domain_object_is_refused(
 
 
 @pytest.mark.spec("MV-10-002")
+@pytest.mark.spec("MV-10-002")
+@pytest.mark.parametrize("type_", ["Invite", "Announce", "Accept", "Offer"])
+def test_a_preview_as_a_result_is_refused_naming_the_slot(type_: str) -> None:
+    """``result`` admits no core object at all, so a ``CasePreview`` there is
+    refused when the slot validates, before the placement rule runs; the
+    refusal still names the slot."""
+    with pytest.raises(VultronParseValidationError) as exc:
+        parse_activity(_activity(type_, result=_stub()))
+    assert "result" in str(exc.value)
+
+
 def test_every_misplaced_stub_is_named() -> None:
-    body = _activity("Announce", context=_stub(), result=_stub())
+    body = _activity("Announce", context=_stub(), origin=_stub())
     with pytest.raises(VultronParseValidationError) as exc:
         parse_activity(body)
     assert "context" in str(exc.value)
-    assert "result" in str(exc.value)
+    assert "origin" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-009")
@@ -218,7 +228,7 @@ def test_a_case_uri_or_link_is_accepted_where_a_stub_is_refused(
             "type": "VulnerabilityCase",
             "id": _CASE_ID,
             "preview": {
-                "type": "VulnerabilityCaseStub",
+                "type": "CasePreview",
                 "id": "urn:uuid:abc-preview-2",
                 "summary": "A vul in widget.",
             },
@@ -236,7 +246,7 @@ def test_a_stub_in_an_invite_target_is_refused(
     """
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(_activity("Invite", object=case_object, target=_stub()))
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+    assert "CasePreview at target;" in str(exc.value)
 
 
 def _embargo_invite_naming_its_terms(form: str) -> dict[str, Any]:
@@ -265,7 +275,7 @@ def test_an_embargo_invitation_naming_its_terms_by_reference_keeps_no_stub(
     body["target"] = _stub()
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(body)
-    assert "VulnerabilityCaseStub at target;" in str(exc.value)
+    assert "CasePreview at target;" in str(exc.value)
 
 
 @pytest.mark.spec("MV-10-002")

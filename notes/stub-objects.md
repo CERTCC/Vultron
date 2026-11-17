@@ -28,7 +28,7 @@ relevant_packages:
 
 # Stub Objects
 
-The `VulnerabilityCase` stub (`as_VulnerabilityCaseStub`) is the only stub type
+The `VulnerabilityCase` stub (`as_CasePreview`) is the only stub type
 the protocol permits (MV-10-001, narrowed by ADR-0090). Requirements: MV-10 in
 `specs/message-validation.yaml`. A typed reference is not a stub: it claims only
 the `id` and `type` its sender knows (MV-10-011, ADR-0198). The actor reference
@@ -50,7 +50,7 @@ for an object the recipient already holds.
 The stub is the `preview` of a typed case reference, `{id, type, preview}`, that
 is the stub Invite's `object` (CM-11-013, ADR-0205). The reference's `id` names
 the case; the stub carries no case id and no ID derived from the case's. Its own
-`type`, `VulnerabilityCaseStub`, is the case's defined preview (MV-10-012), and
+`type`, `CasePreview`, is the case's defined preview (MV-10-012), and
 its own `id` is minted like any object's (OID-01-013). The Invite is routed by
 the reference's `type` and its form: only a pattern with
 `object_form=PREVIEWED_REFERENCE` matches it (SE-01-009).
@@ -93,7 +93,7 @@ with `previewed_case_id`, never from the stub.
 - `summary` is required. The case owner sets `VulnerabilityCase.stub_summary`
   before emitting a stub Invite; `_project_case_to_stub()` refuses with
   `VultronActivityConstructionError` when it is absent, and
-  `as_VulnerabilityCaseStub._refuse_absent_summary` refuses an inbound stub with
+  `as_CasePreview._refuse_absent_summary` refuses an inbound stub with
   no `summary` key.
 - The stub's `caseStatus` is built for the stub, not read from the case, and
   serializes only its identity, its `published` and `emState` (CM-17-013). A

@@ -39,6 +39,7 @@ from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -46,7 +47,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -314,7 +314,7 @@ class TestRmInviteToCaseActivity:
         return as_TypedReference(
             type_="VulnerabilityCase",
             id_="urn:uuid:case-1",
-            preview=as_VulnerabilityCaseStub(summary="A case to join"),
+            preview=as_CasePreview(summary="A case to join"),
         )
 
     def test_rejects_string(self):

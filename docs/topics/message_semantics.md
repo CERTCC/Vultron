@@ -120,7 +120,7 @@ The protocol specification defines the stub the protocol uses, the **case stub**
 In the specification's words, it is "a minimal description of the case carrying enough for the invitee to decide, and no vulnerability detail."
 The specification, not this page, says what that description contains.
 At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)).
-The case stub's `type` is `VulnerabilityCaseStub`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
+The case stub's `type` is `CasePreview`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
 The stub travels as the case's `preview`: the stub Invite's `object` is a typed reference to the case, whose `id` names the case and whose `preview` is the stub ([MV-10-012](../reference/vultron-spec/requirements/messages.md#mv-10-012)).
 The stub's own `id` names only the stub, and the stub carries no field naming the case.
 

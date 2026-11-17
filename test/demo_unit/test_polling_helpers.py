@@ -953,7 +953,7 @@ class TestFindCaseInviteForActor:
         body = json.loads(record["received_body"])
         assert body["object"]["type"] == "VulnerabilityCase"
         assert body["object"]["id"] == CASE_ID
-        assert body["object"]["preview"]["type"] == "VulnerabilityCaseStub"
+        assert body["object"]["preview"]["type"] == "CasePreview"
         assert "caseId" not in body["object"]["preview"]
         assert body["target"]["id"] == ACTOR_B
         client = _dl_client({record_id: record})

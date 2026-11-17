@@ -51,9 +51,9 @@ from vultron.wire.as2.factories.actor import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -278,7 +278,7 @@ def test_case_target_ref_reduces_a_full_case_to_its_uri():
 
 
 def test_case_target_ref_leaves_a_uri_a_stub_and_none_alone():
-    stub = as_VulnerabilityCaseStub(case_id=_CASE_ID)
+    stub = as_CasePreview(summary="A case to join")
     assert case_target_ref(_CASE_ID) == _CASE_ID
     assert case_target_ref(stub) is stub
     assert case_target_ref(None) is None

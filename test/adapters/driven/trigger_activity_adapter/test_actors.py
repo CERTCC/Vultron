@@ -143,7 +143,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
         reference = json.loads(blob)["object"]
         assert reference["id"] == case_id
         preview = reference["preview"]
-        assert preview["type"] == "VulnerabilityCaseStub"
+        assert preview["type"] == "CasePreview"
         assert "caseId" not in preview
         assert preview["activeEmbargo"]["id"] == embargo.id_
         assert preview["activeEmbargo"]["endTime"]
@@ -422,7 +422,7 @@ class TestAcceptCaseInvite:
 
         reference = json.loads(activity_dict)["object"]["object"]
         assert reference["id"] == _CASE_ID
-        assert reference["preview"]["type"] == "VulnerabilityCaseStub"
+        assert reference["preview"]["type"] == "CasePreview"
 
     @pytest.mark.spec("DL-06-006")
     def test_an_invite_held_only_under_the_senders_id_is_not_answered(

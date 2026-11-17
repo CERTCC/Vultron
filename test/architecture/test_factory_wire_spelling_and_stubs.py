@@ -14,9 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture checks for how activity factories get their wire shape.
 
-- AF-01-007: no production module outside the wire layer builds an
-  ``as_VulnerabilityCaseStub`` to hand a factory; it hands the domain object
-  and the factory builds the stub.
+- AF-01-007: no production module outside the wire layer builds a
+  ``CasePreview`` (wire alias ``as_CasePreview``) to hand a factory; it hands
+  the domain object and the factory builds the case's preview.
 - AF-01-008: no factory spells an AS2 field name by hand; the alias a core
   object inherits is the only source of the wire spelling (ARCH-12-013).
 """
@@ -28,9 +28,10 @@ import pytest
 
 from test.architecture import _corpus
 
-_STUB_CLASS = "as_VulnerabilityCaseStub"
+#: The case's preview, one class under two names (ARCH-25-003).
+_PREVIEW_NAMES = frozenset({"CasePreview", "as_CasePreview"})
 
-#: The wire layer defines the stub and its factories build it.
+#: The wire layer's factories build the preview.
 _STUB_ALLOWED_PREFIX = "vultron/wire/as2/"
 
 _FACTORIES = _corpus.REPO_ROOT / "vultron" / "wire" / "as2" / "factories"
@@ -39,34 +40,39 @@ _FACTORIES = _corpus.REPO_ROOT / "vultron" / "wire" / "as2" / "factories"
 _CAMEL = re.compile(r"^[a-z]+(?:[A-Z][a-z0-9]*)+$")
 
 
-def _names_stub_class(tree: ast.AST) -> bool:
+def _builds_a_preview(tree: ast.AST) -> bool:
+    """Whether *tree* calls the preview class to construct one."""
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id == _STUB_CLASS:
-            return True
-        if isinstance(node, ast.Attribute) and node.attr == _STUB_CLASS:
-            return True
-        if isinstance(node, ast.ImportFrom) and any(
-            alias.name == _STUB_CLASS for alias in node.names
-        ):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = (
+            func.id
+            if isinstance(func, ast.Name)
+            else func.attr
+            if isinstance(func, ast.Attribute)
+            else None
+        )
+        if name in _PREVIEW_NAMES:
             return True
     return False
 
 
 @pytest.mark.spec("AF-01-007")
-def test_no_production_module_outside_the_wire_layer_builds_a_case_stub():
-    """A caller hands the factory the case, never a stub it assembled."""
+def test_no_production_module_outside_the_wire_layer_builds_a_case_preview():
+    """A caller hands the factory the case, never a preview it assembled."""
     offenders = sorted(
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         for path, tree in _corpus.files_mentioning(
-            _STUB_CLASS, under=_corpus.REPO_ROOT / "vultron"
+            "CasePreview", under=_corpus.REPO_ROOT / "vultron"
         )
         if not path.relative_to(_corpus.REPO_ROOT)
         .as_posix()
         .startswith(_STUB_ALLOWED_PREFIX)
-        and _names_stub_class(tree)
+        and _builds_a_preview(tree)
     )
     assert offenders == [], (
-        f"These modules name {_STUB_CLASS} outside the wire layer; hand the"
+        "These modules build a CasePreview outside the wire layer; hand the"
         f" factory the domain object instead (AF-01-007): {offenders}"
     )
 
@@ -115,9 +121,22 @@ def test_the_camel_case_check_catches_a_hand_spelled_member():
     assert _hand_spelled_members(tree) == [(3, "activeEmbargo")]
 
 
-def test_the_stub_check_catches_a_stub_built_outside_the_wire_layer():
-    """The AF-01-007 scan is not vacuous: it flags a call to the stub class."""
-    tree = _corpus.parse_inline(
-        "x = as_VulnerabilityCaseStub(case_id='urn:x')\n"
-    )
-    assert _names_stub_class(tree)
+@pytest.mark.parametrize(
+    "source",
+    [
+        "x = as_CasePreview(summary='s')\n",
+        "x = CasePreview(summary='s')\n",
+        "x = models.CasePreview(summary='s')\n",
+    ],
+)
+def test_the_preview_check_catches_a_preview_built_outside_the_wire_layer(
+    source: str,
+) -> None:
+    """The AF-01-007 scan is not vacuous: it flags a call to either name."""
+    assert _builds_a_preview(_corpus.parse_inline(source))
+
+
+def test_the_preview_check_passes_a_mere_mention() -> None:
+    """Naming the class in an annotation builds nothing."""
+    tree = _corpus.parse_inline("def f(p: CasePreview) -> None: ...\n")
+    assert not _builds_a_preview(tree)

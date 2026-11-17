@@ -52,9 +52,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Service,
 )
 from vultron.wire.as2.vocab.examples.vocab_examples import refusal_notice
+from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 
@@ -402,7 +402,7 @@ def _previewed_case() -> as_TypedReference:
     return as_TypedReference(
         type_="VulnerabilityCase",
         id_=CASE_URI,
-        preview=as_VulnerabilityCaseStub(summary="A case to join"),
+        preview=as_CasePreview(summary="A case to join"),
     )
 
 
@@ -579,10 +579,10 @@ def test_vulnerability_case_stub_serialises_minimally():
     The stub is the case's preview: it names no case of its own, so it
     carries no ``caseId`` and no ID derived from the case's (ADR-0205).
     """
-    stub = as_VulnerabilityCaseStub(summary="Heap overflow in libfoo")
+    stub = as_CasePreview(summary="Heap overflow in libfoo")
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
     assert set(dumped.keys()) <= {"id", "type", "summary", "@context"}
-    assert dumped.get("type") == "VulnerabilityCaseStub"
+    assert dumped.get("type") == "CasePreview"
     assert dumped.get("summary") == "Heap overflow in libfoo"
     assert not str(dumped.get("id")).endswith("/stub")
 
@@ -593,9 +593,9 @@ def test_a_stub_that_claims_another_type_is_refused():
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        as_VulnerabilityCaseStub.model_validate(
+        as_CasePreview.model_validate(
             with_times(
-                as_VulnerabilityCaseStub,
+                as_CasePreview,
                 {"type": "VulnerabilityCase", "summary": "A case"},
             )
         )
@@ -626,7 +626,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     reference = activity.object_
     assert isinstance(reference, as_TypedReference)
     assert reference.id_ == full_case.id_
-    assert isinstance(reference.preview, as_VulnerabilityCaseStub)
+    assert isinstance(reference.preview, as_CasePreview)
     assert reference.preview.summary == full_case.stub_summary
 
 

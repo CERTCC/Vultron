@@ -773,12 +773,10 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     """
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.states.em import EM
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseStub,
-    )
+    from vultron.wire.as2.vocab.objects.case_preview import as_CasePreview
 
     case_id = "https://example.org/cases/1"
-    stub = as_VulnerabilityCaseStub(
+    stub = as_CasePreview(
         summary="Security issue — embargo active, details after acceptance",
         active_embargo="https://example.org/embargoes/1",
         case_status=make(
@@ -800,7 +798,7 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     invited = getattr(activity, "object_", None)
     assert isinstance(invited, as_TypedReference)
     parsed = invited.preview
-    assert type(parsed) is as_VulnerabilityCaseStub
+    assert type(parsed) is as_CasePreview
     assert isinstance(parsed.case_status, CaseStatus)
     assert parsed.case_status.em.state == EM.ACTIVE
     records = _info_records_naming(caplog, FOREIGN_KEY)
@@ -821,7 +819,7 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
         type="Invite",
         object=INVITEE,
         target={
-            "type": "VulnerabilityCaseStub",
+            "type": "CasePreview",
             "caseId": "https://example.org/cases/1",
             misspelled: {"type": "CaseStatus", "context": "x"},
         },
@@ -937,7 +935,7 @@ def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     validator added by #4165.
     """
     target: dict[str, Any] = {
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "id": "https://example.org/cases/1/stub",
         "caseId": "https://example.org/cases/1",
     }
@@ -969,7 +967,7 @@ def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
 @pytest.mark.parametrize(
     ("wire_type", "expected"),
     [
-        ("VulnerabilityCaseStub", "as_VulnerabilityCaseStub"),
+        ("CasePreview", "CasePreview"),
         ("VulnerabilityCase", "VulnerabilityCase"),
     ],
 )
@@ -984,7 +982,7 @@ def test_the_type_alone_selects_the_stub_or_the_case(
     """The ``type`` decides the class, whatever keys ride along (CM-11-013).
 
     No key set turns a ``VulnerabilityCase`` into a stub, and no key set turns
-    a ``VulnerabilityCaseStub`` into a case, in either input spelling
+    a ``CasePreview`` into a case, in either input spelling
     (CS-14-001, CS-14-002).
     """
     from vultron.wire.as2.unknown_keys import resolve_inline_class

@@ -487,7 +487,7 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST classify a stub by its `type`. The stub form is permitted only
-      for a case, as the case's preview of the distinct `VulnerabilityCaseStub` type of
+      for a case, as the case's preview of the distinct `CasePreview` type of
       CM-11-013.
     rationale: >-
       No other type needs the stub form, and no other stub type is implemented. A
@@ -497,7 +497,7 @@ groups:
       `test_the_type_alone_selects_the_stub_or_the_case` and
       `test_a_sparse_case_carrying_stub_keys_is_still_a_case` in
       `test/wire/as2/test_unknown_key_disposition.py` confirm that an inline object
-      with `type: VulnerabilityCaseStub` resolves to the stub class, and that a sparse
+      with `type: CasePreview` resolves to the preview class, and that a sparse
       inline object with `type: VulnerabilityCase` is validated as a case.
     relationships:
     - rel_type: extends
@@ -596,7 +596,7 @@ groups:
       A receiver MUST refuse a typed reference (MV-10-011) that carries a `preview`,
       naming its position, unless the protocol defines a preview for the reference's
       type and the `preview` is that preview, carried inline. The case is the one
-      type with a defined preview: a case reference's `preview` is the case stub
+      type with a defined preview: a case reference's `preview` is a `CasePreview`
       (CM-17-010).
     rationale: >-
       A preview is a limited view of an object for a recipient that may not hold it
@@ -673,7 +673,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A `VulnerabilityCaseStub` object is ONLY permitted as the `preview` of a case
+      A `CasePreview` object is ONLY permitted as the `preview` of a case
       reference (MV-10-012) that is an `Invite`'s `object`, wherever that `Invite` is
       carried inline: for example inside its `Accept` or `Reject`, or inside a refusal
       notice that quotes such a reply. A receiver MUST refuse an activity that carries a

@@ -144,7 +144,7 @@ def test_the_invite_case_preview_survives_to_the_emitter(dl):
     preview = dict(reference["preview"])
     assert preview.pop("id")
     assert preview == {
-        "type": "VulnerabilityCaseStub",
+        "type": "CasePreview",
         "summary": _stub_summary,
     }
     assert delivered["context"] == case.id_
