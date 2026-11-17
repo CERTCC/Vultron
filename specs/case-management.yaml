@@ -1873,7 +1873,9 @@ groups:
       `test_replicas_hold_the_managers_whole_record_after_invite_and_accept` in
       `test/core/use_cases/received/test_stub_invite_replay.py` finds each
       replica's record equal to the CASE_MANAGER's in every field, status ids and
-      times included.
+      times included. A test replays an entry whose `target` names the case and
+      finds the record in that case, not in one taken from the entry's `case_id`
+      (#6295).
     relationships:
     - rel_type: depends_on
       spec_id: CM-11-024
@@ -10449,9 +10451,9 @@ groups:
       per actor, so the actor names the record, and reinstatement reuses it
       (CM-31-034).
     verification: >-
-      A test in `test/core/use_cases/received/test_participant_reinstatement.py`
-      asserts that the Case Owner's reinstate trigger sends this Offer to the
-      CASE_MANAGER only, naming the actor (#6465).
+      A test under `test/core/use_cases/triggers/` asserts that the Case Owner's
+      reinstate trigger sends this Offer to the CASE_MANAGER only, naming the actor
+      (#6465).
     relationships:
     - rel_type: uses_definition
       spec_id: CM-31-004
@@ -10486,12 +10488,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For a CM-31-011 Offer it admits, the CASE_MANAGER MUST, in one atomic act, send
-      the Case Owner an `Accept` of the Offer and make the
-      `Add(<Actor>, target=VulnerabilityCase)` itself, with `actor` the CASE_MANAGER,
-      `attributedTo` the Case Owner, `inReplyTo` the Offer and an id derived from the
-      Offer, as the reinstatement's one ledger entry and, under the same id, the
-      direct message to the reinstated actor.
+      For an admitted CM-31-011 Offer, the CASE_MANAGER MUST, in one atomic act, send
+      the Case Owner an `Accept` of it and make the
+      `Add(<Actor>, target=VulnerabilityCase)` itself. The `Add` has `actor` the
+      CASE_MANAGER, `attributedTo` the Case Owner, `inReplyTo` the Offer and an id
+      derived from the Offer. It is the reinstatement's one ledger entry and, under
+      the same id, the direct message to the reinstated actor. The `Accept`'s id is
+      derived from the Offer too.
     rationale: >-
       The Accept answers the Offer and the `Add` says the act was carried out
       (ADR-0199). Committing both together keeps the Case Owner from holding an
@@ -10616,9 +10619,9 @@ groups:
       entry, and the Accept message is already the entry for its effects. A second
       `Add` would record one move twice.
     verification: >-
-      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
-      `Add(CaseParticipant)` is enqueued and no `add_case_participant_to_case` entry is
-      committed.
+      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts
+      that the acceptance enqueues no `Add(CaseParticipant)` and commits no
+      `add_case_participant_to_case` entry.
     relationships:
     - rel_type: constrains
       spec_id: CM-17-004

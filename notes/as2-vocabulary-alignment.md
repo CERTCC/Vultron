@@ -802,9 +802,19 @@ to `Add` with one.
 
 **Touches.** The factory and wire class, `record_case_participant_created`, the
 `create_participant` example, the semantic registry and canonical signatures, the
-replica's apply node, `docs/reference/messages/case_management.md`, and the demo
-ledger recordings. Builds after #6465, which retires the Case Owner's
-`Add(CaseParticipant)` request.
+replica's apply node, `docs/reference/messages/case_management.md` and its
+`_occasions` fragments, the docs pages
+that name the `create_case_participant` entry
+(`docs/topics/case_lifecycle/case_initialization.md`,
+`docs/reference/messages/ledger_replication.md`,
+`docs/reference/rv-demo-protocol.md`, the `rv`, `rcv`, `rcv-reject` and `rvv`
+scenario pages and `docs/topics/scenarios/_engagement_status_entry.md`),
+`notes/demo-ci-scenario-coverage.md`, the demo ledger recordings, and the
+strict-xfail probes that hold the amended specs
+(`test/architecture/test_participant_seating_add_planned.py` and
+`test_the_stub_invite_adds_the_participant_record_to_the_case` in
+`test/core/use_cases/received/test_stub_invite_replay.py`). Builds after #6465,
+which retires the Case Owner's `Add(CaseParticipant)` request.
 
 ---
 

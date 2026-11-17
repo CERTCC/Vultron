@@ -17,45 +17,37 @@ satisfies them exists; see ``notes/spec-authoring-rules.md`` § "Use a Strict
 ``xfail`` for Not-Yet-Implemented Specs", and ``notes/as2-vocabulary-alignment.md``
 § "The Owner Offers a Removal or Reinstatement".
 
-A probe passes once a test module elsewhere under ``test/`` carries its
-requirement's ID in a ``@pytest.mark.spec`` marker. #6465 writes those tests, so
-only it flips the probes. When a probe XPASSes, ``strict=True`` fails the build
-and the builder deletes the probe.
+A CM-31-043 to CM-31-045 probe passes once a test module elsewhere under
+``test/`` carries its requirement's ID in a ``@pytest.mark.spec`` marker. CM-31-011
+and CM-31-036 already carry markers on tests of today's ``Add(CaseParticipant)``
+request, so their probe checks the behavior instead: it passes once the Offer
+naming the actor is recognized. #6465 writes those tests and the pattern, so only
+it flips the probes. When a probe XPASSes, ``strict=True`` fails the build and the
+builder deletes the probe.
 """
 
-import re
-from functools import cache
 from pathlib import Path
 
 import pytest
 
-from test.architecture import _corpus
+from test.architecture._planned_probe import has_behavioral_test
+from test.support.objects import make
+from vultron.core.models.events import MessageSemantics
+from vultron.semantic_registry import find_matching_semantics
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Add,
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Person
 
 _OFFER = "Tracked by #6465 (the Case Owner offers a reinstatement)."
 
-_HERE = Path(__file__).resolve()
-_TEST_ROOT = _corpus.REPO_ROOT / "test"
-_SPEC_MARKER = re.compile(r"spec\(([^)]*)\)")
-_CM_ID = re.compile(r"""["'](CM-\d{2}-\d{3})["']""")
-
-
-@cache
-def _cm_ids_marked_elsewhere() -> frozenset[str]:
-    """Return the CM IDs that a ``spec`` marker in another test module names."""
-    return frozenset(
-        spec_id
-        for path, text in _corpus.sources_mentioning("CM-", under=_TEST_ROOT)
-        if path.resolve() != _HERE
-        for marker_args in _SPEC_MARKER.findall(text)
-        for spec_id in _CM_ID.findall(marker_args)
-    )
+_HERE = Path(__file__)
 
 
 def _has_behavioral_test(request: pytest.FixtureRequest) -> bool:
-    """Return whether another test module marks this probe's spec ID."""
-    marker = request.node.get_closest_marker("spec")
-    assert marker is not None and marker.args, "a probe needs a spec marker"
-    return set(marker.args) <= _cm_ids_marked_elsewhere()
+    """Return whether another test module marks this probe's spec IDs."""
+    return has_behavioral_test(request, _HERE)
 
 
 @pytest.mark.spec("CM-31-043")
@@ -92,3 +84,28 @@ def test_a_replica_applies_a_reinstatement_only_from_its_entry(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)
+
+
+@pytest.mark.spec("CM-31-011", "CM-31-036")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-31-011, CM-31-036: no pattern recognizes the Case Owner's "
+        f"Offer(Add(<Actor>, target=<case>)). {_OFFER}"
+    ),
+)
+def test_the_reinstatement_offer_naming_the_actor_is_recognized() -> None:
+    vendor = make(as_Person, id_="https://example.org/vendor")
+    offer = make(
+        as_Offer,
+        actor="https://example.org/owner",
+        object_=make(
+            as_Add,
+            actor="https://example.org/owner",
+            object_=vendor,
+            target="https://example.org/cases/1",
+        ),
+        to=["https://example.org/case-manager"],
+    )
+
+    assert find_matching_semantics(offer) is not MessageSemantics.UNKNOWN

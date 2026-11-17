@@ -201,7 +201,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 | 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` (today; #6465 makes it `Offer(Add(<Actor>, target=<case>))`, CM-31-011) | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
 
 - **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
   itself or the Case Owner; it never removes on its own. Self-removal is
@@ -227,10 +227,11 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `ActivityNotYetLedgeredNode` skips first (CLP-05-006). At a replica the
   received tree writes nothing; the entry is replayed by the apply nodes, which
   resolve the record through `actor_participant_index`.
-- **`Add(CaseParticipant)` only reinstates** (CM-31-012). It is refused for a
-  participant not removed or never joined, and nothing emits it after a stub-Invite
-  acceptance: replicas learn of a new member from the entries for the messages
-  exchanged (ADR-0114).
+- **A reinstatement request never seats a member** (CM-31-036). It is refused for
+  a participant not removed or never joined. An acceptance of a stub Invite adds no
+  record (CM-31-012): the record was added when the Invite went out (CM-11-023), and
+  replicas learn of the new member from the entries for the messages exchanged
+  (ADR-0114).
 - **Catch-up follows the active check.** The reinstatement entry is withheld while the
   participant is still removed and recorded in its pause (`embargo_paused_from_index`);
   `BackfillAdmittedParticipantsNode` then sends every entry from that index, so the
