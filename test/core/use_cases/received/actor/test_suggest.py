@@ -342,6 +342,7 @@ class TestOfferActorToCaseReceivedUseCase:
             if (sealed := read_sealed_body(dl, activity_id)) is not None
             and (body := json.loads(sealed.body))["type"] == "Accept"
         ]
+        assert record.received_body is not None
         assert [body["object"] for body in accepts] == [
             json.loads(record.received_body)
         ]

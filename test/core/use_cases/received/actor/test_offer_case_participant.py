@@ -2170,6 +2170,7 @@ def test_the_deferred_answer_embeds_the_recommendation_as_received(verb):
         and isinstance((body := json.loads(sealed.body)).get("object"), dict)
         and body["object"].get("id") == RECOMMENDATION_ID
     ]
+    assert archived.received_body is not None
     assert embedded == [json.loads(archived.received_body)]
 
 
