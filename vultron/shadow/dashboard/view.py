@@ -444,6 +444,16 @@ def _advised_row(
     return row
 
 
+def band_legend_shades(colour_map: ColourMap) -> tuple[Shade, ...]:
+    """The legend strip for *colour_map*: nine evenly spaced shades from
+    better (layer 1, dark end) to dominated (deeper layers, light end).
+
+    Returns:
+        A tuple of nine Shade objects spanning the colour map.
+    """
+    return tuple(shade(colour_map, layer, 9) for layer in range(1, 10))
+
+
 def band_views(advice: CaseAdvice, names: Mapping[str, str]) -> list[BandView]:
     """Each band of *advice*, in its order: harm-free, trade-off, unhelpful.
 
@@ -555,6 +565,7 @@ __all__ = [
     "RM_BADGES",
     "UNOBSERVABLE_NOTE",
     "Row",
+    "band_legend_shades",
     "desiderata_rows",
     "desideratum_code",
     "desideratum_label",

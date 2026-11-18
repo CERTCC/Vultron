@@ -193,6 +193,23 @@ groups:
       asserts a move's advice holds no case score, and
       `test/measure/advice/test_bands.py::test_a_higher_vendor_sum_does_not_put_a_move_first`
       asserts a harm-free move comes before a trade-off move with a higher sum.
+  - id: SHD-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Each shaded band of the case shadow tool's move advice MUST show a colour
+      legend strip labelled from better (layer 1) to dominated (deeper layers),
+      and the help text MUST state that moves at the better end are dominated by
+      no other move.
+    rationale: >-
+      The legend shows the analyst how the shading maps to dominance, without
+      requiring them to remember which end of the gradient is better. The help
+      text explains the legend's meaning in words, so the analyst reads the
+      bands and the legend together as one piece of advice.
+    verification: >-
+      A dashboard test asserts each shaded band's display includes a legend
+      labelled "better (layer 1)" and "dominated (deeper layers)", and asserts
+      the help text no longer says "darkest".
 - id: SHD-04
   title: Live Vultron Case Reader
   specs:

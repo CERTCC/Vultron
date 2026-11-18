@@ -53,7 +53,8 @@ from vultron.core.models.case_reading import CaseReading
 from vultron.core.ports.case_reader import CaseReader
 from vultron.errors import VultronError
 from vultron.logging_correlation import correlation_context
-from vultron.measure.advice import CaseAdvice, case_advice
+from vultron.measure.advice import CaseAdvice, ColourMap, case_advice
+from vultron.measure.advice.case import BAND_COLOUR_MAPS
 from vultron.shadow.analysis import CaseAnalysis, analyse
 from vultron.shadow.dashboard import view
 from vultron.shadow.log_content import CaseLog, case_log_context
@@ -167,6 +168,27 @@ def _show_standing(analysis: CaseAnalysis) -> None:
     _show_advice(case_advice(standing), names)
 
 
+def _show_legend(colour_map: ColourMap) -> None:
+    """Show the legend strip for *colour_map*: a gradient from better to
+    dominated."""
+    shades = view.band_legend_shades(colour_map)
+    html_parts = [
+        '<div style="display: flex; align-items: center; margin: 0.5em 0;">'
+        '<span style="margin-right: 0.5em;">better (layer 1)</span>'
+        '<div style="display: flex; flex: 1;">'
+    ]
+    for s in shades:
+        html_parts.append(
+            f'<div style="{s.css}; flex: 1; height: 1.5em;"></div>'
+        )
+    html_parts.append(
+        "</div>"
+        '<span style="margin-left: 0.5em;">◀──▶ dominated (deeper layers)</span>'
+        "</div>"
+    )
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+
 def _shaded_table(band: view.BandView) -> None:
     """*band*'s moves, each row filled with its shade."""
     styles = [s.css for s in band.shades]
@@ -177,10 +199,12 @@ def _shaded_table(band: view.BandView) -> None:
     st.dataframe(styler, hide_index=True, width="stretch")
 
 
-def _show_band(band: view.BandView) -> None:
+def _show_band(band: view.BandView, colour_map: ColourMap | None) -> None:
     if not band.rows:
         st.caption(band.empty)
     elif band.shaded:
+        if colour_map is not None:
+            _show_legend(colour_map)
         _shaded_table(band)
     else:
         _table(band.rows, band.empty)
@@ -196,12 +220,13 @@ def _show_advice(advice: CaseAdvice, names: Mapping[str, str]) -> None:
     st.caption(advice.help_text)
     st.caption(advice.harm_note)
     for band in view.band_views(advice, names):
+        colour_map = BAND_COLOUR_MAPS.get(band.band)
         if band.collapsed:
             with st.expander(f"{band.title} ({len(band.rows)})"):
-                _show_band(band)
+                _show_band(band, colour_map)
         else:
             st.markdown(f"**{band.title}**")
-            _show_band(band)
+            _show_band(band, colour_map)
     st.subheader("Moves with no band")
     _table(
         view.unbanded_rows(advice, names),

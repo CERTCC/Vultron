@@ -80,7 +80,10 @@ COORDINATOR_ROLES: frozenset[CVDRole] = frozenset(
 )
 """The roles whose moves are "yours" to the analyst: the coordinator's."""
 
-HELP_TEXT = "Choose the darkest move in the highest band that has one."
+HELP_TEXT = (
+    "Prefer the harm-free band; inside a band, moves at the 'better' end are"
+    " dominated by no other move."
+)
 """The page's advice on reading the bands (ADR-0200)."""
 
 HARM_NOTE = (
@@ -174,7 +177,7 @@ class AdvisedMove(BaseModel):
             order.
         band: The band its own shift sets.
         layer: Its depth in the dominance order over every open move, layer
-            1 darkest; ``None`` in the unhelpful band, which is not shaded.
+            1 better; ``None`` in the unhelpful band, which is not shaded.
         top: A harm-free or trade-off move in layer 1; the page marks it
             with an icon.
         leading_among_yours: A coordinator's harm-free or trade-off move that
