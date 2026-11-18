@@ -403,9 +403,10 @@ filterwarnings = [
     # process: an alias misuse in our own code is hidden too. pydantic warns
     # with no stacklevel, so the module is its own and cannot scope the entry
     # to FastAPI. test_actor_dl_override_warning.py pins both the entry and
-    # its narrowness. Upstream report draft, not yet filed: "Upstream FastAPI
-    # report" in
-    # https://github.com/CERTCC/Vultron/pull/6629#upstream-fastapi-report
+    # its narrowness. Reported upstream as symptom 3 of
+    # https://github.com/fastapi/fastapi/discussions/15914 (still present in
+    # FastAPI 0.162.2); drop this entry once FastAPI stops suppressing the
+    # warning with catch_warnings.
     "ignore:The 'alias' attribute with value:pydantic.warnings.UnsupportedFieldAttributeWarning",
 ]
 # An `xfail` that omits `strict` is strict anyway (TB-17-001).  This is the
