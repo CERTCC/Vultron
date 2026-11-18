@@ -32,7 +32,7 @@ from test.support.hold_timers import (
     HoldTimerLeakedError,
     stop_hold_timer_from_another_thread,
 )
-from vultron.adapters.driven import datalayer_sqlite
+from vultron.adapters.driven import actor_hosts, datalayer_sqlite
 from vultron.adapters.driving.fastapi import sender_sequence_holds as holds
 
 _WAIT_SECONDS = 5.0
@@ -41,7 +41,7 @@ _WAIT_SECONDS = 5.0
 @pytest.fixture
 def no_hosted_actors(monkeypatch):
     """A timer round, if one ran, would read no store."""
-    monkeypatch.setattr(holds.actor_hosts, "hosted_actor_ids", lambda: [])
+    monkeypatch.setattr(actor_hosts, "hosted_actor_ids", lambda *_node: [])
 
 
 @pytest.fixture

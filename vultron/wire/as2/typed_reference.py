@@ -324,6 +324,18 @@ def is_of_kind(cls: type, kind: type) -> bool:
     )
 
 
+def class_named_by(type_value: object) -> type[BaseModel] | None:
+    """The wire class a received ``type`` value names, or ``None`` if unknown.
+
+    A wire-only lookup (VM-06-013): a core class name such as ``CoreActor``
+    is not an AS2 ``type``, so it names no class here.
+    """
+    try:
+        return resolve_wire_type(type_value)
+    except KeyError:
+        return None
+
+
 def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
     """The class of the object *reference* names, or ``None`` if unknown.
 
@@ -331,10 +343,7 @@ def referenced_class(reference: as_TypedReference) -> type[BaseModel] | None:
     object by its own (MV-10-011), so a reference to an ``EmbargoEvent``
     satisfies a pattern that asks for any ``Event``.
     """
-    try:
-        return resolve_wire_type(reference.type_)
-    except KeyError:
-        return None
+    return class_named_by(reference.type_)
 
 
 __all__ = [
@@ -345,6 +354,7 @@ __all__ = [
     "as_TypedReference",
     "carries_preview",
     "case_reference",
+    "class_named_by",
     "is_case_reference",
     "is_of_kind",
     "is_previewed_reference",

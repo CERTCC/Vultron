@@ -38,9 +38,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import cast
 
-from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.actor_hosts import CONFIGURED_NODE, NodeDeployment
 from vultron.adapters.driven.clock import act_clock
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     queue_due_held_activities,
 )
@@ -52,10 +51,12 @@ from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.core.services.sender_sequence_order import (
     end_expired_sender_sequence_holds,
 )
+from vultron.errors import VultronConfigScopeLostError
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,9 @@ def end_expired_holds(actor_dl: DataLayer, clock: ClockPort) -> int:
 
 async def end_hosted_expired_holds(
     emitter: ActivityEmitter | None = None,
+    *,
+    dispatcher: ActivityDispatcher | None = None,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> int:
     """End every hosted actor's expired holds and replay what they release.
 
@@ -107,27 +111,38 @@ async def end_hosted_expired_holds(
     logged, and the next actor is still worked on; its holds stay for the
     next round.
 
-    Production-only, as the startup replay is: it runs only in the
-    single-node production lifespan, so ``hosted_actor_ids()`` and
-    ``get_datalayer`` are the node's own (DL-07-011).
+    Only *node*'s stores are read (DL-07-011), as for the startup replay:
+    the production lifespan passes the configured node, and an app holding
+    its own config its own deployment (ADR-0206).  A
+    ``VultronConfigScopeLostError`` means the work lost its app's config
+    scope, which is no one actor's failure, so it is raised, not logged.
+    Any other ``VultronWiringError`` stays one actor's failure.
+
+    Args:
+        emitter: The app's ActivityEmitter, for the drain after the replay.
+        dispatcher: The app's own dispatcher, or ``None`` for the
+            process-wide one the production lifespan installs.
+        node: The deployment whose hosted actors' holds are ended.
 
     Returns:
         The number of holds ended across every hosted actor.
     """
     total = 0
     clock = act_clock()
-    for actor_id in actor_hosts.hosted_actor_ids():
+    for actor_id in node.actor_ids():
         try:
-            actor_dl = get_datalayer(actor_id)
+            actor_dl = node.store(actor_id)
             ended: list[int] = []
             await run_actor_work_then_replay(
                 actor_dl,
                 actor_id,
-                None,
+                dispatcher,
                 emitter,
                 partial(_end_expired_holds_into, actor_dl, clock, ended),
             )
             total += sum(ended)
+        except VultronConfigScopeLostError:
+            raise
         except Exception:
             # The timer boundary: one actor's failure must not stop the
             # others' or the server.  Its holds stay for the next round.
@@ -151,14 +166,25 @@ async def _end_holds_on_interval(
     emitter: ActivityEmitter | None,
     interval_seconds: float,
     stop: asyncio.Event,
+    dispatcher: ActivityDispatcher | None,
+    node: NodeDeployment,
 ) -> None:
-    """End expired holds every *interval_seconds* until *stop* is set."""
+    """End expired holds every *interval_seconds* until *stop* is set.
+
+    A round's failure is logged and the next round tries again, except a
+    ``VultronConfigScopeLostError`` (a lost config scope, ADR-0206), which
+    ends the task and surfaces when it is awaited at shutdown.
+    """
     while not stop.is_set():
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval_seconds)
         except TimeoutError:
             try:
-                await end_hosted_expired_holds(emitter=emitter)
+                await end_hosted_expired_holds(
+                    emitter=emitter, dispatcher=dispatcher, node=node
+                )
+            except VultronConfigScopeLostError:
+                raise
             except Exception:
                 logger.exception(
                     "Sender-sequence hold timer round raised (SYNC-21-011)."
@@ -196,16 +222,21 @@ def running_sender_sequence_hold_timers() -> list[SenderSequenceHoldTimer]:
 
 def start_sender_sequence_hold_timer(
     emitter: ActivityEmitter | None,
+    *,
+    dispatcher: ActivityDispatcher | None = None,
+    node: NodeDeployment = CONFIGURED_NODE,
 ) -> SenderSequenceHoldTimer:
     """Start the hold timer as a task beside the server (SYNC-21-011).
 
-    It checks every quarter of ``ledger.sender_sequence_hold_seconds``.
+    It checks every quarter of ``ledger.sender_sequence_hold_seconds``, read
+    in the caller's config scope: an app holding its own config reads its
+    own (ADR-0206).  Each round works on *node*'s hosted actors.
     """
     interval = get_config().ledger.sender_sequence_hold_seconds / 4
     stop = asyncio.Event()
     timer = SenderSequenceHoldTimer(
         task=asyncio.create_task(
-            _end_holds_on_interval(emitter, interval, stop)
+            _end_holds_on_interval(emitter, interval, stop, dispatcher, node)
         ),
         stop=stop,
     )

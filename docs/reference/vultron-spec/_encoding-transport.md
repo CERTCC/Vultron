@@ -53,7 +53,7 @@ Vultron uses AS2 verbs rather than defining its own:
 `Create`, `Offer`, `Accept`, `Reject`, `TentativeReject`, `Announce`, `Update`, `Add`, `Remove`, `Invite`, `Read`, `Join`, `Leave`, `Ignore` and `Undo`.
 
 Because the verbs are generic, meaning often comes from **nesting**: an Activity whose object is itself an Activity.
-Accepting an embargo is `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`, an `Accept` whose object is the `Invite` being accepted, which in turn carries the embargo.
+Accepting an embargo is `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])`, an `Accept` whose object is the `Invite` being accepted, which in turn carries the embargo.
 The nesting is what distinguishes accepting an embargo from accepting a report, `Accept(Offer(VulnerabilityReport))`.
 
 This version uses the AS2 vocabulary, not full ActivityPub server behavior.
@@ -276,9 +276,9 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
-    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
-    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
+    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` | `EP` |
+    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]` | — |
+    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase])` | — |
 
 === "Wire JSON"
 

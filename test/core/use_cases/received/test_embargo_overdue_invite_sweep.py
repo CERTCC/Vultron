@@ -615,7 +615,11 @@ class TestOwnerTrigger:
         dl, embargo = _store(owner=_MANAGER)
         dl.create(make(as_Service, id_=_MANAGER, name="Coordinator"))
         proposal = em_propose_embargo_activity(
-            embargo, context=_CASE_ID, actor=_INVITEE, at=authored_at()
+            embargo,
+            context=_CASE_ID,
+            actor=_INVITEE,
+            invitee=_INVITEE,
+            at=authored_at(),
         )
         dl.create(proposal)
         case = cast(VulnerabilityCase, dl.read(_CASE_ID))

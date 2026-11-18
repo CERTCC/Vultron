@@ -1307,10 +1307,11 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
     reconstruct it as that core class before persisting it.  Ingress now only
     stages the inline object for routing (#3763), so the staging is what is
-    watched.
+    watched.  A type the wire does not name is not staged at all, since a
+    staged generic object of a core-only type is read back as the core class
+    (VM-06-013).
     """
     from vultron.adapters.inbox_staging import staging as staging_module
-    from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []
     real_object_to_record = staging_module.object_to_record
@@ -1336,6 +1337,9 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    stored = [o for o in persisted if getattr(o, "type_", None) == "CoreActor"]
-    assert len(stored) == 1, "the inline object was never staged"
-    assert not isinstance(stored[0], CoreObject)
+    assert any(getattr(o, "type_", None) == "Add" for o in persisted), (
+        "the activity itself was staged, so the spy saw the staging"
+    )
+    assert not [
+        o for o in persisted if getattr(o, "type_", None) == "CoreActor"
+    ]

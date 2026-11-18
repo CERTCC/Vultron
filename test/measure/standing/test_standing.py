@@ -239,6 +239,27 @@ def test_an_empty_history_leaves_every_desideratum_open():
     ]
 
 
+@pytest.mark.spec("CRD-02-005")
+def test_a_desideratum_over_an_unobservable_event_is_unknown():
+    """``VFDPXA`` meets or breaks every desideratum; with D unobservable,
+    each that orders D is unknown and the rest keep their status."""
+    score = score_prefix("VFDPXA")
+    seen = desiderata_standing(score)
+    unseen = desiderata_standing(score, frozenset({CSEvent.D}))
+    for before, after in zip(seen, unseen, strict=True):
+        if CSEvent.D in (after.before, after.after):
+            assert after.status is DesideratumStatus.UNKNOWN
+        else:
+            assert after == before
+
+
+def test_no_unobservable_event_leaves_every_status_as_the_score_reads():
+    score = score_prefix("VP")
+    assert desiderata_standing(score, frozenset()) == desiderata_standing(
+        score
+    )
+
+
 def test_publication_before_the_fix_breaks_what_it_precedes():
     by_order = {
         (s.before + s.after): s.status

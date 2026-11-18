@@ -335,6 +335,24 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
+def test_init_dispatcher_returns_an_undo_that_restores_the_previous(
+    monkeypatch,
+):
+    """The returned undo puts back the dispatcher held before (#5874)."""
+    previous = Mock()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", previous)
+    monkeypatch.setattr(
+        ih,
+        "get_dispatcher",
+        lambda use_case_map, port_factories=None: Mock(),
+    )
+
+    undo = ih.init_dispatcher()
+    assert ih._DISPATCHER_SLOT.value is not previous
+    undo()
+    assert ih._DISPATCHER_SLOT.value is previous
+
+
 def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
     """A rebuildable ``Add(Note)`` the legacy worker can hold for replay."""
     from vultron.wire.as2.factories import add_note_to_case_activity
@@ -1099,6 +1117,8 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
             as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
         ),
         actor="https://example.org/alice",
+        to=["https://example.org/bob"],
+        target="https://example.org/bob",
         published=published,
     )
 
@@ -1225,3 +1245,21 @@ def test_a_queue_holding_no_activity_does_not_expire():
         case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
+
+
+def test_resolve_actor_config_raises_when_the_app_scope_is_lost():
+    """A lost app config scope is a wiring fault, never the default (ADR-0206).
+
+    The load-error fallback to ``None`` (auto-create default) must not
+    swallow the ``VultronWiringError`` a scope-less read raises while an app
+    holding its own config runs.
+    """
+    import contextvars
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config import AppConfig, holding_app_config
+    from vultron.errors import VultronWiringError
+
+    with holding_app_config(AppConfig()):
+        with pytest.raises(VultronWiringError):
+            contextvars.Context().run(pf._resolve_actor_config)

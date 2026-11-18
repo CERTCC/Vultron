@@ -21,16 +21,19 @@ import pytest
 
 import vultron.measure.baselines as baselines_package
 import vultron.measure.baselines.desiderata as desiderata_module
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.baselines import (
     EXTENDED,
     NEAR_EQUAL_RATIO,
     ONE_VENDOR_MODEL,
+    ORIGINAL,
     Group,
     ModelName,
     baseline,
     frequency,
     implications,
     implies,
+    ordered_cs_events,
 )
 from vultron.measure.baselines.desiderata import (
     _candidates,
@@ -275,3 +278,23 @@ def test_the_pages_print_the_computed_tables(page, renderer):
 )
 def test_a_baseline_prints_as_a_fraction_only_when_short(value, shown):
     assert _exact(value) == shown
+
+
+def _by_notation(notation: str):
+    (found,) = [d for d in (*ORIGINAL, *EXTENDED) if d.notation == notation]
+    return found
+
+
+@pytest.mark.parametrize(
+    ("notation", "events"),
+    [
+        (r"$\evD \prec \evP$", {CSEvent.D, CSEvent.P}),
+        (r"$\evV_i \prec \evF_j$", {CSEvent.V, CSEvent.F}),
+        (r"$\evAc_i \prec \evP$", {CSEvent.P}),
+        (r"$\evE \prec \evX$", {CSEvent.X}),
+    ],
+)
+def test_a_desideratum_orders_the_case_state_events_its_ordering_names(
+    notation, events
+):
+    assert ordered_cs_events(_by_notation(notation)) == events

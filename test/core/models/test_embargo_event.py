@@ -159,6 +159,7 @@ class TestCoreEmbargoEventTimesAreUtc:
         invite = em_propose_embargo_activity(
             embargo,
             actor="https://example.org/actors/vendor",
+            invitee="https://example.org/actors/vendor",
             at=authored_at(),
         )
         body = json.loads(invite.model_dump_json(by_alias=True))

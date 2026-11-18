@@ -470,6 +470,7 @@ class TestEmbargoTriggerToField:
             embargo,
             context=self.case.id_,
             actor=self.finder.id_,
+            invitee=self.finder.id_,
             at=authored_at(),
         )
         self.dl.create(proposal)
@@ -552,6 +553,7 @@ class TestEmbargoTriggerToField:
             embargo,
             context=self.case.id_,
             actor=self.finder.id_,
+            invitee=self.finder.id_,
             at=authored_at(),
         )
         self.dl.create(proposal)

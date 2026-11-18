@@ -50,7 +50,6 @@ from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.inbox_staging.staging import _stage_inline_object
 from vultron.adapters.inbox_staging.store import _StagingStore
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -118,6 +117,37 @@ def test_rehydrate_routes_the_inline_object_without_storing_it(dl):
     assert dl.read(_NOTE_ID) is None
     assert dl.read(routed.id_) is None, "nor is the activity itself"
     assert sum(dl.count_all().values()) == 0, "nothing at all is written"
+
+
+@pytest.mark.spec("VM-06-013", "SE-01-006")
+@pytest.mark.parametrize("type_", ["CoreActor", "VultronPerson", "NoSuchType"])
+def test_an_inline_object_of_a_type_the_wire_names_not_routes_as_no_object(
+    dl, type_: str
+):
+    """An inline object whose ``type`` names no wire class is not staged.
+
+    ``CoreActor`` is a core class name, not an AS2 type.  Staged, it would be
+    read back as that core class and fill ``Offer``'s object as an actor, so
+    the Offer would route as an actor recommendation no sender stated.
+    Unstaged, the object stays a bare id, which no pattern's object_ accepts.
+    The same Offer naming an ``Organization`` routes as the recommendation.
+    """
+    import vultron.wire.as2.vocab.examples.actor as examples
+    from vultron.core.models.events import MessageSemantics
+    from vultron.semantic_registry import find_matching_semantics
+
+    body = examples.recommend_actor().model_dump(
+        by_alias=True, mode="json", exclude_none=True
+    )
+
+    def routed(object_type: str) -> MessageSemantics:
+        inline = {"id": f"{_ACTOR_URI}/{object_type}", "type": object_type}
+        return find_matching_semantics(
+            _routed(dl, signed_body({**body, "object": inline}))
+        )
+
+    assert routed("Organization") == MessageSemantics.OFFER_ACTOR_TO_CASE
+    assert routed(type_) == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
 
 
 @pytest.mark.spec("IO-03-004")
@@ -495,23 +525,23 @@ def test_stage_inline_object_stages_parsed_class_after_a_set_aside_key(
 def test_stage_inline_object_stages_no_core_class_for_core_only_name(
     datalayer, persisted
 ):
-    """The object the inbox persists for a core-only name is not core.
+    """The inbox stages nothing for an inline object of a core-only name.
 
     ``CoreActor`` is registered only in the core map.  Before the lookups went
     wire-only the inbox handed a core object to the DataLayer for an inbound
-    ``{"type": "CoreActor"}`` (ISSUE-3565); the parser leaves an unresolved
-    type to its parent field, and storage keeps what the parser produced.
+    ``{"type": "CoreActor"}`` (ISSUE-3565).  A generic object staged under
+    that type was still read back as the core class, which then filled the
+    activity's slot as an actor, so a type the wire does not name is not
+    staged at all (VM-06-013).
     """
-    from vultron.core.models.base import CoreObject
-
     activity = _parsed_announce(
         {"id": "urn:uuid:core-only-store", "type": "CoreActor"}
     )
 
     _stage_inline_object(datalayer, activity)
 
-    assert len(persisted) == 1
-    assert not isinstance(persisted[0], (CoreObject, CoreActor))
+    assert persisted == []
+    assert datalayer.read("urn:uuid:core-only-store") is None
 
 
 # ---------------------------------------------------------------------------

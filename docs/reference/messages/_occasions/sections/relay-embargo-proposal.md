@@ -7,7 +7,7 @@ Asks one participant to accept or reject proposed embargo terms, or a proposed r
 === "Details"
 
     - **When…** the CASE_MANAGER asks a Participant to answer embargo terms another Participant proposed
-    - **Send:** `Invite(EmbargoEvent)[context=VulnerabilityCase]`
+    - **Send:** `Invite(EmbargoEvent)[target=Actor, context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the CASE_MANAGER
     - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)

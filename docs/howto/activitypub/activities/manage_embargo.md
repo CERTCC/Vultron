@@ -84,7 +84,7 @@ flowchart TB
 Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(EmbargoEvent)`.
 An initial proposal, Embargo Proposal (EP), uses the same activity.
 
-1. Send `Invite(EmbargoEvent)` with the revised `EmbargoEvent`.
+1. Send `Invite(EmbargoEvent)` to the CASE_MANAGER, with the revised `EmbargoEvent` as its `object` and the CASE_MANAGER as its `target`.
    The case moves to `EM.REVISE`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-proposal.md" %}

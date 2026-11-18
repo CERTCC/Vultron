@@ -59,6 +59,7 @@ from vultron.core.models.case_reading import (
     UntranslatedFact,
     UntranslatedReason as Reason,
 )
+from vultron.core.models.case_reference import CVE_REFERENCE_TAG_RELS
 from vultron.errors import VultronNotFoundError
 from vultron.measure.history import CaseEventHistory, case_event_history
 from vultron.shadow.analysis import reading_ledger
@@ -322,3 +323,48 @@ def fake_case_records() -> list[OutsideRecord]:
         ),
         OutsideRecord("rec-untimed", "vendor_status", VENDOR, None),
     ]
+
+
+#: A string that is in no case but the marked one (:func:`marked_case_records`).
+CONTENT_MARKER = "ZQX-MARKER-5959"
+
+#: The marked case's outside tracker reference.
+TRACKER_REFERENCE = "https://vince.example.org/vince/case/5959/"
+
+
+def marked_case_records(
+    marker: str = CONTENT_MARKER, reference: str = TRACKER_REFERENCE
+) -> list[OutsideRecord]:
+    """:func:`fake_case_records`, with *marker* in the case's content.
+
+    The marker is in the case's title and description, in a vendor's
+    contact name, and in a record kind no rule names, so it reaches the
+    reading's ledger and its untranslated facts.  The case also holds an
+    outside tracker reference whose URL is *reference*.
+    """
+    records = fake_case_records()
+    case = _genesis_case()
+    case["name"] = f"Title {marker}"
+    case["summary"] = f"Description line one.\nVul detail {marker} here."
+    case["caseReferences"] = [
+        {
+            "id": f"{FAKE_CASE}#reference",
+            "type": "CaseReference",
+            "url": {
+                "type": "Link",
+                "href": reference,
+                "rel": [CVE_REFERENCE_TAG_RELS["issue-tracking"]],
+            },
+            "name": f"Tracker case {marker}",
+        }
+    ]
+    vendor = _vendor_participant()
+    vendor["name"] = f"Contact {marker}"
+    records[0] = OutsideRecord("rec-open", "case_opened", CM, _at(0), case)
+    records[1] = OutsideRecord(
+        "rec-vendor", "vendor_listed", CM, _at(1), vendor
+    )
+    records.append(
+        OutsideRecord("rec-marked", f"post_{marker}", VENDOR, _at(5))
+    )
+    return records

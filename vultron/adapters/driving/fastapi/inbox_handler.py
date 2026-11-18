@@ -31,6 +31,7 @@ focused submodules:
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import cast
 
@@ -187,7 +188,7 @@ def make_dispatcher() -> ActivityDispatcher:
     return d
 
 
-def init_dispatcher() -> None:
+def init_dispatcher() -> Callable[[], None]:
     """Initialise the module-level dispatcher.
 
     Must be called once during application startup (e.g. from the FastAPI
@@ -198,10 +199,15 @@ def init_dispatcher() -> None:
     some time (the DataLayer is passed at dispatch time via :func:`dispatch`),
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
+
+    Returns:
+        A callable that puts back the dispatcher held before this call; the
+        application lifespan calls it at shutdown (#5874).
     """
     dispatcher = make_dispatcher()
-    _DISPATCHER_SLOT.install(dispatcher)
+    undo = _DISPATCHER_SLOT.install(dispatcher)
     logger.info("Initialised inbox dispatcher: %s", type(dispatcher).__name__)
+    return undo
 
 
 def dispatch(
